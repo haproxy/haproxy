@@ -26,7 +26,19 @@
 #include <common/buf.h>
 #include <common/ist.h>
 
-/* these macros are used mainly when parsing header fields */
+/*
+ * some macros mainly used when parsing header fileds.
+ * from RFC7230:
+ *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
+ *   SEP                 = one of the 17 defined separators or SP or HT
+ *   LWS                 = CR, LF, SP or HT
+ *   SPHT                = SP or HT. Use this macro and not a boolean expression for best speed.
+ *   CRLF                = CR or LF. Use this macro and not a boolean expression for best speed.
+ *   token               = any CHAR except CTL or SEP. Use this macro and not a boolean expression for best speed.
+ *
+ * added for ease of use:
+ *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
+ */
 #define HTTP_FLG_CTL  0x01
 #define HTTP_FLG_SEP  0x02
 #define HTTP_FLG_LWS  0x04

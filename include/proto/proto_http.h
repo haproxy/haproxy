@@ -29,19 +29,6 @@
 #include <proto/channel.h>
 #include <proto/h1.h>
 
-/*
- * some macros used for the request parsing.
- * from RFC7230:
- *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
- *   SEP                 = one of the 17 defined separators or SP or HT
- *   LWS                 = CR, LF, SP or HT
- *   SPHT                = SP or HT. Use this macro and not a boolean expression for best speed.
- *   CRLF                = CR or LF. Use this macro and not a boolean expression for best speed.
- *   token               = any CHAR except CTL or SEP. Use this macro and not a boolean expression for best speed.
- *
- * added for ease of use:
- *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
- */
 
 extern struct pool_head *pool_head_uniqueid;
 
