@@ -365,17 +365,21 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 	struct h2c *h2c;
 	struct task *t = NULL;
 
-	/* we don't support outgoing connections for now */
-	if (conn->mux_ctx)
-		goto fail_no_h2c;
-
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
 		goto fail_no_h2c;
 
-	h2c->shut_timeout = h2c->timeout = prx->timeout.client;
-	if (tick_isset(prx->timeout.clientfin))
-		h2c->shut_timeout = prx->timeout.clientfin;
+	if (conn->mux_ctx) {
+		h2c->flags = H2_CF_IS_BACK;
+		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
+		if (tick_isset(prx->timeout.serverfin))
+			h2c->shut_timeout = prx->timeout.serverfin;
+	} else {
+		h2c->flags = H2_CF_NONE;
+		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
+		if (tick_isset(prx->timeout.clientfin))
+			h2c->shut_timeout = prx->timeout.clientfin;
+	}
 
 	h2c->proxy = prx;
 	h2c->task = NULL;
@@ -406,7 +410,6 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 	h2c->conn = conn;
 	h2c->max_id = -1;
 	h2c->errcode = H2_ERR_NO_ERROR;
-	h2c->flags = H2_CF_NONE;
 	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
@@ -426,14 +429,30 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 	LIST_INIT(&h2c->fctl_list);
 	LIST_INIT(&h2c->sending_list);
 	LIST_INIT(&h2c->buf_wait.list);
-	conn->mux_ctx = h2c;
 
 	if (t)
 		task_queue(t);
 
+	if (h2c->flags & H2_CF_IS_BACK) {
+		/* FIXME: this is temporary, for outgoing connections we need
+		 * to immediately allocate a stream until the code is modified
+		 * so that the caller calls ->attach(). For now the outgoing cs
+		 * is stored as conn->mux_ctx by the caller.
+		 */
+		struct h2s *h2s;
+
+		h2s = h2c_bck_stream_new(h2c, conn->mux_ctx);
+		if (!h2s)
+			goto fail_stream;
+	}
+
+	conn->mux_ctx = h2c;
+
 	/* prepare to read something */
 	tasklet_wakeup(h2c->wait_event.task);
 	return 0;
+  fail_stream:
+	hpack_dht_free(h2c->ddht);
   fail:
 	if (t)
 		task_free(t);
@@ -924,6 +943,34 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 		b_del(&h2c->dbuf, ret1);
 
 	return ret2;
+}
+
+/* Try to send a connection preface, then upon success try to send our
+ * preface which is a SETTINGS frame. Returns > 0 on success or zero on
+ * missing data. It may return an error in h2c.
+ */
+static int h2c_bck_send_preface(struct h2c *h2c)
+{
+	struct buffer *res;
+
+	if (h2c_mux_busy(h2c, NULL)) {
+		h2c->flags |= H2_CF_DEM_MBUSY;
+		return 0;
+	}
+
+	res = h2_get_buf(h2c, &h2c->mbuf);
+	if (!res) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
+	if (!b_data(res)) {
+		/* preface not yet sent */
+		b_istput(res, ist(H2_CONN_PREFACE));
+	}
+
+	return h2c_send_settings(h2c);
 }
 
 /* try to send a GOAWAY frame on the connection to report an error or a graceful
@@ -1876,6 +1923,8 @@ static void h2_process_demux(struct h2c *h2c)
 
 	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
 		if (h2c->st0 == H2_CS_PREFACE) {
+			if (h2c->flags & H2_CF_IS_BACK)
+				return;
 			if (unlikely(h2c_frt_recv_preface(h2c) <= 0)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
 				if (h2c->st0 == H2_CS_ERROR) {
@@ -2220,6 +2269,23 @@ static void h2_process_demux(struct h2c *h2c)
 static int h2_process_mux(struct h2c *h2c)
 {
 	struct h2s *h2s, *h2s_back;
+
+	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
+		if (unlikely(h2c->st0 == H2_CS_PREFACE && (h2c->flags & H2_CF_IS_BACK))) {
+			if (unlikely(h2c_bck_send_preface(h2c) <= 0)) {
+				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				if (h2c->st0 == H2_CS_ERROR) {
+					h2c->st0 = H2_CS_ERROR2;
+					sess_log(h2c->conn->owner);
+				}
+				goto fail;
+			}
+			h2c->st0 = H2_CS_SETTINGS1;
+		}
+		/* need to wait for the other side */
+		if (h2c->st0 == H2_CS_SETTINGS1)
+			return 1;
+	}
 
 	/* start by sending possibly pending window updates */
 	if (h2c->rcvd_c > 0 &&
