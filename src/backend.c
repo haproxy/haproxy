@@ -1189,7 +1189,8 @@ int connect_server(struct stream *s)
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
-		conn_install_mux_be(srv_conn, srv_cs);
+		if (conn_install_mux_be(srv_conn, srv_cs) < 0)
+			return SF_ERR_INTERNAL;
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
