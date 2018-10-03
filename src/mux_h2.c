@@ -381,6 +381,7 @@ static int h2c_frt_init(struct connection *conn)
 	h2c->wait_list.task->process = h2_io_cb;
 	h2c->wait_list.task->context = h2c;
 	h2c->wait_list.wait_reason = 0;
+	LIST_INIT(&h2c->wait_list.list);
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
 	if (!h2c->ddht)
@@ -414,12 +415,10 @@ static int h2c_frt_init(struct connection *conn)
 
 	if (t)
 		task_queue(t);
-	conn_xprt_want_recv(conn);
-	LIST_INIT(&h2c->wait_list.list);
 
-	/* Try to read, if nothing is available yet we'll just subscribe */
-	if (h2_recv(h2c))
-		h2_process(h2c);
+	/* prepare to read something */
+	conn_xprt_want_recv(conn);
+	tasklet_wakeup(h2c->wait_list.task);
 	return 0;
  fail:
 	if (t)
