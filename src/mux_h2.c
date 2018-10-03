@@ -115,6 +115,7 @@ struct h2c {
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_cs;       /* number of attached conn_streams */
+	struct proxy *proxy; /* the proxy this connection was created for */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
@@ -358,7 +359,6 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 {
 	struct h2c *h2c;
 	struct task *t = NULL;
-	struct session *sess = conn->owner;
 
 	/* we don't support outgoing connections for now */
 	if (conn->mux_ctx)
@@ -368,11 +368,11 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 	if (!h2c)
 		goto fail_no_h2c;
 
+	h2c->shut_timeout = h2c->timeout = prx->timeout.client;
+	if (tick_isset(prx->timeout.clientfin))
+		h2c->shut_timeout = prx->timeout.clientfin;
 
-	h2c->shut_timeout = h2c->timeout = sess->fe->timeout.client;
-	if (tick_isset(sess->fe->timeout.clientfin))
-		h2c->shut_timeout = sess->fe->timeout.clientfin;
-
+	h2c->proxy = prx;
 	h2c->task = NULL;
 	if (tick_isset(h2c->timeout)) {
 		t = task_new(tid_bit);
@@ -2357,7 +2357,6 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 static int h2_process(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
-	struct session *sess = conn->owner;
 
 	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
@@ -2370,7 +2369,7 @@ static int h2_process(struct h2c *h2c)
 	}
 	h2_send(h2c);
 
-	if (sess && unlikely(sess->fe->state == PR_STSTOPPED)) {
+	if (unlikely(h2c->proxy->state == PR_STSTOPPED)) {
 		/* frontend is stopping, reload likely in progress, let's try
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.
