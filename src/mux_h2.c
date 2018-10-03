@@ -661,13 +661,14 @@ static void h2s_destroy(struct h2s *h2s)
 	pool_free(pool_head_h2s, h2s);
 }
 
-/* creates a new stream <id> on the h2c connection and returns it, or NULL in
- * case of memory allocation error.
+/* allocates a new stream <id> for connection <h2c> and adds it into h2c's
+ * stream tree. In case of error, nothing is added and NULL is returned. The
+ * causes of errors can be any failed memory allocation. The caller is
+ * responsible for checking if the connection may support an extra stream
+ * prior to calling this function.
  */
-static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
+static struct h2s *h2s_new(struct h2c *h2c, int id)
 {
-	struct session *sess = h2c->conn->owner;
-	struct conn_stream *cs;
 	struct h2s *h2s;
 
 	h2s = pool_alloc(pool_head_h2s);
@@ -687,6 +688,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	h2s->wait_event.wait_reason = 0;
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
+	h2s->cs        = NULL;
 	h2s->mws       = h2c->miw;
 	h2s->flags     = H2_SF_NONE;
 	h2s->errcode   = H2_ERR_NO_ERROR;
@@ -701,8 +703,30 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
-	if (h2c->nb_streams > h2_settings_max_concurrent_streams)
-		goto out_close;
+
+	return h2s;
+
+ out_free_h2s:
+	pool_free(pool_head_h2s, h2s);
+ out:
+	return NULL;
+}
+
+/* creates a new stream <id> on the h2c connection and returns it, or NULL in
+ * case of memory allocation error.
+ */
+static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
+{
+	struct session *sess = h2c->conn->owner;
+	struct conn_stream *cs;
+	struct h2s *h2s;
+
+	if (h2c->nb_streams >= h2_settings_max_concurrent_streams)
+		goto out;
+
+	h2s = h2s_new(h2c, id);
+	if (!h2s)
+		goto out;
 
 	cs = cs_new(h2c->conn);
 	if (!cs)
@@ -734,9 +758,6 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 	cs_free(cs);
  out_close:
 	h2s_destroy(h2s);
-	h2s = NULL;
- out_free_h2s:
-	pool_free(pool_head_h2s, h2s);
  out:
 	sess_log(sess);
 	return NULL;
@@ -1661,10 +1682,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	/* Note: we don't emit any other logs below because ff we return
-	 * positively from h2c_stream_new(), the stream will report the error,
-	 * and if we return in error, h2c_stream_new() will emit the error.
+	 * positively from h2c_frt_stream_new(), the stream will report the error,
+	 * and if we return in error, h2c_frt_stream_new() will emit the error.
 	 */
-	h2s = h2c_stream_new(h2c, h2c->dsi);
+	h2s = h2c_frt_stream_new(h2c, h2c->dsi);
 	if (!h2s) {
 		error = H2_ERR_INTERNAL_ERROR;
 		goto conn_err;
