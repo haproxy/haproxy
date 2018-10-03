@@ -684,10 +684,9 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
 		goto out;
 
 	h2s->wait_list.task = tasklet_new();
-	if (!h2s->wait_list.task) {
-		pool_free(pool_head_h2s, h2s);
-		goto out;
-	}
+	if (!h2s->wait_list.task)
+		goto out_free_h2s;
+
 	LIST_INIT(&h2s->wait_list.list);
 	h2s->recv_wait_list = NULL;
 	h2s->wait_list.task->process = h2_deferred_shut;
@@ -743,9 +742,11 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
  out_close:
 	h2s_destroy(h2s);
 	h2s = NULL;
-	sess_log(sess);
+ out_free_h2s:
+	pool_free(pool_head_h2s, h2s);
  out:
-	return h2s;
+	sess_log(sess);
+	return NULL;
 }
 
 /* try to send a settings frame on the connection. Returns > 0 on success, 0 if
