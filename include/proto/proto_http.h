@@ -29,6 +29,8 @@
 #include <proto/channel.h>
 #include <proto/h1.h>
 
+#define IS_HTX_STRM(strm) (strm_fe(strm)->options2 & PR_O2_USE_HTX)
+#define IS_HTX_SMP(smp)   ((smp)->strm && IS_HTX_STRM((smp)->strm))
 
 extern struct pool_head *pool_head_uniqueid;
 
