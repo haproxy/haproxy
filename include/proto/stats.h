@@ -26,6 +26,7 @@
 #include <common/config.h>
 #include <types/applet.h>
 #include <types/stream_interface.h>
+#include <types/stats.h>
 
 
 static inline enum field_format field_format(const struct field *f, int e)
