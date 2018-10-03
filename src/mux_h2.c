@@ -60,6 +60,7 @@ static struct pool_head *pool_head_h2s;
 #define H2_CF_GOAWAY_SENT       0x00001000  // a GOAWAY frame was successfully sent
 #define H2_CF_GOAWAY_FAILED     0x00002000  // a GOAWAY frame failed to be sent
 #define H2_CF_WAIT_FOR_HS       0x00004000  // We did check that at least a stream was waiting for handshake
+#define H2_CF_IS_BACK           0x00008000  // this is an outgoing connection
 
 
 /* H2 connection state, in h2c->st0 */
