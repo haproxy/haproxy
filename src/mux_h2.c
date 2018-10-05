@@ -537,7 +537,7 @@ static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 /* marks an error on the stream */
 static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 {
-	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_ERROR) {
+	if (h2s->id && h2s->st < H2_SS_ERROR) {
 		h2s->errcode = err;
 		h2s->st = H2_SS_ERROR;
 		if (h2s->cs)
@@ -1027,8 +1027,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	memcpy(str, "\x00\x00\x04\x03\x00", 5);
 
 	write_n32(str + 5, h2c->dsi);
-	write_n32(str + 9, (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) ?
-		  h2s->errcode : H2_ERR_STREAM_CLOSED);
+	write_n32(str + 9, h2s->id ? h2s->errcode : H2_ERR_STREAM_CLOSED);
 	ret = b_istput(res, ist2(str, 13));
 
 	if (unlikely(ret <= 0)) {
@@ -1044,7 +1043,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	}
 
  ignore:
-	if (h2s->st > H2_SS_IDLE && h2s->st < H2_SS_CLOSED) {
+	if (h2s->id) {
 		h2s->flags |= H2_SF_RST_SENT;
 		h2s_close(h2s);
 	}
