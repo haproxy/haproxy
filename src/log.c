@@ -2684,12 +2684,16 @@ void strm_log(struct stream *s)
  * cannot lead to the creation of a regular stream. Because of this the log
  * level is LOG_INFO or LOG_ERR depending on the "log-separate-error" setting
  * in the frontend. The caller must simply know that it should not call this
- * function to report unimportant events.
+ * function to report unimportant events. It is safe to call this function with
+ * sess==NULL (will not do anything).
  */
 void sess_log(struct session *sess)
 {
 	int size, level;
 	int sd_size = 0;
+
+	if (!sess)
+		return;
 
 	if (LIST_ISEMPTY(&sess->fe->logsrvs))
 		return;
