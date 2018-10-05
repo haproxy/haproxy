@@ -3898,6 +3898,243 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	goto end;
 }
 
+/* Try to send a HEADERS frame matching HTX request present in HTX message
+ * <htx> for the H2 stream <h2s>. Returns the number of bytes sent. The caller
+ * must check the stream's status to detect any error which might have happened
+ * subsequently to a successful send. The htx blocks are automatically removed
+ * from the message. The htx message is assumed to be valid since produced from
+ * the internal code, hence it contains a start line, an optional series of
+ * header blocks and an end of header, otherwise an invalid frame could be
+ * emitted and the resulting htx message could be left in an inconsistent state.
+ */
+static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
+{
+	struct http_hdr list[MAX_HTTP_HDR];
+	struct h2c *h2c = h2s->h2c;
+	struct htx_blk *blk;
+	struct htx_blk *blk_end;
+	struct buffer outbuf;
+	struct htx_sl *sl;
+	struct ist meth, path;
+	enum htx_blk_type type;
+	int es_now = 0;
+	int ret = 0;
+	int hdr;
+	int idx;
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		h2s->flags |= H2_SF_BLK_MBUSY;
+		return 0;
+	}
+
+	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
+	}
+
+	/* determine the first block which must not be deleted, blk_end may
+	 * be NULL if all blocks have to be deleted.
+	 */
+	idx = htx_get_head(htx);
+	blk_end = NULL;
+	while (idx != -1) {
+		type = htx_get_blk_type(htx_get_blk(htx, idx));
+		idx = htx_get_next(htx, idx);
+		if (type == HTX_BLK_EOH) {
+			if (idx != -1)
+				blk_end = htx_get_blk(htx, idx);
+			break;
+		}
+	}
+
+	/* get the start line, we do have one */
+	blk = htx_get_blk(htx, htx->sl_off);
+	sl = htx_get_blk_ptr(htx, blk);
+	meth = htx_sl_req_meth(sl);
+	path = htx_sl_req_uri(sl);
+
+	/* and the rest of the headers, that we dump starting at header 0 */
+	hdr = 0;
+
+	idx = htx->sl_off;
+	while ((idx = htx_get_next(htx, idx)) != -1) {
+		blk = htx_get_blk(htx, idx);
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		if (type != HTX_BLK_HDR)
+			break;
+
+		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
+			goto fail;
+
+		list[hdr].n = htx_get_blk_name(htx, blk);
+		list[hdr].v = htx_get_blk_value(htx, blk);
+
+#if 1
+		{
+			/* FIXME: header names MUST be lower case in H2. For now it's
+			 * not granted by HTX so let's force them now.
+			 */
+			char *p;
+			for (p = list[hdr].n.ptr; p != list[hdr].n.ptr + list[hdr].n.len; p++)
+				if (unlikely(isupper(*p)))
+					*p = tolower(*p);
+		}
+#endif
+		hdr++;
+	}
+
+	/* marker for end of headers */
+	list[hdr].n = ist("");
+
+	chunk_reset(&outbuf);
+
+	while (1) {
+		outbuf.area  = b_tail(&h2c->mbuf);
+		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.data = 0;
+
+		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+			break;
+	realign_again:
+		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+	}
+
+	if (outbuf.size < 9)
+		goto full;
+
+	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4 */
+	memcpy(outbuf.area, "\x00\x00\x00\x01\x04", 5);
+	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
+	outbuf.data = 9;
+
+	/* encode the method, which necessarily is the first one */
+	if (outbuf.data < outbuf.size && sl->info.req.meth == HTTP_METH_GET)
+		outbuf.area[outbuf.data++] = 0x82; // indexed field : idx[02]=(":method", "GET")
+	else if (outbuf.data < outbuf.size && sl->info.req.meth == HTTP_METH_POST)
+		outbuf.area[outbuf.data++] = 0x83; // indexed field : idx[03]=(":method", "POST")
+	else if (unlikely(outbuf.data + 2 + meth.len <= outbuf.size)) {
+		/* basic encoding of the method code */
+		outbuf.area[outbuf.data++] = 0x42; // indexed name -- name=":method" (idx 2)
+		outbuf.area[outbuf.data++] = meth.len; // method length
+		memcpy(&outbuf.area[outbuf.data], meth.ptr, meth.len);
+	}
+	else {
+		if (b_space_wraps(&h2c->mbuf))
+			goto realign_again;
+		goto full;
+	}
+
+	/* encode the scheme which is always "https" (or 0x86 for "http") */
+	if (outbuf.data < outbuf.size)
+		outbuf.area[outbuf.data++] = 0x87; // indexed field : idx[02]=(":scheme", "https")
+
+	/* encode the path, which necessarily is the second one */
+	if (outbuf.data < outbuf.size && isteq(path, ist("/"))) {
+		outbuf.area[outbuf.data++] = 0x84; // indexed field : idx[04]=(":path", "/")
+	}
+	else if (outbuf.data < outbuf.size && isteq(path, ist("/index.html"))) {
+		outbuf.area[outbuf.data++] = 0x85; // indexed field : idx[04]=(":path", "/index.html")
+	}
+	else if (!hpack_encode_header(&outbuf, ist(":path"), path)) {
+		/* output full */
+		if (b_space_wraps(&h2c->mbuf))
+			goto realign_again;
+		goto full;
+	}
+
+	/* encode all headers, stop at empty name */
+	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
+		/* these ones do not exist in H2 and must be dropped. */
+		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding")))
+			continue;
+
+		if (isteq(list[hdr].n, ist("")))
+			break; // end
+
+		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
+			/* output full */
+			if (b_space_wraps(&h2c->mbuf))
+				goto realign_again;
+			goto full;
+		}
+	}
+
+	/* we may need to add END_STREAM if we have no body :
+	 *  - request already closed, or :
+	 *  - no transfer-encoding, and :
+	 *  - no content-length or content-length:0
+	 * Fixme: this doesn't take into account CONNECT requests.
+	 */
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+		es_now = 1;
+
+	if (sl->flags & HTX_SL_F_BODYLESS)
+		es_now = 1;
+
+	if (h2s->cs->flags & CS_FL_SHW)
+		es_now = 1;
+
+	/* update the frame's size */
+	h2_set_frame_size(outbuf.area, outbuf.data - 9);
+
+	if (es_now)
+		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
+
+	/* commit the H2 response */
+	b_add(&h2c->mbuf, outbuf.data);
+	h2s->flags |= H2_SF_HEADERS_SENT;
+	h2s->st = H2_SS_OPEN;
+
+	/* for now we don't implemented CONTINUATION, so we wait for a
+	 * body or directly end in TRL2.
+	 */
+	if (es_now) {
+		// trim any possibly pending data (eg: inconsistent content-length)
+		h2s->flags |= H2_SF_ES_SENT;
+		h2s->st = H2_SS_HLOC;
+	}
+
+	/* remove all header blocks including the EOH and compute the
+	 * corresponding size.
+	 *
+	 * FIXME: We should remove everything when es_now is set.
+	 */
+	ret = 0;
+	idx = htx_get_head(htx);
+	blk = htx_get_blk(htx, idx);
+	while (blk != blk_end) {
+		ret += htx_get_blksz(blk);
+		blk = htx_remove_blk(htx, blk);
+	}
+
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+		htx_remove_blk(htx, blk_end);
+
+ end:
+	return ret;
+ full:
+	h2c->flags |= H2_CF_MUX_MFULL;
+	h2s->flags |= H2_SF_BLK_MROOM;
+	ret = 0;
+	goto end;
+ fail:
+	/* unparsable HTX messages, too large ones to be produced in the local
+	 * list etc go here (unrecoverable errors).
+	 */
+	h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+	ret = 0;
+	goto end;
+}
+
 /* Try to send a DATA frame matching HTTP response present in HTX structure
  * <htx>, for stream <h2s>. Returns the number of bytes sent. The caller must
  * check the stream's status to detect any error which might have happened
@@ -4276,6 +4513,17 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			bsize = htx_get_blksz(blk);
 
 			switch (btype) {
+			case HTX_BLK_REQ_SL:
+				/* start-line before headers */
+				ret = h2s_htx_bck_make_req_headers(h2s, htx);
+				if (ret > 0) {
+					total += ret;
+					count -= ret;
+					if (ret < bsize)
+						goto done;
+				}
+				break;
+
 			case HTX_BLK_RES_SL:
 				/* start-line before headers */
 				ret = h2s_htx_frt_make_resp_headers(h2s, htx);
@@ -4313,7 +4561,10 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	/* legacy transfer mode */
 	while (h2s->h1m.state < H1_MSG_DONE && count) {
 		if (h2s->h1m.state <= H1_MSG_LAST_LF) {
-			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
+			if (h2s->h2c->flags & H2_CF_IS_BACK)
+				ret = -1;
+			else
+				ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
 		}
 		else if (h2s->h1m.state < H1_MSG_TRAILERS) {
 			ret = h2s_frt_make_resp_data(h2s, buf, total, count);
