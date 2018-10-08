@@ -233,7 +233,7 @@ static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
-static int h2_frt_decode_headers(struct h2s *h2s);
+static int h2s_decode_headers(struct h2s *h2s);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs);
@@ -1801,7 +1801,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->cs->flags |= CS_FL_REOS;
 	}
 
-	if (!h2_frt_decode_headers(h2s))
+	if (!h2s_decode_headers(h2s))
 		return NULL;
 
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -2884,11 +2884,11 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 }
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
- * HTX request. Returns the number of bytes emitted if > 0, or 0 if it couldn't
- * proceed. Stream errors are reported in h2s->errcode and connection errors in
- * h2c->errcode.
+ * HTX request or response depending on the connection's side. Returns the
+ * number of bytes emitted if > 0, or 0 if it couldn't proceed. Stream errors
+ * are reported in h2s->errcode and connection errors in h2c->errcode.
  */
-static int h2_frt_decode_headers(struct h2s *h2s)
+static int h2s_decode_headers(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
@@ -2994,10 +2994,16 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
 
-	if (htx)
-		outlen = h2_make_htx_request(list, htx, &msgf);
-	else
+	if (htx) {
+		/* HTX mode */
+		if (h2c->flags & H2_CF_IS_BACK)
+			outlen = h2_make_htx_response(list, htx, &msgf);
+		else
+			outlen = h2_make_htx_request(list, htx, &msgf);
+	} else {
+		/* HTTP/1 mode */
 		outlen = h2_make_h1_request(list, b_tail(csbuf), try, &msgf);
+	}
 
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
