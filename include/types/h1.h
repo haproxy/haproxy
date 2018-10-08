@@ -147,6 +147,7 @@ enum h1m_state {
 #define H1_MF_CONN_UPG          0x00000080 // message contains "connection: upgrade"
 #define H1_MF_XFER_LEN          0x00000100 // message xfer size can be determined
 #define H1_MF_XFER_ENC          0x00000200 // transfer-encoding is present
+#define H1_MF_NO_PHDR           0x00000400 // don't add pseudo-headers in the header list
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK

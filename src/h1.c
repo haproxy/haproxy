@@ -1053,13 +1053,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					state = H1_MSG_RQVER;
 					goto http_output_full;
 				}
-				http_set_hdr(&hdr[hdr_count++], ist(":method"), sl.rq.m);
+				if (!(h1m->flags & H1_MF_NO_PHDR))
+					http_set_hdr(&hdr[hdr_count++], ist(":method"), sl.rq.m);
 
 				if (unlikely(hdr_count >= hdr_num)) {
 					state = H1_MSG_RQVER;
 					goto http_output_full;
 				}
-				http_set_hdr(&hdr[hdr_count++], ist(":path"), sl.rq.u);
+				if (!(h1m->flags & H1_MF_NO_PHDR))
+					http_set_hdr(&hdr[hdr_count++], ist(":path"), sl.rq.u);
 			}
 
 			sol = ptr - start;
@@ -1210,7 +1212,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				state = H1_MSG_RPREASON;
 				goto http_output_full;
 			}
-			http_set_hdr(&hdr[hdr_count++], ist(":status"), sl.st.c);
+			if (!(h1m->flags & H1_MF_NO_PHDR))
+				http_set_hdr(&hdr[hdr_count++], ist(":status"), sl.st.c);
 		}
 
 		sol = ptr - start;
