@@ -904,7 +904,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			start = ptr;
 
 			sol = 0;
-			sl.rq.m = skip;
+			sl.rq.m.ptr = ptr;
 			hdr_count = 0;
 			state = H1_MSG_RQMETH;
 			goto http_msg_rqmeth;
@@ -932,22 +932,22 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth, http_msg_ood, state, H1_MSG_RQMETH);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			sl.rq.m_l = ptr - start;
-			sl.rq.meth = find_http_meth(start, sl.rq.m_l);
+			sl.rq.m.len = ptr - sl.rq.m.ptr;
+			sl.rq.meth = find_http_meth(start, sl.rq.m.len);
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth_sp, http_msg_ood, state, H1_MSG_RQMETH_SP);
 		}
 
 		if (likely(HTTP_IS_CRLF(*ptr))) {
 			/* HTTP 0.9 request */
-			sl.rq.m_l = ptr - start;
-			sl.rq.meth = find_http_meth(start, sl.rq.m_l);
+			sl.rq.m.len = ptr - sl.rq.m.ptr;
+			sl.rq.meth = find_http_meth(sl.rq.m.ptr, sl.rq.m.len);
 		http_msg_req09_uri:
-			sl.rq.u = ptr - start + skip;
+			sl.rq.u.ptr = ptr;
 		http_msg_req09_uri_e:
-			sl.rq.u_l = ptr - start + skip - sl.rq.u;
+			sl.rq.u.len = ptr - sl.rq.u.ptr;
 		http_msg_req09_ver:
-			sl.rq.v = ptr - start + skip;
-			sl.rq.v_l = 0;
+			sl.rq.v.ptr = ptr;
+			sl.rq.v.len = 0;
 			goto http_msg_rqline_eol;
 		}
 		state = H1_MSG_RQMETH;
@@ -956,7 +956,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RQMETH_SP:
 	http_msg_rqmeth_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			sl.rq.u = ptr - start + skip;
+			sl.rq.u.ptr = ptr;
 			goto http_msg_rquri;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -991,7 +991,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri2, http_msg_ood, state, H1_MSG_RQURI);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			sl.rq.u_l = ptr - start + skip - sl.rq.u;
+			sl.rq.u.len = ptr - sl.rq.u.ptr;
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rquri_sp, http_msg_ood, state, H1_MSG_RQURI_SP);
 		}
 		if (likely((unsigned char)*ptr >= 128)) {
@@ -1019,7 +1019,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RQURI_SP:
 	http_msg_rquri_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			sl.rq.v = ptr - start + skip;
+			sl.rq.v.ptr = ptr;
 			goto http_msg_rqver;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -1034,7 +1034,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqver, http_msg_ood, state, H1_MSG_RQVER);
 
 		if (likely(HTTP_IS_CRLF(*ptr))) {
-			sl.rq.v_l = ptr - start + skip - sl.rq.v;
+			sl.rq.v.len = ptr - sl.rq.v.ptr;
 		http_msg_rqline_eol:
 			/* We have seen the end of line. Note that we do not
 			 * necessarily have the \n yet, but at least we know that we
@@ -1044,22 +1044,22 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			 */
 
 			if (likely(!skip_update)) {
-				if ((sl.rq.v_l == 8) &&
-				    ((start[sl.rq.v + 5] > '1') ||
-				     ((start[sl.rq.v + 5] == '1') && (start[sl.rq.v + 7] >= '1'))))
+				if ((sl.rq.v.len == 8) &&
+				    (*(sl.rq.v.ptr + 5) > '1' ||
+				     (*(sl.rq.v.ptr + 5) == '1' && *(sl.rq.v.ptr + 7) >= '1')))
 					h1m->flags |= H1_MF_VER_11;
 
 				if (unlikely(hdr_count >= hdr_num)) {
 					state = H1_MSG_RQVER;
 					goto http_output_full;
 				}
-				http_set_hdr(&hdr[hdr_count++], ist(":method"), ist2(start + sl.rq.m, sl.rq.m_l));
+				http_set_hdr(&hdr[hdr_count++], ist(":method"), sl.rq.m);
 
 				if (unlikely(hdr_count >= hdr_num)) {
 					state = H1_MSG_RQVER;
 					goto http_output_full;
 				}
-				http_set_hdr(&hdr[hdr_count++], ist(":path"), ist2(start + sl.rq.u, sl.rq.u_l));
+				http_set_hdr(&hdr[hdr_count++], ist(":path"), sl.rq.u);
 			}
 
 			sol = ptr - start;
@@ -1083,7 +1083,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (restarting)
 			goto restart;
 
-		if (unlikely(sl.rq.v_l == 0))
+		if (unlikely(sl.rq.v.len == 0))
 			goto http_msg_last_lf;
 
 		EXPECT_LF_HERE(ptr, http_msg_invalid, state, H1_MSG_RQLINE_END);
@@ -1103,7 +1103,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			start = ptr;
 
 			sol = 0;
-			sl.st.v = skip;
+			sl.st.v.ptr = ptr;
 			hdr_count = 0;
 			state = H1_MSG_RPVER;
 			goto http_msg_rpver;
@@ -1131,11 +1131,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver, http_msg_ood, state, H1_MSG_RPVER);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			sl.st.v_l = ptr - start;
+			sl.st.v.len = ptr - sl.st.v.ptr;
 
-			if ((sl.st.v_l == 8) &&
-			    ((start[sl.st.v + 5] > '1') ||
-			     ((start[sl.st.v + 5] == '1') && (start[sl.st.v + 7] >= '1'))))
+			if ((sl.st.v.len == 8) &&
+			    (*(sl.st.v.ptr + 5) > '1' ||
+			     (*(sl.st.v.ptr + 5) == '1' && *(sl.st.v.ptr + 7) >= '1')))
 				h1m->flags |= H1_MF_VER_11;
 
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpver_sp, http_msg_ood, state, H1_MSG_RPVER_SP);
@@ -1147,7 +1147,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	http_msg_rpver_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
 			sl.st.status = 0;
-			sl.st.c = ptr - start + skip;
+			sl.st.c.ptr = ptr;
 			goto http_msg_rpcode;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -1169,22 +1169,22 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		}
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			sl.st.c_l = ptr - start + skip - sl.st.c;
+			sl.st.c.len = ptr - sl.st.c.ptr;
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode_sp, http_msg_ood, state, H1_MSG_RPCODE_SP);
 		}
 
 		/* so it's a CR/LF, so there is no reason phrase */
-		sl.st.c_l = ptr - start + skip - sl.st.c;
+		sl.st.c.len = ptr - sl.st.c.ptr;
 
 	http_msg_rsp_reason:
-		sl.st.r = ptr - start + skip;
-		sl.st.r_l = 0;
+		sl.st.r.ptr = ptr;
+		sl.st.r.len = 0;
 		goto http_msg_rpline_eol;
 
 	case H1_MSG_RPCODE_SP:
 	http_msg_rpcode_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
-			sl.st.r = ptr - start + skip;
+			sl.st.r.ptr = ptr;
 			goto http_msg_rpreason;
 		}
 		if (likely(HTTP_IS_SPHT(*ptr)))
@@ -1196,7 +1196,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	http_msg_rpreason:
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpreason, http_msg_ood, state, H1_MSG_RPREASON);
-		sl.st.r_l = ptr - start + skip - sl.st.r;
+		sl.st.r.len = ptr - sl.st.r.ptr;
 	http_msg_rpline_eol:
 		/* We have seen the end of line. Note that we do not
 		 * necessarily have the \n yet, but at least we know that we
@@ -1210,7 +1210,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				state = H1_MSG_RPREASON;
 				goto http_output_full;
 			}
-			http_set_hdr(&hdr[hdr_count++], ist(":status"), ist2(start + sl.st.c, sl.st.c_l));
+			http_set_hdr(&hdr[hdr_count++], ist(":status"), sl.st.c);
 		}
 
 		sol = ptr - start;

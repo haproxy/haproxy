@@ -23,6 +23,7 @@
 #define _TYPES_H1_H
 
 #include <common/http.h>
+#include <common/ist.h>
 
 /* Legacy version of the HTTP/1 message state, used by the channels, should
  * ultimately be removed.
@@ -177,15 +178,15 @@ struct h1m {
 /* basic H1 start line, describes either the request and the response */
 union h1_sl {                          /* useful start line pointers, relative to ->sol */
 	struct {
-		int m, m_l;            /* METHOD, length */
-		int u, u_l;            /* URI, length */
-		int v, v_l;            /* VERSION, length */
+		struct ist m;          /* METHOD */
+		struct ist u;          /* URI */
+		struct ist v;          /* VERSION */
 		enum http_meth_t meth; /* method */
 	} rq;                          /* request line : field, length */
 	struct {
-		int v, v_l;            /* VERSION, length */
-		int c, c_l;            /* CODE, length */
-		int r, r_l;            /* REASON, length */
+		struct ist v;          /* VERSION */
+		struct ist c;          /* CODE */
+		struct ist r;          /* REASON */
 		uint16_t status;       /* status code */
 	} st;                          /* status line : field, length */
 };
