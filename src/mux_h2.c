@@ -3615,6 +3615,9 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	size_t total = 0;
 	size_t ret;
 
+	if (h2s->h2c->st0 < H2_CS_FRAME_H)
+		return 0;
+
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
