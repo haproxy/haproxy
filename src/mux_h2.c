@@ -753,7 +753,7 @@ static struct h2s *h2c_stream_new(struct h2c *h2c, int id)
  * it couldn't do anything. It may return an error in h2c. See RFC7540#11.3 for
  * the various settings codes.
  */
-static int h2c_snd_settings(struct h2c *h2c)
+static int h2c_send_settings(struct h2c *h2c)
 {
 	struct buffer *res;
 	char buf_data[100]; // enough for 15 settings
@@ -850,7 +850,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 		return 0;
 	}
 
-	ret2 = h2c_snd_settings(h2c);
+	ret2 = h2c_send_settings(h2c);
 	if (ret2 > 0)
 		b_del(&h2c->dbuf, ret1);
 
