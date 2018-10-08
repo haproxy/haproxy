@@ -156,6 +156,7 @@ enum h2_err {
 
 int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf);
 int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf);
+int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf);
 
 /*
  * Some helpful debugging functions.
