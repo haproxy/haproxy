@@ -1833,6 +1833,69 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	return NULL;
 }
 
+/* processes a HEADERS frame. Returns h2s on success or NULL on missing data.
+ * It may return an error in h2c or h2s. Described in RFC7540#6.2. Most of the
+ * errors here are reported as connection errors since it's impossible to
+ * recover from such errors after the compression context has been altered.
+ */
+static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
+{
+	int error;
+
+	if (!h2c->dfl) {
+		error = H2_ERR_PROTOCOL_ERROR; // empty headers frame!
+		sess_log(h2c->conn->owner);
+		goto strm_err;
+	}
+
+	if (!b_size(&h2c->dbuf))
+		return NULL; // empty buffer
+
+	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
+		return NULL; // incomplete frame
+
+	if (h2c->flags & H2_CF_DEM_TOOMANY)
+		return 0; // too many cs still present
+
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->flags |= H2_SF_ES_RCVD;
+		h2s->cs->flags |= CS_FL_REOS;
+	}
+
+	if (!h2s_decode_headers(h2s))
+		return NULL;
+
+	if (h2c->st0 >= H2_CS_ERROR)
+		return NULL;
+
+	if (h2s->st >= H2_SS_ERROR) {
+		/* stream error : send RST_STREAM */
+		h2c->st0 = H2_CS_FRAME_E;
+	}
+
+	if (h2s->cs->flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
+		h2s->st = H2_SS_ERROR;
+	else if (h2s->cs->flags & CS_FL_REOS && h2s->st == H2_SS_OPEN)
+		h2s->st = H2_SS_HREM;
+	else if (h2s->cs->flags & CS_FL_REOS && h2s->st == H2_SS_HLOC)
+		h2s_close(h2s);
+
+	return h2s;
+
+ conn_err:
+	h2c_error(h2c, error);
+	return NULL;
+
+ strm_err:
+	if (h2s) {
+		h2s_error(h2s, error);
+		h2c->st0 = H2_CS_FRAME_E;
+	}
+	else
+		h2c_error(h2c, error);
+	return NULL;
+}
+
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
  * It may return an error in h2c or h2s. Described in RFC7540#6.1.
  */
@@ -2173,7 +2236,10 @@ static void h2_process_demux(struct h2c *h2c)
 
 		case H2_FT_HEADERS:
 			if (h2c->st0 == H2_CS_FRAME_P) {
-				tmp_h2s = h2c_frt_handle_headers(h2c, h2s);
+				if (h2c->flags & H2_CF_IS_BACK)
+					tmp_h2s = h2c_bck_handle_headers(h2c, h2s);
+				else
+					tmp_h2s = h2c_frt_handle_headers(h2c, h2s);
 				if (tmp_h2s) {
 					h2s = tmp_h2s;
 					ret = 1;
