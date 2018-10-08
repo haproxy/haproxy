@@ -96,6 +96,28 @@ static inline void chunk_initstr(struct buffer *chk, const char *str)
 	chk->size = 0;			/* mark it read-only */
 }
 
+/* copies chunk <src> into <chk>. Returns 0 in case of failure. */
+static inline int chunk_cpy(struct buffer *chk, const struct buffer *src)
+{
+	if (unlikely(src->data >= chk->size))
+		return 0;
+
+	chk->data  = src->data;
+	memcpy(chk->area, src->area, src->data);
+	return 1;
+}
+
+/* appends chunk <src> after <chk>. Returns 0 in case of failure. */
+static inline int chunk_cat(struct buffer *chk, const struct buffer *src)
+{
+	if (unlikely(chk->data + src->data >= chk->size))
+		return 0;
+
+	memcpy(chk->area + chk->data, src->area, src->data);
+	chk->data += src->data;
+	return 1;
+}
+
 /* copies memory area <src> into <chk> for <len> bytes. Returns 0 in
  * case of failure. No trailing zero is added.
  */
