@@ -199,7 +199,6 @@ static inline void si_idle_cs(struct stream_interface *si, struct list *pool)
 		LIST_ADD(pool, &conn->list);
 
 	cs_attach(cs, si, &si_idle_conn_cb);
-	cs_want_recv(cs);
 }
 
 /* Attach conn_stream <cs> to the stream interface <si>. The stream interface
@@ -349,13 +348,15 @@ static inline void si_update(struct stream_interface *si)
 /* Calls chk_rcv on the connection using the data layer */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	si->ops->chk_rcv(si);
+	if (si->ops->chk_rcv)
+		si->ops->chk_rcv(si);
 }
 
 /* Calls chk_snd on the connection using the data layer */
 static inline void si_chk_snd(struct stream_interface *si)
 {
-	si->ops->chk_snd(si);
+	if (si->ops->chk_snd)
+		si->ops->chk_snd(si);
 }
 
 /* Calls chk_snd on the connection using the ctrl layer */
@@ -378,10 +379,6 @@ static inline int si_connect(struct stream_interface *si)
 	}
 	else {
 		/* reuse the existing connection */
-		if (!channel_is_empty(si_oc(si))) {
-			/* we'll have to send a request there. */
-			cs_want_send(cs);
-		}
 
 		/* the connection is established */
 		si->state = SI_ST_EST;

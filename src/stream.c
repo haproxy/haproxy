@@ -268,9 +268,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 		goto out_fail_accept;
 
 	/* finish initialization of the accepted file descriptor */
-	if (cs)
-		cs_want_recv(cs);
-	else if (appctx)
+	if (appctx)
 		si_applet_want_get(&s->si[0]);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
@@ -1679,6 +1677,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		si_cs_send(cs);
 		si_cs_recv(cs);
 	}
+redo:
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
@@ -2444,6 +2443,19 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
+		cs = objt_cs(si_f->end);
+		ret = 0;
+		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
+		    !(cs->flags & CS_FL_ERROR) && !(si_oc(si_f)->flags & CF_SHUTW))
+			ret = si_cs_send(cs);
+		cs = objt_cs(si_b->end);
+		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
+		    !(cs->flags & CS_FL_ERROR) && !(si_oc(si_b)->flags & CF_SHUTW))
+			ret |= si_cs_send(cs);
+
+		if (ret)
+			goto redo;
+
 		if (si_f->state == SI_ST_EST)
 			si_update(si_f);
 
@@ -2510,22 +2522,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 		/* We may have free'd some space in buffers, or have more to send/recv, try again */
-		cs = objt_cs(si_f->end);
-		ret = 0;
-		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
-			ret |= si_cs_send(cs);
-			si_cs_recv(cs);
-			ret |= (si_ic(si_f)->flags & CF_READ_PARTIAL) | (cs->conn->flags & CO_FL_ERROR);
-		}
-		cs = objt_cs(si_b->end);
-		if (cs && !(cs->conn->flags & CO_FL_ERROR)) {
-			ret |= si_cs_send(cs);
-			si_cs_recv(cs);
-			ret |= (si_ic(si_b)->flags & CF_READ_PARTIAL) | (cs->conn->flags & CO_FL_ERROR);
-
-		}
-		if (ret)
-			task_wakeup(t, TASK_WOKEN_IO);
 		return t; /* nothing more to do */
 	}
 

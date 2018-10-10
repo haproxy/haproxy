@@ -745,7 +745,6 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
-		__cs_stop_both(cs);
 		goto out_wakeup;
 	}
 
@@ -771,7 +770,6 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		b_realign_if_empty(&check->bo);
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 			chk_report_conn_err(check, errno, 0);
-			__cs_stop_both(cs);
 			goto out_wakeup;
 		}
 		if (b_data(&check->bo)) {
@@ -785,12 +783,10 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 		task_queue(t);
 	}
-	goto out_nowake;
+	goto out;
 
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
- out_nowake:
-	__cs_stop_send(cs);   /* nothing more to write */
  out:
 	return;
 }
@@ -1373,7 +1369,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	 * range quickly.  To avoid sending RSTs all the time, we first try to
 	 * drain pending data.
 	 */
-	__cs_stop_both(cs);
 	cs_shutw(cs, CS_SHW_NORMAL);
 
 	/* OK, let's not stay here forever */
@@ -1385,7 +1380,6 @@ out:
 	return;
 
  wait_more_data:
-	__cs_want_recv(cs);
 	cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
         goto out;
 }
@@ -1420,10 +1414,9 @@ static int wake_srv_chk(struct conn_stream *cs)
 		 * we expect errno to still be valid.
 		 */
 		chk_report_conn_err(check, errno, 0);
-		__cs_stop_both(cs);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
-	else if (!(conn->flags & CO_FL_HANDSHAKE) && !(cs->flags & (CS_FL_DATA_RD_ENA|CS_FL_DATA_WR_ENA))) {
+	else if (!(conn->flags & CO_FL_HANDSHAKE) && !check->type) {
 		/* we may get here if only a connection probe was required : we
 		 * don't have any data to send nor anything expected in response,
 		 * so the completion of the connection establishment is enough.
@@ -1624,8 +1617,6 @@ static int connect_conn_chk(struct task *t)
 	if (proto && proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
 
-	if (check->type)
-		cs_want_send(cs);
 
 #ifdef USE_OPENSSL
 	if (s->check.sni)
@@ -2180,10 +2171,8 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 				t->expire = tick_first(t->expire, t_con);
 			}
 
-			if (check->type) {
-				cs_want_recv(cs);   /* prepare for reading a possible reply */
+			if (check->type)
 				__event_srv_chk_r(cs);
-			}
 
 			task_set_affinity(t, tid_bit);
 			goto reschedule;
@@ -2683,10 +2672,6 @@ static int tcpcheck_main(struct check *check)
 			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 	}
 
-	/* It's only the rules which will enable send/recv */
-	if (cs)
-		cs_stop_both(cs);
-
 	while (1) {
 		/* We have to try to flush the output buffer before reading, at
 		 * the end, or if we're about to send a string that does not fit
@@ -2699,14 +2684,12 @@ static int tcpcheck_main(struct check *check)
 		     check->current_step->string_len >= b_room(&check->bo))) {
 			int ret;
 
-			__cs_want_send(cs);
 			ret = cs->conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
 			b_realign_if_empty(&check->bo);
 
 			if (ret <= 0) {
 				if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 					chk_report_conn_err(check, errno, 0);
-					__cs_stop_both(cs);
 					goto out_end_tcpcheck;
 				}
 				break;
@@ -2924,7 +2907,6 @@ static int tcpcheck_main(struct check *check)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
-			__cs_want_recv(cs);
 			if (cs->conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 					done = 1;
@@ -3026,7 +3008,6 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__cs_stop_recv(cs);
 				}
 			}
 			else {
@@ -3046,7 +3027,6 @@ static int tcpcheck_main(struct check *check)
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
-					__cs_stop_recv(cs);
 				}
 				/* not matched but was supposed to => ERROR */
 				else {
@@ -3098,15 +3078,9 @@ static int tcpcheck_main(struct check *check)
 		goto out_end_tcpcheck;
 	}
 
-	/* warning, current_step may now point to the head */
-	if (b_data(&check->bo))
-		__cs_want_send(cs);
-
 	if (&check->current_step->list != head &&
-	    check->current_step->action == TCPCHK_ACT_EXPECT) {
-		__cs_want_recv(cs);
+	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__event_srv_chk_r(cs);
-	}
 	goto out;
 
  out_end_tcpcheck:
@@ -3119,8 +3093,6 @@ static int tcpcheck_main(struct check *check)
 
 	if (check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
-
-	__cs_stop_both(cs);
 
  out:
 	return retcode;

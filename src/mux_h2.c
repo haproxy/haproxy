@@ -286,24 +286,18 @@ static int h2_buf_available(void *target)
 
 	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
-		if (h2_recv_allowed(h2c)) {
-			conn_xprt_want_recv(h2c->conn);
+		if (h2_recv_allowed(h2c))
 			tasklet_wakeup(h2c->wait_event.task);
-		}
 		return 1;
 	}
 
 	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc_margin(&h2c->mbuf, 0)) {
 		h2c->flags &= ~H2_CF_MUX_MALLOC;
-		if (!(h2c->flags & H2_CF_MUX_BLOCK_ANY))
-			conn_xprt_want_send(h2c->conn);
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
 			h2c->flags &= ~H2_CF_DEM_MROOM;
-			if (h2_recv_allowed(h2c)) {
-				conn_xprt_want_recv(h2c->conn);
+			if (h2_recv_allowed(h2c))
 				tasklet_wakeup(h2c->wait_event.task);
-			}
 		}
 		return 1;
 	}
@@ -312,10 +306,8 @@ static int h2_buf_available(void *target)
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
 	    b_alloc_margin(&h2s->rxbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
-		if (h2_recv_allowed(h2c)) {
-			conn_xprt_want_recv(h2c->conn);
+		if (h2_recv_allowed(h2c))
 			tasklet_wakeup(h2c->wait_event.task);
-		}
 		return 1;
 	}
 
@@ -427,7 +419,6 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 		task_queue(t);
 
 	/* prepare to read something */
-	conn_xprt_want_recv(conn);
 	tasklet_wakeup(h2c->wait_event.task);
 	return 0;
   fail:
@@ -2255,10 +2246,8 @@ static int h2_recv(struct h2c *h2c)
 			ret = 0;
 	} while (ret > 0);
 
-	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size)) {
-		conn_xprt_want_recv(conn);
+	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_event);
-	}
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -2445,25 +2434,13 @@ static int h2_process(struct h2c *h2c)
 	if (!b_data(&h2c->dbuf))
 		h2_release_buf(h2c, &h2c->dbuf);
 
-	/* stop being notified of incoming data if we can't process them */
-	if (!h2_recv_allowed(h2c))
-		__conn_xprt_stop_recv(conn);
-	else
-		__conn_xprt_want_recv(conn);
-
-	/* adjust output polling */
-	if (!(conn->flags & CO_FL_SOCK_WR_SH) &&
-	    h2c->st0 != H2_CS_ERROR2 && !(h2c->flags & H2_CF_GOAWAY_FAILED) &&
-	    (h2c->st0 == H2_CS_ERROR ||
-	     b_data(&h2c->mbuf) ||
-	     (h2c->mws > 0 && !LIST_ISEMPTY(&h2c->fctl_list)) ||
-	     (!(h2c->flags & H2_CF_MUX_BLOCK_ANY) && !LIST_ISEMPTY(&h2c->send_list)))) {
-		__conn_xprt_want_send(conn);
-	}
-	else {
+	if ((conn->flags & CO_FL_SOCK_WR_SH) ||
+	    h2c->st0 == H2_CS_ERROR2 || (h2c->flags & H2_CF_GOAWAY_FAILED) ||
+	    (h2c->st0 != H2_CS_ERROR &&
+	     !b_data(&h2c->mbuf) &&
+	     (h2c->mws <= 0 || LIST_ISEMPTY(&h2c->fctl_list)) &&
+	     ((h2c->flags & H2_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&h2c->send_list))))
 		h2_release_buf(h2c, &h2c->mbuf);
-		__conn_xprt_stop_send(conn);
-	}
 
 	if (h2c->task) {
 		if (eb_is_empty(&h2c->streams_by_id) || b_data(&h2c->mbuf)) {
@@ -2553,48 +2530,6 @@ static struct conn_stream *h2_attach(struct connection *conn)
 	return NULL;
 }
 
-/* callback used to update the mux's polling flags after changing a cs' status.
- * The caller (cs_update_mux_polling) will take care of propagating any changes
- * to the transport layer.
- */
-static void h2_update_poll(struct conn_stream *cs)
-{
-	struct h2s *h2s = cs->ctx;
-
-	if (!h2s)
-		return;
-
-	/* we may unblock a blocked read */
-
-	if (cs->flags & CS_FL_DATA_RD_ENA) {
-		/* the stream indicates it's willing to read */
-		h2s->h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (h2s->h2c->dsi == h2s->id) {
-			conn_xprt_want_recv(cs->conn);
-			tasklet_wakeup(h2s->h2c->wait_event.task);
-			conn_xprt_want_send(cs->conn);
-		}
-	}
-
-	/* Note: the stream and stream-int code doesn't allow us to perform a
-	 * synchronous send() here unfortunately, because this code is called
-	 * as si_update() from the process_stream() context. This means that
-	 * we have to queue the current cs and defer its processing after the
-	 * connection's cs list is processed anyway.
-	 */
-
-	if (cs->flags & CS_FL_DATA_WR_ENA) {
-		if (!b_data(&h2s->h2c->mbuf) && !(cs->conn->flags & CO_FL_SOCK_WR_SH))
-			conn_xprt_want_send(cs->conn);
-		tasklet_wakeup(h2s->h2c->wait_event.task);
-	}
-	/* We don't support unsubscribing from here, it shouldn't be a problem */
-
-	/* this can happen from within si_chk_snd() */
-	if (b_data(&h2s->h2c->mbuf) && !(cs->conn->flags & CO_FL_XPRT_WR_ENA))
-		conn_xprt_want_send(cs->conn);
-}
-
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
@@ -2613,11 +2548,8 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2c->flags & H2_CF_DEM_TOOMANY &&
 	    !h2_has_too_many_cs(h2c)) {
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
-		if (h2_recv_allowed(h2c)) {
-			__conn_xprt_want_recv(h2c->conn);
+		if (h2_recv_allowed(h2c))
 			tasklet_wakeup(h2c->wait_event.task);
-			conn_xprt_want_send(h2c->conn);
-		}
 	}
 
 	/* this stream may be blocked waiting for some data to leave (possibly
@@ -2635,9 +2567,7 @@ static void h2_detach(struct conn_stream *cs)
 		 */
 		h2c->flags &= ~H2_CF_DEM_BLOCK_ANY;
 		h2c->flags &= ~H2_CF_MUX_BLOCK_ANY;
-		conn_xprt_want_recv(cs->conn);
 		tasklet_wakeup(h2c->wait_event.task);
-		conn_xprt_want_send(cs->conn);
 	}
 
 	h2s_destroy(h2s);
@@ -2688,8 +2618,6 @@ static void h2_do_shutr(struct h2s *h2s)
 	    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
 	    h2c_send_goaway_error(h2c, h2s) <= 0)
 		return;
-	if (b_data(&h2c->mbuf) && !(h2c->conn->flags & CO_FL_XPRT_WR_ENA))
-		conn_xprt_want_send(h2c->conn);
 
 	h2s_close(h2s);
 
@@ -2747,8 +2675,6 @@ static void h2_do_shutw(struct h2s *h2s)
 		h2s_close(h2s);
 	}
 
-	if (b_data(&h2s->h2c->mbuf) && !(h2c->conn->flags & CO_FL_XPRT_WR_ENA))
-		conn_xprt_want_send(h2c->conn);
 
  add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
@@ -3690,7 +3616,6 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	b_del(buf, total);
 	if (total > 0) {
-		conn_xprt_want_send(h2s->h2c->conn);
 		if (!(h2s->h2c->wait_event.wait_reason & SUB_CAN_SEND))
 			tasklet_wakeup(h2s->h2c->wait_event.task);
 	}
@@ -3795,7 +3720,6 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 const struct mux_ops h2_ops = {
 	.init = h2_init,
 	.wake = h2_wake,
-	.update_poll = h2_update_poll,
 	.snd_buf = h2_snd_buf,
 	.rcv_buf = h2_rcv_buf,
 	.subscribe = h2_subscribe,

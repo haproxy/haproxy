@@ -60,29 +60,7 @@ static int mux_pt_wake(struct connection *conn)
 	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE)) ==
 	    CO_FL_EARLY_DATA)
 		conn->flags &= ~CO_FL_EARLY_DATA;
-	if (ret >= 0)
-		cs_update_mux_polling(cs);
 	return ret;
-}
-
-/* callback used to update the mux's polling flags after changing a cs' status.
- * The caller (cs_mux_update_poll) will take care of propagating any changes to
- * the transport layer.
- */
-static void mux_pt_update_poll(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-	int flags = 0;
-
-	conn_refresh_polling_flags(conn);
-
-	if (cs->flags & CS_FL_DATA_RD_ENA)
-		flags |= CO_FL_XPRT_RD_ENA;
-	if (cs->flags & CS_FL_DATA_WR_ENA)
-		flags |= CO_FL_XPRT_WR_ENA;
-
-	conn->flags = (conn->flags & ~(CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA)) | flags;
-	conn_cond_update_xprt_polling(conn);
 }
 
 /*
@@ -191,7 +169,6 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 const struct mux_ops mux_pt_ops = {
 	.init = mux_pt_init,
 	.wake = mux_pt_wake,
-	.update_poll = mux_pt_update_poll,
 	.rcv_buf = mux_pt_rcv_buf,
 	.snd_buf = mux_pt_snd_buf,
 	.subscribe = mux_pt_subscribe,

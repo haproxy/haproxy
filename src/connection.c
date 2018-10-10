@@ -134,6 +134,7 @@ void conn_fd_handler(int fd)
 			conn->send_wait = NULL;
 		} else
 			io_available = 1;
+		__conn_xprt_stop_send(conn);
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -153,6 +154,7 @@ void conn_fd_handler(int fd)
 			conn->recv_wait = NULL;
 		} else
 			io_available = 1;
+		__conn_xprt_stop_recv(conn);
 	}
 
 	/* It may happen during the data phase that a handshake is
@@ -341,6 +343,7 @@ int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 			conn->recv_wait = NULL;
 			sw->wait_reason &= ~SUB_CAN_RECV;
 		}
+		__conn_xprt_stop_recv(conn);
 	}
 	if (event_type & SUB_CAN_SEND) {
 		sw = param;
@@ -348,7 +351,9 @@ int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 			conn->send_wait = NULL;
 			sw->wait_reason &= ~SUB_CAN_SEND;
 		}
+		__conn_xprt_stop_send(conn);
 	}
+	conn_update_xprt_polling(conn);
 	return 0;
 }
 
@@ -363,6 +368,7 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 			conn->recv_wait = sw;
 		}
 		event_type &= ~SUB_CAN_RECV;
+		__conn_xprt_want_recv(conn);
 	}
 	if (event_type & SUB_CAN_SEND) {
 		sw = param;
@@ -371,9 +377,11 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 			conn->send_wait = sw;
 		}
 		event_type &= ~SUB_CAN_SEND;
+		__conn_xprt_want_send(conn);
 	}
 	if (event_type != 0)
 		return (-1);
+	conn_update_xprt_polling(conn);
 	return 0;
 }
 
@@ -603,6 +611,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 			line++;
 		}
+		__conn_xprt_stop_recv(conn);
 
 		if (!dst_s || !sport_s || !dport_s)
 			goto bad_header;

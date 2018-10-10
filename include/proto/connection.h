@@ -291,17 +291,6 @@ static inline void conn_cond_update_polling(struct connection *c)
 	}
 }
 
-/* recompute the mux polling flags after updating the current conn_stream and
- * propagate the result down the transport layer.
- */
-static inline void cs_update_mux_polling(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-
-	if (conn->mux && conn->mux->update_poll)
-		conn->mux->update_poll(cs);
-}
-
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
 /* The __conn_* versions do not propagate to lower layers and are only meant
  * to be used by handlers called by the connection handler. The other ones
@@ -315,28 +304,6 @@ static inline void __conn_xprt_want_recv(struct connection *c)
 static inline void __conn_xprt_stop_recv(struct connection *c)
 {
 	c->flags &= ~CO_FL_XPRT_RD_ENA;
-}
-
-static inline void __cs_want_recv(struct conn_stream *cs)
-{
-	cs->flags |= CS_FL_DATA_RD_ENA;
-}
-
-static inline void __cs_stop_recv(struct conn_stream *cs)
-{
-	cs->flags &= ~CS_FL_DATA_RD_ENA;
-}
-
-static inline void cs_want_recv(struct conn_stream *cs)
-{
-	__cs_want_recv(cs);
-	cs_update_mux_polling(cs);
-}
-
-static inline void cs_stop_recv(struct conn_stream *cs)
-{
-	__cs_stop_recv(cs);
-	cs_update_mux_polling(cs);
 }
 
 /* this one is used only to stop speculative recv(). It doesn't stop it if the
@@ -367,40 +334,6 @@ static inline void __conn_xprt_stop_both(struct connection *c)
 {
 	c->flags &= ~(CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA);
 }
-
-static inline void __cs_want_send(struct conn_stream *cs)
-{
-	cs->flags |= CS_FL_DATA_WR_ENA;
-}
-
-static inline void __cs_stop_send(struct conn_stream *cs)
-{
-	cs->flags &= ~CS_FL_DATA_WR_ENA;
-}
-
-static inline void cs_stop_send(struct conn_stream *cs)
-{
-	__cs_stop_send(cs);
-	cs_update_mux_polling(cs);
-}
-
-static inline void cs_want_send(struct conn_stream *cs)
-{
-	__cs_want_send(cs);
-	cs_update_mux_polling(cs);
-}
-
-static inline void __cs_stop_both(struct conn_stream *cs)
-{
-	cs->flags &= ~(CS_FL_DATA_WR_ENA | CS_FL_DATA_RD_ENA);
-}
-
-static inline void cs_stop_both(struct conn_stream *cs)
-{
-	__cs_stop_both(cs);
-	cs_update_mux_polling(cs);
-}
-
 
 static inline void conn_xprt_want_recv(struct connection *c)
 {
@@ -546,7 +479,6 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 /* shut read */
 static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
-	__cs_stop_recv(cs);
 
 	/* clean data-layer shutdown */
 	if (cs->conn->mux && cs->conn->mux->shutr)
@@ -557,7 +489,6 @@ static inline void cs_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 /* shut write */
 static inline void cs_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
-	__cs_stop_send(cs);
 
 	/* clean data-layer shutdown */
 	if (cs->conn->mux && cs->conn->mux->shutw)

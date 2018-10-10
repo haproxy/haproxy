@@ -66,9 +66,6 @@ union conn_handle {
 /* conn_stream flags */
 enum {
 	CS_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
-	CS_FL_DATA_RD_ENA   = 0x00000001,  /* receiving data is allowed */
-	CS_FL_DATA_WR_ENA   = 0x00000002,  /* sending data is desired */
-
 	CS_FL_SHRD          = 0x00000010,  /* read shut, draining extra data */
 	CS_FL_SHRR          = 0x00000020,  /* read shut, resetting extra data */
 	CS_FL_SHR           = CS_FL_SHRD | CS_FL_SHRR, /* read shut status */
@@ -315,7 +312,6 @@ struct xprt_ops {
 struct mux_ops {
 	int  (*init)(struct connection *conn, struct proxy *prx);  /* early initialization */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
-	void (*update_poll)(struct conn_stream *cs);  /* commit cs flags to mux/conn */
 	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
 	int  (*rcv_pipe)(struct conn_stream *cs, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
