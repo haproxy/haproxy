@@ -495,7 +495,7 @@ static void ssl_async_fd_free(int fd)
 
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
-	sslconns--;
+	HA_ATOMIC_SUB(&sslconns, 1);
 	HA_ATOMIC_SUB(&jobs, 1);
 }
 /*
@@ -5032,8 +5032,8 @@ static int ssl_sock_init(struct connection *conn)
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
-		sslconns++;
-		totalsslconns++;
+		HA_ATOMIC_ADD(&sslconns, 1);
+		HA_ATOMIC_ADD(&totalsslconns, 1);
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5083,8 +5083,8 @@ static int ssl_sock_init(struct connection *conn)
 		conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
-		sslconns++;
-		totalsslconns++;
+		HA_ATOMIC_ADD(&sslconns, 1);
+		HA_ATOMIC_ADD(&totalsslconns, 1);
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -5728,7 +5728,7 @@ static void ssl_sock_close(struct connection *conn) {
 #endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
-		sslconns--;
+		HA_ATOMIC_SUB(&sslconns, 1);
 	}
 }
 
