@@ -288,9 +288,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
  out_fail_accept:
 	flt_stream_release(s, 0);
 	task_free(t);
-	tasklet_free(s->si[1].wait_list.task);
+	tasklet_free(s->si[1].wait_event.task);
 out_fail_alloc_si1:
-	tasklet_free(s->si[0].wait_list.task);
+	tasklet_free(s->si[0].wait_event.task);
  out_fail_alloc:
 	LIST_DEL(&s->list);
 	pool_free(pool_head_stream, s);
@@ -406,10 +406,21 @@ static void stream_free(struct stream *s)
 	if (must_free_sess)
 		session_free(sess);
 
-	tasklet_free(s->si[0].wait_list.task);
-	LIST_DEL(&s->si[0].wait_list.list);
-	tasklet_free(s->si[1].wait_list.task);
-	LIST_DEL(&s->si[1].wait_list.list);
+	tasklet_free(s->si[0].wait_event.task);
+	if (s->si[0].wait_event.wait_reason != 0) {
+		struct conn_stream *cs = objt_cs(s->si[0].end);
+		if (cs)
+			cs->conn->mux->unsubscribe(cs, s->si[0].wait_event.wait_reason,
+			    &s->si[0].wait_event);
+	}
+	tasklet_free(s->si[1].wait_event.task);
+	if (s->si[1].wait_event.wait_reason != 0) {
+		struct conn_stream *cs = objt_cs(s->si[1].end);
+		if (cs)
+			cs->conn->mux->unsubscribe(cs, s->si[1].wait_event.wait_reason,
+			    &s->si[1].wait_event);
+	}
+
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */

@@ -632,7 +632,7 @@ int si_cs_send(struct conn_stream *cs)
 	int did_send = 0;
 
 	/* We're already waiting to be able to send, give up */
-	if (si->wait_list.wait_reason & SUB_CAN_SEND)
+	if (si->wait_event.wait_reason & SUB_CAN_SEND)
 		return 0;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
@@ -641,7 +641,7 @@ int si_cs_send(struct conn_stream *cs)
 	if (conn->flags & CO_FL_HANDSHAKE) {
 		/* a handshake was requested */
 		/* Schedule ourself to be woken up once the handshake is done */
-		conn->xprt->subscribe(conn, SUB_CAN_SEND,  &si->wait_list);
+		conn->xprt->subscribe(conn, SUB_CAN_SEND,  &si->wait_event);
 		return 0;
 	}
 
@@ -722,7 +722,7 @@ int si_cs_send(struct conn_stream *cs)
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (co_data(oc)) {
 		cs_want_send(cs);
-		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_list);
+		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_event);
 	}
 	return did_send;
 }
@@ -736,9 +736,9 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 	if (!cs)
 		return NULL;
 redo:
-	if (!(si->wait_list.wait_reason & SUB_CAN_SEND))
+	if (!(si->wait_event.wait_reason & SUB_CAN_SEND))
 		ret = si_cs_send(cs);
-	if (!(si->wait_list.wait_reason & SUB_CAN_RECV))
+	if (!(si->wait_event.wait_reason & SUB_CAN_RECV))
 		ret |= si_cs_recv(cs);
 	if (ret != 0)
 		si_cs_process(cs);
@@ -1137,7 +1137,7 @@ int si_cs_recv(struct conn_stream *cs)
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
-	if (si->wait_list.wait_reason & SUB_CAN_RECV)
+	if (si->wait_event.wait_reason & SUB_CAN_RECV)
 		return 0;
 
 	/* maybe we were called immediately after an asynchronous shutr */
@@ -1347,7 +1347,7 @@ int si_cs_recv(struct conn_stream *cs)
 		goto out_shutdown_r;
 
 	/* Subscribe to receive events */
-	conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_list);
+	conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_event);
 
 	return cur_read != 0;
 

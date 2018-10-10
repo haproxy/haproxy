@@ -3142,7 +3142,6 @@ const char *init_check(struct check *check, int type)
 	check->wait_list.task = tasklet_new();
 	if (!check->wait_list.task)
 		return "out of memroy while allocating check tasklet";
-	LIST_INIT(&check->wait_list.list);
 	check->wait_list.wait_reason = 0;
 	check->wait_list.task->process = event_srv_chk_io;
 	check->wait_list.task->context = check;

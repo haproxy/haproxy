@@ -627,9 +627,8 @@ static inline void conn_init(struct connection *conn)
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
-	LIST_INIT(&conn->send_wait_list);
-	LIST_INIT(&conn->recv_wait_list);
-	LIST_INIT(&conn->sendrecv_wait_list);
+	conn->send_wait = NULL;
+	conn->recv_wait = NULL;
 }
 
 /* sets <owner> as the connection's owner */
@@ -705,19 +704,10 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	struct wait_list *sw, *sw_back;
-	list_for_each_entry_safe(sw, sw_back, &conn->recv_wait_list, list) {
-		LIST_DEL(&sw->list);
-		LIST_INIT(&sw->list);
-	}
-	list_for_each_entry_safe(sw, sw_back, &conn->send_wait_list, list) {
-		LIST_DEL(&sw->list);
-		LIST_INIT(&sw->list);
-	}
-	list_for_each_entry_safe(sw, sw_back, &conn->sendrecv_wait_list, list) {
-		LIST_DEL(&sw->list);
-		LIST_INIT(&sw->list);
-	}
+	if (conn->recv_wait)
+		conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+	if (conn->send_wait)
+		conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
 	pool_free(pool_head_connection, conn);
 }
 
@@ -786,7 +776,7 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 	cs->data = data;
 }
 
-static inline struct wait_list *wl_set_waitcb(struct wait_list *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
+static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
 {
 	if (!wl->task->process) {
 		wl->task->process = cb;

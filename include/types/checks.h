@@ -184,7 +184,7 @@ struct check {
 	char **envp;				/* the environment to use if running a process-based check */
 	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */
 	struct sockaddr_storage addr;   	/* the address to check */
-	struct wait_list wait_list;            /* Waiting for I/O events */
+	struct wait_event wait_list;            /* Waiting for I/O events */
 	char *sni;				/* Server name */
 };
 

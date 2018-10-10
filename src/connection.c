@@ -128,25 +128,12 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		io_available = (LIST_ISEMPTY(&conn->send_wait_list) &&
-		    LIST_ISEMPTY(&conn->sendrecv_wait_list));;
-		while (!LIST_ISEMPTY(&conn->send_wait_list)) {
-			struct wait_list *sw = LIST_ELEM(conn->send_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
-			tasklet_wakeup(sw->task);
-		}
-		while (!(LIST_ISEMPTY(&conn->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(conn->sendrecv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			LIST_ADDQ(&conn->recv_wait_list, &sw->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
-			tasklet_wakeup(sw->task);
-		}
+		if (conn->send_wait != NULL) {
+			conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
+			tasklet_wakeup(conn->send_wait->task);
+			conn->send_wait = NULL;
+		} else
+			io_available = 1;
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -160,26 +147,12 @@ void conn_fd_handler(int fd)
 		 * both of which will be detected below.
 		 */
 		flags = 0;
-		io_available |= (LIST_ISEMPTY(&conn->recv_wait_list) &&
-		    LIST_ISEMPTY(&conn->sendrecv_wait_list));
-		while (!LIST_ISEMPTY(&conn->recv_wait_list)) {
-			struct wait_list *sw = LIST_ELEM(conn->recv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			sw->wait_reason &= ~SUB_CAN_RECV;
-			tasklet_wakeup(sw->task);
-		}
-		while (!(LIST_ISEMPTY(&conn->sendrecv_wait_list))) {
-			struct wait_list *sw = LIST_ELEM(conn->sendrecv_wait_list.n,
-			    struct wait_list *, list);
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
-			LIST_ADDQ(&conn->send_wait_list, &sw->list);
-			sw->wait_reason &= ~SUB_CAN_RECV;
-			tasklet_wakeup(sw->task);
-		}
-
+		if (conn->recv_wait) {
+			conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(conn->recv_wait->task);
+			conn->recv_wait = NULL;
+		} else
+			io_available = 1;
 	}
 
 	/* It may happen during the data phase that a handshake is
@@ -360,26 +333,20 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 
 int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 {
-	struct wait_list *sw;
+	struct wait_event *sw;
 
 	if (event_type & SUB_CAN_RECV) {
 		sw = param;
 		if (sw->wait_reason & SUB_CAN_RECV) {
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
+			conn->recv_wait = NULL;
 			sw->wait_reason &= ~SUB_CAN_RECV;
-			if (sw->wait_reason & SUB_CAN_SEND)
-				LIST_ADDQ(&conn->send_wait_list, &sw->list);
 		}
 	}
 	if (event_type & SUB_CAN_SEND) {
 		sw = param;
 		if (sw->wait_reason & SUB_CAN_SEND) {
-			LIST_DEL(&sw->list);
-			LIST_INIT(&sw->list);
+			conn->send_wait = NULL;
 			sw->wait_reason &= ~SUB_CAN_SEND;
-			if (sw->wait_reason & SUB_CAN_RECV)
-				LIST_ADDQ(&conn->recv_wait_list, &sw->list);
 		}
 	}
 	return 0;
@@ -387,21 +354,13 @@ int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 
 int conn_subscribe(struct connection *conn, int event_type, void *param)
 {
-	struct wait_list *sw;
+	struct wait_event *sw;
 
 	if (event_type & SUB_CAN_RECV) {
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_RECV)) {
 			sw->wait_reason |= SUB_CAN_RECV;
-			/* If we're already subscribed for send(), move it
-			 * to the send+recv list
-			 */
-			if (sw->wait_reason & SUB_CAN_SEND) {
-				LIST_DEL(&sw->list);
-				LIST_INIT(&sw->list);
-				LIST_ADDQ(&conn->sendrecv_wait_list, &sw->list);
-			} else
-				LIST_ADDQ(&conn->recv_wait_list, &sw->list);
+			conn->recv_wait = sw;
 		}
 		event_type &= ~SUB_CAN_RECV;
 	}
@@ -409,15 +368,7 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 		sw = param;
 		if (!(sw->wait_reason & SUB_CAN_SEND)) {
 			sw->wait_reason |= SUB_CAN_SEND;
-			/* If we're already subscribed for recv(), move it
-			 * to the send+recv list
-			 */
-			if (sw->wait_reason & SUB_CAN_RECV) {
-				LIST_DEL(&sw->list);
-				LIST_INIT(&sw->list);
-				LIST_ADDQ(&conn->sendrecv_wait_list, &sw->list);
-			} else
-				LIST_ADDQ(&conn->send_wait_list, &sw->list);
+			conn->send_wait = sw;
 		}
 		event_type &= ~SUB_CAN_SEND;
 	}

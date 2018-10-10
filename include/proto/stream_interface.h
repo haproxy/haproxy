@@ -127,13 +127,12 @@ static inline int si_reset(struct stream_interface *si)
 	si->end            = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
-	si->wait_list.task = tasklet_new();
-	if (!si->wait_list.task)
+	si->wait_event.task = tasklet_new();
+	if (!si->wait_event.task)
 		return -1;
-	si->wait_list.task->process    = si_cs_io_cb;
-	si->wait_list.task->context = si;
-	si->wait_list.wait_reason = 0;
-	LIST_INIT(&si->wait_list.list);
+	si->wait_event.task->process    = si_cs_io_cb;
+	si->wait_event.task->context = si;
+	si->wait_event.wait_reason = 0;
 	return 0;
 }
 
