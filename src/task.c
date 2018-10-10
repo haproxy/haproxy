@@ -290,9 +290,8 @@ void process_runnable_tasks()
 		 * much elements from the global list as to have a bigger local queue
 		 * than the average.
 		 */
+		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 		while ((task_list_size[tid] + rqueue_size[tid]) * global.nbthread <= tasks_run_queue) {
-			/* we have to restart looking up after every batch */
-			rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!rq_next)) {
 				/* either we just started or we reached the end
 				 * of the tree, typically because <rqueue_ticks>
@@ -327,14 +326,12 @@ void process_runnable_tasks()
 	 * get too much in the task list, but put a bit more than
 	 * the max that will be run, to give a bit more fairness
 	 */
+	rq_next = eb32sc_lookup_ge(&rqueue_local[tid], rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 	while (max_processed + (max_processed / 10) > task_list_size[tid]) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
 		 */
-
-		/* we have to restart looking up after every batch */
-		rq_next = eb32sc_lookup_ge(&rqueue_local[tid], rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 		if (unlikely(!rq_next)) {
 			/* either we just started or we reached the end
 			 * of the tree, typically because <rqueue_ticks>
