@@ -47,10 +47,18 @@
 #define THREAD_LOCAL
 #endif
 
+/* Some architectures have a double-word CAS, sometimes even dual-8 bytes */
+#if defined(__x86_64__) || defined (__aarch64__)
+#define HA_HAVE_CAS_DW
+#define HA_CAS_IS_8B
+#elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
+#define HA_HAVE_CAS_DW
+#endif
+
 /* On architectures supporting threads and double-word CAS, we can implement
  * lock-less memory pools. This isn't supported for debugging modes however.
  */
-#if !defined(DEBUG_NO_LOCKLESS_POOLS) && defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && !defined(DEBUG_UAF)
+#if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && !defined(DEBUG_NO_LOCKLESS_POOLS) && !defined(DEBUG_UAF)
 #define CONFIG_HAP_LOCKLESS_POOLS
 #endif
 

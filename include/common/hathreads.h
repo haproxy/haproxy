@@ -816,8 +816,7 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 #endif  /* DEBUG_THREAD */
 
 #ifdef __x86_64__
-#define HA_HAVE_CAS_DW	1
-#define HA_CAS_IS_8B
+
 static __inline int
 __ha_cas_dw(void *target, void *compare, const void *set)
 {
@@ -855,7 +854,7 @@ __ha_barrier_full(void)
 }
 
 #elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
-#define HA_HAVE_CAS_DW	1
+
 static __inline void
 __ha_barrier_load(void)
 {
@@ -896,8 +895,6 @@ static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
 }
 
 #elif defined (__aarch64__)
-#define HA_HAVE_CAS_DW	1
-#define HA_CAS_IS_8B
 
 static __inline void
 __ha_barrier_load(void)
