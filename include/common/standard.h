@@ -802,13 +802,16 @@ static inline unsigned int my_popcountl(unsigned long a)
 }
 
 /* Simple ffs implementation. It returns the position of the lowest bit set to
- * one. */
+ * one. It is illegal to call it with a==0 (undefined result).
+ */
 static inline unsigned int my_ffsl(unsigned long a)
 {
-	unsigned int cnt;
+	unsigned long cnt;
 
-	if (!a)
-		return 0;
+#if defined(__x86_64__)
+	__asm__("bsr %1,%0\n" : "=r" (cnt) : "rm" (a));
+	cnt++;
+#else
 
 	cnt = 1;
 #if LONG_MAX > 0x7FFFFFFFL /* 64bits */
@@ -837,6 +840,7 @@ static inline unsigned int my_ffsl(unsigned long a)
 		a >>= 1;
 		cnt += 1;
 	}
+#endif /* x86_64 */
 
 	return cnt;
 }
