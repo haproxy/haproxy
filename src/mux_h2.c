@@ -1473,7 +1473,9 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		h2s->mws += inc;
 		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			/* The task will be waken up later */
+			if (h2s->send_wait)
+				LIST_ADDQ(&h2c->send_list, &h2s->list);
+
 		}
 	}
 	else {
@@ -3393,6 +3395,10 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 	if (size <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
+		if (h2s->send_wait) {
+			LIST_DEL(&h2s->list);
+			LIST_INIT(&h2s->list);
+		}
 		goto end;
 	}
 
