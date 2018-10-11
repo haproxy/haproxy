@@ -400,26 +400,14 @@ static void stream_free(struct stream *s)
 	/* applets do not release session yet */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].end;
 
+	tasklet_free(s->si[0].wait_event.task);
+	tasklet_free(s->si[1].wait_event.task);
+
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
 
 	if (must_free_sess)
 		session_free(sess);
-
-	tasklet_free(s->si[0].wait_event.task);
-	if (s->si[0].wait_event.wait_reason != 0) {
-		struct conn_stream *cs = objt_cs(s->si[0].end);
-		if (cs)
-			cs->conn->mux->unsubscribe(cs, s->si[0].wait_event.wait_reason,
-			    &s->si[0].wait_event);
-	}
-	tasklet_free(s->si[1].wait_event.task);
-	if (s->si[1].wait_event.wait_reason != 0) {
-		struct conn_stream *cs = objt_cs(s->si[1].end);
-		if (cs)
-			cs->conn->mux->unsubscribe(cs, s->si[1].wait_event.wait_reason,
-			    &s->si[1].wait_event);
-	}
 
 	pool_free(pool_head_stream, s);
 

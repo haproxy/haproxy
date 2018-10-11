@@ -169,8 +169,12 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	if (!si->end)
 		return;
 
-	if ((cs = objt_cs(si->end)))
+	if ((cs = objt_cs(si->end))) {
+		if (si->wait_event.wait_reason != 0)
+			cs->conn->mux->unsubscribe(cs, si->wait_event.wait_reason,
+			    &si->wait_event);
 		cs_destroy(cs);
+	}
 	else if ((appctx = objt_appctx(si->end))) {
 		if (appctx->applet->release && si->state < SI_ST_DIS)
 			appctx->applet->release(appctx);
