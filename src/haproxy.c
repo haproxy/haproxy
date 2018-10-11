@@ -2483,7 +2483,13 @@ void mworker_pipe_handler(int fd)
 		break;
 	}
 
-	deinit();
+	/* At this step the master is down before
+	 * this worker perform a 'normal' exit.
+	 * So we want to exit with an error but
+	 * other threads could currently process
+	 * some stuff so we can't perform a clean
+	 * deinit().
+	 */
 	exit(EXIT_FAILURE);
 	return;
 }
@@ -2496,7 +2502,10 @@ void mworker_pipe_register()
 		return;
 
 	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
-	fd_insert(proc_self->ipc_fd[1], proc_self->ipc_fd, mworker_pipe_handler, MAX_THREADS_MASK);
+	/* In multi-tread, we need only one thread to process
+	 * events on the pipe with master
+	 */
+	fd_insert(proc_self->ipc_fd[1], proc_self->ipc_fd, mworker_pipe_handler, 1);
 	fd_want_recv(proc_self->ipc_fd[1]);
 }
 
