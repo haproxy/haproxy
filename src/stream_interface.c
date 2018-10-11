@@ -1090,6 +1090,7 @@ int si_cs_recv(struct conn_stream *cs)
 	struct channel *ic = si_ic(si);
 	int ret, max, cur_read = 0;
 	int read_poll = MAX_READ_POLL_LOOPS;
+	int flags = 0;
 
 	/* stop immediately on errors. Note that we DON'T want to stop on
 	 * POLL_ERR, as the poller might report a write error while there
@@ -1141,6 +1142,7 @@ int si_cs_recv(struct conn_stream *cs)
 			 * locations at a time. Let's indicate we need some
 			 * place and ask the consumer to hurry.
 			 */
+			flags |= CO_RFL_BUF_FLUSH;
 			goto abort_splice;
 		}
 
@@ -1208,8 +1210,7 @@ int si_cs_recv(struct conn_stream *cs)
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-
-		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
+		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, flags | (co_data(ic) ? CO_RFL_BUF_WET : 0));
 		if (cs->flags & CS_FL_RCV_MORE)
 			si_rx_room_blk(si);
 

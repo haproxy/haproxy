@@ -258,6 +258,7 @@ enum {
 /* flags that can be passed to xprt->rcv_buf() and mux->rcv_buf() */
 enum {
 	CO_RFL_BUF_WET     = 0x0001,    /* Buffer still has some output data present */
+	CO_RFL_BUF_FLUSH   = 0x0002,    /* Flush mux's buffers but don't read more data */
 };
 
 /* flags that can be passed to xprt->snd_buf() and mux->snd_buf() */
