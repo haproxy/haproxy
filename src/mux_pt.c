@@ -116,6 +116,11 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 {
 	size_t ret;
 
+	if (!count) {
+		cs->flags |= CS_FL_RCV_MORE;
+		return 0;
+	}
+	cs->flags &= ~CS_FL_RCV_MORE;
 	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count, flags);
 	if (conn_xprt_read0_pending(cs->conn))
 		cs->flags |= CS_FL_EOS;

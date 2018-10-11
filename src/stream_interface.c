@@ -1226,12 +1226,10 @@ int si_cs_recv(struct conn_stream *cs)
 	 */
 	while (!(conn->flags & (CO_FL_ERROR | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) &&
 	       !(cs->flags & (CS_FL_ERROR|CS_FL_EOS)) && !(ic->flags & CF_SHUTR)) {
+		/* <max> may be null. This is the mux responsibility to set
+		 * CS_FL_RCV_MORE on the CS if more space is needed.
+		 */
 		max = channel_recv_max(ic);
-
-		if (!max) {
-			si_cant_put(si);
-			break;
-		}
 
 		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
 		if (cs->flags & CS_FL_RCV_MORE)
