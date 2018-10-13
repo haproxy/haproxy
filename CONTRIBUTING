@@ -309,7 +309,7 @@ do not think about them anymore after a few patches.
    A good rule of thumb is that if your identifiers start to contain more than
    3 words or more than 15 characters, they can become confusing. For function
    names it's less important especially if these functions are rarely used or
-   are used in a complex context where it is important to differenciate between
+   are used in a complex context where it is important to differentiate between
    their multiple variants.
 
 9) Unified diff only
@@ -318,7 +318,7 @@ do not think about them anymore after a few patches.
    that you have committed your patch to a local branch, with an appropriate
    subject line and a useful commit message explaining what the patch attempts
    to do. It is not strictly required to use git, but what is strictly required
-   is to have all these elements in the same mail, easily distinguishible, and
+   is to have all these elements in the same mail, easily distinguishable, and
    a patch in "diff -up" format (which is also the format used by Git). This
    means the "unified" diff format must be used exclusively, and with the
    function name printed in the diff header of each block. That significantly
@@ -773,7 +773,7 @@ sent to the mailing list : haproxy@formilux.org and CCed to relevant subsystem
 maintainers or authors of the modified files if their address appears at the
 top of the file.
 
-Please don't send pull-requests, they are really unconvenient. First, a pull
+Please don't send pull-requests, they are really inconvenient. First, a pull
 implies a merge operation and the code doesn't move fast enough to justify the
 use of merges. Second, pull requests are not easily commented on by the
 project's participants, contrary to e-mails where anyone is allowed to have an
