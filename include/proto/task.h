@@ -94,10 +94,12 @@ extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
 extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
 #ifdef USE_THREAD
+extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
 extern int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
 
+extern struct eb_root timers_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
 extern int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
 extern struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
@@ -167,12 +169,19 @@ static inline struct task *__task_unlink_wq(struct task *t)
 	return t;
 }
 
+/* remove a task from its wait queue. It may either be the local wait queue if
+ * the task is bound to a single thread (in which case there's no locking
+ * involved) or the global queue, with locking.
+ */
 static inline struct task *task_unlink_wq(struct task *t)
 {
-	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
-	if (likely(task_in_wq(t)))
+	if (likely(task_in_wq(t))) {
+		if (atleast2(t->thread_mask))
+			HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
-	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		if (atleast2(t->thread_mask))
+			HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	}
 	return t;
 }
 
@@ -356,10 +365,14 @@ static inline void tasklet_free(struct tasklet *tl)
 		pool_flush(pool_head_tasklet);
 }
 
+void __task_queue(struct task *task, struct eb_root *wq);
+
 /* Place <task> into the wait queue, where it may already be. If the expiration
  * timer is infinite, do nothing and rely on wake_expired_task to clean up.
+ * If the task is bound to a single thread, it's assumed to be bound to the
+ * current thread's queue and is queued without locking. Otherwise it's queued
+ * into the global wait queue, protected by locks.
  */
-void __task_queue(struct task *task);
 static inline void task_queue(struct task *task)
 {
 	/* If we already have a place in the wait queue no later than the
@@ -374,10 +387,18 @@ static inline void task_queue(struct task *task)
 	if (!tick_isset(task->expire))
 		return;
 
-	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
-	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-		__task_queue(task);
-	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+#ifdef USE_THREAD
+	if (atleast2(task->thread_mask)) {
+		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &timers);
+		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	} else
+#endif
+	{
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &timers_local[tid]);
+	}
 }
 
 /* Ensure <task> will be woken up at most at <when>. If the task is already in
@@ -390,14 +411,26 @@ static inline void task_schedule(struct task *task, int when)
 	if (task_in_rq(task))
 		return;
 
-	HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
-	if (task_in_wq(task))
-		when = tick_first(when, task->expire);
+#ifdef USE_THREAD
+	if (atleast2(task->thread_mask)) {
+		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		if (task_in_wq(task))
+			when = tick_first(when, task->expire);
 
-	task->expire = when;
-	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-		__task_queue(task);
-	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		task->expire = when;
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &timers);
+		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	} else
+#endif
+	{
+		if (task_in_wq(task))
+			when = tick_first(when, task->expire);
+
+		task->expire = when;
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &timers_local[tid]);
+	}
 }
 
 /* This function register a new signal. "lua" is the current lua
