@@ -2127,7 +2127,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	int i;
 
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	s = objt_listener(conn->target)->bind_conf;
+	s = __objt_listener(conn->target)->bind_conf;
 
 	if (s->ssl_conf.early_data)
 		allow_early = 1;
