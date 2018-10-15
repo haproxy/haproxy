@@ -82,6 +82,18 @@
  */
 #define __maybe_unused __attribute__((unused))
 
+/* This allows gcc to know that some locations are never reached, for example
+ * after a longjmp() in the Lua code, hence that some errors caught by such
+ * methods cannot propagate further. This is important with gcc versions 6 and
+ * above which can more aggressively detect null dereferences. The builtin
+ * below was introduced in gcc 4.5, and before it we didn't care.
+ */
+#if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#define __unreachable() __builtin_unreachable()
+#else
+#define __unreachable()
+#endif
+
 /*
  * Gcc >= 3 provides the ability for the programme to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
