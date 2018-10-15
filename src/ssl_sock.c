@@ -7069,7 +7069,7 @@ smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *
 #if defined(OPENSSL_IS_BORINGSSL)
 		cipher = SSL_get_cipher_by_value(id);
 #else
-		struct connection *conn = objt_conn(smp->sess->origin);
+		struct connection *conn = __objt_conn(smp->sess->origin);
 		cipher = SSL_CIPHER_find(conn->xprt_ctx, bin);
 #endif
 		str = SSL_CIPHER_get_name(cipher);
