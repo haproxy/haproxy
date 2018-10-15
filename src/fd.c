@@ -359,7 +359,10 @@ done:
  */
 static void fd_dodelete(int fd, int do_close)
 {
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	unsigned long locked = atleast2(fdtab[fd].thread_mask);
+
+	if (locked)
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
 		setsockopt(fd, SOL_SOCKET, SO_LINGER,
@@ -379,7 +382,8 @@ static void fd_dodelete(int fd, int do_close)
 		polled_mask[fd] = 0;
 		close(fd);
 	}
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (locked)
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Deletes an FD from the fdsets.
@@ -417,7 +421,7 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 			continue;
 
 		HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
-		if (HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
+		if (atleast2(fdtab[fd].thread_mask) && HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
 			activity[tid].fd_lock++;
 			continue;
 		}
@@ -432,12 +436,14 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 			fdtab[fd].ev |= FD_POLL_OUT;
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
-			HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+			if (atleast2(fdtab[fd].thread_mask))
+				HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 			fdtab[fd].iocb(fd);
 		}
 		else {
 			fd_release_cache_entry(fd);
-			HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+			if (atleast2(fdtab[fd].thread_mask))
+				HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 		}
 	}
 }

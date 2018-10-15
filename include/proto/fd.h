@@ -289,9 +289,11 @@ static inline void fd_stop_recv(int fd)
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Disable processing send events on fd <fd> */
@@ -310,9 +312,11 @@ static inline void fd_stop_send(int fd)
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
@@ -331,9 +335,11 @@ static inline void fd_stop_both(int fd)
 	if ((old ^ new) & FD_EV_POLLED_RW)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
@@ -353,9 +359,11 @@ static inline void fd_cant_recv(const int fd)
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Report that FD <fd> can receive anymore without polling. */
@@ -364,9 +372,11 @@ static inline void fd_may_recv(const int fd)
 	/* marking ready never changes polled status */
 	HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_R);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Disable readiness when polled. This is useful to interrupt reading when it
@@ -390,9 +400,11 @@ static inline void fd_done_recv(const int fd)
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
@@ -412,9 +424,11 @@ static inline void fd_cant_send(const int fd)
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Report that FD <fd> can send anymore without polling (EAGAIN detected). */
@@ -423,9 +437,11 @@ static inline void fd_may_send(const int fd)
 	/* marking ready never changes polled status */
 	HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_W);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Prepare FD <fd> to try to receive */
@@ -445,9 +461,11 @@ static inline void fd_want_recv(int fd)
 	if ((old ^ new) & FD_EV_POLLED_R)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Prepare FD <fd> to try to send */
@@ -467,19 +485,23 @@ static inline void fd_want_send(int fd)
 	if ((old ^ new) & FD_EV_POLLED_W)
 		updt_fd_polling(fd);
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fd_update_cache(fd); /* need an update entry to change the state */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* Update events seen for FD <fd> and its state if needed. This should be called
  * by the poller to set FD_POLL_* flags. */
 static inline void fd_update_events(int fd, int evts)
 {
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fdtab[fd].ev &= FD_POLL_STICKY;
 	fdtab[fd].ev |= evts;
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(fdtab[fd].thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		fd_may_recv(fd);
@@ -491,7 +513,8 @@ static inline void fd_update_events(int fd, int evts)
 /* Prepares <fd> for being polled */
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(thread_mask))
+		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].ev = 0;
@@ -501,7 +524,8 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	/* note: do not reset polled_mask here as it indicates which poller
 	 * still knows this FD from a possible previous round.
 	 */
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	if (atleast2(thread_mask))
+		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
 /* These are replacements for FD_SET, FD_CLR, FD_ISSET, working on uints */
