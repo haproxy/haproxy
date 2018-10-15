@@ -289,10 +289,10 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	flt_stream_release(s, 0);
 	task_free(t);
 	tasklet_free(s->si[1].wait_event.task);
+	LIST_DEL(&s->list);
 out_fail_alloc_si1:
 	tasklet_free(s->si[0].wait_event.task);
  out_fail_alloc:
-	LIST_DEL(&s->list);
 	pool_free(pool_head_stream, s);
 	return NULL;
 }
