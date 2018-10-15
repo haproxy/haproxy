@@ -1664,7 +1664,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 			*slash = '/';
 
-			if (autoinc && my_popcountl(proc) != 1 && my_popcountl(thread) != 1) {
+			if (autoinc && atleast2(proc) && atleast2(thread)) {
 				ha_alert("parsing [%s:%d] : %s : '%s' : unable to automatically bind "
 					 "a process range _AND_ a thread range\n",
 					 file, linenum, args[0], args[1]);
@@ -8824,7 +8824,7 @@ out_uri_auth_compat:
 				mask &= bind_conf->bind_proc;
 
 			/* stop here if more than one process is used */
-			if (my_popcountl(mask) > 1)
+			if (atleast2(mask))
 				break;
 		}
 		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
@@ -8973,7 +8973,7 @@ out_uri_auth_compat:
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 
-		if (my_popcountl(curproxy->bind_proc & nbits(global.nbproc)) > 1) {
+		if (atleast2(curproxy->bind_proc & nbits(global.nbproc))) {
 			if (curproxy->uri_auth) {
 				int count, maxproc = 0;
 
@@ -9072,7 +9072,7 @@ out_uri_auth_compat:
 				ha_warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
 					   curpeers->id, localpeer);
 			}
-			else if (my_popcountl(curpeers->peers_fe->bind_proc) != 1) {
+			else if (atleast2(curpeers->peers_fe->bind_proc)) {
 				/* either it's totally stopped or too much used */
 				if (curpeers->peers_fe->bind_proc) {
 					ha_alert("Peers section '%s': peers referenced by sections "
