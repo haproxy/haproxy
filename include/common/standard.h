@@ -801,6 +801,12 @@ static inline unsigned int my_popcountl(unsigned long a)
 	return cnt;
 }
 
+/* returns non-zero if <a> has at least 2 bits set */
+static inline unsigned long atleast2(unsigned long a)
+{
+	return a & (a - 1);
+}
+
 /* Simple ffs implementation. It returns the position of the lowest bit set to
  * one. It is illegal to call it with a==0 (undefined result).
  */
