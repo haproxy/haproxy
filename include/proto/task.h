@@ -99,11 +99,17 @@ extern struct eb_root rqueue;      /* tree constituting the run queue */
 extern int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
 
-extern struct eb_root timers_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
-extern struct eb_root rqueue_local[MAX_THREADS]; /* tree constituting the per-thread run queue */
-extern int rqueue_size[MAX_THREADS]; /* Number of elements in the per-thread run queue */
-extern struct list task_list[MAX_THREADS]; /* List of tasks to be run, mixing tasks and tasklets */
-extern int task_list_size[MAX_THREADS]; /* Number of task sin the task_list */
+/* force to split per-thread stuff into separate cache lines */
+struct task_per_thread {
+	struct eb_root timers;  /* tree constituting the per-thread wait queue */
+	struct eb_root rqueue;  /* tree constituting the per-thread run queue */
+	struct list task_list;  /* List of tasks to be run, mixing tasks and tasklets */
+	int task_list_size;     /* Number of tasks in the task_list */
+	int rqueue_size;        /* Number of elements in the per-thread run queue */
+	__attribute__((aligned(64))) char end[0];
+};
+
+extern struct task_per_thread task_per_thread[MAX_THREADS];
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
@@ -139,11 +145,11 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 	struct eb_root *root;
 
 	if (t->thread_mask == tid_bit || global.nbthread == 1)
-		root = &rqueue_local[tid];
+		root = &task_per_thread[tid].rqueue;
 	else
 		root = &rqueue;
 #else
-	struct eb_root *root = &rqueue_local[tid];
+	struct eb_root *root = &task_per_thread[tid].rqueue;
 #endif
 
 	state = HA_ATOMIC_OR(&t->state, f);
@@ -201,7 +207,7 @@ static inline struct task *__task_unlink_rq(struct task *t)
 		global_rqueue_size--;
 	} else
 #endif
-		rqueue_size[tid]--;
+		task_per_thread[tid].rqueue_size--;
 	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
 		HA_ATOMIC_SUB(&niced_tasks, 1);
@@ -233,8 +239,8 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	}
 	if (!LIST_ISEMPTY(&tl->list))
 		return;
-	LIST_ADDQ(&task_list[tid], &tl->list);
-	task_list_size[tid]++;
+	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
+	task_per_thread[tid].task_list_size++;
 	HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
 
@@ -252,16 +258,16 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1)))
 		return;
 	HA_ATOMIC_ADD(&tasks_run_queue, 1);
-	task_list_size[tid]++;
+	task_per_thread[tid].task_list_size++;
 	tl = (struct tasklet *)t;
-	LIST_ADDQ(&task_list[tid], &tl->list);
+	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
 }
 
 static inline void task_remove_from_task_list(struct task *t)
 {
 	LIST_DEL(&((struct tasklet *)t)->list);
 	LIST_INIT(&((struct tasklet *)t)->list);
-	task_list_size[tid]--;
+	task_per_thread[tid].task_list_size--;
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	if (!TASK_IS_TASKLET(t)) {
 		t->rq.node.leaf_p = NULL; // was 0x1
@@ -357,7 +363,7 @@ static inline void task_free(struct task *t)
 static inline void tasklet_free(struct tasklet *tl)
 {
 	if (!LIST_ISEMPTY(&tl->list))
-		task_list_size[tid]--;
+		task_per_thread[tid].task_list_size--;
 	LIST_DEL(&tl->list);
 
 	pool_free(pool_head_tasklet, tl);
@@ -397,7 +403,7 @@ static inline void task_queue(struct task *task)
 #endif
 	{
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &timers_local[tid]);
+			__task_queue(task, &task_per_thread[tid].timers);
 	}
 }
 
@@ -429,7 +435,7 @@ static inline void task_schedule(struct task *task, int when)
 
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &timers_local[tid]);
+			__task_queue(task, &task_per_thread[tid].timers);
 	}
 }
 
