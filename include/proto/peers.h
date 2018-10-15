@@ -28,7 +28,7 @@
 #include <types/stream.h>
 #include <types/peers.h>
 
-void peers_init_sync(struct peers *peers);
+int peers_init_sync(struct peers *peers);
 void peers_register_table(struct peers *, struct stktable *table);
 void peers_setup_frontend(struct proxy *fe);
 

@@ -9085,7 +9085,12 @@ out_uri_auth_compat:
 				curpeers->peers_fe = NULL;
 			}
 			else {
-				peers_init_sync(curpeers);
+				if (!peers_init_sync(curpeers)) {
+					ha_alert("Peers section '%s': out of memory, giving up on peers.\n",
+						 curpeers->id);
+					cfgerr++;
+					break;
+				}
 				last = &curpeers->next;
 				continue;
 			}
