@@ -2361,7 +2361,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = objt_appctx(s->si[0].end);
+	appctx = __objt_appctx(s->si[0].end);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {
@@ -2473,7 +2473,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 
 	hlua = hlua_gethlua(L);
-	appctx = objt_appctx(s->si[0].end);
+	appctx = __objt_appctx(s->si[0].end);
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
@@ -5723,6 +5723,9 @@ static int hlua_register_task(lua_State *L)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	task = task_new(MAX_THREADS_MASK);
+	if (!task)
+		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+
 	task->context = hlua;
 	task->process = hlua_process_task;
 
