@@ -3164,14 +3164,13 @@ void apply_server_state(void)
 		}
 		else if (global.server_state_base) {
 			len = strlen(global.server_state_base);
-			globalfilepathlen += len;
-
-			if (globalfilepathlen > MAXPATHLEN) {
+			if (len > MAXPATHLEN) {
 				globalfilepathlen = 0;
 				goto globalfileerror;
 			}
 			memcpy(globalfilepath, global.server_state_base, len);
-			globalfilepath[globalfilepathlen] = 0;
+			globalfilepath[len] = 0;
+			globalfilepathlen = len;
 
 			/* append a slash if needed */
 			if (!globalfilepathlen || globalfilepath[globalfilepathlen - 1] != '/') {
