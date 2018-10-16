@@ -88,12 +88,8 @@ void thread_isolate()
  */
 void thread_release()
 {
-	while (1) {
-		HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
-		if (!(threads_want_rdv_mask & all_threads_mask))
-			break;
-		thread_harmless_till_end();
-	}
+	HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
+	thread_harmless_end();
 }
 
 __attribute__((constructor))
