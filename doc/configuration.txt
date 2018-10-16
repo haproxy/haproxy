@@ -4505,6 +4505,7 @@ http-request wait-for-handshake [ { if | unless } <condition> ]
   sure they are valid.
 
 
+http-response <action> <options...> [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend
@@ -4517,260 +4518,8 @@ http-request wait-for-handshake [ { if | unless } <condition> ]
   if the condition is true. Since these rules apply on responses, the backend
   rules are applied first, followed by the frontend's rules.
 
-  The first keyword is the rule's action. Currently supported actions include :
-    - "allow" : this stops the evaluation of the rules and lets the response
-      pass the check. No further "http-response" rules are evaluated for the
-      current section.
-
-    - "deny" : this stops the evaluation of the rules and immediately rejects
-      the response and emits an HTTP 502 error. No further "http-response"
-      rules are evaluated.
-
-    - "add-header" appends an HTTP header field whose name is specified in
-      <name> and whose value is defined by <fmt> which follows the log-format
-      rules (see Custom Log Format in section 8.2.4). This may be used to send
-      a cookie to a client for example, or to pass some internal information.
-      This rule is not final, so it is possible to add other similar rules.
-      Note that header addition is performed immediately, so one rule might
-      reuse the resulting header from a previous rule.
-
-    - "set-header" does the same as "add-header" except that the header name
-      is first removed if it existed. This is useful when passing security
-      information to the server, where the header must not be manipulated by
-      external users.
-
-    - "del-header" removes all HTTP header fields whose name is specified in
-      <name>.
-
-    - "replace-header" matches the regular expression in all occurrences of
-      header field <name> according to <match-regex>, and replaces them with
-      the <replace-fmt> argument. Format characters are allowed in replace-fmt
-      and work like in <fmt> arguments in "add-header". The match is only
-      case-sensitive. It is important to understand that this action only
-      considers whole header lines, regardless of the number of values they
-      may contain. This usage is suited to headers naturally containing commas
-      in their value, such as Set-Cookie, Expires and so on.
-
-      Example:
-
-        http-response replace-header Set-Cookie (C=[^;]*);(.*) \1;ip=%bi;\2
-
-      applied to:
-
-        Set-Cookie: C=1; expires=Tue, 14-Jun-2016 01:40:45 GMT
-
-      outputs:
-
-        Set-Cookie: C=1;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT
-
-      assuming the backend IP is 192.168.1.20.
-
-    - "replace-value" works like "replace-header" except that it matches the
-      regex against every comma-delimited value of the header field <name>
-      instead of the entire header. This is suited for all headers which are
-      allowed to carry more than one value. An example could be the Accept
-      header.
-
-      Example:
-
-        http-response replace-value Cache-control ^public$ private
-
-      applied to:
-
-        Cache-Control: max-age=3600, public
-
-      outputs:
-
-        Cache-Control: max-age=3600, private
-
-    - "set-status" replaces the response status code with <status> which must
-      be an integer between 100 and 999. Optionally, a custom reason text can be
-      provided defined by <str>, or the default reason for the specified code
-      will be used as a fallback.
-
-      Example:
-
-        # return "431 Request Header Fields Too Large"
-        http-response set-status 431
-        # return "503 Slow Down", custom reason
-        http-response set-status 503 reason "Slow Down".
-
-    - "set-nice" sets the "nice" factor of the current request being processed.
-      It only has effect against the other requests being processed at the same
-      time. The default value is 0, unless altered by the "nice" setting on the
-      "bind" line. The accepted range is -1024..1024. The higher the value, the
-      nicest the request will be. Lower values will make the request more
-      important than other ones. This can be useful to improve the speed of
-      some requests, or lower the priority of non-important requests. Using
-      this setting without prior experimentation can cause some major slowdown.
-
-    - "set-log-level" is used to change the log level of the current request
-      when a certain condition is met. Valid levels are the 8 syslog levels
-      (see the "log" keyword) plus the special level "silent" which disables
-      logging for this request. This rule is not final so the last matching
-      rule wins. This rule can be useful to disable health checks coming from
-      another equipment.
-
-    - "set-tos" is used to set the TOS or DSCP field value of packets sent to
-      the client to the value passed in <tos> on platforms which support this.
-      This value represents the whole 8 bits of the IP TOS field, and can be
-      expressed both in decimal or hexadecimal format (prefixed by "0x"). Note
-      that only the 6 higher bits are used in DSCP or TOS, and the two lower
-      bits are always 0. This can be used to adjust some routing behavior on
-      border routers based on some information from the request. See RFC 2474,
-      2597, 3260 and 4594 for more information.
-
-    - "set-mark" is used to set the Netfilter MARK on all packets sent to the
-      client to the value passed in <mark> on platforms which support it. This
-      value is an unsigned 32 bit value which can be matched by netfilter and
-      by the routing table. It can be expressed both in decimal or hexadecimal
-      format (prefixed by "0x"). This can be useful to force certain packets to
-      take a different route (for example a cheaper network path for bulk
-      downloads). This works on Linux kernels 2.6.32 and above and requires
-      admin privileges.
-
-    - "add-acl" is used to add a new entry into an ACL. The ACL must be loaded
-      from a file (even a dummy empty file). The file name of the ACL to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the new entry. It
-      performs a lookup in the ACL before insertion, to avoid duplicated (or
-      more) values. This lookup is done by a linear search and can be expensive
-      with large lists! It is the equivalent of the "add acl" command from the
-      stats socket, but can be triggered by an HTTP response.
-
-    - "del-acl" is used to delete an entry from an ACL. The ACL must be loaded
-      from a file (even a dummy empty file). The file name of the ACL to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the entry to delete.
-      It is the equivalent of the "del acl" command from the stats socket, but
-      can be triggered by an HTTP response.
-
-    - "del-map" is used to delete an entry from a MAP. The MAP must be loaded
-      from a file (even a dummy empty file). The file name of the MAP to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the entry to delete.
-      It takes one argument: "file name" It is the equivalent of the "del map"
-      command from the stats socket, but can be triggered by an HTTP response.
-
-    - "set-map" is used to add a new entry into a MAP. The MAP must be loaded
-      from a file (even a dummy empty file). The file name of the MAP to be
-      updated is passed between parentheses. It takes 2 arguments: <key fmt>,
-      which follows log-format rules, used to collect MAP key, and <value fmt>,
-      which follows log-format rules, used to collect content for the new entry.
-      It performs a lookup in the MAP before insertion, to avoid duplicated (or
-      more) values. This lookup is done by a linear search and can be expensive
-      with large lists! It is the equivalent of the "set map" command from the
-      stats socket, but can be triggered by an HTTP response.
-
-    - capture <sample> id <id> :
-      captures sample expression <sample> from the response buffer, and converts
-      it to a string. The resulting string is stored into the next request
-      "capture" slot, so it will possibly appear next to some captured HTTP
-      headers. It will then automatically appear in the logs, and it will be
-      possible to extract it using sample fetch rules to feed it into headers or
-      anything. Please check section 7.3 (Fetching samples) and "capture
-      response header" for more information.
-
-      The keyword "id" is the id of the capture slot which is used for storing
-      the string. The capture slot must be defined in an associated frontend.
-      This is useful to run captures in backends. The slot id can be declared by
-      a previous directive "http-response capture" or with the "declare capture"
-      keyword.
-      If the slot <id> doesn't exist, then HAProxy fails parsing the
-      configuration to prevent unexpected behavior at run time.
-
-    - cache-store <name> :
-      See section 10.2 about cache setup.
-
-    - "redirect" : this performs an HTTP redirection based on a redirect rule.
-      This supports a format string similarly to "http-request redirect" rules,
-      with the exception that only the "location" type of redirect is possible
-      on the response. See the "redirect" keyword for the rule's syntax. When
-      a redirect rule is applied during a response, connections to the server
-      are closed so that no data can be forwarded from the server to the client.
-
-    - set-var(<var-name>) expr:
-      Is used to set the contents of a variable. The variable is declared
-      inline.
-
-        <var-name> The name of the variable starts with an indication about
-                   its scope. The scopes allowed are:
-                     "proc" : the variable is shared with the whole process
-                     "sess" : the variable is shared with the whole session
-                     "txn"  : the variable is shared with the transaction
-                              (request and response)
-                     "req"  : the variable is shared only during request
-                              processing
-                     "res"  : the variable is shared only during response
-                              processing
-                   This prefix is followed by a name. The separator is a '.'.
-                   The name may only contain characters 'a-z', 'A-Z', '0-9',
-                   '.' and '_'.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-response set-var(sess.last_redir) res.hdr(location)
-
-    - unset-var(<var-name>) :
-      Is used to unset a variable. See above for details about <var-name>.
-
-      Example:
-
-         http-response unset-var(sess.last_redir)
-
-    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
-      enables tracking of sticky counters from current response. Please refer to
-      "http-request track-sc" for a complete description. The only difference
-      from "http-request track-sc" is the <key> sample expression can only make
-      use of samples in response (e.g. res.*, status etc.) and samples below
-      Layer 6 (e.g. SSL-related samples, see section 7.3.4). If the sample is
-      not supported, haproxy will fail and warn while parsing the config.
-
-    - sc-set-gpt0(<sc-id>) <int> :
-      This action sets the GPT0 tag according to the sticky counter designated
-      by <sc-id> and the value of <int>. The expected result is a boolean. If
-      an error occurs, this action silently fails and the actions evaluation
-      continues.
-
-    - sc-inc-gpc0(<sc-id>):
-      This action increments the GPC0 counter according with the sticky counter
-      designated by <sc-id>. If an error occurs, this action silently fails and
-      the actions evaluation continues.
-
-    - sc-inc-gpc1(<sc-id>):
-	  Same as "sc-inc-gpc0" action above but for GPC1 counter.
-
-    - "silent-drop" : this stops the evaluation of the rules and makes the
-      client-facing connection suddenly disappear using a system-dependent way
-      that tries to prevent the client from being notified. The effect it then
-      that the client still sees an established connection while there's none
-      on HAProxy. The purpose is to achieve a comparable effect to "tarpit"
-      except that it doesn't use any local resource at all on the machine
-      running HAProxy. It can resist much higher loads than "tarpit", and slow
-      down stronger attackers. It is important to understand the impact of using
-      this mechanism. All stateful equipment placed between the client and
-      HAProxy (firewalls, proxies, load balancers) will also keep the
-      established connection for a long time and may suffer from this action.
-      On modern Linux systems running with enough privileges, the TCP_REPAIR
-      socket option is used to block the emission of a TCP reset. On other
-      systems, the socket's TTL is reduced to 1 so that the TCP reset doesn't
-      pass the first router, though it's still delivered to local networks. Do
-      not use it unless you fully understand how it works.
-
-    - send-spoe-group <engine-name> <group-name> :
-      This action is used to trigger sending of a group of SPOE messages. To do
-      so, the SPOE engine used to send messages must be defined, as well as the
-      SPOE group to send. Of course, the SPOE engine must refer to an existing
-      SPOE filter. If not engine name is provided on the SPOE filter line, the
-      SPOE agent name must be used.
-
-        <engine-name> The SPOE engine name.
-
-        <group-name>  The SPOE group name as specified in the engine
-                      configuration.
+  The first keyword is the rule's action. The supported actions are described
+  below.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -4785,23 +4534,311 @@ http-request wait-for-handshake [ { if | unless } <condition> ]
   "http-response deny" instead of "rspdeny".
 
   Example:
-         acl key_acl res.hdr(X-Acl-Key) -m found
+    acl key_acl res.hdr(X-Acl-Key) -m found
 
-         acl myhost hdr(Host) -f myhost.lst
+    acl myhost hdr(Host) -f myhost.lst
 
-         http-response add-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
-         http-response del-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
+    http-response add-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
+    http-response del-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
 
   Example:
-         acl value  res.hdr(X-Value) -m found
+    acl value  res.hdr(X-Value) -m found
 
-         use_backend bk_appli if { hdr(Host),map_str(map.lst) -m found }
+    use_backend bk_appli if { hdr(Host),map_str(map.lst) -m found }
 
-         http-response set-map(map.lst) %[src] %[res.hdr(X-Value)] if value
-         http-response del-map(map.lst) %[src]                     if ! value
+    http-response set-map(map.lst) %[src] %[res.hdr(X-Value)] if value
+    http-response del-map(map.lst) %[src]                     if ! value
 
   See also : "http-request", section 3.4 about userlists and section 7 about
              ACL usage.
+
+http-response add-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to add a new entry into an ACL. The ACL must be loaded from a
+  file (even a dummy empty file). The file name of the ACL to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the new entry. It performs a lookup
+  in the ACL before insertion, to avoid duplicated (or more) values.
+  This lookup is done by a linear search and can be expensive with large lists!
+  It is the equivalent of the "add acl" command from the stats socket, but can
+  be triggered by an HTTP response.
+
+http-response add-header <name> <fmt> [ { if | unless } <condition> ]
+
+  This appends an HTTP header field whose name is specified in <name> and whose
+  value is defined by <fmt> which follows the log-format rules (see Custom Log
+  Format in section 8.2.4). This may be used to send a cookie to a client for
+  example, or to pass some internal information.
+  This rule is not final, so it is possible to add other similar rules.
+  Note that header addition is performed immediately, so one rule might reuse
+  the resulting header from a previous rule.
+
+http-response allow [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and lets the response pass the check.
+  No further "http-response" rules are evaluated for the current section.
+
+http-response cache-store [ { if | unless } <condition> ]
+
+  See section 10.2 about cache setup.
+
+http-response capture <sample> id <id> [ { if | unless } <condition> ]
+
+  This captures sample expression <sample> from the response buffer, and
+  converts it to a string. The resulting string is stored into the next request
+  "capture" slot, so it will possibly appear next to some captured HTTP
+  headers. It will then automatically appear in the logs, and it will be
+  possible to extract it using sample fetch rules to feed it into headers or
+  anything. Please check section 7.3 (Fetching samples) and
+  "capture response header" for more information.
+
+  The keyword "id" is the id of the capture slot which is used for storing the
+  string. The capture slot must be defined in an associated frontend.
+  This is useful to run captures in backends. The slot id can be declared by a
+  previous directive "http-response capture" or with the "declare capture"
+  keyword.
+  If the slot <id> doesn't exist, then HAProxy fails parsing the configuration
+  to prevent unexpected behavior at run time.
+
+http-response del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from an ACL. The ACL must be loaded from a
+  file (even a dummy empty file). The file name of the ACL to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the entry to delete.
+  It is the equivalent of the "del acl" command from the stats socket, but can
+  be triggered by an HTTP response.
+
+http-response del-header <name> [ { if | unless } <condition> ]
+
+  This removes all HTTP header fields whose name is specified in <name>.
+
+http-response del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from a MAP. The MAP must be loaded from a
+  file (even a dummy empty file). The file name of the MAP to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the entry to delete.
+  It takes one argument: "file name" It is the equivalent of the "del map"
+  command from the stats socket, but can be triggered by an HTTP response.
+
+http-response deny [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediately rejects the response
+  and emits an HTTP 502 error. No further "http-response" rules are evaluated.
+
+http-response redirect <rule> [ { if | unless } <condition> ]
+
+  This performs an HTTP redirection based on a redirect rule.
+  This supports a format string similarly to "http-request redirect" rules,
+  with the exception that only the "location" type of redirect is possible on
+  the response. See the "redirect" keyword for the rule's syntax. When a
+  redirect rule is applied during a response, connections to the server are
+  closed so that no data can be forwarded from the server to the client.
+
+http-response replace-header <name> <regex-match> <replace-fmt>
+                             [ { if | unless } <condition> ]
+
+  This matches the regular expression in all occurrences of header field <name>
+  according to <match-regex>, and replaces them with the <replace-fmt> argument.
+  Format characters are allowed in replace-fmt and work like in <fmt> arguments
+  in "add-header". The match is only case-sensitive. It is important to
+  understand that this action only considers whole header lines, regardless of
+  the number of values they may contain. This usage is suited to headers
+  naturally containing commas in their value, such as Set-Cookie, Expires and
+  so on.
+
+  Example:
+    http-response replace-header Set-Cookie (C=[^;]*);(.*) \1;ip=%bi;\2
+
+    # applied to:
+    Set-Cookie: C=1; expires=Tue, 14-Jun-2016 01:40:45 GMT
+
+    # outputs:
+    Set-Cookie: C=1;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT
+
+    # assuming the backend IP is 192.168.1.20.
+
+http-response replace-value <name> <regex-match> <replace-fmt>
+                            [ { if | unless } <condition> ]
+
+  This works like "replace-header" except that it matches the regex against
+  every comma-delimited value of the header field <name> instead of the entire
+  header. This is suited for all headers which are allowed to carry more than
+  one value. An example could be the Accept header.
+
+  Example:
+    http-response replace-value Cache-control ^public$ private
+
+    # applied to:
+    Cache-Control: max-age=3600, public
+
+    # outputs:
+    Cache-Control: max-age=3600, private
+
+http-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
+http-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
+
+  This action increments the GPC0 or GPC1 counter according with the sticky
+  counter designated by <sc-id>. If an error occurs, this action silently fails
+  and the actions evaluation continues.
+
+http-response sc-set-gpt0(<sc-id>) <int> [ { if | unless } <condition> ]
+
+  This action sets the GPT0 tag according to the sticky counter designated by
+  <sc-id> and the value of <int>. The expected result is a boolean. If an error
+  occurs, this action silently fails and the actions evaluation continues.
+
+http-response send-spoe-group [ { if | unless } <condition> ]
+
+  This action is used to trigger sending of a group of SPOE messages. To do so,
+  the SPOE engine used to send messages must be defined, as well as the SPOE
+  group to send. Of course, the SPOE engine must refer to an existing SPOE
+  filter. If not engine name is provided on the SPOE filter line, the SPOE
+  agent name must be used.
+
+  Arguments:
+    <engine-name>  The SPOE engine name.
+
+    <group-name>   The SPOE group name as specified in the engine
+                   configuration.
+
+http-response set-header <name> <fmt> [ { if | unless } <condition> ]
+
+  This does the same as "add-header" except that the header name is first
+  removed if it existed. This is useful when passing security information to
+  the server, where the header must not be manipulated by external users.
+
+http-response set-log-level <level> [ { if | unless } <condition> ]
+
+  This is used to change the log level of the current request when a certain
+  condition is met. Valid levels are the 8 syslog levels (see the "log"
+  keyword) plus the special level "silent" which disables logging for this
+  request. This rule is not final so the last matching rule wins. This rule can
+  be useful to disable health checks coming from another equipment.
+
+http-response set-map(<file-name>) <key fmt> <value fmt>
+
+  This is used to add a new entry into a MAP. The MAP must be loaded from a
+  file (even a dummy empty file). The file name of the MAP to be updated is
+  passed between parentheses. It takes 2 arguments: <key fmt>, which follows
+  log-format rules, used to collect MAP key, and <value fmt>, which follows
+  log-format rules, used to collect content for the new entry. It performs a
+  lookup in the MAP before insertion, to avoid duplicated (or more) values.
+  This lookup is done by a linear search and can be expensive with large lists!
+  It is the equivalent of the "set map" command from the stats socket, but can
+  be triggered by an HTTP response.
+
+http-response set-mark <mark> [ { if | unless } <condition> ]
+
+  This is used to set the Netfilter MARK on all packets sent to the client to
+  the value passed in <mark> on platforms which support it. This value is an
+  unsigned 32 bit value which can be matched by netfilter and by the routing
+  table. It can be expressed both in decimal or hexadecimal format (prefixed
+  by "0x"). This can be useful to force certain packets to take a different
+  route (for example a cheaper network path for bulk downloads). This works on
+  Linux kernels 2.6.32 and above and requires admin privileges.
+
+http-response set-nice <nice> [ { if | unless } <condition> ]
+
+  This sets the "nice" factor of the current request being processed.
+  It only has effect against the other requests being processed at the same
+  time. The default value is 0, unless altered by the "nice" setting on the
+  "bind" line. The accepted range is -1024..1024. The higher the value, the
+  nicest the request will be. Lower values will make the request more important
+  than other ones. This can be useful to improve the speed of some requests, or
+  lower the priority of non-important requests. Using this setting without
+  prior experimentation can cause some major slowdown.
+
+http-response set-status <status> [reason <str>]
+                         [ { if | unless } <condition> ]
+
+  This replaces the response status code with <status> which must be an integer
+  between 100 and 999. Optionally, a custom reason text can be provided defined
+  by <str>, or the default reason for the specified code will be used as a
+  fallback.
+
+  Example:
+    # return "431 Request Header Fields Too Large"
+    http-response set-status 431
+    # return "503 Slow Down", custom reason
+    http-response set-status 503 reason "Slow Down".
+
+http-response set-tos <tos> [ { if | unless } <condition> ]
+
+  This is used to set the TOS or DSCP field value of packets sent to the client
+  to the value passed in <tos> on platforms which support this.
+  This value represents the whole 8 bits of the IP TOS field, and can be
+  expressed both in decimal or hexadecimal format (prefixed by "0x"). Note that
+  only the 6 higher bits are used in DSCP or TOS, and the two lower bits are
+  always 0. This can be used to adjust some routing behavior on border routers
+  based on some information from the request.
+
+  See RFC 2474, 2597, 3260 and 4594 for more information.
+
+http-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
+
+  This is used to set the contents of a variable. The variable is declared
+  inline.
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed are:
+                  "proc" : the variable is shared with the whole process
+                  "sess" : the variable is shared with the whole session
+                  "txn"  : the variable is shared with the transaction
+                           (request and response)
+                  "req"  : the variable is shared only during request
+                           processing
+                  "res"  : the variable is shared only during response
+                           processing
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9', '.'
+                and '_'.
+
+    <expr>      Is a standard HAProxy expression formed by a sample-fetch
+                followed by some converters.
+
+  Example:
+    http-response set-var(sess.last_redir) res.hdr(location)
+
+http-response silent-drop [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and makes the client-facing connection
+  suddenly disappear using a system-dependent way that tries to prevent the
+  client from being notified. The effect it then that the client still sees an
+  established connection while there's none on HAProxy. The purpose is to
+  achieve a comparable effect to "tarpit" except that it doesn't use any local
+  resource at all on the machine running HAProxy. It can resist much higher
+  loads than "tarpit", and slow down stronger attackers. It is important to
+  understand the impact of using this mechanism. All stateful equipment placed
+  between the client and HAProxy (firewalls, proxies, load balancers) will also
+  keep the established connection for a long time and may suffer from this
+  action.
+  On modern Linux systems running with enough privileges, the TCP_REPAIR socket
+  option is used to block the emission of a TCP reset. On other systems, the
+  socket's TTL is reduced to 1 so that the TCP reset doesn't pass the first
+  router, though it's still delivered to local networks. Do not use it unless
+  you fully understand how it works.
+
+http-response track-sc0 <key> [table <table>] [ { if | unless } <condition> ]
+http-response track-sc1 <key> [table <table>] [ { if | unless } <condition> ]
+http-response track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
+
+  This enables tracking of sticky counters from current response. Please refer
+  to "http-request track-sc" for a complete description. The only difference
+  from "http-request track-sc" is the <key> sample expression can only make use
+  of samples in response (e.g. res.*, status etc.) and samples below Layer 6
+  (e.g. SSL-related samples, see section 7.3.4). If the sample is not
+  supported, haproxy will fail and warn while parsing the config.
+
+http-response unset-var(<var-name>) [ { if | unless } <condition> ]
+
+  This is used to unset a variable. See "http-response set-var" for details
+  about <var-name>.
+
+  Example:
+    http-response unset-var(sess.last_redir)
 
 
 http-reuse { never | safe | aggressive | always }
@@ -9380,13 +9417,13 @@ tcp-request connection <action> [{if | unless} <condition>]
       Is used to set the source IP address to the value of specified
       expression. Useful if you want to mask source IP for privacy.
       If you want to provide an IP from a HTTP header use "http-request
-      set-src"
+      set-src".
 
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
+      Arguments:
+         <expr>  Is a standard HAProxy expression formed by a sample-fetch
+                 followed by some converters.
 
       Example:
-
          tcp-request connection set-src src,ipmask(24)
 
       When possible, set-src preserves the original source port as long as the
@@ -9396,11 +9433,11 @@ tcp-request connection <action> [{if | unless} <condition>]
       Is used to set the source port address to the value of specified
       expression.
 
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
+      Arguments:
+         <expr>  Is a standard HAProxy expression formed by a sample-fetch
+                 followed by some converters.
 
       Example:
-
          tcp-request connection set-src-port int(4000)
 
       When possible, set-src-port preserves the original source address as long
