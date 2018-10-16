@@ -24,7 +24,7 @@ Files: src/hlua.c, include/*/hlua.h
 
 Maps and pattern matching
 Maintainer: Thierry Fournier <tfournier@arpalert.org>
-Files: src/maps.c, src/pattern.c, include/*/maps.h, include/*/pattern.h
+Files: src/map.c, src/pattern.c, include/*/map.h, include/*/pattern.h
 
 DNS
 Maintainer: Baptiste Assmann <bedis9@gmail.com>
