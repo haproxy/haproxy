@@ -3170,7 +3170,7 @@ void apply_server_state(void)
 				globalfilepathlen = 0;
 				goto globalfileerror;
 			}
-			strncpy(globalfilepath, global.server_state_base, len);
+			memcpy(globalfilepath, global.server_state_base, len);
 			globalfilepath[globalfilepathlen] = 0;
 
 			/* append a slash if needed */
@@ -3239,7 +3239,7 @@ void apply_server_state(void)
 						localfilepathlen = 0;
 						goto localfileerror;
 					}
-					strncpy(localfilepath, global.server_state_base, len);
+					memcpy(localfilepath, global.server_state_base, len);
 					localfilepath[localfilepathlen] = 0;
 
 					/* append a slash if needed */
