@@ -120,15 +120,13 @@ enum {
 /* Note: ids >= 128 contains   */
 /* id message cotains data     */
 /*******************************/
-enum {
-	PEER_MSG_STKT_UPDATE = 128,
-	PEER_MSG_STKT_INCUPDATE,
-	PEER_MSG_STKT_DEFINE,
-	PEER_MSG_STKT_SWITCH,
-	PEER_MSG_STKT_ACK,
-	PEER_MSG_STKT_UPDATE_TIMED,
-	PEER_MSG_STKT_INCUPDATE_TIMED,
-};
+#define PEER_MSG_STKT_UPDATE           0x80
+#define PEER_MSG_STKT_INCUPDATE        0x81
+#define PEER_MSG_STKT_DEFINE           0x82
+#define PEER_MSG_STKT_SWITCH           0x83
+#define PEER_MSG_STKT_ACK              0x84
+#define PEER_MSG_STKT_UPDATE_TIMED     0x85
+#define PEER_MSG_STKT_INCUPDATE_TIMED  0x86
 
 /**********************************/
 /* Peer Session IO handler states */
