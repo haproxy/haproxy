@@ -17,6 +17,7 @@
 
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/hathreads.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -33,6 +34,11 @@
  */
 struct pool_head pool_base_start[MAX_BASE_POOLS] = { };
 unsigned int pool_base_count = 0;
+
+THREAD_LOCAL struct pool_cache_head pool_cache[MAX_BASE_POOLS] = { };
+THREAD_LOCAL struct list pool_lru_head = { };            /* oldest objects   */
+THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
+THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
 static struct list pools = LIST_HEAD_INIT(pools);
 int mem_poison_byte = -1;
@@ -242,6 +248,47 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	HA_ATOMIC_STORE(&recurse, 0);
 }
+
+/* frees an object to the local cache, possibly pushing oldest objects to the
+ * global pool. Must not be called directly.
+ */
+void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
+{
+	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
+	struct pool_cache_head *ph = &pool_cache[idx];
+
+	/* never allocated or empty */
+	if (unlikely(ph->list.n == NULL)) {
+		LIST_INIT(&ph->list);
+		ph->size = pool->size;
+		if (pool_lru_head.n == NULL)
+			LIST_INIT(&pool_lru_head);
+	}
+
+	LIST_ADD(&ph->list, &item->by_pool);
+	LIST_ADD(&pool_lru_head, &item->by_lru);
+	ph->count++;
+	pool_cache_count++;
+	pool_cache_bytes += ph->size;
+
+	if (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE)
+		return;
+
+	do {
+		item = LIST_PREV(&pool_lru_head, struct pool_cache_item *, by_lru);
+		/* note: by definition we remove oldest objects so they also are the
+		 * oldest in their own pools, thus their next is the pool's head.
+		 */
+		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
+		LIST_DEL(&item->by_pool);
+		LIST_DEL(&item->by_lru);
+		ph->count--;
+		pool_cache_count--;
+		pool_cache_bytes -= ph->size;
+		__pool_free(pool_base_start + (ph - pool_cache), item);
+	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
+}
+
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
 
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1

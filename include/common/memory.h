@@ -50,6 +50,22 @@
 
 #define MAX_BASE_POOLS 32
 
+struct pool_cache_head {
+	struct list list;    /* head of objects in this pool */
+	size_t size;         /* size of an object */
+	unsigned int count;  /* number of objects in this pool */
+};
+
+struct pool_cache_item {
+	struct list by_pool; /* link to objects in this pool */
+	struct list by_lru;  /* link to objects by LRU order */
+};
+
+extern THREAD_LOCAL struct pool_cache_head pool_cache[MAX_BASE_POOLS];
+extern THREAD_LOCAL struct list pool_lru_head; /* oldest objects   */
+extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
+extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
+
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 struct pool_free_list {
 	void **free_list;
@@ -141,6 +157,32 @@ static inline ssize_t pool_get_index(const struct pool_head *pool)
 }
 
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
+
+/* Tries to retrieve an object from the local pool cache corresponding to pool
+ * <pool>. Returns NULL if none is available.
+ */
+static inline void *__pool_get_from_cache(struct pool_head *pool)
+{
+	ssize_t idx = pool_get_index(pool);
+	struct pool_cache_item *item;
+
+	/* pool not in cache */
+	if (idx < 0)
+		return NULL;
+
+	/* never allocated or empty */
+	if (pool_cache[idx].list.n == NULL || LIST_ISEMPTY(&pool_cache[idx].list))
+		return NULL;
+
+	item = LIST_NEXT(&pool_cache[idx].list, typeof(item), by_pool);
+	pool_cache[idx].count--;
+	pool_cache_bytes -= pool_cache[idx].size;
+	pool_cache_count--;
+	LIST_DEL(&item->by_pool);
+	LIST_DEL(&item->by_lru);
+	return item;
+}
+
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -149,6 +191,10 @@ static inline ssize_t pool_get_index(const struct pool_head *pool)
 static inline void *__pool_get_first(struct pool_head *pool)
 {
 	struct pool_free_list cmp, new;
+	void *ret = __pool_get_from_cache(pool);
+
+	if (ret)
+		return ret;
 
 	cmp.seq = pool->seq;
 	__ha_barrier_load();
@@ -230,6 +276,27 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	HA_ATOMIC_SUB(&pool->used, 1);
 }
 
+/* frees an object to the local cache, possibly pushing oldest objects to the
+ * global pool.
+ */
+void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx);
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
+{
+	ssize_t idx = pool_get_index(pool);
+
+	/* pool not in cache or too many objects for this pool (more than
+	 * half of the cache is used and this pool uses more than 1/8 of
+	 * the cache size).
+	 */
+	if (idx < 0 ||
+	    (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
+	     pool_cache[idx].count >= 16 + pool_cache_count / 8)) {
+		__pool_free(pool, ptr);
+		return;
+	}
+	__pool_put_to_cache(pool, ptr, idx);
+}
+
 /*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
@@ -247,7 +314,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
 			*(volatile int *)0 = 0;
 #endif
-		__pool_free(pool, ptr);
+		pool_put_to_cache(pool, ptr);
 	}
 }
 

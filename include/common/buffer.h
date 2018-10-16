@@ -141,9 +141,16 @@ static inline void b_free(struct buffer *buf)
 static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 {
 	char *area;
+	ssize_t idx;
+	unsigned int cached;
 
 	if (buf->size)
 		return buf;
+
+	cached = 0;
+	idx = pool_get_index(pool_head_buffer);
+	if (idx >= 0)
+		cached = pool_cache[idx].count;
 
 	*buf = BUF_WANTED;
 
@@ -152,7 +159,7 @@ static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 #endif
 
 	/* fast path */
-	if ((pool_head_buffer->allocated - pool_head_buffer->used) > margin) {
+	if ((pool_head_buffer->allocated - pool_head_buffer->used + cached) > margin) {
 		area = __pool_get_first(pool_head_buffer);
 		if (likely(area)) {
 #ifndef CONFIG_HAP_LOCKLESS_POOLS

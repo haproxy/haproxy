@@ -60,6 +60,9 @@
  */
 #if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && !defined(DEBUG_NO_LOCKLESS_POOLS) && !defined(DEBUG_UAF)
 #define CONFIG_HAP_LOCKLESS_POOLS
+#ifndef CONFIG_HAP_POOL_CACHE_SIZE
+#define CONFIG_HAP_POOL_CACHE_SIZE 524288
+#endif
 #endif
 
 /* CONFIG_HAP_INLINE_FD_SET
