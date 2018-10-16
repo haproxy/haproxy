@@ -215,6 +215,21 @@ static inline void *pool_alloc(struct pool_head *pool)
 	return p;
 }
 
+/* Locklessly add item <ptr> to pool <pool>, then update the pool used count.
+ * Both the pool and the pointer must be valid. Use pool_free() for normal
+ * operations.
+ */
+static inline void __pool_free(struct pool_head *pool, void *ptr)
+{
+	void *free_list = pool->free_list;
+
+	do {
+		*POOL_LINK(pool, ptr) = (void *)free_list;
+		__ha_barrier_store();
+	} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr));
+	HA_ATOMIC_SUB(&pool->used, 1);
+}
+
 /*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
@@ -227,19 +242,12 @@ static inline void *pool_alloc(struct pool_head *pool)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-		void *free_list;
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
 			*(volatile int *)0 = 0;
 #endif
-		free_list = pool->free_list;
-		do {
-			*POOL_LINK(pool, ptr) = (void *)free_list;
-			__ha_barrier_store();
-		} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr));
-
-		HA_ATOMIC_SUB(&pool->used, 1);
+		__pool_free(pool, ptr);
 	}
 }
 
