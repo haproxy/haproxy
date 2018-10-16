@@ -625,18 +625,26 @@ the "show pools" command :
 
   > show pools
   Dumping pools usage. Use SIGQUIT to flush them.
-    - Pool pipe (32 bytes) : 5 allocated (160 bytes), 5 used, 3 users [SHARED]
-    - Pool hlua_com (48 bytes) : 0 allocated (0 bytes), 0 used, 1 users [SHARED]
-    - Pool vars (64 bytes) : 0 allocated (0 bytes), 0 used, 2 users [SHARED]
-    - Pool task (112 bytes) : 5 allocated (560 bytes), 5 used, 1 users [SHARED]
-    - Pool session (128 bytes) : 1 allocated (128 bytes), 1 used, 2 users [SHARED]
-    - Pool http_txn (272 bytes) : 0 allocated (0 bytes), 0 used, 1 users [SHARED]
-    - Pool connection (352 bytes) : 2 allocated (704 bytes), 2 used, 1 users [SHARED]
-    - Pool hdr_idx (416 bytes) : 0 allocated (0 bytes), 0 used, 1 users [SHARED]
-    - Pool stream (864 bytes) : 1 allocated (864 bytes), 1 used, 1 users [SHARED]
-    - Pool requri (1024 bytes) : 0 allocated (0 bytes), 0 used, 1 users [SHARED]
-    - Pool buffer (8064 bytes) : 3 allocated (24192 bytes), 2 used, 1 users [SHARED]
-  Total: 11 pools, 26608 bytes allocated, 18544 used.
+    - Pool cache_st (16 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9ccc40=03 [SHARED]
+    - Pool pipe (32 bytes) : 5 allocated (160 bytes), 5 used, 0 failures, 2 users, @0x9ccac0=00 [SHARED]
+    - Pool comp_state (48 bytes) : 3 allocated (144 bytes), 3 used, 0 failures, 5 users, @0x9cccc0=04 [SHARED]
+    - Pool filter (64 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 3 users, @0x9ccbc0=02 [SHARED]
+    - Pool vars (80 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 2 users, @0x9ccb40=01 [SHARED]
+    - Pool uniqueid (128 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 2 users, @0x9cd240=15 [SHARED]
+    - Pool task (144 bytes) : 55 allocated (7920 bytes), 55 used, 0 failures, 1 users, @0x9cd040=11 [SHARED]
+    - Pool session (160 bytes) : 1 allocated (160 bytes), 1 used, 0 failures, 1 users, @0x9cd140=13 [SHARED]
+    - Pool h2s (208 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 2 users, @0x9ccec0=08 [SHARED]
+    - Pool h2c (288 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9cce40=07 [SHARED]
+    - Pool spoe_ctx (304 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 2 users, @0x9ccf40=09 [SHARED]
+    - Pool connection (400 bytes) : 2 allocated (800 bytes), 2 used, 0 failures, 1 users, @0x9cd1c0=14 [SHARED]
+    - Pool hdr_idx (416 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9cd340=17 [SHARED]
+    - Pool dns_resolut (480 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9ccdc0=06 [SHARED]
+    - Pool dns_answer_ (576 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9ccd40=05 [SHARED]
+    - Pool stream (960 bytes) : 1 allocated (960 bytes), 1 used, 0 failures, 1 users, @0x9cd0c0=12 [SHARED]
+    - Pool requri (1024 bytes) : 0 allocated (0 bytes), 0 used, 0 failures, 1 users, @0x9cd2c0=16 [SHARED]
+    - Pool buffer (8030 bytes) : 3 allocated (24090 bytes), 2 used, 0 failures, 1 users, @0x9cd3c0=18 [SHARED]
+    - Pool trash (8062 bytes) : 1 allocated (8062 bytes), 1 used, 0 failures, 1 users, @0x9cd440=19
+  Total: 19 pools, 42296 bytes allocated, 34266 used.
 
 The pool name is only indicative, it's the name of the first object type using
 this pool. The size in parenthesis is the object size for objects in this pool.
@@ -645,7 +653,9 @@ number of objects currently allocated and the equivalent number of bytes is
 reported so that it is easy to know which pool is responsible for the highest
 memory usage. The number of objects currently in use is reported as well in the
 "used" field. The difference between "allocated" and "used" corresponds to the
-objects that have been freed and are available for immediate use.
+objects that have been freed and are available for immediate use. The address
+at the end of the line is the pool's address, and the following number is the
+pool index when it exists, or is reported as -1 if no index was assigned.
 
 It is possible to limit the amount of memory allocated per process using the
 "-m" command line option, followed by a number of megabytes. It covers all of

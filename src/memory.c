@@ -28,6 +28,12 @@
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
 
+/* These are the most common pools, expected to be initialized first. These
+ * ones are allocated from an array, allowing to map them to an index.
+ */
+struct pool_head pool_base_start[MAX_BASE_POOLS] = { };
+unsigned int pool_base_count = 0;
+
 static struct list pools = LIST_HEAD_INIT(pools);
 int mem_poison_byte = -1;
 
@@ -83,7 +89,22 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	}
 
 	if (!pool) {
-		pool = calloc(1, sizeof(*pool));
+		if (pool_base_count < MAX_BASE_POOLS)
+			pool = &pool_base_start[pool_base_count++];
+
+		if (!pool) {
+			/* look for a freed entry */
+			for (entry = pool_base_start; entry != pool_base_start + MAX_BASE_POOLS; entry++) {
+				if (!entry->size) {
+					pool = entry;
+					break;
+				}
+			}
+		}
+
+		if (!pool)
+			pool = calloc(1, sizeof(*pool));
+
 		if (!pool)
 			return NULL;
 		if (name)
@@ -355,7 +376,10 @@ void *pool_destroy(struct pool_head *pool)
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_DESTROY(&pool->lock);
 #endif
-			free(pool);
+			if ((pool - pool_base_start) < MAX_BASE_POOLS)
+				memset(pool, 0, sizeof(*pool));
+			else
+				free(pool);
 		}
 	}
 	return NULL;
@@ -374,10 +398,11 @@ void dump_pools_to_trash()
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 #endif
-		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users%s\n",
+		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users, @%p=%02d%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used, entry->failed,
-			 entry->users, (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
+			 entry->users, entry, (int)pool_get_index(entry),
+			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;

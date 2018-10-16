@@ -48,6 +48,8 @@
 #define POOL_LINK(pool, item) ((void **)(item))
 #endif
 
+#define MAX_BASE_POOLS 32
+
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 struct pool_free_list {
 	void **free_list;
@@ -73,6 +75,10 @@ struct pool_head {
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
 } __attribute__((aligned(64)));
+
+
+extern struct pool_head pool_base_start[MAX_BASE_POOLS];
+extern unsigned int pool_base_count;
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
@@ -122,6 +128,17 @@ void pool_gc(struct pool_head *pool_ctx);
  * This should be called only under extreme circumstances.
  */
 void *pool_destroy(struct pool_head *pool);
+
+/* returns the pool index for pool <pool>, or -1 if this pool has no index */
+static inline ssize_t pool_get_index(const struct pool_head *pool)
+{
+	size_t idx;
+
+	idx = pool - pool_base_start;
+	if (idx >= MAX_BASE_POOLS)
+		return -1;
+	return idx;
+}
 
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 /*
