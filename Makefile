@@ -104,6 +104,9 @@
 #       call it only once.
 cc-opt = $(shell set -e; if $(CC) $(1) -E -xc - -o /dev/null </dev/null >&0 2>&0; then echo "$(1)"; fi;)
 
+# same but emits $2 if $1 is not supported
+cc-opt-alt = $(shell set -e; if $(CC) $(1) -E -xc - -o /dev/null </dev/null >&0 2>&0; then echo "$(1)"; else echo "$(2)"; fi;)
+
 # Disable a warning when supported by the compiler. Don't put spaces around the
 # warning! And don't use cc-opt which doesn't always report an error until
 # another one is also returned.
@@ -153,8 +156,7 @@ DEBUG_CFLAGS = -g
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
 SPEC_CFLAGS := -fno-strict-aliasing -Wdeclaration-after-statement
-SPEC_CFLAGS += $(call cc-opt,-fwrapv)
-SPEC_CFLAGS += $(call cc-opt,-fno-strict-overflow)
+SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
 SPEC_CFLAGS += $(call cc-nowarn,format-truncation)
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
