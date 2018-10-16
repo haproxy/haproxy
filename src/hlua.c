@@ -25,7 +25,6 @@
 #include <ebpttree.h>
 
 #include <common/cfgparse.h>
-#include <common/compiler.h>
 #include <common/xref.h>
 #include <common/hathreads.h>
 
@@ -68,7 +67,7 @@
  *   MAY_LJMP() marks an lua function that may use longjmp.
  */
 #define __LJMP
-#define WILL_LJMP(func) do { func; __unreachable(); } while (0)
+#define WILL_LJMP(func) func
 #define MAY_LJMP(func) func
 
 /* This couple of function executes securely some Lua calls outside of
@@ -2362,7 +2361,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 		return 2;
 	}
 
-	appctx = __objt_appctx(s->si[0].end);
+	appctx = objt_appctx(s->si[0].end);
 
 	/* Check for connection established. */
 	if (appctx->ctx.hlua_cosocket.connected) {
@@ -2474,7 +2473,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 
 	hlua = hlua_gethlua(L);
-	appctx = __objt_appctx(s->si[0].end);
+	appctx = objt_appctx(s->si[0].end);
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
@@ -5724,9 +5723,6 @@ static int hlua_register_task(lua_State *L)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	task = task_new(MAX_THREADS_MASK);
-	if (!task)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-
 	task->context = hlua;
 	task->process = hlua_process_task;
 
