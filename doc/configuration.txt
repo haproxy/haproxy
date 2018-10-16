@@ -3939,31 +3939,8 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
-              tarpit [deny_status <status>] | deny [deny_status <status>] |
-              add-header <name> <fmt> | set-header <name> <fmt> |
-              capture <sample> [ len <length> | id <id> ] |
-              del-header <name> | set-nice <nice> | set-log-level <level> |
-              replace-header <name> <match-regex> <replace-fmt> |
-              replace-value <name> <match-regex> <replace-fmt> |
-              set-method <fmt> | set-path <fmt> | set-query <fmt> |
-              set-uri <fmt> | set-tos <tos> | set-mark <mark> |
-              set-priority-class <expr> | set-priority-offset <expr>
-              add-acl(<file name>) <key fmt> |
-              del-acl(<file name>) <key fmt> |
-              del-map(<file name>) <key fmt> |
-              set-map(<file name>) <key fmt> <value fmt> |
-              set-var(<var name>) <expr> |
-              unset-var(<var name>) |
-              { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
-              sc-inc-gpc0(<sc-id>) |
-              sc-inc-gpc1(<sc-id>) |
-              sc-set-gpt0(<sc-id>) <int> |
-              silent-drop |
-              send-spoe-group |
-              cache-use
-             }
-             [ { if | unless } <condition> ]
+
+http-request <action> [options...] [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
   May be used in sections:   defaults | frontend | listen | backend
@@ -3975,436 +3952,8 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
   followed by an ACL-based condition, in which case it will only be evaluated
   if the condition is true.
 
-  The first keyword is the rule's action. Currently supported actions include :
-    - "allow" : this stops the evaluation of the rules and lets the request
-      pass the check. No further "http-request" rules are evaluated.
-
-    - "deny" : this stops the evaluation of the rules and immediately rejects
-      the request and emits an HTTP 403 error, or optionally the status code
-      specified as an argument to "deny_status". The list of permitted status
-      codes is limited to those that can be overridden by the "errorfile"
-      directive. No further "http-request" rules are evaluated.
-
-    - "reject" : this stops the evaluation of the rules and immediately closes
-      the connection without sending any response. It acts similarly to the
-      "tcp-request content reject" rules. It can be useful to force an
-      immediate connection closure on HTTP/2 connections.
-
-    - "tarpit" : this stops the evaluation of the rules and immediately blocks
-      the request without responding for a delay specified by "timeout tarpit"
-      or "timeout connect" if the former is not set. After that delay, if the
-      client is still connected, an HTTP error 500 (or optionally the status
-      code specified as an argument to "deny_status") is returned so that the
-      client does not suspect it has been tarpitted. Logs will report the flags
-      "PT". The goal of the tarpit rule is to slow down robots during an attack
-      when they're limited on the number of concurrent requests. It can be very
-      efficient against very dumb robots, and will significantly reduce the
-      load on firewalls compared to a "deny" rule. But when facing "correctly"
-      developed robots, it can make things worse by forcing haproxy and the
-      front firewall to support insane number of concurrent connections. See
-      also the "silent-drop" action below.
-
-    - "auth" : this stops the evaluation of the rules and immediately responds
-      with an HTTP 401 or 407 error code to invite the user to present a valid
-      user name and password. No further "http-request" rules are evaluated. An
-      optional "realm" parameter is supported, it sets the authentication realm
-      that is returned with the response (typically the application's name).
-
-    - "redirect" : this performs an HTTP redirection based on a redirect rule.
-      This is exactly the same as the "redirect" statement except that it
-      inserts a redirect rule which can be processed in the middle of other
-      "http-request" rules and that these rules use the "log-format" strings.
-      See the "redirect" keyword for the rule's syntax.
-
-    - "add-header" appends an HTTP header field whose name is specified in
-      <name> and whose value is defined by <fmt> which follows the log-format
-      rules (see Custom Log Format in section 8.2.4). This is particularly
-      useful to pass connection-specific information to the server (e.g. the
-      client's SSL certificate), or to combine several headers into one. This
-      rule is not final, so it is possible to add other similar rules. Note
-      that header addition is performed immediately, so one rule might reuse
-      the resulting header from a previous rule.
-
-    - "set-header" does the same as "add-header" except that the header name
-      is first removed if it existed. This is useful when passing security
-      information to the server, where the header must not be manipulated by
-      external users. Note that the new value is computed before the removal so
-      it is possible to concatenate a value to an existing header.
-
-    - "del-header" removes all HTTP header fields whose name is specified in
-      <name>.
-
-    - "replace-header" matches the regular expression in all occurrences of
-      header field <name> according to <match-regex>, and replaces them with
-      the <replace-fmt> argument. Format characters are allowed in replace-fmt
-      and work like in <fmt> arguments in "add-header". The match is only
-      case-sensitive. It is important to understand that this action only
-      considers whole header lines, regardless of the number of values they
-      may contain. This usage is suited to headers naturally containing commas
-      in their value, such as If-Modified-Since and so on.
-
-      Example:
-
-        http-request replace-header Cookie foo=([^;]*);(.*) foo=\1;ip=%bi;\2
-
-      applied to:
-
-        Cookie: foo=foobar; expires=Tue, 14-Jun-2016 01:40:45 GMT;
-
-      outputs:
-
-        Cookie: foo=foobar;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT;
-
-      assuming the backend IP is 192.168.1.20
-
-    - "replace-value" works like "replace-header" except that it matches the
-      regex against every comma-delimited value of the header field <name>
-      instead of the entire header. This is suited for all headers which are
-      allowed to carry more than one value. An example could be the Accept
-      header.
-
-      Example:
-
-        http-request replace-value X-Forwarded-For ^192\.168\.(.*)$ 172.16.\1
-
-      applied to:
-
-        X-Forwarded-For: 192.168.10.1, 192.168.13.24, 10.0.0.37
-
-      outputs:
-
-        X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
-
-    - "set-method" rewrites the request method with the result of the
-      evaluation of format string <fmt>. There should be very few valid reasons
-      for having to do so as this is more likely to break something than to fix
-      it.
-
-    - "set-path" rewrites the request path with the result of the evaluation of
-      format string <fmt>. The query string, if any, is left intact. If a
-      scheme and authority is found before the path, they are left intact as
-      well. If the request doesn't have a path ("*"), this one is replaced with
-      the format. This can be used to prepend a directory component in front of
-      a path for example. See also "set-query" and "set-uri".
-
-      Example :
-          # prepend the host name before the path
-          http-request set-path /%[hdr(host)]%[path]
-
-    - "set-query" rewrites the request's query string which appears after the
-      first question mark ("?") with the result of the evaluation of format
-      string <fmt>. The part prior to the question mark is left intact. If the
-      request doesn't contain a question mark and the new value is not empty,
-      then one is added at the end of the URI, followed by the new value. If
-      a question mark was present, it will never be removed even if the value
-      is empty. This can be used to add or remove parameters from the query
-      string. See also "set-query" and "set-uri".
-
-      Example :
-          # replace "%3D" with "=" in the query string
-          http-request set-query %[query,regsub(%3D,=,g)]
-
-    - "set-uri" rewrites the request URI with the result of the evaluation of
-      format string <fmt>. The scheme, authority, path and query string are all
-      replaced at once. This can be used to rewrite hosts in front of proxies,
-      or to perform complex modifications to the URI such as moving parts
-      between the path and the query string. See also "set-path" and
-      "set-query".
-
-    - "set-nice" sets the "nice" factor of the current request being processed.
-      It only has effect against the other requests being processed at the same
-      time. The default value is 0, unless altered by the "nice" setting on the
-      "bind" line. The accepted range is -1024..1024. The higher the value, the
-      nicest the request will be. Lower values will make the request more
-      important than other ones. This can be useful to improve the speed of
-      some requests, or lower the priority of non-important requests. Using
-      this setting without prior experimentation can cause some major slowdown.
-
-    - "set-log-level" is used to change the log level of the current request
-      when a certain condition is met. Valid levels are the 8 syslog levels
-      (see the "log" keyword) plus the special level "silent" which disables
-      logging for this request. This rule is not final so the last matching
-      rule wins. This rule can be useful to disable health checks coming from
-      another equipment.
-
-    - "set-tos" is used to set the TOS or DSCP field value of packets sent to
-      the client to the value passed in <tos> on platforms which support this.
-      This value represents the whole 8 bits of the IP TOS field, and can be
-      expressed both in decimal or hexadecimal format (prefixed by "0x"). Note
-      that only the 6 higher bits are used in DSCP or TOS, and the two lower
-      bits are always 0. This can be used to adjust some routing behavior on
-      border routers based on some information from the request. See RFC 2474,
-      2597, 3260 and 4594 for more information.
-
-    - "set-mark" is used to set the Netfilter MARK on all packets sent to the
-      client to the value passed in <mark> on platforms which support it. This
-      value is an unsigned 32 bit value which can be matched by netfilter and
-      by the routing table. It can be expressed both in decimal or hexadecimal
-      format (prefixed by "0x"). This can be useful to force certain packets to
-      take a different route (for example a cheaper network path for bulk
-      downloads). This works on Linux kernels 2.6.32 and above and requires
-      admin privileges.
-
-    - "set-priority-class" is used to set the queue priority class of the
-      current request. The value must be a sample expression which converts to
-      an integer in the range -2047..2047. Results outside this range will be
-      truncated. The priority class determines the order in which queued
-      requests are processed. Lower values have higher priority.
-
-    - "set-priority-offset" is used to set the queue priority timestamp offset
-      of the current request. The value must be a sample expression which
-      converts to an integer in the range -524287..524287. Results outside this
-      range will be truncated. When a request is queued, it is ordered first by
-      the priority class, then by the current timestamp adjusted by the given
-      offset in milliseconds. Lower values have higher priority.
-      Note that the resulting timestamp is is only tracked with enough precision
-      for 524,287ms (8m44s287ms). If the request is queued long enough to where
-      the adjusted timestamp exceeds this value, it will be misidentified as
-      highest priority. Thus it is important to set "timeout queue" to a value,
-      where when combined with the offset, does not exceed this limit.
-
-    - "add-acl" is used to add a new entry into an ACL. The ACL must be loaded
-      from a file (even a dummy empty file). The file name of the ACL to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the new entry. It
-      performs a lookup in the ACL before insertion, to avoid duplicated (or
-      more) values. This lookup is done by a linear search and can be expensive
-      with large lists! It is the equivalent of the "add acl" command from the
-      stats socket, but can be triggered by an HTTP request.
-
-    - "del-acl" is used to delete an entry from an ACL. The ACL must be loaded
-      from a file (even a dummy empty file). The file name of the ACL to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the entry to delete.
-      It is the equivalent of the "del acl" command from the stats socket, but
-      can be triggered by an HTTP request.
-
-    - "del-map" is used to delete an entry from a MAP. The MAP must be loaded
-      from a file (even a dummy empty file). The file name of the MAP to be
-      updated is passed between parentheses. It takes one argument: <key fmt>,
-      which follows log-format rules, to collect content of the entry to delete.
-      It takes one argument: "file name" It is the equivalent of the "del map"
-      command from the stats socket, but can be triggered by an HTTP request.
-
-    - "set-map" is used to add a new entry into a MAP. The MAP must be loaded
-      from a file (even a dummy empty file). The file name of the MAP to be
-      updated is passed between parentheses. It takes 2 arguments: <key fmt>,
-      which follows log-format rules, used to collect MAP key, and <value fmt>,
-      which follows log-format rules, used to collect content for the new entry.
-      It performs a lookup in the MAP before insertion, to avoid duplicated (or
-      more) values. This lookup is done by a linear search and can be expensive
-      with large lists! It is the equivalent of the "set map" command from the
-      stats socket, but can be triggered by an HTTP request.
-
-    - capture <sample> [ len <length> | id <id> ] :
-      captures sample expression <sample> from the request buffer, and converts
-      it to a string of at most <len> characters. The resulting string is
-      stored into the next request "capture" slot, so it will possibly appear
-      next to some captured HTTP headers. It will then automatically appear in
-      the logs, and it will be possible to extract it using sample fetch rules
-      to feed it into headers or anything. The length should be limited given
-      that this size will be allocated for each capture during the whole
-      session life. Please check section 7.3 (Fetching samples) and "capture
-      request header" for more information.
-
-      If the keyword "id" is used instead of "len", the action tries to store
-      the captured string in a previously declared capture slot. This is useful
-      to run captures in backends. The slot id can be declared by a previous
-      directive "http-request capture" or with the "declare capture" keyword.
-      If the slot <id> doesn't exist, then HAProxy fails parsing the
-      configuration to prevent unexpected behavior at run time.
-
-    - cache-use <name> :
-      See section 10.2 about cache setup.
-
-    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
-      enables tracking of sticky counters from current request. These rules
-      do not stop evaluation and do not change default action. The number of
-      counters that may be simultaneously tracked by the same connection is set
-      in MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults
-      to 3, so the track-sc number is between 0 and (MAX_SESS_STCKTR-1). The
-      first "track-sc0" rule executed enables tracking of the counters of the
-      specified table as the first set. The first "track-sc1" rule executed
-      enables tracking of the counters of the specified table as the second
-      set. The first "track-sc2" rule executed enables tracking of the
-      counters of the specified table as the third set. It is a recommended
-      practice to use the first set of counters for the per-frontend counters
-      and the second set for the per-backend ones. But this is just a
-      guideline, all may be used everywhere.
-
-      These actions take one or two arguments :
-        <key>   is mandatory, and is a sample expression rule as described
-                in section 7.3. It describes what elements of the incoming
-                request or connection will be analyzed, extracted, combined,
-                and used to select which table entry to update the counters.
-
-        <table> is an optional table to be used instead of the default one,
-                which is the stick-table declared in the current proxy. All
-                the counters for the matches and updates for the key will
-                then be performed in that table until the session ends.
-
-      Once a "track-sc*" rule is executed, the key is looked up in the table
-      and if it is not found, an entry is allocated for it. Then a pointer to
-      that entry is kept during all the session's life, and this entry's
-      counters are updated as often as possible, every time the session's
-      counters are updated, and also systematically when the session ends.
-      Counters are only updated for events that happen after the tracking has
-      been started. As an exception, connection counters and request counters
-      are systematically updated so that they reflect useful information.
-
-      If the entry tracks concurrent connection counters, one connection is
-      counted for as long as the entry is tracked, and the entry will not
-      expire during that time. Tracking counters also provides a performance
-      advantage over just checking the keys, because only one table lookup is
-      performed for all ACL checks that make use of it.
-
-    - sc-set-gpt0(<sc-id>) <int> :
-      This action sets the GPT0 tag according to the sticky counter designated
-      by <sc-id> and the value of <int>. The expected result is a boolean. If
-      an error occurs, this action silently fails and the actions evaluation
-      continues.
-
-    - sc-inc-gpc0(<sc-id>):
-      This action increments the GPC0 counter according with the sticky counter
-      designated by <sc-id>. If an error occurs, this action silently fails and
-      the actions evaluation continues.
-
-    - sc-inc-gpc1(<sc-id>):
-	  Same as "sc-inc-gpc0" action above but for GPC1 counter.
-
-    - set-var(<var-name>) <expr> :
-      Is used to set the contents of a variable. The variable is declared
-      inline.
-
-        <var-name> The name of the variable starts with an indication about
-                   its scope. The scopes allowed are:
-                     "proc" : the variable is shared with the whole process
-                     "sess" : the variable is shared with the whole session
-                     "txn"  : the variable is shared with the transaction
-                              (request and response)
-                     "req"  : the variable is shared only during request
-                              processing
-                     "res"  : the variable is shared only during response
-                              processing
-                   This prefix is followed by a name. The separator is a '.'.
-                   The name may only contain characters 'a-z', 'A-Z', '0-9'
-                   and '_'.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-request set-var(req.my_var) req.fhdr(user-agent),lower
-
-    - unset-var(<var-name>) :
-      Is used to unset a variable. See above for details about <var-name>.
-
-      Example:
-
-         http-request unset-var(req.my_var)
-
-    - set-src <expr> :
-      Is used to set the source IP address to the value of specified
-      expression. Useful when a proxy in front of HAProxy rewrites source IP,
-      but provides the correct IP in a HTTP header; or you want to mask
-      source IP for privacy.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-request set-src hdr(x-forwarded-for)
-         http-request set-src src,ipmask(24)
-
-      When possible, set-src preserves the original source port as long as the
-      address family allows it, otherwise the source port is set to 0.
-
-    - set-src-port <expr> :
-      Is used to set the source port address to the value of specified
-      expression.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-request set-src-port hdr(x-port)
-         http-request set-src-port int(4000)
-
-      When possible, set-src-port preserves the original source address as long
-      as the address family supports a port, otherwise it forces the source
-      address to IPv4 "0.0.0.0" before rewriting the port.
-
-    - set-dst <expr> :
-      Is used to set the destination IP address to the value of specified
-      expression. Useful when a proxy in front of HAProxy rewrites destination
-      IP, but provides the correct IP in a HTTP header; or you want to mask
-      the IP for privacy. If you want to connect to the new address/port, use
-      '0.0.0.0:0' as a server address in the backend.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-request set-dst hdr(x-dst)
-         http-request set-dst dst,ipmask(24)
-
-      When possible, set-dst preserves the original destination port as long as
-      the address family allows it, otherwise the destination port is set to 0.
-
-    - set-dst-port <expr> :
-      Is used to set the destination port address to the value of specified
-      expression. If you want to connect to the new address/port, use
-      '0.0.0.0:0' as a server address in the backend.
-
-         <expr>    Is a standard HAProxy expression formed by a sample-fetch
-                   followed by some converters.
-
-      Example:
-
-         http-request set-dst-port hdr(x-port)
-         http-request set-dst-port int(4000)
-
-      When possible, set-dst-port preserves the original destination address as
-      long as the address family supports a port, otherwise it forces the
-      destination address to IPv4 "0.0.0.0" before rewriting the port.
-
-    - "silent-drop" : this stops the evaluation of the rules and makes the
-      client-facing connection suddenly disappear using a system-dependent way
-      that tries to prevent the client from being notified. The effect it then
-      that the client still sees an established connection while there's none
-      on HAProxy. The purpose is to achieve a comparable effect to "tarpit"
-      except that it doesn't use any local resource at all on the machine
-      running HAProxy. It can resist much higher loads than "tarpit", and slow
-      down stronger attackers. It is important to understand the impact of using
-      this mechanism. All stateful equipment placed between the client and
-      HAProxy (firewalls, proxies, load balancers) will also keep the
-      established connection for a long time and may suffer from this action.
-      On modern Linux systems running with enough privileges, the TCP_REPAIR
-      socket option is used to block the emission of a TCP reset. On other
-      systems, the socket's TTL is reduced to 1 so that the TCP reset doesn't
-      pass the first router, though it's still delivered to local networks. Do
-      not use it unless you fully understand how it works.
-
-
-    - "wait-for-handshake" : this will delay the processing of the request
-      until the SSL handshake happened. This is mostly useful to delay
-      processing early data until we're sure they are valid.
-
-    - send-spoe-group <engine-name> <group-name> :
-      This action is used to trigger sending of a group of SPOE messages. To do
-      so, the SPOE engine used to send messages must be defined, as well as the
-      SPOE group to send. Of course, the SPOE engine must refer to an existing
-      SPOE filter. If not engine name is provided on the SPOE filter line, the
-      SPOE agent name must be used.
-
-        <engine-name> The SPOE engine name.
-
-        <group-name>  The SPOE group name as specified in the engine
-                      configuration.
+  The first keyword is the rule's action. The supported actions are described
+  below.
 
   There is no limit to the number of http-request statements per instance.
 
@@ -4429,21 +3978,6 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
         http-request deny
 
   Example:
-        acl auth_ok http_auth_group(L1) G1
-        http-request auth unless auth_ok
-
-  Example:
-        http-request set-header X-Haproxy-Current-Date %T
-        http-request set-header X-SSL                  %[ssl_fc]
-        http-request set-header X-SSL-Session_ID       %[ssl_fc_session_id,hex]
-        http-request set-header X-SSL-Client-Verify    %[ssl_c_verify]
-        http-request set-header X-SSL-Client-DN        %{+Q}[ssl_c_s_dn]
-        http-request set-header X-SSL-Client-CN        %{+Q}[ssl_c_s_dn(cn)]
-        http-request set-header X-SSL-Issuer           %{+Q}[ssl_c_i_dn]
-        http-request set-header X-SSL-Client-NotBefore %{+Q}[ssl_c_notbefore]
-        http-request set-header X-SSL-Client-NotAfter  %{+Q}[ssl_c_notafter]
-
-  Example:
         acl key req.hdr(X-Add-Acl-Key) -m found
         acl add path /addacl
         acl del path /delacl
@@ -4466,28 +4000,511 @@ http-request { allow | auth [realm <realm>] | redirect <rule> | reject |
   See also : "stats http-request", section 3.4 about userlists and section 7
              about ACL usage.
 
-http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
-                capture <sample> id <id> | redirect <rule> |
-                set-header <name> <fmt> | del-header <name> |
-                replace-header <name> <regex-match> <replace-fmt> |
-                replace-value <name> <regex-match> <replace-fmt> |
-                set-status <status> [reason <str>] |
-                set-log-level <level> | set-mark <mark> | set-tos <tos> |
-                add-acl(<file name>) <key fmt> |
-                del-acl(<file name>) <key fmt> |
-                del-map(<file name>) <key fmt> |
-                set-map(<file name>) <key fmt> <value fmt> |
-                set-var(<var-name>) <expr> |
-                unset-var(<var-name>) |
-                { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
-                sc-inc-gpc0(<sc-id>) |
-                sc-inc-gpc1(<sc-id>) |
-                sc-set-gpt0(<sc-id>) <int> |
-                silent-drop |
-                send-spoe-group |
-                cache-store
-              }
-              [ { if | unless } <condition> ]
+http-request add-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to add a new entry into an ACL. The ACL must be loaded from a
+  file (even a dummy empty file). The file name of the ACL to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the new entry. It performs a lookup
+  in the ACL before insertion, to avoid duplicated (or more) values. This
+  lookup is done by a linear search and can be expensive with large lists!
+  It is the equivalent of the "add acl" command from the stats socket, but can
+  be triggered by an HTTP request.
+
+http-request add-header <name> <fmt> [ { if | unless } <condition> ]
+
+  This appends an HTTP header field whose name is specified in <name> and
+  whose value is defined by <fmt> which follows the log-format rules (see
+  Custom Log Format in section 8.2.4). This is particularly useful to pass
+  connection-specific information to the server (e.g. the client's SSL
+  certificate), or to combine several headers into one. This rule is not
+  final, so it is possible to add other similar rules. Note that header
+  addition is performed immediately, so one rule might reuse the resulting
+  header from a previous rule.
+
+http-request allow [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and lets the request pass the check.
+  No further "http-request" rules are evaluated.
+
+
+http-request auth [realm <realm>] [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediately responds with an
+  HTTP 401 or 407 error code to invite the user to present a valid user name
+  and password. No further "http-request" rules are evaluated. An optional
+  "realm" parameter is supported, it sets the authentication realm that is
+  returned with the response (typically the application's name).
+
+  Example:
+        acl auth_ok http_auth_group(L1) G1
+        http-request auth unless auth_ok
+
+http-request cache-use [ { if | unless } <condition> ]
+
+  See section 10.2 about cache setup.
+
+http-request capture <sample> [ len <length> | id <id> ]
+                     [ { if | unless } <condition> ]
+
+  This captures sample expression <sample> from the request buffer, and
+  converts it to a string of at most <len> characters. The resulting string is
+  stored into the next request "capture" slot, so it will possibly appear next
+  to some captured HTTP headers. It will then automatically appear in the logs,
+  and it will be possible to extract it using sample fetch rules to feed it
+  into headers or anything. The length should be limited given that this size
+  will be allocated for each capture during the whole session life.
+  Please check section 7.3 (Fetching samples) and "capture request header" for
+  more information.
+
+  If the keyword "id" is used instead of "len", the action tries to store the
+  captured string in a previously declared capture slot. This is useful to run
+  captures in backends. The slot id can be declared by a previous directive
+  "http-request capture" or with the "declare capture" keyword. If the slot
+  <id> doesn't exist, then HAProxy fails parsing the configuration to prevent
+  unexpected behavior at run time.
+
+http-request del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from an ACL. The ACL must be loaded from a
+  file (even a dummy empty file). The file name of the ACL to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the entry to delete.
+  It is the equivalent of the "del acl" command from the stats socket, but can
+  be triggered by an HTTP request.
+
+http-request del-header <name> [ { if | unless } <condition> ]
+
+  This removes all HTTP header fields whose name is specified in <name>.
+
+http-request del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
+
+  This is used to delete an entry from a MAP. The MAP must be loaded from a
+  file (even a dummy empty file). The file name of the MAP to be updated is
+  passed between parentheses. It takes one argument: <key fmt>, which follows
+  log-format rules, to collect content of the entry to delete.
+  It takes one argument: "file name" It is the equivalent of the "del map"
+  command from the stats socket, but can be triggered by an HTTP request.
+
+http-request deny [deny_status <status>] [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediately rejects the request
+  and emits an HTTP 403 error, or optionally the status code specified as an
+  argument to "deny_status". The list of permitted status codes is limited to
+  those that can be overridden by the "errorfile" directive.
+  No further "http-request" rules are evaluated.
+
+http-request redirect <rule> [ { if | unless } <condition> ]
+
+  This performs an HTTP redirection based on a redirect rule. This is exactly
+  the same as the "redirect" statement except that it inserts a redirect rule
+  which can be processed in the middle of other "http-request" rules and that
+  these rules use the "log-format" strings. See the "redirect" keyword for the
+  rule's syntax.
+
+http-request reject [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediately closes the connection
+  without sending any response. It acts similarly to the
+  "tcp-request content reject" rules. It can be useful to force an immediate
+  connection closure on HTTP/2 connections.
+
+http-request replace-header <name> <match-regex> <replace-fmt>
+                            [ { if | unless } <condition> ]
+
+    This  matches the regular expression in all occurrences of header field
+    <name> according to <match-regex>, and replaces them with the
+    <replace-fmt> argument. Format characters are allowed in replace-fmt and
+    work like in <fmt> arguments in "http-request add-header". The match is
+    only case-sensitive. It is important to understand that this action only
+    considers whole header lines, regardless of the number of values they may
+    contain. This usage is suited to headers naturally containing commas in
+    their value, such as If-Modified-Since and so on.
+
+    Example:
+      http-request replace-header Cookie foo=([^;]*);(.*) foo=\1;ip=%bi;\2
+
+      # applied to:
+      Cookie: foo=foobar; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+
+      # outputs:
+      Cookie: foo=foobar;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+
+      # assuming the backend IP is 192.168.1.20
+
+http-request replace-value <name> <match-regex> <replace-fmt>
+                           [ { if | unless } <condition> ]
+
+    This works like "replace-header" except that it matches the regex against
+    every comma-delimited value of the header field <name> instead of the
+    entire header. This is suited for all headers which are allowed to carry
+    more than one value. An example could be the Accept header.
+
+    Example:
+      http-request replace-value X-Forwarded-For ^192\.168\.(.*)$ 172.16.\1
+
+      # applied to:
+      X-Forwarded-For: 192.168.10.1, 192.168.13.24, 10.0.0.37
+
+      # outputs:
+      X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
+
+http-request sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
+http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
+
+  This actions increments the GPC0 or GPC1 counter according with the sticky
+  counter designated by <sc-id>. If an error occurs, this action silently fails
+  and the actions evaluation continues.
+
+http-request sc-set-gpt0(<sc-id>) <int> [ { if | unless } <condition> ]
+
+  This action sets the GPT0 tag according to the sticky counter designated by
+  <sc-id> and the value of <int>. The expected result is a boolean. If an error
+  occurs, this action silently fails and the actions evaluation continues.
+
+http-request set-dst <expr> [ { if | unless } <condition> ]
+
+  This is used to set the destination IP address to the value of specified
+  expression. Useful when a proxy in front of HAProxy rewrites destination IP,
+  but provides the correct IP in a HTTP header; or you want to mask the IP for
+  privacy. If you want to connect to the new address/port, use '0.0.0.0:0' as a
+  server address in the backend.
+
+  Arguments:
+    <expr>  Is a standard HAProxy expression formed by a sample-fetch followed
+            by some converters.
+
+  Example:
+    http-request set-dst hdr(x-dst)
+    http-request set-dst dst,ipmask(24)
+
+  When possible, set-dst preserves the original destination port as long as the
+  address family allows it, otherwise the destination port is set to 0.
+
+http-request set-dst-port <expr> [ { if | unless } <condition> ]
+
+  This is used to set the destination port address to the value of specified
+  expression. If you want to connect to the new address/port, use '0.0.0.0:0'
+  as a server address in the backend.
+
+  Arguments:
+    <expr>  Is a standard HAProxy expression formed by a sample-fetch
+            followed by some converters.
+
+  Example:
+    http-request set-dst-port hdr(x-port)
+    http-request set-dst-port int(4000)
+
+  When possible, set-dst-port preserves the original destination address as
+  long as the address family supports a port, otherwise it forces the
+  destination address to IPv4 "0.0.0.0" before rewriting the port.
+
+http-request set-header <name> <fmt> [ { if | unless } <condition> ]
+
+  This does the same as "http-request add-header" except that the header name
+  is first removed if it existed. This is useful when passing security
+  information to the server, where the header must not be manipulated by
+  external users. Note that the new value is computed before the removal so it
+  is possible to concatenate a value to an existing header.
+
+  Example:
+        http-request set-header X-Haproxy-Current-Date %T
+        http-request set-header X-SSL                  %[ssl_fc]
+        http-request set-header X-SSL-Session_ID       %[ssl_fc_session_id,hex]
+        http-request set-header X-SSL-Client-Verify    %[ssl_c_verify]
+        http-request set-header X-SSL-Client-DN        %{+Q}[ssl_c_s_dn]
+        http-request set-header X-SSL-Client-CN        %{+Q}[ssl_c_s_dn(cn)]
+        http-request set-header X-SSL-Issuer           %{+Q}[ssl_c_i_dn]
+        http-request set-header X-SSL-Client-NotBefore %{+Q}[ssl_c_notbefore]
+        http-request set-header X-SSL-Client-NotAfter  %{+Q}[ssl_c_notafter]
+
+http-request set-log-level <level> [ { if | unless } <condition> ]
+
+  This is used to change the log level of the current request when a certain
+  condition is met. Valid levels are the 8 syslog levels (see the "log"
+  keyword) plus the special level "silent" which disables logging for this
+  request. This rule is not final so the last matching rule wins. This rule
+  can be useful to disable health checks coming from another equipment.
+
+http-request set-map(<file-name>) <key fmt> <value fmt>
+                                  [ { if | unless } <condition> ]
+
+  This is used to add a new entry into a MAP. The MAP must be loaded from a
+  file (even a dummy empty file). The file name of the MAP to be updated is
+  passed between parentheses. It takes 2 arguments: <key fmt>, which follows
+  log-format rules, used to collect MAP key, and <value fmt>, which follows
+  log-format rules, used to collect content for the new entry.
+  It performs a lookup in the MAP before insertion, to avoid duplicated (or
+  more) values. This lookup is done by a linear search and can be expensive
+  with large lists! It is the equivalent of the "set map" command from the
+  stats socket, but can be triggered by an HTTP request.
+
+http-request set-mark <mark> [ { if | unless } <condition> ]
+
+  This is used to set the Netfilter MARK on all packets sent to the client to
+  the value passed in <mark> on platforms which support it. This value is an
+  unsigned 32 bit value which can be matched by netfilter and by the routing
+  table. It can be expressed both in decimal or hexadecimal format (prefixed by
+  "0x"). This can be useful to force certain packets to take a different route
+  (for example a cheaper network path for bulk downloads). This works on Linux
+  kernels 2.6.32 and above and requires admin privileges.
+
+http-request set-method <fmt> [ { if | unless } <condition> ]
+
+  This rewrites the request method with the result of the evaluation of format
+  string <fmt>. There should be very few valid reasons for having to do so as
+  this is more likely to break something than to fix it.
+
+http-request set-nice <nice> [ { if | unless } <condition> ]
+
+  This sets the "nice" factor of the current request being processed. It only
+  has effect against the other requests being processed at the same time.
+  The default value is 0, unless altered by the "nice" setting on the "bind"
+  line. The accepted range is -1024..1024. The higher the value, the nicest
+  the request will be. Lower values will make the request more important than
+  other ones. This can be useful to improve the speed of some requests, or
+  lower the priority of non-important requests. Using this setting without
+  prior experimentation can cause some major slowdown.
+
+http-request set-path <fmt> [ { if | unless } <condition> ]
+
+    This rewrites the request path with the result of the evaluation of format
+    string <fmt>. The query string, if any, is left intact. If a scheme and
+    authority is found before the path, they are left intact as well. If the
+    request doesn't have a path ("*"), this one is replaced with the format.
+    This can be used to prepend a directory component in front of a path for
+    example. See also "http-request set-query" and "http-request set-uri".
+
+    Example :
+      # prepend the host name before the path
+      http-request set-path /%[hdr(host)]%[path]
+
+http-request set-priority-class <expr> [ { if | unless } <condition> ]
+
+  This is used to set the queue priority class of the current request.
+  The value must be a sample expression which converts to an integer in the
+  range -2047..2047. Results outside this range will be truncated.
+  The priority class determines the order in which queued requests are
+  processed. Lower values have higher priority.
+
+http-request set-priority-offset <expr> [ { if | unless } <condition> ]
+
+  This is used to set the queue priority timestamp offset of the current
+  request. The value must be a sample expression which converts to an integer
+  in the range -524287..524287. Results outside this range will be truncated.
+  When a request is queued, it is ordered first by the priority class, then by
+  the current timestamp adjusted by the given offset in milliseconds. Lower
+  values have higher priority.
+  Note that the resulting timestamp is is only tracked with enough precision
+  for 524,287ms (8m44s287ms). If the request is queued long enough to where the
+  adjusted timestamp exceeds this value, it will be misidentified as highest
+  priority. Thus it is important to set "timeout queue" to a value, where when
+  combined with the offset, does not exceed this limit.
+
+http-request set-query <fmt> [ { if | unless } <condition> ]
+
+  This rewrites the request's query string which appears after the first
+  question mark ("?") with the result of the evaluation of format string <fmt>.
+  The part prior to the question mark is left intact. If the request doesn't
+  contain a question mark and the new value is not empty, then one is added at
+  the end of the URI, followed by the new value. If a question mark was
+  present, it will never be removed even if the value is empty. This can be
+  used to add or remove parameters from the query string.
+
+  See also "http-request set-query" and "http-request set-uri".
+
+  Example:
+    # replace "%3D" with "=" in the query string
+    http-request set-query %[query,regsub(%3D,=,g)]
+
+http-request set-src <expr> [ { if | unless } <condition> ]
+  This is used to set the source IP address to the value of specified
+  expression. Useful when a proxy in front of HAProxy rewrites source IP, but
+  provides the correct IP in a HTTP header; or you want to mask source IP for
+  privacy.
+
+  Arguments :
+    <expr>  Is a standard HAProxy expression formed by a sample-fetch followed
+            by some converters.
+
+  Example:
+    http-request set-src hdr(x-forwarded-for)
+    http-request set-src src,ipmask(24)
+
+  When possible, set-src preserves the original source port as long as the
+  address family allows it, otherwise the source port is set to 0.
+
+http-request set-src-port <expr> [ { if | unless } <condition> ]
+
+  This is used to set the source port address to the value of specified
+  expression.
+
+  Arguments:
+    <expr>  Is a standard HAProxy expression formed by a sample-fetch followed
+            by some converters.
+
+  Example:
+    http-request set-src-port hdr(x-port)
+    http-request set-src-port int(4000)
+
+  When possible, set-src-port preserves the original source address as long as
+  the address family supports a port, otherwise it forces the source address to
+  IPv4 "0.0.0.0" before rewriting the port.
+
+http-request set-tos <tos> [ { if | unless } <condition> ]
+
+  This is used to set the TOS or DSCP field value of packets sent to the client
+  to the value passed in <tos> on platforms which support this. This value
+  represents the whole 8 bits of the IP TOS field, and can be expressed both in
+  decimal or hexadecimal format (prefixed by "0x"). Note that only the 6 higher
+  bits are used in DSCP or TOS, and the two lower bits are always 0. This can
+  be used to adjust some routing behavior on border routers based on some
+  information from the request.
+
+  See RFC 2474, 2597, 3260 and 4594 for more information.
+
+http-request set-uri <fmt> [ { if | unless } <condition> ]
+
+  This rewrites the request URI with the result of the evaluation of format
+  string <fmt>. The scheme, authority, path and query string are all replaced
+  at once. This can be used to rewrite hosts in front of proxies, or to
+  perform complex modifications to the URI such as moving parts between the
+  path and the query string.
+  See also "http-request set-path" and "http-request set-query".
+
+http-request set-var(<var-name>) <expr> [ { if | unless } <condition> ]
+
+  This is used to set the contents of a variable. The variable is declared
+  inline.
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed are:
+                  "proc" : the variable is shared with the whole process
+                  "sess" : the variable is shared with the whole session
+                  "txn"  : the variable is shared with the transaction
+                           (request and response)
+                  "req"  : the variable is shared only during request
+                           processing
+                  "res"  : the variable is shared only during response
+                           processing
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9'
+                and '_'.
+
+    <expr>      Is a standard HAProxy expression formed by a sample-fetch
+                followed by some converters.
+
+  Example:
+    http-request set-var(req.my_var) req.fhdr(user-agent),lower
+
+http-request send-spoe-group <engine-name> <group-name>
+                             [ { if | unless } <condition> ]
+
+  This action is used to trigger sending of a group of SPOE messages. To do so,
+  the SPOE engine used to send messages must be defined, as well as the SPOE
+  group to send. Of course, the SPOE engine must refer to an existing SPOE
+  filter. If not engine name is provided on the SPOE filter line, the SPOE
+  agent name must be used.
+
+  Arguments:
+    <engine-name>  The SPOE engine name.
+
+    <group-name>   The SPOE group name as specified in the engine
+                   configuration.
+
+http-request silent-drop [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and makes the client-facing connection
+  suddenly disappear using a system-dependent way that tries to prevent the
+  client from being notified. The effect it then that the client still sees an
+  established connection while there's none on HAProxy. The purpose is to
+  achieve a comparable effect to "tarpit" except that it doesn't use any local
+  resource at all on the machine running HAProxy. It can resist much higher
+  loads than "tarpit", and slow down stronger attackers. It is important to
+  understand the impact of using this mechanism. All stateful equipment placed
+  between the client and HAProxy (firewalls, proxies, load balancers) will also
+  keep the established connection for a long time and may suffer from this
+  action.
+  On modern Linux systems running with enough privileges, the TCP_REPAIR socket
+  option is used to block the emission of a TCP reset. On other systems, the
+  socket's TTL is reduced to 1 so that the TCP reset doesn't pass the first
+  router, though it's still delivered to local networks. Do not use it unless
+  you fully understand how it works.
+
+http-request tarpit [deny_status <status>] [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediately blocks the request
+  without responding for a delay specified by "timeout tarpit" or
+  "timeout connect" if the former is not set. After that delay, if the client
+  is still connected, an HTTP error 500 (or optionally the status code
+  specified as an argument to "deny_status") is returned so that the client
+  does not suspect it has been tarpitted. Logs will report the flags "PT".
+  The goal of the tarpit rule is to slow down robots during an attack when
+  they're limited on the number of concurrent requests. It can be very
+  efficient against very dumb robots, and will significantly reduce the load
+  on firewalls compared to a "deny" rule. But when facing "correctly"
+  developed robots, it can make things worse by forcing haproxy and the front
+  firewall to support insane number of concurrent connections.
+  See also the "silent-drop" action.
+
+http-request track-sc0 <key> [table <table>] [ { if | unless } <condition> ]
+http-request track-sc1 <key> [table <table>] [ { if | unless } <condition> ]
+http-request track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
+
+  This enables tracking of sticky counters from current request. These rules do
+  not stop evaluation and do not change default action. The number of counters
+  that may be simultaneously tracked by the same connection is set in
+  MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults to 3,
+  so the track-sc number is between 0 and (MAX_SESS_STCKTR-1). The first
+  "track-sc0" rule executed enables tracking of the counters of the specified
+  table as the first set. The first "track-sc1" rule executed enables tracking
+  of the counters of the specified table as the second set. The first
+  "track-sc2" rule executed enables tracking of the counters of the specified
+  table as the third set. It is a recommended practice to use the first set of
+  counters for the per-frontend counters and the second set for the per-backend
+  ones. But this is just a guideline, all may be used everywhere.
+
+  Arguments :
+    <key>   is mandatory, and is a sample expression rule as described in
+            section 7.3. It describes what elements of the incoming request or
+            connection will be analyzed, extracted, combined, and used to
+            select which table entry to update the counters.
+
+    <table> is an optional table to be used instead of the default one, which
+            is the stick-table declared in the current proxy. All the counters
+            for the matches and updates for the key will then be performed in
+            that table until the session ends.
+
+  Once a "track-sc*" rule is executed, the key is looked up in the table and if
+  it is not found, an entry is allocated for it. Then a pointer to that entry
+  is kept during all the session's life, and this entry's counters are updated
+  as often as possible, every time the session's counters are updated, and also
+  systematically when the session ends. Counters are only updated for events
+  that happen after the tracking has been started. As an exception, connection
+  counters and request counters are systematically updated so that they reflect
+  useful information.
+
+  If the entry tracks concurrent connection counters, one connection is counted
+  for as long as the entry is tracked, and the entry will not expire during
+  that time. Tracking counters also provides a performance advantage over just
+  checking the keys, because only one table lookup is performed for all ACL
+  checks that make use of it.
+
+http-request unset-var(<var-name>) [ { if | unless } <condition> ]
+
+  This is used to unset a variable. See above for details about <var-name>.
+
+  Example:
+    http-request unset-var(req.my_var)
+
+http-request wait-for-handshake [ { if | unless } <condition> ]
+
+  This will delay the processing of the request until the SSL handshake
+  happened. This is mostly useful to delay processing early data until we're
+  sure they are valid.
+
+
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend
