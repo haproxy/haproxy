@@ -195,6 +195,9 @@ struct activity {
 	unsigned int stream;       // calls to process_stream()
 	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
 	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
+	unsigned int cpust_total;  // sum of half-ms stolen per thread
+	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
+	struct freq_ctr_period cpust_15s; // avg amount of half-ms stolen over last 15s
 	char __pad[0]; // unused except to check remaining room
 	char __end[0] __attribute__((aligned(64))); // align size to 64.
 };

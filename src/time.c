@@ -10,12 +10,16 @@
  *
  */
 
+#include <stdint.h>
+#include <unistd.h>
 #include <sys/time.h>
 
 #include <common/config.h>
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/hathreads.h>
+#include <types/global.h>
+#include <proto/freq_ctr.h>
 
 THREAD_LOCAL unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */
 THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
@@ -27,6 +31,8 @@ THREAD_LOCAL struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
 THREAD_LOCAL struct timeval before_poll;     /* system date before calling poll() */
 THREAD_LOCAL struct timeval after_poll;      /* system date after leaving poll() */
+THREAD_LOCAL uint64_t prev_cpu_time = 0;     /* previous per thread CPU time */
+THREAD_LOCAL uint64_t prev_mono_time = 0;    /* previous system wide monotonic time */
 
 static THREAD_LOCAL struct timeval tv_offset;  /* per-thread time ofsset relative to global time */
 volatile unsigned long long global_now;        /* common date between all threads (32:32) */
@@ -256,6 +262,16 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	ms_left_scaled = (999U - curr_sec_ms) * 4294967U;
 	now_ms = now.tv_sec * 1000 + curr_sec_ms;
 	return;
+}
+
+/* Updates the current thread's statistics about stolen CPU time. The unit for
+ * <stolen> is half-milliseconds.
+ */
+REGPRM1 void report_stolen_time(uint64_t stolen)
+{
+	activity[tid].cpust_total += stolen;
+	update_freq_ctr(&activity[tid].cpust_1s, stolen);
+	update_freq_ctr_period(&activity[tid].cpust_15s, 15000, stolen);
 }
 
 /*
