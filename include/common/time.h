@@ -22,7 +22,9 @@
 #ifndef _COMMON_TIME_H
 #define _COMMON_TIME_H
 
+#include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/time.h>
 #include <common/config.h>
 #include <common/standard.h>
@@ -513,6 +515,30 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
                   *tv1 = *tv2;     \
         tv1;                       \
 })
+
+/* returns the system's monotonic time in nanoseconds if supported, otherwise zero */
+static inline uint64_t now_mono_time()
+{
+#if defined(_POSIX_TIMERS) && defined(_POSIX_MONOTONIC_CLOCK)
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+#else
+	return 0;
+#endif
+}
+
+/* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
+static inline uint64_t now_cpu_time()
+{
+#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
+	struct timespec ts;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+#else
+	return 0;
+#endif
+}
 
 /* Update the idle time value twice a second, to be called after
  * tv_update_date() when called after poll(). It relies on <before_poll> to be
