@@ -28,8 +28,11 @@
 #include <unistd.h>
 
 #include <common/config.h>
+#include <common/ticks.h>
+#include <common/time.h>
 
 #include <types/fd.h>
+#include <types/global.h>
 
 /* public variables */
 
@@ -526,6 +529,30 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	 */
 	if (atleast2(thread_mask))
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+}
+
+/* Computes the bounded poll() timeout based on the next expiration timer <next>
+ * by bounding it to MAX_DELAY_MS. <next> may equal TICK_ETERNITY. The pollers
+ * just needs to call this function right before polling to get their timeout
+ * value. Timeouts that are already expired (possibly due to a pending event)
+ * are accounted for in activity.poll_exp.
+ */
+static inline int compute_poll_timeout(int next)
+{
+	int wait_time;
+
+	if (!tick_isset(next))
+		wait_time = MAX_DELAY_MS;
+	else if (tick_is_expired(next, now_ms)) {
+		activity[tid].poll_exp++;
+		wait_time = 0;
+	}
+	else {
+		wait_time = TICKS_TO_MS(tick_remain(now_ms, next)) + 1;
+		if (wait_time > MAX_DELAY_MS)
+			wait_time = MAX_DELAY_MS;
+	}
+	return wait_time;
 }
 
 /* These are replacements for FD_SET, FD_CLR, FD_ISSET, working on uints */

@@ -129,23 +129,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 	fd_nbupdt = 0;
 
-	delta_ms        = 0;
-
-	if (!exp) {
-		delta_ms        = MAX_DELAY_MS;
-		timeout.tv_sec  = (MAX_DELAY_MS / 1000);
-		timeout.tv_nsec = (MAX_DELAY_MS % 1000) * 1000000;
-	}
-	else if (!tick_is_expired(exp, now_ms)) {
-		delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
-		if (delta_ms > MAX_DELAY_MS)
-			delta_ms = MAX_DELAY_MS;
-		timeout.tv_sec  = (delta_ms / 1000);
-		timeout.tv_nsec = (delta_ms % 1000) * 1000000;
-	}
-	else
-		activity[tid].poll_exp++;
-
+	/* now let's wait for events */
+	delta_ms = compute_poll_timeout(exp);
+	timeout.tv_sec  = (delta_ms / 1000);
+	timeout.tv_nsec = (delta_ms % 1000) * 1000000;
 	fd = global.tune.maxpollevents;
 	gettimeofday(&before_poll, NULL);
 	status = kevent(kqueue_fd[tid], // int kq

@@ -160,25 +160,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		writenotnull |= (*(((int*)tmp_evts[DIR_WR])+i) = *(((int*)fd_evts[DIR_WR])+i)) != 0;
 	}
 
-	delta_ms      = 0;
-	delta.tv_sec  = 0;
-	delta.tv_usec = 0;
-
-	if (!exp) {
-		delta_ms      = MAX_DELAY_MS;
-		delta.tv_sec  = (MAX_DELAY_MS / 1000);
-		delta.tv_usec = (MAX_DELAY_MS % 1000) * 1000;
-	}
-	else if (!tick_is_expired(exp, now_ms)) {
-		delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + SCHEDULER_RESOLUTION;
-		if (delta_ms > MAX_DELAY_MS)
-			delta_ms = MAX_DELAY_MS;
-		delta.tv_sec  = (delta_ms / 1000);
-		delta.tv_usec = (delta_ms % 1000) * 1000;
-	}
-	else
-		activity[tid].poll_exp++;
-
+	/* now let's wait for events */
+	delta_ms = compute_poll_timeout(exp);
+	delta.tv_sec  = (delta_ms / 1000);
+	delta.tv_usec = (delta_ms % 1000) * 1000;
 	gettimeofday(&before_poll, NULL);
 	status = select(maxfd,
 			readnotnull ? tmp_evts[DIR_RD] : NULL,

@@ -26,13 +26,6 @@
 #include <common/compat.h>
 #include <common/defaults.h>
 
-/* this reduces the number of calls to select() by choosing appropriate
- * sheduler precision in milliseconds. It should be near the minimum
- * time that is needed by select() to collect all events. All timeouts
- * are rounded up by adding this value prior to pass it to select().
- */
-#define SCHEDULER_RESOLUTION    9
-
 /* CONFIG_HAP_MEM_OPTIM
  * This enables use of memory pools instead of malloc()/free(). There
  * is no reason to disable it, except perhaps for rare debugging.

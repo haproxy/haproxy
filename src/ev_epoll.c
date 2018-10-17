@@ -144,21 +144,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 	thread_harmless_now();
 
-	/* compute the epoll_wait() timeout */
-	if (!exp)
-		wait_time = MAX_DELAY_MS;
-	else if (tick_is_expired(exp, now_ms)) {
-		activity[tid].poll_exp++;
-		wait_time = 0;
-	}
-	else {
-		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
-		if (wait_time > MAX_DELAY_MS)
-			wait_time = MAX_DELAY_MS;
-	}
-
 	/* now let's wait for polled events */
-
+	wait_time = compute_poll_timeout(exp);
 	gettimeofday(&before_poll, NULL);
 	status = epoll_wait(epoll_fd[tid], epoll_events, global.tune.maxpollevents, wait_time);
 	tv_update_date(wait_time, status);
