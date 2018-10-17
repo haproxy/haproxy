@@ -164,15 +164,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	delta_ms = compute_poll_timeout(exp);
 	delta.tv_sec  = (delta_ms / 1000);
 	delta.tv_usec = (delta_ms % 1000) * 1000;
-	gettimeofday(&before_poll, NULL);
+	tv_entering_poll();
 	status = select(maxfd,
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
 			&delta);
-
-	tv_update_date(delta_ms, status);
-	measure_idle();
+	tv_leaving_poll(delta_ms, status);
 
 	thread_harmless_end();
 

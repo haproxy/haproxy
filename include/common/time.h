@@ -543,6 +543,25 @@ static inline void measure_idle()
 	idle_time = samp_time = 0;
 }
 
+/* Collect date and time information before calling poll(). This will be used
+ * to count the run time of the past loop and the sleep time of the next poll.
+ */
+static inline void tv_entering_poll()
+{
+	gettimeofday(&before_poll, NULL);
+}
+
+/* Collect date and time information after leaving poll(). <timeout> must be
+ * set to the maximum sleep time passed to poll (in milliseconds), and
+ * <interrupted> must be zero if the poller reached the timeout or non-zero
+ * otherwise, which generally is provided by the poller's return value.
+ */
+static inline void tv_leaving_poll(int timeout, int interrupted)
+{
+	tv_update_date(timeout, interrupted);
+	measure_idle();
+}
+
 #endif /* _COMMON_TIME_H */
 
 /*

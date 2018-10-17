@@ -134,15 +134,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	timeout.tv_sec  = (delta_ms / 1000);
 	timeout.tv_nsec = (delta_ms % 1000) * 1000000;
 	fd = global.tune.maxpollevents;
-	gettimeofday(&before_poll, NULL);
+	tv_entering_poll();
 	status = kevent(kqueue_fd[tid], // int kq
 			NULL,      // const struct kevent *changelist
 			0,         // int nchanges
 			kev,       // struct kevent *eventlist
 			fd,        // int nevents
 			&timeout); // const struct timespec *timeout
-	tv_update_date(delta_ms, status);
-	measure_idle();
+	tv_leaving_poll(delta_ms, status);
 
 	thread_harmless_end();
 

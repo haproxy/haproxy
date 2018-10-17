@@ -194,10 +194,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 	/* now let's wait for events */
 	wait_time = compute_poll_timeout(exp);
-	gettimeofday(&before_poll, NULL);
+	tv_entering_poll();
 	status = poll(poll_events, nbfd, wait_time);
-	tv_update_date(wait_time, status);
-	measure_idle();
+	tv_leaving_poll(wait_time, status);
 
 	thread_harmless_end();
 
