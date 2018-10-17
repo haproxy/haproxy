@@ -44,6 +44,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct h1m *h1m, union h1_sl *slp);
 int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int max);
 
+int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value);
+void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
+void h1_parse_connection_header(struct h1m *h1m, struct ist value);
+
 /* Macros used in the HTTP/1 parser, to check for the expected presence of
  * certain bytes (ef: LF) or to skip to next byte and yield in case of failure.
  */
