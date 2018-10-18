@@ -48,6 +48,7 @@ struct pipe;
 enum sub_event_type {
 	SUB_CAN_SEND        = 0x00000001,  /* Schedule the tasklet when we can send more */
 	SUB_CAN_RECV        = 0x00000002,  /* Schedule the tasklet when we can recv more */
+	SUB_CALL_UNSUBSCRIBE = 0x00000004, /* The mux wants its unsubscribe() method to be called before destruction of the underlying object */
 };
 
 struct wait_event {
