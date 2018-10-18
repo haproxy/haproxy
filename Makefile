@@ -40,6 +40,7 @@
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
 #   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
+#   USE_RT               : enable it if your system requires -lrt. Automatic on Linux.
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
 #   USE_WURFL            : enable WURFL detection library from Scientiamobile
@@ -281,6 +282,7 @@ ifeq ($(TARGET),linux22)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_DL          = implicit
+  USE_RT          = implicit
 else
 ifeq ($(TARGET),linux24)
   # This is for standard Linux 2.4 with netfilter but without epoll()
@@ -289,6 +291,7 @@ ifeq ($(TARGET),linux24)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_DL          = implicit
+  USE_RT          = implicit
 else
 ifeq ($(TARGET),linux24e)
   # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
@@ -299,6 +302,7 @@ ifeq ($(TARGET),linux24e)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_DL          = implicit
+  USE_RT          = implicit
 else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
@@ -309,6 +313,7 @@ ifeq ($(TARGET),linux26)
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
   USE_DL          = implicit
+  USE_RT          = implicit
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
@@ -324,6 +329,7 @@ ifeq ($(TARGET),linux2628)
   USE_CPU_AFFINITY= implicit
   ASSUME_SPLICE_WORKS= implicit
   USE_DL          = implicit
+  USE_RT          = implicit
   USE_THREAD      = implicit
 else
 ifeq ($(TARGET),solaris)
@@ -597,6 +603,11 @@ ifneq ($(USE_THREAD),)
 BUILD_OPTIONS   += $(call ignore_implicit,USE_THREAD)
 OPTIONS_CFLAGS  += -DUSE_THREAD
 OPTIONS_LDFLAGS += -lpthread
+endif
+
+ifneq ($(USE_RT),)
+BUILD_OPTIONS   += $(call ignore_implicit,USE_RT)
+OPTIONS_LDFLAGS += -lrt
 endif
 
 # report DLMALLOC_SRC only if explicitly specified
