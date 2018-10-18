@@ -398,11 +398,12 @@ static void stream_free(struct stream *s)
 	/* applets do not release session yet */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].end;
 
-	tasklet_free(s->si[0].wait_event.task);
-	tasklet_free(s->si[1].wait_event.task);
 
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
+
+	tasklet_free(s->si[0].wait_event.task);
+	tasklet_free(s->si[1].wait_event.task);
 
 	if (must_free_sess)
 		session_free(sess);
