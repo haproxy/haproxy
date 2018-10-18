@@ -272,7 +272,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	do {
 		*POOL_LINK(pool, ptr) = (void *)free_list;
 		__ha_barrier_store();
-	} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr));
+	} while (!HA_ATOMIC_CAS(&pool->free_list, (void **)&free_list, ptr));
 	HA_ATOMIC_SUB(&pool->used, 1);
 }
 

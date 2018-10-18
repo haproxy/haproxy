@@ -168,7 +168,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		do {
 			*POOL_LINK(pool, ptr) = free_list;
 			__ha_barrier_store();
-		} while (HA_ATOMIC_CAS(&pool->free_list, (void *)&free_list, ptr) == 0);
+		} while (HA_ATOMIC_CAS(&pool->free_list, (void **)&free_list, ptr) == 0);
 	}
 
 	HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
@@ -199,7 +199,7 @@ void pool_flush(struct pool_head *pool)
 		return;
 	do {
 		next = pool->free_list;
-	} while (!HA_ATOMIC_CAS(&pool->free_list, (void *)&next, NULL));
+	} while (!HA_ATOMIC_CAS(&pool->free_list, (void **)&next, NULL));
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);
