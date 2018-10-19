@@ -2236,10 +2236,10 @@ static int h2_recv(struct h2c *h2c)
 	size_t ret;
 
 	if (h2c->wait_event.wait_reason & SUB_CAN_RECV)
-		return 0;
+		return (b_data(&h2c->dbuf));
 
 	if (!h2_recv_allowed(h2c))
-		return 0;
+		return 1;
 
 	buf = h2_get_buf(h2c, &h2c->dbuf);
 	if (!buf) {
@@ -2255,10 +2255,11 @@ static int h2_recv(struct h2c *h2c)
 			ret = 0;
 	} while (ret > 0);
 
-	if (h2_recv_allowed(h2c)) {
+	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size)) {
 		conn_xprt_want_recv(conn);
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_event);
 	}
+
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
 		return 0;
