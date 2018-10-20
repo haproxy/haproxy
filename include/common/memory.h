@@ -394,12 +394,13 @@ static inline void pool_free_area(void *area, size_t __maybe_unused size)
  * some padding is added, the area's start address is copied at the end of the
  * padding to help detect underflows.
  */
+#include <errno.h>
 static inline void *pool_alloc_area(size_t size)
 {
 	size_t pad = (4096 - size) & 0xFF0;
 	void *ret;
 
-	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
+	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if (ret == MAP_FAILED)
 		return NULL;
 	if (pad >= sizeof(void *))
