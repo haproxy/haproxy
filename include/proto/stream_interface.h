@@ -194,6 +194,7 @@ static inline void si_idle_cs(struct stream_interface *si, struct list *pool)
 	struct conn_stream *cs = __objt_cs(si->end);
 	struct connection *conn = cs->conn;
 
+	conn_force_unsubscribe(conn);
 	if (pool)
 		LIST_ADD(pool, &conn->list);
 

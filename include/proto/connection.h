@@ -701,13 +701,23 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 	return cs;
 }
 
+static inline void conn_force_unsubscribe(struct connection *conn)
+{
+	if (conn->recv_wait) {
+		conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		conn->recv_wait = NULL;
+	}
+	if (conn->send_wait) {
+		conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		conn->send_wait = NULL;
+	}
+
+}
+
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	if (conn->recv_wait)
-		conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
-	if (conn->send_wait)
-		conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
+	conn_force_unsubscribe(conn);
 	pool_free(pool_head_connection, conn);
 }
 
