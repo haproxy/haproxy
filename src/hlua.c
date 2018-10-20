@@ -68,7 +68,7 @@
  *   MAY_LJMP() marks an lua function that may use longjmp.
  */
 #define __LJMP
-#define WILL_LJMP(func) do { func; __unreachable(); } while(0)
+#define WILL_LJMP(func) do { func; my_unreachable(); } while(0)
 #define MAY_LJMP(func) func
 
 /* This couple of function executes securely some Lua calls outside of

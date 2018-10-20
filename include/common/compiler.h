@@ -89,9 +89,9 @@
  * below was introduced in gcc 4.5, and before it we didn't care.
  */
 #if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
-#define __unreachable() __builtin_unreachable()
+#define my_unreachable() __builtin_unreachable()
 #else
-#define __unreachable()
+#define my_unreachable()
 #endif
 
 /*
