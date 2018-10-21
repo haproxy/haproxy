@@ -883,11 +883,22 @@ static void sess_update_stream_int(struct stream *s)
 		srv = objt_server(s->target);
 
 		if (conn_err == SF_ERR_NONE) {
+			struct connection *conn;
+
+			conn = cs_conn(objt_cs(si->end));
 			/* state = SI_ST_CON or SI_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
 			if (srv)
 				srv_set_sess_last(srv);
+			/* If we're retrying to connect to the server, and
+			 * somebody subscribed to recv or send events, we have
+			 * to make sure the polling is active on the new fd.
+			 */
+			if (conn->send_wait)
+				conn_xprt_want_send(conn);
+			if (conn->recv_wait)
+				conn_xprt_want_recv(conn);
 			return;
 		}
 

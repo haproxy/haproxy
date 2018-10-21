@@ -1061,12 +1061,16 @@ int connect_server(struct stream *s)
 	struct server *srv;
 	int reuse = 0;
 	int err;
+	void *send_wait = NULL, *recv_wait = NULL;
 
 	srv = objt_server(s->target);
 	srv_cs = objt_cs(s->si[1].end);
 	srv_conn = cs_conn(srv_cs);
-	if (srv_conn)
+	if (srv_conn) {
 		reuse = s->target == srv_conn->target;
+		send_wait = srv_conn->send_wait;
+		recv_wait = srv_conn->recv_wait;
+	}
 
 	if (srv && !reuse) {
 		old_cs = srv_cs;
@@ -1163,6 +1167,8 @@ int connect_server(struct stream *s)
 		LIST_DEL(&srv_conn->list);
 		LIST_INIT(&srv_conn->list);
 	}
+	srv_conn->send_wait = send_wait;
+	srv_conn->recv_wait = recv_wait;
 
 	if (!srv_cs)
 		return SF_ERR_RESOURCE;
