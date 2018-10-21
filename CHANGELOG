@@ -1,6 +1,105 @@
 ChangeLog :
 ===========
 
+2018/10/21 : 1.9-dev4
+    - BUILD: Allow configuration of pcre-config path
+    - DOC: clarify force-private-cache is an option
+    - BUG/MINOR: connection: avoid null pointer dereference in send-proxy-v2
+    - REORG: http: move the code to different files
+    - REORG: http: move HTTP rules parsing to http_rules.c
+    - CLEANUP: http: remove some leftovers from recent cleanups
+    - BUILD: Makefile: add a "make opts" target to simply show the build options
+    - BUILD: Makefile: speed up compiler options detection
+    - BUG/MINOR: backend: check that the mux installed properly
+    - BUG/MEDIUM: h2: check that the connection is still valid at the end of init()
+    - BUG/MEDIUM: h2: make h2_stream_new() return an error on memory allocation failure
+    - REGTEST/MINOR: compatibility: use unix@ instead of abns@ sockets
+    - MINOR: ssl: cleanup old openssl API call
+    - MINOR: ssl: generate-certificates for BoringSSL
+    - BUG/MEDIUM: buffers: Make sure we don't wrap in ci_insert_line2/b_rep_blk.
+    - MEDIUM: ssl: add support for ciphersuites option for TLSv1.3
+    - CLEANUP: haproxy: Remove unused variable
+    - CLEANUP: h1: Fix debug warnings for h1 headers
+    - CLEANUP: stick-tables: Remove unneeded double (()) around conditional clause
+    - MEDIUM: task: perform a single tree lookup per run queue batch
+    - BUG/MEDIUM: Cur/CumSslConns counters not threadsafe.
+    - BUG/MINOR: threads: move declaration of capabilities to config.h
+    - OPTIM: tools: optimize my_ffsl() for x86_64
+    - BUG/MINOR: h2: null-deref
+    - BUG/MINOR: checks: queues null-deref
+    - MINOR: connections: Introduce an unsubscribe method.
+    - MEDIUM: connections: Change struct wait_list to wait_event.
+    - BUG/MEDIUM: h2: Make sure we're not in the send list on flow control.
+    - BUG/MEDIUM: mworker: segfault receiving SIGUSR1 followed by SIGTERM.
+    - BUG/MEDIUM: stream: Make sure to unsubscribe before si_release_endpoint.
+    - MINOR: http: Move comment about some HTTP macros in the right header file
+    - MINOR: stats: Add missing include
+    - MINOR: http: Export some functions and do cleanup to prepare HTTP refactoring
+    - MEDIUM: http: Ignore http-pretend-keepalive option on frontend
+    - MEDIUM: http: Ignore http-tunnel option on backend
+    - MINOR: http: Use same flag for httpclose and forceclose options
+    - MINOR: h1: Add EOH marker during headers parsing
+    - MINOR: conn-stream: Add CL_FL_NOT_FIRST flag
+    - MINOR: h1: Change the union h1_sl to use indirect strings to store infos
+    - MINOR: h1: Add the flag H1_MF_NO_PHDR to not add pseudo-headers during parsing
+    - MINOR: log: make sess_log() support sess=NULL
+    - MINOR: chunk: add chunk_cpy() and chunk_cat()
+    - MEDIUM: h2: stop relying on H2_SS_IDLE / H2_SS_CLOSED
+    - CLEANUP: h2: rename h2c_snd_settings() to h2c_send_settings()
+    - MINOR: h2: don't try to send data before preface
+    - MINOR: h2: unify the mux init function
+    - MINOR: h2: retrieve the front proxy from the caller instead of the session
+    - MINOR: h2: split h2c_stream_new() into h2s_new() + h2c_frt_stream_new()
+    - MINOR: h2: add a new flag to quickly distinguish front vs back connection
+    - BUG/MEDIUM: mworker: don't poll on LI_O_INHERITED listeners
+    - BUG/MEDIUM: stream: don't crash on out-of-memory
+    - BUILD: compiler: add a new statement "__unreachable()"
+    - BUILD: lua: silence some compiler warnings about potential null derefs
+    - BUILD: ssl: fix null-deref warning in ssl_fc_cipherlist_str sample fetch
+    - BUILD: ssl: fix another null-deref warning in ssl_sock_switchctx_cbk()
+    - BUILD: stick-table: make sure not to fail on task_new() during initialization
+    - BUILD: peers: check allocation error during peers_init_sync()
+    - MINOR: tools: add a new function atleast2() to test masks for more than 1 bit
+    - MINOR: config: use atleast2() instead of my_popcountl() where relevant
+    - MEDIUM: fd/threads: only grab the fd's lock if the FD has more than one thread
+    - MAJOR: tasks: create per-thread wait queues
+    - OPTIM: tasks: group all tree roots per cache line
+    - DOC: Fix a few typos
+    - MINOR: pools: allocate most memory pools from an array
+    - MINOR: pools: split pool_free() in the lockfree variant
+    - MEDIUM: pools: implement a thread-local cache for pool entries
+    - BUG/MEDIUM: threads: fix thread_release() at the end of the rendez-vous point
+    - Revert "BUILD: lua: silence some compiler warnings about potential null derefs"
+    - BUILD: lua: silence some compiler warnings about potential null derefs (#2)
+    - MINOR: lua: all functions calling lua_yieldk() may return
+    - BUILD: lua: silence some compiler warnings after WILL_LJMP
+    - BUILD: Makefile: silence an option conflict warning with clang
+    - MINOR: server: Use memcpy() instead of strncpy().
+    - CLEANUP: state-file: make the path concatenation code a bit more consistent
+    - MINOR: build: Disable -Wstringop-overflow.
+    - MINOR: cfgparse: Write 130 as 128 as 0x82 and 0x80.
+    - MINOR: peers: use defines instead of enums to appease clang.
+    - DOC: fix reference to map files in MAINTAINERS
+    - MINOR: fd: centralize poll timeout computation in compute_poll_timeout()
+    - MINOR: poller: move time and date computation out of the pollers
+    - BUILD: memory: fix pointer declaration for atomic CAS
+    - BUILD: Makefile: add USE_RT to pass -lrt for clock_gettime() and friends
+    - MINOR: time: add now_mono_time() and now_cpu_time()
+    - MEDIUM: time: measure the time stolen by other threads
+    - BUILD: memory: fix free_list pointer declaration again for atomic CAS
+    - BUILD: compiler: rename __unreachable() to my_unreachable()
+    - BUG/MEDIUM: pools: Fix the usage of mmap()) with DEBUG_UAF.
+    - BUILD: memory: fix free_list pointer declaration again for atomic CAS
+    - BUG/MEDIUM: h2: Close connection if no stream is left an GOAWAY was sent.
+    - BUG/MEDIUM: connections: Remove subscription if going in idle mode.
+    - BUG/MEDIUM: stream: Make sure polling is right on retry.
+    - MINOR: h2: Make sure to return 1 in h2_recv() when needed.
+    - MEDIUM: connections: Don't directly mess with the polling from the upper layers.
+    - MINOR: streams: Call tasklet_free() after si_release_endpoint().
+    - MINOR: connection: Add a SUB_CALL_UNSUBSCRIBE event.
+    - MINOR: h2: Don't run tasks that are waiting to send if mux in full.
+    - MINOR: ebtree: save 8 bytes in struct eb32sc_node
+
 2018/09/29 : 1.9-dev3
     - BUG/MINOR: h1: don't consider the status for each header
     - MINOR: h1: report in the h1m struct if the HTTP version is 1.1 or above
