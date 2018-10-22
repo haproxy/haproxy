@@ -1207,15 +1207,8 @@ int si_cs_recv(struct conn_stream *cs)
 			break;
 		}
 
-		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
-			/*
-			 * This used to be __conn_xprt_done_recv()
-			 * This was changed to accomodate with the mux code,
-			 * but we may have lost a worthwhile optimization.
-			 */
-			si->flags |= SI_FL_WAIT_ROOM;
+		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0)
 			break;
-		}
 
 		/* if too many bytes were missing from last read, it means that
 		 * it's pointless trying to read again because the system does
