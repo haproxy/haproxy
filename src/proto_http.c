@@ -393,6 +393,9 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 static void http_server_error(struct stream *s, struct stream_interface *si,
 			      int err, int finst, const struct buffer *msg)
 {
+	if (IS_HTX_STRM(s))
+		return htx_server_error(s, si, err, finst, msg);
+
 	FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
 	channel_auto_read(si_oc(si));
 	channel_abort(si_oc(si));
@@ -427,6 +430,9 @@ struct buffer *http_error_message(struct stream *s)
 void
 http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 {
+	if (IS_HTX_STRM(s))
+		return htx_reply_and_close(s, status, msg);
+
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 	FLT_STRM_CB(s, flt_http_reply(s, status, msg));
 	stream_int_retnclose(&s->si[0], msg);
