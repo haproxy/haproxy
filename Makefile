@@ -924,7 +924,7 @@ OBJS = src/proto_http.o src/cfgparse.o src/server.o src/stream.o        \
        src/mailers.o src/h2.o src/base64.o src/hash.o src/http.o	\
        src/http_acl.o src/http_fetch.o src/http_conv.o src/http_act.o   \
        src/http_rules.o src/proto_sockpair.o src/proto_htx.o            \
-       src/mux_h1.o
+       src/mux_h1.o src/htx.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
