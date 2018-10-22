@@ -50,6 +50,7 @@ struct cache {
 	struct eb_root entries;  /* head of cache entries based on keys */
 	unsigned int maxage;     /* max-age */
 	unsigned int maxblocks;
+	unsigned int maxobjsz;   /* max-object-size */
 	char id[33];             /* cache name */
 };
 
@@ -230,9 +231,6 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 
 			to_append = MIN(ci_contig_data(msg->chn), len - st->hdrs_len);
 
-			/* Skip remaining headers to fill the cache */
-			c_adv(msg->chn, st->hdrs_len);
-
 			shctx_lock(shctx);
 			fb = shctx_row_reserve_hot(shctx, st->first_block, to_append);
 			if (!fb) {
@@ -242,6 +240,8 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 			}
 			shctx_unlock(shctx);
 
+			/* Skip remaining headers to fill the cache */
+			c_adv(msg->chn, st->hdrs_len);
 			append = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
 			                               (unsigned char *)ci_head(msg->chn), to_append);
 			ret = st->hdrs_len + to_append - append;
@@ -429,6 +429,11 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* cache only HTTP/1.1 */
 	if (!(txn->req.flags & HTTP_MSGF_VER_11))
+		goto out;
+
+	/* Do not cache too big objects. */
+	if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
+	    msg->sov + msg->body_len > shctx->max_obj_size)
 		goto out;
 
 	/* cache only GET method */
@@ -830,6 +835,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			}
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
+			tmp_cache_config->maxobjsz = 0;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
 		int maxsize;
@@ -856,7 +862,21 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		}
 
 		tmp_cache_config->maxage = atoi(args[1]);
-	} else if (*args[0] != 0) {
+	} else if (strcmp(args[0], "max-object-size") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		if (!*args[1]) {
+			ha_warning("parsing [%s:%d]: '%s' expects a maximum file size parameter in bytes.\n",
+			        file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		tmp_cache_config->maxobjsz = atoi(args[1]);
+	}
+	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
@@ -882,7 +902,13 @@ int cfg_post_parse_section_cache()
 			goto out;
 		}
 
-		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE, -1, sizeof(struct cache), 1);
+		if (!tmp_cache_config->maxobjsz)
+			/* Default max. file size is a 256th of the cache size. */
+			tmp_cache_config->maxobjsz =
+				(tmp_cache_config->maxblocks * CACHE_BLOCKSIZE) >> 8;
+
+		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE,
+		                       tmp_cache_config->maxobjsz, sizeof(struct cache), 1);
 
 		if (ret_shctx < 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)
