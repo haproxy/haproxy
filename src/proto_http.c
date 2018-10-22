@@ -333,13 +333,6 @@ int http_find_header2(const char *name, int len,
 	return 0;
 }
 
-int http_find_header(const char *name,
-		     char *sol, struct hdr_idx *idx,
-		     struct hdr_ctx *ctx)
-{
-	return http_find_header2(name, strlen(name), sol, idx, ctx);
-}
-
 /* Remove one value of a header. This only works on a <ctx> returned by one of
  * the http_find_header functions. The value is removed, as well as surrounding
  * commas if any. If the removed value was alone, the whole header is removed.
