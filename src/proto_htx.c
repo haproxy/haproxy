@@ -16,6 +16,7 @@
 #include <common/uri_auth.h>
 
 #include <types/cache.h>
+#include <types/capture.h>
 
 #include <proto/acl.h>
 #include <proto/channel.h>
@@ -23,6 +24,8 @@
 #include <proto/connection.h>
 #include <proto/filters.h>
 #include <proto/hdr_idx.h>
+#include <proto/http_htx.h>
+#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
@@ -33,6 +36,11 @@
 
 static void htx_end_request(struct stream *s);
 static void htx_end_response(struct stream *s);
+
+static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr);
+static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len);
+static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl);
+static void htx_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -612,7 +620,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * time.
 	 */
 	if ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))
-		htx_adjust_conn_mode(s, txn, msg);
+		htx_adjust_conn_mode(s, txn);
 
 	/* we may have to wait for the request's body */
 	if ((s->be->options & PR_O_WREQ_BODY) &&
@@ -2757,7 +2765,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	return 0;
 }
 
-void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
+void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn)
 {
 	struct proxy *fe = strm_fe(s);
 	int tmp = TX_CON_WANT_CLO;
@@ -2766,7 +2774,7 @@ void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_ms
 		tmp = TX_CON_WANT_TUN;
 
 	if ((txn->flags & TX_CON_WANT_MSK) < tmp)
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
 }
 
 /* Perform an HTTP redirect based on the information in <rule>. The function
@@ -3284,6 +3292,187 @@ static void htx_end_response(struct stream *s)
 	channel_auto_close(chn);
 	channel_auto_read(chn);
 }
+
+void htx_server_error(struct stream *s, struct stream_interface *si, int err,
+		      int finst, const struct buffer *msg)
+{
+	channel_auto_read(si_oc(si));
+	channel_abort(si_oc(si));
+	channel_auto_close(si_oc(si));
+	channel_erase(si_oc(si));
+	channel_auto_close(si_ic(si));
+	channel_auto_read(si_ic(si));
+	if (msg) {
+		struct channel *chn = si_ic(si);
+		struct htx *htx;
+
+		htx = htx_from_buf(&chn->buf);
+		htx_add_oob(htx, ist2(msg->area, msg->data));
+		//FLT_STRM_CB(s, flt_htx_reply(s, s->txn->status, htx));
+		b_set_data(&chn->buf, b_size(&chn->buf));
+		c_adv(chn, htx->data);
+		chn->total += htx->data;
+	}
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= err;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= finst;
+}
+
+void htx_reply_and_close(struct stream *s, short status, struct buffer *msg)
+{
+	channel_auto_read(&s->req);
+	channel_abort(&s->req);
+	channel_auto_close(&s->req);
+	channel_erase(&s->req);
+	channel_truncate(&s->res);
+
+	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
+	if (msg) {
+		struct channel *chn = &s->res;
+		struct htx *htx;
+
+		htx = htx_from_buf(&chn->buf);
+		htx_add_oob(htx, ist2(msg->area, msg->data));
+		//FLT_STRM_CB(s, flt_htx_reply(s, s->txn->status, htx));
+		b_set_data(&chn->buf, b_size(&chn->buf));
+		c_adv(chn, htx->data);
+		chn->total += htx->data;
+	}
+
+	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
+	channel_auto_read(&s->res);
+	channel_auto_close(&s->res);
+	channel_shutr_now(&s->res);
+}
+
+/*
+ * Capture headers from message <htx> according to header list <cap_hdr>, and
+ * fill the <cap> pointers appropriately.
+ */
+static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr)
+{
+	struct cap_hdr *h;
+	int32_t pos;
+
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+		enum htx_blk_type type = htx_get_blk_type(blk);
+		struct ist n, v;
+
+		if (type == HTX_BLK_EOH)
+			break;
+		if (type != HTX_BLK_HDR)
+			continue;
+
+		n = htx_get_blk_name(htx, blk);
+
+		for (h = cap_hdr; h; h = h->next) {
+			if (h->namelen && (h->namelen == n.len) &&
+			    (strncasecmp(n.ptr, h->name, h->namelen) == 0)) {
+				if (cap[h->index] == NULL)
+					cap[h->index] =
+						pool_alloc(h->pool);
+
+				if (cap[h->index] == NULL) {
+					ha_alert("HTTP capture : out of memory.\n");
+					break;
+				}
+
+				v = htx_get_blk_value(htx, blk);
+				if (v.len > h->len)
+					v.len = h->len;
+
+				memcpy(cap[h->index], v.ptr, v.len);
+				cap[h->index][v.len]=0;
+			}
+		}
+	}
+}
+
+
+/* Formats the start line of the request (without CRLF) and puts it in <str> and
+ * return the written lenght. The line can be truncated if it exceeds <len>.
+ */
+static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len)
+{
+	struct ist dst = ist2(str, 0);
+
+	if (istcat(&dst, sl.rq.m, len) == -1)
+		goto end;
+	if (dst.len + 1 > len)
+		goto end;
+	dst.ptr[dst.len++] = ' ';
+
+	if (istcat(&dst, sl.rq.u, len) == -1)
+		goto end;
+	if (dst.len + 1 > len)
+		goto end;
+	dst.ptr[dst.len++] = ' ';
+
+	istcat(&dst, sl.rq.v, len);
+  end:
+	return dst.len;
+}
+
+/*
+ * Print a debug line with a start line.
+ */
+static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl)
+{
+        struct session *sess = strm_sess(s);
+        int max;
+
+        chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
+                     dir,
+                     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->handle.fd : -1,
+                     objt_cs(s->si[1].end) ? (unsigned short)objt_cs(s->si[1].end)->conn->handle.fd : -1);
+
+        max = sl.rq.m.len;
+        UBOUND(max, trash.size - trash.data - 3);
+        chunk_memcat(&trash, sl.rq.m.ptr, max);
+        trash.area[trash.data++] = ' ';
+
+        max = sl.rq.u.len;
+        UBOUND(max, trash.size - trash.data - 2);
+        chunk_memcat(&trash, sl.rq.u.ptr, max);
+        trash.area[trash.data++] = ' ';
+
+        max = sl.rq.v.len;
+        UBOUND(max, trash.size - trash.data - 1);
+        chunk_memcat(&trash, sl.rq.v.ptr, max);
+        trash.area[trash.data++] = '\n';
+
+        shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+}
+
+/*
+ * Print a debug line with a header.
+ */
+static void htx_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v)
+{
+        struct session *sess = strm_sess(s);
+        int max;
+
+        chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
+                     dir,
+                     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->handle.fd : -1,
+                     objt_cs(s->si[1].end) ? (unsigned short)objt_cs(s->si[1].end)->conn->handle.fd : -1);
+
+        max = n.len;
+        UBOUND(max, trash.size - trash.data - 3);
+        chunk_memcat(&trash, n.ptr, max);
+        trash.area[trash.data++] = ':';
+        trash.area[trash.data++] = ' ';
+
+        max = v.len;
+        UBOUND(max, trash.size - trash.data - 1);
+        chunk_memcat(&trash, v.ptr, max);
+        trash.area[trash.data++] = '\n';
+
+        shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+}
+
 
 __attribute__((constructor))
 static void __htx_protocol_init(void)

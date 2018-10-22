@@ -791,7 +791,7 @@ void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_m
 	int tmp = TX_CON_WANT_KAL;
 
 	if (IS_HTX_STRM(s))
-		return htx_adjust_conn_mode(s, txn, msg);
+		return htx_adjust_conn_mode(s, txn);
 
 	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
 	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
