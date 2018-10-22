@@ -2114,6 +2114,7 @@ option http-pretend-keepalive        (*)  X          -         X         X
 option http-server-close             (*)  X          X         X         X
 option http-tunnel                   (*)  X          X         X         -
 option http-use-proxy-header         (*)  X          X         X         -
+option http-use-htx                  (*)  X          X         X         X
 option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         X
@@ -6016,6 +6017,39 @@ no option http-use-proxy-header
   This option should normally never be used, except in front of a proxy.
 
   See also : "option httpclose", and "option http-server-close".
+
+
+option http-use-htx
+no option http-use-htx
+  Switch to the new HTX internal representation for HTTP protocol elements
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  By default, the HTTP protocol is processed as-is. Inserting, deleting, or
+  modifying a header field requires to rewrite the affected part in the buffer
+  and to move the buffer's tail accordingly. Since this principle has deep
+  roots in haproxy, the HTTP/2 protocol is converted to HTTP/1.1 before being
+  processed this way. It also results in the inability to establish HTTP/2
+  connections to servers because of the loss of HTTP/2 semantics in the HTTP/1
+  representation.
+
+  HTX is the name of a totally new native internal representation for the HTTP
+  protocol, that is agnostic to the version and aims at preserving semantics
+  all along the chain. It relies on a fast parsing, tokenizing and indexing of
+  the protocol elements so that no more memory moves are necessary and that
+  most elements are directly accessed. This mechanism is still limited to the
+  most basic operations (no compression, filters, Lua, applets, cache, etc).
+  But it supports using either HTTP/1 or HTTP/2 on any side regardless of the
+  other side's version.
+
+  This option indicates that HTX needs to be used. It will cause errors to be
+  emitted if incompatible features are used, but will allow H2 to be selected
+  as a server protocol. It is recommended to use this option on new reasonably
+  simple configurations, but since the feature still has incomplete functional
+  coverage, it is not enabled by default.
+
+  See also : "mode http"
 
 
 option httpchk

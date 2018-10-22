@@ -208,6 +208,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "http-use-proxy-header",        PR_O2_USE_PXHDR, PR_CAP_FE, 0, PR_MODE_HTTP },
 	{ "http-pretend-keepalive",       PR_O2_FAKE_KA,   PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http-no-delay",                PR_O2_NODELAY,   PR_CAP_FE|PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "http-use-htx",                 PR_O2_USE_HTX,   PR_CAP_FE|PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ NULL, 0, 0, 0 }
 };
 
@@ -7792,6 +7793,13 @@ int check_config_validity()
 					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
 					 target->conf.file, target->conf.line);
 				cfgerr++;
+			} else if ((curproxy->options2 ^ target->options2) & PR_O2_USE_HTX) {
+				ha_alert("%s %s '%s' (%s:%d) tries to use %s %s '%s' (%s:%d) as its default backend, both of which disagree on 'option http-use-htx'.\n",
+					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
+					 curproxy->conf.file, curproxy->conf.line,
+					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+					 target->conf.file, target->conf.line);
+				cfgerr++;
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
@@ -7867,6 +7875,13 @@ int check_config_validity()
 				   !(curproxy->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
 
 				ha_alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'use_backend' rule (see 'mode').\n",
+					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
+					 curproxy->conf.file, curproxy->conf.line,
+					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+					 target->conf.file, target->conf.line);
+				cfgerr++;
+			} else if ((curproxy->options2 ^ target->options2) & PR_O2_USE_HTX) {
+				ha_alert("%s %s '%s' (%s:%d) tries to use %s %s '%s' (%s:%d) in a 'use_backend' rule, both of which disagree on 'option http-use-htx'.\n",
 					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
 					 curproxy->conf.file, curproxy->conf.line,
 					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,

@@ -151,7 +151,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
 
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
-/* unused: 0x00400000 */
+#define PR_O2_USE_HTX   0x00400000      /* use the HTX representation for the HTTP protocol */
 #define PR_O2_EXP_NONE  0x00000000      /* http-check : no expect rule */
 #define PR_O2_EXP_STS   0x00800000      /* http-check expect status */
 #define PR_O2_EXP_RSTS  0x01000000      /* http-check expect rstatus */

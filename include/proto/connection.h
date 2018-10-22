@@ -971,7 +971,14 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode = (1 << (bind_conf->frontend->mode == PR_MODE_HTTP));
+		int mode;
+
+		if (bind_conf->frontend->mode == PR_MODE_TCP)
+			mode = PROTO_MODE_TCP;
+		else if (bind_conf->frontend->options2 & PR_O2_USE_HTX)
+			mode = PROTO_MODE_HTX;
+		else
+			mode = PROTO_MODE_HTTP;
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
@@ -1003,7 +1010,13 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 	else {
 		int mode;
 
-		mode = (1 << (prx->mode == PR_MODE_HTTP));
+		if (prx->mode == PR_MODE_TCP)
+			mode = PROTO_MODE_TCP;
+		else if (prx->options2 & PR_O2_USE_HTX)
+			mode = PROTO_MODE_HTX;
+		else
+			mode = PROTO_MODE_HTTP;
+
 		mux_ops = conn_get_best_mux(conn, ist(NULL), PROTO_SIDE_BE, mode);
 		if (!mux_ops)
 			return -1;

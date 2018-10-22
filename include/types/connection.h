@@ -425,7 +425,8 @@ enum proto_proxy_mode {
 	PROTO_MODE_NONE = 0,
 	PROTO_MODE_TCP  = 1 << 0, // must not be changed!
 	PROTO_MODE_HTTP = 1 << 1, // must not be changed!
-	PROTO_MODE_ANY  = PROTO_MODE_TCP | PROTO_MODE_HTTP,
+	PROTO_MODE_HTX  = 1 << 2, // must not be changed!
+	PROTO_MODE_ANY  = PROTO_MODE_TCP | PROTO_MODE_HTTP, // note: HTX is experimental and must not appear here
 };
 
 enum proto_proxy_side {
