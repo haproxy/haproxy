@@ -906,6 +906,72 @@ int http_find_next_url_param(const char **chunks,
 	return 1;
 }
 
+/* Parses a single header line (without the CRLF) and splits it into its name
+ * and its value. The parsing is pretty naive and just skip spaces.
+ */
+int http_parse_header(const struct ist hdr, struct ist *name, struct ist *value)
+{
+        char *p   = hdr.ptr;
+        char *end = p + hdr.len;
+
+        name->len = value->len = 0;
+
+        /* Skip leading spaces */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* Set the header name */
+        name->ptr = p;
+        for (; p < end && HTTP_IS_TOKEN(*p); p++);
+        name->len = p - name->ptr;
+
+        /* Skip the ':' and spaces before and after it */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+        if (p < end && *p == ':') p++;
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* Set the header value */
+        value->ptr = p;
+        value->len = end - p;
+
+        return 1;
+}
+
+/* Parses a single start line (without the CRLF) and splits it into 3 parts. The
+ * parsing is pretty naive and just skip spaces.
+ */
+int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, struct ist *p3)
+{
+        char *p   = line.ptr;
+        char *end = p + line.len;
+
+        p1->len = p2->len = p3->len = 0;
+
+        /* Skip leading spaces */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* Set the first part */
+        p1->ptr = p;
+        for (; p < end && HTTP_IS_TOKEN(*p); p++);
+        p1->len = p - p1->ptr;
+
+        /* Skip spaces between p1 and p2 */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* Set the second part */
+        p2->ptr = p;
+        for (; p < end && !HTTP_IS_SPHT(*p); p++);
+        p2->len = p - p2->ptr;
+
+        /* Skip spaces between p2 and p3 */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* The remaing is the third value */
+        p3->ptr = p;
+        p3->len = end - p;
+
+        return 1;
+}
+
 
 /* post-initializes the HTTP parts. Returns non-zero on error, with <err>
  * pointing to the error message.

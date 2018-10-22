@@ -153,6 +153,9 @@ int http_find_next_url_param(const char **chunks,
                              const char* url_param_name, size_t url_param_name_l,
                              const char **vstart, const char **vend, char delim);
 
+int http_parse_header(const struct ist hdr, struct ist *name, struct ist *value);
+int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, struct ist *p3);
+
 /*
  * Given a path string and its length, find the position of beginning of the
  * query string. Returns NULL if no query string is found in the path.
