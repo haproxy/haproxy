@@ -58,6 +58,7 @@
 #   DEP may be cleared to ignore changes to include files during development
 #   SMALL_OPTS may be used to specify some options to shrink memory usage.
 #   DEBUG may be used to set some internal debugging options.
+#   ERR may be set to non-empty to pass -Werror to the compiler
 #   ADDINC may be used to complete the include path in the form -Ipath.
 #   ADDLIB may be used to complete the library list in the form -Lpath -llib.
 #   DEFINE may be used to specify any additional define, which will be reported
@@ -149,6 +150,9 @@ LD = $(CC)
 #### Debug flags (typically "-g").
 # Those flags only feed CFLAGS so it is not mandatory to use this form.
 DEBUG_CFLAGS = -g
+
+#### Add -Werror when set to non-empty
+ERR =
 
 #### Compiler-specific flags that may be used to disable some negative over-
 # optimization or to silence some warnings. -fno-strict-aliasing is needed with
@@ -838,6 +842,11 @@ EBTREE_DIR := ebtree
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
 COPTS  = -Iinclude -I$(EBTREE_DIR) -Wall -Wextra
+
+ifneq ($(ERR),)
+COPTS += -Werror
+endif
+
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
