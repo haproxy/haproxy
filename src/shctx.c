@@ -25,42 +25,67 @@ int use_shared_mem = 0;
 #endif
 
 /*
- * Reserve a row, put it in the hotlist, set the refcount to 1
+ * Reserve a new row if <first> is null, put it in the hotlist, set the refcount to 1
+ * or append new blocks to the row with <first> as first block if non null.
  *
  * Reserve blocks in the avail list and put them in the hot list
  * Return the first block put in the hot list or NULL if not enough blocks available
  */
-struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx, int data_len)
+struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
+                                           struct shared_block *first, int data_len)
 {
-	struct shared_block *block, *sblock, *ret = NULL, *first;
+	struct shared_block *last = NULL, *block, *sblock, *ret = NULL, *next;
 	int enough = 0;
 	int freed = 0;
+	int remain;
 
 	/* not enough usable blocks */
 	if (data_len > shctx->nbav * shctx->block_size)
 		goto out;
 
+	/* Note that <remain> is nul only if <first> is not nul. */
+	remain = 1;
+	if (first) {
+		/* Check that there is some block to reserve.
+		 * In this first block of code we compute the remaining room in the
+		 * current list of block already reserved for this object.
+		 * We return asap if there is enough room to copy <data_len> bytes.
+		 */
+		last = first->last_reserved;
+		/* Remaining room. */
+		remain = (shctx->block_size * first->block_count - first->len);
+		if (remain) {
+			if (remain > data_len) {
+				return last ? last : first;
+			} else {
+				data_len -= remain;
+				if (!data_len)
+					return last ? last : first;
+			}
+		}
+	}
+
 	while (!enough && !LIST_ISEMPTY(&shctx->avail)) {
 		int count = 0;
 		int first_count = 0, first_len = 0;
 
-		first = block = LIST_NEXT(&shctx->avail, struct shared_block *, list);
+		next = block = LIST_NEXT(&shctx->avail, struct shared_block *, list);
 		if (ret == NULL)
-			ret = first;
+			ret = next;
 
-		first_count = first->block_count;
-		first_len = first->len;
+		first_count = next->block_count;
+		first_len = next->len;
 		/*
 		Should never been set to 0.
-		if (first->block_count == 0)
-		first->block_count = 1;
+		if (next->block_count == 0)
+		next->block_count = 1;
 		*/
 
 		list_for_each_entry_safe_from(block, sblock, &shctx->avail, list) {
 
 			/* release callback */
 			if (first_len && shctx->free_block)
-				shctx->free_block(first, block);
+				shctx->free_block(next, block);
 
 			block->block_count = 1;
 			block->len = 0;
@@ -68,20 +93,39 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx, int dat
 			freed++;
 			data_len -= shctx->block_size;
 
-			if (data_len > 0)
-				shctx_block_set_hot(shctx, block);
-
-			if (data_len <= 0 && !enough) {
-				shctx_block_set_hot(shctx, block);
-				ret->block_count = freed;
-				ret->refcount = 1;
-				enough = 1;
+			if (data_len > 0 || !enough) {
+				if (last) {
+					shctx_block_append_hot(shctx, &last->list, block);
+					last = block;
+				} else {
+					shctx_block_set_hot(shctx, block);
+				}
+				if (!remain) {
+					first->last_append = block;
+					remain = 1;
+				}
+				if (data_len <= 0) {
+					ret->block_count = freed;
+					ret->refcount = 1;
+					ret->last_reserved = block;
+					enough = 1;
+				}
 			}
-
 			count++;
 			if (count >= first_count)
 				break;
 		}
+	}
+
+	if (first) {
+		first->block_count += ret->block_count;
+		first->last_reserved = ret->last_reserved;
+		/* Reset this block. */
+		ret->last_reserved = NULL;
+		ret->block_count = 1;
+		ret->refcount = 0;
+		/* Return the first block. */
+		ret = first;
 	}
 
 out:
@@ -147,50 +191,44 @@ void shctx_row_dec_hot(struct shared_context *shctx, struct shared_block *first)
  * Return the amount of appended data if ret >= 0
  * or how much more space it needs to contains the data if < 0.
  */
-int shctx_row_data_append(struct shared_context *shctx, struct shared_block *first, unsigned char *data, int len)
+int shctx_row_data_append(struct shared_context *shctx,
+                          struct shared_block *first, struct shared_block *from,
+                          unsigned char *data, int len)
 {
 	int remain, start;
-	int count = 0;
 	struct shared_block *block;
-
 
 	/* return -<len> needed to work */
 	if (len > first->block_count * shctx->block_size - first->len)
 		return (first->block_count * shctx->block_size - first->len) - len;
 
-	/* skipping full buffers, stop at the first buffer with remaining space */
-	block = first;
+	block = from ? from : first;
 	list_for_each_entry_from(block, &shctx->hot, list) {
-		count++;
-
-
-		/* break if there is not enough blocks */
-		if (count > first->block_count)
-			break;
-
 		/* end of copy */
 		if (len <= 0)
 			break;
 
-		/* skip full buffers */
-		if (count * shctx->block_size <= first->len)
-			continue;
-
-		/* remaining space in the current block which is not full */
-		remain = (shctx->block_size * count - first->len) % shctx->block_size;
-		/* if remain == 0, previous buffer are full, or first->len == 0 */
-		remain = remain ? remain : shctx->block_size;
-
-		/* start must be calculated before remain is modified */
-		start = shctx->block_size - remain;
+		/* remaining written bytes in the current block. */
+		remain = (shctx->block_size * first->block_count - first->len) % shctx->block_size;
+		/* if remain == 0, previous buffers are full, or first->len == 0 */
+		if (!remain) {
+			remain = shctx->block_size;
+			start = 0;
+		}
+		else {
+			/* start must be calculated before remain is modified */
+			start = shctx->block_size - remain;
+		}
 
 		/* must not try to copy more than len */
 		remain = MIN(remain, len);
 
 		memcpy(block->data + start, data, remain);
+
 		data += remain;
 		len -= remain;
 		first->len += remain; /* update len in the head of the row */
+		first->last_append = block;
 	}
 
 	return len;

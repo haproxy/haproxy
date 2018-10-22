@@ -24,6 +24,8 @@ struct shared_block {
 	unsigned int len;          /* data length for the row */
 	unsigned int block_count;  /* number of blocks */
 	unsigned int refcount;
+	struct shared_block *last_reserved;
+	struct shared_block *last_append;
 	unsigned char data[0];
 };
 

@@ -224,7 +224,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 				/* Skip remaining headers to fill the cache */
 				c_adv(msg->chn, st->hdrs_len);
 				ret = shctx_row_data_append(shctx,
-							    st->first_block,
+							    st->first_block, NULL,
 							    (unsigned char *)ci_head(msg->chn),
 							    MIN(ci_contig_data(msg->chn), len - st->hdrs_len));
 				/* Rewind the buffer to forward all data */
@@ -440,7 +440,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	shctx_lock(shctx);
 
-	first = shctx_row_reserve_hot(shctx, sizeof(struct cache_entry) + msg->sov + msg->body_len);
+	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + msg->sov + msg->body_len);
 	if (!first) {
 		shctx_unlock(shctx);
 		goto out;
@@ -465,7 +465,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
-	if (shctx_row_data_append(shctx, first, (unsigned char *)ci_head(&s->res), msg->sov) < 0)
+	if (shctx_row_data_append(shctx, first, NULL, (unsigned char *)ci_head(&s->res), msg->sov) < 0)
 		goto out;
 
 	/* register the buffer in the filter ctx for filling it with data*/
