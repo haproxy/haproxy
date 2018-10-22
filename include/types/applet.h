@@ -105,7 +105,9 @@ struct appctx {
 			int i0, i1;             /* to 0 by the CLI before first invocation of the keyword parser. */
 		} cli;                          /* context used by the CLI */
 		struct {
-			struct cache_entry *entry;
+			struct cache_entry *entry;  /* Entry to be sent from cache. */
+			int sent;                   /* The number of bytes already sent for this cache entry. */
+			struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
 		} cache;
 		/* all entries below are used by various CLI commands, please
 		 * keep the grouped together and avoid adding new ones.

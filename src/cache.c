@@ -182,14 +182,29 @@ cache_store_http_headers(struct stream *s, struct filter *filter, struct http_ms
 	return 1;
 }
 
+static inline void disable_cache_entry(struct cache_st *st,
+                                       struct filter *filter, struct shared_context *shctx)
+{
+	struct cache_entry *object;
+
+	object = (struct cache_entry *)st->first_block->data;
+	filter->ctx = NULL; /* disable cache  */
+	shctx_lock(shctx);
+	shctx_row_dec_hot(shctx, st->first_block);
+	object->eb.key = 0;
+	shctx_unlock(shctx);
+	pool_free(pool_head_cache_st, st);
+}
+
 static int
 cache_store_http_forward_data(struct stream *s, struct filter *filter,
 		       struct http_msg *msg, unsigned int len)
 {
 	struct cache_st *st = filter->ctx;
 	struct shared_context *shctx = shctx_ptr((struct cache *)filter->config->conf);
-	struct cache_entry *object;
 	int ret;
+
+	ret = 0;
 
 	/*
 	 * We need to skip the HTTP headers first, because we saved them in the
@@ -210,31 +225,34 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 	else {
 		/* Forward data */
 		if (filter->ctx && st->first_block) {
-			/* disable buffering if too much data (never greater than a buffer size */
-			if (len - st->hdrs_len > global.tune.bufsize - global.tune.maxrewrite - st->first_block->len) {
-			  disable_cache:
-				object = (struct cache_entry *)st->first_block->data;
-				filter->ctx = NULL; /* disable cache  */
-				shctx_lock(shctx);
-				shctx_row_dec_hot(shctx, st->first_block);
-				object->eb.key = 0;
+			int to_append, append;
+			struct shared_block *fb;
+
+			to_append = MIN(ci_contig_data(msg->chn), len - st->hdrs_len);
+
+			/* Skip remaining headers to fill the cache */
+			c_adv(msg->chn, st->hdrs_len);
+
+			shctx_lock(shctx);
+			fb = shctx_row_reserve_hot(shctx, st->first_block, to_append);
+			if (!fb) {
 				shctx_unlock(shctx);
-				pool_free(pool_head_cache_st, st);
-			} else {
-				/* Skip remaining headers to fill the cache */
-				c_adv(msg->chn, st->hdrs_len);
-				ret = shctx_row_data_append(shctx,
-							    st->first_block, NULL,
-							    (unsigned char *)ci_head(msg->chn),
-							    MIN(ci_contig_data(msg->chn), len - st->hdrs_len));
-				/* Rewind the buffer to forward all data */
-				c_rew(msg->chn, st->hdrs_len);
-				st->hdrs_len = 0;
-				if (ret)
-					goto disable_cache;
+				disable_cache_entry(st, filter, shctx);
+				return len;
 			}
+			shctx_unlock(shctx);
+
+			append = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
+			                               (unsigned char *)ci_head(msg->chn), to_append);
+			ret = st->hdrs_len + to_append - append;
+			/* Rewind the buffer to forward all data */
+			c_rew(msg->chn, st->hdrs_len);
+			st->hdrs_len = 0;
+			if (ret < 0)
+				disable_cache_entry(st, filter, shctx);
 		}
-		ret = len;
+		else
+			ret = len;
 	}
 
 	if ((ret != len) ||
@@ -413,10 +431,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->req.flags & HTTP_MSGF_VER_11))
 		goto out;
 
-	/* does not cache if Content-Length unknown */
-	if (!(msg->flags & HTTP_MSGF_CNT_LEN))
-		goto out;
-
 	/* cache only GET method */
 	if (txn->meth != HTTP_METH_GET)
 		goto out;
@@ -435,12 +449,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
 		goto out;
 
-	if ((msg->sov + msg->body_len) > (global.tune.bufsize - global.tune.maxrewrite))
-		goto out;
-
 	shctx_lock(shctx);
-
-	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + msg->sov + msg->body_len);
+	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + msg->sov);
 	if (!first) {
 		shctx_unlock(shctx);
 		goto out;
@@ -456,7 +466,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
-
+	first->last_append = NULL;
 	/* cache the headers in a http action because it allows to chose what
 	 * to cache, for example you might want to cache a response before
 	 * modifying some HTTP headers, or on the contrary after modifying
@@ -529,14 +539,60 @@ static void http_cache_applet_release(struct appctx *appctx)
 	shctx_unlock(shctx_ptr(cache));
 }
 
+static int cache_channel_row_data_get(struct appctx *appctx, int len)
+{
+	int ret, total;
+	struct stream_interface *si = appctx->owner;
+	struct channel *res = si_ic(si);
+	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cache);
+	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
+	struct shared_block *blk, *next = appctx->ctx.cache.next;
+	int offset;
+
+	total = 0;
+	offset = 0;
+
+	if (!next) {
+		offset = sizeof(struct cache_entry);
+		next =  block_ptr(cache_ptr);
+	}
+
+	blk = next;
+	list_for_each_entry_from(blk, &shctx->hot, list) {
+		int sz;
+
+		if (len <= 0)
+			break;
+
+		sz = MIN(len, shctx->block_size - offset);
+
+		ret = ci_putblk(res, (const char *)blk->data + offset, sz);
+		if (unlikely(offset))
+			offset = 0;
+		if (ret <= 0) {
+			if (ret == -3 || ret == -1) {
+				si_applet_cant_put(si);
+				break;
+			}
+			return -1;
+		}
+
+		total += sz;
+		len -= sz;
+	}
+	appctx->ctx.cache.next = blk;
+
+	return total;
+}
+
 static void http_cache_io_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	struct channel *res = si_ic(si);
-	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
-	struct shared_context *shctx = shctx_ptr(cache);
 	struct shared_block *first = block_ptr(cache_ptr);
+	int *sent = &appctx->ctx.cache.sent;
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
@@ -552,18 +608,21 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	/* buffer are aligned there, should be fine */
 	if (appctx->st0 == HTTP_CACHE_INIT) {
-		int len = first->len - sizeof(struct cache_entry);
-		if ((shctx_row_data_get(shctx, first, (unsigned char *)ci_tail(res), sizeof(struct cache_entry), len)) != 0) {
-			/* should never get there, because at the moment, a
-			 * cache object can never be bigger than a buffer */
-			 abort();
+		int len = first->len - *sent - sizeof(struct cache_entry);
 
-			si_applet_cant_put(si);
-			goto out;
+		if (len > 0) {
+			int ret;
+
+			ret = cache_channel_row_data_get(appctx, len);
+			if (ret == -1)
+				appctx->st0 = HTTP_CACHE_END;
+			else
+				*sent += ret;
 		}
-		b_add(&res->buf, len);
-		res->total += len;
-		appctx->st0 = HTTP_CACHE_FWD;
+		else {
+			*sent = 0;
+			appctx->st0 = HTTP_CACHE_FWD;
+		}
 	}
 
 	if (appctx->st0 == HTTP_CACHE_FWD) {
@@ -694,6 +753,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			appctx->st0 = HTTP_CACHE_INIT;
 			appctx->rule = rule;
 			appctx->ctx.cache.entry = res;
+			appctx->ctx.cache.next = NULL;
+			appctx->ctx.cache.sent = 0;
 			return ACT_RET_CONT;
 		} else {
 			shctx_lock(shctx_ptr(cache));
