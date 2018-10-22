@@ -882,7 +882,7 @@ int cfg_post_parse_section_cache()
 			goto out;
 		}
 
-		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE, sizeof(struct cache), 1);
+		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE, -1, sizeof(struct cache), 1);
 
 		if (ret_shctx < 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)

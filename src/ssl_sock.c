@@ -4786,7 +4786,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 	}
 	if (!ssl_shctx && global.tune.sslcachesize) {
 		alloc_ctx = shctx_init(&ssl_shctx, global.tune.sslcachesize,
-		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE,
+		                       sizeof(struct sh_ssl_sess_hdr) + SHSESS_BLOCK_MIN_SIZE, -1,
 		                       sizeof(*sh_ssl_sess_tree),
 		                       ((global.nbthread > 1) || (!global_ssl.private_cache && (global.nbproc > 1))) ? 1 : 0);
 		if (alloc_ctx < 0) {

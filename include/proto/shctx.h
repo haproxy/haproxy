@@ -31,7 +31,8 @@
 #endif
 #endif
 
-int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize, int extra, int shared);
+int shctx_init(struct shared_context **orig_shctx,
+               int maxblocks, int blocksize, int maxobjsz, int extra, int shared);
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *last, int data_len);
 void shctx_row_inc_hot(struct shared_context *shctx, struct shared_block *first);

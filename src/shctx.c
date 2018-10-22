@@ -43,6 +43,13 @@ struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
 	if (data_len > shctx->nbav * shctx->block_size)
 		goto out;
 
+	/* Check the object size limit. */
+	if (shctx->max_obj_size > 0) {
+		if ((first && first->len + data_len > shctx->max_obj_size) ||
+			(!first && data_len > shctx->max_obj_size))
+			goto out;
+	}
+
 	/* Note that <remain> is nul only if <first> is not nul. */
 	remain = 1;
 	if (first) {
@@ -284,7 +291,8 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
  * Returns: -1 on alloc failure, <maxblocks> if it performs context alloc,
  * and 0 if cache is already allocated.
  */
-int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize, int extra, int shared)
+int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
+               int maxobjsz, int extra, int shared)
 {
 	int i;
 	struct shared_context *shctx;
@@ -351,6 +359,7 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	LIST_INIT(&shctx->hot);
 
 	shctx->block_size = blocksize;
+	shctx->max_obj_size = maxobjsz;
 
 	/* init the free blocks after the shared context struct */
 	cur = (void *)shctx + sizeof(struct shared_context) + extra;
