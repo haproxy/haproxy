@@ -726,7 +726,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 	if (!cs)
 		return NULL;
 redo:
-	if (!(si->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
 		ret = si_cs_send(cs);
 	if (!(si->wait_event.wait_reason & SUB_CAN_RECV))
 		ret |= si_cs_recv(cs);
@@ -978,7 +978,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	si_cs_send(cs);
+	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
+		si_cs_send(cs);
 	tasklet_wakeup(si->wait_event.task);
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */

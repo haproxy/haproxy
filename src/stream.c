@@ -1670,12 +1670,20 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	/* First, attempd to do I/Os */
 	cs = objt_cs(si_f->end);
 	if (cs) {
-		si_cs_send(cs);
-		si_cs_recv(cs);
+		if (!(si_f->wait_event.wait_reason & SUB_CAN_SEND) &&
+		    co_data(si_oc(si_f)))
+			si_cs_send(cs);
+		if (!(si_f->wait_event.wait_reason & SUB_CAN_RECV) &&
+		    !(si_f->flags & SI_FL_WAIT_ROOM))
+			si_cs_recv(cs);
 	}
 	cs = objt_cs(si_b->end);
 	if (cs) {
-		si_cs_send(cs);
+		if (!(si_b->wait_event.wait_reason & SUB_CAN_SEND) &&
+		    co_data(si_oc(si_b)))
+			si_cs_send(cs);
+		if (!(si_b->wait_event.wait_reason & SUB_CAN_RECV) &&
+		    !(si_b->flags & SI_FL_WAIT_ROOM))
 		si_cs_recv(cs);
 	}
 redo:
@@ -2447,11 +2455,17 @@ redo:
 		cs = objt_cs(si_f->end);
 		ret = 0;
 		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
-		    !(cs->flags & CS_FL_ERROR) && !(si_oc(si_f)->flags & CF_SHUTW))
+		    !(cs->flags & CS_FL_ERROR) &&
+		    !(si_oc(si_f)->flags & CF_SHUTW) &&
+		    !(si_f->wait_event.wait_reason & SUB_CAN_SEND) &&
+		    co_data(si_oc(si_f)))
 			ret = si_cs_send(cs);
 		cs = objt_cs(si_b->end);
 		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
-		    !(cs->flags & CS_FL_ERROR) && !(si_oc(si_b)->flags & CF_SHUTW))
+		    !(cs->flags & CS_FL_ERROR) &&
+		    !(si_oc(si_b)->flags & CF_SHUTW) &&
+		    !(si_b->wait_event.wait_reason & SUB_CAN_SEND) &&
+		    co_data(si_oc(si_b)))
 			ret |= si_cs_send(cs);
 
 		if (ret)
