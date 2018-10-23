@@ -17467,9 +17467,7 @@ The cache won't store and won't deliver objects in these cases:
 
 - If the response is not a 200
 - If the response contains a Vary header
-- If the response does not contain a Content-Length header or if the
-  Content-Length + the headers size is greater than a buffer size - the
-  reserve.
+- If the Content-Length + the headers size is greater than "max-object-size"
 - If the response is not cacheable
 
 - If the request is not a GET
@@ -17496,6 +17494,10 @@ cache <name>
 total-max-size <megabytes>
   Define the size in RAM of the cache in megabytes. This size is split in
   blocks of 1kB which are used by the cache entries.
+
+max-object-size <bytes>
+  Define the maximum size of the objects to be cached. If not set, it equals
+  to a 256th of the cache size.
 
 max-age <seconds>
   Define the maximum expiration duration. The expiration is set has the lowest
