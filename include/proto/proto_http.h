@@ -40,7 +40,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 int http_process_request(struct stream *s, struct channel *req, int an_bit);
 int http_process_tarpit(struct stream *s, struct channel *req, int an_bit);
 int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit);
-int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* svr_name);
+int http_send_name_header(struct stream *s, struct proxy* be, const char* svr_name);
 int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
 int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px);
 int http_request_forward_body(struct stream *s, struct channel *req, int an_bit);

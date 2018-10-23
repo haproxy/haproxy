@@ -2306,7 +2306,7 @@ redo:
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {
-				http_send_name_header(s->txn, s->be, objt_server(s->target)->id);
+				http_send_name_header(s, s->be, objt_server(s->target)->id);
 			}
 
 			srv = objt_server(s->target);

@@ -3646,10 +3646,10 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
  * for being forwarded. This is the reason why it rewinds the buffer before
  * proceeding.
  */
-int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* srv_name) {
+int http_send_name_header(struct stream *s, struct proxy* be, const char* srv_name) {
 
 	struct hdr_ctx ctx;
-
+	struct http_txn *txn = s->txn;
 	char *hdr_name = be->server_id_hdr_name;
 	int hdr_name_len = be->server_id_hdr_len;
 	struct channel *chn = txn->req.chn;
