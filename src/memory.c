@@ -62,10 +62,12 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	 * ease merging of entries. Note that the rounding is a power of two.
 	 * This extra (void *) is not accounted for in the size computation
 	 * so that the visible parts outside are not affected.
+	 *
+	 * Note: for the LRU cache, we need to store 2 doubly-linked lists.
 	 */
 
 	if (!(flags & MEM_F_EXACT)) {
-		align = 16;
+		align = 4 * sizeof(void *); // 2 lists = 4 pointers min
 		size  = ((size + POOL_EXTRA + align - 1) & -align) - POOL_EXTRA;
 	}
 
