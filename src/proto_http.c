@@ -7192,6 +7192,9 @@ void check_request_for_cacheability(struct stream *s, struct channel *chn)
 	int cc_found;
 	int cur_idx;
 
+	if (IS_HTX_STRM(s))
+		return htx_check_request_for_cacheability(s, chn);
+
 	if ((txn->flags & (TX_CACHEABLE|TX_CACHE_IGNORE)) == TX_CACHE_IGNORE)
 		return; /* nothing more to do here */
 
@@ -7286,6 +7289,10 @@ void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx;
+
+
+	if (IS_HTX_STRM(s))
+		return htx_check_response_for_cacheability(s, rtr);
 
 	if (txn->status < 200) {
 		/* do not try to cache interim responses! */

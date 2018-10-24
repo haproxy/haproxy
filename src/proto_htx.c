@@ -4567,6 +4567,174 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 	}
 }
 
+/*
+ * Parses the Cache-Control and Pragma request header fields to determine if
+ * the request may be served from the cache and/or if it is cacheable. Updates
+ * s->txn->flags.
+ */
+void htx_check_request_for_cacheability(struct stream *s, struct channel *req)
+{
+	struct http_txn *txn = s->txn;
+	struct htx *htx;
+        int32_t pos;
+	int pragma_found, cc_found, i;
+
+	if ((txn->flags & (TX_CACHEABLE|TX_CACHE_IGNORE)) == TX_CACHE_IGNORE)
+		return; /* nothing more to do here */
+
+	htx = htx_from_buf(&req->buf);
+	pragma_found = cc_found = 0;
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+                struct htx_blk *blk = htx_get_blk(htx, pos);
+                enum htx_blk_type type = htx_get_blk_type(blk);
+		struct ist n, v;
+
+                if (type == HTX_BLK_EOH)
+                        break;
+                if (type != HTX_BLK_HDR)
+                        continue;
+
+		n = htx_get_blk_name(htx, blk);
+		v = htx_get_blk_value(htx, blk);
+
+		if (isteqi(n, ist("Pragma"))) {
+			if (v.len >= 8 && strncasecmp(v.ptr, "no-cache", 8) == 0) {
+				pragma_found = 1;
+				continue;
+			}
+		}
+
+		/* Don't use the cache and don't try to store if we found the
+		 * Authorization header */
+		if (isteqi(n, ist("Authorization"))) {
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			txn->flags |= TX_CACHE_IGNORE;
+			continue;
+		}
+
+		if (!isteqi(n, ist("Cache-control")))
+			continue;
+
+		/* OK, right now we know we have a cache-control header */
+		cc_found = 1;
+		if (!v.len)	/* no info */
+			continue;
+
+		i = 0;
+		while (i < v.len && *(v.ptr+i) != '=' && *(v.ptr+i) != ',' &&
+		       !isspace((unsigned char)*(v.ptr+i)))
+			i++;
+
+		/* we have a complete value between v.ptr and (v.ptr+i). We don't check the
+		 * values after max-age, max-stale nor min-fresh, we simply don't
+		 * use the cache when they're specified.
+		 */
+		if (((i == 7) && strncasecmp(v.ptr, "max-age",   7) == 0) ||
+		    ((i == 8) && strncasecmp(v.ptr, "no-cache",  8) == 0) ||
+		    ((i == 9) && strncasecmp(v.ptr, "max-stale", 9) == 0) ||
+		    ((i == 9) && strncasecmp(v.ptr, "min-fresh", 9) == 0)) {
+			txn->flags |= TX_CACHE_IGNORE;
+			continue;
+		}
+
+		if ((i == 8) && strncasecmp(v.ptr, "no-store", 8) == 0) {
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			continue;
+		}
+	}
+
+	/* RFC7234#5.4:
+	 *   When the Cache-Control header field is also present and
+	 *   understood in a request, Pragma is ignored.
+	 *   When the Cache-Control header field is not present in a
+	 *   request, caches MUST consider the no-cache request
+	 *   pragma-directive as having the same effect as if
+	 *   "Cache-Control: no-cache" were present.
+	 */
+	if (!cc_found && pragma_found)
+		txn->flags |= TX_CACHE_IGNORE;
+}
+
+/*
+ * Check if response is cacheable or not. Updates s->txn->flags.
+ */
+void htx_check_response_for_cacheability(struct stream *s, struct channel *res)
+{
+	struct http_txn *txn = s->txn;
+	struct htx *htx;
+        int32_t pos;
+	int i;
+
+	if (txn->status < 200) {
+		/* do not try to cache interim responses! */
+		txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+		return;
+	}
+
+	htx = htx_from_buf(&res->buf);
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+                struct htx_blk *blk  = htx_get_blk(htx, pos);
+                enum htx_blk_type type = htx_get_blk_type(blk);
+		struct ist n, v;
+
+                if (type == HTX_BLK_EOH)
+                        break;
+                if (type != HTX_BLK_HDR)
+                        continue;
+
+		n = htx_get_blk_name(htx, blk);
+		v = htx_get_blk_value(htx, blk);
+
+		if (isteqi(n, ist("Pragma"))) {
+			if ((v.len >= 8) && strncasecmp(v.ptr, "no-cache", 8) == 0) {
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+				return;
+			}
+		}
+
+		if (!isteqi(n, ist("Cache-control")))
+			continue;
+
+		/* OK, right now we know we have a cache-control header */
+		if (!v.len)	/* no info */
+			continue;
+
+		i = 0;
+		while (i < v.len && *(v.ptr+i) != '=' && *(v.ptr+i) != ',' &&
+		       !isspace((unsigned char)*(v.ptr+i)))
+			i++;
+
+		/* we have a complete value between v.ptr and (v.ptr+i) */
+		if (i < v.len && *(v.ptr + i) == '=') {
+			if (((v.len - i) > 1 && (i == 7) && strncasecmp(v.ptr, "max-age=0", 9) == 0) ||
+			    ((v.len - i) > 1 && (i == 8) && strncasecmp(v.ptr, "s-maxage=0", 10) == 0)) {
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+				continue;
+			}
+
+			/* we have something of the form no-cache="set-cookie" */
+			if ((v.len >= 21) &&
+			    strncasecmp(v.ptr, "no-cache=\"set-cookie", 20) == 0
+			    && (*(v.ptr + 20) == '"' || *(v.ptr + 20 ) == ','))
+				txn->flags &= ~TX_CACHE_COOK;
+			continue;
+		}
+
+		/* OK, so we know that either p2 points to the end of string or to a comma */
+		if (((i ==  7) && strncasecmp(v.ptr, "private", 7) == 0) ||
+		    ((i ==  8) && strncasecmp(v.ptr, "no-cache", 8) == 0) ||
+		    ((i ==  8) && strncasecmp(v.ptr, "no-store", 8) == 0)) {
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			return;
+		}
+
+		if ((i ==  6) && strncasecmp(v.ptr, "public", 6) == 0) {
+			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
+			continue;
+		}
+	}
+}
+
 /* This function terminates the request because it was completly analyzed or
  * because an error was triggered during the body forwarding.
  */
