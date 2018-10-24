@@ -38,6 +38,7 @@ static void htx_end_request(struct stream *s);
 static void htx_end_response(struct stream *s);
 
 static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr);
+static int htx_del_hdr_value(char *start, char *end, char **from, char *next);
 static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len);
 static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl);
 static void htx_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
@@ -2877,6 +2878,57 @@ static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap
 			}
 		}
 	}
+}
+
+/* Delete a value in a header between delimiters <from> and <next>. The header
+ * itself is delimited by <start> and <end> pointers. The number of characters
+ * displaced is returned, and the pointer to the first delimiter is updated if
+ * required. The function tries as much as possible to respect the following
+ * principles :
+ * - replace <from> delimiter by the <next> one unless <from> points to <start>,
+ *   in which case <next> is simply removed
+ * - set exactly one space character after the new first delimiter, unless there
+ *   are not enough characters in the block being moved to do so.
+ * - remove unneeded spaces before the previous delimiter and after the new
+ *   one.
+ *
+ * It is the caller's responsibility to ensure that :
+ *   - <from> points to a valid delimiter or <start> ;
+ *   - <next> points to a valid delimiter or <end> ;
+ *   - there are non-space chars before <from>.
+ */
+static int htx_del_hdr_value(char *start, char *end, char **from, char *next)
+{
+	char *prev = *from;
+
+	if (prev == start) {
+		/* We're removing the first value. eat the semicolon, if <next>
+		 * is lower than <end> */
+		if (next < end)
+			next++;
+
+		while (next < end && HTTP_IS_SPHT(*next))
+			next++;
+	}
+	else {
+		/* Remove useless spaces before the old delimiter. */
+		while (HTTP_IS_SPHT(*(prev-1)))
+			prev--;
+		*from = prev;
+
+		/* copy the delimiter and if possible a space if we're
+		 * not at the end of the line.
+		 */
+		if (next < end) {
+			*prev++ = *next++;
+			if (prev + 1 < next)
+				*prev++ = ' ';
+			while (next < end && HTTP_IS_SPHT(*next))
+				next++;
+		}
+	}
+	memmove(prev, next, end - next);
+	return (prev - next);
 }
 
 
