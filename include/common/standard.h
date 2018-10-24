@@ -195,7 +195,7 @@ static inline const char *U2H(unsigned long long n)
 	return ret;
 }
 
-/* returns a locally allocated string containing the HTML representation of
+/* returns a locally allocated string containing the ASCII representation of
  * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
  * function call (eg: printf), shared with the other similar functions making
  * use of itoa_str[].
