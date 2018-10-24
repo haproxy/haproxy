@@ -31,6 +31,7 @@
 #include <proto/pattern.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
+#include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
@@ -4763,6 +4764,60 @@ int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_nam
 			c_adv(&s->req, htx->data - data);
 	}
 	return 0;
+}
+
+void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
+{
+	struct http_txn *txn = s->txn;
+	struct htx *htx;
+	struct server *srv;
+	union h1_sl sl;
+	struct ist path;
+
+	/* 1: create the response header */
+	if (!chunk_memcat(&trash, HTTP_302, strlen(HTTP_302)))
+		return;
+
+	/* 2: add the server's prefix */
+	/* special prefix "/" means don't change URL */
+	srv = __objt_server(s->target);
+	if (srv->rdr_len != 1 || *srv->rdr_pfx != '/') {
+		if (!chunk_memcat(&trash, srv->rdr_pfx, srv->rdr_len))
+			return;
+	}
+
+	/* 3: add the request Path */
+	htx = htx_from_buf(&s->req.buf);
+	sl = http_find_stline(htx);
+	path = http_get_path(sl.rq.u);
+	if (!path.ptr)
+		return;
+
+	if (!chunk_memcat(&trash, path.ptr, path.len))
+		return;
+
+	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+		if (!chunk_memcat(&trash, "\r\nProxy-Connection: close\r\n\r\n", 29))
+			return;
+	}
+	else {
+		if (!chunk_memcat(&trash, "\r\nConnection: close\r\n\r\n", 23))
+			return;
+	}
+
+	/* prepare to return without error. */
+	si_shutr(si);
+	si_shutw(si);
+	si->err_type = SI_ET_NONE;
+	si->state    = SI_ST_CLO;
+
+	/* send the message */
+	txn->status = 302;
+	htx_server_error(s, si, SF_ERR_LOCAL, SF_FINST_C, &trash);
+
+	/* FIXME: we should increase a counter of redirects per server and per backend. */
+	srv_inc_sess_ctr(srv);
+	srv_set_sess_last(srv);
 }
 
 /* This function terminates the request because it was completly analyzed or

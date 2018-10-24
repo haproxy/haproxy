@@ -467,6 +467,9 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	char *path;
 	int len, rewind;
 
+	if (IS_HTX_STRM(s))
+		return htx_perform_server_redirect(s, si);
+
 	/* 1: create the response header */
 	trash.data = strlen(HTTP_302);
 	memcpy(trash.area, HTTP_302, trash.data);

@@ -75,6 +75,7 @@ void htx_res_set_status(unsigned int status, const char *reason, struct stream *
 void htx_check_request_for_cacheability(struct stream *s, struct channel *req);
 void htx_check_response_for_cacheability(struct stream *s, struct channel *res);
 int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_name);
+void htx_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void htx_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
 void htx_reply_and_close(struct stream *s, short status, struct buffer *msg);
 
