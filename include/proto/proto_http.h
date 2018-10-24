@@ -54,6 +54,7 @@ void http_txn_reset_res(struct http_txn *txn);
 
 /* Export HTX analyzers and helpers */
 // FIXME: Rename all these functions http_* once legacy code will be removed
+struct htx;
 
 int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit);
 int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px);
@@ -67,6 +68,8 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit);
 int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit);
 void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn);
 int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
+int htx_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
+			     struct ist name, const char *str, struct my_regex *re, int action);
 void htx_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
 void htx_reply_and_close(struct stream *s, short status, struct buffer *msg);
 

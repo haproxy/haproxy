@@ -2543,6 +2543,48 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	return ret;
 }
 
+int htx_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
+			     struct ist name, const char *str, struct my_regex *re, int action)
+{
+	struct http_hdr_ctx ctx;
+	struct buffer *output = get_trash_chunk();
+
+	/* find full header is action is ACT_HTTP_REPLACE_HDR */
+	ctx.blk = NULL;
+	while (http_find_header(htx, name, &ctx, (action == ACT_HTTP_REPLACE_HDR))) {
+		if (!regex_exec_match2(re, ctx.value.ptr, ctx.value.len, MAX_MATCH, pmatch, 0))
+			continue;
+
+		output->data = exp_replace(output->area, output->size, ctx.value.ptr, str, pmatch);
+		if (output->data == -1)
+			return -1;
+		if (!http_replace_header_value(htx, &ctx, ist2(output->area, output->data)))
+			return -1;
+	}
+	return 0;
+}
+
+static int htx_transform_header(struct stream* s, struct channel *chn, struct htx *htx,
+				const struct ist name, struct list *fmt, struct my_regex *re, int action)
+{
+	struct buffer *replace;
+	int ret = -1;
+
+	replace = alloc_trash_chunk();
+	if (!replace)
+		goto leave;
+
+	replace->data = build_logline(s, replace->area, replace->size, fmt);
+	if (replace->data >= replace->size - 1)
+		goto leave;
+
+	ret = htx_transform_header_str(s, chn, htx, name, replace->area, re, action);
+
+  leave:
+	free_trash_chunk(replace);
+	return ret;
+}
+
 /* This function terminates the request because it was completly analyzed or
  * because an error was triggered during the body forwarding.
  */
