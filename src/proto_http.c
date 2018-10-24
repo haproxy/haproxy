@@ -3683,6 +3683,8 @@ int http_send_name_header(struct stream *s, struct proxy* be, const char* srv_na
 	char *hdr_val;
 	unsigned int old_o, old_i;
 
+	if (IS_HTX_STRM(s))
+		return htx_send_name_header(s, be, srv_name);
 	ctx.idx = 0;
 
 	old_o = http_hdr_rewind(&txn->req);

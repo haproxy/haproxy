@@ -61,7 +61,6 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 int htx_process_request(struct stream *s, struct channel *req, int an_bit);
 int htx_process_tarpit(struct stream *s, struct channel *req, int an_bit);
 int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit);
-int htx_send_name_header(struct http_txn *txn, struct proxy* be, const char* svr_name);
 int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
 int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px);
 int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit);
@@ -75,6 +74,7 @@ int htx_req_replace_stline(int action, const char *replace, int len,
 void htx_res_set_status(unsigned int status, const char *reason, struct stream *s);
 void htx_check_request_for_cacheability(struct stream *s, struct channel *req);
 void htx_check_response_for_cacheability(struct stream *s, struct channel *res);
+int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_name);
 void htx_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
 void htx_reply_and_close(struct stream *s, short status, struct buffer *msg);
 

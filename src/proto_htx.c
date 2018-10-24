@@ -4735,6 +4735,36 @@ void htx_check_response_for_cacheability(struct stream *s, struct channel *res)
 	}
 }
 
+/* send a server's name with an outgoing request over an established connection.
+ * Note: this function is designed to be called once the request has been
+ * scheduled for being forwarded. This is the reason why the number of forwarded
+ * bytes have to be adjusted.
+ */
+int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_name)
+{
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	struct ist hdr;
+	uint32_t data;
+
+	hdr = ist2(be->server_id_hdr_name, be->server_id_hdr_len);
+	htx = htx_from_buf(&s->req.buf);
+	data = htx->data;
+
+	ctx.blk = NULL;
+	while (http_find_header(htx, hdr, &ctx, 1))
+		http_remove_header(htx, &ctx);
+	http_add_header(htx, hdr, ist2(srv_name, strlen(srv_name)));
+
+	if (co_data(&s->req)) {
+		if (data >= htx->data)
+			c_rew(&s->req, data - htx->data);
+		else
+			c_adv(&s->req, htx->data - data);
+	}
+	return 0;
+}
+
 /* This function terminates the request because it was completly analyzed or
  * because an error was triggered during the body forwarding.
  */
