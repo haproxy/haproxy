@@ -31,6 +31,8 @@
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/http_fetch.h>
+#include <proto/http_htx.h>
+#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/obj_type.h>
 #include <proto/proto_http.h>
@@ -40,6 +42,8 @@
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct hdr_ctx static_hdr_ctx;
+static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
+
 
 /*
  * Returns the data from Authorization header. Function may be called more
@@ -120,6 +124,129 @@ static int get_http_auth(struct stream *s)
 	}
 
 	return 0;
+}
+
+/* This function ensures that the prerequisites for an L7 fetch are ready,
+ * which means that a request or response is ready. If some data is missing,
+ * a parsing attempt is made. This is useful in TCP-based ACLs which are able
+ * to extract data from L7.
+ *
+ * The function returns :
+ *   NULL with SMP_F_MAY_CHANGE in the sample flags if some data is missing to
+ *     decide whether or not an HTTP message is present ;
+ *   NULL if the requested data cannot be fetched or if it is certain that
+ *     we'll never have any HTTP message there ;
+ *   The HTX message if ready
+ */
+struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
+{
+	struct proxy *px = smp->px;
+	struct stream *s = smp->strm;
+	unsigned int opt = smp->opt;
+	struct http_txn *txn = NULL;
+	struct htx *htx = NULL;
+
+	/* Note: it is possible that <s> is NULL when called before stream
+	 * initialization (eg: tcp-request connection), so this function is the
+	 * one responsible for guarding against this case for all HTTP users.
+	 */
+	if (!s)
+		return NULL;
+
+	if (!s->txn) {
+		if (unlikely(!http_alloc_txn(s)))
+			return NULL; /* not enough memory */
+		http_init_txn(s);
+		txn = s->txn;
+	}
+
+	if (px->mode == PR_MODE_HTTP) {
+		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
+			union h1_sl sl;
+
+			htx = htx_from_buf(&s->req.buf);
+			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
+				/* Parsing is done by the mux, just wait */
+				smp->flags |= SMP_F_MAY_CHANGE;
+				return NULL;
+			}
+
+			/* OK we just got a valid HTTP request. We have some
+			 * minor preparation to perform so that further checks
+			 * can rely on HTTP tests.
+			 */
+			if (txn) {
+				sl = http_find_stline(htx);
+				txn->meth = sl.rq.meth;
+				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+					s->flags |= SF_REDIRECTABLE;
+			}
+
+			/* otherwise everything's ready for the request */
+		}
+		else {
+			htx = htx_from_buf(&s->res.buf);
+			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
+				/* Parsing is done by the mux, just wait */
+				smp->flags |= SMP_F_MAY_CHANGE;
+				return NULL;
+			}
+		}
+	}
+	else { /* PR_MODE_TCP */
+		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
+			struct buffer *buf;
+			struct h1m h1m;
+			struct http_hdr hdrs[MAX_HTTP_HDR];
+			union h1_sl sl;
+			int ret;
+
+			buf = &s->req.buf;
+			if (b_head(buf) + b_data(buf) > b_wrap(buf))
+				b_slow_realign(buf, trash.area, 0);
+
+			h1m_init_req(&h1m);
+			ret = h1_headers_to_hdr_list(b_head(buf), b_stop(buf),
+						     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &sl);
+			if (ret <= 0) {
+				/* Invalid or too big*/
+				if (ret < 0 || channel_full(&s->req, global.tune.maxrewrite))
+					return NULL;
+
+				/* wait for a full request */
+				smp->flags |= SMP_F_MAY_CHANGE;
+				return NULL;
+			}
+
+			/* OK we just got a valid HTTP request. We have to
+			 * convert it into an HTX message.
+			 */
+			if (unlikely(sl.rq.v.len == 0)) {
+				/* try to convert HTTP/0.9 requests to HTTP/1.0 */
+				if (sl.rq.meth != HTTP_METH_GET || !sl.rq.u.len)
+					return NULL;
+				sl.rq.v = ist("HTTP/1.0");
+			}
+			htx = htx_from_buf(get_trash_chunk());
+			if (!htx_add_reqline(htx, sl) || !htx_add_all_headers(htx, hdrs))
+				return NULL;
+
+			if (txn) {
+				txn->meth = sl.rq.meth;
+				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+					s->flags |= SF_REDIRECTABLE;
+			}
+			/* Ok, now everything's ready for the request */
+		}
+		else {
+			/* Impossible, no HTTP fetch on tcp-response */
+			return NULL;
+		}
+	}
+
+	/* everything's OK */
+	smp->data.u.sint = 1;
+	return htx;
 }
 
 /* This function ensures that the prerequisites for an L7 fetch are ready,

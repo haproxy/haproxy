@@ -39,6 +39,9 @@
 int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
                   const struct arg *args, struct sample *smp, int req_vol);
 
+struct htx;
+struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args);
+
 int val_hdr(struct arg *arg, char **err_msg);
 
 
