@@ -496,10 +496,6 @@ void stream_int_notify(struct stream_interface *si)
 	 * the buffer is full. We must not stop based on input data alone because
 	 * an HTTP parser might need more data to complete the parsing.
 	 */
-
-	/* ensure it's only set if a write attempt has succeeded */
-	ic->flags &= ~CF_WRITE_PARTIAL;
-
 	if (!channel_is_empty(ic) &&
 	    (si_opposite(si)->flags & SI_FL_WAIT_DATA) &&
 	    (ci_data(ic) == 0 || ic->pipe)) {
@@ -544,7 +540,7 @@ void stream_int_notify(struct stream_interface *si)
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
-	    ((oc->flags & (CF_WRITE_ACTIVITY|CF_WRITE_EVENT)) &&
+	    ((oc->flags & CF_WRITE_ACTIVITY) &&
 	     ((oc->flags & CF_SHUTW) ||
 	      ((oc->flags & CF_WAKE_WRITE) &&
 	       (si_opposite(si)->state != SI_ST_EST ||
@@ -641,13 +637,10 @@ int si_cs_send(struct conn_stream *cs)
 	if (si_oc(si)->flags & CF_SHUTW)
 		return 1;
 
-	/* ensure it's only set if a write attempt has succeeded */
-	oc->flags &= ~CF_WRITE_PARTIAL;
-
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(cs, oc->pipe);
 		if (ret > 0) {
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
+			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 			did_send = 1;
 		}
 
@@ -696,7 +689,7 @@ int si_cs_send(struct conn_stream *cs)
 		ret = cs->conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA | CF_WRITE_EVENT;
+			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 
 			co_set_data(oc, co_data(oc) - ret);
 			c_realign_if_empty(oc);
@@ -964,9 +957,6 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *oc = si_oc(si);
 	struct conn_stream *cs = __objt_cs(si->end);
-
-	/* ensure it's only set if a write attempt has succeeded */
-	oc->flags &= ~CF_WRITE_PARTIAL;
 
 	if (unlikely(si->state > SI_ST_EST || (oc->flags & CF_SHUTW)))
 		return;

@@ -117,11 +117,11 @@
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
 #define CF_FLT_ANALYZE    0x20000000  /* at least one filter is still analyzing this channel */
-#define CF_WRITE_EVENT    0x40000000  /* write activity not processed yet by the stream */
+/* unused: 0x40000000 */
 #define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
-#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE|CF_WRITE_EVENT)
+#define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define CF_MASK_STATIC    (CF_SHUTR|CF_SHUTW|CF_SHUTR_NOW|CF_SHUTW_NOW)

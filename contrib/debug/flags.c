@@ -72,7 +72,6 @@ void show_chn_flags(unsigned int f)
 
 	SHOW_FLAG(f, CF_ISRESP);
 	SHOW_FLAG(f, CF_FLT_ANALYZE);
-	SHOW_FLAG(f, CF_WRITE_EVENT);
 	SHOW_FLAG(f, CF_WAKE_ONCE);
 	SHOW_FLAG(f, CF_NEVER_WAIT);
 	SHOW_FLAG(f, CF_SEND_DONTWAIT);

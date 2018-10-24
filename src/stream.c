@@ -628,7 +628,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	if (!(req->flags & CF_WROTE_DATA) &&
 	    unlikely((rep->flags & CF_SHUTW) ||
 		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
-		      ((!(req->flags & (CF_WRITE_ACTIVITY|CF_WRITE_EVENT)) && channel_is_empty(req)) ||
+		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
 		       ((s->be->options & PR_O_ABRT_CLOSE) && !(s->si[0].flags & SI_FL_CLEAN_ABRT)))))) {
 		/* give up */
 		si_shutw(si);
@@ -639,7 +639,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	}
 
 	/* we need to wait a bit more if there was no activity either */
-	if (!(req->flags & (CF_WRITE_ACTIVITY|CF_WRITE_EVENT)))
+	if (!(req->flags & CF_WRITE_ACTIVITY))
 		return 1;
 
 	/* OK, this means that a connection succeeded. The caller will be
@@ -1759,7 +1759,7 @@ redo:
 		 */
 		if (!((req->flags | res->flags) &
 		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
-		       CF_WRITE_ACTIVITY|CF_WRITE_EVENT|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
+		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
 		    !((si_f->flags | si_b->flags) & (SI_FL_EXP|SI_FL_ERR)) &&
 		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
 			si_f->flags &= ~SI_FL_DONT_WAKE;
@@ -2477,8 +2477,8 @@ redo:
 		if (si_b->state == SI_ST_EST)
 			si_update(si_b);
 
-		req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED|CF_WRITE_EVENT);
-		res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED|CF_WRITE_EVENT);
+		req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
+		res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
 		si_f->prev_state = si_f->state;
 		si_b->prev_state = si_b->state;
 		si_f->flags &= ~(SI_FL_ERR|SI_FL_EXP);
