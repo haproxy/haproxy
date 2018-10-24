@@ -1029,11 +1029,22 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->req;
+	struct htx *htx;
 
-	// TODO: Disabled for now
-	req->analyse_exp = TICK_ETERNITY;
-	req->analysers &= ~an_bit;
-	return 1;
+
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		ci_data(req),
+		req->analysers);
+
+	htx = htx_from_buf(&req->buf);
+
+	if (msg->msg_state < HTTP_MSG_BODY)
+		goto missing_data;
 
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
@@ -1041,99 +1052,45 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 	 * related structures are ready.
 	 */
 
-	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* This is the first call */
-		if (msg->msg_state < HTTP_MSG_BODY)
-			goto missing_data;
+	if (msg->msg_state < HTTP_MSG_DATA) {
+		/* If we have HTTP/1.1 and Expect: 100-continue, then we must
+		 * send an HTTP/1.1 100 Continue intermediate response.
+		 */
+		if (msg->flags & HTTP_MSGF_VER_11) {
+			struct ist hdr = { .ptr = "Expect", .len = 6 };
+			struct http_hdr_ctx ctx;
 
-		if (msg->msg_state < HTTP_MSG_100_SENT) {
-			/* If we have HTTP/1.1 and Expect: 100-continue, then we must
-			 * send an HTTP/1.1 100 Continue intermediate response.
-			 */
-			if (msg->flags & HTTP_MSGF_VER_11) {
-				struct hdr_ctx ctx;
-				ctx.idx = 0;
-				/* Expect is allowed in 1.1, look for it */
-				if (http_find_header2("Expect", 6, ci_head(req), &txn->hdr_idx, &ctx) &&
-				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-					co_inject(&s->res, HTTP_100.ptr, HTTP_100.len);
-					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
-				}
+			ctx.blk = NULL;
+			/* Expect is allowed in 1.1, look for it */
+			if (http_find_header(htx, hdr, &ctx, 0) &&
+			    unlikely(isteqi(ctx.value, ist2("100-continue", 12)))) {
+				struct htx *rsp = htx_from_buf(&s->res.buf);
+				struct htx_blk *blk;
+
+				blk = htx_add_oob(rsp, HTTP_100);
+				if (!blk)
+					goto missing_data;
+				b_set_data(&s->res.buf, b_size(&s->res.buf));
+				c_adv(&s->res, HTTP_100.len);
+				s->res.total += HTTP_100.len;
+				http_remove_header(htx, &ctx);
 			}
-			msg->msg_state = HTTP_MSG_100_SENT;
 		}
-
-		/* we have msg->sov which points to the first byte of message body.
-		 * ci_head(req) still points to the beginning of the message. We
-		 * must save the body in msg->next because it survives buffer
-		 * re-alignments.
-		 */
-		msg->next = msg->sov;
-
-		if (msg->flags & HTTP_MSGF_TE_CHNK)
-			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
-		else
-			msg->msg_state = HTTP_MSG_DATA;
 	}
 
-	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
-		/* We're in content-length mode, we just have to wait for enough data. */
-		if (http_body_bytes(msg) < msg->body_len)
-			goto missing_data;
+	msg->msg_state = HTTP_MSG_DATA;
 
-		/* OK we have everything we need now */
-		goto http_end;
-	}
-
-	/* OK here we're parsing a chunked-encoded message */
-
-	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
-		/* read the chunk size and assign it to ->chunk_len, then
-		 * set ->sov and ->next to point to the body and switch to DATA or
-		 * TRAILERS state.
-		 */
-		unsigned int chunk;
-		int ret = h1_parse_chunk_size(&req->buf, co_data(req) + msg->next, c_data(req), &chunk);
-
-		if (!ret)
-			goto missing_data;
-		else if (ret < 0) {
-			msg->err_pos = ci_data(req) + ret;
-			if (msg->err_pos < 0)
-				msg->err_pos += req->buf.size;
-			stream_inc_http_err_ctr(s);
-			goto return_bad_req;
-		}
-
-		msg->chunk_len = chunk;
-		msg->body_len += chunk;
-
-		msg->sol = ret;
-		msg->next += ret;
-		msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
-	}
-
-	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
-	 * We have the first data byte is in msg->sov + msg->sol. We're waiting
-	 * for at least a whole chunk or the whole content length bytes after
-	 * msg->sov + msg->sol.
+	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
+	 * been received or if the buffer is full.
 	 */
-	if (msg->msg_state == HTTP_MSG_TRAILERS)
-		goto http_end;
-
-	if (http_body_bytes(msg) >= msg->body_len)   /* we have enough bytes now */
+	if (htx_get_tail_type(htx) >= HTX_BLK_EOD ||
+	    htx_used_space(htx) + global.tune.maxrewrite >= htx->size)
 		goto http_end;
 
  missing_data:
-	/* we get here if we need to wait for more data. If the buffer is full,
-	 * we have the maximum we can expect.
-	 */
-	if (channel_full(req, global.tune.maxrewrite))
-		goto http_end;
-
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
-		http_reply_and_close(s, txn->status, http_error_message(s));
+		htx_reply_and_close(s, txn->status, http_error_message(s));
 
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_CLITO;
@@ -1167,7 +1124,7 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 	txn->req.err_state = txn->req.msg_state;
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	http_reply_and_close(s, txn->status, http_error_message(s));
+	htx_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
