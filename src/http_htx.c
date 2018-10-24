@@ -535,3 +535,132 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 
 	return 1;
 }
+
+
+/* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
+ * header whose name is <hname> of length <hlen>. If <ctx> is null, lookup is
+ * performed over the whole headers. Otherwise it must contain a valid header
+ * context, initialised with ctx->blk=NULL for the first lookup in a series. If
+ * <occ> is positive or null, occurrence #occ from the beginning (or last ctx)
+ * is returned. Occ #0 and #1 are equivalent. If <occ> is negative (and no less
+ * than -MAX_HDR_HISTORY), the occurrence is counted from the last one which is
+ * -1. The value fetch stops at commas, so this function is suited for use with
+ * list headers.
+ * The return value is 0 if nothing was found, or non-zero otherwise.
+ */
+unsigned int http_get_htx_hdr(const struct htx *htx, const struct ist hdr,
+			      int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen)
+{
+	struct http_hdr_ctx local_ctx;
+	struct ist val_hist[MAX_HDR_HISTORY];
+	unsigned int hist_idx;
+	int found;
+
+	if (!ctx) {
+		local_ctx.blk = NULL;
+		ctx = &local_ctx;
+	}
+
+	if (occ >= 0) {
+		/* search from the beginning */
+		while (http_find_header(htx, hdr, ctx, 0)) {
+			occ--;
+			if (occ <= 0) {
+				*vptr = ctx->value.ptr;
+				*vlen = ctx->value.len;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+	/* negative occurrence, we scan all the list then walk back */
+	if (-occ > MAX_HDR_HISTORY)
+		return 0;
+
+	found = hist_idx = 0;
+	while (http_find_header(htx, hdr, ctx, 0)) {
+		val_hist[hist_idx] = ctx->value;
+		if (++hist_idx >= MAX_HDR_HISTORY)
+			hist_idx = 0;
+		found++;
+	}
+	if (-occ > found)
+		return 0;
+
+	/* OK now we have the last occurrence in [hist_idx-1], and we need to
+	 * find occurrence -occ. 0 <= hist_idx < MAX_HDR_HISTORY, and we have
+	 * -10 <= occ <= -1. So we have to check [hist_idx%MAX_HDR_HISTORY+occ]
+	 * to remain in the 0..9 range.
+	 */
+	hist_idx += occ + MAX_HDR_HISTORY;
+	if (hist_idx >= MAX_HDR_HISTORY)
+		hist_idx -= MAX_HDR_HISTORY;
+	*vptr = val_hist[hist_idx].ptr;
+	*vlen = val_hist[hist_idx].len;
+	return 1;
+}
+
+/* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
+ * header whose name is <hname> of length <hlen>. If <ctx> is null, lookup is
+ * performed over the whole headers. Otherwise it must contain a valid header
+ * context, initialised with ctx->blk=NULL for the first lookup in a series. If
+ * <occ> is positive or null, occurrence #occ from the beginning (or last ctx)
+ * is returned. Occ #0 and #1 are equivalent. If <occ> is negative (and no less
+ * than -MAX_HDR_HISTORY), the occurrence is counted from the last one which is
+ * -1. This function differs from http_get_hdr() in that it only returns full
+ * line header values and does not stop at commas.
+ * The return value is 0 if nothing was found, or non-zero otherwise.
+ */
+unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
+			       int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen)
+{
+	struct http_hdr_ctx local_ctx;
+	struct ist val_hist[MAX_HDR_HISTORY];
+	unsigned int hist_idx;
+	int found;
+
+	if (!ctx) {
+		local_ctx.blk = NULL;
+		ctx = &local_ctx;
+	}
+
+	if (occ >= 0) {
+		/* search from the beginning */
+		while (http_find_header(htx, hdr, ctx, 1)) {
+			occ--;
+			if (occ <= 0) {
+				*vptr = ctx->value.ptr;
+				*vlen = ctx->value.len;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+	/* negative occurrence, we scan all the list then walk back */
+	if (-occ > MAX_HDR_HISTORY)
+		return 0;
+
+	found = hist_idx = 0;
+	while (http_find_header(htx, hdr, ctx, 1)) {
+		val_hist[hist_idx] = ctx->value;
+		if (++hist_idx >= MAX_HDR_HISTORY)
+			hist_idx = 0;
+		found++;
+	}
+	if (-occ > found)
+		return 0;
+
+	/* OK now we have the last occurrence in [hist_idx-1], and we need to
+	 * find occurrence -occ. 0 <= hist_idx < MAX_HDR_HISTORY, and we have
+	 * -10 <= occ <= -1. So we have to check [hist_idx%MAX_HDR_HISTORY+occ]
+	 * to remain in the 0..9 range.
+	 */
+	hist_idx += occ + MAX_HDR_HISTORY;
+	if (hist_idx >= MAX_HDR_HISTORY)
+		hist_idx -= MAX_HDR_HISTORY;
+	*vptr = val_hist[hist_idx].ptr;
+	*vlen = val_hist[hist_idx].len;
+	return 1;
+}

@@ -42,5 +42,9 @@ int http_replace_res_reason(struct htx *htx, const struct ist reason);
 int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data);
 int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist name, const struct ist value);
 int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx);
+unsigned int http_get_htx_hdr(const struct htx *htx, const struct ist hdr,
+			      int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
+unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
+			       int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
 
 #endif /* _PROTO_HTTP_HTX_H */
