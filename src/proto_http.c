@@ -7812,6 +7812,9 @@ int http_replace_req_line(int action, const char *replace, int len,
 	int offset = 0;
 	int delta;
 
+	if (IS_HTX_STRM(s))
+		return htx_req_replace_stline(action, replace, len, px, s);
+
 	switch (action) {
 	case 0: // method
 		cur_ptr = ci_head(&s->req);
@@ -7894,6 +7897,9 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 	int c_l;
 	const char *msg = reason;
 	int msg_len;
+
+	if (IS_HTX_STRM(s))
+		return htx_res_set_status(status, reason, s);
 
 	chunk_reset(&trash);
 

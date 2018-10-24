@@ -70,6 +70,9 @@ void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn);
 int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 int htx_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
 			     struct ist name, const char *str, struct my_regex *re, int action);
+int htx_req_replace_stline(int action, const char *replace, int len,
+			   struct proxy *px, struct stream *s);
+void htx_res_set_status(unsigned int status, const char *reason, struct stream *s);
 void htx_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
 void htx_reply_and_close(struct stream *s, short status, struct buffer *msg);
 

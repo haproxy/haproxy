@@ -2585,6 +2585,72 @@ static int htx_transform_header(struct stream* s, struct channel *chn, struct ht
 	return ret;
 }
 
+/* This function executes one of the set-{method,path,query,uri} actions. It
+ * takes the string from the variable 'replace' with length 'len', then modifies
+ * the relevant part of the request line accordingly. Then it updates various
+ * pointers to the next elements which were moved, and the total buffer length.
+ * It finds the action to be performed in p[2], previously filled by function
+ * parse_set_req_line(). It returns 0 in case of success, -1 in case of internal
+ * error, though this can be revisited when this code is finally exploited.
+ *
+ * 'action' can be '0' to replace method, '1' to replace path, '2' to replace
+ * query string and 3 to replace uri.
+ *
+ * In query string case, the mark question '?' must be set at the start of the
+ * string by the caller, event if the replacement query string is empty.
+ */
+int htx_req_replace_stline(int action, const char *replace, int len,
+			   struct proxy *px, struct stream *s)
+{
+	struct htx *htx = htx_from_buf(&s->req.buf);
+
+	switch (action) {
+		case 0: // method
+			if (!http_replace_req_meth(htx, ist2(replace, len)))
+				return -1;
+			break;
+
+		case 1: // path
+			if (!http_replace_req_path(htx, ist2(replace, len)))
+				return -1;
+			break;
+
+		case 2: // query
+			if (!http_replace_req_query(htx, ist2(replace, len)))
+				return -1;
+			break;
+
+		case 3: // uri
+			if (!http_replace_req_uri(htx, ist2(replace, len)))
+				return -1;
+			break;
+
+		default:
+			return -1;
+	}
+	return 0;
+}
+
+/* This function replace the HTTP status code and the associated message. The
+ * variable <status> contains the new status code. This function never fails.
+ */
+void htx_res_set_status(unsigned int status, const char *reason, struct stream *s)
+{
+	struct htx *htx = htx_from_buf(&s->res.buf);
+	char *res;
+
+	chunk_reset(&trash);
+	res = ultoa_o(status, trash.area, trash.size);
+	trash.data = res - trash.area;
+
+	/* Do we have a custom reason format string? */
+	if (reason == NULL)
+		reason = http_get_reason(status);
+
+	if (!http_replace_res_status(htx, ist2(trash.area, trash.data)))
+		http_replace_res_reason(htx, ist2(reason, strlen(reason)));
+}
+
 /* This function terminates the request because it was completly analyzed or
  * because an error was triggered during the body forwarding.
  */
