@@ -1726,16 +1726,13 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->rsp;
+	struct htx *htx;
 	struct proxy *cur_proxy;
 	struct cond_wordlist *wl;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
-	// TODO: Disabled for now
-	rep->analysers &= ~AN_RES_FLT_XFER_DATA;
-	rep->analysers |= AN_RES_HTTP_XFER_BODY;
-	rep->analyse_exp = TICK_ETERNITY;
-	rep->analysers &= ~an_bit;
-	return 1;
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
+		return 0;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1746,8 +1743,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		ci_data(rep),
 		rep->analysers);
 
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
-		return 0;
+	htx = htx_from_buf(&rep->buf);
 
 	/* The stats applet needs to adjust the Connection header but we don't
 	 * apply any filter there.
@@ -1785,7 +1781,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 
 		/* evaluate http-response rules */
 		if (ret == HTTP_RULE_RES_CONT) {
-			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
+			ret = htx_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
 
 			if (ret == HTTP_RULE_RES_BADREQ)
 				goto return_srv_prx_502;
@@ -1805,26 +1801,8 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 
 		/* try headers filters */
 		if (rule_set->rsp_exp != NULL) {
-			if (apply_filters_to_response(s, rep, rule_set) < 0) {
-			return_bad_resp:
-				if (objt_server(s->target)) {
-					HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-					health_adjust(objt_server(s->target), HANA_STATUS_HTTP_RSP);
-				}
-				HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
-			return_srv_prx_502:
-				rep->analysers &= AN_RES_FLT_END;
-				txn->status = 502;
-				s->logs.t_data = -1; /* was not a valid response */
-				s->si[1].flags |= SI_FL_NOLINGER;
-				channel_truncate(rep);
-				http_reply_and_close(s, txn->status, http_error_message(s));
-				if (!(s->flags & SF_ERR_MASK))
-					s->flags |= SF_ERR_PRXCOND;
-				if (!(s->flags & SF_FINST_MASK))
-					s->flags |= SF_FINST_H;
-				return 0;
-			}
+			if (htx_apply_filters_to_response(s, rep, rule_set) < 0)
+				goto return_bad_resp;
 		}
 
 		/* has the response been denied ? */
@@ -1836,12 +1814,12 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 			HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 			if (sess->listener->counters)
 				HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
-
 			goto return_srv_prx_502;
 		}
 
 		/* add response headers from the rule sets in the same order */
 		list_for_each_entry(wl, &rule_set->rsp_add, list) {
+			struct ist n, v;
 			if (txn->status < 200 && txn->status != 101)
 				break;
 			if (wl->cond) {
@@ -1852,7 +1830,9 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 				if (!ret)
 					continue;
 			}
-			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, wl->s, strlen(wl->s)) < 0))
+
+			http_parse_header(ist2(wl->s, strlen(wl->s)), &n, &v);
+			if (unlikely(!http_add_header(htx, n, v)))
 				goto return_bad_resp;
 		}
 
@@ -1879,7 +1859,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 	 * Now check for a server cookie.
 	 */
 	if (s->be->cookie_name || sess->fe->capture_name || (s->be->options & PR_O_CHK_CACHE))
-		manage_server_side_cookies(s, rep);
+		htx_manage_server_side_cookies(s, rep);
 
 	/*
 	 * Check for cache-control or pragma headers if required.
@@ -1907,11 +1887,11 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		 */
 		if (!objt_server(s->target)->cookie) {
 			chunk_printf(&trash,
-				     "Set-Cookie: %s=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
+				     "%s=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
 				     s->be->cookie_name);
 		}
 		else {
-			chunk_printf(&trash, "Set-Cookie: %s=%s", s->be->cookie_name, objt_server(s->target)->cookie);
+			chunk_printf(&trash, "%s=%s", s->be->cookie_name, objt_server(s->target)->cookie);
 
 			if (s->be->cookie_maxidle || s->be->cookie_maxlife) {
 				/* emit last_date, which is mandatory */
@@ -1944,7 +1924,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		if (s->be->ck_opts & PR_CK_SECURE)
 			chunk_appendf(&trash, "; Secure");
 
-		if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.area, trash.data) < 0))
+		if (unlikely(!http_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data))))
 			goto return_bad_resp;
 
 		txn->flags &= ~TX_SCK_MASK;
@@ -1963,8 +1943,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
-			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx,
-			                                   "Cache-control: private", 22) < 0))
+			if (unlikely(!http_add_header(htx, ist("Cache-control"), ist("private"))))
 				goto return_bad_resp;
 		}
 	}
@@ -1997,7 +1976,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		goto return_srv_prx_502;
 	}
 
- end:
+  end:
 	/* Always enter in the body analyzer */
 	rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 	rep->analysers |= AN_RES_HTTP_XFER_BODY;
@@ -2008,11 +1987,30 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 	 */
 	if (!LIST_ISEMPTY(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
-		s->logs.bytes_out = txn->rsp.eoh;
+		s->logs.bytes_out = htx->data;
 		s->do_log(s);
 		s->logs.bytes_out = 0;
 	}
 	return 1;
+
+  return_bad_resp:
+	if (objt_server(s->target)) {
+		HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
+		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_RSP);
+	}
+	HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+
+  return_srv_prx_502:
+	rep->analysers &= AN_RES_FLT_END;
+	txn->status = 502;
+	s->logs.t_data = -1; /* was not a valid response */
+	s->si[1].flags |= SI_FL_NOLINGER;
+	htx_reply_and_close(s, txn->status, http_error_message(s));
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_H;
+	return 0;
 }
 
 /* This function is an analyser which forwards response body (including chunk
