@@ -40,6 +40,7 @@ static void htx_end_response(struct stream *s);
 static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr);
 static int htx_del_hdr_value(char *start, char *end, char **from, char *next);
 static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len);
+static size_t htx_fmt_res_line(const union h1_sl sl, char *str, size_t len);
 static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl);
 static void htx_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
@@ -2955,6 +2956,31 @@ static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len)
   end:
 	return dst.len;
 }
+
+/* Formats the start line of the response (without CRLF) and puts it in <str> and
+ * return the written lenght. The line can be truncated if it exceeds <len>.
+ */
+static size_t htx_fmt_res_line(const union h1_sl sl, char *str, size_t len)
+{
+	struct ist dst = ist2(str, 0);
+
+	if (istcat(&dst, sl.st.v, len) == -1)
+		goto end;
+	if (dst.len + 1 > len)
+		goto end;
+	dst.ptr[dst.len++] = ' ';
+
+	if (istcat(&dst, sl.st.c, len) == -1)
+		goto end;
+	if (dst.len + 1 > len)
+		goto end;
+	dst.ptr[dst.len++] = ' ';
+
+	istcat(&dst, sl.st.r, len);
+  end:
+	return dst.len;
+}
+
 
 /*
  * Print a debug line with a start line.
