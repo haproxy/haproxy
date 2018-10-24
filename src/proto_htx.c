@@ -460,16 +460,12 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
+	struct htx *htx;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
 	enum rule_result verdict;
 	int deny_status = HTTP_ERR_403;
 	struct connection *conn = objt_conn(sess->origin);
-
-	// TODO: Disabled for now
-	req->analyse_exp = TICK_ETERNITY;
-	req->analysers &= ~an_bit;
-	return 1;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -485,12 +481,14 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 		ci_data(req),
 		req->analysers);
 
+	htx = htx_from_buf(&req->buf);
+
 	/* just in case we have some per-backend tracking */
 	stream_inc_be_http_req_ctr(s);
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
-		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, &deny_status);
+		verdict = htx_req_get_intercept_rule(px, &px->http_req_rules, s, &deny_status);
 
 		switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -518,18 +516,13 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 
 	if (conn && (conn->flags & CO_FL_EARLY_DATA) &&
 	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE))) {
-		struct hdr_ctx ctx;
+		struct http_hdr_ctx ctx;
 
-		ctx.idx = 0;
-		if (!http_find_header2("Early-Data", strlen("Early-Data"),
-		    ci_head(&s->req), &txn->hdr_idx, &ctx)) {
-			if (unlikely(http_header_add_tail2(&txn->req,
-			    &txn->hdr_idx, "Early-Data: 1",
-			    strlen("Early-Data: 1")) < 0)) {
+		ctx.blk = NULL;
+		if (!http_find_header(htx, ist("Early-Data"), &ctx, 0)) {
+			if (unlikely(!http_add_header(htx, ist("Early-Data"), ist("1"))))
 				goto return_bad_req;
-			 }
 		}
-
 	}
 
 	/* OK at this stage, we know that the request was accepted according to
@@ -538,12 +531,12 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	 * by a possible reqrep, while they are processed *after* so that a
 	 * reqdeny can still block them. This clearly needs to change in 1.6!
 	 */
-	if (stats_check_uri(&s->si[1], txn, px)) {
+	if (htx_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
 		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
 			txn->status = 500;
 			s->logs.tv_request = now;
-			http_reply_and_close(s, txn->status, http_error_message(s));
+			htx_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
@@ -551,8 +544,8 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 		}
 
 		/* parse the whole stats request and extract the relevant information */
-		http_handle_stats(s, req);
-		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, &deny_status);
+		htx_handle_stats(s, req);
+		verdict = htx_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, &deny_status);
 		/* not all actions implemented: deny, allow, auth */
 
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
@@ -564,7 +557,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 
 	/* evaluate the req* rules except reqadd */
 	if (px->req_exp != NULL) {
-		if (apply_filters_to_request(s, req, px) < 0)
+		if (htx_apply_filters_to_request(s, req, px) < 0)
 			goto return_bad_req;
 
 		if (txn->flags & TX_CLDENY)
@@ -578,6 +571,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
+		struct ist n,v;
 		if (wl->cond) {
 			int ret = acl_exec_cond(wl->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
@@ -587,14 +581,17 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 				continue;
 		}
 
-		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, wl->s, strlen(wl->s)) < 0))
+		http_parse_header(ist2(wl->s, strlen(wl->s)), &n, &v);
+		if (unlikely(!http_add_header(htx, n, v)))
 			goto return_bad_req;
 	}
-
 
 	/* Proceed with the stats now. */
 	if (unlikely(objt_applet(s->target) == &http_stats_applet) ||
 	    unlikely(objt_applet(s->target) == &http_cache_applet)) {
+		// TODO: Disabled for now, waiting to be adapted for HTX implementation
+		goto deny;
+
 		/* process the stats request now */
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
@@ -649,7 +646,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	/* Allow cookie logging
 	 */
 	if (s->be->cookie_name || sess->fe->capture_name)
-		manage_client_side_cookies(s, req);
+		htx_manage_client_side_cookies(s, req);
 
 	/* When a connection is tarpitted, we use the tarpit timeout,
 	 * which may be the same as the connect timeout if unspecified.
@@ -683,12 +680,12 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	/* Allow cookie logging
 	 */
 	if (s->be->cookie_name || sess->fe->capture_name)
-		manage_client_side_cookies(s, req);
+		htx_manage_client_side_cookies(s, req);
 
 	txn->flags |= TX_CLDENY;
 	txn->status = http_err_codes[deny_status];
 	s->logs.tv_request = now;
-	http_reply_and_close(s, txn->status, http_error_message(s));
+	htx_reply_and_close(s, txn->status, http_error_message(s));
 	stream_inc_http_err_ctr(s);
 	HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 	if (sess->fe != s->be)
@@ -698,18 +695,10 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	goto return_prx_cond;
 
  return_bad_req:
-	/* We centralize bad requests processing here */
-	if (unlikely(msg->msg_state == HTTP_MSG_ERROR) || msg->err_pos >= 0) {
-		/* we detected a parsing error. We want to archive this request
-		 * in the dedicated proxy area for later troubleshooting.
-		 */
-		http_capture_bad_message(sess->fe, s, msg, msg->err_state, sess->fe);
-	}
-
 	txn->req.err_state = txn->req.msg_state;
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	http_reply_and_close(s, txn->status, http_error_message(s));
+	htx_reply_and_close(s, txn->status, http_error_message(s));
 
 	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
