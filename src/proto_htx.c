@@ -729,14 +729,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
+	struct htx *htx;
 	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
-
-	// TODO: Disabled for now
-	req->analysers &= ~AN_REQ_FLT_XFER_DATA;
-	req->analysers |= AN_REQ_HTTP_XFER_BODY;
-	req->analyse_exp = TICK_ETERNITY;
-	req->analysers &= ~an_bit;
-	return 1;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -759,6 +753,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * whatever we want with the remaining request. Also, now we
 	 * may have separate values for ->fe, ->be.
 	 */
+	htx = htx_from_buf(&req->buf);
 
 	/*
 	 * If HTTP PROXY is set we simply get remote server address parsing
@@ -767,7 +762,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
 		struct connection *conn;
-		char *path;
+		union h1_sl sl;
+		struct ist path;
 
 		/* Note that for now we don't reuse existing proxy connections */
 		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL)) {
@@ -775,7 +771,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
 			req->analysers &= AN_REQ_FLT_END;
-			http_reply_and_close(s, txn->status, http_error_message(s));
+			htx_reply_and_close(s, txn->status, http_error_message(s));
 
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
@@ -784,41 +780,23 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 
 			return 0;
 		}
-
-		path = http_txn_get_path(txn);
-		if (url2sa(ci_head(req) + msg->sl.rq.u,
-			   path ? path - (ci_head(req) + msg->sl.rq.u) : msg->sl.rq.u_l,
-			   &conn->addr.to, NULL) == -1)
+		sl = http_find_stline(htx);
+		path = http_get_path(sl.rq.u);
+		if (url2sa(sl.rq.u.ptr, sl.rq.u.len - path.len, &conn->addr.to, NULL) == -1)
 			goto return_bad_req;
 
 		/* if the path was found, we have to remove everything between
-		 * ci_head(req) + msg->sl.rq.u and path (excluded). If it was not
-		 * found, we need to replace from ci_head(req) + msg->sl.rq.u for
-		 * u_l characters by a single "/".
+		 * uri.ptr and path.ptr (excluded). If it was not found, we need
+		 * to replace from all the uri by a single "/".
+		 *
+		 * Instead of rewritting the whole start line, we just update
+		 * <sl.rq.u>. Some space will be lost but it should be
+		 * insignificant.
 		 */
-		if (path) {
-			char *cur_ptr = ci_head(req);
-			char *cur_end = cur_ptr + txn->req.sl.rq.l;
-			int delta;
-
-			delta = b_rep_blk(&req->buf, cur_ptr + msg->sl.rq.u, path, NULL, 0);
-			http_msg_move_end(&txn->req, delta);
-			cur_end += delta;
-			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
-				goto return_bad_req;
-		}
-		else {
-			char *cur_ptr = ci_head(req);
-			char *cur_end = cur_ptr + txn->req.sl.rq.l;
-			int delta;
-
-			delta = b_rep_blk(&req->buf, cur_ptr + msg->sl.rq.u,
-						cur_ptr + msg->sl.rq.u + msg->sl.rq.u_l, "/", 1);
-			http_msg_move_end(&txn->req, delta);
-			cur_end += delta;
-			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
-				goto return_bad_req;
-		}
+		if (path.ptr)
+			sl.rq.u = path;
+		else
+			istcpy(&sl.rq.u, ist("/"), 1);
 	}
 
 	/*
@@ -840,10 +818,11 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	if (sess->fe->header_unique_id && s->unique_id) {
-		if (chunk_printf(&trash, "%s: %s", sess->fe->header_unique_id, s->unique_id) < 0)
+		struct ist n = ist2(sess->fe->header_unique_id, strlen(sess->fe->header_unique_id));
+		struct ist v = ist2(s->unique_id, strlen(s->unique_id));
+
+		if (unlikely(!http_add_header(htx, n, v)))
 			goto return_bad_req;
-		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, trash.data) < 0))
-		   goto return_bad_req;
 	}
 
 	/*
@@ -851,11 +830,12 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
-		struct hdr_ctx ctx = { .idx = 0 };
+		struct http_hdr_ctx ctx = { .blk = NULL };
+		struct ist hdr = ist2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name,
+				      s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : sess->fe->fwdfor_hdr_len);
+
 		if (!((sess->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
-			http_find_header2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name,
-			                  s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : sess->fe->fwdfor_hdr_len,
-			                  ci_head(req), &txn->hdr_idx, &ctx)) {
+		    http_find_header(htx, hdr, &ctx, 0)) {
 			/* The header is set to be added only if none is present
 			 * and we found it, so don't do anything.
 			 */
@@ -870,30 +850,15 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			    (!s->be->except_mask.s_addr ||
 			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
 			     != s->be->except_net.s_addr)) {
-				int len;
-				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-forwarded-for, because the header is really meant for the backends.
 				 * However, if the backend did not specify any option, we have to rely
 				 * on the frontend's header name.
 				 */
-				if (s->be->fwdfor_hdr_len) {
-					len = s->be->fwdfor_hdr_len;
-					memcpy(trash.area,
-					       s->be->fwdfor_hdr_name, len);
-				} else {
-					len = sess->fe->fwdfor_hdr_len;
-					memcpy(trash.area,
-					       sess->fe->fwdfor_hdr_name, len);
-				}
-				len += snprintf(trash.area + len,
-						trash.size - len,
-						": %d.%d.%d.%d", pn[0], pn[1],
-						pn[2], pn[3]);
-
-				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
+				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
 					goto return_bad_req;
 			}
 		}
@@ -901,8 +866,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			/* FIXME: for the sake of completeness, we should also support
 			 * 'except' here, although it is mostly useless in this case.
 			 */
-			int len;
 			char pn[INET6_ADDRSTRLEN];
+
 			inet_ntop(AF_INET6,
 				  (const void *)&((struct sockaddr_in6 *)(&cli_conn->addr.from))->sin6_addr,
 				  pn, sizeof(pn));
@@ -912,19 +877,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			 * However, if the backend did not specify any option, we have to rely
 			 * on the frontend's header name.
 			 */
-			if (s->be->fwdfor_hdr_len) {
-				len = s->be->fwdfor_hdr_len;
-				memcpy(trash.area, s->be->fwdfor_hdr_name,
-				       len);
-			} else {
-				len = sess->fe->fwdfor_hdr_len;
-				memcpy(trash.area, sess->fe->fwdfor_hdr_name,
-				       len);
-			}
-			len += snprintf(trash.area + len, trash.size - len,
-					": %s", pn);
-
-			if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
+			chunk_printf(&trash, "%s", pn);
+			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
 				goto return_bad_req;
 		}
 	}
@@ -949,30 +903,21 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			     (!s->be->except_mask_to.s_addr ||
 			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
 			      != s->be->except_to.s_addr))) {
-				int len;
-				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
+				struct ist hdr;
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-original-to, because the header is really meant for the backends.
 				 * However, if the backend did not specify any option, we have to rely
 				 * on the frontend's header name.
 				 */
-				if (s->be->orgto_hdr_len) {
-					len = s->be->orgto_hdr_len;
-					memcpy(trash.area,
-					       s->be->orgto_hdr_name, len);
-				} else {
-					len = sess->fe->orgto_hdr_len;
-					memcpy(trash.area,
-					       sess->fe->orgto_hdr_name, len);
-				}
-				len += snprintf(trash.area + len,
-						trash.size - len,
-						": %d.%d.%d.%d", pn[0], pn[1],
-						pn[2], pn[3]);
+				if (s->be->orgto_hdr_len)
+					hdr = ist2(s->be->orgto_hdr_name, s->be->orgto_hdr_len);
+				else
+					hdr = ist2(sess->fe->orgto_hdr_name, sess->fe->orgto_hdr_len);
 
-				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area, len) < 0))
+				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
 					goto return_bad_req;
 			}
 		}
@@ -983,8 +928,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * that parameter. This will be done in another analyser.
 	 */
 	if (!(s->flags & (SF_ASSIGNED|SF_DIRECT)) &&
-	    s->txn->meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
-	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
+	    s->txn->meth == HTTP_METH_POST && s->be->url_param_name != NULL) {
 		channel_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
@@ -999,8 +943,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if ((sess->listener->options & LI_O_NOQUICKACK) &&
 	    cli_conn && conn_ctrl_ready(cli_conn) &&
-	    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
-	     (msg->body_len > ci_data(req) - txn->req.eoh - 2)))
+	    (htx_get_tail_type(htx) != HTX_BLK_EOM))
 		setsockopt(cli_conn->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 
@@ -1016,18 +959,11 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	return 1;
 
  return_bad_req: /* let's centralize all bad requests */
-	if (unlikely(msg->msg_state == HTTP_MSG_ERROR) || msg->err_pos >= 0) {
-		/* we detected a parsing error. We want to archive this request
-		 * in the dedicated proxy area for later troubleshooting.
-		 */
-		http_capture_bad_message(sess->fe, s, msg, msg->err_state, sess->fe);
-	}
-
 	txn->req.err_state = txn->req.msg_state;
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	req->analysers &= AN_REQ_FLT_END;
-	http_reply_and_close(s, txn->status, http_error_message(s));
+	htx_reply_and_close(s, txn->status, http_error_message(s));
 
 	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
