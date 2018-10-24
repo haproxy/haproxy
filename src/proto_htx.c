@@ -36,6 +36,7 @@
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
 
+extern const char *stat_status_codes[];
 
 static void htx_end_request(struct stream *s);
 static void htx_end_response(struct stream *s);
@@ -55,6 +56,9 @@ static int htx_apply_filters_to_response(struct stream *s, struct channel *res, 
 
 static void htx_manage_client_side_cookies(struct stream *s, struct channel *req);
 static void htx_manage_server_side_cookies(struct stream *s, struct channel *res);
+
+static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *backend);
+static int htx_handle_stats(struct stream *s, struct channel *req);
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -4764,6 +4768,199 @@ int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_nam
 			c_adv(&s->req, htx->data - data);
 	}
 	return 0;
+}
+
+/*
+ * In a GET, HEAD or POST request, check if the requested URI matches the stats uri
+ * for the current backend.
+ *
+ * It is assumed that the request is either a HEAD, GET, or POST and that the
+ * uri_auth field is valid.
+ *
+ * Returns 1 if stats should be provided, otherwise 0.
+ */
+static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *backend)
+{
+	struct uri_auth *uri_auth = backend->uri_auth;
+	struct htx *htx;
+	struct ist uri;
+	union h1_sl sl;
+
+	if (!uri_auth)
+		return 0;
+
+	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_POST)
+		return 0;
+
+	htx = htx_from_buf(&s->req.buf);
+	sl = http_find_stline(htx);
+	uri = sl.rq.u;
+
+	/* check URI size */
+	if (uri_auth->uri_len > uri.len)
+		return 0;
+
+	if (memcmp(uri.ptr, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
+		return 0;
+
+	return 1;
+}
+
+/* This function prepares an applet to handle the stats. It can deal with the
+ * "100-continue" expectation, check that admin rules are met for POST requests,
+ * and program a response message if something was unexpected. It cannot fail
+ * and always relies on the stats applet to complete the job. It does not touch
+ * analysers nor counters, which are left to the caller. It does not touch
+ * s->target which is supposed to already point to the stats applet. The caller
+ * is expected to have already assigned an appctx to the stream.
+ */
+static int htx_handle_stats(struct stream *s, struct channel *req)
+{
+	struct stats_admin_rule *stats_admin_rule;
+	struct stream_interface *si = &s->si[1];
+	struct session *sess = s->sess;
+	struct http_txn *txn = s->txn;
+	struct http_msg *msg = &txn->req;
+	struct uri_auth *uri_auth = s->be->uri_auth;
+	const char *h, *lookup, *end;
+	struct appctx *appctx;
+	struct htx *htx;
+	union h1_sl sl;
+
+	appctx = si_appctx(si);
+	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
+	appctx->st1 = appctx->st2 = 0;
+	appctx->ctx.stats.st_code = STAT_STATUS_INIT;
+	appctx->ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
+	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
+		appctx->ctx.stats.flags |= STAT_CHUNKED;
+
+	htx = htx_from_buf(&req->buf);
+	sl = http_find_stline(htx);
+	lookup = sl.rq.u.ptr + uri_auth->uri_len;
+	end = sl.rq.u.ptr + sl.rq.u.len;
+
+	for (h = lookup; h <= end - 3; h++) {
+		if (memcmp(h, ";up", 3) == 0) {
+			appctx->ctx.stats.flags |= STAT_HIDE_DOWN;
+			break;
+		}
+	}
+
+	if (uri_auth->refresh) {
+		for (h = lookup; h <= end - 10; h++) {
+			if (memcmp(h, ";norefresh", 10) == 0) {
+				appctx->ctx.stats.flags |= STAT_NO_REFRESH;
+				break;
+			}
+		}
+	}
+
+	for (h = lookup; h <= end - 4; h++) {
+		if (memcmp(h, ";csv", 4) == 0) {
+			appctx->ctx.stats.flags &= ~STAT_FMT_HTML;
+			break;
+		}
+	}
+
+	for (h = lookup; h <= end - 6; h++) {
+		if (memcmp(h, ";typed", 6) == 0) {
+			appctx->ctx.stats.flags &= ~STAT_FMT_HTML;
+			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+			break;
+		}
+	}
+
+	for (h = lookup; h <= end - 8; h++) {
+		if (memcmp(h, ";st=", 4) == 0) {
+			int i;
+			h += 4;
+			appctx->ctx.stats.st_code = STAT_STATUS_UNKN;
+			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
+				if (strncmp(stat_status_codes[i], h, 4) == 0) {
+					appctx->ctx.stats.st_code = i;
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	appctx->ctx.stats.scope_str = 0;
+	appctx->ctx.stats.scope_len = 0;
+	for (h = lookup; h <= end - 8; h++) {
+		if (memcmp(h, STAT_SCOPE_INPUT_NAME "=", strlen(STAT_SCOPE_INPUT_NAME) + 1) == 0) {
+			int itx = 0;
+			const char *h2;
+			char scope_txt[STAT_SCOPE_TXT_MAXLEN + 1];
+			const char *err;
+
+			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
+			h2 = h;
+			appctx->ctx.stats.scope_str = h2 - s->txn->uri;
+			while (h <= end) {
+				if (*h == ';' || *h == '&' || *h == ' ')
+					break;
+				itx++;
+				h++;
+			}
+
+			if (itx > STAT_SCOPE_TXT_MAXLEN)
+				itx = STAT_SCOPE_TXT_MAXLEN;
+			appctx->ctx.stats.scope_len = itx;
+
+			/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+			memcpy(scope_txt, h2, itx);
+			scope_txt[itx] = '\0';
+			err = invalid_char(scope_txt);
+			if (err) {
+				/* bad char in search text => clear scope */
+				appctx->ctx.stats.scope_str = 0;
+				appctx->ctx.stats.scope_len = 0;
+			}
+			break;
+		}
+	}
+
+	/* now check whether we have some admin rules for this request */
+	list_for_each_entry(stats_admin_rule, &uri_auth->admin_rules, list) {
+		int ret = 1;
+
+		if (stats_admin_rule->cond) {
+			ret = acl_exec_cond(stats_admin_rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_pass(ret);
+			if (stats_admin_rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* no rule, or the rule matches */
+			appctx->ctx.stats.flags |= STAT_ADMIN;
+			break;
+		}
+	}
+
+	/* Was the status page requested with a POST ? */
+	if (unlikely(txn->meth == HTTP_METH_POST)) {
+		if (appctx->ctx.stats.flags & STAT_ADMIN) {
+			/* we'll need the request body, possibly after sending 100-continue */
+			if (msg->msg_state < HTTP_MSG_DATA)
+				req->analysers |= AN_REQ_HTTP_BODY;
+			appctx->st0 = STAT_HTTP_POST;
+		}
+		else {
+			appctx->ctx.stats.flags &= ~STAT_CHUNKED;
+			appctx->ctx.stats.st_code = STAT_STATUS_DENY;
+			appctx->st0 = STAT_HTTP_LAST;
+		}
+	}
+	else {
+		/* So it was another method (GET/HEAD) */
+		appctx->st0 = STAT_HTTP_HEAD;
+	}
+
+	s->task->nice = -32; /* small boost for HTTP statistics */
+	return 1;
 }
 
 void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
