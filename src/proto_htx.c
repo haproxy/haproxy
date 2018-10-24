@@ -984,11 +984,6 @@ int htx_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = s->txn;
 
-	// TODO: Disabled for now
-	req->analyse_exp = TICK_ETERNITY;
-	req->analysers &= ~an_bit;
-	return 1;
-
 	/* This connection is being tarpitted. The CLIENT side has
 	 * already set the connect expiration date to the right
 	 * timeout. We just have to check that the client is still
@@ -1008,7 +1003,7 @@ int htx_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 	if (!(req->flags & CF_READ_ERROR))
-		http_reply_and_close(s, txn->status, http_error_message(s));
+		htx_reply_and_close(s, txn->status, http_error_message(s));
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
