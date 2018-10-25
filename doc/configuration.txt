@@ -17493,11 +17493,12 @@ cache <name>
 
 total-max-size <megabytes>
   Define the size in RAM of the cache in megabytes. This size is split in
-  blocks of 1kB which are used by the cache entries.
+  blocks of 1kB which are used by the cache entries. Its maximum value is 4095.
 
 max-object-size <bytes>
-  Define the maximum size of the objects to be cached. If not set, it equals
-  to a 256th of the cache size.
+  Define the maximum size of the objects to be cached. Must not be greater than
+  an half of "total-max-size". If not set, it equals to a 256th of the cache size.
+  All objects with sizes larger than "max-object-size" will not be cached.
 
 max-age <seconds>
   Define the maximum expiration duration. The expiration is set has the lowest
