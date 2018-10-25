@@ -1676,7 +1676,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		    co_data(si_oc(si_f)))
 			si_cs_send(cs);
 		if (!(si_f->wait_event.wait_reason & SUB_CAN_RECV) &&
-		    !(si_f->flags & SI_FL_WAIT_ROOM))
+		    (!(si_f->flags & SI_FL_WAIT_ROOM) || !c_size(req)))
 			si_cs_recv(cs);
 	}
 	cs = objt_cs(si_b->end);
@@ -1685,7 +1685,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		    co_data(si_oc(si_b)))
 			si_cs_send(cs);
 		if (!(si_b->wait_event.wait_reason & SUB_CAN_RECV) &&
-		    !(si_b->flags & SI_FL_WAIT_ROOM))
+		    (!(si_b->flags & SI_FL_WAIT_ROOM) || !c_size(res)))
 		si_cs_recv(cs);
 	}
 redo:
