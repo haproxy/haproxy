@@ -1669,25 +1669,16 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_f = &s->si[0];
 	si_b = &s->si[1];
 
-	/* First, attempd to do I/Os */
+	/* First, attempt to receive pending data from I/O layers */
 	cs = objt_cs(si_f->end);
-	if (cs) {
-		if (!(si_f->wait_event.wait_reason & SUB_CAN_SEND) &&
-		    co_data(si_oc(si_f)))
-			si_cs_send(cs);
-		if (!(si_f->wait_event.wait_reason & SUB_CAN_RECV) &&
-		    (!(si_f->flags & SI_FL_WAIT_ROOM) || !c_size(req)))
-			si_cs_recv(cs);
-	}
-	cs = objt_cs(si_b->end);
-	if (cs) {
-		if (!(si_b->wait_event.wait_reason & SUB_CAN_SEND) &&
-		    co_data(si_oc(si_b)))
-			si_cs_send(cs);
-		if (!(si_b->wait_event.wait_reason & SUB_CAN_RECV) &&
-		    (!(si_b->flags & SI_FL_WAIT_ROOM) || !c_size(res)))
+	if (cs && !(si_f->wait_event.wait_reason & SUB_CAN_RECV) &&
+	    (!(si_f->flags & SI_FL_WAIT_ROOM) || !c_size(req)))
 		si_cs_recv(cs);
-	}
+
+	cs = objt_cs(si_b->end);
+	if (cs && !(si_b->wait_event.wait_reason & SUB_CAN_RECV) &&
+	    (!(si_b->flags & SI_FL_WAIT_ROOM) || !c_size(res)))
+		si_cs_recv(cs);
 redo:
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
