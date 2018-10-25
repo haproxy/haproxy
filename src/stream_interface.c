@@ -443,6 +443,8 @@ static int si_idle_conn_wake_cb(struct conn_stream *cs)
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
+ * It may update SI_FL_WAIT_DATA and/or SI_FL_WAIT_ROOM, that the callers are
+ * encouraged to watch to take appropriate action.
  * It should not be called from within the stream itself, stream_int_update()
  * is designed for this.
  */
@@ -515,10 +517,8 @@ void stream_int_notify(struct stream_interface *si)
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
 		 */
-		if (channel_may_recv(ic) && new_len < last_len) {
-			tasklet_wakeup(si->wait_event.task);
+		if (channel_may_recv(ic) && new_len < last_len)
 			si->flags &= ~SI_FL_WAIT_ROOM;
-		}
 	}
 
 	if (si->flags & SI_FL_WAIT_ROOM) {
@@ -600,9 +600,10 @@ static int si_cs_process(struct conn_stream *cs)
 	stream_int_notify(si);
 	channel_release_buffer(ic, &(si_strm(si)->buffer_wait));
 
-	/* Try to recv() again if we free'd some room in the process */
+	/* Try to run again if we free'd some room in the process */
 	if (wait_room && !(si->flags & SI_FL_WAIT_ROOM))
-		si_cs_recv(cs);
+		tasklet_wakeup(si->wait_event.task);
+
 	return 0;
 }
 
