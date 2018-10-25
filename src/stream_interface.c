@@ -995,7 +995,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
 		si_cs_send(cs);
-	tasklet_wakeup(si->wait_event.task);
+
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		si->flags |= SI_FL_ERR;
