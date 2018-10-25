@@ -292,7 +292,7 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
  * and 0 if cache is already allocated.
  */
 int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
-               int maxobjsz, int extra, int shared)
+               unsigned int maxobjsz, int extra, int shared)
 {
 	int i;
 	struct shared_context *shctx;
@@ -359,7 +359,7 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	LIST_INIT(&shctx->hot);
 
 	shctx->block_size = blocksize;
-	shctx->max_obj_size = maxobjsz;
+	shctx->max_obj_size = maxobjsz == (unsigned int)-1 ? 0 : maxobjsz;
 
 	/* init the free blocks after the shared context struct */
 	cur = (void *)shctx + sizeof(struct shared_context) + extra;
