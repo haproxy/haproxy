@@ -36,7 +36,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	 * applet in all cases. So this is the applet responsibility to
 	 * check if this buffer was allocated or not. This let a chance
 	 * for applets to do some other processing if needed. */
-	if (!channel_alloc_buffer(si_ic(si), &app->buffer_wait))
+	if (!si_alloc_ibuf(si, &app->buffer_wait))
 		si_applet_cant_put(si);
 
 	/* We always pretend the applet can't get and doesn't want to

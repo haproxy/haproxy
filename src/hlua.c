@@ -2030,7 +2030,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (s->req.buf.size == 0) {
-		if (!channel_alloc_buffer(&s->req, &appctx->buffer_wait))
+		if (!si_alloc_ibuf(si, &appctx->buffer_wait))
 			goto hlua_socket_write_yield_return;
 	}
 

@@ -1150,10 +1150,8 @@ int si_cs_recv(struct conn_stream *cs)
 	}
 
 	/* now we'll need a input buffer for the stream */
-	if (!channel_alloc_buffer(ic, &(si_strm(si)->buffer_wait))) {
-		si->flags |= SI_FL_WAIT_ROOM;
+	if (!si_alloc_ibuf(si, &(si_strm(si)->buffer_wait)))
 		goto end_recv;
-	}
 
 	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling
 	 * was enabled, which implies that the recv buffer was not full. So we have a guarantee
