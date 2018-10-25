@@ -306,6 +306,26 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
 	return cs;
 }
 
+/* Try to allocate a buffer for the stream-int's input channel. It relies on
+ * channel_alloc_buffer() for this so it abides by its rules. It returns 0 in
+ * case of failure, non-zero otherwise. The stream-int's flag SI_FL_WAIT_ROOM
+ * is cleared before trying. If no buffer are available, the requester,
+ * represented by <wait> pointer, will be added in the list of objects waiting
+ * for an available buffer, and SI_FL_WAIT_ROOM will be set on the stream-int.
+ * The requester will be responsible for calling this function to try again
+ * once woken up.
+ */
+static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait *wait)
+{
+	int ret;
+
+	si->flags &= ~SI_FL_WAIT_ROOM;
+	ret = channel_alloc_buffer(si_ic(si), wait);
+	if (!ret)
+		si->flags |= SI_FL_WAIT_ROOM;
+	return ret;
+}
+
 /* Release the interface's existing endpoint (connection or appctx) and
  * allocate then initialize a new appctx which is assigned to the interface
  * and returned. NULL may be returned upon memory shortage. Applet <applet>
