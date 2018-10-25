@@ -568,8 +568,9 @@ static int si_cs_process(struct conn_stream *cs)
 	int wait_room = si->flags & SI_FL_WAIT_ROOM;
 
 	/* If we have data to send, try it now */
-	if (!channel_is_empty(oc) && objt_cs(si->end))
-		si_cs_send(objt_cs(si->end));
+	if (!channel_is_empty(oc) && !(si->wait_event.wait_reason & SUB_CAN_SEND))
+		si_cs_send(cs);
+
 	/* First step, report to the stream-int what was detected at the
 	 * connection layer : errors and connection establishment.
 	 */
