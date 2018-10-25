@@ -925,7 +925,7 @@ int cfg_post_parse_section_cache()
 		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE,
 		                       tmp_cache_config->maxobjsz, sizeof(struct cache), 1);
 
-		if (ret_shctx < 0) {
+		if (ret_shctx <= 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)
 				ha_alert("Unable to initialize the lock for the cache.\n");
 			else
