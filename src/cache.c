@@ -50,7 +50,7 @@ struct cache {
 	struct eb_root entries;  /* head of cache entries based on keys */
 	unsigned int maxage;     /* max-age */
 	unsigned int maxblocks;
-	unsigned int maxobjsz;   /* max-object-size */
+	unsigned int maxobjsz;   /* max-object-size (in bytes) */
 	char id[33];             /* cache name */
 };
 
@@ -878,6 +878,9 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 
 		tmp_cache_config->maxage = atoi(args[1]);
 	} else if (strcmp(args[0], "max-object-size") == 0) {
+		unsigned int maxobjsz;
+		char *err;
+
 		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
 			err_code |= ERR_ABORT;
 			goto out;
@@ -889,7 +892,14 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 		}
 
-		tmp_cache_config->maxobjsz = atoi(args[1]);
+		maxobjsz = strtoul(args[1], &err, 10);
+		if (err == args[1] || *err != '\0') {
+			ha_warning("parsing [%s:%d]: max-object-size wrong value '%s'\n",
+			           file, linenum, args[1]);
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+		tmp_cache_config->maxobjsz = maxobjsz;
 	}
 	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
@@ -917,10 +927,16 @@ int cfg_post_parse_section_cache()
 			goto out;
 		}
 
-		if (!tmp_cache_config->maxobjsz)
+		if (!tmp_cache_config->maxobjsz) {
 			/* Default max. file size is a 256th of the cache size. */
 			tmp_cache_config->maxobjsz =
 				(tmp_cache_config->maxblocks * CACHE_BLOCKSIZE) >> 8;
+		}
+		else if (tmp_cache_config->maxobjsz > tmp_cache_config->maxblocks * CACHE_BLOCKSIZE / 2) {
+			ha_alert("\"max-object-size\" is limited to an half of \"total-max-size\" => %u\n", tmp_cache_config->maxblocks * CACHE_BLOCKSIZE / 2);
+			err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
 
 		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE,
 		                       tmp_cache_config->maxobjsz, sizeof(struct cache), 1);
