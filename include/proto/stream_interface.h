@@ -357,11 +357,23 @@ static inline void si_shutw(struct stream_interface *si)
 	si->ops->shutw(si);
 }
 
-/* Updates the stream interface and timers, then updates the data layer below */
+/* Updates the stream interface and timers, to complete the work after the
+ * analysers, then clears the relevant channel flags, and the errors and
+ * expirations, then updates the data layer below. This will ensure that any
+ * synchronous update performed at the data layer will be reflected in the
+ * channel flags and/or stream-interface.
+ */
 static inline void si_update(struct stream_interface *si)
 {
-	stream_int_update(si);
-	if (si->ops->update)
+	if (si->state == SI_ST_EST)
+		stream_int_update(si);
+
+	si_ic(si)->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED);
+	si_oc(si)->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	si->flags &= ~(SI_FL_ERR|SI_FL_EXP);
+	si->prev_state = si->state;
+
+	if (si->ops->update && (si->state == SI_ST_CON || si->state == SI_ST_EST))
 		si->ops->update(si);
 }
 

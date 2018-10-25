@@ -1659,7 +1659,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
 	struct conn_stream *cs;
-	int ret;
 
 	activity[tid].stream++;
 
@@ -2447,37 +2446,12 @@ redo:
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
-		cs = objt_cs(si_f->end);
-		ret = 0;
-		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
-		    !(cs->flags & CS_FL_ERROR) &&
-		    !(si_oc(si_f)->flags & CF_SHUTW) &&
-		    !(si_f->wait_event.wait_reason & SUB_CAN_SEND) &&
-		    co_data(si_oc(si_f)))
-			ret = si_cs_send(cs);
-		cs = objt_cs(si_b->end);
-		if (cs && !(cs->conn->flags & CO_FL_ERROR) &&
-		    !(cs->flags & CS_FL_ERROR) &&
-		    !(si_oc(si_b)->flags & CF_SHUTW) &&
-		    !(si_b->wait_event.wait_reason & SUB_CAN_SEND) &&
-		    co_data(si_oc(si_b)))
-			ret |= si_cs_send(cs);
+		si_update(si_f);
+		si_update(si_b);
 
-		if (ret)
+		if (si_f->state == SI_ST_DIS || si_b->state == SI_ST_DIS ||
+		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
 			goto redo;
-
-		if (si_f->state == SI_ST_EST)
-			si_update(si_f);
-
-		if (si_b->state == SI_ST_EST)
-			si_update(si_b);
-
-		req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
-		res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
-		si_f->prev_state = si_f->state;
-		si_b->prev_state = si_b->state;
-		si_f->flags &= ~(SI_FL_ERR|SI_FL_EXP);
-		si_b->flags &= ~(SI_FL_ERR|SI_FL_EXP);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout

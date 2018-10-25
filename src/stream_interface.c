@@ -66,6 +66,7 @@ struct si_ops si_embedded_ops = {
 
 /* stream-interface operations for connections */
 struct si_ops si_conn_ops = {
+	.update  = stream_int_update_conn,
 	.chk_rcv = stream_int_chk_rcv_conn,
 	.chk_snd = stream_int_chk_snd_conn,
 	.shutr   = stream_int_shutr_conn,
@@ -795,6 +796,33 @@ void stream_int_update(struct stream_interface *si)
 				}
 			}
 		}
+	}
+}
+
+/* Updates the active status of a connection outside of the connection handler
+ * based on the channel's flags and the stream interface's flags. It needs to
+ * be called once after the channels' flags have settled down and the stream
+ * has been updated. It is not designed to be called from within the connection
+ * handler itself.
+ */
+void stream_int_update_conn(struct stream_interface *si)
+{
+	struct channel *ic = si_ic(si);
+	struct channel *oc = si_oc(si);
+	struct conn_stream *cs = __objt_cs(si->end);
+
+	if (!(ic->flags & CF_SHUTR)) {
+		/* Read not closed, it doesn't seem we have to do anything here */
+	}
+
+	if (!(oc->flags & CF_SHUTW)) {
+		/* Write not closed */
+		if (!channel_is_empty(oc) &&
+		    !(cs->conn->flags & CO_FL_ERROR) &&
+		    !(cs->flags & CS_FL_ERROR) &&
+		    !(oc->flags & CF_SHUTW) &&
+		    !(si->wait_event.wait_reason & SUB_CAN_SEND))
+			si_cs_send(cs);
 	}
 }
 
