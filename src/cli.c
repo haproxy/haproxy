@@ -1652,6 +1652,104 @@ int mworker_cli_proxy_create()
 }
 
 /*
+ * Create a new listener for the master CLI proxy
+ */
+int mworker_cli_proxy_new_listener(char *line)
+{
+	struct bind_conf *bind_conf;
+	struct listener *l;
+	char *err = NULL;
+	char *args[MAX_LINE_ARGS + 1];
+	int arg;
+	int cur_arg;
+
+	arg = 0;
+	args[0] = line;
+
+	/* args is a bind configuration with spaces replaced by commas */
+	while (*line && arg < MAX_LINE_ARGS) {
+
+		if (*line == ',') {
+			*line++ = '\0';
+			while (*line == ',')
+				line++;
+			args[++arg] = line;
+		}
+		line++;
+	}
+
+	args[++arg] = "\0";
+
+	bind_conf = bind_conf_alloc(mworker_proxy, "master-socket", 0, "", xprt_get(XPRT_RAW));
+
+	bind_conf->level &= ~ACCESS_LVL_MASK;
+	bind_conf->level |= ACCESS_LVL_ADMIN;
+
+	if (!str2listener(args[0], mworker_proxy, bind_conf, "master-socket", 0, &err)) {
+		ha_alert("Cannot create the listener of the master CLI\n");
+		return -1;
+	}
+
+	cur_arg = 1;
+
+	while (*args[cur_arg]) {
+			static int bind_dumped;
+			struct bind_kw *kw;
+
+			kw = bind_find_kw(args[cur_arg]);
+			if (kw) {
+				if (!kw->parse) {
+					memprintf(&err, "'%s %s' : '%s' option is not implemented in this version (check build options).",
+						  args[0], args[1], args[cur_arg]);
+					goto err;
+				}
+
+				if (kw->parse(args, cur_arg, global.stats_fe, bind_conf, &err) != 0) {
+					if (err)
+						memprintf(&err, "'%s %s' : '%s'", args[0], args[1], err);
+					else
+						memprintf(&err, "'%s %s' : error encountered while processing '%s'",
+						          args[0], args[1], args[cur_arg]);
+					goto err;
+				}
+
+				cur_arg += 1 + kw->skip;
+				continue;
+			}
+
+			if (!bind_dumped) {
+				bind_dump_kws(&err);
+				indent_msg(&err, 4);
+				bind_dumped = 1;
+			}
+
+			memprintf(&err, "'%s %s' : unknown keyword '%s'.%s%s",
+			          args[0], args[1], args[cur_arg],
+			          err ? " Registered keywords :" : "", err ? err : "");
+			goto err;
+	}
+
+
+	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+		l->maxconn = 10;
+		l->backlog = 10;
+		l->accept = session_accept_fd;
+		l->default_target = mworker_proxy->default_target;
+		/* don't make the peers subject to global limits and don't close it in the master */
+		l->options |= (LI_O_UNLIMITED|LI_O_MWORKER); /* we are keeping this FD in the master */
+		l->nice = -64;  /* we want to boost priority for local stats */
+		global.maxsock += l->maxconn;
+	}
+
+	return 0;
+
+err:
+	ha_alert("%s\n", err);
+	return -1;
+
+}
+
+/*
  * Create a new CLI socket using a socketpair for a worker process
  * <mworker_proc> is the process structure, and <proc> is the process number
  */

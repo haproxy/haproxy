@@ -224,6 +224,8 @@ static void *run_thread_poll_loop(void *data);
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
 
+/* master CLI configuration (-S flag) */
+struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf);
 
 /* These are strings to be reported in the output of "haproxy -vv". They may
  * either be constants (in which case must_free must be zero) or dynamically
@@ -452,6 +454,7 @@ static void usage(char *name)
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
+		"        -S <unix_socket>[,<bind options>...] new stats socket for the master\n"
 		"\n",
 		name, DEFAULT_MAXCONN, cfg_maxpconn);
 	exit(1);
@@ -1563,6 +1566,22 @@ static void init(int argc, char **argv)
 				argv++;
 				argc--;
 			}
+			else if (*flag == 'S') {
+				struct wordlist *c;
+
+				if (argc <= 1 || argv[1][0] == '-') {
+					ha_alert("Socket and optional bind parameters expected with the -S flag\n");
+					usage(progname);
+				}
+				if ((c = malloc(sizeof(*c))) == NULL || (c->s = strdup(argv[1])) == NULL) {
+					ha_alert("Cannot allocate memory\n");
+					exit(EXIT_FAILURE);
+				}
+				LIST_ADD(&mworker_cli_conf, &c->list);
+
+				argv++;
+				argc--;
+			}
 			else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
 				/* list of pids to finish ('f') or terminate ('t') */
 
@@ -1701,6 +1720,7 @@ static void init(int argc, char **argv)
 
 	if (global.mode & MODE_MWORKER) {
 		int proc;
+		struct wordlist *it, *c;
 
 		for (proc = 0; proc < global.nbproc; proc++) {
 			struct mworker_proc *tmproc;
@@ -1727,6 +1747,18 @@ static void init(int argc, char **argv)
 				ha_alert("Can't create the master's CLI.\n");
 				exit(EXIT_FAILURE);
 		}
+
+		list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
+
+			if (mworker_cli_proxy_new_listener(c->s) < 0) {
+				ha_alert("Can't create the master's CLI.\n");
+				exit(EXIT_FAILURE);
+			}
+			LIST_DEL(&c->list);
+			free(c->s);
+			free(c);
+		}
+
 	}
 
 	pattern_finalize_config();
