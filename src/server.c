@@ -1632,7 +1632,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 		srv->srvrq = src->srvrq;
 }
 
-static struct server *new_server(struct proxy *proxy)
+struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
 	int i;
