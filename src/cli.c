@@ -1068,8 +1068,10 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 							addr_to_str(&l->addr, addr, sizeof(addr));
 							port_to_str(&l->addr, port, sizeof(port));
 							chunk_appendf(&trash, "[%s]:%s ", addr, port);
+						} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
+							chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
 						} else
-							continue;
+							chunk_appendf(&trash, "unknown ");
 
 						if ((bind_conf->level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
 							chunk_appendf(&trash, "admin ");
