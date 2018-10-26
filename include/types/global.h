@@ -234,6 +234,7 @@ extern struct list global_listener_queue; /* list of the temporarily limited lis
 extern struct task *global_listener_queue_task;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
 extern volatile unsigned long sleeping_thread_mask;
+extern struct list proc_list; /* list of process in mworker mode */
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001
