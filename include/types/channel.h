@@ -180,6 +180,9 @@
 #define AN_RES_FLT_XFER_DATA    0x04000000
 #define AN_RES_FLT_END          0x08000000
 
+#define AN_REQ_WAIT_CLI         0x10000000
+#define AN_RES_WAIT_CLI         0x20000000
+
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)
 

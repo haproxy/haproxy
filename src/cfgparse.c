@@ -7654,6 +7654,10 @@ int check_config_validity()
 		case PR_MODE_HTTP:
 			curproxy->http_needed = 1;
 			break;
+
+		case PR_MODE_CLI:
+			cfgerr += proxy_cfg_ensure_no_http(curproxy);
+			break;
 		}
 
 		if (curproxy != global.stats_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
@@ -8743,6 +8747,11 @@ out_uri_auth_compat:
 			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->fe_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE;
 				curproxy->fe_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_FE;
+			}
+
+			if (curproxy->mode == PR_MODE_CLI) {
+				curproxy->fe_req_ana |= AN_REQ_WAIT_CLI;
+				curproxy->fe_rsp_ana |= AN_RES_WAIT_CLI;
 			}
 
 			/* both TCP and HTTP must check switching rules */

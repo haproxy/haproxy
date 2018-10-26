@@ -32,5 +32,12 @@ int mworker_cli_proxy_create();
 int mworker_cli_proxy_new_listener(char *line);
 int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
 
+/* proxy mode cli functions */
+
+/* analyzers */
+int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit);
+int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
+
+
 #endif /* _PROTO_CLI_H */
 

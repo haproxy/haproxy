@@ -65,6 +65,7 @@ enum pr_mode {
 	PR_MODE_TCP = 0,
 	PR_MODE_HTTP,
 	PR_MODE_HEALTH,
+	PR_MODE_CLI,
 } __attribute__((packed));
 
 enum PR_SRV_STATE_FILE {
