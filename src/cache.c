@@ -65,12 +65,15 @@ struct cache_st {
 struct cache_entry {
 	unsigned int latest_validation;     /* latest validation date */
 	unsigned int expire;      /* expiration date */
+	unsigned int age;         /* Origin server "Age" header value */
+	unsigned int eoh;         /* Origin server end of headers offset. */
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
 	unsigned char data[0];
 };
 
 #define CACHE_BLOCKSIZE 1024
+#define CACHE_ENTRY_MAX_AGE 2147483648
 
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct cache *tmp_cache_config = NULL;
@@ -411,6 +414,8 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
+	unsigned int age;
+	long long hdr_age;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct filter *filter;
@@ -454,6 +459,17 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
 		goto out;
 
+	age = 0;
+	ctx.idx = 0;
+	if (http_find_header2("Age", 3, ci_head(txn->rsp.chn), &txn->hdr_idx, &ctx)) {
+		if (!strl2llrc(ctx.line + ctx.val, ctx.vlen, &hdr_age) && hdr_age > 0) {
+			if (unlikely(hdr_age > CACHE_ENTRY_MAX_AGE))
+				hdr_age = CACHE_ENTRY_MAX_AGE;
+			age = hdr_age;
+		}
+		http_remove_header2(msg, &txn->hdr_idx, &ctx);
+	}
+
 	shctx_lock(shctx);
 	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + msg->sov);
 	if (!first) {
@@ -468,6 +484,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object = (struct cache_entry *)first->data;
 	object->eb.node.leaf_p = NULL;
 	object->eb.key = 0;
+	object->age = age;
+	object->eoh = msg->eoh;
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
@@ -529,9 +547,10 @@ out:
 	return ACT_RET_CONT;
 }
 
-#define 	HTTP_CACHE_INIT 0
-#define 	HTTP_CACHE_FWD 1
-#define 	HTTP_CACHE_END 2
+#define 	HTTP_CACHE_INIT   0  /* Initial state. */
+#define 	HTTP_CACHE_HEADER 1  /* Cache entry headers forwarded. */
+#define 	HTTP_CACHE_FWD    2  /* Cache entry completely forwarded. */
+#define 	HTTP_CACHE_END    3  /* Cache entry treatment terminated. */
 
 static void http_cache_applet_release(struct appctx *appctx)
 {
@@ -542,6 +561,27 @@ static void http_cache_applet_release(struct appctx *appctx)
 	shctx_lock(shctx_ptr(cache));
 	shctx_row_dec_hot(shctx_ptr(cache), first);
 	shctx_unlock(shctx_ptr(cache));
+}
+
+/*
+ * Append an "Age" header into <chn> channel for this <ce> cache entry.
+ * This is the responsability of the caller to insure there is enough
+ * data in the channel.
+ *
+ * Returns the number of bytes inserted if succeeded, 0 if failed.
+ */
+static int cache_channel_append_age_header(struct cache_entry *ce, struct channel *chn)
+{
+	unsigned int age;
+
+	age = MAX(0, (int)(now.tv_sec - ce->latest_validation)) + ce->age;
+	if (unlikely(age > CACHE_ENTRY_MAX_AGE))
+		age = CACHE_ENTRY_MAX_AGE;
+
+	chunk_reset(&trash);
+	chunk_printf(&trash, "Age: %u", age);
+
+	return ci_insert_line2(chn, ce->eoh, trash.area, trash.data);
 }
 
 static int cache_channel_row_data_get(struct appctx *appctx, int len)
@@ -612,7 +652,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		appctx->st0 = HTTP_CACHE_END;
 
 	/* buffer are aligned there, should be fine */
-	if (appctx->st0 == HTTP_CACHE_INIT) {
+	if (appctx->st0 == HTTP_CACHE_HEADER || appctx->st0 == HTTP_CACHE_INIT) {
 		int len = first->len - *sent - sizeof(struct cache_entry);
 
 		if (len > 0) {
@@ -623,6 +663,9 @@ static void http_cache_io_handler(struct appctx *appctx)
 				appctx->st0 = HTTP_CACHE_END;
 			else
 				*sent += ret;
+			if (appctx->st0 == HTTP_CACHE_INIT && *sent > cache_ptr->eoh &&
+				cache_channel_append_age_header(cache_ptr, res))
+				appctx->st0 = HTTP_CACHE_HEADER;
 		}
 		else {
 			*sent = 0;
