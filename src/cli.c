@@ -56,6 +56,7 @@
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>
+#include <proto/protocol.h>
 #include <proto/listener.h>
 #include <proto/map.h>
 #include <proto/proxy.h>
@@ -1564,6 +1565,63 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+
+/*
+ * Create a new CLI socket using a socketpair for a worker process
+ * <mworker_proc> is the process structure, and <proc> is the process number
+ */
+int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
+{
+	struct bind_conf *bind_conf;
+	struct listener *l;
+	char *path = NULL;
+	char *err = NULL;
+
+	/* master pipe to ensure the master is still alive  */
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, mworker_proc->ipc_fd) < 0) {
+		ha_alert("Cannot create worker socketpair.\n");
+		return -1;
+	}
+
+	/* XXX: we might want to use a separate frontend at some point */
+	if (!global.stats_fe) {
+		if ((global.stats_fe = alloc_stats_fe("GLOBAL", "master-socket", 0)) == NULL) {
+			ha_alert("out of memory trying to allocate the stats frontend");
+			return -1;
+		}
+	}
+
+	bind_conf = bind_conf_alloc(global.stats_fe, "master-socket", 0, "", xprt_get(XPRT_RAW));
+	bind_conf->level &= ~ACCESS_LVL_MASK;
+	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
+
+	bind_conf->bind_proc = 1UL << proc;
+	global.stats_fe->bind_proc = 0; /* XXX: we should be careful with that, it can be removed by configuration */
+
+	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
+		ha_alert("Cannot allocate listener.\n");
+		return -1;
+	}
+
+	if (!str2listener(path, global.stats_fe, bind_conf, "master-socket", 0, &err)) {
+		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
+		return -1;
+	}
+
+	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+		l->maxconn = global.stats_fe->maxconn;
+		l->backlog = global.stats_fe->backlog;
+		l->accept = session_accept_fd;
+		l->default_target = global.stats_fe->default_target;
+		l->options |= LI_O_UNLIMITED;
+		/* it's a sockpair but we don't want to keep the fd in the master */
+		l->options &= ~LI_O_INHERITED;
+		l->nice = -64;  /* we want to boost priority for local stats */
+		global.maxsock += l->maxconn;
+	}
+
+	return 0;
+}
 
 static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,

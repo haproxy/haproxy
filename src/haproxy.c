@@ -84,6 +84,7 @@
 #include <common/hathreads.h>
 
 #include <types/capture.h>
+#include <types/cli.h>
 #include <types/filters.h>
 #include <types/global.h>
 #include <types/acl.h>
@@ -94,6 +95,7 @@
 #include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
+#include <proto/cli.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
@@ -1709,6 +1711,30 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	if (global.mode & MODE_MWORKER) {
+		int proc;
+
+		for (proc = 0; proc < global.nbproc; proc++) {
+			struct mworker_proc *tmproc;
+
+			tmproc = malloc(sizeof(*tmproc));
+			if (!tmproc) {
+				ha_alert("Cannot allocate process structures.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			tmproc->pid = -1;
+			tmproc->reloads = 0;
+			tmproc->relative_pid = 1 + proc;
+
+			if (mworker_cli_sockpair_new(tmproc, proc) < 0) {
+				exit(EXIT_FAILURE);
+			}
+
+			LIST_ADDQ(&proc_list, &tmproc->list);
+		}
+	}
+
 	pattern_finalize_config();
 
 	err_code |= check_config_validity();
@@ -2914,25 +2940,6 @@ int main(int argc, char **argv)
 
 		/* the father launches the required number of processes */
 		for (proc = 0; proc < global.nbproc; proc++) {
-			if (global.mode & MODE_MWORKER) {
-
-				proc_self = malloc(sizeof(*proc_self));
-				if (!proc_self) {
-					ha_alert("[%s.main()] Cannot allocate process structures.\n", argv[0]);
-					exit(1);
-				}
-
-				/* master pipe to ensure the master is still alive  */
-				ret = socketpair(AF_UNIX, SOCK_STREAM, 0, proc_self->ipc_fd);
-				if (ret < 0) {
-					ha_alert("[%s.main()] Cannot create master pipe.\n", argv[0]);
-					exit(EXIT_FAILURE);
-				} else {
-					proc_self->reloads = 0;
-					proc_self->relative_pid = relative_pid;
-					LIST_ADDQ(&proc_list, &proc_self->list);
-				}
-			}
 			ret = fork();
 			if (ret < 0) {
 				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
@@ -2948,9 +2955,16 @@ int main(int argc, char **argv)
 				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
 			}
 			if (global.mode & MODE_MWORKER) {
-				proc_self->pid = ret;
-				close(proc_self->ipc_fd[1]); /* close client side */
-				proc_self->ipc_fd[1] = -1;
+				struct mworker_proc *child;
+
+				/* find the right mworker_proc */
+				list_for_each_entry(child, &proc_list, list) {
+					if (child->relative_pid == relative_pid &&
+					    child->reloads == 0) {
+						child->pid = ret;
+						break;
+					}
+				}
 			}
 
 			relative_pid++; /* each child will get a different one */
@@ -3020,13 +3034,17 @@ int main(int argc, char **argv)
 
 			/* free proc struct of other processes  */
 			list_for_each_entry_safe(child, it, &proc_list, list) {
-				if (child->ipc_fd[0] > -1) {
-					close(child->ipc_fd[0]);
-					child->ipc_fd[0] = -1;
-				}
-				if (child == proc_self)
+				/* close the FD of the master side for all
+				 * workers, we don't need to close the worker
+				 * side of other workers since it's done with
+				 * the bind_proc */
+				close(child->ipc_fd[0]);
+				if (child->relative_pid == relative_pid &&
+				    child->reloads == 0) {
+					/* keep this struct if this is our pid */
+					proc_self = child;
 					continue;
-				close(child->ipc_fd[1]);
+				}
 				LIST_DEL(&child->list);
 				free(child);
 			}

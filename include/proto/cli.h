@@ -28,5 +28,7 @@ void cli_register_kw(struct cli_kw_list *kw_list);
 
 int cli_has_level(struct appctx *appctx, int level);
 
+int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
+
 #endif /* _PROTO_CLI_H */
 
