@@ -2073,6 +2073,14 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
  * The mworker functions are used to initialize the CLI in the master process
  */
 
+ /*
+ * Stop the mworker proxy
+ */
+void mworker_cli_proxy_stop()
+{
+	stop_proxy(mworker_proxy);
+}
+
 /*
  * Create the mworker CLI proxy
  */

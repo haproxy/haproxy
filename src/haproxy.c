@@ -3058,6 +3058,8 @@ int main(int argc, char **argv)
 			struct mworker_proc *child, *it;
 			master = 0;
 
+			mworker_cli_proxy_stop();
+
 			/* free proc struct of other processes  */
 			list_for_each_entry_safe(child, it, &proc_list, list) {
 				/* close the FD of the master side for all

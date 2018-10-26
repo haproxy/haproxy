@@ -28,9 +28,12 @@ void cli_register_kw(struct cli_kw_list *kw_list);
 
 int cli_has_level(struct appctx *appctx, int level);
 
+/* mworker proxy functions */
+
 int mworker_cli_proxy_create();
 int mworker_cli_proxy_new_listener(char *line);
 int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc);
+void mworker_cli_proxy_stop();
 
 /* proxy mode cli functions */
 
