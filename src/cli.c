@@ -1635,6 +1635,14 @@ void pcli_write_prompt(struct stream *s)
 
 /* The pcli_* functions are used for the CLI proxy in the master */
 
+void pcli_reply_and_close(struct stream *s, const char *msg)
+{
+	struct buffer *buf = get_trash_chunk();
+
+	chunk_initstr(buf, msg);
+	stream_int_retnclose(&s->si[0], buf);
+}
+
 static enum obj_type *pcli_pid_to_server(int proc_pid)
 {
 	struct mworker_proc *child;
@@ -1894,8 +1902,8 @@ read_again:
 			s->pcli_next_pid = target_pid;
 			pcli_write_prompt(s);
 		} else {
-			// TODO: pcli_reply() error
 			s->pcli_next_pid = 0;
+			pcli_reply_and_close(s, "Can't find the target CLI!\n");
 		}
 
 		/* we trimmed things but we might have other commands to consume */
