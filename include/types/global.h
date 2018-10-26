@@ -76,6 +76,8 @@
 #define ACCESS_LVL_MASK     0x3
 
 #define ACCESS_FD_LISTENERS 0x4  /* expose listeners FDs on stats socket */
+#define ACCESS_MASTER       0x8  /* works with the master (and every other processes) */
+#define ACCESS_MASTER_ONLY  0x10 /* only works with the worker */
 
 /* SSL server verify mode */
 enum {

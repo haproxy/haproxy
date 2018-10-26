@@ -93,6 +93,8 @@ static struct cli_kw_list cli_keywords = {
 
 extern const char *stat_status_codes[];
 
+extern int master;
+
 static struct proxy *mworker_proxy; /* CLI proxy of the master */
 
 static char *cli_gen_usage_msg(struct appctx *appctx)
@@ -113,8 +115,20 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		kw = &kw_list->kw[0];
 		while (kw->str_kw[0]) {
+
+			/* in a worker or normal process, don't display master only commands */
+			if (master == 0 && (kw->level & ACCESS_MASTER_ONLY))
+				goto next_kw;
+
+			/* in master don't displays if we don't have the master bits */
+			if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
+				goto next_kw;
+
 			if (kw->usage)
 				chunk_appendf(tmp, "  %s\n", kw->usage);
+
+next_kw:
+
 			kw++;
 		}
 	}
@@ -463,6 +477,14 @@ static int cli_parse_request(struct appctx *appctx)
 
 	kw = cli_find_kw(args);
 	if (!kw)
+		return 0;
+
+	/* in a worker or normal process, don't display master only commands */
+	if (master == 0 && (kw->level & ACCESS_MASTER_ONLY))
+		return 0;
+
+	/* in master don't displays if we don't have the master bits */
+	if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 		return 0;
 
 	appctx->io_handler = kw->io_handler;

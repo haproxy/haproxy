@@ -31,6 +31,7 @@ struct cli_kw {
 	int (*io_handler)(struct appctx *appctx);
 	void (*io_release)(struct appctx *appctx);
 	void *private;
+	int level; /* this is the level needed to show the keyword usage and to use it */
 };
 
 struct cli_kw_list {
