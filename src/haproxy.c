@@ -1722,6 +1722,11 @@ static void init(int argc, char **argv)
 			LIST_ADDQ(&proc_list, &tmproc->list);
 		}
 		mworker_env_to_proc_list(); /* get the info of the children in the env */
+
+		if (mworker_cli_proxy_create() < 0) {
+				ha_alert("Can't create the master's CLI.\n");
+				exit(EXIT_FAILURE);
+		}
 	}
 
 	pattern_finalize_config();

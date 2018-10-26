@@ -93,6 +93,8 @@ static struct cli_kw_list cli_keywords = {
 
 extern const char *stat_status_codes[];
 
+static struct proxy *mworker_proxy; /* CLI proxy of the master */
+
 static char *cli_gen_usage_msg(struct appctx *appctx)
 {
 	struct cli_kw_list *kw_list;
@@ -1565,6 +1567,89 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+/*
+ * The mworker functions are used to initialize the CLI in the master process
+ */
+
+/*
+ * Create the mworker CLI proxy
+ */
+int mworker_cli_proxy_create()
+{
+	struct mworker_proc *child;
+
+	mworker_proxy = calloc(1, sizeof(*mworker_proxy));
+	if (!mworker_proxy)
+		return -1;
+
+	init_new_proxy(mworker_proxy);
+	mworker_proxy->next = proxies_list;
+	proxies_list = mworker_proxy;
+	mworker_proxy->id = strdup("MASTER");
+	mworker_proxy->mode = PR_MODE_TCP;
+	mworker_proxy->state = PR_STNEW;
+	mworker_proxy->last_change = now.tv_sec;
+	mworker_proxy->cap = PR_CAP_LISTEN; /* this is a listen section */
+	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
+	mworker_proxy->timeout.client = 0; /* no timeout */
+	mworker_proxy->conf.file = strdup("MASTER");
+	mworker_proxy->conf.line = 0;
+	mworker_proxy->accept = frontend_accept;
+	mworker_proxy-> lbprm.algo = BE_LB_ALGO_NONE;
+
+	/* Does not init the default target the CLI applet, but must be done in
+	 * the request parsing code */
+	mworker_proxy->default_target = NULL;
+
+	/* the check_config_validity() will get an ID for the proxy */
+	mworker_proxy->uuid = -1;
+
+	proxy_store_name(mworker_proxy);
+
+	/* create all servers using the mworker_proc list */
+	list_for_each_entry(child, &proc_list, list) {
+		char *msg = NULL;
+		struct server *newsrv = NULL;
+		struct sockaddr_storage *sk;
+		int port1, port2, port;
+		struct protocol *proto;
+		char *errmsg;
+
+		newsrv = new_server(mworker_proxy);
+		if (!newsrv)
+			return -1;
+
+		/* we don't know the new pid yet */
+		if (child->pid == -1)
+			memprintf(&msg, "cur-%d", child->relative_pid);
+		else
+			memprintf(&msg, "old-%d", child->pid);
+
+		newsrv->next = mworker_proxy->srv;
+		mworker_proxy->srv = newsrv;
+		newsrv->conf.file = strdup(msg);
+		newsrv->id = strdup(msg);
+		newsrv->conf.line = 0;
+
+		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
+		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, 0)) == 0)
+			return -1;
+
+		proto = protocol_by_family(sk->ss_family);
+		if (!proto || !proto->connect) {
+			return -1;
+		}
+
+		/* no port specified */
+		newsrv->flags |= SRV_F_MAPPORTS;
+		newsrv->addr = *sk;
+		newsrv->iweight = 1;
+		newsrv->uweight = 1;
+		mworker_proxy->srv_act++;
+		srv_lb_commit_status(newsrv);
+	}
+	return 0;
+}
 
 /*
  * Create a new CLI socket using a socketpair for a worker process
