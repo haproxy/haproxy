@@ -1589,6 +1589,80 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+
+static enum obj_type *pcli_pid_to_server(int proc_pid)
+{
+	struct mworker_proc *child;
+
+	list_for_each_entry(child, &proc_list, list) {
+		if (child->pid == proc_pid){
+			return &child->srv->obj_type;
+		}
+	}
+	return NULL;
+}
+
+/* Take a CLI prefix in argument (eg: @!1234 @master @1)
+ *  Return:
+ *     0: master
+ *   > 0: pid of a worker
+ *   < 0: didn't find a worker
+ */
+static int pcli_prefix_to_pid(const char *prefix)
+{
+	int proc_pid;
+	struct mworker_proc *child;
+	char *errtol = NULL;
+
+	if (*prefix != '@') /* not a prefix, should not happen */
+		return -1;
+
+	prefix++;
+	if (!*prefix)    /* sent @ alone, return the master */
+		return 0;
+
+	if (strcmp("master", prefix) == 0) {
+		return 0;
+	} else if (*prefix == '!') {
+		prefix++;
+		if (!*prefix)
+			return -1;
+
+		proc_pid = strtol(prefix, &errtol, 10);
+		if (*errtol != '\0')
+			return -1;
+		list_for_each_entry(child, &proc_list, list) {
+			if (child->pid == proc_pid){
+				return child->pid;
+			}
+		}
+	} else {
+		struct mworker_proc *chosen = NULL;
+		/* this is a relative pid */
+
+		proc_pid = strtol(prefix, &errtol, 10);
+		if (*errtol != '\0')
+			return -1;
+
+		if (proc_pid == 0) /* return the master */
+			return 0;
+
+		/* chose the right process, the current one is the one with the
+		 least number of reloads */
+		list_for_each_entry(child, &proc_list, list) {
+			if (child->relative_pid == proc_pid){
+				if (child->reloads == 0)
+					return child->pid;
+				else if (chosen == NULL || child->reloads < chosen->reloads)
+					chosen = child;
+			}
+		}
+		if (chosen)
+			return chosen->pid;
+	}
+	return -1;
+}
+
 /*
  * The mworker functions are used to initialize the CLI in the master process
  */
@@ -1669,6 +1743,8 @@ int mworker_cli_proxy_create()
 		newsrv->uweight = 1;
 		mworker_proxy->srv_act++;
 		srv_lb_commit_status(newsrv);
+
+		child->srv = newsrv;
 	}
 	return 0;
 }
