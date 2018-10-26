@@ -202,6 +202,17 @@ struct activity {
 	char __end[0] __attribute__((aligned(64))); // align size to 64.
 };
 
+/*
+ * Structure used to describe the processes in master worker mode
+ */
+struct mworker_proc {
+	int pid;
+	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
+	int relative_pid;
+	int reloads;
+	struct list list;
+};
+
 extern struct global global;
 extern struct activity activity[MAX_THREADS];
 extern int  pid;                /* current process id */

@@ -212,17 +212,7 @@ struct list proc_list = LIST_HEAD_INIT(proc_list);
 
 int master = 0; /* 1 if in master, 0 if in child */
 
-struct mworker_proc {
-	int pid;
-	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
-	int relative_pid;
-	int reloads;
-	struct list list;
-};
-
 struct mworker_proc *proc_self;
-
-
 
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
