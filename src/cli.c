@@ -1620,6 +1620,18 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	return 1;
 }
 
+void pcli_write_prompt(struct stream *s)
+{
+	struct buffer *msg = get_trash_chunk();
+	struct channel *oc = si_oc(&s->si[0]);
+
+	if (s->pcli_next_pid == 0)
+		chunk_appendf(msg, "master> ");
+	else
+		chunk_appendf(msg, "%d> ", s->pcli_next_pid);
+	co_inject(oc, msg->area, msg->data);
+}
+
 
 /* The pcli_* functions are used for the CLI proxy in the master */
 
@@ -1880,7 +1892,7 @@ read_again:
 		   command for this session */
 		if (target_pid > -1) {
 			s->pcli_next_pid = target_pid;
-			// TODO: pcli_reply the prompt
+			pcli_write_prompt(s);
 		} else {
 			// TODO: pcli_reply() error
 			s->pcli_next_pid = 0;
@@ -1921,6 +1933,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	if ((rep->flags & (CF_SHUTR|CF_READ_NULL))) {
 		/* stream cleanup */
+
+		pcli_write_prompt(s);
 
 		s->si[1].flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
 		si_shutr(&s->si[1]);
