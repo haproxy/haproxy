@@ -1388,6 +1388,35 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 	}
 }
 
+
+ /*  Displays workers and processes  */
+static int cli_io_handler_show_proc(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct mworker_proc *child;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+	chunk_printf(&trash, "# <PID> <type> <relative PID>\n");
+	chunk_appendf(&trash, "%u %s %u\n", getpid(), "master", 0);
+
+
+	list_for_each_entry(child, &proc_list, list) {
+		chunk_appendf(&trash, "%u %s %u\n", child->pid, "worker", child->relative_pid);
+	}
+
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		si_applet_cant_put(si);
+		return 0;
+	}
+
+	/* dump complete */
+	return 1;
+}
+
 /* Send all the bound sockets, always returns 1 */
 static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1924,6 +1953,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL },
 	{ { "show", "fd", NULL }, "show fd [num] : dump list of file descriptors in use", cli_parse_show_fd, cli_io_handler_show_fd, NULL },
 	{ { "show", "activity", NULL }, "show activity : show per-thread activity stats (for support/developers)", cli_parse_default, cli_io_handler_show_activity, NULL },
+	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
 	{{},}
 }};
