@@ -47,6 +47,7 @@
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
 #define H1C_F_CS_SHUTW       0x00004000 /* connection is already shut down */
+#define H1C_F_CS_WAIT_CONN   0x00008000 /* waiting for the connection establishment */
 
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
 
@@ -360,6 +361,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy)
 	h1c->wait_event.task->process = h1_io_cb;
 	h1c->wait_event.task->context = h1c;
 	h1c->wait_event.wait_reason   = 0;
+
+	if (!(conn->flags & CO_FL_CONNECTED))
+		h1c->flags |= H1C_F_CS_WAIT_CONN;
 
 	/* Always Create a new H1S */
 	if (!h1s_create(h1c, conn->mux_ctx))
@@ -843,8 +847,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		}
 	}
 
-	// FIXME: check and set HTTP version
-
 	if (!(h1m->flags & H1_MF_RESP)) {
 		if (!htx_add_reqline(htx, sl) || !htx_add_all_headers(htx, hdrs))
 			goto error;
@@ -1196,6 +1198,12 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		b_set_data(&h1s->rxbuf, b_size(&h1s->rxbuf));
 		if (!htx_free_data_space(htx))
 			h1c->flags |= H1C_F_RX_FULL;
+
+		if (h1s->recv_wait) {
+			h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(h1s->recv_wait->task);
+			h1s->recv_wait = NULL;
+		}
 	}
 	else
 		h1_release_buf(h1c, &h1s->rxbuf);
@@ -1521,6 +1529,12 @@ static int h1_send(struct h1c *h1c)
 	if (conn->flags & CO_FL_ERROR)
 		return 0;
 
+	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
+		if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
+			conn->xprt->subscribe(conn, SUB_CAN_SEND, &h1c->wait_event);
+		return 0;
+	}
+
 	if (!b_data(&h1c->obuf))
 		goto end;
 
@@ -1532,6 +1546,12 @@ static int h1_send(struct h1c *h1c)
 		h1c->flags &= ~H1C_F_OUT_FULL;
 		b_del(&h1c->obuf, ret);
 		sent = 1;
+
+		if (h1c->h1s && h1c->h1s->send_wait) {
+			h1c->h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+			tasklet_wakeup(h1c->h1s->send_wait->task);
+			h1c->h1s->send_wait = NULL;
+		}
 	}
 
   end:
@@ -1602,12 +1622,19 @@ static int h1_process(struct h1c * h1c)
 
 	h1_send(h1c);
 
-	h1_wake_stream(h1c);
-
 	if (!conn->mux_ctx)
 		return -1;
 
+	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
+		if (conn->flags & (CO_FL_CONNECTED|CO_FL_ERROR)) {
+			h1c->flags &= ~H1C_F_CS_WAIT_CONN;
+			h1_wake_stream(h1c);
+		}
+		return 0;
+	}
+
 	if ((h1c->flags & H1C_F_CS_ERROR) || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn)) {
+		h1_wake_stream(h1c);
 		if (!h1c->h1s || !h1c->h1s->cs) {
 			h1_release(conn);
 			return -1;
@@ -1945,12 +1972,8 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	h1c = h1s->h1c;
 
-	/* FIXME: There is a problem when the backend server is down. Channel
-	 * data are consumed, so CF_WROTE_DATA is set by the stream
-	 * interface. We should wait the connection is established before, but
-	 * to do so, we need to have a notification of the connection
-	 * establishment.
-	 */
+	if (h1c->flags & H1C_F_CS_WAIT_CONN)
+		return 0;
 
 	if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)) && b_data(buf))
 		ret = h1_process_output(h1c, buf, count);
@@ -1962,7 +1985,6 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			ret = count;
 	}
 	return ret;
-
 }
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
