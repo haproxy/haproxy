@@ -214,6 +214,7 @@ struct mworker_proc {
 	int pid;
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int relative_pid;
+	int reloads;
 	struct list list;
 };
 
@@ -538,9 +539,9 @@ static void mworker_proc_list_to_env()
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (msg)
-			memprintf(&msg, "%s|type=worker;fd=%d;pid=%d;rpid=%d", msg, child->ipc_fd[0], child->pid, child->relative_pid);
+			memprintf(&msg, "%s|type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d", msg, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads);
 		else
-			memprintf(&msg, "type=worker;fd=%d;pid=%d;rpid=%d", child->ipc_fd[0], child->pid, child->relative_pid);
+			memprintf(&msg, "type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d", child->ipc_fd[0], child->pid, child->relative_pid, child->reloads);
 	}
 	if (msg)
 		setenv("HAPROXY_CHILDREN", msg, 1);
@@ -576,6 +577,9 @@ static void mworker_env_to_proc_list()
 				child->pid = atoi(subtoken+4);
 			} else if (strncmp(subtoken, "rpid=", 5) == 0) {
 				child->relative_pid = atoi(subtoken+5);
+			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
+				/* we reloaded this process once more */
+				child->reloads = atoi(subtoken+8) + 1;
 			}
 		}
 		if (child->pid)
@@ -2924,6 +2928,7 @@ int main(int argc, char **argv)
 					ha_alert("[%s.main()] Cannot create master pipe.\n", argv[0]);
 					exit(EXIT_FAILURE);
 				} else {
+					proc_self->reloads = 0;
 					proc_self->relative_pid = relative_pid;
 					LIST_ADDQ(&proc_list, &proc_self->list);
 				}
