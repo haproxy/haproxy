@@ -852,8 +852,6 @@ static void mworker_loop()
 
 	master = 1;
 
-	mworker_env_to_proc_list(); /* get the info of the children in the env */
-
 	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
 	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
 	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
@@ -1723,6 +1721,7 @@ static void init(int argc, char **argv)
 
 			LIST_ADDQ(&proc_list, &tmproc->list);
 		}
+		mworker_env_to_proc_list(); /* get the info of the children in the env */
 	}
 
 	pattern_finalize_config();
