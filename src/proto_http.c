@@ -3712,7 +3712,8 @@ void http_end_txn_clean_session(struct stream *s)
 		 * server over the same connection. This is required by some
 		 * broken protocols such as NTLM, and anyway whenever there is
 		 * an opportunity for sending the challenge to the proper place,
-		 * it's better to do it (at least it helps with debugging).
+		 * it's better to do it (at least it helps with debugging), at
+		 * least for non-deterministic load balancing algorithms.
 		 */
 		s->txn->flags |= TX_PREFER_LAST;
 	}

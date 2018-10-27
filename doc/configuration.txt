@@ -2512,6 +2512,11 @@ balance url_param <param> [check_post]
   algorithm, mode nor option have been set. The algorithm may only be set once
   for each backend.
 
+  With authentication schemes that require the same connection like NTLM, URI
+  based alghoritms must not be used, as they would cause subsequent requests
+  to be routed to different backend servers, breaking the invalid assumptions
+  NTLM relies on.
+
   Examples :
         balance roundrobin
         balance url_param userid
@@ -6537,8 +6542,9 @@ no option prefer-last-server
   close of the connection. This can make sense for static file servers. It does
   not make much sense to use this in combination with hashing algorithms. Note,
   haproxy already automatically tries to stick to a server which sends a 401 or
-  to a proxy which sends a 407 (authentication required). This is mandatory for
-  use with the broken NTLM authentication challenge, and significantly helps in
+  to a proxy which sends a 407 (authentication required), when the load
+  balancing algorithm is not deterministic. This is mandatory for use with the
+  broken NTLM authentication challenge, and significantly helps in
   troubleshooting some faulty applications. Option prefer-last-server might be
   desirable in these environments as well, to avoid redistributing the traffic
   after every other response.
