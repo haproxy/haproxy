@@ -4848,10 +4848,8 @@ http-reuse { never | safe | aggressive | always }
     - connections sent to a server with a TLS SNI extension are marked private
       and are never shared;
 
-    - connections receiving a status code 401 or 407 expect some authentication
-      to be sent in return. Due to certain bogus authentication schemes (such
-      as NTLM) relying on the connection, these connections are marked private
-      and are never shared;
+    - connections with certain bogus authentication schemes (relying on the
+      connection) like NTLM are detected, marked private and are never shared;
 
   No connection pool is involved, once a session dies, the last idle connection
   it was attached to is deleted at the same time. This ensures that connections
