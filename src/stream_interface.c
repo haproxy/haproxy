@@ -815,14 +815,11 @@ void stream_int_update_conn(struct stream_interface *si)
 		/* Read not closed, it doesn't seem we have to do anything here */
 	}
 
-	if (!(oc->flags & CF_SHUTW)) {
-		/* Write not closed */
-		if (!channel_is_empty(oc) &&
-		    !(cs->conn->flags & CO_FL_ERROR) &&
-		    !(cs->flags & CS_FL_ERROR) &&
-		    !(oc->flags & CF_SHUTW) &&
-		    !(si->wait_event.wait_reason & SUB_CAN_SEND))
-			si_cs_send(cs);
+	if (!(oc->flags & CF_SHUTW) && /* Write not closed */
+	    !channel_is_empty(oc) &&
+	    !(cs->flags & CS_FL_ERROR) &&
+	    !(cs->conn->flags & CO_FL_ERROR)) {
+		si_cs_process(cs);
 	}
 }
 
