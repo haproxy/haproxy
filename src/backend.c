@@ -1167,11 +1167,12 @@ int connect_server(struct stream *s)
 		LIST_DEL(&srv_conn->list);
 		LIST_INIT(&srv_conn->list);
 	}
-	srv_conn->send_wait = send_wait;
-	srv_conn->recv_wait = recv_wait;
 
 	if (!srv_cs)
 		return SF_ERR_RESOURCE;
+
+	srv_conn->send_wait = send_wait;
+	srv_conn->recv_wait = recv_wait;
 
 	if (!(s->flags & SF_ADDR_SET)) {
 		err = assign_server_address(s);
