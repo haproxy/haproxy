@@ -7566,8 +7566,10 @@ void http_end_txn(struct stream *s)
 		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
-	vars_prune(&s->vars_txn, s->sess, s);
-	vars_prune(&s->vars_reqres, s->sess, s);
+	if (!LIST_ISEMPTY(&s->vars_txn.head))
+		vars_prune(&s->vars_txn, s->sess, s);
+	if (!LIST_ISEMPTY(&s->vars_reqres.head))
+		vars_prune(&s->vars_reqres, s->sess, s);
 }
 
 /* to be used at the end of a transaction to prepare a new one */
