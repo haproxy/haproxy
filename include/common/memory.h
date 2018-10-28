@@ -180,6 +180,10 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 	pool_cache_count--;
 	LIST_DEL(&item->by_pool);
 	LIST_DEL(&item->by_lru);
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, item) = (void *)pool;
+#endif
 	return item;
 }
 
@@ -248,12 +252,6 @@ static inline void *pool_alloc(struct pool_head *pool)
 	void *p;
 
 	p = pool_alloc_dirty(pool);
-#ifdef DEBUG_MEMORY_POOLS
-	if (p) {
-		/* keep track of where the element was allocated from */
-		*POOL_LINK(pool, p) = (void *)pool;
-	}
-#endif
 	if (p && mem_poison_byte >= 0) {
 		memset(p, mem_poison_byte, pool->size);
 	}
@@ -436,14 +434,6 @@ static inline void *pool_alloc(struct pool_head *pool)
 	void *p;
 
 	p = pool_alloc_dirty(pool);
-#ifdef DEBUG_MEMORY_POOLS
-	if (p) {
-		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-		/* keep track of where the element was allocated from */
-		*POOL_LINK(pool, p) = (void *)pool;
-		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-	}
-#endif
 	if (p && mem_poison_byte >= 0) {
 		memset(p, mem_poison_byte, pool->size);
 	}
