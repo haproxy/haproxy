@@ -1,6 +1,66 @@
 ChangeLog :
 ===========
 
+2018/10/28 : 1.9-dev5
+    - BUILD: Makefile: add the new ERR variable to force -Werror
+    - MINOR: freq_ctr: add swrate_add_scaled() to work with large samples
+    - MINOR: stream_interface: Avoid calling si_cs_send/recv if not needed.
+    - CLEANUP: http: Remove the unused function http_find_header
+    - MINOR: h1: Export some functions parsing the value of some HTTP headers
+    - BUG/MEDIUM: stream-int: don't set SI_FL_WAIT_ROOM on CF_READ_DONTWAIT
+    - MINOR: proxy: add a new option "http-use-htx"
+    - BUG/MEDIUM: pools: fix the minimum allocation size
+    - MINOR: shctx: Shared objects block by block allocation.
+    - MINOR: cache: Larger HTTP objects caching.
+    - MINOR: shctx: Add a maximum object size parameter.
+    - MINOR: cache: Add "max-object-size" option.
+    - DOC: Update about the cache support for big objects.
+    - BUG/MINOR: cache: Crashes with "total-max-size" > 2047(MB).
+    - BUG/MINOR: cache: Wrong usage of shctx_init().
+    - BUG/MINOR: ssl: Wrong usage of shctx_init().
+    - MINOR: cache: Avoid usage of atoi() when parsing "max-object-size".
+    - MINOR: shctx: Change max. object size type to unsigned int.
+    - DOC: cache: Missing information about "total-max-size" and "max-object-size"
+    - CLEANUP: tools: fix misleading comment above function LIM2A
+    - MEDIUM: channel: merge back flags CF_WRITE_PARTIAL and CF_WRITE_EVENT
+    - BUG/MINOR: only mark connections private if NTLM is detected
+    - BUG/MINOR: only auto-prefer last server if lb-alg is non-deterministic
+    - MINOR: stream: don't prune variables if the list is empty
+    - MINOR: stream-int: add si_alloc_ibuf() to ease input buffer allocation
+    - MEDIUM: stream-int: replace channel_alloc_buffer() with si_alloc_ibuf() everywhere
+    - MEDIUM: stream: always call si_cs_recv() after a failed buffer allocation
+    - MEDIUM: stream: don't try to send first in process_stream()
+    - MEDIUM: stream-int: make si_update() synchronize flag changes before the I/O
+    - MEDIUM: stream-int: call si_cs_process() in stream_int_update_conn
+    - MINOR: stream-int: don't needlessly call tasklet_wakeup() in stream_int_chk_snd_conn()
+    - MINOR: stream-int: make stream_int_notify() not wake the tasklet up
+    - MINOR: stream-int: don't needlessly call si_cs_send() in si_cs_process()
+    - MINOR: mworker: number of reload in the life of a worker
+    - MEDIUM: mworker: each worker socketpair is a CLI listener
+    - REORG: mworker: move struct mworker_proc to global.h
+    - MINOR: server: export new_server() function
+    - MEDIUM: mworker: move proc_list gen before proxies startup
+    - MEDIUM: mworker: add proc_list in global.h
+    - MEDIUM: mworker: proxy for the master CLI
+    - MEDIUM: mworker: create CLI listeners from argv[]
+    - MEDIUM: cli: disable some keywords in the master
+    - MEDIUM: mworker: find the server ptr using a CLI prefix
+    - MEDIUM: cli: 'show proc' displays processus
+    - MEDIUM: cli: implement 'mode cli' proxy analyzers
+    - MINOR: cli: displays sockpair@ in "show cli sockets"
+    - MEDIUM: cli: enable "show cli sockets" for the master
+    - MINOR: cli: put @master @<relative pid> @!<pid> in the help
+    - MEDIUM: listeners: set O_CLOEXEC on the accepted FDs
+    - MEDIUM: mworker: stop the master proxy in the workers
+    - MEDIUM: channel: reorder the channel analyzers for the cli
+    - MEDIUM: cli: write a prompt for the CLI proxy of the master
+    - MINOR: cli: helper to write an response message and close
+    - MINOR: cache: Add "Age" header.
+    - REGTEST: make the IP+port logging test more reliable
+    - BUG/MINOR: memory: make the thread-local cache allocator set the debugging link
+    - BUG/MAJOR: http: http_txn_get_path() may deference an inexisting buffer
+    - BUG/MINOR: backend: assign the wait list after the error check
+
 2018/10/21 : 1.9-dev4
     - BUILD: Allow configuration of pcre-config path
     - DOC: clarify force-private-cache is an option
