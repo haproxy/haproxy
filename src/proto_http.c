@@ -440,6 +440,9 @@ char *http_txn_get_path(const struct http_txn *txn)
 {
 	struct ist ret;
 
+	if (!txn->req.chn->buf.size)
+		return NULL;
+
 	ret = http_get_path(ist2(ci_head(txn->req.chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l));
 
 	return ret.ptr;
