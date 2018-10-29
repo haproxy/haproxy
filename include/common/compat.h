@@ -152,6 +152,16 @@
 #include <strings.h>
 #endif
 
+/* crypt_r() has been present in glibc since 2.2 and on FreeBSD since 12.0
+ * (12000002). No other OS makes any mention of it for now. Feel free to add
+ * valid known combinations below if needed to relax the crypt() lock when
+ * using threads.
+ */
+#if (defined(__GNU_LIBRARY__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 2)) \
+ || (defined(__FreeBSD__) && __FreeBSD_version >= 1200002)
+#define HA_HAVE_CRYPT_R
+#endif
+
 #endif /* _COMMON_COMPAT_H */
 
 /*
