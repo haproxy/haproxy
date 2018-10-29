@@ -815,7 +815,7 @@ static inline unsigned int my_ffsl(unsigned long a)
 	unsigned long cnt;
 
 #if defined(__x86_64__)
-	__asm__("bsr %1,%0\n" : "=r" (cnt) : "rm" (a));
+	__asm__("bsf %1,%0\n" : "=r" (cnt) : "rm" (a));
 	cnt++;
 #else
 
