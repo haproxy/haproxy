@@ -1766,7 +1766,7 @@ int pcli_parse_request(struct channel *req, int *target_pid)
 				if (*pfx_b != '@') {
 					/* there is no prefix */
 					pfx_b = NULL;
-					cmd_b = ptr;
+					cmd_b = input; /* if no prefix we don't trim anything */
 					state = PCLI_REQ_CMD;
 					continue;
 				}
