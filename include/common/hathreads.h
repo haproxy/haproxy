@@ -386,6 +386,7 @@ enum lock_label {
 	PIPES_LOCK,
 	START_LOCK,
 	TLSKEYS_REF_LOCK,
+	AUTH_LOCK,
 	LOCK_LABELS
 };
 struct lock_stat {
@@ -501,6 +502,7 @@ static inline const char *lock_label(enum lock_label label)
 	case PIPES_LOCK:           return "PIPES";
 	case START_LOCK:           return "START";
 	case TLSKEYS_REF_LOCK:     return "TLSKEYS_REF";
+	case AUTH_LOCK:            return "AUTH";
 	case LOCK_LABELS:          break; /* keep compiler happy */
 	};
 	/* only way to come here is consecutive to an internal bug */

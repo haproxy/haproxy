@@ -28,6 +28,7 @@
 #include <types/global.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/hathreads.h>
 
 #include <proto/acl.h>
 #include <proto/log.h>
@@ -36,6 +37,10 @@
 #include <types/pattern.h>
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */
+
+#ifdef CONFIG_HAP_CRYPT
+__decl_hathreads(static HA_SPINLOCK_T auth_lock);
+#endif
 
 /* find targets for selected gropus. The function returns pointer to
  * the userlist struct ot NULL if name is NULL/empty or unresolvable.
@@ -245,7 +250,9 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 
 	if (!(u->flags & AU_O_INSECURE)) {
 #ifdef CONFIG_HAP_CRYPT
+		HA_SPIN_LOCK(AUTH_LOCK, &auth_lock);
 		ep = crypt(pass, u->pass);
+		HA_SPIN_UNLOCK(AUTH_LOCK, &auth_lock);
 #else
 		return 0;
 #endif
