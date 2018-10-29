@@ -293,6 +293,7 @@ ifeq ($(TARGET),linux24)
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_TPROXY      = implicit
+  USE_CRYPT_H     = implicit
   USE_LIBCRYPT    = implicit
   USE_DL          = implicit
   USE_RT          = implicit
@@ -304,6 +305,7 @@ ifeq ($(TARGET),linux24e)
   USE_EPOLL       = implicit
   USE_MY_EPOLL    = implicit
   USE_TPROXY      = implicit
+  USE_CRYPT_H     = implicit
   USE_LIBCRYPT    = implicit
   USE_DL          = implicit
   USE_RT          = implicit
@@ -314,6 +316,7 @@ ifeq ($(TARGET),linux26)
   USE_POLL        = implicit
   USE_EPOLL       = implicit
   USE_TPROXY      = implicit
+  USE_CRYPT_H     = implicit
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
   USE_DL          = implicit
@@ -325,6 +328,7 @@ ifeq ($(TARGET),linux2628)
   USE_POLL        = implicit
   USE_EPOLL       = implicit
   USE_TPROXY      = implicit
+  USE_CRYPT_H     = implicit
   USE_LIBCRYPT    = implicit
   USE_LINUX_SPLICE= implicit
   USE_LINUX_TPROXY= implicit

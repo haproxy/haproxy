@@ -39,7 +39,13 @@
 struct userlist *userlist = NULL;    /* list of all existing userlists */
 
 #ifdef CONFIG_HAP_CRYPT
+#ifdef HA_HAVE_CRYPT_R
+/* context for crypt_r() */
+static THREAD_LOCAL struct crypt_data crypt_data = { .initialized = 0 };
+#else
+/* lock for crypt() */
 __decl_hathreads(static HA_SPINLOCK_T auth_lock);
+#endif
 #endif
 
 /* find targets for selected gropus. The function returns pointer to
@@ -250,9 +256,13 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 
 	if (!(u->flags & AU_O_INSECURE)) {
 #ifdef CONFIG_HAP_CRYPT
+#ifdef HA_HAVE_CRYPT_R
+		ep = crypt_r(pass, u->pass, &crypt_data);
+#else
 		HA_SPIN_LOCK(AUTH_LOCK, &auth_lock);
 		ep = crypt(pass, u->pass);
 		HA_SPIN_UNLOCK(AUTH_LOCK, &auth_lock);
+#endif
 #else
 		return 0;
 #endif
