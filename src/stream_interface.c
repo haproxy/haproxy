@@ -964,13 +964,9 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 		si->flags |= SI_FL_WAIT_ROOM;
 	}
 	else {
-		struct conn_stream *cs = objt_cs(si->end);
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		if (cs) {
-			si_cs_recv(cs);
-			tasklet_wakeup(si->wait_event.task);
-	}
+		tasklet_wakeup(si->wait_event.task);
 	}
 }
 
