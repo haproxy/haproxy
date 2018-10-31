@@ -117,6 +117,16 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a bad request is.
 	 */
 	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
+		/*
+		 * First catch invalid request
+		 */
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			stream_inc_http_req_ctr(s);
+			stream_inc_http_err_ctr(s);
+			proxy_inc_fe_req_ctr(sess->fe);
+			goto return_bad_req;
+		}
+
 		/* 1: have we encountered a read error ? */
 		if (req->flags & CF_READ_ERROR) {
 			if (!(s->flags & SF_ERR_MASK))
@@ -217,8 +227,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			setsockopt(__objt_conn(sess->origin)->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
-
-		if ((msg->msg_state != HTTP_MSG_RQBEFORE) && (txn->flags & TX_WAIT_NEXT_RQ)) {
+		if ((req->flags & CF_READ_PARTIAL) && (txn->flags & TX_WAIT_NEXT_RQ)) {
 			/* If the client starts to talk, let's fall back to
 			 * request timeout processing.
 			 */
@@ -228,9 +237,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp)) {
-			if ((msg->msg_state == HTTP_MSG_RQBEFORE) &&
-			    (txn->flags & TX_WAIT_NEXT_RQ) &&
-			    tick_isset(s->be->timeout.httpka))
+			if ((txn->flags & TX_WAIT_NEXT_RQ) && tick_isset(s->be->timeout.httpka))
 				req->analyse_exp = tick_add(now_ms, s->be->timeout.httpka);
 			else
 				req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
@@ -1091,6 +1098,9 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 		goto http_end;
 
  missing_data:
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_req;
+
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		htx_reply_and_close(s, txn->status, http_error_message(s));
@@ -1305,6 +1315,8 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (req->flags & CF_SHUTW)
 		goto aborted_xfer;
 
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_req;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
@@ -1438,6 +1450,12 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * errors somewhere else.
 	 */
 	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
+		/*
+		 * First catch invalid response
+		 */
+		if (htx->flags & HTX_FL_PARSING_ERROR)
+			goto return_bad_res;
+
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
 			if (txn->flags & TX_NOT_FIRST)
@@ -1703,6 +1721,23 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	rep->analyse_exp = TICK_ETERNITY;
 	channel_auto_close(rep);
 	return 1;
+
+ return_bad_res:
+	HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	if (objt_server(s->target)) {
+		HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
+		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
+	}
+	txn->status = 502;
+	s->si[1].flags |= SI_FL_NOLINGER;
+	htx_reply_and_close(s, txn->status, http_error_message(s));
+	rep->analysers &= AN_RES_FLT_END;
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_H;
+	return 0;
 
  abort_keep_alive:
 	/* A keep-alive request to the server failed on a network error.
@@ -2144,6 +2179,9 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
   missing_data_or_waiting:
 	if (res->flags & CF_SHUTW)
 		goto aborted_xfer;
+
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_res;
 
 	/* stop waiting for data if the input is closed before the end. If the
 	 * client side was already closed, it means that the client has aborted,
