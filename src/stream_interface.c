@@ -1217,6 +1217,12 @@ int si_cs_recv(struct conn_stream *cs)
 		if (cs->flags & CS_FL_RCV_MORE)
 			si_rx_room_blk(si);
 
+		if (cs->flags & CS_FL_READ_PARTIAL) {
+			if (tick_isset(ic->rex))
+				ic->rex = tick_add_ifset(now_ms, ic->rto);
+			cs->flags &= ~CS_FL_READ_PARTIAL;
+		}
+
 		if (ret <= 0) {
 			break;
 		}

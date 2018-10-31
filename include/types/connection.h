@@ -82,7 +82,11 @@ enum {
 	CS_FL_REOS          = 0x00002000,  /* End of stream received (buffer not empty) */
 	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
 
-	CS_FL_NOT_FIRST     = 0x00100000,  /* This stream is not the first one */
+	/* following flags are supposed to be set by the mux and read/unset by
+	 * the stream-interface :
+	 */
+	CS_FL_NOT_FIRST     = 0x00100000,  /* this stream is not the first one */
+	CS_FL_READ_PARTIAL  = 0x00200000,  /* some data were received (not necessarly xferred) */
 };
 
 /* cs_shutr() modes */
