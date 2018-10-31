@@ -53,11 +53,13 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
+#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>
 #include <proto/listener.h>
 #include <proto/map.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>
@@ -232,6 +234,22 @@ static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
 
+static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
+{
+	if (htx) {
+		if (!htx_add_data(htx, ist2(chk->area, chk->data)))
+			return 0;
+		chn->total += chk->data;
+		chk->data = 0;
+		/* notify that some data was read from the SI into the buffer */
+		chn->flags |= CF_READ_PARTIAL;
+	}
+	else  {
+		if (ci_putchk(chn, chk) == -1)
+			return 0;
+	}
+	return 1;
+}
 
 /*
  * http_stats_io_handler()
@@ -1970,7 +1988,8 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
  * both by the CLI and the HTTP entry points, and is able to dump the output
  * in HTML or CSV formats. If the later, <uri> must be NULL.
  */
-int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
+			       struct proxy *px, struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct stream *s = si_strm(si);
@@ -2033,10 +2052,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_TH:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(si, px, uri);
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->ctx.stats.px_st = STAT_PX_ST_FE;
@@ -2045,10 +2062,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_FE:
 		/* print the frontend */
 		if (stats_dump_fe_stats(si, px)) {
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->ctx.stats.l = px->conf.listeners.n;
@@ -2058,9 +2073,13 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
 		for (; appctx->ctx.stats.l != &px->conf.listeners; appctx->ctx.stats.l = l->by_fe.n) {
-			if (buffer_almost_full(&rep->buf)) {
-				si_rx_room_blk(si);
-				return 0;
+			if (htx) {
+				if (htx_almost_full(htx))
+					goto full;
+			}
+			else {
+				if (buffer_almost_full(&rep->buf))
+					goto full;
 			}
 
 			l = LIST_ELEM(appctx->ctx.stats.l, struct listener *, by_fe);
@@ -2077,10 +2096,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 
 			/* print the frontend */
 			if (stats_dump_li_stats(si, px, l, flags)) {
-				if (ci_putchk(rep, &trash) == -1) {
-					si_rx_room_blk(si);
-					return 0;
-				}
+				if (!stats_putchk(rep, htx, &trash))
+					goto full;
 			}
 		}
 
@@ -2091,9 +2108,13 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_SV:
 		/* stats.sv has been initialized above */
 		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
-			if (buffer_almost_full(&rep->buf)) {
-				si_rx_room_blk(si);
-				return 0;
+			if (htx) {
+				if (htx_almost_full(htx))
+					goto full;
+			}
+			else {
+				if (buffer_almost_full(&rep->buf))
+					goto full;
 			}
 
 			sv = appctx->ctx.stats.sv;
@@ -2121,10 +2142,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 			}
 
 			if (stats_dump_sv_stats(si, px, flags, sv)) {
-				if (ci_putchk(rep, &trash) == -1) {
-					si_rx_room_blk(si);
-					return 0;
-				}
+				if (!stats_putchk(rep, htx, &trash))
+					goto full;
 			}
 		} /* for sv */
 
@@ -2134,10 +2153,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_BE:
 		/* print the backend */
 		if (stats_dump_be_stats(si, px, flags)) {
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->ctx.stats.px_st = STAT_PX_ST_END;
@@ -2146,10 +2163,8 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 	case STAT_PX_ST_END:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(si, px);
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->ctx.stats.px_st = STAT_PX_ST_FIN;
@@ -2162,6 +2177,10 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		/* unknown state, we should put an abort() here ! */
 		return 1;
 	}
+
+  full:
+	si_rx_room_blk(si);
+	return 0;
 }
 
 /* Dumps the HTTP stats head block to the trash for and uses the per-uri
@@ -2537,7 +2556,8 @@ static void stats_dump_json_end()
  * and the stream must be closed, or -1 in case of any error. This function is
  * used by both the CLI and the HTTP handlers.
  */
-static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
+static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *htx,
+				     struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
@@ -2558,10 +2578,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
 			stats_dump_csv_header();
 
-		if (ci_putchk(rep, &trash) == -1) {
-			si_rx_room_blk(si);
-			return 0;
-		}
+		if (!stats_putchk(rep, htx, &trash))
+			goto full;
 
 		appctx->st2 = STAT_ST_INFO;
 		/* fall through */
@@ -2569,10 +2587,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_INFO:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_info(si, uri);
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->ctx.stats.px = proxies_list;
@@ -2583,15 +2599,19 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	case STAT_ST_LIST:
 		/* dump proxies */
 		while (appctx->ctx.stats.px) {
-			if (buffer_almost_full(&rep->buf)) {
-				si_rx_room_blk(si);
-				return 0;
+			if (htx) {
+				if (htx_almost_full(htx))
+					goto full;
+			}
+			else {
+				if (buffer_almost_full(&rep->buf))
+					goto full;
 			}
 
 			px = appctx->ctx.stats.px;
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state != PR_STSTOPPED && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy_to_buffer(si, px, uri) == 0)
+				if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 					return 0;
 
 			appctx->ctx.stats.px = px->next;
@@ -2608,10 +2628,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 				stats_dump_html_end();
 			else
 				stats_dump_json_end();
-			if (ci_putchk(rep, &trash) == -1) {
-				si_rx_room_blk(si);
-				return 0;
-			}
+			if (!stats_putchk(rep, htx, &trash))
+				goto full;
 		}
 
 		appctx->st2 = STAT_ST_FIN;
@@ -2625,6 +2643,11 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		appctx->st2 = STAT_ST_FIN;
 		return -1;
 	}
+
+  full:
+	si_rx_room_blk(si);
+	return 0;
+
 }
 
 /* We reached the stats page through a POST request. The appctx is
@@ -2954,6 +2977,112 @@ static int stats_process_http_post(struct stream_interface *si)
 }
 
 
+static int stats_send_htx_headers(struct stream_interface *si, struct htx *htx)
+{
+	struct stream *s = si_strm(si);
+	struct uri_auth *uri = s->be->uri_auth;
+	struct appctx *appctx = __objt_appctx(si->end);
+	union h1_sl sl;
+
+	sl.st.status = 200;
+	sl.st.v = ist("HTTP/1.1");
+	sl.st.c = ist("200");
+	sl.st.r = ist("OK");
+
+	if (!htx_add_resline(htx, sl))
+		goto full;
+
+	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
+	    !htx_add_header(htx, ist("Connection"), ist("close")))
+		goto full;
+	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
+		if (!htx_add_header(htx, ist("Content-Type"), ist("text/html")))
+			goto full;
+	}
+	else {
+		if (!htx_add_header(htx, ist("Content-Type"), ist("text/plain")))
+			goto full;
+	}
+
+	if (uri->refresh > 0 && !(appctx->ctx.stats.flags & STAT_NO_REFRESH)) {
+		const char *refresh = U2A(uri->refresh);
+		if (!htx_add_header(htx, ist("Refresh"), ist2(refresh, strlen(refresh))))
+			goto full;
+	}
+
+	if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+		if (!htx_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+			goto full;
+	}
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
+		goto full;
+
+	return 1;
+
+  full:
+	htx_reset(htx);
+	si_rx_room_blk(si);
+	return 0;
+}
+
+
+static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
+{
+	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+	struct stream *s = si_strm(si);
+	struct uri_auth *uri = s->be->uri_auth;
+	struct appctx *appctx = __objt_appctx(si->end);
+	union h1_sl sl;
+
+	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	scope_txt[0] = 0;
+	if (appctx->ctx.stats.scope_len) {
+		strcpy(scope_txt, STAT_SCOPE_PATTERN);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
+	}
+
+	/* We don't want to land on the posted stats page because a refresh will
+	 * repost the data. We don't want this to happen on accident so we redirect
+	 * the browse to the stats page with a GET.
+	 */
+	chunk_printf(&trash, "%s;st=%s%s%s%s",
+		     uri->uri_prefix,
+		     ((appctx->ctx.stats.st_code > STAT_STATUS_INIT) &&
+		      (appctx->ctx.stats.st_code < STAT_STATUS_SIZE) &&
+		      stat_status_codes[appctx->ctx.stats.st_code]) ?
+		     stat_status_codes[appctx->ctx.stats.st_code] :
+		     stat_status_codes[STAT_STATUS_UNKN],
+		     (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+		     (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		     scope_txt);
+
+	sl.st.status = 303;
+	sl.st.v = ist("HTTP/1.1");
+	sl.st.c = ist("303");
+	sl.st.r = ist("See Other");
+	if (!htx_add_resline(htx, sl))
+		goto full;
+
+	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
+	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
+	    !htx_add_header(htx, ist("Content-Type"), ist("text/plain")) ||
+	    !htx_add_header(htx, ist("Content-Length"), ist("0")) ||
+	    !htx_add_header(htx, ist("Location"), ist2(trash.area, trash.data)))
+		goto full;
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
+		goto full;
+
+	return 1;
+
+full:
+	htx_reset(htx);
+	si_rx_room_blk(si);
+	return 0;
+}
+
 static int stats_send_http_headers(struct stream_interface *si)
 {
 	struct stream *s = si_strm(si);
@@ -3037,12 +3166,136 @@ static int stats_send_http_redirect(struct stream_interface *si)
  * appctx->st0 contains the operation in progress (dump, done). The handler
  * automatically unregisters itself once transfer is complete.
  */
+static void htx_stats_io_handler(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
+	struct channel *req = si_oc(si);
+	struct channel *res = si_ic(si);
+	struct htx *req_htx, *res_htx;
+
+	res_htx = htx_from_buf(&res->buf);
+
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+		goto out;
+
+	/* Check if the input buffer is avalaible. */
+	if (!b_size(&res->buf)) {
+		si_rx_room_blk(si);
+		goto out;
+	}
+
+	/* check that the output is not closed */
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
+		appctx->st0 = STAT_HTTP_DONE;
+
+	/* all states are processed in sequence */
+	if (appctx->st0 == STAT_HTTP_HEAD) {
+		if (stats_send_htx_headers(si, res_htx)) {
+			if (s->txn->meth == HTTP_METH_HEAD)
+				appctx->st0 = STAT_HTTP_DONE;
+			else
+				appctx->st0 = STAT_HTTP_DUMP;
+		}
+	}
+
+	if (appctx->st0 == STAT_HTTP_DUMP) {
+		if (stats_dump_stat_to_buffer(si, res_htx, s->be->uri_auth))
+			appctx->st0 = STAT_HTTP_DONE;
+	}
+
+	if (appctx->st0 == STAT_HTTP_POST) {
+		if (stats_process_http_post(si))
+			appctx->st0 = STAT_HTTP_LAST;
+		else if (si_oc(si)->flags & CF_SHUTR)
+			appctx->st0 = STAT_HTTP_DONE;
+	}
+
+	if (appctx->st0 == STAT_HTTP_LAST) {
+		if (stats_send_htx_redirect(si, res_htx))
+			appctx->st0 = STAT_HTTP_DONE;
+	}
+
+	if (appctx->st0 == STAT_HTTP_DONE) {
+		struct htx_blk *blk;
+
+		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+			// FIXME: if trailers failed, do not add EOD twice
+			if (!htx_add_endof(res_htx, HTX_BLK_EOD)) {
+				si_rx_room_blk(si);
+				goto out;
+			}
+			if (!htx_add_trailer(res_htx, ist("\r\n"))) {
+				si_rx_room_blk(si);
+				goto out;
+			}
+			appctx->ctx.stats.flags &= ~STAT_CHUNKED;
+		}
+		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
+			si_rx_room_blk(si);
+			goto out;
+		}
+
+		/* eat the whole request */
+		req_htx = htx_from_buf(&req->buf);
+		blk = htx_get_head_blk(req_htx);
+		while (blk) {
+			enum htx_blk_type type = htx_get_blk_type(blk);
+
+			blk = htx_remove_blk(req_htx, blk);
+			if (type == HTX_BLK_EOM)
+				break;
+		}
+		if (htx_is_empty(req_htx)) {
+			htx_reset(req_htx);
+			b_set_data(&req->buf, 0);
+		}
+		res->flags |= CF_READ_NULL;
+		si_shutr(si);
+	}
+
+	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
+		si_shutw(si);
+
+	if (appctx->st0 == STAT_HTTP_DONE) {
+		if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST)) {
+			si_shutr(si);
+			res->flags |= CF_READ_NULL;
+		}
+	}
+ out:
+	/* we have left the request in the buffer for the case where we
+	 * process a POST, and this automatically re-enables activity on
+	 * read. It's better to indicate that we want to stop reading when
+	 * we're sending, so that we know there's at most one direction
+	 * deciding to wake the applet up. It saves it from looping when
+	 * emitting large blocks into small TCP windows.
+	 */
+	if (htx_is_empty(res_htx)) {
+		htx_reset(res_htx);
+		b_set_data(&res->buf, 0);
+	}
+	else {
+		b_set_data(&res->buf, b_size(&res->buf));
+		si_stop_get(si);
+	}
+}
+
+
+/* This I/O handler runs as an applet embedded in a stream interface. It is
+ * used to send HTTP stats over a TCP socket. The mechanism is very simple.
+ * appctx->st0 contains the operation in progress (dump, done). The handler
+ * automatically unregisters itself once transfer is complete.
+ */
 static void http_stats_io_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
+
+	if (IS_HTX_STRM(s))
+		return htx_stats_io_handler(appctx);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
@@ -3092,7 +3345,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		}
 
 		data_len = ci_data(si_ic(si));
-		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
+		if (stats_dump_stat_to_buffer(si, NULL, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 
 		last_len = ci_data(si_ic(si));
@@ -3692,7 +3945,7 @@ static int cli_io_handler_dump_info(struct appctx *appctx)
  */
 static int cli_io_handler_dump_stat(struct appctx *appctx)
 {
-	return stats_dump_stat_to_buffer(appctx->owner, NULL);
+	return stats_dump_stat_to_buffer(appctx->owner, NULL, NULL);
 }
 
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)

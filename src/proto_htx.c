@@ -589,8 +589,11 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	/* Proceed with the stats now. */
 	if (unlikely(objt_applet(s->target) == &http_stats_applet) ||
 	    unlikely(objt_applet(s->target) == &http_cache_applet)) {
-		// TODO: Disabled for now, waiting to be adapted for HTX implementation
-		goto deny;
+
+		if (unlikely(objt_applet(s->target) == &http_cache_applet)) {
+			// TODO: Disabled for now, waiting to be adapted for HTX implementation
+			goto deny;
+		}
 
 		/* process the stats request now */
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
