@@ -548,7 +548,7 @@ static void cli_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (res->buf.size == 0) {
 		si_applet_cant_put(si);
 		goto out;
@@ -2051,7 +2051,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* We must trim any excess data from the response buffer, because we
 		 * may have blocked an invalid response from a server that we don't
-		 * want to accidentely forward once we disable the analysers, nor do
+		 * want to accidently forward once we disable the analysers, nor do
 		 * we want those data to come along with next response. A typical
 		 * example of such data would be from a buggy server responding to
 		 * a HEAD with some data, or sending more than the advertised

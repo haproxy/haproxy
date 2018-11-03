@@ -225,7 +225,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 		return 1;
 	}
 
-	/* If no default value avalaible, the converter fails. */
+	/* If no default value available, the converter fails. */
 	if (arg_p[1].type == ARGT_STOP)
 		return 0;
 
@@ -404,7 +404,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
 		/* Display the column headers. If the message cannot be sent,
-		 * quit the fucntion with returning 0. The function is called
+		 * quit the function with returning 0. The function is called
 		 * later and restart at the state "STAT_ST_INIT".
 		 */
 		chunk_reset(&trash);

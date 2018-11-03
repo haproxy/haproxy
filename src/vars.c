@@ -59,7 +59,7 @@ static void var_accounting_diff(struct vars *vars, struct session *sess, struct 
 }
 
 /* This function returns 1 if the <size> is available in the var
- * pool <vars>, otherwise returns 0. If the space is avalaible,
+ * pool <vars>, otherwise returns 0. If the space is available,
  * the size is reserved. The inner pointers may be null when setting
  * the outer ones only. The accounting uses either <sess> or <strm>
  * depending on the scope. <strm> may be NULL when no stream is known
@@ -110,7 +110,7 @@ unsigned int var_clear(struct var *var)
 	return size;
 }
 
-/* This function free all the memory used by all the varaibles
+/* This function free all the memory used by all the variables
  * in the list.
  */
 void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
@@ -356,7 +356,7 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		}
 	} else {
 
-		/* Check memory avalaible. */
+		/* Check memory available. */
 		if (!var_accounting_add(vars, smp->sess, smp->strm, sizeof(struct var)))
 			return 0;
 
@@ -489,9 +489,9 @@ static int smp_conv_clear(const struct arg *args, struct sample *smp, void *priv
 	return sample_clear_stream(args[0].data.var.name, args[0].data.var.scope, smp);
 }
 
-/* This fucntions check an argument entry and fill it with a variable
+/* This functions check an argument entry and fill it with a variable
  * type. The argumen must be a string. If the variable lookup fails,
- * the function retuns 0 and fill <err>, otherwise it returns 1.
+ * the function returns 0 and fill <err>, otherwise it returns 1.
  */
 int vars_check_arg(struct arg *arg, char **err)
 {
@@ -605,7 +605,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 	default:         vars = &smp->strm->vars_reqres; break;
 	}
 
-	/* Check if the scope is avalaible a this point of processing. */
+	/* Check if the scope is available a this point of processing. */
 	if (vars->scope != scope)
 		return 0;
 
@@ -621,7 +621,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 }
 
 /* this function fills a sample with the
- * content of the varaible described by <var_desc>. Returns 1
+ * content of the variable described by <var_desc>. Returns 1
  * if the sample is filled, otherwise it returns 0.
  */
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
@@ -639,7 +639,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 	default:         vars = &smp->strm->vars_reqres; break;
 	}
 
-	/* Check if the scope is avalaible a this point of processing. */
+	/* Check if the scope is available a this point of processing. */
 	if (vars->scope != var_desc->scope)
 		return 0;
 

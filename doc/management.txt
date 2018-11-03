@@ -1286,7 +1286,7 @@ example :
     # echo "show info;show stat;show table" | socat /var/run/haproxy stdio
 
 If a command needs to use a semi-colon or a backslash (eg: in a value), it
-must be preceeded by a backslash ('\').
+must be preceded by a backslash ('\').
 
 The interactive mode displays a prompt ('>') and waits for commands to be
 entered on the line, then processes them, and displays the prompt again to wait

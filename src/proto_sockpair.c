@@ -336,7 +336,7 @@ static int sockpair_connect_server(struct connection *conn, int data, int delack
 
 
 /*
- * Receive a file descriptor transfered from a unix socket.
+ * Receive a file descriptor transferred from a unix socket.
  *
  * Return -1 or a socket fd;
  *

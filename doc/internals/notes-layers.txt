@@ -9,7 +9,7 @@
     available via conn_streams, sends data to the network
 
 
-The connection zone contains multiple layers which behave independantly in each
+The connection zone contains multiple layers which behave independently in each
 direction. The Rx direction is activated upon callbacks from the lower layers.
 The Tx direction is activated recursively from the upper layers. Between every
 two layers there may be a buffer, in each direction. When a buffer is full
@@ -82,7 +82,7 @@ Some operation flags will be needed on cs_recv() :
     requested size, thus no need to re-enable receiving on the lower layers.
 
   - RECV_ONE_SHOT : perform a single read without re-enabling reading on the
-    lower layers, like we currently do when receving an HTTP/1 request. Like
+    lower layers, like we currently do when receiving an HTTP/1 request. Like
     RECV_ENOUGH where any size is enough. Probably that the two could be merged
     (eg: by having a MIN argument like RECV_MIN).
 
@@ -99,7 +99,7 @@ Some operation flags will be needed on cs_send() :
 
 
 Both operations should return a composite status :
-  - number of bytes transfered
+  - number of bytes transferred
   - status flags (shutr, shutw, reset, empty, full, ...)
 
 

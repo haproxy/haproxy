@@ -224,7 +224,7 @@ struct tcpcheck_rule {
 	/* match type uses NON-NULL pointer from either string or expect_regex below */
 	/* sent string is string */
 	char *string;                           /* sent or expected string */
-	int string_len;                         /* string lenght */
+	int string_len;                         /* string length */
 	struct my_regex *expect_regex;          /* expected */
 	int inverse;                            /* 0 = regular match, 1 = inverse match */
 	unsigned short port;                    /* port to connect to */

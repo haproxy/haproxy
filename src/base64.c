@@ -99,7 +99,7 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 		if (b < 0)
 			return -1;
 
-		/* padding has to be continous */
+		/* padding has to be continuous */
 		if (pad && b != B64PADV)
 			return -1;
 

@@ -269,7 +269,7 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 
 	if (!st->initialized) {
 		if (!len) {
-			/* Nothing to foward */
+			/* Nothing to forward */
 			ret = len;
 		}
 		else if (st->hdrs_len > len) {
@@ -715,7 +715,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	 * (chunk size, trailers, ...).
 	 */
 
-	/* Write real size at the begining of the chunk, no need of wrapping.
+	/* Write real size at the beginning of the chunk, no need of wrapping.
 	 * We write the chunk using a dynamic length and adjust out->p and out->i
 	 * accordingly afterwards. That will move <out> away from <data>.
 	 */

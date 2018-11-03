@@ -124,7 +124,7 @@ spoe_encode_buffer(const char *str, size_t len, char **buf, char *end)
 /* Encode a buffer, possibly partially. It does the same thing than
  * 'spoe_encode_buffer', but if there is not enough space, it does not fail.
  * On success, it returns the number of copied bytes and <*buf> is moved after
- * the encoded value. If an error occured, it returns -1. */
+ * the encoded value. If an error occurred, it returns -1. */
 static inline int
 spoe_encode_frag_buffer(const char *str, size_t len, char **buf, char *end)
 {
@@ -176,7 +176,7 @@ spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
 
 /* Encode a typed data using value in <data> and type <type>. On success, it
  * returns the number of copied bytes and <*buf> is moved after the encoded
- * value. If an error occured, it returns -1.
+ * value. If an error occurred, it returns -1.
  *
  * If the value is too big to be encoded, depending on its type, then encoding
  * failed or the value is partially encoded. Only strings and binaries can be

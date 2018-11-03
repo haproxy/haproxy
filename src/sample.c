@@ -639,7 +639,7 @@ static int c_int2str(struct sample *smp)
 	return 1;
 }
 
-/* This function inconditionally duplicates data and removes the "const" flag.
+/* This function unconditionally duplicates data and removes the "const" flag.
  * For strings and binary blocks, it also provides a known allocated size with
  * a length that is capped to the size, and ensures a trailing zero is always
  * appended for strings. This is necessary for some operations which may
@@ -2354,7 +2354,7 @@ static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, v
 }
 
 /* Takes a SINT on input, applies a binary "and" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -2368,7 +2368,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, v
 }
 
 /* Takes a SINT on input, applies a binary "or" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -2382,7 +2382,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, vo
 }
 
 /* Takes a SINT on input, applies a binary "xor" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  */
 static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -2422,7 +2422,7 @@ static inline long long int arith_add(long long int a, long long int b)
 }
 
 /* Takes a SINT on input, applies an arithmetic "add" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  */
 static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -2436,7 +2436,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, vo
 }
 
 /* Takes a SINT on input, applies an arithmetic "sub" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  */
 static int sample_conv_arith_sub(const struct arg *arg_p,
                                  struct sample *smp, void *private)
@@ -2458,7 +2458,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 		return 1;
 	}
 
-	/* standard substraction: we use the "add" function and negate
+	/* standard subtraction: we use the "add" function and negate
 	 * the second operand.
 	 */
 	smp->data.u.sint = arith_add(smp->data.u.sint, -tmp.data.u.sint);
@@ -2466,7 +2466,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p,
 }
 
 /* Takes a SINT on input, applies an arithmetic "mul" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  * If the result makes an overflow, then the largest possible quantity is
  * returned.
  */
@@ -2511,7 +2511,7 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 }
 
 /* Takes a SINT on input, applies an arithmetic "div" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  * If arg_p makes the result overflow, then the largest possible quantity is
  * returned.
  */
@@ -2540,7 +2540,7 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 }
 
 /* Takes a SINT on input, applies an arithmetic "mod" with the SINT directly in
- * arg_p or in the varaible described in arg_p, and returns the SINT result.
+ * arg_p or in the variable described in arg_p, and returns the SINT result.
  * If arg_p makes the result overflow, then 0 is returned.
  */
 static int sample_conv_arith_mod(const struct arg *arg_p,

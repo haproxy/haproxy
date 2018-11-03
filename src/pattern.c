@@ -425,8 +425,8 @@ int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **e
  *
  * These functions are exported and may be used by any other component.
  *
- * This fucntion just take a sample <smp> and check if this sample match
- * with the pattern <pattern>. This fucntion return just PAT_MATCH or
+ * This function just take a sample <smp> and check if this sample match
+ * with the pattern <pattern>. This function return just PAT_MATCH or
  * PAT_NOMATCH.
  *
  */
@@ -1671,7 +1671,7 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 }
 
 /* This function remove all pattern match <key> from the the reference
- * and from each expr member of the reference. This fucntion returns 1
+ * and from each expr member of the reference. This function returns 1
  * if the deletion is done and return 0 is the entry is not found.
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
@@ -1840,7 +1840,7 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 /* This function create new reference. <ref> is the reference name.
  * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
  * be unique. The user must check the reference with "pat_ref_lookup()"
- * before calling this function. If the fucntion fail, it return NULL,
+ * before calling this function. If the function fail, it return NULL,
  * else return new struct pat_ref.
  */
 struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned int flags)
@@ -2200,7 +2200,7 @@ struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_r
 }
 
 /* This function create new pattern_expr associated to the reference <ref>.
- * <ref> can be NULL. If an error is occured, the function returns NULL and
+ * <ref> can be NULL. If an error is occurred, the function returns NULL and
  * <err> is filled. Otherwise, the function returns new pattern_expr linked
  * with <head> and <ref>.
  *

@@ -187,11 +187,11 @@ enum {
 	STAT_STATUS_INIT = 0,
 	STAT_STATUS_DENY,	/* action denied */
 	STAT_STATUS_DONE,	/* the action is successful */
-	STAT_STATUS_ERRP,	/* an error occured due to invalid values in parameters */
-	STAT_STATUS_EXCD,	/* an error occured because the buffer couldn't store all data */
+	STAT_STATUS_ERRP,	/* an error occurred due to invalid values in parameters */
+	STAT_STATUS_EXCD,	/* an error occurred because the buffer couldn't store all data */
 	STAT_STATUS_NONE,	/* nothing happened (no action chosen or servers state didn't change) */
 	STAT_STATUS_PART,	/* the action is partially successful */
-	STAT_STATUS_UNKN,	/* an unknown error occured, shouldn't happen */
+	STAT_STATUS_UNKN,	/* an unknown error occurred, shouldn't happen */
 	STAT_STATUS_SIZE
 };
 
@@ -207,7 +207,7 @@ enum {
  *                             During parsing, it points to last header seen
  *                             for states after START. When in HTTP_MSG_BODY,
  *                             eoh points to the first byte of the last CRLF
- *                             preceeding data. Relative to buffer's origin.
+ *                             preceding data. Relative to buffer's origin.
  *                             This value then remains unchanged till the end
  *                             so that we can rewind the buffer to change some
  *                             headers if needed (eg: http-send-name-header).

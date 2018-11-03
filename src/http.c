@@ -299,7 +299,7 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occurred.\n</body></html>\n",
 
 	[HTTP_ERR_502] =
 	"HTTP/1.0 502 Bad Gateway\r\n"
@@ -446,7 +446,7 @@ const char *http_get_reason(unsigned int status)
 	case 503: return "Service Unavailable";
 	case 504: return "Gateway Time-out";
 	case 505: return "HTTP Version not supported";
-	case 506: return "Variant also negociate";
+	case 506: return "Variant also negotiate";
 	case 507: return "Insufficient storage";
 	case 508: return "Loop detected";
 	case 509: return "Bandwidth Limit Exceeded";
@@ -697,7 +697,7 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 	return NULL;
 }
 
-/* Parses a qvalue and returns it multipled by 1000, from 0 to 1000. If the
+/* Parses a qvalue and returns it multiplied by 1000, from 0 to 1000. If the
  * value is larger than 1000, it is bound to 1000. The parser consumes up to
  * 1 digit, one dot and 3 digits and stops on the first invalid character.
  * Unparsable qvalues return 1000 as "q=1.000".
@@ -733,7 +733,7 @@ int http_parse_qvalue(const char *qvalue, const char **end)
 }
 
 /*
- * Given a url parameter, find the starting position of the first occurence,
+ * Given a url parameter, find the starting position of the first occurrence,
  * or NULL if the parameter is not found.
  *
  * Example: if query_string is "yo=mama;ye=daddy" and url_param_name is "ye",

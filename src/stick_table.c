@@ -1923,7 +1923,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		if (!conn)
 			return NULL;
 
-		/* Fetch source adress in a sample. */
+		/* Fetch source address in a sample. */
 		smp.px = NULL;
 		smp.sess = sess;
 		smp.strm = strm;
@@ -1985,7 +1985,7 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	if (!conn)
 		return NULL;
 
-	/* Fetch source adress in a sample. */
+	/* Fetch source address in a sample. */
 	smp.px = NULL;
 	smp.sess = sess;
 	smp.strm = strm;
@@ -2520,7 +2520,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 	if (!conn)
 		return 0;
 
-	/* Fetch source adress in a sample. */
+	/* Fetch source address in a sample. */
 	if (!smp_fetch_src(NULL, smp, NULL, NULL))
 		return 0;
 

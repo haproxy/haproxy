@@ -87,7 +87,7 @@ int stream_create_from_cs(struct conn_stream *cs)
 
 /* This function is called from the session handler which detects the end of
  * handshake, in order to complete initialization of a valid stream. It must be
- * called with a completley initialized session. It returns the pointer to
+ * called with a completely initialized session. It returns the pointer to
  * the newly created stream, or NULL in case of fatal error. The client-facing
  * end point is assigned to <origin>, which must be valid. The stream's task
  * is configured with a nice value inherited from the listener's nice if any.

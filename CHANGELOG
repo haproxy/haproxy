@@ -704,7 +704,7 @@ ChangeLog :
     - BUG/MINOR: listener: Don't decrease actconn twice when a new session is rejected
     - CLEANUP: map, stream: remove duplicate code in src/map.c, src/stream.c
     - BUG/MINOR: lua: the function returns anything
-    - BUG/MINOR: lua funtion hlua_socket_settimeout don't check negative values
+    - BUG/MINOR: lua function hlua_socket_settimeout don't check negative values
     - CLEANUP: lua: typo fix in comments
     - BUILD/MINOR: fix build when USE_THREAD is not defined
     - MINOR: lua: allow socket api settimeout to accept integers, float, and doubles
@@ -873,7 +873,7 @@ ChangeLog :
     - MINOR: systemd: consider exit status 143 as successful
     - REGTEST/MINOR: Wrong URI syntax.
     - CLEANUP: dns: remove obsolete macro DNS_MAX_IP_REC
-    - CLEANUP: dns: inacurate comment about prefered IP score
+    - CLEANUP: dns: inacurate comment about preferred IP score
     - MINOR: dns: fix wrong score computation in dns_get_ip_from_response
     - MINOR: dns: new DNS options to allow/prevent IP address duplication
     - REGTEST/MINOR: Unexpected curl URL globling.
@@ -1421,7 +1421,7 @@ ChangeLog :
     - MINOR: threads: Don't start when device a detection module is used
     - BUG/MEDIUM: threads: Run the poll loop on the main thread too
     - BUG/MINOR: threads: Add missing THREAD_LOCAL on static here and there
-    - MAJOR: threads: Offically enable the threads support in HAProxy
+    - MAJOR: threads: Officially enable the threads support in HAProxy
     - BUG/MAJOR: threads/freq_ctr: fix lock on freq counters.
     - BUG/MAJOR: threads/time: Store the time deviation in an 64-bits integer
     - BUILD: stick-tables: silence an uninitialized variable warning
@@ -1617,7 +1617,7 @@ ChangeLog :
     - BUG/MINOR: contrib/modsecurity: BSD build fix
     - BUG/MINOR: contrib/mod_defender: build fix
     - BUG/MINOR: ssl: remove haproxy SSLv3 support when ssl lib have no SSLv3
-    - MINOR: ssl: remove an unecessary SSL_OP_NO_* dependancy
+    - MINOR: ssl: remove an unnecessary SSL_OP_NO_* dependency
     - BUILD: ssl: fix compatibility with openssl without TLSEXT_signature_*
     - MINOR: tools: add a portable timegm() alternative
     - BUILD: lua: replace timegm() with my_timegm() to fix build on Solaris 10
@@ -1668,7 +1668,7 @@ ChangeLog :
     - MINOR: dns: ability to use a SRV resolution for multiple backends
     - MINOR: dns: enable caching of responses for server set by a SRV record
     - MINOR: dns: new dns record type (RTYPE) for OPT
-    - MINOR: dns: enabled edns0 extension and make accpeted payload size tunable
+    - MINOR: dns: enabled edns0 extension and make accepted payload size tunable
     - MINOR: dns: default "hold obsolete" timeout set to 0
     - MINOR: chunks: add chunk_memcpy() and chunk_memcat()
     - MINOR: session: add a streams field to the session struct
@@ -1680,7 +1680,7 @@ ChangeLog :
     - BUG/MINOR: Wrong type used as argument for spoe_decode_buffer().
     - BUG/MINOR: dns: server set by SRV records stay in "no resolution" status
     - MINOR: dns: Maximum DNS udp payload set to 8192
-    - MINOR: dns: automatic reduction of DNS accpeted payload size
+    - MINOR: dns: automatic reduction of DNS accepted payload size
     - MINOR: dns: make SRV record processing more verbose
     - CLEANUP: dns: remove duplicated code in dns_resolve_recv()
     - CLEANUP: dns: remove duplicated code in dns_validate_dns_response()
@@ -1892,7 +1892,7 @@ ChangeLog :
     - BUG/MINOR: change header-declared function to static inline
     - REORG: spoe: move spoe_encode_varint / spoe_decode_varint from spoe to common
     - MINOR: Add binary encoding request header sample fetch
-    - MINOR: proto-http: Add sample fetch wich returns all HTTP headers
+    - MINOR: proto-http: Add sample fetch which returns all HTTP headers
     - MINOR: Add ModSecurity wrapper as contrib
     - BUG/MINOR: ssl: fix warnings about methods for opensslv1.1.
     - DOC: update RFC references
@@ -2266,7 +2266,7 @@ ChangeLog :
     - DOC: fix parenthesis and add missing "Example" tags
     - DOC: update the contributing file
     - DOC: log-format/tcplog/httplog update
-    - MINOR: config parsing: add warning when log-format/tcplog/httplog is overriden in "defaults" sections
+    - MINOR: config parsing: add warning when log-format/tcplog/httplog is overridden in "defaults" sections
 
 2016/11/25 : 1.8-dev0
 
@@ -2446,7 +2446,7 @@ ChangeLog :
     - MINOR: cfgparse: few memory leaks fixes.
     - MEDIUM: log: Decompose %Tq in %Th %Ti %TR
     - CLEANUP: logs: remove unused log format field definitions
-    - BUILD/MAJOR:updated 51d Trie implementation to incorperate latest update to 51Degrees.c
+    - BUILD/MAJOR:updated 51d Trie implementation to incorporate latest update to 51Degrees.c
     - BUG/MAJOR: stream: properly mark the server address as unset on connect retry
     - CLEANUP: proto_http: Removing useless variable assignation
     - CLEANUP: dumpstats: Removing useless variables allocation
@@ -2989,7 +2989,7 @@ ChangeLog :
     - BUG/MINOR: Handle interactive mode in cli handler
     - DOC: global section missing parameters
     - DOC: backend section missing parameters
-    - DOC: stats paramaters available in frontend
+    - DOC: stats parameters available in frontend
     - MINOR: lru: do not allocate useless memory in lru64_lookup
     - BUG/MINOR: http: Add OPTIONS in supported http methods (found by find_http_meth)
     - BUG/MINOR: ssl: fix management of the cache where forged certificates are stored
@@ -3043,7 +3043,7 @@ ChangeLog :
     - MINOR: lua: rename the tune.lua.applet-timeout
     - DOC: lua: update Lua doc
     - DOC: lua: update doc according with the last Lua changes
-    - MINOR: http/tcp: fill the avalaible actions
+    - MINOR: http/tcp: fill the available actions
     - DOC: reorder misplaced res.ssl_hello_type in the doc
     - BUG/MINOR: tcp: make silent-drop always force a TCP reset
     - CLEANUP: tcp: silent-drop: only drain the connection when quick-ack is disabled
@@ -3261,7 +3261,7 @@ ChangeLog :
     - MINOR: samples: data assignation simplification
     - MEDIUM: pattern/map: Maps can returns various types
     - MINOR: map: The map can return IPv4 and IPv6
-    - MEDIUM: actions: Merge (http|tcp)-(request|reponse) action structs
+    - MEDIUM: actions: Merge (http|tcp)-(request|response) action structs
     - MINOR: actions: Remove the data opaque pointer
     - MINOR: lua: use the hlua_rule type in place of opaque type
     - MINOR: vars: use the vars types as argument in place of opaque type
@@ -3276,7 +3276,7 @@ ChangeLog :
     - MINOR: actions: Declare all the embedded actions in the same header file
     - MINOR: actions: change actions names
     - MEDIUM: actions: Add standard return code for the action API
-    - MEDIUM: actions: Merge (http|tcp)-(request|reponse) keywords structs
+    - MEDIUM: actions: Merge (http|tcp)-(request|response) keywords structs
     - MINOR: proto_tcp: proto_tcp.h is now useles
     - MINOR: actions: mutualise the action keyword lookup
     - MEDIUM: actions: Normalize the return code of the configuration parsers
@@ -3287,7 +3287,7 @@ ChangeLog :
     - MEDIUM: stick-tables: Add GPT0 in the stick tables
     - MINOR: stick-tables: Add GPT0 access
     - MINOR: stick-tables: Add GPC0 actions
-    - BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segfault
+    - BUG/MEDIUM: lua: the lua function Channel:close() causes a segfault
     - DOC: ssl: missing LF
     - MINOR: lua: add core.done() function
     - DOC: fix function name
@@ -3491,7 +3491,7 @@ ChangeLog :
     - MINOR: http: split the url_param in two parts
     - CLEANUP: http: bad indentation
     - MINOR: http: add body_param fetch
-    - MEDIUM: http: url-encoded parsing function can run throught wrapped buffer
+    - MEDIUM: http: url-encoded parsing function can run thought wrapped buffer
     - DOC: http: req.body_param documentation
     - MINOR: proxy: custom capture declaration
     - MINOR: capture: add two "capture" converters
@@ -3910,7 +3910,7 @@ ChangeLog :
     - BUG/MEDIUM: lua: the execution timeout is ignored in yield case
     - DOC: lua: Lua configuration documentation
     - MINOR: lua: add the struct session in the lua channel struct
-    - BUG/MINOR: lua: set buffer if it is nnot avalaible.
+    - BUG/MINOR: lua: set buffer if it is nnot available.
     - BUG/MEDIUM: lua: reset flags before resuming execution
     - BUG/MEDIUM: lua: fix infinite loop about channel
     - BUG/MEDIUM: lua: the Lua process is not waked up after sending data on requests side
@@ -4215,7 +4215,7 @@ ChangeLog :
     - BUG/MEDIUM: regex: fix risk of buffer overrun in exp_replace()
     - MINOR: acl: set "str" as default match for strings
     - DOC: Add some precisions about acl default matching method
-    - MEDIUM: acl: strenghten the option parser to report invalid options
+    - MEDIUM: acl: strengthen the option parser to report invalid options
     - BUG/MEDIUM: config: a stats-less config crashes in 1.5-dev25
     - BUG/MINOR: checks: tcp-check must not stop on '\0' for binary checks
     - MINOR: stats: improve alignment of color codes to save one line of header
@@ -5240,7 +5240,7 @@ ChangeLog :
     - BUG/MINOR: stats: http-request rules still don't cope with stats
     - BUG/MINOR: http: http-request add-header emits a corrupted header
     - BUG/MEDIUM: stats: disable request analyser when processing POST or HEAD
-    - BUG/MINOR: log: make log-format, unique-id-format and add-header more independant
+    - BUG/MINOR: log: make log-format, unique-id-format and add-header more independent
     - BUILD: log: unused variable svid
     - CLEANUP: http: rename the misleading http_check_access_rule
     - MINOR: http: move redirect rule processing to its own function
@@ -5431,7 +5431,7 @@ ChangeLog :
     - MINOR: ssl: add statement 'no-tls-tickets' on server side.
     - MINOR: ssl: add statements 'verify', 'ca-file' and 'crl-file' on servers.
     - DOC: Fix rename of options cafile and crlfile to ca-file and crl-file.
-    - MINOR: sample: manage binary to string type convertion in stick-table and samples.
+    - MINOR: sample: manage binary to string type conversion in stick-table and samples.
     - MINOR: acl: add parse and match primitives to use binary type on ACLs
     - MINOR: sample: export 'sample_get_trash_chunk(void)'
     - MINOR: conf: rename all ssl modules fetches using prefix 'ssl_fc' and 'ssl_c'
@@ -5691,7 +5691,7 @@ ChangeLog :
     - MINOR: ssl add global setting tune.sslcachesize to set SSL session cache size.
     - MEDIUM: ssl: add support for SNI and wildcard certificates
     - DOC: Typos cleanup
-    - DOC: fix name for "option independant-streams"
+    - DOC: fix name for "option independent-streams"
     - DOC: specify the default value for maxconn in the context of a proxy
     - BUG/MINOR: to_log erased with unique-id-format
     - LICENSE: add licence exception for OpenSSL
@@ -6240,7 +6240,7 @@ ChangeLog :
     - [BUG] peers: don't keep a peers section which has a NULL frontend
     - [BUG] peers: ensure the peers are resumed if they were paused
     - [MEDIUM] stats: add the ability to enable/disable/shutdown a frontend at runtime
-    - [MEDIUM] session: make session_shutdown() an independant function
+    - [MEDIUM] session: make session_shutdown() an independent function
     - [MEDIUM] stats: offer the possibility to kill a session from the CLI
     - [CLEANUP] stats: centralize tests for backend/server inputs on the CLI
     - [MEDIUM] stats: offer the possibility to kill sessions by server
@@ -6555,7 +6555,7 @@ ChangeLog :
     - [MEDIUM] stats: rely on the standard session_accept() function
     - [MINOR] buffer: refine the flags that may wake an analyser up.
     - [MINOR] stream_sock: don't dereference a non-existing frontend
-    - [MINOR] session: differenciate between accepted connections and received connections
+    - [MINOR] session: differentiate between accepted connections and received connections
     - [MEDIUM] frontend: count the incoming connection earlier
     - [MINOR] frontend: count denied TCP requests separately
     - [CLEANUP] stick_table: add/clarify some comments
@@ -6698,7 +6698,7 @@ ChangeLog :
 2010/03/17 : 1.4.2
     - [CLEANUP] product branch update
     - [DOC] Some more documentation cleanups
-    - [BUG] clf logs segfault when capturing a non existant header
+    - [BUG] clf logs segfault when capturing a non existent header
     - [OPTIM] config: only allocate check buffer when checks are enabled
     - [MEDIUM] checks: support multi-packet health check responses
     - [CLEANUP] session: remove duplicate test
@@ -6744,7 +6744,7 @@ ChangeLog :
     - [BUG] pxid/puid/luid: don't shift IDs when some of them are forced
     - [EXAMPLES] add auth.cfg
     - [BUG] uri_auth: ST_SHLGNDS should be 0x00000008 not 0x0000008
-    - [BUG] uri_auth: do not attemp to convert uri_auth -> http-request more than once
+    - [BUG] uri_auth: do not attempt to convert uri_auth -> http-request more than once
     - [BUILD] auth: don't use unnamed unions
     - [BUG] config: report unresolvable host names as errors
     - [BUILD] fix build breakage with DEBUG_FULL
@@ -6777,7 +6777,7 @@ ChangeLog :
     - [MINOR] pattern: add the "ipmask()" converting function
     - [MINOR] config: off-by-one in "stick-table" after list of converters
     - [CLEANUP] acl, patterns: make use of my_strndup() instead of malloc+memcpy
-    - [BUG] restore accidentely removed line in last patch !
+    - [BUG] restore accidently removed line in last patch !
     - [MINOR] checks: make the HTTP check code add the CRLF itself
     - [MINOR] checks: add the server's status in the checks
     - [BUILD] halog: make without arch-specific optimizations
@@ -7043,7 +7043,7 @@ ChangeLog :
     - [MEDIUM] backend: introduce the "static-rr" LB algorithm
     - [MINOR] report list of supported pollers with -vv
     - [DOC] log-health-checks is an option, not a directive
-    - [MEDIUM] new option "independant-streams" to stop updating read timeout on writes
+    - [MEDIUM] new option "independent-streams" to stop updating read timeout on writes
     - [BUG] stats: don't call buffer_shutw(), but ->shutw() instead
     - [MINOR] stats: strip CR and LF from the input command line
     - [BUG] don't refresh timeouts late after detected activity
@@ -7632,7 +7632,7 @@ ChangeLog :
     - [BUILD] ensure that makefile understands USE_DLMALLOC=1
     - [MINOR] silent gcc for a wrong warning
     - [CLEANUP] update .gitignore to ignore more temporary files
-    - [CLEANUP] report dlmalloc's source path only if explictly specified
+    - [CLEANUP] report dlmalloc's source path only if explicitly specified
     - [BUG] str2sun could leak a small buffer in case of error during parsing
     - [BUG] option allbackups was not working anymore in roundrobin mode
     - [MAJOR] implementation of the "leastconn" load balancing algorithm
@@ -7654,7 +7654,7 @@ ChangeLog :
     - use backends only with use_backend directive (Krzysztof Oledzki)
     - Handle long lines properly (Krzysztof Oledzki)
     - Implement and use generic findproxy and relax duplicated proxy check (Krzysztof Oledzki)
-    - continous statistics (Krzysztof Oledzki)
+    - continuous statistics (Krzysztof Oledzki)
     - add support for logging via a UNIX socket (Robert Tsai)
     - fix error checking in strl2ic/strl2uic()
     - fix calls to localtime()
@@ -7781,7 +7781,7 @@ ChangeLog :
     - errorfile: use a local file to feed error messages
     - acl: support '-i' to ignore case when matching
     - acl: smarter integer comparison with operators eq,lt,gt,le,ge
-    - acl: support maching on 'path' component
+    - acl: support machine on 'path' component
     - acl: implement matching on header values
     - acl: distinguish between request and response headers
     - acl: permit to return any header when no name specified
@@ -7826,7 +7826,7 @@ ChangeLog :
     - several fixes in ev_sepoll
     - fixed some expiration dates on some tasks
     - fixed a bug in connection establishment detection due to speculative I/O
-    - fixed rare bug occuring on TCP with early close (reported by Andy Smith)
+    - fixed rare bug occurring on TCP with early close (reported by Andy Smith)
     - implemented URI hashing algorithm (Guillaume Dallaire)
     - implemented SMTP health checks (Peter van Dijk)
     - replaced the rbtree with ul2tree from old scheduler project
@@ -7843,7 +7843,7 @@ ChangeLog :
       of macros at many places
     - implemented support for FreeBSD's kqueue() polling mechanism
     - fixed a warning on OpenBSD : MIN/MAX redefined
-    - change socket registration order at startup to accomodate kqueue.
+    - change socket registration order at startup to accommodate kqueue.
     - several makefile cleanups to support old shells
     - fix build with limits.h once for all
     - ev_epoll: do not rely on fd_sets anymore, use changes stacks instead.
@@ -7944,7 +7944,7 @@ ChangeLog :
      at once.
 
 2006/06/29 : 1.3.0
-   - exploded the whole file into multiple .c and .h. No functionnal
+   - exploded the whole file into multiple .c and .h. No functional
      difference is expected at all.
    - fixed a bug by which neither stats nor error messages could be returned if
      'clitimeout' was missing.
@@ -8153,7 +8153,7 @@ ChangeLog :
   - added a 'linux24e' target to the Makefile for Linux 2.4 systems patched to
     support epoll().
   - changed default FD_SETSIZE to 65536 on Solaris (default=1024)
-  - conditionned signals redirection to #ifdef DEBUG_MEMORY
+  - conditioned signals redirection to #ifdef DEBUG_MEMORY
 
 2005/04/26 : 1.2.5-pre4
   - made epoll() support a compile-time option : ENABLE_EPOLL

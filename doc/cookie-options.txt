@@ -13,7 +13,7 @@ PSV PFX INS REW IND   Behaviour
  0   0   1   0   1    insert + indirect : remove req and also resp if not needed
  *   *   1   1   *    [ forbidden ]
  0   1   0   0   0    prefix
- 0   1   0   0   1    !! prefix on request, remove reponse cookie if not needed
+ 0   1   0   0   1    !! prefix on request, remove response cookie if not needed
  *   1   *   1   *    [ forbidden ]
  *   1   1   *   *    [ forbidden ]
  *   *   *   1   1    [ forbidden ]

@@ -429,7 +429,7 @@ void process_runnable_tasks()
 		}
 		curr_task = NULL;
 		/* If there is a pending state  we have to wake up the task
-		 * immediatly, else we defer it into wait queue
+		 * immediately, else we defer it into wait queue
 		 */
 		if (t != NULL) {
 			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);

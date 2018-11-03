@@ -130,7 +130,7 @@ static void modsec_log(void *obj, int level, char *str)
 	LOG(&null_worker, "%s", str);
 }
 
-/* This fucntion load the ModSecurity file. It returns -1 if the
+/* This function load the ModSecurity file. It returns -1 if the
  * initialisation fails.
  */
 int modsecurity_load(const char *file)
@@ -568,7 +568,7 @@ int modsecurity_process(struct worker *worker, struct modsecurity_parameters *pa
 		goto fail;
 	}
 
-	/* Stores HTTP body avalaible data in a bucket */
+	/* Stores HTTP body available data in a bucket */
 	data_bucket = apr_bucket_alloc(sizeof(*data_bucket), req->connection->bucket_alloc);
 	if (!data_bucket) {
 		errno = ENOMEM;

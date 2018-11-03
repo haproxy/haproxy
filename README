@@ -116,7 +116,7 @@ you don't want them on your systems. HAProxy is known to build correctly on all
 currently supported branches (0.9.8, 1.0.0, 1.0.1, 1.0.2 and 1.1.0 at the time
 of writing). Branch 1.0.2 is currently recommended for the best combination of
 features and stability. Asynchronous engines require OpenSSL 1.1.0 though. It's
-worth mentionning that some OpenSSL derivatives are also reported to work but
+worth mentioning that some OpenSSL derivatives are also reported to work but
 may occasionally break. Patches to fix them are welcome but please read the
 CONTRIBUTING file first.
 
@@ -189,7 +189,7 @@ which come in multiple flavors depending on the system and architecture :
       silently fail. Pthreads are enabled using USE_PTHREAD_PSHARED=1.
 
   Synchronization operations :
-    - internal spinlock : this mode is OS-independant, light but will not
+    - internal spinlock : this mode is OS-independent, light but will not
       scale well to many processes. However, accesses to the session cache
       are rare enough that this mode could certainly always be used. This
       is the default mode.

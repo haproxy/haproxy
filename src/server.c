@@ -1921,7 +1921,7 @@ static inline void srv_set_id_from_prefix(struct server *srv, const char *prefix
  * Note that a server template is a special server with
  * a few different parameters than a server which has
  * been parsed mostly the same way as a server.
- * Returns the number of servers succesfully allocated,
+ * Returns the number of servers successfully allocated,
  * 'srv' template included.
  */
 static int server_template_init(struct server *srv, struct proxy *px)
@@ -2303,7 +2303,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				p = args[cur_arg + 1];
 				e = p;
 				while (*p != '\0') {
-					/* If no room avalaible, return error. */
+					/* If no room available, return error. */
 					if (opt->pref_net_nb >= SRV_MAX_PREF_NET) {
 						ha_alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
 						      file, linenum, args[cur_arg], SRV_MAX_PREF_NET);
@@ -3043,7 +3043,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					 * - reload for any other reason than a FQDN modification,
 					 * the configuration file FQDN matches the fqdn server state file value.
 					 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
-					 * any futher FQDN modification.
+					 * any further FQDN modification.
 					 */
 					srv->next_admin &= ~SRV_ADMF_HMAINT;
 				}

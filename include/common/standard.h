@@ -365,7 +365,7 @@ extern const char *invalid_prefix_char(const char *name);
  * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
  * If <pfx> is non-null, it is used as a string prefix before any path-based
  * address (typically the path to a unix socket). If use_dns is not true,
- * the funtion cannot accept the DNS resolution.
+ * the function cannot accept the DNS resolution.
  */
 struct sockaddr_storage *str2sa_range(const char *str,
                                       int *port, int *low, int *high,
@@ -1055,10 +1055,10 @@ extern int in_net_ipv4(const void *addr, const struct in_addr *mask, const struc
 /* Return true if IPv6 address is part of the network */
 extern int in_net_ipv6(const void *addr, const struct in6_addr *mask, const struct in6_addr *net);
 
-/* Map IPv4 adress on IPv6 address, as specified in RFC 3513. */
+/* Map IPv4 address on IPv6 address, as specified in RFC 3513. */
 extern void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr);
 
-/* Map IPv6 adress on IPv4 address, as specified in RFC 3513.
+/* Map IPv6 address on IPv4 address, as specified in RFC 3513.
  * Return true if conversion is possible and false otherwise.
  */
 extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
@@ -1208,7 +1208,7 @@ const char *strnistr(const char *str1, int len_str1, const char *str2, int len_s
 /* after increasing a pointer value, it can exceed the first buffer
  * size. This function transform the value of <ptr> according with
  * the expected position. <chunks> is an array of the one or two
- * avalaible chunks. The first value is the start of the first chunk,
+ * available chunks. The first value is the start of the first chunk,
  * the second value if the end+1 of the first chunks. The third value
  * is NULL or the start of the second chunk and the fourth value is
  * the end+1 of the second chunk. The function returns 1 if does a

@@ -87,7 +87,7 @@ Here, two headers are created with 51Degrees data, X-51D-DeviceTypeMobileTablet
 and X-51D-Tablet. Any number of headers can be created this way and can be
 named anything. 51d.all( ) invokes the 51degrees fetch. It can be passed up to
 five property names of values to return. Values will be returned in the same
-order, seperated by the 51-degrees-property-separator configured earlier. If a
+order, separated by the 51-degrees-property-separator configured earlier. If a
 property name can't be found the value 'NoData' is returned instead.
 
 In addition to the device properties three additional properties related to the

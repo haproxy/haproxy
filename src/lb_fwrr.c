@@ -586,7 +586,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
  requeue_servers:
 	/* Requeue all extracted servers. If full==srv then it was
-	 * avoided (unsucessfully) and chained, omit it now.
+	 * avoided (unsuccessfully) and chained, omit it now.
 	 */
 	if (unlikely(full != NULL)) {
 		if (switched) {

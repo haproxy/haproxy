@@ -876,7 +876,7 @@ int main(int argc, char **argv)
 
 #if defined(POSIX_FADV_SEQUENTIAL)
 	/* around 20% performance improvement is observed on Linux with this
-	 * on cold-cache. Surprizingly, WILLNEED is less performant. Don't
+	 * on cold-cache. Surprisingly, WILLNEED is less performant. Don't
 	 * use NOREUSE as it flushes the cache and prevents easy data
 	 * manipulation on logs!
 	 */

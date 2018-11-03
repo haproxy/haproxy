@@ -51,7 +51,7 @@ int smp_dup(struct sample *smp);
 
 /*
  * This function just apply a cast on sample. It returns 0 if the cast is not
- * avalaible or if the cast fails, otherwise returns 1. It does not modify the
+ * available or if the cast fails, otherwise returns 1. It does not modify the
  * input sample on failure.
  */
 static inline

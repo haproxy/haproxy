@@ -90,7 +90,7 @@ static int hlua_fcn_pushunsigned_ll(lua_State *L, unsigned long long val) {
 int hlua_fcn_pushfield(lua_State *L, struct field *field)
 {
 	/* The lua_Integer is always signed. Its length depends on
-	 * compilation opions, so the followinfg code is conditionned
+	 * compilation opions, so the followinfg code is conditioned
 	 * by some macros. Windows maros are not supported.
 	 * If the number cannot be represented as integer, we try to
 	 * convert to float.
@@ -205,7 +205,7 @@ void hlua_class_function(lua_State *L, const char *name, int (*function)(lua_Sta
 	lua_rawset(L, -3);
 }
 
-/* This function returns a string containg the HAProxy object name. */
+/* This function returns a string containing the HAProxy object name. */
 int hlua_dump_object(struct lua_State *L)
 {
 	const char *name = (const char *)lua_tostring(L, lua_upvalueindex(1));

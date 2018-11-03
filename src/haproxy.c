@@ -688,7 +688,7 @@ static void get_cur_unixsocket()
 
 /*
  * When called, this function reexec haproxy with -sf followed by current
- * children PIDs and possibily old children PIDs if they didn't leave yet.
+ * children PIDs and possibility old children PIDs if they didn't leave yet.
  */
 static void mworker_reload()
 {
@@ -758,13 +758,13 @@ static void mworker_reload()
 	return;
 
 alloc_error:
-	ha_warning("Failed to reexecute the master processs [%d]: Cannot allocate memory\n", pid);
+	ha_warning("Failed to reexecute the master processes [%d]: Cannot allocate memory\n", pid);
 	return;
 }
 
 /*
  * When called, this function reexec haproxy with -sf followed by current
- * children PIDs and possibily old children PIDs if they didn't leave yet.
+ * children PIDs and possibility old children PIDs if they didn't leave yet.
  */
 static void mworker_catch_sighup(struct sig_handler *sh)
 {
@@ -1044,8 +1044,8 @@ static void stdio_quiet(int fd)
 }
 
 
-/* This function check if cfg_cfgfiles containes directories.
- * If it find one, it add all the files (and only files) it containes
+/* This function check if cfg_cfgfiles contains directories.
+ * If it find one, it add all the files (and only files) it contains
  * in cfg_cfgfiles in place of the directory (and remove the directory).
  * It add the files in lexical order.
  * It add only files with .cfg extension.
@@ -1089,7 +1089,7 @@ static void cfgfiles_expand_directories(void)
 			char *d_name_cfgext = strstr(dir_entry->d_name, ".cfg");
 
 			/* don't add filename that begin with .
-			 * only add filename with .cfg extention
+			 * only add filename with .cfg extension
 			 */
 			if (dir_entry->d_name[0] == '.' ||
 			    !(d_name_cfgext && d_name_cfgext[4] == '\0'))
@@ -1683,7 +1683,7 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	/* handle cfgfiles that are actualy directories */
+	/* handle cfgfiles that are actually directories */
 	cfgfiles_expand_directories();
 
 	if (LIST_ISEMPTY(&cfg_cfgfiles))

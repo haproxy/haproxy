@@ -35,7 +35,7 @@ Their need is to have an embedded programming language in order to no longer
 modify the HAProxy source code, but to write their own control code. Lua is
 encountered very often in the software industry, and in some open source
 projects. It is easy to understand, efficient, light without external
-dependancies, and leaves the resource control to the implementation. Its design
+dependencies, and leaves the resource control to the implementation. Its design
 is close to the HAProxy philosophy which uses components for what they do
 perfectly.
 
@@ -473,7 +473,7 @@ stores a stack state, and the longjmp restores the stack in its state which had
 before the last Lua execution.
 
 Lua can immediately stop its execution if an error occurs. This system uses also
-the longjmp system. In HAProxy, we try to use this sytem only for unrecoverable
+the longjmp system. In HAProxy, we try to use this system only for unrecoverable
 errors. Maybe some trivial errors target an exception, but we try to remove it.
 
 It seems that Lua uses the longjmp system for having a behaviour like the java
@@ -917,7 +917,7 @@ without storing again the new table. Maybe an example will be clearer:
 HTTP actions
 ============
 
-   ... comming soon ...
+   ... coming soon ...
 
 Lua is fast, but my service require more execution speed
 ========================================================

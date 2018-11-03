@@ -35,7 +35,7 @@
 REGPRM3 struct ebpt_node *ebim_lookup(struct eb_root *root, const void *x, unsigned int len);
 REGPRM3 struct ebpt_node *ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len);
 
-/* Find the first occurence of a key of a least <len> bytes matching <x> in the
+/* Find the first occurrence of a key of a least <len> bytes matching <x> in the
  * tree <root>. The caller is responsible for ensuring that <len> will not exceed
  * the common parts between the tree's keys and <x>. In case of multiple matches,
  * the leftmost node is returned. This means that this function can be used to
@@ -89,7 +89,7 @@ __ebim_lookup(struct eb_root *root, const void *x, unsigned int len)
 		 */
 		node_bit = ~node_bit + (pos << 3) + 8; // = (pos<<3) + (7 - node_bit)
 		if (node_bit < 0) {
-			/* This surprizing construction gives better performance
+			/* This surprising construction gives better performance
 			 * because gcc does not try to reorder the loop. Tested to
 			 * be fine with 2.95 to 4.2.
 			 */

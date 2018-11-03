@@ -251,8 +251,8 @@ struct strm_flt {
 	                                       * If NULL, we start from the first filter.
 	                                       * 0: request channel, 1: response channel */
 	unsigned short flags;                 /* STRM_FL_* */
-	unsigned char  nb_req_data_filters;   /* Number of data filters registerd on the request channel */
-	unsigned char  nb_rsp_data_filters;   /* Number of data filters registerd on the response channel */
+	unsigned char  nb_req_data_filters;   /* Number of data filters registered on the request channel */
+	unsigned char  nb_rsp_data_filters;   /* Number of data filters registered on the response channel */
 };
 
 #endif /* _TYPES_FILTERS_H */
