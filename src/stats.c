@@ -130,6 +130,9 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_IDLE_PCT]                       = "Idle_pct",
 	[INF_NODE]                           = "node",
 	[INF_DESCRIPTION]                    = "description",
+	[INF_STOPPING]                       = "Stopping",
+	[INF_JOBS]                           = "Jobs",
+	[INF_LISTENERS]                      = "Listeners",
 };
 
 const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
@@ -3292,6 +3295,9 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_NODE]                           = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.node);
 	if (global.desc)
 		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
+	info[INF_STOPPING]                       = mkf_u32(0, stopping);
+	info[INF_JOBS]                           = mkf_u32(0, jobs);
+	info[INF_LISTENERS]                      = mkf_u32(0, listeners);
 
 	return 1;
 }

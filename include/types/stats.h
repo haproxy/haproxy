@@ -288,6 +288,9 @@ enum info_field {
 	INF_IDLE_PCT,
 	INF_NODE,
 	INF_DESCRIPTION,
+	INF_STOPPING,
+	INF_JOBS,
+	INF_LISTENERS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS
