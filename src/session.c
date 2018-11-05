@@ -331,7 +331,7 @@ static void session_prepare_log_prefix(struct session *sess)
  * disabled and finally kills the file descriptor. This function requires that
  * sess->origin points to the incoming connection.
  */
-static void session_kill_embryonic(struct session *sess)
+static void session_kill_embryonic(struct session *sess, unsigned short state)
 {
 	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(sess->origin);
@@ -352,7 +352,7 @@ static void session_kill_embryonic(struct session *sess)
 	}
 
 	if (log) {
-		if (!conn->err_code && (task->state & TASK_WOKEN_TIMER)) {
+		if (!conn->err_code && (state & TASK_WOKEN_TIMER)) {
 			if (conn->flags & CO_FL_ACCEPT_PROXY)
 				conn->err_code = CO_ER_PRX_TIMEOUT;
 			else if (conn->flags & CO_FL_ACCEPT_CIP)
@@ -391,7 +391,7 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 	if (!(state & TASK_WOKEN_TIMER))
 		return t;
 
-	session_kill_embryonic(sess);
+	session_kill_embryonic(sess, state);
 	return NULL;
 }
 
@@ -441,7 +441,7 @@ static int conn_complete_session(struct connection *conn)
 
  fail:
 	if (sess->task)
-		session_kill_embryonic(sess);
+		session_kill_embryonic(sess, 0);
 	return -1;
 }
 

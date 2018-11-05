@@ -2118,7 +2118,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 	} /* !stopping */
 	else {
 		/* soft stop case */
-		if (task->state & TASK_WOKEN_SIGNAL) {
+		if (state & TASK_WOKEN_SIGNAL) {
 			/* We've just recieved the signal */
 			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 				/* add DO NOT STOP flag if not present */
