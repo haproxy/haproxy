@@ -133,6 +133,7 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_STOPPING]                       = "Stopping",
 	[INF_JOBS]                           = "Jobs",
 	[INF_LISTENERS]                      = "Listeners",
+	[INF_ACTIVE_PEERS]                   = "ActivePeers",
 };
 
 const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
@@ -3298,6 +3299,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_STOPPING]                       = mkf_u32(0, stopping);
 	info[INF_JOBS]                           = mkf_u32(0, jobs);
 	info[INF_LISTENERS]                      = mkf_u32(0, listeners);
+	info[INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
 
 	return 1;
 }

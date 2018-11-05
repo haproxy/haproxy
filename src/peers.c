@@ -506,6 +506,7 @@ static void peer_session_release(struct appctx *appctx)
 
 	/* peer session identified */
 	if (peer) {
+		HA_ATOMIC_SUB(&active_peers, 1);
 		HA_SPIN_LOCK(PEER_LOCK, &peer->lock);
 		if (peer->appctx == appctx) {
 			/* Re-init current table pointers to force announcement on re-connect */
@@ -718,6 +719,7 @@ switchstate:
 				curpeer->appctx = appctx;
 				appctx->ctx.peers.ptr = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
+				HA_ATOMIC_ADD(&active_peers, 1);
 				/* fall through */
 			}
 			case PEER_SESS_ST_SENDSUCCESS: {
@@ -1979,6 +1981,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	peer->appctx = appctx;
 	task_wakeup(s->task, TASK_WOKEN_INIT);
+	HA_ATOMIC_ADD(&active_peers, 1);
 	return appctx;
 
 	/* Error unrolling */

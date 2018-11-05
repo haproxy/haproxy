@@ -291,6 +291,7 @@ enum info_field {
 	INF_STOPPING,
 	INF_JOBS,
 	INF_LISTENERS,
+	INF_ACTIVE_PEERS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS
