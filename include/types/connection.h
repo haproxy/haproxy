@@ -326,6 +326,7 @@ struct mux_ops {
 	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
+	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };

@@ -339,6 +339,13 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 	}
 }
 
+static int h2_avail_streams(struct connection *conn)
+{
+	struct h2c *h2c = conn->mux_ctx;
+
+	return (h2_settings_max_concurrent_streams - h2c->nb_streams);
+}
+
 
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
@@ -3793,6 +3800,7 @@ const struct mux_ops h2_ops = {
 	.attach = h2_attach,
 	.get_first_cs = h2_get_first_cs,
 	.detach = h2_detach,
+	.avail_streams = h2_avail_streams,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
 	.show_fd = h2_show_fd,

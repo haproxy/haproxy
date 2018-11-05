@@ -163,6 +163,13 @@ static void mux_pt_detach(struct conn_stream *cs)
 	mux_pt_destroy(ctx);
 }
 
+static int mux_pt_avail_streams(struct connection *conn)
+{
+	struct mux_pt_ctx *ctx = conn->mux_ctx;
+
+	return (ctx->cs == NULL ? 1 : 0);
+}
+
 static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	if (cs->flags & CS_FL_SHR)
@@ -261,6 +268,7 @@ const struct mux_ops mux_pt_ops = {
 	.attach = mux_pt_attach,
 	.get_first_cs = mux_pt_get_first_cs,
 	.detach = mux_pt_detach,
+	.avail_streams = mux_pt_avail_streams,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
 	.flags = MX_FL_NONE,
