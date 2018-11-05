@@ -225,6 +225,7 @@ extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
 extern int  active_peers;       /* # of active peers (connection attempts and successes) */
+extern int  connected_peers;    /* # of really connected peers */
 extern THREAD_LOCAL struct buffer trash;
 extern int nb_oldpids;          /* contains the number of old pids found */
 extern const int zero;

@@ -176,6 +176,7 @@ int stopping;	/* non zero means stopping in progress */
 int killed;	/* non zero means a hard-stop is triggered */
 int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) */
 int active_peers = 0; /* number of active peers (connection attempts and connected) */
+int connected_peers = 0; /* number of connected peers (verified ones) */
 
 /* Here we store informations about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
