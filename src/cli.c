@@ -1402,12 +1402,12 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "# <PID> <type> <relative PID>\n");
-	chunk_appendf(&trash, "%u %s %u\n", getpid(), "master", 0);
+	chunk_printf(&trash, "# <PID> <type> <relative PID> <reloads>\n");
+	chunk_appendf(&trash, "%u %s %u %d\n", getpid(), "master", 0, -1);
 
 
 	list_for_each_entry(child, &proc_list, list) {
-		chunk_appendf(&trash, "%u %s %u\n", child->pid, "worker", child->relative_pid);
+		chunk_appendf(&trash, "%u %s %u %d\n", child->pid, "worker", child->relative_pid, child->reloads);
 	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
