@@ -208,8 +208,10 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		else if ((rule->arg.loglevel = get_log_level(args[cur_arg]) + 1) == 0)
 			goto bad_log_level;
 		cur_arg++;
-	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
-		rule->action = *args[0] == 'a' ? ACT_HTTP_ADD_HDR : ACT_HTTP_SET_HDR;
+	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0 ||
+	           strcmp(args[0], "early-hint") == 0) {
+		rule->action = *args[0] == 'a' ? ACT_HTTP_ADD_HDR :
+		               *args[0] == 's' ? ACT_HTTP_SET_HDR : ACT_HTTP_EARLY_HINT;
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||

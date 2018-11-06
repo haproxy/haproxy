@@ -77,6 +77,7 @@ enum act_name {
 	ACT_HTTP_DEL_ACL,
 	ACT_HTTP_DEL_MAP,
 	ACT_HTTP_SET_MAP,
+	ACT_HTTP_EARLY_HINT,
 
 	/* http request actions. */
 	ACT_HTTP_REQ_TARPIT,
