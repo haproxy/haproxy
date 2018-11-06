@@ -756,7 +756,7 @@ void stream_int_update(struct stream_interface *si)
 			/* stop reading */
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if (!(ic->flags & CF_DONT_READ)) /* full */
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_cant_put(si);
 				ic->rex = TICK_ETERNITY;
 			}
 		}
@@ -1098,6 +1098,9 @@ int si_cs_recv(struct conn_stream *cs)
 	if (si->wait_event.wait_reason & SUB_CAN_RECV)
 		return 0;
 
+	/* by default nothing to deliver */
+	si_stop_put(si);
+
 	/* maybe we were called immediately after an asynchronous shutr */
 	if (ic->flags & CF_SHUTR)
 		return 1;
@@ -1165,7 +1168,7 @@ int si_cs_recv(struct conn_stream *cs)
 			/* the pipe is full or we have read enough data that it
 			 * could soon be full. Let's stop before needing to poll.
 			 */
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_cant_put(si);
 		}
 
 		/* splice not possible (anymore), let's go on on standard copy */
@@ -1191,13 +1194,13 @@ int si_cs_recv(struct conn_stream *cs)
 		max = channel_recv_max(ic);
 
 		if (!max) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_cant_put(si);
 			break;
 		}
 
 		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
 		if (cs->flags & CS_FL_RCV_MORE)
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_cant_put(si);
 
 		if (ret <= 0)
 			break;
@@ -1219,7 +1222,7 @@ int si_cs_recv(struct conn_stream *cs)
 		ic->total += ret;
 
 		if (!channel_may_recv(ic)) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_cant_put(si);
 			break;
 		}
 

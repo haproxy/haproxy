@@ -330,7 +330,7 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 	si->flags &= ~SI_FL_WAIT_ROOM;
 	ret = channel_alloc_buffer(si_ic(si), wait);
 	if (!ret)
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_cant_put(si);
 	return ret;
 }
 
