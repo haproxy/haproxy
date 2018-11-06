@@ -1926,6 +1926,11 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct proxy *fe = strm_fe(s);
 	struct proxy *be = s->be;
 
+	if (rep->flags & CF_READ_ERROR) {
+		pcli_reply_and_close(s, "Can't connect to the target CLI!\n");
+		s->res.analysers &= ~AN_RES_WAIT_CLI;
+		return 0;
+	}
 	rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 	rep->flags |= CF_NEVER_WAIT;
 
