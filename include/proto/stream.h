@@ -57,6 +57,7 @@ int parse_track_counters(char **args, int *arg,
 /* Update the stream's backend and server time stats */
 void stream_update_time_stats(struct stream *s);
 void stream_release_buffers(struct stream *s);
+int stream_buf_available(void *arg);
 
 /* returns the session this stream belongs to */
 static inline struct session *strm_sess(const struct stream *strm)
@@ -345,18 +346,6 @@ static void inline stream_init_srv_conn(struct stream *sess)
 {
 	sess->srv_conn = NULL;
 	LIST_INIT(&sess->by_srv);
-}
-
-/* Callback used to wake up a stream when a buffer is available. The stream <s>
- * is woken up is if it is not already running and if it is not already in the
- * task run queue. This functions returns 1 is the stream is woken up, otherwise
- * it returns 0. */
-static int inline stream_res_wakeup(struct stream *s)
-{
-	if (s->task->state & TASK_RUNNING)
-		return 0;
-	task_wakeup(s->task, TASK_WOKEN_RES);
-	return 1;
 }
 
 void service_keywords_register(struct action_kw_list *kw_list);
