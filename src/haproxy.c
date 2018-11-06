@@ -2997,6 +2997,7 @@ int main(int argc, char **argv)
 			if (global.mode & MODE_MWORKER) {
 				struct mworker_proc *child;
 
+				qfprintf(stdout, "New worker #%d (%d) forked\n", relative_pid, ret);
 				/* find the right mworker_proc */
 				list_for_each_entry(child, &proc_list, list) {
 					if (child->relative_pid == relative_pid &&
