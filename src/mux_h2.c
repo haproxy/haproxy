@@ -2478,7 +2478,6 @@ static int h2_wake(struct connection *conn)
 	return (h2_process(h2c));
 }
 
-
 /* Connection timeout management. The principle is that if there's no receipt
  * nor sending for a certain amount of time, the connection is closed. If the
  * MUX buffer still has lying data or is not allocatable, the connection is
@@ -2565,6 +2564,17 @@ static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
 		node = eb32_next(node);
 	}
 	return NULL;
+}
+
+/*
+ * Destroy the mux and the associated connection, if it is no longer used
+ */
+static void h2_destroy(struct connection *conn)
+{
+	struct h2c *h2c = conn->mux_ctx;
+
+	if (eb_is_empty(&h2c->streams_by_id))
+		h2_release(h2c->conn);
 }
 
 /*
@@ -3800,6 +3810,7 @@ const struct mux_ops h2_ops = {
 	.attach = h2_attach,
 	.get_first_cs = h2_get_first_cs,
 	.detach = h2_detach,
+	.destroy = h2_destroy,
 	.avail_streams = h2_avail_streams,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,

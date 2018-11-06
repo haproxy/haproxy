@@ -149,6 +149,12 @@ static const struct conn_stream *mux_pt_get_first_cs(const struct connection *co
 	return cs;
 }
 
+/* Destroy the mux and the associated connection */
+static void mux_pt_destroy_meth(struct connection *conn)
+{
+	mux_pt_destroy(conn->mux_ctx);
+}
+
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
@@ -269,6 +275,7 @@ const struct mux_ops mux_pt_ops = {
 	.get_first_cs = mux_pt_get_first_cs,
 	.detach = mux_pt_detach,
 	.avail_streams = mux_pt_avail_streams,
+	.destroy = mux_pt_destroy_meth,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
 	.flags = MX_FL_NONE,

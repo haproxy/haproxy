@@ -327,6 +327,7 @@ struct mux_ops {
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
+	void (*destroy)(struct connection *conn); /* Let the mux know one of its users left, so it may have to disappear */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
