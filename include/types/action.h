@@ -116,6 +116,11 @@ struct act_rule {
 			struct list fmt;       /* log-format compatible expression */
 			struct my_regex re;    /* used by replace-header and replace-value */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
+		struct {
+			char *name;            /* header name */
+			int name_len;          /* header name's length */
+			struct list fmt;       /* log-format compatible expression */
+		} early_hint;
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		int nice;                      /* nice value for ACT_HTTP_SET_NICE */
 		int loglevel;                  /* log-level value for ACT_HTTP_SET_LOGL */

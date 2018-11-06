@@ -210,8 +210,17 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0 ||
 	           strcmp(args[0], "early-hint") == 0) {
+		char **hdr_name;
+		int *hdr_name_len;
+		struct list *fmt;
+
 		rule->action = *args[0] == 'a' ? ACT_HTTP_ADD_HDR :
 		               *args[0] == 's' ? ACT_HTTP_SET_HDR : ACT_HTTP_EARLY_HINT;
+
+		hdr_name     = *args[0] == 'e' ? &rule->arg.early_hint.name     : &rule->arg.hdr_add.name;
+		hdr_name_len = *args[0] == 'e' ? &rule->arg.early_hint.name_len : &rule->arg.hdr_add.name_len;
+		fmt          = *args[0] == 'e' ? &rule->arg.early_hint.fmt      : &rule->arg.hdr_add.fmt;
+
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] ||
@@ -221,13 +230,13 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			goto out_err;
 		}
 
-		rule->arg.hdr_add.name = strdup(args[cur_arg]);
-		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
-		LIST_INIT(&rule->arg.hdr_add.fmt);
+		*hdr_name = strdup(args[cur_arg]);
+		*hdr_name_len = strlen(*hdr_name);
+		LIST_INIT(fmt);
 
 		proxy->conf.args.ctx = ARGC_HRQ;
 		error = NULL;
-		if (!parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
+		if (!parse_logformat_string(args[cur_arg + 1], proxy, fmt, LOG_OPT_HTTP,
 		                            (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &error)) {
 			ha_alert("parsing [%s:%d]: 'http-request %s': %s.\n",
 				 file, linenum, args[0], error);
