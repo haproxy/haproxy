@@ -2543,43 +2543,58 @@ void deinit(void)
 	deinit_pollers();
 } /* end deinit() */
 
-void mworker_pipe_handler(int fd)
+
+
+/* This is a wrapper for the sockpair FD, It tests if the socket received an
+ * EOF, if not, it calls listener_accept */
+void mworker_accept_wrapper(int fd)
 {
 	char c;
+	int ret;
 
-	while (read(fd, &c, 1) == -1) {
-		if (errno == EINTR)
-			continue;
-		if (errno == EAGAIN) {
-			fd_cant_recv(fd);
+	while (1) {
+		ret = recv(fd, &c, 1, MSG_PEEK);
+		if (ret == -1) {
+			if (errno == EINTR)
+				continue;
+			if (errno == EAGAIN) {
+				fd_cant_recv(fd);
+				return;
+			}
+			break;
+		} else if (ret > 0) {
+			listener_accept(fd);
 			return;
+		} else if (ret == 0) {
+			/* At this step the master is down before
+			 * this worker perform a 'normal' exit.
+			 * So we want to exit with an error but
+			 * other threads could currently process
+			 * some stuff so we can't perform a clean
+			 * deinit().
+			 */
+			exit(EXIT_FAILURE);
 		}
-		break;
 	}
-
-	/* At this step the master is down before
-	 * this worker perform a 'normal' exit.
-	 * So we want to exit with an error but
-	 * other threads could currently process
-	 * some stuff so we can't perform a clean
-	 * deinit().
-	 */
-	exit(EXIT_FAILURE);
 	return;
 }
 
-/* should only be called once per process */
+/*
+ * Should only be called once per process
+ * This function register the accept wrapper for the sockpair of the master worker
+ */
+
 void mworker_pipe_register()
 {
-	if (fdtab[proc_self->ipc_fd[1]].owner)
-		/* already initialized */
-		return;
+	/* The iocb should be already initialized with listener_accept */
+	if (fdtab[proc_self->ipc_fd[1]].iocb != listener_accept)
+		abort();
 
 	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
 	/* In multi-tread, we need only one thread to process
 	 * events on the pipe with master
 	 */
-	fd_insert(proc_self->ipc_fd[1], proc_self->ipc_fd, mworker_pipe_handler, 1);
+	fd_insert(proc_self->ipc_fd[1], proc_self->ipc_fd, mworker_accept_wrapper, 1);
 	fd_want_recv(proc_self->ipc_fd[1]);
 }
 
