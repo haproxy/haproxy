@@ -164,7 +164,7 @@ static void stream_int_shutr(struct stream_interface *si)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -200,7 +200,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_DATA;
+	si_done_get(si);
 
 	if (tick_isset(si->hcto)) {
 		ic->rto = si->hcto;
@@ -227,7 +227,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -850,7 +850,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -886,7 +886,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_DATA;
+	si_done_get(si);
 
 	if (tick_isset(si->hcto)) {
 		ic->rto = si->hcto;
@@ -943,7 +943,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1327,7 +1327,7 @@ void stream_sock_read0(struct stream_interface *si)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -1353,7 +1353,7 @@ void stream_sock_read0(struct stream_interface *si)
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
 
-	si->flags &= ~(SI_FL_WAIT_DATA | SI_FL_WAIT_ROOM);
+	si_done_get(si);
 
 	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
@@ -1417,7 +1417,7 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	si_done_put(si);
 
 	/* Note: on shutr, we don't call the applet */
 
@@ -1452,7 +1452,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		return;
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_DATA;
+	si_done_get(si);
 
 	if (tick_isset(si->hcto)) {
 		ic->rto = si->hcto;
@@ -1483,7 +1483,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
