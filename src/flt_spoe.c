@@ -1156,7 +1156,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	ret = ci_putblk(si_ic(si), buf, framesz+4);
 	if (ret <= 0) {
 		if ((ret == -3 && b_is_null(&si_ic(si)->buf)) || ret == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
@@ -1200,8 +1200,8 @@ spoe_recv_frame(struct appctx *appctx, char *buf, size_t framesz)
 static int
 spoe_wakeup_appctx(struct appctx *appctx)
 {
-	si_applet_want_get(appctx->owner);
-	si_applet_want_put(appctx->owner);
+	si_want_get(appctx->owner);
+	si_want_put(appctx->owner);
 	appctx_wakeup(appctx);
 	return 1;
 }
@@ -1338,7 +1338,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	int   ret;
 
 	if (si->state <= SI_ST_CON) {
-		si_applet_want_put(si);
+		si_want_put(si);
 		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}
@@ -1997,7 +1997,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	stream_set_backend(strm, conf->agent->b.be);
 
 	/* applet is waiting for data */
-	si_applet_cant_get(&strm->si[0]);
+	si_cant_get(&strm->si[0]);
 	appctx_wakeup(appctx);
 
 	strm->do_log = NULL;

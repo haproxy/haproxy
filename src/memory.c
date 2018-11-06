@@ -514,7 +514,7 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
 
 	dump_pools_to_trash();
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 	return 1;

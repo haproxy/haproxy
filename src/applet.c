@@ -63,14 +63,14 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	 * check if this buffer was allocated or not. This let a chance
 	 * for applets to do some other processing if needed. */
 	if (!si_alloc_ibuf(si, &app->buffer_wait))
-		si_applet_cant_put(si);
+		si_cant_put(si);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
 	 * that one applet which ignores any event will not spin.
 	 */
-	si_applet_cant_get(si);
-	si_applet_stop_put(si);
+	si_cant_get(si);
+	si_stop_put(si);
 
 	app->applet->fct(app);
 	si_applet_wake_cb(si);

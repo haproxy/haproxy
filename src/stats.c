@@ -2032,7 +2032,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(si, px, uri);
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2044,7 +2044,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		/* print the frontend */
 		if (stats_dump_fe_stats(si, px)) {
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2057,7 +2057,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		/* stats.l has been initialized above */
 		for (; appctx->ctx.stats.l != &px->conf.listeners; appctx->ctx.stats.l = l->by_fe.n) {
 			if (buffer_almost_full(&rep->buf)) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 
@@ -2076,7 +2076,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 			/* print the frontend */
 			if (stats_dump_li_stats(si, px, l, flags)) {
 				if (ci_putchk(rep, &trash) == -1) {
-					si_applet_cant_put(si);
+					si_cant_put(si);
 					return 0;
 				}
 			}
@@ -2090,7 +2090,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		/* stats.sv has been initialized above */
 		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
 			if (buffer_almost_full(&rep->buf)) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 
@@ -2120,7 +2120,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 
 			if (stats_dump_sv_stats(si, px, flags, sv)) {
 				if (ci_putchk(rep, &trash) == -1) {
-					si_applet_cant_put(si);
+					si_cant_put(si);
 					return 0;
 				}
 			}
@@ -2133,7 +2133,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		/* print the backend */
 		if (stats_dump_be_stats(si, px, flags)) {
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2145,7 +2145,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, st
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(si, px);
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2557,7 +2557,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 			stats_dump_csv_header();
 
 		if (ci_putchk(rep, &trash) == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 0;
 		}
 
@@ -2568,7 +2568,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_info(si, uri);
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2582,7 +2582,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* dump proxies */
 		while (appctx->ctx.stats.px) {
 			if (buffer_almost_full(&rep->buf)) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 
@@ -2607,7 +2607,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 			else
 				stats_dump_json_end();
 			if (ci_putchk(rep, &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -2977,7 +2977,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 		chunk_appendf(&trash, "\r\n");
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 
@@ -3022,7 +3022,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 		     scope_txt);
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 
@@ -3047,7 +3047,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is avalaible. */
 	if (res->buf.size == 0) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		goto out;
 	}
 
@@ -3081,7 +3081,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			si_ic(si)->to_forward = 0;
 			chunk_printf(&trash, "\r\n000000\r\n");
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				si_ic(si)->to_forward = last_fwd;
 				goto out;
 			}
@@ -3107,7 +3107,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
 				if (ci_putchk(si_ic(si), &trash) == -1)
-					si_applet_cant_put(si);
+					si_cant_put(si);
 
 				si_ic(si)->total += (last_len - data_len);
 				b_add(si_ib(si), last_len - data_len);
@@ -3133,7 +3133,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			chunk_printf(&trash, "\r\n0\r\n\r\n");
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				goto out;
 			}
 		}
@@ -3161,7 +3161,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	 * emitting large blocks into small TCP windows.
 	 */
 	if (!channel_is_empty(res))
-		si_applet_stop_get(si);
+		si_stop_get(si);
 }
 
 /* Dump all fields from <info> into <out> using the "show info" format (name: value) */
@@ -3327,7 +3327,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 		stats_dump_info_fields(&trash, info);
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 
@@ -3555,7 +3555,7 @@ static int stats_dump_json_schema_to_buffer(struct stream_interface *si)
 	stats_dump_json_schema(&trash);
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 

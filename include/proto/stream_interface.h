@@ -248,42 +248,38 @@ static inline void si_applet_release(struct stream_interface *si)
 		appctx->applet->release(appctx);
 }
 
-/* let an applet indicate that it wants to put some data into the input buffer */
-static inline void si_applet_want_put(struct stream_interface *si)
+/* Report that a stream interface wants to put some data into the input buffer */
+static inline void si_want_put(struct stream_interface *si)
 {
 	si->flags |= SI_FL_WANT_PUT;
 }
 
-/* let an applet indicate that it wanted to put some data into the input buffer
- * but it couldn't.
- */
-static inline void si_applet_cant_put(struct stream_interface *si)
+/* Report that a stream interface failed to put some data into the input buffer */
+static inline void si_cant_put(struct stream_interface *si)
 {
 	si->flags |= SI_FL_WANT_PUT | SI_FL_WAIT_ROOM;
 }
 
-/* let an applet indicate that it doesn't want to put data into the input buffer */
-static inline void si_applet_stop_put(struct stream_interface *si)
+/* Report that a stream interface doesn't want to put data into the input buffer */
+static inline void si_stop_put(struct stream_interface *si)
 {
 	si->flags &= ~SI_FL_WANT_PUT;
 }
 
-/* let an applet indicate that it wants to get some data from the output buffer */
-static inline void si_applet_want_get(struct stream_interface *si)
+/* Report that a stream interface wants to get some data from the output buffer */
+static inline void si_want_get(struct stream_interface *si)
 {
 	si->flags |= SI_FL_WANT_GET;
 }
 
-/* let an applet indicate that it wanted to get some data from the output buffer
- * but it couldn't.
- */
-static inline void si_applet_cant_get(struct stream_interface *si)
+/* Report that a stream interface failed to get some data from the output buffer */
+static inline void si_cant_get(struct stream_interface *si)
 {
 	si->flags |= SI_FL_WANT_GET | SI_FL_WAIT_DATA;
 }
 
-/* let an applet indicate that it doesn't want to get data from the input buffer */
-static inline void si_applet_stop_get(struct stream_interface *si)
+/* Report that a stream interface doesn't want to get data from the output buffer */
+static inline void si_stop_get(struct stream_interface *si)
 {
 	si->flags &= ~SI_FL_WANT_GET;
 }

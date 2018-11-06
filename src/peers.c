@@ -1892,7 +1892,7 @@ out:
 		HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 	return;
 full:
-	si_applet_cant_put(si);
+	si_cant_put(si);
 	goto out;
 }
 
@@ -1980,7 +1980,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
 	/* applet is waiting for data */
-	si_applet_cant_get(&s->si[0]);
+	si_cant_get(&s->si[0]);
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */

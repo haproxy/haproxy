@@ -307,7 +307,7 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct a
 	if (!appctx)
 		return NULL;
 
-	si_applet_cant_get(si);
+	si_cant_get(si);
 	appctx_wakeup(appctx);
 	return si_appctx(si);
 }

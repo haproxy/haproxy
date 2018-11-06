@@ -617,7 +617,7 @@ static int cache_channel_row_data_get(struct appctx *appctx, int len)
 			offset = 0;
 		if (ret <= 0) {
 			if (ret == -3 || ret == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				break;
 			}
 			return -1;
@@ -644,7 +644,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is avalaible. */
 	if (res->buf.size == 0) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		goto out;
 	}
 
@@ -1140,7 +1140,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		if (!next_key) {
 			chunk_printf(&trash, "%p: %s (shctx:%p, available blocks:%d)\n", cache, cache->id, shctx_ptr(cache), shctx_ptr(cache)->nbav);
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}
@@ -1166,7 +1166,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			shctx_unlock(shctx_ptr(cache));
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 		}

@@ -295,7 +295,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 
 	/* finish initialization of the accepted file descriptor */
 	if (appctx)
-		si_applet_want_get(&s->si[0]);
+		si_want_get(&s->si[0]);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
@@ -1214,7 +1214,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	/* Stops the applet sheduling, in case of the init function miss
 	 * some data.
 	 */
-	si_applet_stop_get(&s->si[1]);
+	si_stop_get(&s->si[1]);
 
 	/* Call initialisation. */
 	if (rule->applet.init)
@@ -1225,7 +1225,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Now we can schedule the applet. */
-	si_applet_cant_get(&s->si[1]);
+	si_cant_get(&s->si[1]);
 	appctx_wakeup(appctx);
 
 	if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
@@ -2788,7 +2788,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 0;
 		}
 		appctx->ctx.sess.uid = 0;
@@ -3086,7 +3086,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     (unsigned int)strm->res.buf.size);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 0;
 		}
 
@@ -3305,7 +3305,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
@@ -3323,7 +3323,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				chunk_appendf(&trash, "Session not found.\n");
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
 			}

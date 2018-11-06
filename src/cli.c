@@ -550,7 +550,7 @@ static void cli_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is avalaible. */
 	if (res->buf.size == 0) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		goto out;
 	}
 
@@ -588,7 +588,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * would want to return some info right after parsing.
 			 */
 			if (buffer_almost_full(si_ib(si))) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				break;
 			}
 
@@ -691,7 +691,7 @@ static void cli_io_handler(struct appctx *appctx)
 							cli_get_severity_output(appctx)) != -1)
 					appctx->st0 = CLI_ST_PROMPT;
 				else
-					si_applet_cant_put(si);
+					si_cant_put(si);
 				break;
 			case CLI_ST_PRINT_FREE: {
 				const char *msg = appctx->ctx.cli.err;
@@ -704,7 +704,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
-					si_applet_cant_put(si);
+					si_cant_put(si);
 				break;
 			}
 			case CLI_ST_CALLBACK: /* use custom pointer */
@@ -744,7 +744,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (ci_putstr(si_ic(si), prompt) != -1)
 					appctx->st0 = CLI_ST_GETREQ;
 				else
-					si_applet_cant_put(si);
+					si_cant_put(si);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -832,7 +832,7 @@ static int cli_io_handler_show_env(struct appctx *appctx)
 		chunk_printf(&trash, "%s\n", *var);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 0;
 		}
 		if (appctx->st2 == STAT_ST_END)
@@ -949,7 +949,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			return 0;
 		}
 	skip:
@@ -1006,7 +1006,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	if (ci_putchk(si_ic(si), &trash) == -1) {
 		chunk_reset(&trash);
 		chunk_printf(&trash, "[output too large, cannot dump]\n");
-		si_applet_cant_put(si);
+		si_cant_put(si);
 	}
 
 	/* dump complete */
@@ -1028,7 +1028,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 		case STAT_ST_INIT:
 			chunk_printf(&trash, "# socket lvl processes\n");
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return 0;
 			}
 			appctx->st2 = STAT_ST_LIST;
@@ -1097,7 +1097,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						}
 
 						if (ci_putchk(si_ic(si), &trash) == -1) {
-							si_applet_cant_put(si);
+							si_cant_put(si);
 							return 0;
 						}
 					}
@@ -1411,7 +1411,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		return 0;
 	}
 

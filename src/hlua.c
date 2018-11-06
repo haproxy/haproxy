@@ -1614,8 +1614,8 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 * to be notified whenever the connection completes.
 	 */
 	if (!(c->flags & CO_FL_CONNECTED)) {
-		si_applet_cant_get(si);
-		si_applet_cant_put(si);
+		si_cant_get(si);
+		si_cant_put(si);
 		return;
 	}
 
@@ -1640,7 +1640,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 * to write, so we set the flag cant put
 	 */
 	if (notification_registered(&appctx->ctx.hlua_cosocket.wake_on_write))
-		si_applet_cant_put(si);
+		si_cant_put(si);
 }
 
 /* This function is called when the "struct stream" is destroyed.
@@ -2479,8 +2479,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
 	 */
-	si_applet_cant_get(&s->si[0]);
-	si_applet_cant_put(&s->si[0]);
+	si_cant_get(&s->si[0]);
+	si_cant_put(&s->si[0]);
 	appctx_wakeup(appctx);
 
 	hlua->flags |= HLUA_MUST_GC;
@@ -2942,7 +2942,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
-		si_applet_cant_put(chn_prod(chn));
+		si_cant_put(chn_prod(chn));
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	}
 
@@ -3036,7 +3036,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
-		si_applet_cant_put(chn_prod(chn));
+		si_cant_put(chn_prod(chn));
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -3662,7 +3662,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_getline_yield, TICK_ETERNITY, 0));
 	}
 
@@ -3717,7 +3717,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
 	}
 
@@ -3740,7 +3740,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		luaL_addlstring(&appctx->b, blk1, len1);
 		luaL_addlstring(&appctx->b, blk2, len2);
 		co_skip(si_oc(si), len1 + len2);
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
 
 	} else {
@@ -3764,7 +3764,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		if (len > 0) {
 			lua_pushinteger(L, len);
 			lua_replace(L, 2);
-			si_applet_cant_get(si);
+			si_cant_get(si);
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
 		}
 
@@ -3833,7 +3833,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4130,7 +4130,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		 * If ret is -1, we dont have room in the buffer, so we yield.
 		 */
 		if (ret == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 		}
 		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
@@ -4147,7 +4147,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4216,7 +4216,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 		 * If ret is -1, we dont have room in the buffer, so we yield.
 		 */
 		if (ret == -1) {
-			si_applet_cant_put(si);
+			si_cant_put(si);
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 		}
 		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
@@ -4227,7 +4227,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 	/* Data not yet avalaible. return yield. */
 	if (ret == 0) {
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4262,7 +4262,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	if (len > 0) {
 		lua_pushinteger(L, len);
 		lua_replace(L, 2);
-		si_applet_cant_get(si);
+		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4328,7 +4328,7 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4468,7 +4468,7 @@ __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status
 
 	/* If ret is -1, we dont have room in the buffer, so we yield. */
 	if (ret == -1) {
-		si_applet_cant_put(si);
+		si_cant_put(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_start_response_yield, TICK_ETERNITY, 0));
 	}
 
@@ -6337,7 +6337,7 @@ struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned short st
 	 * will send some data and after call the applet, otherwise it call
 	 * the applet ASAP.
 	 */
-	si_applet_cant_put(si);
+	si_cant_put(si);
 	appctx_wakeup(ctx);
 	t->expire = TICK_ETERNITY;
 	return t;
@@ -6433,8 +6433,8 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	RESET_SAFE_LJMP(hlua->T);
 
 	/* Wakeup the applet ASAP. */
-	si_applet_cant_get(si);
-	si_applet_cant_put(si);
+	si_cant_get(si);
+	si_cant_put(si);
 
 	return 1;
 }
@@ -6656,7 +6656,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	RESET_SAFE_LJMP(hlua->T);
 
 	/* Wakeup the applet when data is ready for read. */
-	si_applet_cant_get(si);
+	si_cant_get(si);
 
 	return 1;
 }
@@ -6685,7 +6685,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 
 		/* Wait for full HTTP analysys. */
 		if (unlikely(strm->txn->req.msg_state < HTTP_MSG_BODY)) {
-			si_applet_cant_get(si);
+			si_cant_get(si);
 			return;
 		}
 
@@ -6707,7 +6707,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		if (ret == 0)
 			len1 = 0;
 		if (len1 + len2 < strm->txn->req.eoh + strm->txn->req.eol) {
-			si_applet_cant_get(si);
+			si_cant_get(si);
 			return;
 		}
 
@@ -6783,7 +6783,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 
 			/* no enough space error. */
 			if (ret == -1) {
-				si_applet_cant_put(si);
+				si_cant_put(si);
 				return;
 			}
 
@@ -7232,7 +7232,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	case HLUA_E_AGAIN:
 		/* We want write. */
 		if (HLUA_IS_WAKERESWR(hlua))
-			si_applet_cant_put(si);
+			si_cant_put(si);
 		/* Set the timeout. */
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(hlua->task, hlua->wake_time);
