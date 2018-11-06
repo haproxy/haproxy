@@ -23,6 +23,32 @@
 
 unsigned int nb_applets = 0;
 
+/* Callback used to wake up an applet when a buffer is available. The applet
+ * <appctx> is woken up if an input buffer was requested for the associated
+ * stream interface. In this case the buffer is immediately allocated and the
+ * function returns 1. Otherwise it returns 0. Note that this automatically
+ * covers multiple wake-up attempts by ensuring that the same buffer will not
+ * be accounted for multiple times.
+ */
+int appctx_buf_available(void *arg)
+{
+	struct appctx *appctx = arg;
+	struct stream_interface *si = appctx->owner;
+
+	/* allocation requested ? */
+	if (!(si->flags & SI_FL_WAIT_ROOM) || c_size(si_ic(si)) || si_ic(si)->pipe)
+		return 0;
+
+	/* allocation possible now ? */
+	if (!b_alloc_margin(&si_ic(si)->buf, global.tune.reserved_bufs))
+		return 0;
+
+	si->flags &= ~SI_FL_WAIT_ROOM;
+	task_wakeup(appctx->t, TASK_WOKEN_RES);
+	return 1;
+}
+
+/* Default applet handler */
 struct task *task_run_applet(struct task *t, void *context, unsigned short state)
 {
 	struct appctx *app = context;

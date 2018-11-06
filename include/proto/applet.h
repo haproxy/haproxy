@@ -34,8 +34,7 @@ extern unsigned int nb_applets;
 
 struct task *task_run_applet(struct task *t, void *context, unsigned short state);
 
-
-static int inline appctx_res_wakeup(struct appctx *appctx);
+int appctx_buf_available(void *arg);
 
 
 /* Initializes all required fields for a new appctx. Note that it does the
@@ -75,7 +74,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 		appctx->t->context = appctx;
 		LIST_INIT(&appctx->buffer_wait.list);
 		appctx->buffer_wait.target = appctx;
-		appctx->buffer_wait.wakeup_cb = (int (*)(void *))appctx_res_wakeup;
+		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
 		HA_ATOMIC_ADD(&nb_applets, 1);
 	}
 	return appctx;
@@ -120,27 +119,6 @@ static inline void appctx_wakeup(struct appctx *appctx)
 {
 	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
-
-/* Callback used to wake up an applet when a buffer is available. The applet
- * <appctx> is woken up is if it is not already in the list of "active"
- * applets. This functions returns 1 is the stream is woken up, otherwise it
- * returns 0. If task is running we request we check if woken was already
- * requested */
-static inline int appctx_res_wakeup(struct appctx *appctx)
-{
-	int ret;
-
-	/* To detect if we have already been waken or not, we now that
-	 * if the state contains TASK_RUNNING, but not just TASK_RUNNING.
-	 * This is racy, but that's OK. At worst we will wake a little more
-	 * tasks than necessary when a buffer is available.
-	 */
-	ret = ((appctx->state & TASK_RUNNING) != 0) &&
-	      ((appctx->state != TASK_RUNNING));
-	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
-	return ret;
-}
-
 
 #endif /* _PROTO_APPLET_H */
 
