@@ -1736,6 +1736,8 @@ static void init(int argc, char **argv)
 			tmproc->pid = -1;
 			tmproc->reloads = 0;
 			tmproc->relative_pid = 1 + proc;
+			tmproc->ipc_fd[0] = -1;
+			tmproc->ipc_fd[1] = -1;
 
 			if (mworker_cli_sockpair_new(tmproc, proc) < 0) {
 				exit(EXIT_FAILURE);
@@ -1745,22 +1747,25 @@ static void init(int argc, char **argv)
 		}
 		mworker_env_to_proc_list(); /* get the info of the children in the env */
 
-		if (mworker_cli_proxy_create() < 0) {
-				ha_alert("Can't create the master's CLI.\n");
-				exit(EXIT_FAILURE);
-		}
 
-		list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
+		if (!LIST_ISEMPTY(&mworker_cli_conf)) {
 
-			if (mworker_cli_proxy_new_listener(c->s) < 0) {
+			if (mworker_cli_proxy_create() < 0) {
 				ha_alert("Can't create the master's CLI.\n");
 				exit(EXIT_FAILURE);
 			}
-			LIST_DEL(&c->list);
-			free(c->s);
-			free(c);
-		}
 
+			list_for_each_entry_safe(c, it, &mworker_cli_conf, list) {
+
+				if (mworker_cli_proxy_new_listener(c->s) < 0) {
+					ha_alert("Can't create the master's CLI.\n");
+					exit(EXIT_FAILURE);
+				}
+				LIST_DEL(&c->list);
+				free(c->s);
+				free(c);
+			}
+		}
 	}
 
 	pattern_finalize_config();

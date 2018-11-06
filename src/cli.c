@@ -2105,7 +2105,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
  */
 void mworker_cli_proxy_stop()
 {
-	stop_proxy(mworker_proxy);
+	if (mworker_proxy)
+		stop_proxy(mworker_proxy);
 }
 
 /*
