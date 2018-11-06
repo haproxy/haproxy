@@ -193,6 +193,8 @@ static char *cur_unixsocket = NULL;
 
 int atexit_flag = 0;
 
+static int exitcode = -1;
+
 int nb_oldpids = 0;
 const int zero = 0;
 const int one = 1;
@@ -827,6 +829,8 @@ restart_wait:
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
+					if (exitcode < 0)
+						exitcode = status;
 					mworker_kill(SIGTERM);
 				}
 			} else {
@@ -843,6 +847,8 @@ restart_wait:
 	else if (exitpid == -1 && errno == ECHILD) {
 		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : status);
 		atexit_flag = 0;
+		if (exitcode > 0)
+			exit(exitcode);
 		exit(status); /* parent must leave using the latest status code known */
 	}
 
