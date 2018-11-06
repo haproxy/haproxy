@@ -815,32 +815,33 @@ restart_wait:
 
 			LIST_DEL(&child->list);
 			close(child->ipc_fd[0]);
-			free(child);
 			break;
 		}
 
 		if (!children) {
-			ha_warning("Worker %d exited with code %d\n", exitpid, status);
+			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else {
 			/* check if exited child was in the current children list */
 			if (current_child(exitpid)) {
-				ha_alert("Current worker %d exited with code %d\n", exitpid, status);
+				ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
 					mworker_kill(SIGTERM);
 				}
 			} else {
-				ha_warning("Former worker %d exited with code %d\n", exitpid, status);
+				ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				delete_oldpid(exitpid);
 			}
 		}
+		free(child);
+
 		/* do it again to check if it was the last worker */
 		goto restart_wait;
 	}
 	/* Better rely on the system than on a list of process to check if it was the last one */
 	else if (exitpid == -1 && errno == ECHILD) {
-		ha_warning("All workers exited. Exiting... (%d)\n", status);
+		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : status);
 		atexit_flag = 0;
 		exit(status); /* parent must leave using the latest status code known */
 	}
