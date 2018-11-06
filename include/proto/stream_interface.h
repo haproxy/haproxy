@@ -266,6 +266,12 @@ static inline void si_stop_put(struct stream_interface *si)
 	si->flags &= ~SI_FL_WANT_PUT;
 }
 
+/* Report that a stream interface won't put any more data into the input buffer */
+static inline void si_done_put(struct stream_interface *si)
+{
+	si->flags &= ~(SI_FL_WANT_PUT | SI_FL_WAIT_ROOM);
+}
+
 /* Report that a stream interface wants to get some data from the output buffer */
 static inline void si_want_get(struct stream_interface *si)
 {
@@ -282,6 +288,12 @@ static inline void si_cant_get(struct stream_interface *si)
 static inline void si_stop_get(struct stream_interface *si)
 {
 	si->flags &= ~SI_FL_WANT_GET;
+}
+
+/* Report that a stream interface won't get any more data from the output buffer */
+static inline void si_done_get(struct stream_interface *si)
+{
+	si->flags &= ~(SI_FL_WANT_GET | SI_FL_WAIT_DATA);
 }
 
 /* Try to allocate a new conn_stream and assign it to the interface. If
