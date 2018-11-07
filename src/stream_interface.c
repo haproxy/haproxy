@@ -713,6 +713,11 @@ int si_cs_send(struct conn_stream *cs)
 	return did_send;
 }
 
+/* This is the ->process() function for any stream-interface's wait_event task.
+ * It's assigned during the stream-interface's initialization, for any type of
+ * stream interface. Thus it is always safe to perform a tasklet_wakeup() on a
+ * stream interface, as the presence of the CS is checked there.
+ */
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 {
 	struct stream_interface *si = ctx;
@@ -721,7 +726,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 
 	if (!cs)
 		return NULL;
-redo:
+
 	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
 		ret = si_cs_send(cs);
 	if (!(si->wait_event.wait_reason & SUB_CAN_RECV))
