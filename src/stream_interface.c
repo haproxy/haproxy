@@ -248,9 +248,6 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 		__FUNCTION__,
 		si, si->state, ic->flags, si_oc(si)->flags);
 
-	if (ic->flags & (CF_SHUTR|CF_DONT_READ))
-		return;
-
 	if (!channel_may_recv(ic) || ic->pipe) {
 		/* stop reading */
 		si->flags |= SI_FL_WAIT_ROOM;
@@ -728,8 +725,11 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 
 	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
 		ret = si_cs_send(cs);
-	if (!(si->wait_event.wait_reason & SUB_CAN_RECV))
+	if (!(si->wait_event.wait_reason & SUB_CAN_RECV)) {
 		ret |= si_cs_recv(cs);
+		if (!(si_ic(si)->flags & (CF_SHUTR|CF_DONT_READ)))
+			si->flags |= SI_FL_WANT_PUT;
+	}
 	if (ret != 0)
 		si_cs_process(cs);
 
@@ -750,6 +750,9 @@ void stream_int_update(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 
 	if (!(ic->flags & CF_SHUTR)) {
+		if (!(ic->flags & CF_DONT_READ))
+			si_want_put(si);
+
 		/* Read not closed, update FD status and timeout for reads */
 		if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
 			/* stop reading */
@@ -960,10 +963,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	if (ic->flags & CF_SHUTR)
-		return;
-
-	if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
+	if (!channel_may_recv(ic)) {
 		/* stop reading */
 		si->flags |= SI_FL_WAIT_ROOM;
 	}
@@ -1497,9 +1497,6 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ic->flags=%08x oc->flags=%08x\n",
 		__FUNCTION__,
 		si, si->state, ic->flags, si_oc(si)->flags);
-
-	if (ic->flags & (CF_SHUTR|CF_DONT_READ))
-		return;
 
 	if (channel_may_recv(ic) && !ic->pipe) {
 		/* (re)start reading */
