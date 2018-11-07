@@ -388,15 +388,13 @@ static inline void si_update(struct stream_interface *si)
 /* Calls chk_rcv on the connection using the data layer */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->ops->chk_rcv)
-		si->ops->chk_rcv(si);
+	si->ops->chk_rcv(si);
 }
 
 /* Calls chk_snd on the connection using the data layer */
 static inline void si_chk_snd(struct stream_interface *si)
 {
-	if (si->ops->chk_snd)
-		si->ops->chk_snd(si);
+	si->ops->chk_snd(si);
 }
 
 /* Calls chk_snd on the connection using the ctrl layer */

@@ -106,11 +106,11 @@ struct stream_interface {
 
 /* operations available on a stream-interface */
 struct si_ops {
-	void (*update)(struct stream_interface *);  /* I/O update function */
-	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
-	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
-	void (*shutr)(struct stream_interface *);   /* shut read function */
-	void (*shutw)(struct stream_interface *);   /* shut write function */
+	void (*update)(struct stream_interface *);  /* I/O update function, may be null */
+	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function, may not be null */
+	void (*chk_snd)(struct stream_interface *); /* chk_snd function, may not be null */
+	void (*shutr)(struct stream_interface *);   /* shut read function, may not be null */
+	void (*shutw)(struct stream_interface *);   /* shut write function, may not be null */
 };
 
 #endif /* _TYPES_STREAM_INTERFACE_H */
