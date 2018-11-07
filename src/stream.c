@@ -862,6 +862,12 @@ static void sess_establish(struct stream *s)
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
 		rep->rto = s->be->timeout.server;
+		/* The connection is now established, try to read data from the
+		 * underlying layer, and subscribe to recv events. We use a
+		 * delayed recv here to give a chance to the data to flow back
+		 * by the time we process other tasks.
+		 */
+		si_chk_rcv(si);
 	}
 	req->wex = TICK_ETERNITY;
 }
