@@ -396,6 +396,9 @@ static inline void si_chk_rcv(struct stream_interface *si)
 	if (!(si->flags & SI_FL_WANT_PUT))
 		return;
 
+	if (si->state > SI_ST_EST)
+		return;
+
 	si->ops->chk_rcv(si);
 }
 

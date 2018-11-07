@@ -248,7 +248,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 		__FUNCTION__,
 		si, si->state, ic->flags, si_oc(si)->flags);
 
-	if (unlikely(si->state != SI_ST_EST || (ic->flags & (CF_SHUTR|CF_DONT_READ))))
+	if (ic->flags & (CF_SHUTR|CF_DONT_READ))
 		return;
 
 	if (!channel_may_recv(ic) || ic->pipe) {
@@ -960,7 +960,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
-	if (unlikely(si->state > SI_ST_EST || (ic->flags & CF_SHUTR)))
+	if (ic->flags & CF_SHUTR)
 		return;
 
 	if ((ic->flags & CF_DONT_READ) || !channel_may_recv(ic)) {
@@ -1498,7 +1498,7 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 		__FUNCTION__,
 		si, si->state, ic->flags, si_oc(si)->flags);
 
-	if (unlikely(si->state != SI_ST_EST || (ic->flags & (CF_SHUTR|CF_DONT_READ))))
+	if (ic->flags & (CF_SHUTR|CF_DONT_READ))
 		return;
 
 	if (channel_may_recv(ic) && !ic->pipe) {
