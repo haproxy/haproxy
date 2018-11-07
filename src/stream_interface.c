@@ -257,7 +257,6 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	}
 	else {
 		/* (re)start reading */
-		si->flags &= ~SI_FL_WAIT_ROOM;
 		tasklet_wakeup(si->wait_event.task);
 		if (!(si->flags & SI_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
@@ -970,7 +969,6 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 	}
 	else {
 		/* (re)start reading */
-		si->flags &= ~SI_FL_WAIT_ROOM;
 		tasklet_wakeup(si->wait_event.task);
 	}
 }
@@ -1501,9 +1499,6 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 		si, si->state, ic->flags, si_oc(si)->flags);
 
 	if (unlikely(si->state != SI_ST_EST || (ic->flags & (CF_SHUTR|CF_DONT_READ))))
-		return;
-	/* here we only wake the applet up if it was waiting for some room */
-	if (!(si->flags & SI_FL_WAIT_ROOM))
 		return;
 
 	if (channel_may_recv(ic) && !ic->pipe) {

@@ -385,9 +385,17 @@ static inline void si_update(struct stream_interface *si)
 		si->ops->update(si);
 }
 
-/* Calls chk_rcv on the connection using the data layer */
+/* This is to be used after making some room available in a channel. It will
+ * clear SI_FL_WAIT_ROOM, then if SI_FL_WANT_PUT is set, will calls ->chk_rcv()
+ * to enable receipt of new data.
+ */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
+	si->flags &= ~SI_FL_WAIT_ROOM;
+
+	if (!(si->flags & SI_FL_WANT_PUT))
+		return;
+
 	si->ops->chk_rcv(si);
 }
 
