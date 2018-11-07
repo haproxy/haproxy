@@ -2580,15 +2580,13 @@ void mworker_accept_wrapper(int fd)
 }
 
 /*
- * Should only be called once per process
  * This function register the accept wrapper for the sockpair of the master worker
  */
-
 void mworker_pipe_register()
 {
 	/* The iocb should be already initialized with listener_accept */
-	if (fdtab[proc_self->ipc_fd[1]].iocb != listener_accept)
-		abort();
+	if (fdtab[proc_self->ipc_fd[1]].iocb == mworker_accept_wrapper)
+		return;
 
 	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
 	/* In multi-tread, we need only one thread to process
