@@ -315,9 +315,8 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
 }
 
 /* Try to allocate a buffer for the stream-int's input channel. It relies on
- * channel_alloc_buffer() for this so it abides by its rules. It returns 0 in
- * case of failure, non-zero otherwise. The stream-int's flag SI_FL_WAIT_ROOM
- * is cleared before trying. If no buffer are available, the requester,
+ * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
+ * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by <wait> pointer, will be added in the list of objects waiting
  * for an available buffer, and SI_FL_WAIT_ROOM will be set on the stream-int.
  * The requester will be responsible for calling this function to try again
@@ -327,7 +326,6 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 {
 	int ret;
 
-	si->flags &= ~SI_FL_WAIT_ROOM;
 	ret = channel_alloc_buffer(si_ic(si), wait);
 	if (!ret)
 		si_cant_put(si);

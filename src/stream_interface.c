@@ -480,8 +480,10 @@ void stream_int_notify(struct stream_interface *si)
 
 		if (likely((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL &&
 			   channel_may_recv(oc) &&
-			   (si_opposite(si)->flags & SI_FL_WAIT_ROOM)))
+			   (si_opposite(si)->flags & SI_FL_WAIT_ROOM))) {
+			si_opposite(si)->flags &= ~SI_FL_WAIT_ROOM;
 			si_chk_rcv(si_opposite(si));
+		}
 	}
 
 	/* Notify the other side when we've injected data into the IC that
@@ -513,8 +515,10 @@ void stream_int_notify(struct stream_interface *si)
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
 		 */
-		if (channel_may_recv(ic) && new_len < last_len)
+		if (channel_may_recv(ic) && new_len < last_len) {
 			si->flags &= ~SI_FL_WAIT_ROOM;
+			si_chk_rcv(si);
+		}
 	}
 
 	if (si->flags & SI_FL_WAIT_ROOM) {
@@ -561,7 +565,6 @@ static int si_cs_process(struct conn_stream *cs)
 	struct stream_interface *si = cs->data;
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
-	int wait_room = si->flags & SI_FL_WAIT_ROOM;
 
 	/* If we have data to send, try it now */
 	if (!channel_is_empty(oc) && !(si->wait_event.wait_reason & SUB_CAN_SEND))
@@ -596,10 +599,6 @@ static int si_cs_process(struct conn_stream *cs)
 	 */
 	stream_int_notify(si);
 	channel_release_buffer(ic, &(si_strm(si)->buffer_wait));
-
-	/* Try to run again if we free'd some room in the process */
-	if (wait_room && !(si->flags & SI_FL_WAIT_ROOM))
-		tasklet_wakeup(si->wait_event.task);
 
 	return 0;
 }
@@ -769,7 +768,7 @@ void stream_int_update(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			tasklet_wakeup(si->wait_event.task);
+			si_chk_rcv(si);
 			if (!(ic->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ic->rex))
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 		}
