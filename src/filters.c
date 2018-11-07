@@ -334,6 +334,15 @@ flt_check(struct proxy *proxy)
 			err += fconf->ops->check(proxy, fconf);
 	}
 	err += check_legacy_http_comp_flt(proxy);
+
+	if (!LIST_ISEMPTY(&proxy->filter_configs) &&
+	    (proxy->options2 & PR_O2_USE_HTX)) {
+		ha_alert("config: %s '%s' : filters cannot be used when "
+			 "the HTX internal representation is enabled.\n",
+			 proxy_type_str(proxy), proxy->id);
+		err++;
+	}
+
 	return err;
 }
 
