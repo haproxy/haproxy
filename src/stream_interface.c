@@ -807,6 +807,40 @@ void stream_int_update(struct stream_interface *si)
 	}
 }
 
+/* updates both stream ints of a same stream at once */
+/* Updates at once the channel flags, and timers of both stream interfaces of a
+ * same stream, to complete the work after the analysers, then updates the data
+ * layer below. This will ensure that any synchronous update performed at the
+ * data layer will be reflected in the channel flags and/or stream-interface.
+ */
+void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b)
+{
+	struct channel *req = si_ic(si_f);
+	struct channel *res = si_oc(si_f);
+
+	/* let's recompute both sides states */
+	if (si_f->state == SI_ST_EST)
+		stream_int_update(si_f);
+
+	if (si_b->state == SI_ST_EST)
+		stream_int_update(si_b);
+
+	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+
+	si_f->flags &= ~(SI_FL_ERR|SI_FL_EXP);
+	si_b->flags &= ~(SI_FL_ERR|SI_FL_EXP);
+
+	si_f->prev_state = si_f->state;
+	si_b->prev_state = si_b->state;
+
+	if (si_f->ops->update && si_f->state == SI_ST_EST)
+		si_f->ops->update(si_f);
+
+	if (si_b->ops->update && (si_b->state == SI_ST_EST || si_b->state == SI_ST_CON))
+		si_b->ops->update(si_b);
+}
+
 /* Updates the active status of a connection outside of the connection handler
  * based on the channel's flags and the stream interface's flags. It needs to
  * be called once after the channels' flags have settled down and the stream

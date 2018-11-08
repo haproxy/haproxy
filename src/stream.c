@@ -2474,8 +2474,7 @@ redo:
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
-		si_update(si_f);
-		si_update(si_b);
+		si_update_both(si_f, si_b);
 
 		if (si_f->state == SI_ST_DIS || si_b->state == SI_ST_DIS ||
 		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
