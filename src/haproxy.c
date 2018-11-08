@@ -2592,7 +2592,7 @@ void mworker_pipe_register()
 	/* In multi-tread, we need only one thread to process
 	 * events on the pipe with master
 	 */
-	fd_insert(proc_self->ipc_fd[1], proc_self->ipc_fd, mworker_accept_wrapper, 1);
+	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, 1);
 	fd_want_recv(proc_self->ipc_fd[1]);
 }
 
