@@ -5756,6 +5756,11 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	if (!stream)
 		return 0;
 
+	if (IS_HTX_STRM(stream)) {
+		SEND_ERR(stream->be, "Lua converter '%s': Lua fetches cannot be used when the"
+			 " HTX internal representation is enabled.\n", fcn->name);
+		return 0;
+	}
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
@@ -5887,6 +5892,12 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	if (!stream)
 		return 0;
+
+	if (IS_HTX_STRM(stream)) {
+		SEND_ERR(stream->be, "Lua sample-fetch '%s': Lua fetches cannot be used when the"
+			 " HTX internal representation is enabled.\n", fcn->name);
+		return 0;
+	}
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -6833,6 +6844,11 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	struct hlua_function *fcn = rule->kw->private;
 	int i;
 
+	if (px->options2 & PR_O2_USE_HTX) {
+		memprintf(err, "Lua actions cannot be used when the HTX internal representation is enabled");
+		return ACT_RET_PRS_ERR;
+	}
+
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
@@ -6874,6 +6890,11 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
                                                        struct act_rule *rule, char **err)
 {
 	struct hlua_function *fcn = rule->kw->private;
+
+	if (px->options2 & PR_O2_USE_HTX) {
+		memprintf(err, "Lua services cannot be used when the HTX internal representation is enabled");
+		return ACT_RET_PRS_ERR;
+	}
 
 	/* HTTP applets are forbidden in tcp-request rules.
 	 * HTTP applet request requires everything initilized by
@@ -7006,6 +7027,11 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
                                                       struct act_rule *rule, char **err)
 {
 	struct hlua_function *fcn = rule->kw->private;
+
+	if (px->options2 & PR_O2_USE_HTX) {
+		memprintf(err, "Lua services cannot be used when the HTX internal representation is enabled");
+		return ACT_RET_PRS_ERR;
+	}
 
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
@@ -7493,6 +7519,34 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ 0, NULL, NULL },
 }};
+
+static int hlua_check_config()
+{
+	struct proxy *px;
+	struct acl *acl;
+	struct acl_expr *expr;
+	struct sample_fetch *fetch;
+	int err = 0;
+
+	for (px = proxies_list; px; px = px->next) {
+		if (!(px->options2 & PR_O2_USE_HTX))
+			continue;
+
+		list_for_each_entry(acl, &px->acl, list) {
+			list_for_each_entry(expr, &acl->expr, list) {
+				fetch = expr->smp->fetch;
+				if (fetch->process != hlua_sample_fetch_wrapper)
+					continue;
+
+				ha_alert("config: %s '%s': sample-fetch '%s' cannot be used used "
+					 "when the HTX internal representation is enabled.\n",
+					 proxy_type_str(px), px->id, fetch->kw);
+				err++;
+			}
+		}
+	}
+	return err;
+}
 
 /* This function can fail with an abort() due to an Lua critical error.
  * We are in the initialisation process of HAProxy, this abort() is
@@ -8161,4 +8215,5 @@ static void __hlua_init(void)
 	char *ptr = NULL;
 	memprintf(&ptr, "Built with Lua version : %s", LUA_RELEASE);
 	hap_register_build_opts(ptr, 1);
+	cfg_register_postparser("hlua", hlua_check_config);
 }
