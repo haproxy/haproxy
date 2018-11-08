@@ -534,7 +534,7 @@ void stream_int_notify(struct stream_interface *si)
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
-	    si->state != SI_ST_EST ||
+	    (si->state != SI_ST_EST && si->state != SI_ST_CON) ||
 	    (si->flags & SI_FL_ERR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
 	     (!ic->to_forward || si_opposite(si)->state != SI_ST_EST)) ||
