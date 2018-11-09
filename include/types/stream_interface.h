@@ -86,7 +86,7 @@ enum {
 
 /* Note that if an applet is registered, the update function will not be called
  * by the session handler, so it may be used to resync flags at the end of the
- * applet handler. See stream_int_update_embedded() for reference.
+ * applet handler. See stream_int_update() for reference.
  */
 struct stream_interface {
 	/* struct members used by the "buffer" side */
@@ -106,7 +106,6 @@ struct stream_interface {
 
 /* operations available on a stream-interface */
 struct si_ops {
-	void (*update)(struct stream_interface *);  /* I/O update function, may be null */
 	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function, may not be null */
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function, may not be null */
 	void (*shutr)(struct stream_interface *);   /* shut read function, may not be null */

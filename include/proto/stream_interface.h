@@ -50,8 +50,6 @@ extern struct data_cb si_idle_conn_cb;
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app);
 void si_applet_wake_cb(struct stream_interface *si);
 void stream_int_update(struct stream_interface *si);
-void stream_int_update_conn(struct stream_interface *si);
-void stream_int_update_applet(struct stream_interface *si);
 void stream_int_notify(struct stream_interface *si);
 int si_cs_recv(struct conn_stream *cs);
 int si_cs_send(struct conn_stream *cs);
@@ -362,26 +360,6 @@ static inline void si_shutr(struct stream_interface *si)
 static inline void si_shutw(struct stream_interface *si)
 {
 	si->ops->shutw(si);
-}
-
-/* Updates the stream interface and timers, to complete the work after the
- * analysers, then clears the relevant channel flags, and the errors and
- * expirations, then updates the data layer below. This will ensure that any
- * synchronous update performed at the data layer will be reflected in the
- * channel flags and/or stream-interface.
- */
-static inline void si_update(struct stream_interface *si)
-{
-	if (si->state == SI_ST_EST)
-		stream_int_update(si);
-
-	si_ic(si)->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED);
-	si_oc(si)->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
-	si->flags &= ~(SI_FL_ERR|SI_FL_EXP);
-	si->prev_state = si->state;
-
-	if (si->ops->update && (si->state == SI_ST_CON || si->state == SI_ST_EST))
-		si->ops->update(si);
 }
 
 /* This is to be used after making some room available in a channel. It will

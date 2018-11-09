@@ -66,7 +66,6 @@ struct si_ops si_embedded_ops = {
 
 /* stream-interface operations for connections */
 struct si_ops si_conn_ops = {
-	.update  = stream_int_update_conn,
 	.chk_rcv = stream_int_chk_rcv_conn,
 	.chk_snd = stream_int_chk_snd_conn,
 	.shutr   = stream_int_shutr_conn,
@@ -75,7 +74,6 @@ struct si_ops si_conn_ops = {
 
 /* stream-interface operations for connections */
 struct si_ops si_applet_ops = {
-	.update  = stream_int_update_applet,
 	.chk_rcv = stream_int_chk_rcv_applet,
 	.chk_snd = stream_int_chk_snd_applet,
 	.shutr   = stream_int_shutr_applet,
@@ -884,30 +882,6 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 		appctx_wakeup(si_appctx(si_b));
 }
 
-/* Updates the active status of a connection outside of the connection handler
- * based on the channel's flags and the stream interface's flags. It needs to
- * be called once after the channels' flags have settled down and the stream
- * has been updated. It is not designed to be called from within the connection
- * handler itself.
- */
-void stream_int_update_conn(struct stream_interface *si)
-{
-	struct channel *ic = si_ic(si);
-	struct channel *oc = si_oc(si);
-	struct conn_stream *cs = __objt_cs(si->end);
-
-	if (!(ic->flags & CF_SHUTR)) {
-		/* Read not closed, it doesn't seem we have to do anything here */
-	}
-
-	if (!(oc->flags & CF_SHUTW) && /* Write not closed */
-	    !channel_is_empty(oc) &&
-	    !(cs->flags & CS_FL_ERROR) &&
-	    !(cs->conn->flags & CO_FL_ERROR)) {
-		si_cs_process(cs);
-	}
-}
-
 /*
  * This function performs a shutdown-read on a stream interface attached to
  * a connection in a connected or init state (it does nothing for other
@@ -1457,20 +1431,9 @@ void si_applet_wake_cb(struct stream_interface *si)
 	 * to wakeup the appctx but in the case the task is not in runqueue
 	 * we may have to wakeup the appctx immediately.
 	 */
-	if (!task_in_rq(si_task(si)))
-		stream_int_update_applet(si);
-}
-
-/* Updates the activity status of an applet outside of the applet handler based
- * on the channel's flags and the stream interface's flags. It needs to be
- * called once after the channels' flags have settled down and the stream has
- * been updated. It is not designed to be called from within the applet handler
- * itself.
- */
-void stream_int_update_applet(struct stream_interface *si)
-{
-	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
-	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET))
+	if (!task_in_rq(si_task(si)) &&
+	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
+	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si));
 }
 
