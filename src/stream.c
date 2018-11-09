@@ -2476,7 +2476,8 @@ redo:
 
 		si_update_both(si_f, si_b);
 
-		if (si_f->state == SI_ST_DIS || si_b->state == SI_ST_DIS ||
+		if (si_f->state == SI_ST_DIS || si_f->state != si_f->prev_state ||
+		    si_b->state == SI_ST_DIS || si_b->state != si_b->prev_state ||
 		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
 			goto redo;
 
