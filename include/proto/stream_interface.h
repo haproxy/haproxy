@@ -384,12 +384,13 @@ static inline void si_update(struct stream_interface *si)
 }
 
 /* This is to be used after making some room available in a channel. It will
- * clear SI_FL_WAIT_ROOM, then if SI_FL_WANT_PUT is set, will calls ->chk_rcv()
- * to enable receipt of new data.
+ * return without doing anything if {SI_FL_WANT_PUT,SI_FL_WAIT_ROOM} != {1,0}.
+ * It will then call ->chk_rcv() to enable receipt of new data.
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	if (si->flags & SI_FL_WAIT_ROOM)
+		return;
 
 	if (!(si->flags & SI_FL_WANT_PUT))
 		return;
