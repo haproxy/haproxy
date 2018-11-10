@@ -7,7 +7,7 @@ on Windows systems (could not be tested).
 
 1) File list
 -------------
- - packet-happp.c: source code for HAProxy Peers Procotol (HAPPP) dissection
+ - packet-happp.c: source code for HAProxy Peers Protocol (HAPPP) dissection
    support.
  - wireshark.happp.dissector.patch: a patch file for wireshark sources to enable HAPPP
    dissection support. Note that this patch file modifies only two files:

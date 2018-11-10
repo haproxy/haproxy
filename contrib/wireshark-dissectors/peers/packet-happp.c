@@ -792,7 +792,7 @@ static void dissect_happp_stkt_define_msg(tvbuff_t *tvb, packet_info *pinfo _U_,
 		return;
 
 	/*
-	 * According to the documentation, it is not our responsability
+	 * According to the documentation, it is not our responsibility
 	 * to free this allocated memory.
 	 */
 	happp_cv_data = (struct happp_cv_data_t *)wmem_alloc(wmem_file_scope(),
@@ -1599,7 +1599,7 @@ dissect_happp_heur_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
 	if (tvb_captured_length(tvb) < proto_strlen + 1)
 		return FALSE;
 
-	/* Check that we received a line begining with HAPPP_PROTOCOL
+	/* Check that we received a line beginning with HAPPP_PROTOCOL
 	 * followed by a space character.
 	 */
 	if (tvb_strneql(tvb, 0, HAPPP_PROTOCOL, proto_strlen) ||
