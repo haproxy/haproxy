@@ -4,7 +4,7 @@
 #   [g]make TARGET=os ARCH=arch CPU=cpu USE_xxx=1 ...
 #
 # Valid USE_* options are the following. Most of them are automatically set by
-# the TARGET, others have to be explictly specified :
+# the TARGET, others have to be explicitly specified :
 #   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
@@ -236,7 +236,7 @@ CPU_CFLAGS.i686       = -O2 -march=i686
 CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
-#### ARCH dependant flags, may be overriden by CPU flags
+#### ARCH dependant flags, may be overridden by CPU flags
 ARCH_FLAGS.32     = -m32
 ARCH_FLAGS.64     = -m64
 ARCH_FLAGS.i386   = -m32 -march=i386
