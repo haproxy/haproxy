@@ -429,7 +429,7 @@ do not think about them anymore after a few patches.
        $ git log --oneline 827752e.. | grep 'BUG\|DOC'
        0d79cf6 DOC: fix function name
        bc96534 DOC: ssl: missing LF
-       10ec214 BUG/MEDIUM: lua: the lua fucntion Channel:close() causes a segf
+       10ec214 BUG/MEDIUM: lua: the lua function Channel:close() causes a segf
        bdc97a8 BUG/MEDIUM: lua: outgoing connection was broken since 1.6-dev2
        ba56d9c DOC: mention support for RFC 5077 TLS Ticket extension in start
        f1650a8 DOC: clarify some points about SSL and the proxy protocol
