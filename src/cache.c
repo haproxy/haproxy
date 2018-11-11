@@ -73,7 +73,7 @@ struct cache_entry {
 };
 
 #define CACHE_BLOCKSIZE 1024
-#define CACHE_ENTRY_MAX_AGE 2147483648
+#define CACHE_ENTRY_MAX_AGE 2147483648U
 
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct cache *tmp_cache_config = NULL;
