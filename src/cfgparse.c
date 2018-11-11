@@ -7570,7 +7570,7 @@ int check_config_validity()
 			if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
 #ifdef OPENSSL_NPN_NEGOTIATED
 				/* check NPN */
-				if (bind_conf->ssl_conf.npn_str && strcmp(bind_conf->ssl_conf.npn_str, "\002h2") == 0) {
+				if (bind_conf->ssl_conf.npn_str && strstr(bind_conf->ssl_conf.npn_str, "\002h2")) {
 					ha_alert("config : HTTP frontend '%s' enables HTTP/2 via NPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
 						 curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
 					cfgerr++;
@@ -7578,7 +7578,7 @@ int check_config_validity()
 #endif
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 				/* check ALPN */
-				if (bind_conf->ssl_conf.alpn_str && strcmp(bind_conf->ssl_conf.alpn_str, "\002h2") == 0) {
+				if (bind_conf->ssl_conf.alpn_str && strstr(bind_conf->ssl_conf.alpn_str, "\002h2")) {
 					ha_alert("config : HTTP frontend '%s' enables HTTP/2 via ALPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
 						 curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
 					cfgerr++;
