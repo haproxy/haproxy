@@ -36,6 +36,13 @@
 #define CFG_USERLIST	3
 #define CFG_PEERS	4
 
+/* various keyword modifiers */
+enum kw_mod {
+	KWM_STD = 0,  /* normal */
+	KWM_NO,       /* "no" prefixed before the keyword */
+	KWM_DEF,      /* "default" prefixed before the keyword */
+};
+
 struct cfg_keyword {
 	int section;                            /* section type for this keyword */
 	const char *kw;                         /* the keyword itself */
@@ -59,10 +66,35 @@ struct cfg_kw_list {
 	struct cfg_keyword kw[VAR_ARRAY];
 };
 
+/* permit to store configuration section */
+struct cfg_section {
+	struct list list;
+	char *section_name;
+	int (*section_parser)(const char *, int, char **, int);
+	int (*post_section_parser)();
+};
+
+/* store post configuration parsing */
+
+struct cfg_postparser {
+	struct list list;
+	char *name;
+	int (*func)();
+};
+
+/* some of the most common options which are also the easiest to handle */
+struct cfg_opt {
+	const char *name;
+	unsigned int val;
+	unsigned int cap;
+	unsigned int checks;
+	unsigned int mode;
+};
 
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
 extern char *cfg_scope;
+extern struct cfg_kw_list cfg_keywords;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
@@ -89,6 +121,7 @@ int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
 int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, char **err);
+unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err);
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the
