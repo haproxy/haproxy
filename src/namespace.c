@@ -17,8 +17,6 @@
 #include <proto/log.h>
 #include <types/global.h>
 
-#ifdef CONFIG_HAP_NS
-
 /* Opens the namespace <ns_name> and returns the FD or -1 in case of error
  * (check errno).
  */
@@ -88,7 +86,6 @@ const struct netns_entry* netns_store_lookup(const char *ns_name, size_t ns_name
 	else
 		return NULL;
 }
-#endif
 
 /* Opens a socket in the namespace described by <ns> with the parameters <domain>,
  * <type> and <protocol> and returns the FD or -1 in case of error (check errno).
@@ -97,19 +94,15 @@ int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol
 {
 	int sock;
 
-#ifdef CONFIG_HAP_NS
 	if (default_namespace >= 0 && ns && setns(ns->fd, CLONE_NEWNET) == -1)
 		return -1;
-#endif
+
 	sock = socket(domain, type, protocol);
 
-#ifdef CONFIG_HAP_NS
 	if (default_namespace >= 0 && ns && setns(default_namespace, CLONE_NEWNET) == -1) {
 		close(sock);
 		return -1;
 	}
-#endif
-
 	return sock;
 }
 

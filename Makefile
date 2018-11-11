@@ -871,6 +871,7 @@ endif
 ifneq ($(USE_NS),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_NS
 BUILD_OPTIONS  += $(call ignore_implicit,USE_NS)
+OPTIONS_OBJS  += src/namespace.o
 endif
 
 #### Global link options
@@ -916,7 +917,7 @@ OBJS = src/proto_http.o src/cfgparse.o src/server.o src/stream.o        \
        src/hpack-dec.o src/memory.o src/lb_fwrr.o src/lb_chash.o        \
        src/lb_fas.o src/hathreads.o src/chunk.o src/lb_map.o            \
        src/xxhash.o src/regex.o src/shctx.o src/buffer.o src/action.o   \
-       src/h1.o src/compression.o src/pipe.o src/namespace.o            \
+       src/h1.o src/compression.o src/pipe.o                            \
        src/sha1.o src/hpack-tbl.o src/hpack-enc.o src/uri_auth.o        \
        src/time.o src/proto_udp.o src/arg.o src/signal.o                \
        src/protocol.o src/lru.o src/hdr_idx.o src/hpack-huff.o          \

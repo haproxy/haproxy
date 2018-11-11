@@ -4,9 +4,6 @@
 #include <stdlib.h>
 #include <ebistree.h>
 
-struct netns_entry;
-int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol);
-
 #ifdef CONFIG_HAP_NS
 
 struct netns_entry
@@ -16,10 +13,21 @@ struct netns_entry
 	int fd;
 };
 
+int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol);
 struct netns_entry* netns_store_insert(const char *ns_name);
 const struct netns_entry* netns_store_lookup(const char *ns_name, size_t ns_name_len);
 
 int netns_init(void);
+
+#else /* no namespace support */
+
+struct netns_entry;
+
+static inline int my_socketat(const struct netns_entry *ns, int domain, int type, int protocol)
+{
+	return socket(domain, type, protocol);
+}
+
 #endif /* CONFIG_HAP_NS */
 
 #endif /* _NAMESPACE_H */
