@@ -1,6 +1,50 @@
 ChangeLog :
 ===========
 
+2018/11/11 : 1.9-dev6
+    - BUG/MEDIUM: tools: fix direction of my_ffsl()
+    - BUG/MINOR: cli: forward the whole command on master CLI
+    - BUG/MEDIUM: auth/threads: use of crypt() is not thread-safe
+    - MINOR: compat: automatically detect support for crypt_r()
+    - MEDIUM: auth/threads: make use of crypt_r() on systems supporting it
+    - DOC: split the http-request actions in their own section
+    - DOC: split the http-response actions in their own section
+    - BUG/MAJOR: stream-int: don't call si_cs_recv() in stream_int_chk_rcv_conn()
+    - BUG/MINOR: tasks: make sure wakeup events are properly reported to subscribers
+    - MINOR: stats: report the number of active jobs and listeners in "show info"
+    - MINOR: stats: report the number of active peers in "show info"
+    - MINOR: stats: report the number of currently connected peers
+    - MINOR: cli: show the number of reload in 'show proc'
+    - MINOR: cli: can't connect to the target CLI
+    - MEDIUM: mworker: does not create the CLI proxy when no listener
+    - MINOR: mworker: displays more information when leaving
+    - MEDIUM: mworker: exit with the incriminated exit code
+    - MINOR: mworker: displays a message when a worker is forked
+    - MEDIUM: mworker: leave when the master die
+    - CLEANUP: stream-int: retro-document si_cs_io_cb()
+    - BUG/MEDIUM: mworker: does not abort() in mworker_pipe_register()
+    - BUG/MEDIUM: stream-int: don't wake up for nothing during SI_ST_CON
+    - BUG/MEDIUM: cli: crash when trying to access a worker
+    - DOC: restore note about "independant" typo
+    - MEDIUM: stream: implement stream_buf_available()
+    - MEDIUM: appctx: check for allocation attempts in buffer allocation callbacks
+    - MINOR: stream-int: rename si_applet_{want|stop|cant}_{get|put}
+    - MINOR: stream-int: add si_done_{get,put} to indicate that we won't do it anymore
+    - MINOR: stream-int: use si_cant_put() instead of setting SI_FL_WAIT_ROOM
+    - MINOR: stream-int: make use of si_done_{get,put}() in shut{w,r}
+    - MINOR: stream-int: make it clear that si_ops cannot be null
+    - MEDIUM: stream-int: temporarily make si_chk_rcv() take care of SI_FL_WAIT_ROOM
+    - MINOR: stream-int: factor the SI_ST_EST state test into si_chk_rcv()
+    - MEDIUM: stream-int: make SI_FL_WANT_PUT reflect CF_DONT_READ
+    - MEDIUM: stream-int: always call si_chk_rcv() when we make room in the buffer
+    - MEDIUM: stream-int: make si_chk_rcv() check that SI_FL_WAIT_ROOM is cleared
+    - MINOR: stream-int: replace si_update() with si_update_both()
+    - MEDIUM: stream-int: make stream_int_update() aware of the lower layers
+    - CLEANUP: stream-int: remove the now unused si->update() function
+    - MEDIUM: stream-int: Rely only on SI_FL_WAIT_ROOM to stop data receipt
+    - MEDIUM: stream-int: Try to read data even if channel's buffer seems to be full
+    - BUG/MINOR: config: better detect the presence of the h2 pattern in npn/alpn
+
 2018/10/28 : 1.9-dev5
     - BUILD: Makefile: add the new ERR variable to force -Werror
     - MINOR: freq_ctr: add swrate_add_scaled() to work with large samples
