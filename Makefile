@@ -904,7 +904,7 @@ all: haproxy $(EXTRA)
 endif
 
 OBJS = src/proto_http.o src/cfgparse.o src/cfgparse-global.o            \
-       src/server.o src/stream.o                                        \
+       src/cfgparse-listen.o src/server.o src/stream.o                  \
        src/flt_spoe.o src/stick_table.o src/stats.o src/mux_h2.o        \
        src/checks.o src/haproxy.o src/log.o src/dns.o src/peers.o       \
        src/standard.o src/sample.o src/cli.o src/stream_interface.o     \

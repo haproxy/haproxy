@@ -82,19 +82,12 @@ struct cfg_postparser {
 	int (*func)();
 };
 
-/* some of the most common options which are also the easiest to handle */
-struct cfg_opt {
-	const char *name;
-	unsigned int val;
-	unsigned int cap;
-	unsigned int checks;
-	unsigned int mode;
-};
-
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
 extern char *cfg_scope;
 extern struct cfg_kw_list cfg_keywords;
+extern char *cursection;
+extern struct proxy defproxy;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
@@ -116,12 +109,14 @@ void cfg_restore_sections(struct list *backup_sections);
 int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg);
 int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg);
+int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const char *file, int line);
 int too_many_args_idx(int maxarg, int index, char **args, char **msg, int *err_code);
 int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
 int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, char **err);
 unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err);
+void free_email_alert(struct proxy *p);
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the

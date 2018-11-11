@@ -516,6 +516,15 @@ struct redirect_rule {
 	char *cookie_str;
 };
 
+/* some of the most common options which are also the easiest to handle */
+struct cfg_opt {
+	const char *name;
+	unsigned int val;
+	unsigned int cap;
+	unsigned int checks;
+	unsigned int mode;
+};
+
 #endif /* _TYPES_PROXY_H */
 
 /*

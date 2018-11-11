@@ -36,6 +36,9 @@ extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
 extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
 extern struct eb_root proxy_by_name;    /* tree of proxies sorted by name */
 
+extern const struct cfg_opt cfg_opts[];
+extern const struct cfg_opt cfg_opts2[];
+
 int start_proxies(int verbose);
 struct task *manage_proxy(struct task *t, void *context, unsigned short state);
 void soft_stop(void);
