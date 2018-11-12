@@ -1346,7 +1346,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 
 				if (!once) {
 					once = 1; /* note: no need for atomic ops here */
-					ha_alert("socket for logger #%d failed: %s (errno=%d)\n",
+					ha_alert("socket() failed in logger #%d: %s (errno=%d)\n",
 					         nblogger, strerror(errno), errno);
 				}
 				continue;
@@ -1480,7 +1480,7 @@ send:
 
 			if (!once) {
 				once = 1; /* note: no need for atomic ops here */
-				ha_alert("sendmsg logger #%d failed: %s (errno=%d)\n",
+				ha_alert("sendmsg() failed in logger #%d: %s (errno=%d)\n",
 				         nblogger, strerror(errno), errno);
 			}
 		}
