@@ -5066,7 +5066,7 @@ load-server-state-from-file { global | local | none }
 
 
 log global
-log <address> [len <length>] <facility> [<level> [<minlevel>]]
+log <address> [len <length>] [format <format>] <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
   May be used in sections :   defaults | frontend | listen | backend
@@ -5115,6 +5115,15 @@ no log
                values are 80 to 65535 inclusive. The default value of 1024 is
                generally fine for all standard usages. Some specific cases of
                long captures or JSON-formatted logs may require larger values.
+
+    <format> is the log format used when generating syslog messages. It may be
+             one of the following :
+
+      rfc3164   The RFC3164 syslog message format. This is the default.
+                (https://tools.ietf.org/html/rfc3164)
+
+      rfc5424   The RFC5424 syslog message format.
+                (https://tools.ietf.org/html/rfc5424)
 
     <facility> must be one of the 24 standard syslog facilities :
 
