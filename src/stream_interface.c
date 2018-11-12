@@ -700,7 +700,7 @@ int si_cs_send(struct conn_stream *cs)
 		}
 	}
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
-	if (co_data(oc))
+	if (!channel_is_empty(oc))
 		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_event);
 	return did_send;
 }
@@ -719,7 +719,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 	if (!cs)
 		return NULL;
 
-	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
+	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && !channel_is_empty(si_oc(si)))
 		ret = si_cs_send(cs);
 	if (!(si->wait_event.wait_reason & SUB_CAN_RECV)) {
 		ret |= si_cs_recv(cs);
@@ -747,7 +747,7 @@ void stream_int_update(struct stream_interface *si)
 
 	if (!(ic->flags & CF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
-		if ((ic->flags & CF_DONT_READ) || co_data(ic)) {
+		if ((ic->flags & CF_DONT_READ) || !channel_is_empty(ic)) {
 			/* stop reading, imposed by channel's policy or contents */
 			si_cant_put(si);
 			ic->rex = TICK_ETERNITY;
@@ -1022,7 +1022,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && co_data(si_oc(si)))
+	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
