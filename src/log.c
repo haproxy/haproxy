@@ -210,6 +210,9 @@ char *log_format = NULL;
  */
 char default_rfc5424_sd_log_format[] = "- ";
 
+/* total number of dropped logs */
+unsigned int dropped_logs = 0;
+
 /* This is a global syslog header, common to all outgoing messages in
  * RFC3164 format. It begins with time-based part and is updated by
  * update_log_hdr().
@@ -1478,7 +1481,9 @@ send:
 		if (sent < 0) {
 			static char once;
 
-			if (!once) {
+			if (errno == EAGAIN)
+				HA_ATOMIC_ADD(&dropped_logs, 1);
+			else if (!once) {
 				once = 1; /* note: no need for atomic ops here */
 				ha_alert("sendmsg() failed in logger #%d: %s (errno=%d)\n",
 				         nblogger, strerror(errno), errno);
