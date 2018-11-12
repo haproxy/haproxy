@@ -52,9 +52,11 @@
 #include <grp.h>
 #ifdef USE_CPU_AFFINITY
 #include <sched.h>
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <sys/param.h>
+#ifdef __FreeBSD__
 #include <sys/cpuset.h>
+#endif
 #include <pthread_np.h>
 #endif
 #endif
