@@ -67,7 +67,14 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 			.sep1 = { .area = " ",   .data = 1 },
 			.sep2 = { .area = " - ", .data = 3 }
 		}
-	}
+	},
+	[LOG_FORMAT_SHORT] = {
+		.name = "short",
+		.pid = {
+			.sep1 = { .area = "",  .data = 0 },
+			.sep2 = { .area = " ", .data = 1 },
+		}
+	},
 };
 
 #define FD_SETS_ARE_BITFIELDS
@@ -1329,7 +1336,8 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		const struct logsrv *logsrv = tmp;
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
-		char *pid_sep1 = NULL, *pid_sep2 = NULL;
+		char *pid_sep1 = "", *pid_sep2 = "";
+		char logheader_short[3];
 		int sent;
 		int maxlen;
 		int hdr_max = 0;
@@ -1382,6 +1390,18 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			hdr_ptr = update_log_hdr_rfc5424(time);
 			sd_max = sd_size; /* the SD part allowed only in RFC5424 */
 			break;
+
+		case LOG_FORMAT_SHORT:
+			/* all fields are known, skip the header generation */
+			hdr = logheader_short;
+			hdr[0] = '<';
+			hdr[1] = '0' + MAX(level, logsrv->minlvl);
+			hdr[2] = '>';
+			hdr_ptr = hdr;
+			hdr_max = 3;
+			maxlen = logsrv->maxlen - hdr_max;
+			max = MIN(size, maxlen) - 1;
+			goto send;
 
 		default:
 			continue; /* must never happen */

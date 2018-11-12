@@ -856,7 +856,7 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
           as non-blocking calls will be ignored. Also there will be no way to
           purge nor rotate this file without restarting the process. Note that
           the configured syslog format is preserved, so the output is suitable
-          for use with a TCP syslog server.
+          for use with a TCP syslog server. See also the "short" format below.
 
         - "stdout" / "stderr", which are respectively aliases for "fd@1" and
           "fd@2", see above.
@@ -886,11 +886,22 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
     rfc5424   The RFC5424 syslog message format.
               (https://tools.ietf.org/html/rfc5424)
 
+    short     A message containing only a level between angle brackets such as
+              '<3>', followed by the text. The PID, date, time, process name
+              and system name are omitted. This is designed to be used with a
+              local log server. This format is compatible with what the systemd
+              logger consumes.
+
   <facility> must be one of the 24 standard syslog facilities :
 
-          kern   user   mail   daemon auth   syslog lpr    news
-          uucp   cron   auth2  ftp    ntp    audit  alert  cron2
-          local0 local1 local2 local3 local4 local5 local6 local7
+                 kern   user   mail   daemon auth   syslog lpr    news
+                 uucp   cron   auth2  ftp    ntp    audit  alert  cron2
+                 local0 local1 local2 local3 local4 local5 local6 local7
+
+             Note that the facility is ignored for the "short" format, but
+             still required as a positional field. It is recommended to use
+             "daemon" in this case to make it clear that it's only supposed to
+             be used locally.
 
   An optional level can be specified to filter outgoing messages. By default,
   all messages are sent. If a maximum level is specified, only messages with a
@@ -5136,7 +5147,7 @@ no log
                  ignored. Also there will be no way to purge nor rotate this
                  file without restarting the process. Note that the configured
                  syslog format is preserved, so the output is suitable for use
-                 with a TCP syslog server.
+                 with a TCP syslog server. See also the "short" format below.
 
                - "stdout" / "stderr", which are respectively aliases for "fd@1"
                  and "fd@2", see above.
@@ -5165,11 +5176,22 @@ no log
       rfc5424   The RFC5424 syslog message format.
                 (https://tools.ietf.org/html/rfc5424)
 
+      short     A message containing only a level between angle brackets such as
+                '<3>', followed by the text. The PID, date, time, process name
+                and system name are omitted. This is designed to be used with a
+                local log server. This format is compatible with what the
+                systemd logger consumes.
+
     <facility> must be one of the 24 standard syslog facilities :
 
-                 kern   user   mail   daemon auth   syslog lpr    news
-                 uucp   cron   auth2  ftp    ntp    audit  alert  cron2
-                 local0 local1 local2 local3 local4 local5 local6 local7
+                   kern   user   mail   daemon auth   syslog lpr    news
+                   uucp   cron   auth2  ftp    ntp    audit  alert  cron2
+                   local0 local1 local2 local3 local4 local5 local6 local7
+
+               Note that the facility is ignored for the "short" format, but
+               still required as a positional field. It is recommended to use
+               "daemon" in this case to make it clear that it's only supposed
+               to be used locally.
 
     <level>    is optional and can be specified to filter outgoing messages. By
                default, all messages are sent. If a level is specified, only
@@ -5196,6 +5218,8 @@ no log
 
   Example :
     log global
+    log stdout format short daemon          # send everything to stdout
+    log stderr format short daemon notice   # send important events to stderr
     log 127.0.0.1:514 local0 notice         # only send important events
     log 127.0.0.1:514 local0 notice notice  # same but limit output level
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
