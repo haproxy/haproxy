@@ -673,6 +673,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	/* OK, this means that a connection succeeded. The caller will be
 	 * responsible for handling the transition from CON to EST.
 	 */
+	si_want_put(si);
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
 	return 1;
