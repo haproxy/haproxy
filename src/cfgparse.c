@@ -2834,14 +2834,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->server_id_hdr_name = strdup(defproxy.server_id_hdr_name);
 		}
 
+		/* initialize error relocations */
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+			chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
+
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
 			curproxy->backlog = defproxy.backlog;
 			curproxy->fe_sps_lim = defproxy.fe_sps_lim;
-
-			/* initialize error relocations */
-			for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
-				chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
 
 			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 		}
