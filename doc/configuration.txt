@@ -856,7 +856,8 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
           as non-blocking calls will be ignored. Also there will be no way to
           purge nor rotate this file without restarting the process. Note that
           the configured syslog format is preserved, so the output is suitable
-          for use with a TCP syslog server. See also the "short" format below.
+          for use with a TCP syslog server. See also the "short" and "raw"
+          format below.
 
         - "stdout" / "stderr", which are respectively aliases for "fd@1" and
           "fd@2", see above.
@@ -892,16 +893,21 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
               local log server. This format is compatible with what the systemd
               logger consumes.
 
+    raw       A message containing only the text. The level, PID, date, time,
+              process name and system name are omitted. This is designed to be
+              used in containers or during development, where the severity only
+              depends on the file descriptor used (stdout/stderr).
+
   <facility> must be one of the 24 standard syslog facilities :
 
                  kern   user   mail   daemon auth   syslog lpr    news
                  uucp   cron   auth2  ftp    ntp    audit  alert  cron2
                  local0 local1 local2 local3 local4 local5 local6 local7
 
-             Note that the facility is ignored for the "short" format, but
-             still required as a positional field. It is recommended to use
-             "daemon" in this case to make it clear that it's only supposed to
-             be used locally.
+             Note that the facility is ignored for the "short" and "raw"
+             formats, but still required as a positional field. It is
+             recommended to use "daemon" in this case to make it clear that
+             it's only supposed to be used locally.
 
   An optional level can be specified to filter outgoing messages. By default,
   all messages are sent. If a maximum level is specified, only messages with a
@@ -5147,7 +5153,8 @@ no log
                  ignored. Also there will be no way to purge nor rotate this
                  file without restarting the process. Note that the configured
                  syslog format is preserved, so the output is suitable for use
-                 with a TCP syslog server. See also the "short" format below.
+                 with a TCP syslog server. See also the "short" and "raw"
+                 formats below.
 
                - "stdout" / "stderr", which are respectively aliases for "fd@1"
                  and "fd@2", see above.
@@ -5182,16 +5189,21 @@ no log
                 local log server. This format is compatible with what the
                 systemd logger consumes.
 
+      raw       A message containing only the text. The level, PID, date, time,
+                process name and system name are omitted. This is designed to
+                be used in containers or during development, where the severity
+                only depends on the file descriptor used (stdout/stderr).
+
     <facility> must be one of the 24 standard syslog facilities :
 
                    kern   user   mail   daemon auth   syslog lpr    news
                    uucp   cron   auth2  ftp    ntp    audit  alert  cron2
                    local0 local1 local2 local3 local4 local5 local6 local7
 
-               Note that the facility is ignored for the "short" format, but
-               still required as a positional field. It is recommended to use
-               "daemon" in this case to make it clear that it's only supposed
-               to be used locally.
+               Note that the facility is ignored for the "short" and "raw"
+               formats, but still required as a positional field. It is
+               recommended to use "daemon" in this case to make it clear that
+               it's only supposed to be used locally.
 
     <level>    is optional and can be specified to filter outgoing messages. By
                default, all messages are sent. If a level is specified, only
@@ -5218,8 +5230,9 @@ no log
 
   Example :
     log global
-    log stdout format short daemon          # send everything to stdout
-    log stderr format short daemon notice   # send important events to stderr
+    log stdout format short daemon          # send log to systemd
+    log stdout format raw daemon            # send everything to stdout
+    log stderr format raw daemon notice     # send important events to stderr
     log 127.0.0.1:514 local0 notice         # only send important events
     log 127.0.0.1:514 local0 notice notice  # same but limit output level
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server

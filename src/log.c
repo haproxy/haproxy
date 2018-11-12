@@ -75,6 +75,13 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 			.sep2 = { .area = " ", .data = 1 },
 		}
 	},
+	[LOG_FORMAT_RAW] = {
+		.name = "raw",
+		.pid = {
+			.sep1 = { .area = "", .data = 0 },
+			.sep2 = { .area = "", .data = 0 },
+		}
+	},
 };
 
 #define FD_SETS_ARE_BITFIELDS
@@ -1400,6 +1407,14 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			hdr_ptr = hdr;
 			hdr_max = 3;
 			maxlen = logsrv->maxlen - hdr_max;
+			max = MIN(size, maxlen) - 1;
+			goto send;
+
+		case LOG_FORMAT_RAW:
+			/* all fields are known, skip the header generation */
+			hdr_ptr = hdr = "";
+			hdr_max = 0;
+			maxlen = logsrv->maxlen;
 			max = MIN(size, maxlen) - 1;
 			goto send;
 

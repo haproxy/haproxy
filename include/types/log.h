@@ -42,6 +42,7 @@ enum {
 	LOG_FORMAT_RFC3164 = 0,
 	LOG_FORMAT_RFC5424,
 	LOG_FORMAT_SHORT,
+	LOG_FORMAT_RAW,
 	LOG_FORMATS,          /* number of supported log formats, must always be last */
 };
 
