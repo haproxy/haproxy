@@ -1719,6 +1719,48 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
 	return ret;
 }
 
+/*
+ * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
+ * built according to <fmt> log line format.
+ * If <early_hint> is false the HTTP 103 response first line is inserted before
+ * the header.
+ */
+static int http_apply_early_hint_rule(struct stream* s, struct channel *resp, int early_hint,
+                                      const char* name, unsigned int name_len, struct list *fmt)
+{
+	int ret;
+	size_t data;
+	struct buffer *chunk;
+	char *cur_ptr = ci_head(resp);
+
+	ret = 0;
+	data = co_data(resp);
+
+	chunk = alloc_trash_chunk();
+	if (!chunk)
+		goto leave;
+
+	if (!early_hint && !chunk_memcat(chunk, HTTP_103.ptr, HTTP_103.len))
+	    goto leave;
+
+	if (!chunk_memcat(chunk, name, name_len) || !chunk_memcat(chunk, ": ", 2))
+		goto leave;
+
+	chunk->data += build_logline(s, chunk->area + chunk->data, chunk->size - chunk->data, fmt);
+	if (!chunk_memcat(chunk, "\r\n", 2))
+	    goto leave;
+
+	ret = b_rep_blk(&resp->buf, cur_ptr, cur_ptr, chunk->area, chunk->data);
+	c_adv(resp, ret);
+
+ leave:
+	if (!ret)
+		co_set_data(resp, data);
+	free_trash_chunk(chunk);
+
+	return ret;
+}
+
 /* Executes the http-request rules <rules> for stream <s>, proxy <px> and
  * transaction <txn>. Returns the verdict of the first rule that prevents
  * further processing of the request (auth, deny, ...), and defaults to
@@ -1739,6 +1781,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	const char *auth_realm;
 	int act_flags = 0;
 	int len;
+	int early_hint = 0;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -2006,6 +2049,17 @@ resume_execution:
 			break;
 			}
 
+		case ACT_HTTP_EARLY_HINT:
+			if (!(txn->req.flags & HTTP_MSGF_VER_11))
+				break;
+
+			if (!http_apply_early_hint_rule(s, txn->rsp.chn, early_hint,
+			                                rule->arg.early_hint.name,
+			                                rule->arg.early_hint.name_len,
+			                                &rule->arg.early_hint.fmt))
+				return HTTP_RULE_RES_DONE;
+			early_hint = 1;
+			break;
 		case ACT_CUSTOM:
 			if ((s->req.flags & CF_READ_ERROR) ||
 			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
@@ -2072,6 +2126,15 @@ resume_execution:
 		default:
 			break;
 		}
+	}
+
+	if (early_hint) {
+		struct channel *chn = s->txn->rsp.chn;
+		char *cur_ptr = ci_head(chn);
+
+		/* Add an empty line after Early Hint informational response headers */
+		b_rep_blk(&chn->buf, cur_ptr, cur_ptr, "\r\n", 2);
+		c_adv(chn, 2);
 	}
 
 	/* we reached the end of the rules, nothing to report */

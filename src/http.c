@@ -162,6 +162,8 @@ struct buffer http_err_chunks[HTTP_ERR_SIZE];
 
 const struct ist HTTP_100 = IST("HTTP/1.1 100 Continue\r\n\r\n");
 
+const struct ist HTTP_103 = IST("HTTP/1.1 103 Early Hints\r\n");
+
 /* Warning: no "connection" header is provided with the 3xx messages below */
 const char *HTTP_301 =
 	"HTTP/1.1 301 Moved Permanently\r\n"

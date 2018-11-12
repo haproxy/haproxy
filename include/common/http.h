@@ -124,6 +124,7 @@ const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
 
 const struct ist HTTP_100;
+const struct ist HTTP_103;
 extern const char *HTTP_301;
 extern const char *HTTP_302;
 extern const char *HTTP_303;
