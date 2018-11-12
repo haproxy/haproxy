@@ -754,6 +754,12 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		goto error;
 	}
 
+	/* take care of "stdout" and "stderr" as regular aliases for fd@1 / fd@2 */
+	if (strcmp(args[1], "stdout") == 0)
+		args[1] = "fd@1";
+	else if (strcmp(args[1], "stderr") == 0)
+		args[1] = "fd@2";
+
 	logsrv = calloc(1, sizeof(*logsrv));
 	if (!logsrv) {
 		memprintf(err, "out of memory");
@@ -1342,9 +1348,13 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 
 		if (unlikely(*plogfd < 0)) {
 			/* socket not successfully initialized yet */
-			int proto = logsrv->addr.ss_family == AF_UNIX ? 0 : IPPROTO_UDP;
-
-			if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM, proto)) < 0) {
+			if (logsrv->addr.ss_family == AF_UNSPEC) {
+				/* the socket's address is a file descriptor */
+				*plogfd = ((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
+				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
+			}
+			else if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
+			                           (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
 				static char once;
 
 				if (!once) {
@@ -1473,10 +1483,16 @@ send:
 		iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
 		iovec[7].iov_len  = 1;
 
-		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
-		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
+		if (logsrv->addr.ss_family == AF_UNSPEC) {
+			/* the target is a direct file descriptor */
+			sent = writev(*plogfd, iovec, 8);
+		}
+		else {
+			msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
+			msghdr.msg_namelen = get_addr_len(&logsrv->addr);
 
-		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
+			sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
+		}
 
 		if (sent < 0) {
 			static char once;
@@ -1485,7 +1501,7 @@ send:
 				HA_ATOMIC_ADD(&dropped_logs, 1);
 			else if (!once) {
 				once = 1; /* note: no need for atomic ops here */
-				ha_alert("sendmsg() failed in logger #%d: %s (errno=%d)\n",
+				ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
 				         nblogger, strerror(errno), errno);
 			}
 		}

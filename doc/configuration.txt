@@ -837,10 +837,29 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
           no port is specified, 514 is used by default (the standard syslog
           port).
 
-        - A filesystem path to a UNIX domain socket, keeping in mind
+        - A filesystem path to a datagram UNIX domain socket, keeping in mind
           considerations for chroot (be sure the path is accessible inside
           the chroot) and uid/gid (be sure the path is appropriately
           writable).
+
+        - A file descriptor number in the form "fd@<number>", which may point
+          to a pipe, terminal, or socket. In this case unbuffered logs are used
+          and one writev() call per log is performed. This is a bit expensive
+          but acceptable for most workloads. Messages sent this way will not be
+          truncated but may be dropped, in which case the DroppedLogs counter
+          will be incremented. The writev() call is atomic even on pipes for
+          messages up to PIPE_BUF size, which POSIX recommends to be at least
+          512 and which is 4096 bytes on most modern operating systems. Any
+          larger message may be interleaved with messages from other processes.
+          Exceptionally for debugging purposes the file descriptor may also be
+          directed to a file, but doing so will significantly slow haproxy down
+          as non-blocking calls will be ignored. Also there will be no way to
+          purge nor rotate this file without restarting the process. Note that
+          the configured syslog format is preserved, so the output is suitable
+          for use with a TCP syslog server.
+
+        - "stdout" / "stderr", which are respectively aliases for "fd@1" and
+          "fd@2", see above.
 
         You may want to reference some environment variables in the address
         parameter, see section 2.3 about environment variables.
@@ -5101,8 +5120,29 @@ no log
                  inside the chroot) and uid/gid (be sure the path is
                  appropriately writable).
 
-              You may want to reference some environment variables in the
-              address parameter, see section 2.3 about environment variables.
+               - A file descriptor number in the form "fd@<number>", which may
+                 point to a pipe, terminal, or socket. In this case unbuffered
+                 logs are used and one writev() call per log is performed. This
+                 is a bit expensive but acceptable for most workloads. Messages
+                 sent this way will not be truncated but may be dropped, in
+                 which case the DroppedLogs counter will be incremented. The
+                 writev() call is atomic even on pipes for messages up to
+                 PIPE_BUF size, which POSIX recommends to be at least 512 and
+                 which is 4096 bytes on most modern operating systems. Any
+                 larger message may be interleaved with messages from other
+                 processes.  Exceptionally for debugging purposes the file
+                 descriptor may also be directed to a file, but doing so will
+                 significantly slow haproxy down as non-blocking calls will be
+                 ignored. Also there will be no way to purge nor rotate this
+                 file without restarting the process. Note that the configured
+                 syslog format is preserved, so the output is suitable for use
+                 with a TCP syslog server.
+
+               - "stdout" / "stderr", which are respectively aliases for "fd@1"
+                 and "fd@2", see above.
+
+               You may want to reference some environment variables in the
+               address parameter, see section 2.3 about environment variables.
 
     <length>   is an optional maximum line length. Log lines larger than this
                value will be truncated before being sent. The reason is that
