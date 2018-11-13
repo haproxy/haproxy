@@ -3201,12 +3201,16 @@ int main(int argc, char **argv)
 			curpeers->peers_fe = NULL;
 		}
 
-		/* if we're NOT in QUIET mode, we should now close the 3 first FDs to ensure
-		 * that we can detach from the TTY. We MUST NOT do it in other cases since
-		 * it would have already be done, and 0-2 would have been affected to listening
-		 * sockets
+		/*
+		 * This is only done in daemon mode because we might want the
+		 * logs on stdout in mworker mode. If we're NOT in QUIET mode,
+		 * we should now close the 3 first FDs to ensure that we can
+		 * detach from the TTY. We MUST NOT do it in other cases since
+		 * it would have already be done, and 0-2 would have been
+		 * affected to listening sockets
 		 */
-		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+		if ((global.mode & MODE_DAEMON) &&
+		    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			/* detach from the tty */
 			stdio_quiet(devnullfd);
 			global.mode &= ~MODE_VERBOSE;
