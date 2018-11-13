@@ -673,10 +673,12 @@ static inline void conn_free(struct connection *conn)
 		LIST_INIT(&sess->conn_list);
 	}
 	conn_force_unsubscribe(conn);
+	LIST_DEL(&conn->list);
+	LIST_INIT(&conn->list);
 	pool_free(pool_head_connection, conn);
 }
 
-/* Release a conn_stream, and kill the connection if it was the last one */
+/* Release a conn_stream */
 static inline void cs_destroy(struct conn_stream *cs)
 {
 	if (cs->conn->mux)

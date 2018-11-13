@@ -53,7 +53,6 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
 int si_cs_recv(struct conn_stream *cs);
 static int si_cs_process(struct conn_stream *cs);
-static int si_idle_conn_wake_cb(struct conn_stream *cs);
 int si_cs_send(struct conn_stream *cs);
 
 /* stream-interface operations for embedded tasks */
@@ -83,11 +82,6 @@ struct si_ops si_applet_ops = {
 struct data_cb si_conn_cb = {
 	.wake    = si_cs_process,
 	.name    = "STRM",
-};
-
-struct data_cb si_idle_conn_cb = {
-	.wake    = si_idle_conn_wake_cb,
-	.name    = "IDLE",
 };
 
 /*
@@ -410,29 +404,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	return 0;
 }
 
-
-/* Callback to be used by connection I/O handlers when some activity is detected
- * on an idle server connection. Its main purpose is to kill the connection once
- * a close was detected on it. It returns 0 if it did nothing serious, or -1 if
- * it killed the connection.
- */
-static int si_idle_conn_wake_cb(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-	struct stream_interface *si = cs->data;
-
-	if (!conn_ctrl_ready(conn))
-		return 0;
-
-	conn_sock_drain(conn);
-
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
-		/* warning, we can't do anything on <conn> after this call ! */
-		si_release_endpoint(si);
-		return -1;
-	}
-	return 0;
-}
 
 /* This function is the equivalent to stream_int_update() except that it's
  * designed to be called from outside the stream handlers, typically the lower

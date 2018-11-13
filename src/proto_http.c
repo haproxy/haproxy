@@ -3716,20 +3716,18 @@ void http_end_txn_clean_session(struct stream *s)
 	 * flags. We also need a more accurate method for computing per-request
 	 * data.
 	 */
-	/*
-	 * XXX cognet: This is probably wrong, this is killing a whole
-	 * connection, in the new world order, we probably want to just kill
-	 * the stream, this is to be revisited the day we handle multiple
-	 * streams in one server connection.
-	 */
 	cs = objt_cs(s->si[1].end);
 	srv_conn = cs_conn(cs);
 
 	/* unless we're doing keep-alive, we want to quickly close the connection
 	 * to the server.
+	 * XXX cognet: If the connection doesn't have a owner then it may not
+	 * be referenced  anywhere, just kill it now, even if it could be reused.
+	 * To be revisited later when revisited later when we handle connection
+	 * pools properly.
 	 */
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(&s->si[1])) {
+	    !si_conn_ready(&s->si[1]) || !srv_conn->owner) {
 		s->si[1].flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
 		si_shutr(&s->si[1]);
 		si_shutw(&s->si[1]);
@@ -3805,14 +3803,15 @@ void http_end_txn_clean_session(struct stream *s)
 
 	s->target = NULL;
 
-	/* only release our endpoint if we don't intend to reuse the
-	 * connection.
+
+	/* If we're doing keepalive, first call the mux detach() method
+	 * to let it know we want to detach without freing the connection.
+	 * We then can call si_release_endpoint() to destroy the conn_stream
 	 */
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(&s->si[1])) {
-		si_release_endpoint(&s->si[1]);
+	    !si_conn_ready(&s->si[1]) || !srv_conn->owner)
 		srv_conn = NULL;
-	}
+	si_release_endpoint(&s->si[1]);
 
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
@@ -3867,18 +3866,18 @@ void http_end_txn_clean_session(struct stream *s)
 	/* we're in keep-alive with an idle connection, monitor it if not already done */
 	if (srv_conn && LIST_ISEMPTY(&srv_conn->list)) {
 		srv = objt_server(srv_conn->target);
-		if (!srv)
-			si_idle_cs(&s->si[1], NULL);
-		else if (srv_conn->flags & CO_FL_PRIVATE)
-			si_idle_cs(&s->si[1], (srv->priv_conns ? &srv->priv_conns[tid] : NULL));
-		else if (prev_flags & TX_NOT_FIRST)
-			/* note: we check the request, not the connection, but
-			 * this is valid for strategies SAFE and AGGR, and in
-			 * case of ALWS, we don't care anyway.
-			 */
-			si_idle_cs(&s->si[1], (srv->safe_conns ? &srv->safe_conns[tid] : NULL));
-		else
-			si_idle_cs(&s->si[1], (srv->idle_conns ? &srv->idle_conns[tid] : NULL));
+		if (srv) {
+			if (srv_conn->flags & CO_FL_PRIVATE)
+				LIST_ADD(&srv->priv_conns[tid], &srv_conn->list);
+			else if (prev_flags & TX_NOT_FIRST)
+				/* note: we check the request, not the connection, but
+				 * this is valid for strategies SAFE and AGGR, and in
+				 * case of ALWS, we don't care anyway.
+				 */
+				LIST_ADD(&srv->safe_conns[tid], &srv_conn->list);
+			else
+				LIST_ADD(&srv->idle_conns[tid], &srv_conn->list);
+		}
 	}
 	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
 	s->res.analysers = 0;

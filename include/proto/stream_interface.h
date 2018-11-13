@@ -45,7 +45,6 @@ extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
 extern struct si_ops si_applet_ops;
 extern struct data_cb si_conn_cb;
-extern struct data_cb si_idle_conn_cb;
 
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app);
 void si_applet_wake_cb(struct stream_interface *si);
@@ -180,24 +179,6 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		appctx_free(appctx); /* we share the connection pool */
 	}
 	si_detach_endpoint(si);
-}
-
-/* Turn an existing connection endpoint of stream interface <si> to idle mode,
- * which means that the connection will be polled for incoming events and might
- * be killed by the underlying I/O handler. If <pool> is not null, the
- * connection will also be added at the head of this list. This connection
- * remains assigned to the stream interface it is currently attached to.
- */
-static inline void si_idle_cs(struct stream_interface *si, struct list *pool)
-{
-	struct conn_stream *cs = __objt_cs(si->end);
-	struct connection *conn = cs->conn;
-
-	conn_force_unsubscribe(conn);
-	if (pool)
-		LIST_ADD(pool, &conn->list);
-
-	cs_attach(cs, si, &si_idle_conn_cb);
 }
 
 /* Attach conn_stream <cs> to the stream interface <si>. The stream interface

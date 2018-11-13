@@ -583,7 +583,7 @@ int assign_server(struct stream *s)
 
 	srv = NULL;
 	s->target = NULL;
-	conn = cs_conn(objt_cs(s->si[1].end));
+	conn = s->sess->srv_conn;
 
 	if (conn &&
 	    (conn->flags & CO_FL_CONNECTED) &&
@@ -1056,28 +1056,22 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = NULL;
 	struct connection *srv_conn;
+	struct connection *old_conn;
 	struct conn_stream *srv_cs;
-	struct conn_stream *old_cs;
 	struct server *srv;
 	int reuse = 0;
 	int err;
 
+
 	srv = objt_server(s->target);
-	srv_cs = objt_cs(s->si[1].end);
-	srv_conn = cs_conn(srv_cs);
+	old_conn = srv_conn = s->sess->srv_conn;
 	if (srv_conn)
-		reuse = s->target == srv_conn->target;
+		reuse = (s->target == srv_conn->target) &&
+		    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
+		    conn_xprt_ready(srv_conn);
 
 	if (srv && !reuse) {
-		old_cs = srv_cs;
-		if (old_cs) {
-			srv_conn = NULL;
-			srv_cs->data = NULL;
-			si_detach_endpoint(&s->si[1]);
-			/* note: if the connection was in a server's idle
-			 * queue, it doesn't get dequeued.
-			 */
-		}
+		srv_conn = NULL;
 
 		/* Below we pick connections from the safe or idle lists based
 		 * on the strategy, the fact that this is a first or second
@@ -1114,29 +1108,8 @@ int connect_server(struct stream *s)
 		 * other owner's. That way it may remain alive for others to
 		 * pick.
 		 */
-		if (srv_conn) {
-			LIST_DEL(&srv_conn->list);
-			LIST_INIT(&srv_conn->list);
-
-			/* XXX cognet: this assumes only 1 conn_stream per
-			 * connection, has to be revisited later
-			 */
-			srv_cs = srv_conn->mux_ctx;
-
-			if (srv_cs->data) {
-				si_detach_endpoint(srv_cs->data);
-				if (old_cs && !(old_cs->conn->flags & CO_FL_PRIVATE)) {
-					si_attach_cs(srv_cs->data, old_cs);
-					si_idle_cs(srv_cs->data, NULL);
-				}
-			}
-			si_attach_cs(&s->si[1], srv_cs);
+		if (srv_conn)
 			reuse = 1;
-		}
-
-		/* we may have to release our connection if we couldn't swap it */
-		if (old_cs && !old_cs->data)
-			cs_destroy(old_cs);
 	}
 
 	if (reuse) {
@@ -1155,13 +1128,74 @@ int connect_server(struct stream *s)
 		}
 	}
 
+	/* We're about to use another connection, let the mux know we're
+	 * done with this one
+	 */
+	if (old_conn != srv_conn) {
+		int did_switch = 0;
+
+		if (srv_conn && reuse) {
+			struct session *sess;
+			int count = 0;
+
+			/*
+			 * If we're attempting to reuse a connection, and
+			 * the new connection has only one user, and there
+			 * are no more streams available, attempt to give
+			 * it our old connection
+			 */
+			list_for_each_entry(sess, &srv_conn->session_list,
+			    conn_list) {
+				count++;
+				if (count > 1)
+					break;
+			}
+			if (count == 1) {
+				sess = LIST_ELEM(srv_conn->session_list.n,
+				    struct session *, conn_list);
+				LIST_DEL(&sess->conn_list);
+				if (old_conn &&
+				    !(old_conn->flags & CO_FL_PRIVATE) &&
+				    (old_conn->mux->avail_streams(old_conn) > 0) &&
+				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
+					LIST_ADDQ(&old_conn->session_list, &sess->conn_list);
+					sess->srv_conn = old_conn;
+				} else {
+					LIST_INIT(&sess->conn_list);
+					sess->srv_conn = NULL;
+				}
+				did_switch = 1;
+			}
+
+		}
+		/*
+		 * We didn't manage to give our old connection, destroy it
+		 */
+		if (old_conn && !did_switch) {
+			old_conn->owner = NULL;
+			old_conn->mux->destroy(old_conn);
+			old_conn = NULL;
+		}
+	}
+
 	if (!reuse) {
 		srv_cs = si_alloc_cs(&s->si[1], NULL);
 		srv_conn = cs_conn(srv_cs);
 	} else {
-		/* reusing our connection, take it out of the idle list */
-		LIST_DEL(&srv_conn->list);
-		LIST_INIT(&srv_conn->list);
+		if (srv_conn->mux->avail_streams(srv_conn) == 1) {
+			/* No more streams available, remove it from the list */
+			LIST_DEL(&srv_conn->list);
+			LIST_INIT(&srv_conn->list);
+		}
+		srv_cs = srv_conn->mux->attach(srv_conn);
+		if (srv_cs)
+			si_attach_cs(&s->si[1], srv_cs);
+	}
+	if (srv_conn && old_conn != srv_conn) {
+		srv_conn->owner = s->sess;
+		s->sess->srv_conn = srv_conn;
+		LIST_DEL(&s->sess->conn_list);
+		LIST_ADDQ(&srv_conn->session_list, &s->sess->conn_list);
 	}
 
 	if (!srv_cs)
@@ -1203,15 +1237,10 @@ int connect_server(struct stream *s)
 				conn_get_to_addr(cli_conn);
 		}
 
-		si_attach_cs(&s->si[1], srv_cs);
-
 		assign_tproxy_address(s);
 	}
-	else {
-		/* the connection is being reused, just re-attach it */
-		si_attach_cs(&s->si[1], srv_cs);
+	else
 		s->flags |= SF_SRV_REUSED;
-	}
 
 	/* flag for logging source ip/port */
 	if (strm_fe(s)->options2 & PR_O2_SRC_ADDR)

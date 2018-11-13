@@ -30,6 +30,9 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 	LIST_DEL(&conn->list);
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
+	tasklet_free(ctx->wait_event.task);
+	conn->mux = NULL;
+	conn->mux_ctx = NULL;
 	if (conn->destroy_cb)
 		conn->destroy_cb(conn);
 	/* We don't bother unsubscribing here, as we're about to destroy
@@ -45,7 +48,7 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 	struct mux_pt_ctx *ctx = tctx;
 
 	conn_sock_drain(ctx->conn);
-	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
+	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
 		mux_pt_destroy(ctx);
 	else
 		ctx->conn->xprt->subscribe(ctx->conn, SUB_CAN_RECV,
@@ -135,6 +138,16 @@ static int mux_pt_wake(struct connection *conn)
  */
 static struct conn_stream *mux_pt_attach(struct connection *conn)
 {
+	struct conn_stream *cs;
+	struct mux_pt_ctx *ctx = conn->mux_ctx;
+
+	cs = cs_new(conn);
+	if (!cs)
+		goto fail;
+
+	ctx->cs = cs;
+	return (cs);
+fail:
 	return NULL;
 }
 
@@ -149,10 +162,13 @@ static const struct conn_stream *mux_pt_get_first_cs(const struct connection *co
 	return cs;
 }
 
-/* Destroy the mux and the associated connection */
+/* Destroy the mux and the associated connection, if no longer used */
 static void mux_pt_destroy_meth(struct connection *conn)
 {
-	mux_pt_destroy(conn->mux_ctx);
+	struct mux_pt_ctx *ctx = conn->mux_ctx;
+
+	if (!(ctx->cs))
+		mux_pt_destroy(ctx);
 }
 
 /*
@@ -164,9 +180,13 @@ static void mux_pt_detach(struct conn_stream *cs)
 	struct mux_pt_ctx *ctx = cs->conn->mux_ctx;
 
 	/* Subscribe, to know if we got disconnected */
-	conn->xprt->subscribe(conn, SUB_CAN_RECV, &ctx->wait_event);
-	ctx->cs = NULL;
-	mux_pt_destroy(ctx);
+	if (conn->owner != NULL &&
+	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+		ctx->cs = NULL;
+		conn->xprt->subscribe(conn, SUB_CAN_RECV, &ctx->wait_event);
+	} else
+		/* There's no session attached to that connection, destroy it */
+		mux_pt_destroy(ctx);
 }
 
 static int mux_pt_avail_streams(struct connection *conn)
@@ -184,6 +204,11 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
 	if (cs->flags & CS_FL_SHW)
 		conn_full_close(cs->conn);
+	/* Maybe we've been put in the list of available idle connections,
+	 * get ouf of here
+	 */
+	LIST_DEL(&cs->conn->list);
+	LIST_INIT(&cs->conn->list);
 }
 
 static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -196,6 +221,11 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		conn_sock_shutw(cs->conn, (mode == CS_SHW_NORMAL));
 	else
 		conn_full_close(cs->conn);
+	/* Maybe we've been put in the list of available idle connections,
+	 * get ouf of here
+	 */
+	LIST_DEL(&cs->conn->list);
+	LIST_INIT(&cs->conn->list);
 }
 
 /*

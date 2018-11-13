@@ -62,7 +62,6 @@ static struct pool_head *pool_head_h2s;
 #define H2_CF_WAIT_FOR_HS       0x00004000  // We did check that at least a stream was waiting for handshake
 #define H2_CF_IS_BACK           0x00008000  // this is an outgoing connection
 
-
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
 	H2_CS_PREFACE,   // init done, waiting for connection preface
@@ -2264,7 +2263,7 @@ static int h2_recv(struct h2c *h2c)
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
-		return 0;
+		return conn_xprt_read0_pending(conn);
 	}
 
 	if (b_data(buf) == buf->size)
@@ -2282,7 +2281,7 @@ static int h2_send(struct h2c *h2c)
 	int sent = 0;
 
 	if (conn->flags & CO_FL_ERROR)
-		return 0;
+		return 1;
 
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
