@@ -1378,12 +1378,13 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 					         nblogger, strerror(errno), errno);
 				}
 				continue;
+			} else {
+				/* we don't want to receive anything on this socket */
+				setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+				/* does nothing under Linux, maybe needed for others */
+				shutdown(*plogfd, SHUT_RD);
+				fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
 			}
-			/* we don't want to receive anything on this socket */
-			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
-			/* does nothing under Linux, maybe needed for others */
-			shutdown(*plogfd, SHUT_RD);
-			fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
 		}
 
 		switch (logsrv->format) {
