@@ -47,6 +47,8 @@ struct session {
 	struct vars vars;               /* list of variables for the session scope. */
 	struct task *task;              /* handshake timeout processing */
 	long t_handshake;               /* handshake duration, -1 = not completed */
+	struct connection *srv_conn;    /* Server connection we last used */
+	struct list conn_list;          /* List element for the session list in each connection */
 };
 
 #endif /* _TYPES_SESSION_H */

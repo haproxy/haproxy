@@ -53,6 +53,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
+		LIST_INIT(&sess->conn_list);
+		sess->srv_conn = NULL;
 		HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.conn_max,
 				     HA_ATOMIC_ADD(&fe->feconn, 1));
 		if (li)
