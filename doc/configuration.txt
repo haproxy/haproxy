@@ -4136,7 +4136,8 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   This appends an HTTP header field to this response whose name is specified in
   <name> and whose value is defined by <fmt> which follows the log-format rules
   (see Custom Log Format in section 8.2.4). This is particularly useful to pass
-  to the client som
+  to the client some Link headers to preload resources required to render the
+  HTML documents.
 
   See RFC 8297 for more information.
 
