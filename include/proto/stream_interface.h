@@ -389,15 +389,14 @@ static inline void si_shutw(struct stream_interface *si)
 }
 
 /* This is to be used after making some room available in a channel. It will
- * return without doing anything if {SI_FL_RX_WAIT_EP,SI_FL_RXBLK_ROOM} != {0,0}.
+ * return without doing anything if the stream interface's RX path is blocked.
+ * It will automatically mark the stream interface as busy processing the end
+ * point in order to avoid useless repeated wakeups.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_RXBLK_ROOM)
-		return;
-
-	if (si->flags & SI_FL_RX_WAIT_EP)
+	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
 	if (si->state > SI_ST_EST)

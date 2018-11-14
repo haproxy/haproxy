@@ -861,13 +861,13 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	 * handled at the latest moment.
 	 */
 	if (obj_type(si_f->end) == OBJ_TYPE_APPCTX &&
-	    (((si_f->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
-	     ((si_f->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
+	    ((si_rx_endp_ready(si_f) && !si_rx_blocked(si_f)) ||
+	     (si_tx_endp_ready(si_f) && !si_tx_blocked(si_f))))
 		appctx_wakeup(si_appctx(si_f));
 
 	if (obj_type(si_b->end) == OBJ_TYPE_APPCTX &&
-	    (((si_b->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
-	     ((si_b->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
+	    ((si_rx_endp_ready(si_b) && !si_rx_blocked(si_b)) ||
+	     (si_tx_endp_ready(si_b) && !si_tx_blocked(si_b))))
 		appctx_wakeup(si_appctx(si_b));
 }
 
@@ -1342,11 +1342,11 @@ int si_cs_recv(struct conn_stream *cs)
 		/* connection closed */
 		goto out_shutdown_r;
 
-	/* Subscribe to receive events */
-	if (!(si->flags & SI_FL_RXBLK_ROOM))
+	/* Subscribe to receive events if we're blocking on I/O */
+	if (!si_rx_blocked(si))
 		conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_event);
 
-	return (cur_read != 0 || (si->flags & SI_FL_RXBLK_ROOM));
+	return (cur_read != 0) || si_rx_blocked(si);
 
  out_shutdown_r:
 	/* we received a shutdown */
@@ -1424,14 +1424,14 @@ void si_applet_wake_cb(struct stream_interface *si)
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
 
-	/* stream_int_notify may pass through checksnd and released some
-	 * WAIT_ROOM flags. The process_stream will consider those flags
-	 * to wakeup the appctx but in the case the task is not in runqueue
-	 * we may have to wakeup the appctx immediately.
+	/* stream_int_notify may have passed through chk_snd and released some
+	 * RXBLK flags. Process_stream will consider those flags to wake up the
+	 * appctx but in the case the task is not in runqueue we may have to
+	 * wakeup the appctx immediately.
 	 */
 	if (!task_in_rq(si_task(si)) &&
-	    (((si->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
-	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
+	    ((si_rx_endp_ready(si) && !si_rx_blocked(si)) ||
+	     (si_tx_endp_ready(si) && !si_tx_blocked(si))))
 		appctx_wakeup(si_appctx(si));
 }
 
