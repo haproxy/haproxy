@@ -852,7 +852,7 @@ static void sess_establish(struct stream *s)
 			rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 	}
 
-	si_want_put(si);
+	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
 		req->flags |= CF_WAKE_ONCE;

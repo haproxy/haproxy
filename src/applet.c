@@ -71,7 +71,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	 * that one applet which ignores any event will not spin.
 	 */
 	si_cant_get(si);
-	si_stop_put(si);
+	si_rx_endp_done(si);
 
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
@@ -80,7 +80,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	 * do if it needs the buffer, it will be called again upon readiness.
 	 */
 	if (!si_alloc_ibuf(si, &app->buffer_wait))
-		si_want_put(si);
+		si_rx_endp_more(si);
 
 	app->applet->fct(app);
 	si_applet_wake_cb(si);

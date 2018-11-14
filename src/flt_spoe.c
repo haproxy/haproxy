@@ -1201,7 +1201,7 @@ static int
 spoe_wakeup_appctx(struct appctx *appctx)
 {
 	si_want_get(appctx->owner);
-	si_want_put(appctx->owner);
+	si_rx_endp_more(appctx->owner);
 	appctx_wakeup(appctx);
 	return 1;
 }
@@ -1338,7 +1338,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	int   ret;
 
 	if (si->state <= SI_ST_CON) {
-		si_want_put(si);
+		si_rx_endp_more(si);
 		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);
 		goto stop;
 	}

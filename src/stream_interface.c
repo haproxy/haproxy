@@ -1137,7 +1137,7 @@ int si_cs_recv(struct conn_stream *cs)
 		goto out_shutdown_r;
 
 	/* start by claiming we'll want to receive and change our mind later if needed */
-	si_want_put(si);
+	si_rx_endp_more(si);
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
@@ -1236,7 +1236,7 @@ int si_cs_recv(struct conn_stream *cs)
 			si_cant_put(si);
 
 		if (ret <= 0) {
-			si_stop_put(si);
+			si_rx_endp_done(si);
 			break;
 		}
 

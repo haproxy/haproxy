@@ -259,12 +259,6 @@ static inline int si_rx_endp_ready(const struct stream_interface *si)
 	return !(si->flags & SI_FL_RX_WAIT_EP);
 }
 
-/* Report that a stream interface wants to put some data into the input buffer */
-static inline void si_want_put(struct stream_interface *si)
-{
-	si->flags &= ~SI_FL_RX_WAIT_EP;
-}
-
 /* Report that a stream interface failed to put some data into the input buffer */
 static inline void si_cant_put(struct stream_interface *si)
 {
@@ -272,16 +266,22 @@ static inline void si_cant_put(struct stream_interface *si)
 	si->flags &= ~SI_FL_RX_WAIT_EP;
 }
 
-/* Report that a stream interface doesn't want to put data into the input buffer */
-static inline void si_stop_put(struct stream_interface *si)
-{
-	si->flags |=  SI_FL_RX_WAIT_EP;
-}
-
 /* Report that a stream interface won't put any more data into the input buffer */
 static inline void si_done_put(struct stream_interface *si)
 {
 	si->flags &= ~SI_FL_RXBLK_ROOM;
+	si->flags |=  SI_FL_RX_WAIT_EP;
+}
+
+/* The stream interface announces it is ready to try to deliver more data to the input buffer */
+static inline void si_rx_endp_more(struct stream_interface *si)
+{
+	si->flags &= ~SI_FL_RX_WAIT_EP;
+}
+
+/* The stream interface announces it doesn't have more data for the input buffer */
+static inline void si_rx_endp_done(struct stream_interface *si)
+{
 	si->flags |=  SI_FL_RX_WAIT_EP;
 }
 
