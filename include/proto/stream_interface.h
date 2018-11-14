@@ -278,6 +278,18 @@ static inline void si_rx_endp_done(struct stream_interface *si)
 	si->flags |=  SI_FL_RX_WAIT_EP;
 }
 
+/* Tell a stream interface the input channel is OK with it sending it some data */
+static inline void si_rx_chan_rdy(struct stream_interface *si)
+{
+	si->flags &= ~SI_FL_RXBLK_CHAN;
+}
+
+/* Tell a stream interface the input channel is not OK with it sending it some data */
+static inline void si_rx_chan_blk(struct stream_interface *si)
+{
+	si->flags |=  SI_FL_RXBLK_CHAN;
+}
+
 /* The stream interface just got the input buffer it was waiting for */
 static inline void si_rx_buff_rdy(struct stream_interface *si)
 {
