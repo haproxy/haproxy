@@ -45,6 +45,7 @@
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;
 
+#define round_ptr_size(i) (((i) + (sizeof(void *) - 1)) &~ (sizeof(void *) - 1))
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
  * in table <t>.
@@ -52,7 +53,7 @@ static THREAD_LOCAL struct stktable_key static_table_key;
 void __stksess_free(struct stktable *t, struct stksess *ts)
 {
 	t->current--;
-	pool_free(t->pool, (void *)ts - t->data_size);
+	pool_free(t->pool, (void *)ts - round_ptr_size(t->data_size));
 }
 
 /*
@@ -230,7 +231,7 @@ struct stksess *__stksess_new(struct stktable *t, struct stktable_key *key)
 	ts = pool_alloc(t->pool);
 	if (ts) {
 		t->current++;
-		ts = (void *)ts + t->data_size;
+		ts = (void *)ts + round_ptr_size(t->data_size);
 		__stksess_init(t, ts);
 		if (key)
 			stksess_setkey(t, ts, key);
@@ -598,7 +599,7 @@ int stktable_init(struct stktable *t)
 		t->updates = EB_ROOT_UNIQUE;
 		HA_SPIN_INIT(&t->lock);
 
-		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->data_size + t->key_size, MEM_F_SHARED);
+		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
 		t->exp_next = TICK_ETERNITY;
 		if ( t->expire ) {
