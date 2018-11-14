@@ -1838,7 +1838,7 @@ Socket class
 
   Other format accepted are a socket path like "/socket/path", it permits to
   connect to a socket. Abstract namespaces are supported with the prefix
-  "abns@", and finaly a file descriptor can be passed with the prefix "fd@".
+  "abns@", and finally a file descriptor can be passed with the prefix "fd@".
   The prefix "ipv4@", "ipv6@" and "unix@" are also supported. The port can be
   passed int the string. The syntax "127.0.0.1:1234" is valid. In this case, the
   parameter *port* must not be set.

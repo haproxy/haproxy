@@ -68,7 +68,7 @@ which takes decisions.
 Connector
 ---------
 
-A connector is the entity which permits to instanciate a connection to a known
+A connector is the entity which permits to instantiate a connection to a known
 destination. It presents a connect() callback, and as such appears on the right
 side of diagrams.
 

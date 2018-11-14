@@ -117,7 +117,7 @@
   frame size minimum. That means slightly more than 16kB of buffer in each
   direction to process any frame. It will definitely have an impact on the
   deployed maxconn setting in places using less than this (4..8kB are common).
-  Also, the header list is persistant per connection, so if we reach the same
+  Also, the header list is persistent per connection, so if we reach the same
   size as the request, that's another 16kB in each direction, resulting in
   about 48kB of memory where 8 were previously used. A more careful encoder
   can work with a much smaller set even if that implies evicting entries
@@ -216,7 +216,7 @@ have dynamic buffer allocation.
 
 Thus :
 - Tx buffers do not exist. We allocate a buffer on the fly when we're ready to
-  send something that we need to build and that needs to be persistant in case
+  send something that we need to build and that needs to be persistent in case
   of partial send. H1 headers are built on the fly from the header table to a
   temporary buffer that is immediately sent and whose amount of sent bytes is
   the only information kept (like for PROXY protocol). H2 headers are more

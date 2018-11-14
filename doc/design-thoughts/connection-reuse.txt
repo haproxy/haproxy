@@ -202,7 +202,7 @@ The problem analysed below was solved on 2013/10/22
 |       least with some transport not de-initialized. We might thus need
 |       conn_xprt_close() when conn_xprt_init() fails.
 | 
-| The fd should be conditionned by ->ctrl only, and the transport layer by ->xprt.
+| The fd should be conditioned by ->ctrl only, and the transport layer by ->xprt.
 | 
 | - conn_prepare_ctrl(conn, ctrl) 
 | - conn_prepare_xprt(conn, xprt) 

@@ -293,8 +293,8 @@ instances attached to a stream:
                                              * If NULL, we start from the first filter.
                                              * 0: request channel, 1: response channel */
         unsigned short flags;               /* STRM_FL_* */
-        unsigned char  nb_req_data_filters; /* Number of data filters registerd on the request channel */
-        unsigned char  nb_rsp_data_filters; /* Number of data filters registerd on the response channel */
+        unsigned char  nb_req_data_filters; /* Number of data filters registered on the request channel */
+        unsigned char  nb_rsp_data_filters; /* Number of data filters registered on the response channel */
     };
 
 
@@ -544,7 +544,7 @@ silently ignored (in this case, global.nbthread will be always equal to one).
 3.4. HANDLING THE STREAMS ACTIVITY
 -----------------------------------
 
-You may be interessted to handle streams activity. For now, there is three
+You may be interested to handle streams activity. For now, there is three
 callbacks that you should define to do so:
 
   * 'flt_ops.stream_start': It is called when a stream is started. This callback

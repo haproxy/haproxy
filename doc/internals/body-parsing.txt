@@ -81,7 +81,7 @@ msg.sov  : start of value. First character of the header's value in the header
 
 msg.sol  : start of line. Points to the beginning of the current header line
            while parsing headers. It is cleared to zero in the BODY state,
-           and contains exactly the number of bytes comprising the preceeding
+           and contains exactly the number of bytes comprising the preceding
            chunk size in the DATA state (which can be zero), so that the sum of
            msg.sov + msg.sol always points to the beginning of data for all
            states starting with DATA. For chunked encoded messages, this sum
@@ -91,7 +91,7 @@ msg.sol  : start of line. Points to the beginning of the current header line
            TRAILERS state, it contains the length of the last parsed part of
            the trailer headers.
 
-msg.eoh  : end of headers. Points to the CRLF (or LF) preceeding the body and
+msg.eoh  : end of headers. Points to the CRLF (or LF) preceding the body and
            marking the end of headers. It is where new headers are appended.
            This offset is automatically adjusted when inserting/removing some
            headers. It always contains the size of the headers excluding the

@@ -180,7 +180,7 @@ CLO    1.1      both      any       CLO       del_ka
     on versions and current connection header(s).
 
   - both CLO and TUN modes work similarly, they need to set a close mode on the
-    reponse. A 1.1 response will exclusively need the close header, while a 1.0
+    response. A 1.1 response will exclusively need the close header, while a 1.0
     response will have it removed. Any keep-alive header is always removed when
     found.
 

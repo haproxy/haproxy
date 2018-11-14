@@ -61,7 +61,7 @@ On the accept() side, we probably need to know :
   - if a data-layer accept() has been performed
     => possibly 2 bits, to indicate the need to free()
 
-On the connect() side, we need to konw :
+On the connect() side, we need to know :
   - the desire to send a header (eg: send-proxy)
   - if this header has been sent
     => maybe both info might be combined

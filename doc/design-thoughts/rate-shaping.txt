@@ -63,7 +63,7 @@ This brings us to a very flexible architecture :
    - 1 list of rule-based checkpoints per backend
    - 1 list of rule-based checkpoints per server
 
-Each of these lists have a lot of rules conditionned by ACLs, just like the
+Each of these lists have a lot of rules conditioned by ACLs, just like the
 use-backend rules, except that all rules are evaluated in turn.
 
 Since we might sometimes just want to enable that without setting any limit and
