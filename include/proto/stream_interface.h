@@ -285,6 +285,22 @@ static inline void si_done_put(struct stream_interface *si)
 	si->flags |=  SI_FL_RX_WAIT_EP;
 }
 
+/* The stream interface just got the input buffer it was waiting for */
+static inline void si_rx_buff_rdy(struct stream_interface *si)
+{
+	si->flags &= ~SI_FL_RXBLK_BUFF;
+}
+
+/* The stream interface failed to get an input buffer and is waiting for it.
+ * Since it indicates a willingness to deliver data to the buffer that will
+ * have to be retried, we automatically clear RXBLK_ENDP to be called again
+ * as soon as RXBLK_BUFF is cleared.
+ */
+static inline void si_rx_buff_blk(struct stream_interface *si)
+{
+	si->flags |=  SI_FL_RXBLK_BUFF;
+}
+
 /* Returns non-zero if the stream interface's Rx path is blocked */
 static inline int si_tx_blocked(const struct stream_interface *si)
 {
@@ -342,10 +358,10 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
 /* Try to allocate a buffer for the stream-int's input channel. It relies on
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
- * represented by <wait> pointer, will be added in the list of objects waiting
- * for an available buffer, and SI_FL_RXBLK_ROOM will be set on the stream-int.
- * The requester will be responsible for calling this function to try again
- * once woken up.
+ * represented by the <wait> pointer, will be added in the list of objects
+ * waiting for an available buffer, and SI_FL_RXBLK_BUFF will be set on the
+ * stream-int and SI_FL_RX_WAIT_EP cleared. The requester will be responsible
+ * for calling this function to try again once woken up.
  */
 static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait *wait)
 {
@@ -353,7 +369,7 @@ static inline int si_alloc_ibuf(struct stream_interface *si, struct buffer_wait 
 
 	ret = channel_alloc_buffer(si_ic(si), wait);
 	if (!ret)
-		si_cant_put(si);
+		si_rx_buff_blk(si);
 	return ret;
 }
 

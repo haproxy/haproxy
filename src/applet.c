@@ -36,14 +36,21 @@ int appctx_buf_available(void *arg)
 	struct stream_interface *si = appctx->owner;
 
 	/* allocation requested ? */
-	if (!(si->flags & SI_FL_RXBLK_ROOM) || c_size(si_ic(si)) || si_ic(si)->pipe)
+	if (!(si->flags & SI_FL_RXBLK_BUFF))
+		return 0;
+
+	si_rx_buff_rdy(si);
+
+	/* was already allocated another way ? if so, don't take this one */
+	if (c_size(si_ic(si)) || si_ic(si)->pipe)
 		return 0;
 
 	/* allocation possible now ? */
-	if (!b_alloc_margin(&si_ic(si)->buf, global.tune.reserved_bufs))
+	if (!b_alloc_margin(&si_ic(si)->buf, global.tune.reserved_bufs)) {
+		si_rx_buff_blk(si);
 		return 0;
+	}
 
-	si->flags &= ~SI_FL_RXBLK_ROOM;
 	task_wakeup(appctx->t, TASK_WOKEN_RES);
 	return 1;
 }
@@ -58,12 +65,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 		__appctx_free(app);
 		return NULL;
 	}
-	/* Now we'll try to allocate the input buffer. We wake up the
-	 * applet in all cases. So this is the applet responsibility to
-	 * check if this buffer was allocated or not. This let a chance
-	 * for applets to do some other processing if needed. */
-	if (!si_alloc_ibuf(si, &app->buffer_wait))
-		si_cant_put(si);
 
 	/* We always pretend the applet can't get and doesn't want to
 	 * put, it's up to it to change this if needed. This ensures
@@ -71,6 +72,15 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	 */
 	si_cant_get(si);
 	si_stop_put(si);
+
+	/* Now we'll try to allocate the input buffer. We wake up the applet in
+	 * all cases. So this is the applet's responsibility to check if this
+	 * buffer was allocated or not. This leaves a chance for applets to do
+	 * some other processing if needed. The applet doesn't have anything to
+	 * do if it needs the buffer, it will be called again upon readiness.
+	 */
+	if (!si_alloc_ibuf(si, &app->buffer_wait))
+		si_want_put(si);
 
 	app->applet->fct(app);
 	si_applet_wake_cb(si);

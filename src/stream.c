@@ -96,12 +96,12 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_RXBLK_ROOM) &&
+	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_RXBLK_BUFF) &&
 	    b_alloc_margin(&s->req.buf, global.tune.reserved_bufs))
-		s->si[0].flags &= ~SI_FL_RXBLK_ROOM;
-	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_RXBLK_ROOM) &&
+		si_rx_buff_rdy(&s->si[0]);
+	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_RXBLK_BUFF) &&
 		 b_alloc_margin(&s->res.buf, 0))
-		s->si[1].flags &= ~SI_FL_RXBLK_ROOM;
+		si_rx_buff_rdy(&s->si[1]);
 	else
 		return 0;
 
