@@ -87,7 +87,7 @@ int stream_create_from_cs(struct conn_stream *cs)
 
 /* Callback used to wake up a stream when an input buffer is available. The
  * stream <s>'s stream interfaces are checked for a failed buffer allocation
- * as indicated by the presence of the SI_FL_WAIT_ROOM flag and the lack of a
+ * as indicated by the presence of the SI_FL_RXBLK_ROOM flag and the lack of a
  * buffer, and and input buffer is assigned there (at most one). The function
  * returns 1 and wakes the stream up if a buffer was taken, otherwise zero.
  * It's designed to be called from __offer_buffer().
@@ -96,12 +96,12 @@ int stream_buf_available(void *arg)
 {
 	struct stream *s = arg;
 
-	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_WAIT_ROOM) &&
+	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_RXBLK_ROOM) &&
 	    b_alloc_margin(&s->req.buf, global.tune.reserved_bufs))
-		s->si[0].flags &= ~SI_FL_WAIT_ROOM;
-	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_WAIT_ROOM) &&
+		s->si[0].flags &= ~SI_FL_RXBLK_ROOM;
+	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_RXBLK_ROOM) &&
 		 b_alloc_margin(&s->res.buf, 0))
-		s->si[1].flags &= ~SI_FL_WAIT_ROOM;
+		s->si[1].flags &= ~SI_FL_RXBLK_ROOM;
 	else
 		return 0;
 

@@ -256,7 +256,7 @@ static inline void si_want_put(struct stream_interface *si)
 /* Report that a stream interface failed to put some data into the input buffer */
 static inline void si_cant_put(struct stream_interface *si)
 {
-	si->flags |= SI_FL_WANT_PUT | SI_FL_WAIT_ROOM;
+	si->flags |= SI_FL_WANT_PUT | SI_FL_RXBLK_ROOM;
 }
 
 /* Report that a stream interface doesn't want to put data into the input buffer */
@@ -268,7 +268,7 @@ static inline void si_stop_put(struct stream_interface *si)
 /* Report that a stream interface won't put any more data into the input buffer */
 static inline void si_done_put(struct stream_interface *si)
 {
-	si->flags &= ~(SI_FL_WANT_PUT | SI_FL_WAIT_ROOM);
+	si->flags &= ~(SI_FL_WANT_PUT | SI_FL_RXBLK_ROOM);
 }
 
 /* Report that a stream interface wants to get some data from the output buffer */
@@ -317,7 +317,7 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
  * channel_alloc_buffer() for this so it abides by its rules. It returns 0 on
  * failure, non-zero otherwise. If no buffer is available, the requester,
  * represented by <wait> pointer, will be added in the list of objects waiting
- * for an available buffer, and SI_FL_WAIT_ROOM will be set on the stream-int.
+ * for an available buffer, and SI_FL_RXBLK_ROOM will be set on the stream-int.
  * The requester will be responsible for calling this function to try again
  * once woken up.
  */
@@ -363,12 +363,12 @@ static inline void si_shutw(struct stream_interface *si)
 }
 
 /* This is to be used after making some room available in a channel. It will
- * return without doing anything if {SI_FL_WANT_PUT,SI_FL_WAIT_ROOM} != {1,0}.
+ * return without doing anything if {SI_FL_WANT_PUT,SI_FL_RXBLK_ROOM} != {1,0}.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_WAIT_ROOM)
+	if (si->flags & SI_FL_RXBLK_ROOM)
 		return;
 
 	if (!(si->flags & SI_FL_WANT_PUT))
@@ -402,7 +402,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 	if (si->wait_event.wait_reason & SUB_CAN_RECV)
 		return 0; // already subscribed
 
-	if (si->flags & SI_FL_WAIT_ROOM && c_size(si_ic(si)))
+	if (si->flags & SI_FL_RXBLK_ROOM && c_size(si_ic(si)))
 		return 0; // already failed
 
 	return si_cs_recv(cs);

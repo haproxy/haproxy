@@ -36,14 +36,14 @@ int appctx_buf_available(void *arg)
 	struct stream_interface *si = appctx->owner;
 
 	/* allocation requested ? */
-	if (!(si->flags & SI_FL_WAIT_ROOM) || c_size(si_ic(si)) || si_ic(si)->pipe)
+	if (!(si->flags & SI_FL_RXBLK_ROOM) || c_size(si_ic(si)) || si_ic(si)->pipe)
 		return 0;
 
 	/* allocation possible now ? */
 	if (!b_alloc_margin(&si_ic(si)->buf, global.tune.reserved_bufs))
 		return 0;
 
-	si->flags &= ~SI_FL_WAIT_ROOM;
+	si->flags &= ~SI_FL_RXBLK_ROOM;
 	task_wakeup(appctx->t, TASK_WOKEN_RES);
 	return 1;
 }

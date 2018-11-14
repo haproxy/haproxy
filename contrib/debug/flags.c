@@ -211,7 +211,7 @@ void show_si_flags(unsigned int f)
 
 	SHOW_FLAG(f, SI_FL_EXP);
 	SHOW_FLAG(f, SI_FL_ERR);
-	SHOW_FLAG(f, SI_FL_WAIT_ROOM);
+	SHOW_FLAG(f, SI_FL_RXBLK_ROOM);
 	SHOW_FLAG(f, SI_FL_WAIT_DATA);
 	SHOW_FLAG(f, SI_FL_ISBACK);
 	SHOW_FLAG(f, SI_FL_DONT_WAKE);

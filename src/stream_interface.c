@@ -225,7 +225,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -248,7 +248,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 
 	if (ic->pipe) {
 		/* stop reading */
-		si->flags |= SI_FL_WAIT_ROOM;
+		si->flags |= SI_FL_RXBLK_ROOM;
 	}
 	else {
 		/* (re)start reading */
@@ -438,7 +438,7 @@ static int si_idle_conn_wake_cb(struct conn_stream *cs)
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
- * It may update SI_FL_WAIT_DATA and/or SI_FL_WAIT_ROOM, that the callers are
+ * It may update SI_FL_WAIT_DATA and/or SI_FL_RXBLK_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
  * It should not be called from within the stream itself, stream_int_update()
  * is designed for this.
@@ -478,10 +478,10 @@ void stream_int_notify(struct stream_interface *si)
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 
-	if ((si_opposite(si)->flags & SI_FL_WAIT_ROOM) &&
+	if ((si_opposite(si)->flags & SI_FL_RXBLK_ROOM) &&
 	    ((oc->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL ||
 	     channel_is_empty(oc))) {
-		si_opposite(si)->flags &= ~SI_FL_WAIT_ROOM;
+		si_opposite(si)->flags &= ~SI_FL_RXBLK_ROOM;
 		si_chk_rcv(si_opposite(si));
 	}
 
@@ -490,7 +490,7 @@ void stream_int_notify(struct stream_interface *si)
 	 * are output data, but we avoid doing this if some of the data are
 	 * not yet scheduled for being forwarded, because it is very likely
 	 * that it will be done again immediately afterwards once the following
-	 * data are parsed (eg: HTTP chunking). We only SI_FL_WAIT_ROOM once
+	 * data are parsed (eg: HTTP chunking). We only SI_FL_RXBLK_ROOM once
 	 * we've emptied *some* of the output buffer, and not just when there
 	 * is available room, because applets are often forced to stop before
 	 * the buffer is full. We must not stop based on input data alone because
@@ -515,12 +515,12 @@ void stream_int_notify(struct stream_interface *si)
 		 * buffer or in the pipe.
 		 */
 		if (new_len < last_len) {
-			si->flags &= ~SI_FL_WAIT_ROOM;
+			si->flags &= ~SI_FL_RXBLK_ROOM;
 			si_chk_rcv(si);
 		}
 	}
 
-	if (si->flags & SI_FL_WAIT_ROOM) {
+	if (si->flags & SI_FL_RXBLK_ROOM) {
 		ic->rex = TICK_ETERNITY;
 	}
 	else if ((ic->flags & (CF_SHUTR|CF_READ_PARTIAL|CF_DONT_READ)) == CF_READ_PARTIAL) {
@@ -760,7 +760,7 @@ void stream_int_update(struct stream_interface *si)
 			 * update it if is was not yet set. The stream socket handler will already
 			 * have updated it if there has been a completed I/O.
 			 */
-			si->flags &= ~SI_FL_WAIT_ROOM;
+			si->flags &= ~SI_FL_RXBLK_ROOM;
 			si_chk_rcv(si);
 			if (!(ic->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ic->rex))
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
@@ -830,7 +830,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	    !(cs->flags & CS_FL_ERROR) &&
 	    !(cs->conn->flags & CO_FL_ERROR)) {
 		if (si_cs_send(cs))
-			si_b->flags &= ~SI_FL_WAIT_ROOM;
+			si_b->flags &= ~SI_FL_RXBLK_ROOM;
 	}
 
 	/* back stream-int */
@@ -842,7 +842,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	    !(cs->flags & CS_FL_ERROR) &&
 	    !(cs->conn->flags & CO_FL_ERROR)) {
 		if (si_cs_send(cs))
-			si_f->flags &= ~SI_FL_WAIT_ROOM;
+			si_f->flags &= ~SI_FL_RXBLK_ROOM;
 	}
 
 	/* it's time to try to receive */
@@ -860,12 +860,12 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	 * handled at the latest moment.
 	 */
 	if (obj_type(si_f->end) == OBJ_TYPE_APPCTX &&
-	    (((si_f->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si_f->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
 	     ((si_f->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si_f));
 
 	if (obj_type(si_b->end) == OBJ_TYPE_APPCTX &&
-	    (((si_b->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si_b->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
 	     ((si_b->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si_b));
 }
@@ -983,7 +983,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1288,7 +1288,7 @@ int si_cs_recv(struct conn_stream *cs)
 		/* if we are waiting for more space, don't try to read more data
 		 * right now.
 		 */
-		if (si->flags & SI_FL_WAIT_ROOM)
+		if (si->flags & SI_FL_RXBLK_ROOM)
 			break;
 	} /* while !flags */
 
@@ -1341,10 +1341,10 @@ int si_cs_recv(struct conn_stream *cs)
 		goto out_shutdown_r;
 
 	/* Subscribe to receive events */
-	if (!(si->flags & SI_FL_WAIT_ROOM))
+	if (!(si->flags & SI_FL_RXBLK_ROOM))
 		conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_event);
 
-	return (cur_read != 0 || (si->flags & SI_FL_WAIT_ROOM));
+	return (cur_read != 0 || (si->flags & SI_FL_RXBLK_ROOM));
 
  out_shutdown_r:
 	/* we received a shutdown */
@@ -1428,7 +1428,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 	 * we may have to wakeup the appctx immediately.
 	 */
 	if (!task_in_rq(si_task(si)) &&
-	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
 	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si));
 }
@@ -1516,7 +1516,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
