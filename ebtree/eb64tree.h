@@ -129,7 +129,7 @@ static forceinline void __eb64_delete(struct eb64_node *eb64)
 }
 
 /*
- * Find the first occurence of a key in the tree <root>. If none can be
+ * Find the first occurrence of a key in the tree <root>. If none can be
  * found, return NULL.
  */
 static forceinline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
@@ -178,7 +178,7 @@ static forceinline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
 }
 
 /*
- * Find the first occurence of a signed key in the tree <root>. If none can
+ * Find the first occurrence of a signed key in the tree <root>. If none can
  * be found, return NULL.
  */
 static forceinline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)

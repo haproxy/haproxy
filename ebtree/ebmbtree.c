@@ -22,7 +22,7 @@
 
 #include "ebmbtree.h"
 
-/* Find the first occurence of a key of <len> bytes in the tree <root>.
+/* Find the first occurrence of a key of <len> bytes in the tree <root>.
  * If none can be found, return NULL.
  */
 REGPRM3 struct ebmb_node *
@@ -42,7 +42,7 @@ ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
 	return __ebmb_insert(root, new, len);
 }
 
-/* Find the first occurence of the longest prefix matching a key <x> in the
+/* Find the first occurrence of the longest prefix matching a key <x> in the
  * tree <root>. It's the caller's responsibility to ensure that key <x> is at
  * least as long as the keys in the tree. If none can be found, return NULL.
  */
@@ -52,7 +52,7 @@ ebmb_lookup_longest(struct eb_root *root, const void *x)
 	return __ebmb_lookup_longest(root, x);
 }
 
-/* Find the first occurence of a prefix matching a key <x> of <pfx> BITS in the
+/* Find the first occurrence of a prefix matching a key <x> of <pfx> BITS in the
  * tree <root>. If none can be found, return NULL.
  */
 REGPRM3 struct ebmb_node *
