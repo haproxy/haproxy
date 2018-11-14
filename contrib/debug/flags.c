@@ -201,8 +201,6 @@ void show_si_et(unsigned int f)
 
 void show_si_flags(unsigned int f)
 {
-	f &= 0xFFFF;
-
 	printf("si->flags   = ");
 	if (!f) {
 		printf("SI_FL_NONE\n");
@@ -222,8 +220,14 @@ void show_si_flags(unsigned int f)
 	SHOW_FLAG(f, SI_FL_WANT_PUT);
 	SHOW_FLAG(f, SI_FL_WANT_GET);
 
+	SHOW_FLAG(f, SI_FL_RXBLK_CHAN);
+	SHOW_FLAG(f, SI_FL_RXBLK_BUFF);
+	SHOW_FLAG(f, SI_FL_RXBLK_ROOM);
+	SHOW_FLAG(f, SI_FL_RXBLK_SHUT);
+	SHOW_FLAG(f, SI_FL_RX_WAIT_EP);
+
 	if (f) {
-		printf("EXTRA(0x%04x)", f);
+		printf("EXTRA(0x%08x)", f);
 	}
 	putchar('\n');
 }

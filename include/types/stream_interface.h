@@ -64,7 +64,7 @@ enum {
 	SI_FL_NONE       = 0x00000000,  /* nothing */
 	SI_FL_EXP        = 0x00000001,  /* timeout has expired */
 	SI_FL_ERR        = 0x00000002,  /* a non-recoverable error has occurred */
-	SI_FL_RXBLK_ROOM = 0x00000004,  /* stream-int waits for more buffer room to store incoming data */
+	/* unused:         0x00000004 */
 	SI_FL_WAIT_DATA  = 0x00000008,  /* stream-int waits for more outgoing data to send */
 	SI_FL_ISBACK     = 0x00000010,  /* 0 for front-side SI, 1 for back-side */
 	SI_FL_DONT_WAKE  = 0x00000020,  /* resync in progress, don't wake up */
@@ -75,6 +75,13 @@ enum {
 	SI_FL_WANT_PUT   = 0x00002000,  /* a stream-int would like to put some data into the buffer */
 	SI_FL_WANT_GET   = 0x00004000,  /* a stream-int would like to get some data from the buffer */
 	SI_FL_CLEAN_ABRT = 0x00008000,  /* SI_FL_ERR is used to report aborts, and not SHUTR */
+
+	SI_FL_RXBLK_CHAN = 0x00010000,  /* the channel doesn't want the stream-int to introduce data */
+	SI_FL_RXBLK_BUFF = 0x00020000,  /* stream-int waits for a buffer allocation to complete */
+	SI_FL_RXBLK_ROOM = 0x00040000,  /* stream-int waits for more buffer room to store incoming data */
+	SI_FL_RXBLK_SHUT = 0x00080000,  /* input is now closed, nothing new will ever come */
+	SI_FL_RXBLK_ANY  = 0x000F0000,  /* any of the RXBLK flags above */
+	SI_FL_RX_WAIT_EP = 0x00100000,  /* stream-int waits for more data from the end point */
 };
 
 /* A stream interface has 3 parts :
