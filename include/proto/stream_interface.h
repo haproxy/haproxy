@@ -247,6 +247,18 @@ static inline void si_applet_release(struct stream_interface *si)
 		appctx->applet->release(appctx);
 }
 
+/* Returns non-zero if the stream interface's Rx path is blocked */
+static inline int si_rx_blocked(const struct stream_interface *si)
+{
+	return !!(si->flags & SI_FL_RXBLK_ANY);
+}
+
+/* Returns non-zero if the stream interface's endpoint is ready to receive */
+static inline int si_rx_endp_ready(const struct stream_interface *si)
+{
+	return !(si->flags & SI_FL_RX_WAIT_EP);
+}
+
 /* Report that a stream interface wants to put some data into the input buffer */
 static inline void si_want_put(struct stream_interface *si)
 {
@@ -269,6 +281,18 @@ static inline void si_stop_put(struct stream_interface *si)
 static inline void si_done_put(struct stream_interface *si)
 {
 	si->flags &= ~(SI_FL_WANT_PUT | SI_FL_RXBLK_ROOM);
+}
+
+/* Returns non-zero if the stream interface's Rx path is blocked */
+static inline int si_tx_blocked(const struct stream_interface *si)
+{
+	return !!(si->flags & SI_FL_WAIT_DATA);
+}
+
+/* Returns non-zero if the stream interface's endpoint is ready to transmit */
+static inline int si_tx_endp_ready(const struct stream_interface *si)
+{
+	return (si->flags & SI_FL_WANT_GET);
 }
 
 /* Report that a stream interface wants to get some data from the output buffer */
