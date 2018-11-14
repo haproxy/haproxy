@@ -106,7 +106,7 @@ core.Info("4")
 		repeat
 			local d = socket:receive(res.contentlength)
 			if d == nil then
---				core.Info("luacurl, ERROR?: recieved NIL, expecting "..res.contentlength.." bytes only got "..string.len(res.body).." sofar")
+--				core.Info("luacurl, ERROR?: received NIL, expecting "..res.contentlength.." bytes only got "..string.len(res.body).." sofar")
 				return
 			else
 				res.body = res.body..d
@@ -116,7 +116,7 @@ core.Info("4")
 					break
 				end
 			end
---			core.Info("processhttpresponse, Loopy, get more body data! to recieve complete contentlenght")
+--			core.Info("processhttpresponse, Loopy, get more body data! to receive complete contentlenght")
 		until false
 	end
 	if res.headers["Transfer-Encoding"] ~= nil and res.headers["Transfer-Encoding"] == "chunked" then
