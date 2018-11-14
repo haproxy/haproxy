@@ -110,7 +110,7 @@ Available message Types for this class are:
 
 a) Protocol Message
 
-To signal that a protocol error occured. Connection will be shutdown just after sending this message.
+To signal that a protocol error occurred. Connection will be shutdown just after sending this message.
 
 b) Size Limit Error Message
 
@@ -248,9 +248,9 @@ Encoded Remote Table Id | Update Id
 
 
 Remote Table Id is the numeric identifier of the table on the remote side.
-Update Id is the id of the last update locally commited.
+Update Id is the id of the last update locally committed.
 
-If a re-connection occured, the sender should know he will have to restart the push of updates from this point.
+If a re-connection occurred, the sender should know he will have to restart the push of updates from this point.
 
 III) Initial full resync process.
 

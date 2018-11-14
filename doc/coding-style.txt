@@ -525,7 +525,7 @@ parenthesis so it is sometimes followed by spaces and sometimes not when
 there are no parenthesis. Most people do not really care as long as what
 is written is unambiguous.
 
-Braces opening a block must be preceeded by one space unless the brace is
+Braces opening a block must be preceded by one space unless the brace is
 placed on the first column :
 
 Right :
@@ -811,7 +811,7 @@ common to see such a thing :
   | if ((fd = open(file, O_RDONLY)) < 0)
   |         return -1;
 
-This is wrong. The man page says that -1 is returned if an error occured. It
+This is wrong. The man page says that -1 is returned if an error occurred. It
 does not suggest that any other negative value will be an error. It is possible
 that a few such issues have been left in existing code. They are bugs for which
 fixes are accepted, eventhough they're currently harmless since open() is not
@@ -853,7 +853,7 @@ the first value even if it's zero. The last element should be followed by a
 comma if it is planned that new elements might later be added, this will make
 later patches shorter. Conversely, if the last element is placed in order to
 get the number of possible values, it must not be followed by a comma and must
-be preceeded by a comment :
+be preceded by a comment :
 
   | enum {
   |         first = 0,

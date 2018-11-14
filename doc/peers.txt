@@ -118,13 +118,13 @@
            return bitf
 
        set the next byte of bitf to the value of val OR'ed with 0xf0
-       substract 0xf0 from val
+       subtract 0xf0 from val
        right shift val by 4
 
        while val bit 7 is set (or if val is greater or equal to 0x80):
            set the next byte of bitf to the value of the byte made of the last
                7 bits of val OR'ed with 0x80
-           substract 0x80 from val
+           subtract 0x80 from val
            right shift val by 7
 
        set the next byte of bitf to the value of val
@@ -152,7 +152,7 @@
      "set the next byte of bitf to the value of val OR'ed with 0xf0"
      => bitf[0] = (0x1234 | 0xf0) & 0xff = 0xf4
 
-     "substract 0xf0 from val"
+     "subtract 0xf0 from val"
      => val = 0x1144
 
      right shift val by 4
@@ -162,7 +162,7 @@
      7 bits of val OR'ed with 0x80"
      => bitf[1] = (0x114 | 0x80) & 0xff = 0x94
 
-     "substract 0x80 from val"
+     "subtract 0x80 from val"
      => val= 0x94
 
      "right shift val by 7"
@@ -292,7 +292,7 @@
      entry update messages for different stick-tables may be sent over the same
      peer session.
 
-     To do so, each time entry update messages have to sent, they must be preceeded
+     To do so, each time entry update messages have to sent, they must be preceded
      by a stick-table definition message. This remains true for incremental entry
      update messages.
 

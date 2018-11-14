@@ -264,7 +264,7 @@ file.
       cat ${tmpdir}/h1/cfg
     }
 
-We give only the ouput of the shell to illustrate this example:
+We give only the output of the shell to illustrate this example:
 
     .
     .
@@ -382,7 +382,7 @@ below.
     #    requiring LW_BYTES is set), the log is emitted after the connection is
     #    closed, so the address and ports cannot be retrieved anymore.
     #
-    #    It could be argued that we'd make a special case of these to immediatly
+    #    It could be argued that we'd make a special case of these to immediately
     #    retrieve the source and destination addresses from the connection, but it
     #    seems cleaner to simply pin the front connection, marking it "tracked" by
     #    adding the LW_XPRT flag to mention that we'll need some of these elements

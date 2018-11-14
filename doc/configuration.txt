@@ -11243,7 +11243,7 @@ proto <name>
   in haproxy -vv.
   Idea behind this optipon is to bypass the selection of the best multiplexer's
   protocol for all connections instantiated from this listening socket. For
-  instance, it is possible to force the http/2 on clear TCP by specifing "proto
+  instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
 ssl

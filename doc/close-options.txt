@@ -10,7 +10,7 @@ FC = "forceclose".
 Options can be split between frontend and backend, so some of them might have
 a meaning only when combined by associating a frontend to a backend. Some forms
 are not the normal ones and provide a behaviour compatible with another normal
-form. Those are considered alternate forms and are markes "(alt)".
+form. Those are considered alternate forms and are marked "(alt)".
 
 FC SC HC PK    Behaviour
  0  0  0  X    tunnel mode

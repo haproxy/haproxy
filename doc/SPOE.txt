@@ -146,7 +146,7 @@ found in the SPOE configuration file. All the file is considered to be in the
 same anonymous and implicit scope.
 
 The engine name must be uniq for a proxy. If no engine name is provided on the
-SPOE filter line, the SPOE agent name is unsed by default.
+SPOE filter line, the SPOE agent name is used by default.
 
 2.2. "spoe-agent" section
 --------------------------
@@ -192,7 +192,7 @@ groups <grp-name> ...
   Arguments :
     <grp-name>   is the name of a SPOE group.
 
-  Groups delcared here must be found in the same engine scope, else an error is
+  Groups declared here must be found in the same engine scope, else an error is
   triggered during the configuration parsing. You can have many "groups" lines.
 
   See also: "spoe-group" section.
@@ -501,7 +501,7 @@ args [name=]<sample> ...
 
   When the message is processed, if a sample expression is not available, it is
   set to NULL. Arguments are processed in their declaration order and added in
-  the message in that order. It is possible to declare named arguements.
+  the message in that order. It is possible to declare named arguments.
 
   For example:
     args frontend=fe_id src dst
@@ -717,7 +717,7 @@ actions.
            payload. When it is set, the FIN bit must also be set.
 
 
-Frames cannot exceed a maximum size negociated between HAProxy and agents
+Frames cannot exceed a maximum size negotiated between HAProxy and agents
 during the HELLO handshake. Most of time, payload will be small enough to send
 it in one frame. But when supported by the peer, it will be possible to
 fragment huge payload on many frames. This ability is announced during the
@@ -1182,7 +1182,7 @@ IMPORTANT NOTE: By default, for a specific stream, when an abnormal/unexpected
                 will disable it for the transaction (request and response).
                 See 'option continue-on-error' to bypass this limitation.
 
-To avoid a stream to wait infinitly, you must carefully choose the
+To avoid a stream to wait undefinetly, you must carefully choose the
 acknowledgement timeout. In most of cases, it will be quiet low. But it depends
 on the responsivness of your service.
 
@@ -1219,7 +1219,7 @@ following format:
                  fragmented frames, it is the sum of all fragments.
         * qT   : the delay before the request gets out the sending queue. For
                  fragmented frames, it is the sum of all fragments.
-        * wT   : the delay before the reponse is received. No fragmentation
+        * wT   : the delay before the response is received. No fragmentation
                  supported here.
         * resT : the delay to process the response. No fragmentation supported
                  here.
