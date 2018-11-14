@@ -225,7 +225,8 @@ static void stream_int_shutw(struct stream_interface *si)
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
+		si->flags |= SI_FL_RX_WAIT_EP;
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -726,7 +727,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 	if (!(si->wait_event.wait_reason & SUB_CAN_RECV)) {
 		ret |= si_cs_recv(cs);
 		if (!(si_ic(si)->flags & (CF_SHUTR|CF_DONT_READ)))
-			si->flags |= SI_FL_WANT_PUT;
+			si->flags &= ~SI_FL_RX_WAIT_EP;
 	}
 	if (ret != 0)
 		si_cs_process(cs);
@@ -860,12 +861,12 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	 * handled at the latest moment.
 	 */
 	if (obj_type(si_f->end) == OBJ_TYPE_APPCTX &&
-	    (((si_f->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si_f->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
 	     ((si_f->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si_f));
 
 	if (obj_type(si_b->end) == OBJ_TYPE_APPCTX &&
-	    (((si_b->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si_b->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
 	     ((si_b->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si_b));
 }
@@ -983,7 +984,8 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
+		si->flags |=  SI_FL_RX_WAIT_EP;
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1416,7 +1418,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 	/* If the applet wants to write and the channel is closed, it's a
 	 * broken pipe and it must be reported.
 	 */
-	if ((si->flags & SI_FL_WANT_PUT) && (ic->flags & CF_SHUTR))
+	if (!(si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
 		si->flags |= SI_FL_ERR;
 
 	/* update the stream-int, channels, and possibly wake the stream up */
@@ -1428,7 +1430,7 @@ void si_applet_wake_cb(struct stream_interface *si)
 	 * we may have to wakeup the appctx immediately.
 	 */
 	if (!task_in_rq(si_task(si)) &&
-	    (((si->flags & (SI_FL_WANT_PUT|SI_FL_RXBLK_ROOM)) == SI_FL_WANT_PUT) ||
+	    (((si->flags & (SI_FL_RX_WAIT_EP|SI_FL_RXBLK_ROOM)) == 0) ||
 	     ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET)))
 		appctx_wakeup(si_appctx(si));
 }
@@ -1516,7 +1518,8 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_WANT_PUT | SI_FL_NOLINGER);
+		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
+		si->flags |= SI_FL_RX_WAIT_EP;
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;

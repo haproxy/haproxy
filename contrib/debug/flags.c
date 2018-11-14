@@ -217,7 +217,6 @@ void show_si_flags(unsigned int f)
 	SHOW_FLAG(f, SI_FL_NOLINGER);
 	SHOW_FLAG(f, SI_FL_NOHALF);
 	SHOW_FLAG(f, SI_FL_SRC_ADDR);
-	SHOW_FLAG(f, SI_FL_WANT_PUT);
 	SHOW_FLAG(f, SI_FL_WANT_GET);
 
 	SHOW_FLAG(f, SI_FL_RXBLK_CHAN);

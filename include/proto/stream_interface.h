@@ -262,25 +262,27 @@ static inline int si_rx_endp_ready(const struct stream_interface *si)
 /* Report that a stream interface wants to put some data into the input buffer */
 static inline void si_want_put(struct stream_interface *si)
 {
-	si->flags |= SI_FL_WANT_PUT;
+	si->flags &= ~SI_FL_RX_WAIT_EP;
 }
 
 /* Report that a stream interface failed to put some data into the input buffer */
 static inline void si_cant_put(struct stream_interface *si)
 {
-	si->flags |= SI_FL_WANT_PUT | SI_FL_RXBLK_ROOM;
+	si->flags |=  SI_FL_RXBLK_ROOM;
+	si->flags &= ~SI_FL_RX_WAIT_EP;
 }
 
 /* Report that a stream interface doesn't want to put data into the input buffer */
 static inline void si_stop_put(struct stream_interface *si)
 {
-	si->flags &= ~SI_FL_WANT_PUT;
+	si->flags |=  SI_FL_RX_WAIT_EP;
 }
 
 /* Report that a stream interface won't put any more data into the input buffer */
 static inline void si_done_put(struct stream_interface *si)
 {
-	si->flags &= ~(SI_FL_WANT_PUT | SI_FL_RXBLK_ROOM);
+	si->flags &= ~SI_FL_RXBLK_ROOM;
+	si->flags |=  SI_FL_RX_WAIT_EP;
 }
 
 /* Returns non-zero if the stream interface's Rx path is blocked */
@@ -387,7 +389,7 @@ static inline void si_shutw(struct stream_interface *si)
 }
 
 /* This is to be used after making some room available in a channel. It will
- * return without doing anything if {SI_FL_WANT_PUT,SI_FL_RXBLK_ROOM} != {1,0}.
+ * return without doing anything if {SI_FL_RX_WAIT_EP,SI_FL_RXBLK_ROOM} != {0,0}.
  * It will then call ->chk_rcv() to enable receipt of new data.
  */
 static inline void si_chk_rcv(struct stream_interface *si)
@@ -395,13 +397,13 @@ static inline void si_chk_rcv(struct stream_interface *si)
 	if (si->flags & SI_FL_RXBLK_ROOM)
 		return;
 
-	if (!(si->flags & SI_FL_WANT_PUT))
+	if (si->flags & SI_FL_RX_WAIT_EP)
 		return;
 
 	if (si->state > SI_ST_EST)
 		return;
 
-	si->flags &= ~SI_FL_WANT_PUT;
+	si->flags |= SI_FL_RX_WAIT_EP;
 	si->ops->chk_rcv(si);
 }
 
