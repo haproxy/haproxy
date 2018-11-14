@@ -157,12 +157,12 @@ static void stream_int_shutr(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
+	si_rx_shut_blk(si);
 	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -225,8 +225,8 @@ static void stream_int_shutw(struct stream_interface *si)
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
-		si->flags |= SI_FL_RX_WAIT_EP;
+		si->flags &= ~SI_FL_NOLINGER;
+		si_rx_shut_blk(si);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -767,6 +767,8 @@ void stream_int_update(struct stream_interface *si)
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 		}
 	}
+	else
+		si_rx_shut_blk(si);
 
 	if (!(oc->flags & CF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
@@ -886,12 +888,12 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	struct conn_stream *cs = __objt_cs(si->end);
 	struct channel *ic = si_ic(si);
 
+	si_rx_shut_blk(si);
 	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -984,8 +986,8 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
-		si->flags |=  SI_FL_RX_WAIT_EP;
+		si->flags &= ~SI_FL_NOLINGER;
+		si_rx_shut_blk(si);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
@@ -1369,12 +1371,12 @@ void stream_sock_read0(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
+	si_rx_shut_blk(si);
 	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si_done_put(si);
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -1454,12 +1456,12 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 
+	si_rx_shut_blk(si);
 	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
-	si_done_put(si);
 
 	/* Note: on shutr, we don't call the applet */
 
@@ -1525,8 +1527,8 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
 	default:
-		si->flags &= ~(SI_FL_RXBLK_ROOM | SI_FL_NOLINGER);
-		si->flags |= SI_FL_RX_WAIT_EP;
+		si->flags &= ~SI_FL_NOLINGER;
+		si_rx_shut_blk(si);
 		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;

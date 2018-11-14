@@ -266,13 +266,6 @@ static inline void si_cant_put(struct stream_interface *si)
 	si->flags &= ~SI_FL_RX_WAIT_EP;
 }
 
-/* Report that a stream interface won't put any more data into the input buffer */
-static inline void si_done_put(struct stream_interface *si)
-{
-	si->flags &= ~SI_FL_RXBLK_ROOM;
-	si->flags |=  SI_FL_RX_WAIT_EP;
-}
-
 /* The stream interface announces it is ready to try to deliver more data to the input buffer */
 static inline void si_rx_endp_more(struct stream_interface *si)
 {
@@ -299,6 +292,15 @@ static inline void si_rx_buff_rdy(struct stream_interface *si)
 static inline void si_rx_buff_blk(struct stream_interface *si)
 {
 	si->flags |=  SI_FL_RXBLK_BUFF;
+}
+
+/* The stream interface announces it will never put new data into the input
+ * buffer and that it's not waiting for its endpoint to deliver anything else.
+ * This function obviously doesn't have a _rdy equivalent.
+ */
+static inline void si_rx_shut_blk(struct stream_interface *si)
+{
+	si->flags |=  SI_FL_RXBLK_SHUT;
 }
 
 /* Returns non-zero if the stream interface's Rx path is blocked */
