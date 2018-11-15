@@ -550,7 +550,9 @@ static void cli_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is avalaible. */
 	if (res->buf.size == 0) {
-		si_cant_put(si);
+		/* buf.size==0 means we failed to get a buffer and were
+		 * already subscribed to a wait list to get a buffer.
+		 */
 		goto out;
 	}
 

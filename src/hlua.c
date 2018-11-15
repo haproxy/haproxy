@@ -2942,7 +2942,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
-		si_cant_put(chn_prod(chn));
+		si_rx_buff_blk(chn_prod(chn));
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	}
 
@@ -3036,7 +3036,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
-		si_cant_put(chn_prod(chn));
+		si_rx_buff_blk(chn_prod(chn));
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 	}
 

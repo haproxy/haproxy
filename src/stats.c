@@ -3049,7 +3049,9 @@ static void http_stats_io_handler(struct appctx *appctx)
 
 	/* Check if the input buffer is avalaible. */
 	if (res->buf.size == 0) {
-		si_cant_put(si);
+		/* already subscribed, we'll be called later once the buffer is
+		 * available.
+		 */
 		goto out;
 	}
 
