@@ -3300,7 +3300,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (res->buf.size == 0) {
 		/* already subscribed, we'll be called later once the buffer is
 		 * available.
