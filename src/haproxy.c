@@ -765,7 +765,7 @@ static void mworker_reload()
 	return;
 
 alloc_error:
-	ha_warning("Failed to reexecute the master processs [%d]: Cannot allocate memory\n", pid);
+	ha_warning("Failed to reexecute the master process [%d]: Cannot allocate memory\n", pid);
 	return;
 }
 
