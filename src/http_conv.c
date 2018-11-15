@@ -218,7 +218,7 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 {
 	int len;
 
-	/* If the constant flag is set or if not size is avalaible at
+	/* If the constant flag is set or if not size is available at
 	 * the end of the buffer, copy the string in other buffer
 	  * before decoding.
 	 */
