@@ -1722,43 +1722,56 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
 /*
  * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
  * built according to <fmt> log line format.
- * If <early_hint> is false the HTTP 103 response first line is inserted before
- * the header.
+ * If <early_hints> is NULL, it is allocated and the HTTP 103 response first
+ * line is inserted before the header. If an error occurred <early_hints> is
+ * released and NULL is returned. On success the updated buffer is returned.
  */
-static int http_apply_early_hint_rule(struct stream* s, struct channel *resp, int early_hint,
-                                      const char* name, unsigned int name_len, struct list *fmt)
+static struct buffer *http_apply_early_hint_rule(struct stream* s, struct buffer *early_hints,
+						 const char* name, unsigned int name_len,
+						 struct list *fmt)
 {
+	if (!early_hints) {
+		early_hints = alloc_trash_chunk();
+		if (!early_hints)
+			goto fail;
+		if (!chunk_memcat(early_hints, HTTP_103.ptr, HTTP_103.len))
+			goto fail;
+	}
+
+	if (!chunk_memcat(early_hints, name, name_len) || !chunk_memcat(early_hints, ": ", 2))
+		goto fail;
+
+	early_hints->data += build_logline(s, b_tail(early_hints), b_room(early_hints), fmt);
+	if (!chunk_memcat(early_hints, "\r\n", 2))
+		goto fail;
+
+	return early_hints;
+
+  fail:
+	free_trash_chunk(early_hints);
+	return NULL;
+}
+
+/* Sends an HTTP 103 response. Before sending it, the last CRLF finishing the
+ * response is added. If an error occurred or if another response was already
+ * sent, this function does nothing.
+ */
+static void http_send_early_hints(struct stream *s, struct buffer *early_hints)
+{
+	struct channel *chn = s->txn->rsp.chn;
+	char *cur_ptr = ci_head(chn);
 	int ret;
-	size_t data;
-	struct buffer *chunk;
-	char *cur_ptr = ci_head(resp);
 
-	ret = 0;
-	data = co_data(resp);
+	/* If a response was already sent, skip early hints */
+	if (s->txn->status > 0)
+		return;
 
-	chunk = alloc_trash_chunk();
-	if (!chunk)
-		goto leave;
+	if (!chunk_memcat(early_hints, "\r\n", 2))
+		return;
 
-	if (!early_hint && !chunk_memcat(chunk, HTTP_103.ptr, HTTP_103.len))
-	    goto leave;
-
-	if (!chunk_memcat(chunk, name, name_len) || !chunk_memcat(chunk, ": ", 2))
-		goto leave;
-
-	chunk->data += build_logline(s, chunk->area + chunk->data, chunk->size - chunk->data, fmt);
-	if (!chunk_memcat(chunk, "\r\n", 2))
-	    goto leave;
-
-	ret = b_rep_blk(&resp->buf, cur_ptr, cur_ptr, chunk->area, chunk->data);
-	c_adv(resp, ret);
-
- leave:
-	if (!ret)
-		co_set_data(resp, data);
-	free_trash_chunk(chunk);
-
-	return ret;
+	ret = b_rep_blk(&chn->buf, cur_ptr, cur_ptr, b_head(early_hints), b_data(early_hints));
+	c_adv(chn, ret);
+	chn->total += ret;
 }
 
 /* Executes the http-request rules <rules> for stream <s>, proxy <px> and
@@ -1779,10 +1792,10 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
 	const char *auth_realm;
+	struct buffer *early_hints = NULL;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_flags = 0;
 	int len;
-	int early_hint = 0;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -1834,6 +1847,12 @@ resume_execution:
 			goto end;
 
 		case ACT_HTTP_REQ_AUTH:
+			/* Be sure to send any pending HTTP 103 response first */
+			if (early_hints) {
+				http_send_early_hints(s, early_hints);
+				free_trash_chunk(early_hints);
+				early_hints = NULL;
+			}
 			/* Auth might be performed on regular http-req rules as well as on stats */
 			auth_realm = rule->arg.auth.realm;
 			if (!auth_realm) {
@@ -1854,6 +1873,12 @@ resume_execution:
 			goto end;
 
 		case ACT_HTTP_REDIR:
+			/* Be sure to send any pending HTTP 103 response first */
+			if (early_hints) {
+				http_send_early_hints(s, early_hints);
+				free_trash_chunk(early_hints);
+				early_hints = NULL;
+			}
 			rule_ret = HTTP_RULE_RES_DONE;
 			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
 				rule_ret = HTTP_RULE_RES_BADREQ;
@@ -2069,15 +2094,14 @@ resume_execution:
 		case ACT_HTTP_EARLY_HINT:
 			if (!(txn->req.flags & HTTP_MSGF_VER_11))
 				break;
-
-			if (!http_apply_early_hint_rule(s, txn->rsp.chn, early_hint,
-			                                rule->arg.early_hint.name,
-			                                rule->arg.early_hint.name_len,
-			                                &rule->arg.early_hint.fmt)) {
+			early_hints = http_apply_early_hint_rule(s, early_hints,
+								 rule->arg.early_hint.name,
+								 rule->arg.early_hint.name_len,
+								 &rule->arg.early_hint.fmt);
+			if (!early_hints) {
 				rule_ret = HTTP_RULE_RES_DONE;
 				goto end;
 			}
-			early_hint = 1;
 			break;
 		case ACT_CUSTOM:
 			if ((s->req.flags & CF_READ_ERROR) ||
@@ -2150,13 +2174,9 @@ resume_execution:
 	}
 
   end:
-	if (early_hint) {
-		struct channel *chn = s->txn->rsp.chn;
-		char *cur_ptr = ci_head(chn);
-
-		/* Add an empty line after Early Hint informational response headers */
-		b_rep_blk(&chn->buf, cur_ptr, cur_ptr, "\r\n", 2);
-		c_adv(chn, 2);
+	if (early_hints) {
+		http_send_early_hints(s, early_hints);
+		free_trash_chunk(early_hints);
 	}
 
 	/* we reached the end of the rules, nothing to report */
