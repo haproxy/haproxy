@@ -1196,6 +1196,7 @@ int si_cs_recv(struct conn_stream *cs)
 			 * could soon be full. Let's stop before needing to poll.
 			 */
 			si_cant_put(si);
+			goto done_recv;
 		}
 
 		/* splice not possible (anymore), let's go on on standard copy */
@@ -1290,6 +1291,7 @@ int si_cs_recv(struct conn_stream *cs)
 			break;
 	} /* while !flags */
 
+ done_recv:
 	if (cur_read) {
 		if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
 		    (cur_read <= ic->buf.size / 2)) {
