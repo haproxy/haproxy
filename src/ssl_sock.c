@@ -1053,7 +1053,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
  * is displayed).
  *
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
- * succesfully enabled, or -1 in other error case.
+ * successfully enabled, or -1 in other error case.
  */
 static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 {
@@ -1500,7 +1500,7 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 
 	/* This function is called for "from client" and "to server"
 	 * connections. The combination of write_p == 0 and content_type == 22
-	 * is only avalaible during "from client" connection.
+	 * is only available during "from client" connection.
 	 */
 
 	/* "write_p" is set to 0 is the bytes are received messages,
@@ -2634,7 +2634,7 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename)
 }
 
 /* Loads Diffie-Hellman parameter from a file. Returns 1 if loaded, else -1
-   if an error occured, and 0 if parameter not found. */
+   if an error occurred, and 0 if parameter not found. */
 int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 {
 	int ret = -1;
@@ -2978,7 +2978,7 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
  * If any are found, group these files into a set of SSL_CTX*
  * based on shared and unique CN and SAN entries. Add these SSL_CTX* to the SNI tree.
  *
- * This will allow the user to explictly group multiple cert/keys for a single purpose
+ * This will allow the user to explicitly group multiple cert/keys for a single purpose
  *
  * Returns
  *     0 on success
@@ -3086,7 +3086,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 	 * and add each CTX to the SNI tree
 	 *
 	 * Some math here:
-	 *   There are 2^n - 1 possibile combinations, each unique
+	 *   There are 2^n - 1 possible combinations, each unique
 	 *   combination is denoted by the key in the map. Each key
 	 *   has a value between 1 and 2^n - 1. Conveniently, the array
 	 *   of SSL_CTX* is sized 2^n. So, we can simply use the i'th
@@ -3801,7 +3801,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
-	   precautionary measure to avoid any suprise with older openssl version. */
+	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].ctx_set_version(ctx, SET_SERVER);
 	else
@@ -4585,7 +4585,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 #if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
-	   precautionary measure to avoid any suprise with older openssl version. */
+	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].ctx_set_version(ctx, SET_CLIENT);
 	else
@@ -5875,8 +5875,8 @@ ssl_sock_get_serial(X509 *crt, struct buffer *out)
 }
 
 /* Extract a cert to der, and copy it to a chunk.
- * Returns 1 if cert is found and copied, 0 on der convertion failure and
- * -1 if output is not large enough.
+ * Returns 1 if the cert is found and copied, 0 on der conversion failure
+ * and -1 if the output is not large enough.
  */
 static int
 ssl_sock_crt2der(X509 *crt, struct buffer *out)
@@ -8560,7 +8560,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
 		/* Display the column headers. If the message cannot be sent,
-		 * quit the fucntion with returning 0. The function is called
+		 * quit the function with returning 0. The function is called
 		 * later and restart at the state "STAT_ST_INIT".
 		 */
 		chunk_reset(&trash);
