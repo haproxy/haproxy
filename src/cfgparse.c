@@ -7122,7 +7122,7 @@ next_line:
 			line++;
 
 
-		if (*line == '[') {/* This is the begining if a scope */
+		if (*line == '[') {/* This is the beginning if a scope */
 			err_code |= cfg_parse_scope(file, linenum, line);
 			goto next_line;
 		}
@@ -8517,7 +8517,7 @@ out_uri_auth_compat:
 
 		}
 		/* We have to initialize the server lookup mechanism depending
-		 * on what LB algorithm was choosen.
+		 * on what LB algorithm was chosen.
 		 */
 
 		curproxy->lbprm.algo &= ~(BE_LB_LKUP | BE_LB_PROP_DYN);
