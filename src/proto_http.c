@@ -2182,6 +2182,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	struct connection *cli_conn;
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
+	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_flags = 0;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
@@ -2217,11 +2218,13 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 resume_execution:
 		switch (rule->action) {
 		case ACT_ACTION_ALLOW:
-			return HTTP_RULE_RES_STOP; /* "allow" rules are OK */
+			rule_ret = HTTP_RULE_RES_STOP; /* "allow" rules are OK */
+			goto end;
 
 		case ACT_ACTION_DENY:
 			txn->flags |= TX_SVDENY;
-			return HTTP_RULE_RES_STOP;
+			rule_ret = HTTP_RULE_RES_STOP;
+			goto end;
 
 		case ACT_HTTP_SET_NICE:
 			s->task->nice = rule->arg.nice;
@@ -2248,8 +2251,10 @@ resume_execution:
 			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name,
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
-			                          &rule->arg.hdr_add.re, rule->action))
-				return HTTP_RULE_RES_BADREQ;
+			                          &rule->arg.hdr_add.re, rule->action)) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
 			break;
 
 		case ACT_HTTP_DEL_HDR:
@@ -2266,8 +2271,10 @@ resume_execution:
 			struct buffer *replace;
 
 			replace = alloc_trash_chunk();
-			if (!replace)
-				return HTTP_RULE_RES_BADREQ;
+			if (!replace) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
 
 			chunk_printf(replace, "%s: ", rule->arg.hdr_add.name);
 			memcpy(replace->area, rule->arg.hdr_add.name,
@@ -2323,8 +2330,10 @@ resume_execution:
 
 			/* allocate key */
 			key = alloc_trash_chunk();
-			if (!key)
-				return HTTP_RULE_RES_BADREQ;
+			if (!key) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
 
 			/* collect key */
 			key->data = build_logline(s, key->area, key->size,
@@ -2352,8 +2361,10 @@ resume_execution:
 
 			/* allocate key */
 			key = alloc_trash_chunk();
-			if (!key)
-				return HTTP_RULE_RES_BADREQ;
+			if (!key) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
 
 			/* collect key */
 			key->data = build_logline(s, key->area, key->size,
@@ -2380,14 +2391,17 @@ resume_execution:
 
 			/* allocate key */
 			key = alloc_trash_chunk();
-			if (!key)
-				return HTTP_RULE_RES_BADREQ;
+			if (!key) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
 
 			/* allocate value */
 			value = alloc_trash_chunk();
 			if (!value) {
 				free_trash_chunk(key);
-				return HTTP_RULE_RES_BADREQ;
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
 			}
 
 			/* collect key */
@@ -2416,9 +2430,10 @@ resume_execution:
 			}
 
 		case ACT_HTTP_REDIR:
+			rule_ret = HTTP_RULE_RES_DONE;
 			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
-				return HTTP_RULE_RES_BADREQ;
-			return HTTP_RULE_RES_DONE;
+				rule_ret = HTTP_RULE_RES_BADREQ;
+			goto end;
 
 		case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 			/* Note: only the first valid tracking parameter of each
@@ -2492,10 +2507,12 @@ resume_execution:
 			case ACT_RET_CONT:
 				break;
 			case ACT_RET_STOP:
-				return HTTP_RULE_RES_STOP;
+				rule_ret = HTTP_RULE_RES_STOP;
+				goto end;
 			case ACT_RET_YIELD:
 				s->current_rule = rule;
-				return HTTP_RULE_RES_YIELD;
+				rule_ret = HTTP_RULE_RES_YIELD;
+				goto end;
 			}
 			break;
 
@@ -2505,8 +2522,9 @@ resume_execution:
 		}
 	}
 
+  end:
 	/* we reached the end of the rules, nothing to report */
-	return HTTP_RULE_RES_CONT;
+	return rule_ret;
 }
 
 
