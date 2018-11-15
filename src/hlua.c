@@ -241,7 +241,7 @@ static const char error_500[] =
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occurred.\n</body></html>\n";
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
