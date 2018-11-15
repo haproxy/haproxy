@@ -218,7 +218,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 		return len;
 
 	if (!len) {
-		/* Nothing to foward */
+		/* Nothing to forward */
 		ret = len;
 	}
 	else if (st->hdrs_len >= len) {
@@ -565,7 +565,7 @@ static void http_cache_applet_release(struct appctx *appctx)
 
 /*
  * Append an "Age" header into <chn> channel for this <ce> cache entry.
- * This is the responsability of the caller to insure there is enough
+ * This is the responsibility of the caller to insure there is enough
  * data in the channel.
  *
  * Returns the number of bytes inserted if succeeded, 0 if failed.
@@ -642,7 +642,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (res->buf.size == 0) {
 		/* buf.size==0 means we failed to get a buffer and were
 		 * already subscribed to a wait list to get a buffer.
