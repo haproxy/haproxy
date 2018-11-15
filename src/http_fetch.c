@@ -1252,9 +1252,13 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
 	if (!*ptr)
 		return 0;
 
-	ptr++;  /* skip the space */
+	/* skip the first space and find space after URI */
+	path = ist2(++ptr, 0);
+	while (*ptr != ' ' && *ptr != '\0')
+		ptr++;
+	path.len = ptr - path.ptr;
 
-	path = http_get_path(ist(ptr));
+	path = http_get_path(path);
 	if (!path.ptr)
 		return 0;
 
