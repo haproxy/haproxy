@@ -1214,7 +1214,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			}
 		}
 
-		/* nothing to fail, let's reply normaly */
+		/* nothing to fail, let's reply normally */
 		txn->status = 200;
 		http_reply_and_close(s, txn->status, http_error_message(s));
 		if (!(s->flags & SF_ERR_MASK))
@@ -2182,7 +2182,7 @@ resume_execution:
 			}
 			break;
 
-		/* other flags exists, but normaly, they never be matched. */
+		/* other flags exists, but normally, they never be matched. */
 		default:
 			break;
 		}
@@ -2551,7 +2551,7 @@ resume_execution:
 			}
 			break;
 
-		/* other flags exists, but normaly, they never be matched. */
+		/* other flags exists, but normally, they never be matched. */
 		default:
 			break;
 		}
@@ -6580,7 +6580,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				 * - delete the complete cookie if we're in insert+indirect mode, so that
 				 *   the server never sees it ;
 				 * - remove the server id from the cookie value, and tag the cookie as an
-				 *   application cookie so that it does not get accidentely removed later,
+				 *   application cookie so that it does not get accidently removed later,
 				 *   if we're in cookie prefix mode
 				 */
 				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
@@ -7775,7 +7775,7 @@ void http_reset_txn(struct stream *s)
 
 	/* We must trim any excess data from the response buffer, because we
 	 * may have blocked an invalid response from a server that we don't
-	 * want to accidentely forward once we disable the analysers, nor do
+	 * want to accidently forward once we disable the analysers, nor do
 	 * we want those data to come along with next response. A typical
 	 * example of such data would be from a buggy server responding to
 	 * a HEAD with some data, or sending more than the advertised
