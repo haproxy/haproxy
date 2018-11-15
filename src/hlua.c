@@ -97,7 +97,7 @@
  *  - The sample-fetch wrapper functions
  *
  * It is tolerated that the initilisation function returns an abort.
- * Before each Lua abort, an error message is writed on stderr.
+ * Before each Lua abort, an error message is written on stderr.
  *
  * The macro SET_SAFE_LJMP initialise the longjmp. The Macro
  * RESET_SAFE_LJMP reset the longjmp. These function must be macro
@@ -584,7 +584,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 }
 
 /* This function check the "argp" builded by another conversion function
- * is in accord with the expected argp defined by the "mask". The fucntion
+ * is in accord with the expected argp defined by the "mask". The function
  * returns true or false. It can be adjust the types if there compatibles.
  *
  * This function assumes thant the argp argument contains ARGM_NBARGS + 1
@@ -881,10 +881,10 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  * initialisation fails (example: out of memory error), the lua function
  * throws an error (longjmp).
  *
- * This function manipulates two Lua stack: the main and the thread. Only
+ * This function manipulates two Lua stacks: the main and the thread. Only
  * the main stack can fail. The thread is not manipulated. This function
- * MUST NOT manipulate the created thread stack state, because is not
- * proctected agains error throwed by the thread stack.
+ * MUST NOT manipulate the created thread stack state, because it is not
+ * proctected against errors thrown by the thread stack.
  */
 int hlua_ctx_init(struct hlua *lua, struct task *task)
 {
@@ -1048,11 +1048,11 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
  *  - HLUA_E_OK     : The execution is terminated without any errors.
  *  - HLUA_E_AGAIN  : The execution must continue at the next associated
  *                    task wakeup.
- *  - HLUA_E_ERRMSG : An error has occured, an error message is set in
+ *  - HLUA_E_ERRMSG : An error has occurred, an error message is set in
  *                    the top of the stack.
- *  - HLUA_E_ERR    : An error has occured without error message.
+ *  - HLUA_E_ERR    : An error has occurred without error message.
  *
- * If an error occured, the stack is renewed and it is ready to run new
+ * If an error occurred, the stack is renewed and it is ready to run new
  * LUA code.
  */
 static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
@@ -1126,7 +1126,7 @@ resume_execution:
 
 	case LUA_ERRRUN:
 
-		/* Special exit case. The traditionnal exit is returned as an error
+		/* Special exit case. The traditional exit is returned as an error
 		 * because the errors ares the only one mean to return immediately
 		 * from and lua execution.
 		 */
@@ -1573,7 +1573,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 }
 
 /* This function is the handler called for each I/O on the established
- * connection. It is used for notify space avalaible to send or data
+ * connection. It is used for notify space available to send or data
  * received.
  */
 static void hlua_socket_handler(struct appctx *appctx)
@@ -1590,8 +1590,8 @@ static void hlua_socket_handler(struct appctx *appctx)
 		stream_shutdown(si_strm(si), SF_ERR_KILLED);
 	}
 
-	/* If the connection object is not avalaible, close all the
-	 * streams and wakeup everithing waiting for.
+	/* If the connection object is not available, close all the
+	 * streams and wakeup everything waiting for.
 	 */
 	if (!c) {
 		si_shutw(si);
@@ -1622,7 +1622,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* This function is called after the connect. */
 	appctx->ctx.hlua_cosocket.connected = 1;
 
-	/* Wake the tasks which wants to write if the buffer have avalaible space. */
+	/* Wake the tasks which wants to write if the buffer have available space. */
 	if (channel_may_recv(si_ic(si)))
 		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
@@ -1784,7 +1784,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 		nblk = co_getline_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
-		if (nblk == 0) /* No data avalaible. */
+		if (nblk == 0) /* No data available. */
 			goto connection_empty;
 
 		/* remove final \r\n. */
@@ -1815,7 +1815,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 		nblk = co_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
-		if (nblk == 0) /* No data avalaible. */
+		if (nblk == 0) /* No data available. */
 			goto connection_empty;
 	}
 
@@ -1824,7 +1824,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 		nblk = co_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
-		if (nblk == 0) /* No data avalaible. */
+		if (nblk == 0) /* No data available. */
 			goto connection_empty;
 
 		missing_bytes = wanted - socket->b.n;
@@ -2026,7 +2026,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 		return 1; /* Implicitly return the length sent. */
 	}
 
-	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	/* Check if the buffer is available because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
 	if (s->req.buf.size == 0) {
@@ -2034,7 +2034,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 			goto hlua_socket_write_yield_return;
 	}
 
-	/* Check for avalaible space. */
+	/* Check for available space. */
 	len = b_room(&s->req.buf);
 	if (len <= 0) {
 		goto hlua_socket_write_yield_return;
@@ -2089,7 +2089,7 @@ hlua_socket_write_yield_return:
 
 /* This function initiate the send of data. It just check the input
  * parameters and push an integer in the Lua stack that contain the
- * amount of data writed in the buffer. This is used by the function
+ * amount of data written to the buffer. This is used by the function
  * "hlua_socket_write_yield" that can yield.
  *
  * The Lua function gets between 3 and 4 parameters. The first one is
@@ -2684,9 +2684,9 @@ __LJMP static int hlua_socket_new(lua_State *L)
  */
 
 /* The state between the channel data and the HTTP parser state can be
- * unconsistent, so reset the parser and call it again. Warning, this
- * action not revalidate the request and not send a 400 if the modified
- * resuest is not valid.
+ * inconsistent, so reset the parser and call it again. Warning, this
+ * action does not revalidate the request and does not send a 400 if the modified
+ * request is not valid.
  *
  * This function never fails. The direction is set using dir, which equals
  * either SMP_OPT_DIR_REQ or SMP_OPT_DIR_RES.
@@ -2866,7 +2866,7 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 	return 1;
 }
 
-/* Check arguments for the fucntion "hlua_channel_get_yield". */
+/* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_channel_get(lua_State *L)
 {
 	MAY_LJMP(check_args(L, 1, "get"));
@@ -2876,7 +2876,7 @@ __LJMP static int hlua_channel_get(lua_State *L)
 
 /* This functions consumes and returns one line. If the channel is closed,
  * and the last data does not contains a final '\n', the data are returned
- * without the final '\n'. When no more data are avalaible, it returns nil
+ * without the final '\n'. When no more data are available, it returns nil
  * value.
  */
 __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KContext ctx)
@@ -2914,7 +2914,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 	return 1;
 }
 
-/* Check arguments for the fucntion "hlua_channel_getline_yield". */
+/* Check arguments for the function "hlua_channel_getline_yield". */
 __LJMP static int hlua_channel_getline(lua_State *L)
 {
 	MAY_LJMP(check_args(L, 1, "getline"));
@@ -2925,9 +2925,9 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 /* This function takes a string as input, and append it at the
  * input side of channel. If the data is too big, but a space
  * is probably available after sending some data, the function
- * yield. If the data is bigger than the buffer, or if the
- * channel is closed, it returns -1. otherwise, it returns the
- * amount of data writed.
+ * yields. If the data is bigger than the buffer, or if the
+ * channel is closed, it returns -1. Otherwise, it returns the
+ * amount of data written.
  */
 __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KContext ctx)
 {
@@ -2938,7 +2938,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	int ret;
 	int max;
 
-	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	/* Check if the buffer is available because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
@@ -2966,7 +2966,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 
 	max = channel_recv_limit(chn) - b_data(&chn->buf);
 	if (max == 0 && co_data(chn) == 0) {
-		/* There are no space avalaible, and the output buffer is empty.
+		/* There are no space available, and the output buffer is empty.
 		 * in this case, we cannot add more data, so we cannot yield,
 		 * we return the amount of copyied data.
 		 */
@@ -2977,8 +2977,8 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	return 1;
 }
 
-/* just a wrapper of "hlua_channel_append_yield". It returns the length
- * of the writed string, or -1 if the channel is closed or if the
+/* Just a wrapper of "hlua_channel_append_yield". It returns the length
+ * of the written string, or -1 if the channel is closed or if the
  * buffer size is too little for the data.
  */
 __LJMP static int hlua_channel_append(lua_State *L)
@@ -2994,9 +2994,9 @@ __LJMP static int hlua_channel_append(lua_State *L)
 	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
 
-/* just a wrapper of "hlua_channel_append_yield". This wrapper starts
+/* Just a wrapper of "hlua_channel_append_yield". This wrapper starts
  * his process by cleaning the buffer. The result is a replacement
- * of the current data. It returns the length of the writed string,
+ * of the current data. It returns the length of the written string,
  * or -1 if the channel is closed or if the buffer size is too
  * little for the data.
  */
@@ -3013,9 +3013,9 @@ __LJMP static int hlua_channel_set(lua_State *L)
 	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
 
-/* Append data in the output side of the buffer. This data is immediatly
- * sent. The fcuntion returns the ammount of data writed. If the buffer
- * cannot contains the data, the function yield. The function returns -1
+/* Append data in the output side of the buffer. This data is immediately
+ * sent. The function returns the amount of data written. If the buffer
+ * cannot contain the data, the function yields. The function returns -1
  * if the channel is closed.
  */
 __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext ctx)
@@ -3032,7 +3032,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		return 1;
 	}
 
-	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	/* Check if the buffer is available because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf.size == 0) {
@@ -3040,14 +3040,14 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 	}
 
-	/* the writed data will be immediatly sent, so we can check
-	 * the avalaible space without taking in account the reserve.
-	 * The reserve is guaranted for the processing of incoming
+	/* The written data will be immediately sent, so we can check
+	 * the available space without taking in account the reserve.
+	 * The reserve is guaranteed for the processing of incoming
 	 * data, because the buffer will be flushed.
 	 */
 	max = b_room(&chn->buf);
 
-	/* If there are no space avalaible, and the output buffer is empty.
+	/* If there is no space available, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
 	 * we return the amount of copyied data.
 	 */
@@ -3058,7 +3058,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	if (max > len - l)
 		max = len - l;
 
-	/* The buffer avalaible size may be not contiguous. This test
+	/* The buffer available size may be not contiguous. This test
 	 * detects a non contiguous buffer and realign it.
 	 */
 	if (ci_space_for_replace(chn) < max)
@@ -3076,7 +3076,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
 
-	/* If there are no space avalaible, and the output buffer is empty.
+	/* If there is no space available, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
 	 * we return the amount of copyied data.
 	 */
@@ -3282,7 +3282,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	/* Get closure arguments. */
 	f = lua_touserdata(L, lua_upvalueindex(1));
 
-	/* Get traditionnal arguments. */
+	/* Get traditional arguments. */
 	hsmp = MAY_LJMP(hlua_checkfetches(L, 1));
 
 	/* Check execution authorization. */
@@ -3396,7 +3396,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	/* Get closure arguments. */
 	conv = lua_touserdata(L, lua_upvalueindex(1));
 
-	/* Get traditionnal arguments. */
+	/* Get traditional arguments. */
 	hsmp = MAY_LJMP(hlua_checkconverters(L, 1));
 
 	/* Get extra arguments. */
@@ -3657,10 +3657,10 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	const char *blk2;
 	size_t len2;
 
-	/* Read the maximum amount of data avalaible. */
+	/* Read the maximum amount of data available. */
 	ret = co_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
-	/* Data not yet avalaible. return yield. */
+	/* Data not yet available. return yield. */
 	if (ret == 0) {
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_getline_yield, TICK_ETERNITY, 0));
@@ -3686,7 +3686,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	return 1;
 }
 
-/* Check arguments for the fucntion "hlua_channel_get_yield". */
+/* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
@@ -3712,10 +3712,10 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	const char *blk2;
 	size_t len2;
 
-	/* Read the maximum amount of data avalaible. */
+	/* Read the maximum amount of data available. */
 	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
-	/* Data not yet avalaible. return yield. */
+	/* Data not yet available. return yield. */
 	if (ret == 0) {
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
@@ -3760,7 +3760,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		/* Consume input channel output buffer data. */
 		co_skip(si_oc(si), len1 + len2);
 
-		/* If we are no other data avalaible, yield waiting for new data. */
+		/* If there is no other data available, yield waiting for new data. */
 		if (len > 0) {
 			lua_pushinteger(L, len);
 			lua_replace(L, 2);
@@ -3773,13 +3773,13 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		return 1;
 	}
 
-	/* we never executes this */
+	/* we never execute this */
 	hlua_pusherror(L, "Lua: internal error");
 	WILL_LJMP(lua_error(L));
 	return 0;
 }
 
-/* Check arguments for the fucntion "hlua_channel_get_yield". */
+/* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
@@ -3801,9 +3801,9 @@ __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 	return MAY_LJMP(hlua_applet_tcp_recv_yield(L, 0, 0));
 }
 
-/* Append data in the output side of the buffer. This data is immediatly
- * sent. The fcuntion returns the ammount of data writed. If the buffer
- * cannot contains the data, the function yield. The function returns -1
+/* Append data in the output side of the buffer. This data is immediately
+ * sent. The function returns the amount of data written. If the buffer
+ * cannot contain the data, the function yields. The function returns -1
  * if the channel is closed.
  */
 __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KContext ctx)
@@ -4142,10 +4142,10 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		return 1;
 	}
 
-	/* Read the maximum amount of data avalaible. */
+	/* Read the maximum amount of data available. */
 	ret = co_getline_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
-	/* Data not yet avalaible. return yield. */
+	/* Data not yet available. return yield. */
 	if (ret == 0) {
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
@@ -4179,7 +4179,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	return 1;
 }
 
-/* Check arguments for the fucntion "hlua_channel_get_yield". */
+/* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_http_getline(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
@@ -4222,10 +4222,10 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
 	}
 
-	/* Read the maximum amount of data avalaible. */
+	/* Read the maximum amount of data available. */
 	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 
-	/* Data not yet avalaible. return yield. */
+	/* Data not yet available. return yield. */
 	if (ret == 0) {
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
@@ -4258,7 +4258,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	if (appctx->appctx->ctx.hlua_apphttp.left_bytes != -1)
 		appctx->appctx->ctx.hlua_apphttp.left_bytes -= len;
 
-	/* If we are no other data avalaible, yield waiting for new data. */
+	/* If we are no other data available, yield waiting for new data. */
 	if (len > 0) {
 		lua_pushinteger(L, len);
 		lua_replace(L, 2);
@@ -4271,7 +4271,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	return 1;
 }
 
-/* Check arguments for the fucntion "hlua_channel_get_yield". */
+/* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_http_recv(lua_State *L)
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
@@ -4296,9 +4296,9 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 	return MAY_LJMP(hlua_applet_http_recv_yield(L, 0, 0));
 }
 
-/* Append data in the output side of the buffer. This data is immediatly
- * sent. The fcuntion returns the ammount of data writed. If the buffer
- * cannot contains the data, the function yield. The function returns -1
+/* Append data in the output side of the buffer. This data is immediately
+ * sent. The function returns the amount of data written. If the buffer
+ * cannot contain the data, the function yields. The function returns -1
  * if the channel is closed.
  */
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
@@ -4855,7 +4855,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, ACT_HTTP_REPLACE_VAL));
 }
 
-/* This function deletes all the occurences of an header.
+/* This function deletes all the occurrences of an header.
  * It is a wrapper for the 2 following functions.
  */
 __LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
@@ -5208,7 +5208,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 
 	/* NOTE: The allocation never fails. The failure
 	 * throw an error, and the function never returns.
-	 * if the throw is not avalaible, the process is aborted.
+	 * if the throw is not available, the process is aborted.
 	 */
 	/* Create the object: obj[0] = userdata. */
 	lua_newtable(L);
@@ -5616,7 +5616,7 @@ __LJMP static int hlua_set_nice(lua_State *L)
 	return 0;
 }
 
-/* This function is used as a calback of a task. It is called by the
+/* This function is used as a callback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
  * signal to wake the task.
@@ -6092,7 +6092,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	return 0;
 }
 
-/* This fucntion is an LUA binding used for registering
+/* This function is an LUA binding used for registering
  * "sample-fetch" functions. It expects a converter name used
  * in the haproxy configuration file, and an LUA function.
  */
@@ -6272,7 +6272,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
-		 * only for actions targetted on the requests.
+		 * only for actions targeted on the requests.
 		 */
 		if (HLUA_IS_WAKERESWR(s->hlua)) {
 			s->res.flags |= CF_WAKE_WRITE;
@@ -6281,7 +6281,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 		if (HLUA_IS_WAKEREQWR(s->hlua))
 			s->req.flags |= CF_WAKE_WRITE;
-		/* We can quit the fcuntion without consistency check
+		/* We can quit the function without consistency check
 		 * because HAProxy is not able to manipulate data, it
 		 * is only allowed to call me again. */
 		return ACT_RET_YIELD;
@@ -6699,7 +6699,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 		 * for the Lua.
 		 */
 
-		/* Read the maximum amount of data avalaible. */
+		/* Read the maximum amount of data available. */
 		ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
 		if (ret == -1)
 			return;
@@ -6811,7 +6811,7 @@ error:
 
 	/* If we are in HTTP mode, and we are not send any
 	 * data, return a 500 server error in best effort:
-	 * if there are no room avalaible in the buffer,
+	 * if there is no room available in the buffer,
 	 * just close the connection.
 	 */
 	ci_putblk(res, error_500, strlen(error_500));
@@ -6960,11 +6960,11 @@ __LJMP static int hlua_register_action(lua_State *L)
 	/* Third argument : lua function. */
 	ref = MAY_LJMP(hlua_checkfunction(L, 3));
 
-	/* Fouth argument : number of mandatories arguments expected on the configuration line. */
+	/* Fourth argument : number of mandatory arguments expected on the configuration line. */
 	if (lua_gettop(L) >= 4)
 		nargs = MAY_LJMP(luaL_checkinteger(L, 4));
 
-	/* browse the second argulent as an array. */
+	/* browse the second argument as an array. */
 	lua_pushnil(L);
 	while (lua_next(L, 2) != 0) {
 		if (lua_type(L, -1) != LUA_TSTRING)
@@ -7456,8 +7456,8 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
  *
- * This funtion runs with the HAProxy keywords API. It returns -1 if an error is
- * occured, otherwise it returns 0.
+ * This function runs with the HAProxy keywords API. It returns -1 if an error
+ * occurs, otherwise it returns 0.
  *
  * In some error case, LUA set an error message in top of the stack. This function
  * returns this error message in the HAProxy logs and pop it from the stack.
@@ -7684,7 +7684,7 @@ void hlua_init(void)
 	gL.Tref = LUA_REFNIL;
 	gL.task = NULL;
 
-	/* From this point, until the end of the initialisation fucntion,
+	/* From this point, until the end of the initialisation function,
 	 * the Lua function can fail with an abort. We are in the initialisation
 	 * process of HAProxy, this abort() is tolerated.
 	 */
@@ -8191,7 +8191,7 @@ void hlua_init(void)
 			/*
 			 *
 			 * If the keyword is not known, we can search in the registered
-			 * server keywords. This is usefull to configure special SSL
+			 * server keywords. This is useful to configure special SSL
 			 * features like client certificates and ssl_verify.
 			 *
 			 */
