@@ -974,14 +974,14 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	max_score         = -1;
 
 	/* Select an IP regarding configuration preference.
-	 * Top priority is the prefered network ip version,
-	 * second priority is the prefered network.
+	 * Top priority is the preferred network ip version,
+	 * second priority is the preferred network.
 	 * the last priority is the currently used IP,
 	 *
 	 * For these three priorities, a score is calculated. The
 	 * weight are:
-	 *  8 - prefered ip version.
-	 *  4 - prefered network.
+	 *  8 - preferred ip version.
+	 *  4 - preferred network.
 	 *  2 - if the ip in the record is not affected to any other server in the same backend (duplication)
 	 *  1 - current ip.
 	 * The result with the biggest score is returned.
@@ -1003,11 +1003,11 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 			continue;
 		score = 0;
 
-		/* Check for prefered ip protocol. */
+		/* Check for preferred ip protocol. */
 		if (ip_type == family_priority)
 			score += 8;
 
-		/* Check for prefered network. */
+		/* Check for preferred network. */
 		for (j = 0; j < dns_opts->pref_net_nb; j++) {
 
 			/* Compare only the same adresses class. */
