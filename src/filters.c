@@ -299,8 +299,8 @@ flt_init_all()
 	return 0;
 }
 
-/* Calls flt_init_per_thread() for all proxies, see above.  Be carefull here, it
- * returns 0 if an error occured. This is the opposite of flt_init_all. */
+/* Calls flt_init_per_thread() for all proxies, see above.  Be careful here, it
+ * returns 0 if an error occurred. This is the opposite of flt_init_all. */
 static int
 flt_init_all_per_thread()
 {
@@ -559,7 +559,7 @@ flt_http_data(struct stream *s, struct http_msg *msg)
 
 		/* If the HTTP parser is ahead, we update the next offset of the
 		 * current filter. This happens for chunked messages, at the
-		 * begining of a new chunk. */
+		 * beginning of a new chunk. */
 		nxt = &FLT_NXT(filter, msg->chn);
 		if (msg->next > *nxt)
 			*nxt = msg->next;
@@ -923,7 +923,7 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		 * one will remain. This is a way to be sure that
 		 * 'channel_end_analyze' callback will have a chance to be
 		 * called at least once for the other side to finish the current
-		 * processing. Of course, this is the filter responsiblity to
+		 * processing. Of course, this is the filter responsibility to
 		 * wakeup the stream if it choose to loop on this callback. */
 		s->req.flags |= CF_WAKE_ONCE;
 		s->res.flags |= CF_WAKE_ONCE;
