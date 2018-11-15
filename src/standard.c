@@ -2103,7 +2103,7 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 
 /* this function converts the string starting at <text> to an unsigned int
  * stored in <ret>. If an error is detected, the pointer to the unexpected
- * character is returned. If the conversio is succesful, NULL is returned.
+ * character is returned. If the conversion is successful, NULL is returned.
  */
 const char *parse_size_err(const char *text, unsigned *ret) {
 	unsigned value = 0;
@@ -2682,7 +2682,7 @@ const char rfc4291_pfx[] = { 0x00, 0x00, 0x00, 0x00,
 			     0x00, 0x00, 0x00, 0x00,
 			     0x00, 0x00, 0xFF, 0xFF };
 
-/* Map IPv4 adress on IPv6 address, as specified in RFC 3513.
+/* Map IPv4 address on IPv6 address, as specified in RFC 3513.
  * Input and output may overlap.
  */
 void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr)
@@ -2694,7 +2694,7 @@ void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr)
 	memcpy(sin6_addr->s6_addr+12, &tmp_addr.s_addr, 4);
 }
 
-/* Map IPv6 adress on IPv4 address, as specified in RFC 3513.
+/* Map IPv6 address on IPv4 address, as specified in RFC 3513.
  * Return true if conversion is possible and false otherwise.
  */
 int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr)
