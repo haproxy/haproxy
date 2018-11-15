@@ -1200,6 +1200,10 @@ int si_cs_recv(struct conn_stream *cs)
 
 		/* splice not possible (anymore), let's go on on standard copy */
 	}
+	else {
+		/* be sure not to block regular receive path below */
+		conn->flags &= ~CO_FL_WAIT_ROOM;
+	}
 
  abort_splice:
 	if (ic->pipe && unlikely(!ic->pipe->data)) {
