@@ -193,7 +193,7 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 	 * value from a successful match is 1, indicating that just the first pair of
 	 * offsets has been set.
 	 *
-	 * It seems that this function returns 0 if it detect more matches than avalaible
+	 * It seems that this function returns 0 if it detects more matches than available
 	 * space in the matches array.
 	 */
 #ifdef USE_PCRE2
@@ -286,7 +286,7 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 	 * value from a successful match is 1, indicating that just the first pair of
 	 * offsets has been set.
 	 *
-	 * It seems that this function returns 0 if it detect more matches than avalaible
+	 * It seems that this function returns 0 if it detects more matches than available
 	 * space in the matches array.
 	 */
 #ifdef USE_PCRE2
