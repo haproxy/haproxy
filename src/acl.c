@@ -188,7 +188,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		smp->fetch = aclkw->smp;
 		smp->arg_p = empty_arg_list;
 
-		/* look for the begining of the subject arguments */
+		/* look for the beginning of the subject arguments */
 		for (arg = args[0]; *arg && *arg != '(' && *arg != ','; arg++);
 
 		endt = arg;
@@ -230,7 +230,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		}
 		arg = endt;
 
-		/* look for the begining of the converters list. Those directly attached
+		/* look for the beginning of the converters list. Those directly attached
 		 * to the ACL keyword are found just after <arg> which points to the comma.
 		 * If we find any converter, then we don't use the ACL keyword's match
 		 * anymore but the one related to the converter's output type.
