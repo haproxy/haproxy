@@ -151,12 +151,12 @@ int get_log_facility(const char *fac);
  * Write a string in the log string
  * Take cares of quote options
  *
- * Return the adress of the \0 character, or NULL on error
+ * Return the address of the \0 character, or NULL on error
  */
 char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node);
 
 /*
- * Write a IP adress to the log string
+ * Write a IP address to the log string
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
 char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);

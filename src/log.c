@@ -576,7 +576,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		if (!*str)
 			cformat = LF_END;              // preset it to save all states from doing this
 
-		/* The prinicple of the two-step state machine below is to first detect a change, and
+		/* The principle of the two-step state machine below is to first detect a change, and
 		 * second have all common paths processed at one place. The common paths are the ones
 		 * encountered in text areas (LF_INIT, LF_TEXT, LF_SEPARATOR) and at the end (LF_END).
 		 * We use the common LF_INIT state to dispatch to the different final states.
@@ -1077,7 +1077,7 @@ static char *lf_encode_chunk(char *start, char *stop,
  * Write a string in the log string
  * Take cares of quote and escape options
  *
- * Return the adress of the \0 character, or NULL on error
+ * Return the address of the \0 character, or NULL on error
  */
 char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const struct logformat_node *node)
 {
@@ -1129,7 +1129,7 @@ static inline char *lf_text(char *dst, const char *src, size_t size, const struc
 }
 
 /*
- * Write a IP adress to the log string
+ * Write a IP address to the log string
  * +X option write in hexadecimal notation, most signifant byte on the left
  */
 char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
@@ -1631,7 +1631,7 @@ void init_log()
 	 *
 	 * All the chars are encoded except "VCHAR", "obs-text", SP and HTAB.
 	 * The encoded chars are form 0x00 to 0x08, 0x0a to 0x1f and 0x7f. The
-	 * "obs-fold" is volontary forgotten because haproxy remove this.
+	 * "obs-fold" is voluntarily forgotten because haproxy remove this.
 	 */
 	memset(http_encode_map, 0, sizeof(http_encode_map));
 	for (i = 0x00; i <= 0x08; i++)
