@@ -2585,6 +2585,63 @@ static int htx_transform_header(struct stream* s, struct channel *chn, struct ht
 	return ret;
 }
 
+/*
+ * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
+ * built according to <fmt> log line format.
+ * If <early_hints> is NULL, it is allocated and the HTTP 103 response first
+ * line is inserted before the header. If an error occurred <early_hints> is
+ * released and NULL is returned. On success the updated buffer is returned.
+ */
+static struct buffer *htx_apply_early_hint_rule(struct stream* s, struct buffer *early_hints,
+						const char* name, unsigned int name_len,
+						struct list *fmt)
+{
+	if (!early_hints) {
+		early_hints = alloc_trash_chunk();
+		if (!early_hints)
+			goto fail;
+		if (!chunk_memcat(early_hints, HTTP_103.ptr, HTTP_103.len))
+			goto fail;
+	}
+
+	if (!chunk_memcat(early_hints, name, name_len) || !chunk_memcat(early_hints, ": ", 2))
+		goto fail;
+
+	early_hints->data += build_logline(s, b_tail(early_hints), b_room(early_hints), fmt);
+	if (!chunk_memcat(early_hints, "\r\n", 2))
+		goto fail;
+
+	return early_hints;
+
+  fail:
+	free_trash_chunk(early_hints);
+	return NULL;
+}
+
+/* Sends an HTTP 103 response. Before sending it, the last CRLF finishing the
+ * response is added. If an error occurred or if another response was already
+ * sent, this function does nothing.
+ */
+static void htx_send_early_hints(struct stream *s, struct buffer *early_hints)
+{
+	struct channel *chn = s->txn->rsp.chn;
+	struct htx *htx;
+
+	/* If a response was already sent, skip early hints */
+	if (s->txn->status > 0)
+		return;
+
+	if (!chunk_memcat(early_hints, "\r\n", 2))
+		return;
+
+	htx = htx_from_buf(&chn->buf);
+	if (!htx_add_oob(htx, ist2(early_hints->area, early_hints->data)))
+		return;
+
+	c_adv(chn, early_hints->data);
+	chn->total += early_hints->data;
+}
+
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * takes the string from the variable 'replace' with length 'len', then modifies
  * the relevant part of the request line accordingly. Then it updates various
