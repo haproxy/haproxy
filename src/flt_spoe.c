@@ -3974,7 +3974,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_RSP]))
 			curmsg->event = SPOE_EV_ON_HTTP_RSP;
 		else {
-			ha_alert("parsing [%s:%d] : unkown event '%s'.\n",
+			ha_alert("parsing [%s:%d] : unknown event '%s'.\n",
 				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
