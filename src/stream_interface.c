@@ -652,7 +652,7 @@ int si_cs_send(struct conn_stream *cs)
 	 * in the normal buffer.
 	 */
 	if (!co_data(oc))
-		return did_send;
+		goto end;
 
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -699,6 +699,7 @@ int si_cs_send(struct conn_stream *cs)
 			 */
 		}
 	}
+ end:
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (!channel_is_empty(oc))
 		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_event);
