@@ -362,7 +362,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		return -1;
 	}
 
-	/* Capture keywork is only avalaible in frontend. */
+	/* Capture keywork is only available in frontend. */
 	if (!(curpx->cap & PR_CAP_FE)) {
 		memprintf(err, "'%s' only avalaible in frontend or listen section", args[0]);
 		return -1;
@@ -374,9 +374,9 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		return -1;
 	}
 
-	/* Actually, declare is only avalaible for declaring capture
+	/* Actually, declare is only available for declaring capture
 	 * slot, but in the future it can declare maps or variables.
-	 * So, this section permits to check and switch acording with
+	 * So, this section permits to check and switch according with
 	 * the second keyword.
 	 */
 	if (strcmp(args[1], "capture") == 0) {
@@ -570,7 +570,7 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 			return byname;
 	}
 
-	/* remaining possiblities :
+	/* remaining possibilities :
 	 *   - name not set
 	 *   - name set but not found
 	 *   - name found, but ID doesn't match.
@@ -594,7 +594,7 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 				}
 			}
 
-			/* remaining possiblities :
+			/* remaining possibilities :
 			 *   - name not set
 			 *   - name set but not found
 			 */
@@ -611,7 +611,7 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 		}
 	}
 
-	/* All remaining possiblities will lead to NULL. If we can report more
+	/* All remaining possibilities will lead to NULL. If we can report more
 	 * detailed information to the caller about changed types and/or name,
 	 * we'll do it. For example, we could detect that "listen foo" was
 	 * split into "frontend foo_ft" and "backend foo_bk" if IDs are forced.
@@ -944,7 +944,7 @@ struct task *hard_stop(struct task *t, void *context, unsigned short state)
 	if (killed) {
 		ha_warning("Some tasks resisted to hard-stop, exiting now.\n");
 		send_log(NULL, LOG_WARNING, "Some tasks resisted to hard-stop, exiting now.\n");
-		/* Do some cleanup and explicitely quit */
+		/* Do some cleanup and explicitly quit */
 		deinit();
 		exit(0);
 	}
@@ -1340,7 +1340,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
  * are passed :
  *  - <proxy> is the proxy where the error was detected and where the snapshot
  *    needs to be stored
- *  - <is_back> indicates that the error happend when receiving the response
+ *  - <is_back> indicates that the error happened when receiving the response
  *  - <other_end> is a pointer to the proxy on the other side when known
  *  - <target> is the target of the connection, usually a server or a proxy
  *  - <sess> is the session which experienced the error
