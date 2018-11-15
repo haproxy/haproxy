@@ -263,7 +263,7 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
 /*
  * This prepare the data update message on the stick session <ts>, <st> is the considered
  * stick table.
- *  <msg> is a buffer of <size> to recieve data message content
+ *  <msg> is a buffer of <size> to receive data message content
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
@@ -375,7 +375,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, u
 
 /*
  * This prepare the switch table message to targeted share table <st>.
- *  <msg> is a buffer of <size> to recieve data message content
+ *  <msg> is a buffer of <size> to receive data message content
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
@@ -457,7 +457,7 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
 /*
  * This prepare the acknowledge message on the stick session <ts>, <st> is the considered
  * stick table.
- *  <msg> is a buffer of <size> to recieve data message content
+ *  <msg> is a buffer of <size> to receive data message content
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
@@ -575,7 +575,7 @@ static void peer_io_handler(struct appctx *appctx)
 	unsigned int maj_ver, min_ver;
 	int prev_state;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (si_ic(si)->buf.size == 0)
 		goto full;
 
@@ -2151,7 +2151,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 	else {
 		/* soft stop case */
 		if (state & TASK_WOKEN_SIGNAL) {
-			/* We've just recieved the signal */
+			/* We've just received the signal */
 			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 				/* add DO NOT STOP flag if not present */
 				HA_ATOMIC_ADD(&jobs, 1);
