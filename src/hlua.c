@@ -1615,7 +1615,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 */
 	if (!(c->flags & CO_FL_CONNECTED)) {
 		si_cant_get(si);
-		si_cant_put(si);
+		si_rx_endp_more(si);
 		return;
 	}
 
@@ -1637,10 +1637,10 @@ static void hlua_socket_handler(struct appctx *appctx)
 		stream_int_update(si);
 
 	/* If write notifications are registered, we considers we want
-	 * to write, so we set the flag cant put
+	 * to write, so we clear the blocking flag.
 	 */
 	if (notification_registered(&appctx->ctx.hlua_cosocket.wake_on_write))
-		si_cant_put(si);
+		si_rx_endp_more(si);
 }
 
 /* This function is called when the "struct stream" is destroyed.
@@ -2480,7 +2480,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 * connection completes.
 	 */
 	si_cant_get(&s->si[0]);
-	si_cant_put(&s->si[0]);
+	si_rx_endp_more(&s->si[0]);
 	appctx_wakeup(appctx);
 
 	hlua->flags |= HLUA_MUST_GC;
@@ -6329,15 +6329,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned short state)
 {
 	struct appctx *ctx = context;
-	struct stream_interface *si = ctx->owner;
 
-	/* If the applet is wake up without any expected work, the sheduler
-	 * remove it from the run queue. This flag indicate that the applet
-	 * is waiting for write. If the buffer is full, the main processing
-	 * will send some data and after call the applet, otherwise it call
-	 * the applet ASAP.
-	 */
-	si_cant_put(si);
 	appctx_wakeup(ctx);
 	t->expire = TICK_ETERNITY;
 	return t;
@@ -6434,7 +6426,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 
 	/* Wakeup the applet ASAP. */
 	si_cant_get(si);
-	si_cant_put(si);
+	si_rx_endp_more(si);
 
 	return 1;
 }
