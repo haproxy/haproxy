@@ -1136,8 +1136,6 @@ int si_cs_recv(struct conn_stream *cs)
 	if (cs->flags & CS_FL_EOS)
 		goto out_shutdown_r;
 
-	/* start by claiming we'll want to receive and change our mind later if needed */
-	si_rx_endp_more(si);
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
@@ -1236,7 +1234,6 @@ int si_cs_recv(struct conn_stream *cs)
 			si_cant_put(si);
 
 		if (ret <= 0) {
-			si_rx_endp_done(si);
 			break;
 		}
 
@@ -1343,8 +1340,12 @@ int si_cs_recv(struct conn_stream *cs)
 		goto out_shutdown_r;
 
 	/* Subscribe to receive events if we're blocking on I/O */
-	if (!si_rx_blocked(si))
+	if (!si_rx_blocked(si)) {
 		conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_event);
+		si_rx_endp_done(si);
+	} else {
+		si_rx_endp_more(si);
+	}
 
 	return (cur_read != 0) || si_rx_blocked(si);
 
