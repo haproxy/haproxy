@@ -425,8 +425,8 @@ int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **e
  *
  * These functions are exported and may be used by any other component.
  *
- * This fucntion just take a sample <smp> and check if this sample match
- * with the pattern <pattern>. This fucntion return just PAT_MATCH or
+ * This function just takes a sample <smp> and checks if this sample matches
+ * with the pattern <pattern>. This function returns only PAT_MATCH or
  * PAT_NOMATCH.
  *
  */
@@ -448,7 +448,7 @@ struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr,
 }
 
 
-/* NB: For two strings to be identical, it is required that their lengths match */
+/* NB: For two strings to be identical, it is required that their length match */
 struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
@@ -1671,7 +1671,7 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 }
 
 /* This function remove all pattern match <key> from the the reference
- * and from each expr member of the reference. This fucntion returns 1
+ * and from each expr member of the reference. This function returns 1
  * if the deletion is done and return 0 is the entry is not found.
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
@@ -1837,10 +1837,10 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	return 1;
 }
 
-/* This function create new reference. <ref> is the reference name.
+/* This function creates a new reference. <ref> is the reference name.
  * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
  * be unique. The user must check the reference with "pat_ref_lookup()"
- * before calling this function. If the fucntion fail, it return NULL,
+ * before calling this function. If the function fail, it return NULL,
  * else return new struct pat_ref.
  */
 struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned int flags)
@@ -2058,11 +2058,11 @@ int pat_ref_add(struct pat_ref *ref,
 	return 1;
 }
 
-/* This function prune <ref>, replace all reference by the references
- * of <replace>, and reindex all the news values.
+/* This function prunes <ref>, replaces all references by the references
+ * of <replace>, and reindexes all the news values.
  *
- * The pattern are loaded in best effort and the errors are ignored,
- * but writed in the logs.
+ * The patterns are loaded in best effort and the errors are ignored,
+ * but written in the logs.
  */
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 {
@@ -2199,12 +2199,12 @@ struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_r
 	return NULL;
 }
 
-/* This function create new pattern_expr associated to the reference <ref>.
- * <ref> can be NULL. If an error is occured, the function returns NULL and
+/* This function creates new pattern_expr associated to the reference <ref>.
+ * <ref> can be NULL. If an error occurs, the function returns NULL and
  * <err> is filled. Otherwise, the function returns new pattern_expr linked
  * with <head> and <ref>.
  *
- * The returned value can be a alredy filled pattern list, in this case the
+ * The returned value can be an already filled pattern list, in this case the
  * flag <reuse> is set.
  */
 struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref,
@@ -2225,7 +2225,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 
 	/* Look for existing similar expr. No that only the index, parse and
 	 * parse_smp function must be identical for having similar pattern.
-	 * The other function depends of theses first.
+	 * The other function depends of these first.
 	 */
 	if (ref) {
 		list_for_each_entry(expr, &ref->pat, list)
