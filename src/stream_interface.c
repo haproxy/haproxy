@@ -249,7 +249,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 
 	if (ic->pipe) {
 		/* stop reading */
-		si->flags |= SI_FL_RXBLK_ROOM;
+		si_rx_room_blk(si);
 	}
 	else {
 		/* (re)start reading */
@@ -482,7 +482,7 @@ void stream_int_notify(struct stream_interface *si)
 
 	if ((sio->flags & SI_FL_RXBLK_ROOM) &&
 	    ((oc->flags & CF_WRITE_PARTIAL) || channel_is_empty(oc)))
-		sio->flags &= ~SI_FL_RXBLK_ROOM;
+		si_rx_room_rdy(sio);
 
 	if (oc->flags & CF_DONT_READ)
 		si_rx_chan_blk(sio);
@@ -519,7 +519,7 @@ void stream_int_notify(struct stream_interface *si)
 		 * buffer or in the pipe.
 		 */
 		if (new_len < last_len)
-			si->flags &= ~SI_FL_RXBLK_ROOM;
+			si_rx_room_rdy(si);
 	}
 
 	if (!(ic->flags & CF_DONT_READ))
@@ -761,7 +761,7 @@ void stream_int_update(struct stream_interface *si)
 
 		if (!channel_is_empty(ic)) {
 			/* stop reading, imposed by channel's policy or contents */
-			si_cant_put(si);
+			si_rx_room_blk(si);
 		}
 		else {
 			/* (re)start reading and update timeout. Note: we don't recompute the timeout
@@ -769,7 +769,7 @@ void stream_int_update(struct stream_interface *si)
 			 * update it if is was not yet set. The stream socket handler will already
 			 * have updated it if there has been a completed I/O.
 			 */
-			si->flags &= ~SI_FL_RXBLK_ROOM;
+			si_rx_room_rdy(si);
 		}
 		if (si->flags & SI_FL_RXBLK_ANY & ~SI_FL_RX_WAIT_EP)
 			ic->rex = TICK_ETERNITY;
@@ -844,7 +844,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	    !(cs->flags & CS_FL_ERROR) &&
 	    !(cs->conn->flags & CO_FL_ERROR)) {
 		if (si_cs_send(cs))
-			si_b->flags &= ~SI_FL_RXBLK_ROOM;
+			si_rx_room_rdy(si_b);
 	}
 
 	/* back stream-int */
@@ -856,7 +856,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	    !(cs->flags & CS_FL_ERROR) &&
 	    !(cs->conn->flags & CO_FL_ERROR)) {
 		if (si_cs_send(cs))
-			si_f->flags &= ~SI_FL_RXBLK_ROOM;
+			si_rx_room_rdy(si_f);
 	}
 
 	/* let's recompute both sides states */
@@ -1205,7 +1205,7 @@ int si_cs_recv(struct conn_stream *cs)
 			/* the pipe is full or we have read enough data that it
 			 * could soon be full. Let's stop before needing to poll.
 			 */
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			goto done_recv;
 		}
 
@@ -1240,7 +1240,7 @@ int si_cs_recv(struct conn_stream *cs)
 
 		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, co_data(ic) ? CO_RFL_BUF_WET : 0);
 		if (cs->flags & CS_FL_RCV_MORE)
-			si_cant_put(si);
+			si_rx_room_blk(si);
 
 		if (ret <= 0) {
 			break;

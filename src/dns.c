@@ -2030,7 +2030,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 			/* let's try again later from this session. We add ourselves into
 			 * this session's users so that it can remove us upon termination.
 			 */
-			si->flags |= SI_FL_RXBLK_ROOM;
+			si_rx_room_blk(si);
 			return 0;
 		}
 		/* fall through */

@@ -2782,7 +2782,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 		appctx->ctx.sess.uid = 0;
@@ -3080,7 +3080,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     (unsigned int)strm->res.buf.size);
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 
@@ -3299,7 +3299,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_cant_put(si);
+				si_rx_room_blk(si);
 				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
@@ -3317,7 +3317,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				chunk_appendf(&trash, "Session not found.\n");
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
-				si_cant_put(si);
+				si_rx_room_blk(si);
 				HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 				return 0;
 			}

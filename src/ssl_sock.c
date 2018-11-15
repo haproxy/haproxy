@@ -8571,7 +8571,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 			chunk_appendf(&trash, "# id (file)\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 
@@ -8620,7 +8620,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 						 * this stream's users so that it can remove us upon termination.
 						 */
 						HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
-						si_cant_put(si);
+						si_rx_room_blk(si);
 						return 0;
 					}
 					appctx->ctx.cli.i1++;
@@ -8632,7 +8632,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si_cant_put(si);
+				si_rx_room_blk(si);
 				return 0;
 			}
 

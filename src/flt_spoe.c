@@ -1156,7 +1156,7 @@ spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
 	ret = ci_putblk(si_ic(si), buf, framesz+4);
 	if (ret <= 0) {
 		if ((ret == -3 && b_is_null(&si_ic(si)->buf)) || ret == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 1; /* retry */
 		}
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;

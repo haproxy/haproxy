@@ -1892,7 +1892,7 @@ out:
 		HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 	return;
 full:
-	si_cant_put(si);
+	si_rx_room_blk(si);
 	goto out;
 }
 

@@ -1581,7 +1581,7 @@ static int dump_servers_state(struct stream_interface *si, struct buffer *buf)
 				bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
 				srvrecord ? srvrecord : "-");
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 	}
@@ -1608,7 +1608,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	if (appctx->st2 == STAT_ST_HEAD) {
 		chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 		appctx->st2 = STAT_ST_INFO;
@@ -1643,7 +1643,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	if (!appctx->ctx.cli.p0) {
 		chunk_printf(&trash, "# name\n");
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 		appctx->ctx.cli.p0 = proxies_list;
@@ -1662,7 +1662,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
 		if (ci_putchk(si_ic(si), &trash) == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			return 0;
 		}
 	}
@@ -2155,7 +2155,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
  cant_send_unlock:
 	HA_SPIN_UNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
  cant_send:
-	si_cant_put(si);
+	si_rx_room_blk(si);
 	return 0;
 }
 

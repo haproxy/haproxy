@@ -2778,7 +2778,7 @@ static int cli_io_handler_show_startup_logs(struct appctx *appctx)
 	const char *msg = (startup_logs ? startup_logs : "No startup alerts/warnings.\n");
 
 	if (ci_putstr(si_ic(si), msg) == -1) {
-		si_cant_put(si);
+		si_rx_room_blk(si);
 		return 0;
 	}
 	return 1;

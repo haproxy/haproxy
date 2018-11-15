@@ -259,13 +259,6 @@ static inline int si_rx_endp_ready(const struct stream_interface *si)
 	return !(si->flags & SI_FL_RX_WAIT_EP);
 }
 
-/* Report that a stream interface failed to put some data into the input buffer */
-static inline void si_cant_put(struct stream_interface *si)
-{
-	si->flags |=  SI_FL_RXBLK_ROOM;
-	si->flags &= ~SI_FL_RX_WAIT_EP;
-}
-
 /* The stream interface announces it is ready to try to deliver more data to the input buffer */
 static inline void si_rx_endp_more(struct stream_interface *si)
 {
@@ -304,6 +297,22 @@ static inline void si_rx_buff_rdy(struct stream_interface *si)
 static inline void si_rx_buff_blk(struct stream_interface *si)
 {
 	si->flags |=  SI_FL_RXBLK_BUFF;
+}
+
+/* Tell a stream interface some room was made in the input buffer */
+static inline void si_rx_room_rdy(struct stream_interface *si)
+{
+	si->flags &= ~SI_FL_RXBLK_ROOM;
+}
+
+/* The stream interface announces it failed to put data into the input buffer
+ * by lack of room. Since it indicates a willingness to deliver data to the
+ * buffer that will have to be retried, we automatically clear RXBLK_ENDP to
+ * be called again as soon as RXBLK_ROOM is cleared.
+ */
+static inline void si_rx_room_blk(struct stream_interface *si)
+{
+	si->flags |=  SI_FL_RXBLK_ROOM;
 }
 
 /* The stream interface announces it will never put new data into the input

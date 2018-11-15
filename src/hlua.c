@@ -3833,7 +3833,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		si_cant_put(si);
+		si_rx_room_blk(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4130,7 +4130,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		 * If ret is -1, we dont have room in the buffer, so we yield.
 		 */
 		if (ret == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 		}
 		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
@@ -4216,7 +4216,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 		 * If ret is -1, we dont have room in the buffer, so we yield.
 		 */
 		if (ret == -1) {
-			si_cant_put(si);
+			si_rx_room_blk(si);
 			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 		}
 		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
@@ -4328,7 +4328,7 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		si_cant_put(si);
+		si_rx_room_blk(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -4468,7 +4468,7 @@ __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status
 
 	/* If ret is -1, we dont have room in the buffer, so we yield. */
 	if (ret == -1) {
-		si_cant_put(si);
+		si_rx_room_blk(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_start_response_yield, TICK_ETERNITY, 0));
 	}
 
@@ -6775,7 +6775,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 
 			/* no enough space error. */
 			if (ret == -1) {
-				si_cant_put(si);
+				si_rx_room_blk(si);
 				return;
 			}
 
@@ -7224,7 +7224,7 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	case HLUA_E_AGAIN:
 		/* We want write. */
 		if (HLUA_IS_WAKERESWR(hlua))
-			si_cant_put(si);
+			si_rx_room_blk(si);
 		/* Set the timeout. */
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(hlua->task, hlua->wake_time);
