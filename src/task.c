@@ -29,7 +29,7 @@ struct pool_head *pool_head_task;
 struct pool_head *pool_head_tasklet;
 
 /* This is the memory pool containing all the signal structs. These
- * struct are used to store each requiered signal between two tasks.
+ * struct are used to store each required signal between two tasks.
  */
 struct pool_head *pool_head_notification;
 
@@ -429,7 +429,7 @@ void process_runnable_tasks()
 		}
 		curr_task = NULL;
 		/* If there is a pending state  we have to wake up the task
-		 * immediatly, else we defer it into wait queue
+		 * immediately, else we defer it into wait queue
 		 */
 		if (t != NULL) {
 			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
