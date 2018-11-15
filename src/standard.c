@@ -2186,7 +2186,7 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 	}
 	else {
 		if (*binstrlen < len) {
-			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
+			memprintf(err, "no space available in the buffer. expect %d, provides %d",
 			          len, *binstrlen);
 			return 0;
 		}
