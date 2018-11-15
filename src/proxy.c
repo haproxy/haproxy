@@ -358,13 +358,13 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 {
 	/* Capture keyword wannot be declared in a default proxy. */
 	if (curpx == defpx) {
-		memprintf(err, "'%s' not avalaible in default section", args[0]);
+		memprintf(err, "'%s' not available in default section", args[0]);
 		return -1;
 	}
 
 	/* Capture keywork is only available in frontend. */
 	if (!(curpx->cap & PR_CAP_FE)) {
-		memprintf(err, "'%s' only avalaible in frontend or listen section", args[0]);
+		memprintf(err, "'%s' only available in frontend or listen section", args[0]);
 		return -1;
 	}
 
