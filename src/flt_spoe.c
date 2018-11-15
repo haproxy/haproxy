@@ -383,7 +383,7 @@ spoe_str_to_vsn(const char *str, size_t len)
 }
 
 /* Encode the HELLO frame sent by HAProxy to an agent. It returns the number of
- * encoded bytes in the frame on success, 0 if an encoding error occured and -1
+ * encoded bytes in the frame on success, 0 if an encoding error occurred and -1
  * if a fatal error occurred. */
 static int
 spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
@@ -2179,14 +2179,14 @@ spoe_encode_message(struct stream *s, struct spoe_context *ctx,
 		if (ctx->frag_ctx.curoff != UINT_MAX)
 			goto encode_arg_value;
 
-		/* Encode the arguement name as a string. It can by NULL */
+		/* Encode the argument name as a string. It can by NULL */
 		if (spoe_encode_buffer(arg->name, arg->name_len, buf, end) == -1)
 			goto too_big;
 
 		ctx->frag_ctx.curoff = 0;
 	  encode_arg_value:
 
-		/* Fetch the arguement value */
+		/* Fetch the argument value */
 		smp = sample_process(s->be, s->sess, s, dir|SMP_OPT_FINAL, arg->expr, NULL);
 		ret = spoe_encode_data(smp, &ctx->frag_ctx.curoff, buf, end);
 		if (ret == -1 || ctx->frag_ctx.curoff)
