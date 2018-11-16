@@ -443,7 +443,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 	if (si->wait_event.wait_reason & SUB_CAN_RECV)
 		return 0; // already subscribed
 
-	if (si->flags & SI_FL_RXBLK_ROOM && c_size(si_ic(si)))
+	if (!si_rx_endp_ready(si) || si_rx_blocked(si))
 		return 0; // already failed
 
 	return si_cs_recv(cs);
