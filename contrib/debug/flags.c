@@ -156,6 +156,7 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_NOT_FIRST);
 	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
 	SHOW_FLAG(f, CS_FL_REOS);
 	SHOW_FLAG(f, CS_FL_EOS);
@@ -165,8 +166,6 @@ void show_cs_flags(unsigned int f)
 	SHOW_FLAG(f, CS_FL_SHWN);
 	SHOW_FLAG(f, CS_FL_SHRR);
 	SHOW_FLAG(f, CS_FL_SHRD);
-	SHOW_FLAG(f, CS_FL_DATA_WR_ENA);
-	SHOW_FLAG(f, CS_FL_DATA_RD_ENA);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
