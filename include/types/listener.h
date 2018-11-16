@@ -101,6 +101,7 @@ enum li_state {
 #define LI_O_ACC_CIP            0x1000  /* find the proxied address in the NetScaler Client IP header */
 #define LI_O_INHERITED          0x2000  /* inherited FD from the parent process (fd@) */
 #define LI_O_MWORKER            0x4000  /* keep the FD open in the master but close it in the children */
+#define LI_O_NOSTOP             0x8000  /* keep the listener active even after a soft stop */
 
 /* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.

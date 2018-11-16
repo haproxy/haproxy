@@ -1110,20 +1110,27 @@ void zombify_proxy(struct proxy *p)
  * This function completely stops a proxy and releases its listeners. It has
  * to be called when going down in order to release the ports so that another
  * process may bind to them. It must also be called on disabled proxies at the
- * end of start-up. When all listeners are closed, the proxy is set to the
+ * end of start-up. If all listeners are closed, the proxy is set to the
  * PR_STSTOPPED state.
  */
 void stop_proxy(struct proxy *p)
 {
 	struct listener *l;
+	int nostop = 0;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
+		if (l->options & LI_O_NOSTOP) {
+			HA_ATOMIC_ADD(&unstoppable_jobs, 1);
+			nostop = 1;
+			continue;
+		}
 		unbind_listener(l);
 		if (l->state >= LI_ASSIGNED) {
 			delete_listener(l);
 		}
 	}
-	p->state = PR_STSTOPPED;
+	if (!nostop)
+		p->state = PR_STSTOPPED;
 }
 
 /* This function resumes listening on the specified proxy. It scans all of its
