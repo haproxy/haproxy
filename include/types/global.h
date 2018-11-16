@@ -224,6 +224,7 @@ extern unsigned long pid_bit;   /* bit corresponding to the process id */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
+extern int  unstoppable_jobs;   /* # of active jobs that can't be stopped during a soft stop */
 extern int  active_peers;       /* # of active peers (connection attempts and successes) */
 extern int  connected_peers;    /* # of really connected peers */
 extern THREAD_LOCAL struct buffer trash;

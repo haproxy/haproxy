@@ -177,6 +177,7 @@ struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 int stopping;	/* non zero means stopping in progress */
 int killed;	/* non zero means a hard-stop is triggered */
 int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) */
+int unstoppable_jobs = 0;  /* number of active jobs that can't be stopped during a soft stop */
 int active_peers = 0; /* number of active peers (connection attempts and connected) */
 int connected_peers = 0; /* number of connected peers (verified ones) */
 
@@ -2617,7 +2618,7 @@ static void run_poll_loop()
 		next = wake_expired_tasks();
 
 		/* stop when there's nothing left to do */
-		if (jobs == 0)
+		if ((jobs - unstoppable_jobs) == 0)
 			break;
 
 		/* expire immediately if events are pending */

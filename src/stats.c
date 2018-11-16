@@ -132,6 +132,7 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_DESCRIPTION]                    = "description",
 	[INF_STOPPING]                       = "Stopping",
 	[INF_JOBS]                           = "Jobs",
+	[INF_UNSTOPPABLE_JOBS]               = "Unstoppable Jobs",
 	[INF_LISTENERS]                      = "Listeners",
 	[INF_ACTIVE_PEERS]                   = "ActivePeers",
 	[INF_CONNECTED_PEERS]                = "ConnectedPeers",
@@ -3300,6 +3301,7 @@ int stats_fill_info(struct field *info, int len)
 		info[INF_DESCRIPTION]            = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.desc);
 	info[INF_STOPPING]                       = mkf_u32(0, stopping);
 	info[INF_JOBS]                           = mkf_u32(0, jobs);
+	info[INF_UNSTOPPABLE_JOBS]               = mkf_u32(0, unstoppable_jobs);
 	info[INF_LISTENERS]                      = mkf_u32(0, listeners);
 	info[INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
 	info[INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
