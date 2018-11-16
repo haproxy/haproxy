@@ -2336,7 +2336,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		l->backlog = global.stats_fe->backlog;
 		l->accept = session_accept_fd;
 		l->default_target = global.stats_fe->default_target;
-		l->options |= LI_O_UNLIMITED;
+		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);
 		/* it's a sockpair but we don't want to keep the fd in the master */
 		l->options &= ~LI_O_INHERITED;
 		l->nice = -64;  /* we want to boost priority for local stats */
