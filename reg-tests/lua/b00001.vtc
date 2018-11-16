@@ -25,16 +25,16 @@ feature ignore_unknown_macro
 
 syslog Slog {
     recv notice
-    expect ~ "haproxy\\[[0-9]*\\]: Proxy f1 started"
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: Proxy f1 started"
 
     recv notice
-    expect ~ "haproxy\\[[0-9]*\\]: Proxy f2 started"
+    expect ~ "[^:\\[ ]\\[[0-9]*\\]: Proxy f2 started"
 
     recv info
-    expect ~ "haproxy\\[[0-9]*\\]: Ta=[0-9]* Tc=[0-9]* Td=[0-9]* Th=[0-9]* Ti=[0-9]* Tq=[0-9]* TR=[0-9]* Tr=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
+    expect ~ "[^:\\[ ]\\[[0-9]*\\]: Ta=[0-9]* Tc=[0-9]* Td=[0-9]* Th=[0-9]* Ti=[0-9]* Tq=[0-9]* TR=[0-9]* Tr=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
 
     recv info
-    expect ~ "haproxy\\[[0-9]*\\]: Tc=[0-9]* Td=[0-9]* Th=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
+    expect ~ "[^:\\[ ]\\[[0-9]*\\]: Tc=[0-9]* Td=[0-9]* Th=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
 } -start
 
 haproxy h1 -conf {
