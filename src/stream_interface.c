@@ -1422,6 +1422,12 @@ void si_applet_wake_cb(struct stream_interface *si)
 	if (!(si->flags & SI_FL_RX_WAIT_EP) && (ic->flags & CF_SHUTR))
 		si->flags |= SI_FL_ERR;
 
+	/* automatically mark the applet having data available if it reported
+	 * begin blocked by the channel.
+	 */
+	if (si_rx_blocked(si))
+		si_rx_endp_more(si);
+
 	/* update the stream-int, channels, and possibly wake the stream up */
 	stream_int_notify(si);
 
