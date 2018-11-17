@@ -673,7 +673,6 @@ static int sess_update_st_con_tcp(struct stream *s)
 	/* OK, this means that a connection succeeded. The caller will be
 	 * responsible for handling the transition from CON to EST.
 	 */
-	si_want_put(si);
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
 	return 1;
@@ -853,6 +852,7 @@ static void sess_establish(struct stream *s)
 			rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 	}
 
+	si_want_put(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
 		req->flags |= CF_WAKE_ONCE;
