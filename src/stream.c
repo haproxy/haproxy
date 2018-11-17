@@ -1685,7 +1685,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	unsigned int req_ana_back;
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
-	struct conn_stream *cs;
 
 	activity[tid].stream++;
 
@@ -1696,15 +1695,9 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_b = &s->si[1];
 
 	/* First, attempt to receive pending data from I/O layers */
-	cs = objt_cs(si_f->end);
-	if (cs && !(si_f->wait_event.wait_reason & SUB_CAN_RECV) &&
-	    (!(si_f->flags & SI_FL_WAIT_ROOM) || !c_size(req)))
-		si_cs_recv(cs);
+	si_sync_recv(si_f);
+	si_sync_recv(si_b);
 
-	cs = objt_cs(si_b->end);
-	if (cs && !(si_b->wait_event.wait_reason & SUB_CAN_RECV) &&
-	    (!(si_b->flags & SI_FL_WAIT_ROOM) || !c_size(res)))
-		si_cs_recv(cs);
 redo:
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,

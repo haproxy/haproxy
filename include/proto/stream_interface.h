@@ -381,6 +381,33 @@ static inline void si_chk_rcv(struct stream_interface *si)
 	si->ops->chk_rcv(si);
 }
 
+/* This tries to perform a synchronous receive on the stream interface to
+ * try to collect last arrived data. In practice it's only implemented on
+ * conn_streams. Returns 0 if nothing was done, non-zero if new data or a
+ * shutdown were collected. This may result on some delayed receive calls
+ * to be programmed and performed later, though it doesn't provide any
+ * such guarantee.
+ */
+static inline int si_sync_recv(struct stream_interface *si)
+{
+	struct conn_stream *cs;
+
+	if (si->state != SI_ST_EST)
+		return 0;
+
+	cs = objt_cs(si->end);
+	if (!cs)
+		return 0; // only conn_streams are supported
+
+	if (si->wait_event.wait_reason & SUB_CAN_RECV)
+		return 0; // already subscribed
+
+	if (si->flags & SI_FL_WAIT_ROOM && c_size(si_ic(si)))
+		return 0; // already failed
+
+	return si_cs_recv(cs);
+}
+
 /* Calls chk_snd on the connection using the data layer */
 static inline void si_chk_snd(struct stream_interface *si)
 {
