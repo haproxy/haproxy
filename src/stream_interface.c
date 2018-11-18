@@ -498,7 +498,7 @@ void stream_int_notify(struct stream_interface *si)
 	 */
 	if (!channel_is_empty(ic) &&
 	    (si_opposite(si)->flags & SI_FL_WAIT_DATA) &&
-	    (ci_data(ic) == 0 || ic->pipe)) {
+	    (!(ic->flags & CF_EXPECT_MORE) || c_full(ic) || ci_data(ic) == 0 || ic->pipe)) {
 		int new_len, last_len;
 
 		last_len = co_data(ic);
