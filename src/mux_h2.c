@@ -2222,7 +2222,9 @@ static int h2_process_mux(struct h2c *h2c)
 }
 
 
-/* Attempt to read data, and subscribe if none available */
+/* Attempt to read data, and subscribe if none available.
+ * The function returns 1 if data has been received, otherwise zero.
+ */
 static int h2_recv(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
@@ -2263,7 +2265,9 @@ static int h2_recv(struct h2c *h2c)
 	return 1;
 }
 
-/* Try to send data if possible */
+/* Try to send data if possible.
+ * The function returns 1 if data have been sent, otherwise zero.
+ */
 static int h2_send(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
