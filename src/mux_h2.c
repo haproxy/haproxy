@@ -2539,6 +2539,27 @@ static struct conn_stream *h2_attach(struct connection *conn)
 	return NULL;
 }
 
+/* Retrieves the first valid conn_stream from this connection, or returns NULL.
+ * We have to scan because we may have some orphan streams. It might be
+ * beneficial to scan backwards from the end to reduce the likeliness to find
+ * orphans.
+ */
+static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
+{
+	struct h2c *h2c = conn->mux_ctx;
+	struct h2s *h2s;
+	struct eb32_node *node;
+
+	node = eb32_first(&h2c->streams_by_id);
+	while (node) {
+		h2s = container_of(node, struct h2s, by_id);
+		if (h2s->cs)
+			return h2s->cs;
+		node = eb32_next(node);
+	}
+	return NULL;
+}
+
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
@@ -3770,6 +3791,7 @@ const struct mux_ops h2_ops = {
 	.subscribe = h2_subscribe,
 	.unsubscribe = h2_unsubscribe,
 	.attach = h2_attach,
+	.get_first_cs = h2_get_first_cs,
 	.detach = h2_detach,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,

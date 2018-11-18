@@ -72,6 +72,16 @@ static struct conn_stream *mux_pt_attach(struct connection *conn)
 	return NULL;
 }
 
+/* Retrieves a valid conn_stream from this connection, or returns NULL. For
+ * this mux, it's easy as we can only store a single conn_stream.
+ */
+static const struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
+{
+	struct conn_stream *cs = conn->mux_ctx;
+
+	return cs;
+}
+
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
@@ -183,6 +193,7 @@ const struct mux_ops mux_pt_ops = {
 	.snd_pipe = mux_pt_snd_pipe,
 #endif
 	.attach = mux_pt_attach,
+	.get_first_cs = mux_pt_get_first_cs,
 	.detach = mux_pt_detach,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,

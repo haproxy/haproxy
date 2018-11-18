@@ -321,6 +321,7 @@ struct mux_ops {
 	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
 
 	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
+	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */

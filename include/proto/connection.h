@@ -632,6 +632,22 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 	return cs;
 }
 
+/* Retrieves any valid conn_stream from this connection, preferably the first
+ * valid one. The purpose is to be able to figure one other end of a private
+ * connection for purposes like source binding or proxy protocol header
+ * emission. In such cases, any conn_stream is expected to be valid so the
+ * mux is encouraged to return the first one it finds. If the connection has
+ * no mux or the mux has no get_first_cs() method or the mux has no valid
+ * conn_stream, NULL is returned. The output pointer is purposely marked
+ * const to discourage the caller from modifying anything there.
+ */
+static inline const struct conn_stream *cs_get_first(const struct connection *conn)
+{
+	if (!conn || !conn->mux || !conn->mux->get_first_cs)
+		return NULL;
+	return conn->mux->get_first_cs(conn);
+}
+
 static inline void conn_force_unsubscribe(struct connection *conn)
 {
 	if (conn->recv_wait) {
