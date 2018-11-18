@@ -329,10 +329,10 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
 	while (conn->send_proxy_ofs) {
-		struct conn_stream *cs;
+		const struct conn_stream *cs;
 		int ret;
 
-		cs = conn->mux_ctx;
+		cs = cs_get_first(conn);
 		/* The target server expects a PROXY line to be sent first.
 		 * If the send_proxy_ofs is negative, it corresponds to the
 		 * offset to start sending from then end of the proxy string
@@ -342,7 +342,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * is attached to a stream interface. Otherwise we can only
 		 * send a LOCAL line (eg: for use with health checks).
 		 */
-		if (conn->mux == &mux_pt_ops && cs->data_cb == &si_conn_cb) {
+
+		if (cs && cs->data_cb == &si_conn_cb) {
 			struct stream_interface *si = cs->data;
 			struct conn_stream *remote_cs = objt_cs(si_opposite(si)->end);
 			ret = make_proxy_line(trash.area, trash.size,
