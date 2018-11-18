@@ -1,6 +1,156 @@
 ChangeLog :
 ===========
 
+2018/11/18 : 1.9-dev7
+    - BUILD: cache: fix a build warning regarding too large an integer for the age
+    - CLEANUP: fix typos in the comments of the Makefile
+    - CLEANUP: fix a typo in a comment for the contrib/halog subsystem
+    - CLEANUP: fix typos in comments for the contrib/modsecurity subsystem
+    - CLEANUP: fix typos in comments for contrib/spoa_example
+    - CLEANUP: fix typos in comments for contrib/wireshark-dissectors
+    - DOC: Fix typos in README and CONTRIBUTING
+    - MINOR: log: slightly improve error message syntax on log failure
+    - DOC: logs: the format directive was missing from the second log part
+    - MINOR: log: report the number of dropped logs in the stats
+    - MEDIUM: log: add support for logging to existing file descriptors
+    - MEDIUM: log: support a new "short" format
+    - MEDIUM: log: add a new "raw" format
+    - BUG/MEDIUM: stream-int: change the way buffer room is requested by a stream-int
+    - BUG/MEDIUM: stream-int: convert some co_data() checks to channel_is_empty()
+    - MINOR: namespaces: don't build namespace.c if disabled
+    - BUILD/MEDIUM: threads/affinity: DragonFly build fix
+    - MINOR: http: Add new "early-hint" http-request action.
+    - MINOR: http: Make new "early-hint" http-request action really be parsed.
+    - MINOR: http: Implement "early-hint" http request rules.
+    - MINOR: doc: Add information about "early-hint" http-request action.
+    - DOC: early-hints: fix truncated line.
+    - MINOR: mworker: only close std{in,out,err} in daemon mode
+    - BUG/MEDIUM: log: don't CLOEXEC the inherited FDs
+    - BUG/MEDIUM: Make sure stksess is properly aligned.
+    - BUG/MEDIUM: stream-int: make failed splice_in always subscribe to recv
+    - BUG/MEDIUM: stream-int: clear CO_FL_WAIT_ROOM after splicing data in
+    - BUG/MINOR: stream-int: make sure not to go through the rcv_buf path after splice()
+    - CONTRIB: debug: fix build related to conn_stream flags change
+    - REGTEST: fix scripts 1 and 3 to accept development version
+    - BUG/MINOR: http_fetch: Remove the version part when capturing the request uri
+    - MINOR: http: Regroup return statements of http_req_get_intercept_rule at the end
+    - MINOR: http: Regroup return statements of http_res_get_intercept_rule at the end
+    - BUG/MINOR: http: Be sure to sent fully formed HTTP 103 responses
+    - MEDIUM: jobs: support unstoppable jobs for soft stop
+    - MEDIUM: listeners: support unstoppable listener
+    - MEDIUM: cli: worker socketpair is unstoppable
+    - BUG/MINOR: stream-int: set SI_FL_WANT_PUT in sess_establish()
+    - MINOR: stream: move the conn_stream specific calls to the stream-int
+    - BUG/MINOR: config: Copy default error messages when parsing of a backend starts
+    - CLEANUP: h2: minimum documentation for recent API changes
+    - MINOR: mux: implement a get_first_cs() method
+    - MINOR: stream-int: make conn_si_send_proxy() use cs_get_first()
+    - MINOR: stream-int: relax the forwarding rules in stream_int_notify()
+    - MINOR: stream-int: expand the flags to 32-bit
+    - MINOR: stream-int: rename SI_FL_WAIT_ROOM to SI_FL_RXBLK_ROOM
+    - MINOR: stream-int: introduce new SI_FL_RXBLK flags
+    - MINOR: stream-int: add new functions si_{rx,tx}_{blocked,endp_ready}()
+    - MINOR: stream-int: replace SI_FL_WANT_PUT with !SI_FL_RX_WAIT_EP
+    - MINOR: stream-int: use si_rx_blocked()/si_tx_blocked() to check readiness
+    - MEDIUM: stream-int: use si_rx_buff_{rdy,blk} to report buffer readiness
+    - MINOR: stream-int: replace si_{want,stop}_put() with si_rx_endp_{more,done}()
+    - MEDIUM: stream-int: update the endp polling status only at the end of si_cs_recv()
+    - MINOR: stream-int: make si_sync_recv() simply check ENDP before si_cs_recv()
+    - MINOR: stream-int: automatically mark applets as ready if they block on the channel
+    - MEDIUM: stream-int: fix the si_cant_put() calls used for end point readiness
+    - MEDIUM: stream-int: fix the si_cant_put() calls used for buffer readiness
+    - MEDIUM: stream-int: use si_rx_shut_blk() to indicate the SI is closed
+    - MEDIUM: stream-int: unconditionally call si_chk_rcv() in update and notify
+    - MEDIUM: stream-int: make use of si_rx_chan_{rdy,blk} to control the stream-int from the channel
+    - MINOR: stream-int: replace si_cant_put() with si_rx_room_{blk,rdy}()
+    - MEDIUM: connections: Wait until the connection is established to try to recv.
+    - MEDIUM: mux: Teach the mux_pt how to deal with idle connections.
+    - MINOR: mux: Add a new "avail_streams" method.
+    - MINOR: mux: Add a destroy() method.
+    - MINOR: sessions: Start to store the outgoing connection in sessions.
+    - MAJOR: connections: Detach connections from streams.
+    - MINOR: conn_stream: Add a flag to notify the mux it should flush its buffers
+    - MINOR: htx: Add proto_htx.c file
+    - MINOR: conn_stream: Add a flag to notify the mux it must respect the reserve
+    - MINOR: http: Add standalone functions to parse a start-line or a header
+    - MINOR: http: Call http_send_name_header with the stream instead of the txn
+    - MINOR: conn_stream: Add a flag to notify the SI some data were received
+    - MINOR: http: Add macros to check if a stream uses the HTX representation
+    - MEDIUM: proto_htx: Add HTX analyzers and use it when the mux H1 is used
+    - MEDIUM: mux-h1: Add dummy mux to handle HTTP/1.1 connections
+    - MEDIUM: mux-h1: Add parsing of incoming and ougoing HTTP messages
+    - MAJOR: mux-h1/proto_htx: Handle keep-alive connections in the mux
+    - MEDIUM: mux-h1: Add support of the kernel TCP splicing to forward data
+    - MEDIUM: htx: Add API to deal with the internal representation of HTTP messages
+    - MINOR: http_htx: Add functions to manipulate HTX messages in http_htx.c
+    - MINOR: proto_htx: Add some functions to handle HTX messages
+    - MAJOR: mux-h1/proto_htx: Switch mux-h1 and HTX analyzers on the HTX representation
+    - MINOR: http_htx: Add functions to replace part of the start-line
+    - MINOR: http_htx: Add functions to retrieve a specific occurrence of a header
+    - MINOR: proto_htx: Rewrite htx_apply_redirect_rule to handle HTX messages
+    - MINOR: proto_htx: Add the internal function htx_del_hdr_value
+    - MINOR: proto_htx: Add the internal function htx_fmt_res_line
+    - MINOR: proto_htx: Add functions htx_transform_header and htx_transform_header_str
+    - MINOR: proto_htx: Add functions htx_req_replace_stline and htx_res_set_status
+    - MINOR: proto_htx: Add function to build and send HTTP 103 responses
+    - MINOR: proto_htx: Add functions htx_req_get_intercept_rule and htx_res_get_intercept_rule
+    - MINOR: proto_htx: Add functions to apply req* and rsp* rules on HTX messages
+    - MINOR: proto_htx: Add functions to manage cookies on HTX messages
+    - MINOR: proto_htx: Add functions to check the cacheability of HTX messages
+    - MINOR: proto_htx: Add functions htx_send_name_header
+    - MINOR: proto_htx: Add functions htx_perform_server_redirect
+    - MINOR: proto_htx: Add functions to handle the stats applet
+    - MEDIUM: proto_htx: Adapt htx_process_req_common to handle HTX messages
+    - MEDIUM: proto_htx: Adapt htx_process_request to handle HTX messages
+    - MINOR: proto_htx: Adapt htx_process_tarpit to handle HTX messages
+    - MEDIUM: proto_htx: Adapt htx_wait_for_request_body to handle HTX messages
+    - MEDIUM: proto_htx: Adapt htx_process_res_common to handle HTX messages
+    - MINOR: http_fetch: Add smp_prefetch_htx
+    - MEDIUM: http_fetch: Adapt all fetches to handle HTX messages
+    - MEDIUM: mux-h1: Wait for connection establishment before consuming channel's data
+    - MINOR: stats/htx: Adapt the stats applet to handle HTX messages
+    - MINOR: stream: Don't reset sov value with HTX messages
+    - MEDIUM: mux-h1: Handle errors and timeouts in the stream
+    - MINOR: filters/htx: Forbid filters when the HTX is enabled on a proxy
+    - MINOR: lua/htx: Forbid lua usage when the HTX is enabled on a proxy
+    - CLEANUP: Fix some typos in the haproxy subsystem
+    - CLEANUP: Fix typos in the dns subsystem
+    - CLEANUP: Fix typos in the pattern subsystem
+    - CLEANUP: fix 2 typos in the xxhash subsystem
+    - CLEANUP: fix a few typos in the comments of the server subsystem
+    - CLEANUP: fix a misspell in tests/filltab25.c
+    - CLEANUP: fix a typo found in the stream subsystem
+    - CLEANUP: fix typos in comments in ebtree
+    - CLEANUP: fix typos in reg-tests
+    - CLEANUP: fix typos in the comments of the vars subsystem
+    - CLEANUP: fix typos in the hlua_fcn subsystem
+    - CLEANUP: fix typos in the proto_http subsystem
+    - CLEANUP: fix typos in the proxy subsystem
+    - CLEANUP: fix typos in the ssl_sock subsystem
+    - DOC: Fix typos in different subsections of the documentation
+    - DOC: fix a few typos in the documentation
+    - MINOR: Fix an error message thrown when we run out of memory
+    - MINOR: Fix typos in error messages in the proxy subsystem
+    - MINOR: fix typos in the examples files
+    - CLEANUP: Fix a typo in the stats subsystem
+    - CLEANUP: Fix typos in the acl subsystem
+    - CLEANUP: Fix typos in the cache subsystem
+    - CLEANUP: Fix typos in the cfgparse subsystem
+    - CLEANUP: Fix typos in the filters subsystem
+    - CLEANUP: Fix typos in the http subsystem
+    - CLEANUP: Fix typos in the log subsystem
+    - CLEANUP: Fix typos in the peers subsystem
+    - CLEANUP: Fix typos in the regex subsystem
+    - CLEANUP: Fix typos in the sample subsystem
+    - CLEANUP: Fix typos in the spoe subsystem
+    - CLEANUP: Fix typos in the standard subsystem
+    - CLEANUP: Fix typos in the stick_table subsystem
+    - CLEANUP: Fix typos in the task subsystem
+    - MINOR: Fix typo in error message in the standard subsystem
+    - CLEANUP: fix typos in the comments of hlua
+    - MINOR: Fix typo in the error 500 output of hlua
+    - MINOR: Fix a typo in a warning message in the spoe subsystem
+
 2018/11/11 : 1.9-dev6
     - BUG/MEDIUM: tools: fix direction of my_ffsl()
     - BUG/MINOR: cli: forward the whole command on master CLI
