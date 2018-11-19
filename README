@@ -65,6 +65,13 @@ one of the following choices to the CPU variable :
 Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
 for your platform.
 
+By default the build process runs in quiet mode and hide the details of the
+commands that are executed. This allows to more easily catch build warnings
+and see what is happening. However it is not convenient at all to observe what
+flags are passed to the compiler nor what compiler is involved. Simply append
+"V=1" to the "make" command line to switch to verbose mode and display the
+details again.
+
 You may want to build specific target binaries which do not match your native
 compiler's target. This is particularly true on 64-bit systems when you want
 to build a 32-bit binary. Use the ARCH variable for this purpose. Right now

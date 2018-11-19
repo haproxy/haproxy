@@ -3,6 +3,9 @@
 # You should use it this way :
 #   [g]make TARGET=os ARCH=arch CPU=cpu USE_xxx=1 ...
 #
+# By default the detailed commands are hidden for a cleaner output, but you may
+# see them by appending "V=1" to the make command.
+#
 # Valid USE_* options are the following. Most of them are automatically set by
 # the TARGET, others have to be explicitly specified :
 #   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
@@ -886,6 +889,16 @@ endif
 # add options at the beginning of the "ld" command line if needed.
 LDOPTS = $(TARGET_LDFLAGS) $(OPTIONS_LDFLAGS) $(ADDLIB)
 
+ifeq ($V,1)
+cmd_CC = $(CC)
+cmd_LD = $(LD)
+cmd_AR = $(AR)
+else
+cmd_CC = $(Q)echo "  CC      $@";$(CC)
+cmd_LD = $(Q)echo "  LD      $@";$(LD)
+cmd_AR = $(Q)echo "  AR      $@";$(AR)
+endif
+
 ifeq ($(TARGET),)
 all:
 	@echo
@@ -953,22 +966,22 @@ DEP = $(INCLUDES) .build_opts
 .build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 
 haproxy: $(OPTIONS_OBJS) $(OBJS) $(EBTREE_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 $(LIB_EBTREE): $(EBTREE_OBJS)
-	$(AR) rv $@ $^
+	$(cmd_AR) rv $@ $^
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c $(DEP)
-	$(CC) $(COPTS) -c -o $@ $<
+	$(cmd_CC) $(COPTS) -c -o $@ $<
 
 src/trace.o: src/trace.c $(DEP)
-	$(CC) $(TRACE_COPTS) -c -o $@ $<
+	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
 
 src/haproxy.o:	src/haproxy.c $(DEP)
-	$(CC) $(COPTS) \
+	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
 	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
 	      -DBUILD_CPU='"$(strip $(CPU))"' \
@@ -978,7 +991,7 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	       -c -o $@ $<
 
 src/dlmalloc.o: $(DLMALLOC_SRC) $(DEP)
-	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
+	$(cmd_CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 install-man:
 	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1
