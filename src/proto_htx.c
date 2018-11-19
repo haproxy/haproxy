@@ -4946,7 +4946,8 @@ static void htx_end_request(struct stream *s)
 		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
 		s->req.analysers, s->res.analysers);
 
-	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR)) {
+	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
+		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
 		channel_abort(chn);
 		channel_truncate(chn);
 		goto end;
@@ -5080,7 +5081,8 @@ static void htx_end_response(struct stream *s)
 		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
 		s->req.analysers, s->res.analysers);
 
-	if (unlikely(txn->rsp.msg_state == HTTP_MSG_ERROR)) {
+	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
+		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
 		channel_truncate(chn);
 		channel_abort(&s->req);
 		goto end;
