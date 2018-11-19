@@ -3246,6 +3246,7 @@ static void htx_stats_io_handler(struct appctx *appctx)
 			if (type == HTX_BLK_EOM)
 				break;
 		}
+		co_set_data(req, 0);
 		if (htx_is_empty(req_htx)) {
 			htx_reset(req_htx);
 			b_set_data(&req->buf, 0);
