@@ -100,6 +100,13 @@
 #
 #   VARNISHTEST_PROGRAM : location of the varnishtest program to run reg-tests.
 
+# verbosity: pass V=1 for verbose shell invocation
+V = 0
+Q = @
+ifeq ($V,1)
+Q=
+endif
+
 # Function used to detect support of a given option by the compiler.
 # Usage: CFLAGS += $(call cc-opt,option). Eg: $(call cc-opt,-fwrapv)
 # Note: ensure the referencing variable is assigned using ":=" and not "=" to
@@ -952,7 +959,7 @@ $(LIB_EBTREE): $(EBTREE_OBJS)
 	$(AR) rv $@ $^
 
 objsize: haproxy
-	@objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
+	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c $(DEP)
 	$(CC) $(COPTS) -c -o $@ $<
@@ -987,7 +994,7 @@ install-doc:
 	done
 
 install-bin:
-	@for i in haproxy $(EXTRA); do \
+	$(Q)for i in haproxy $(EXTRA); do \
 		if ! [ -e "$$i" ]; then \
 			echo "Please run 'make' before 'make install'."; \
 			exit 1; \
@@ -1069,11 +1076,11 @@ opts:
 # LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter).
 # LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter).
 reg-tests:
-	@if [ ! -x "$(VARNISHTEST_PROGRAM)" ]; then \
+	$(Q)if [ ! -x "$(VARNISHTEST_PROGRAM)" ]; then \
 		echo "Please make the VARNISHTEST_PROGRAM variable point to the location of the varnishtest program."; \
 		exit 1; \
 	fi
-	@export LEVEL=$${LEVEL:-1}; \
+	$(Q)export LEVEL=$${LEVEL:-1}; \
 	if [ $$LEVEL = 1 ] ; then \
 	   EXPR='h*.vtc'; \
 	elif [ $$LEVEL = 2 ] ; then \
