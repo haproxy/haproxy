@@ -1014,17 +1014,17 @@ uninstall:
 	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
 
 clean:
-	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
-	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
-	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
-	rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
+	$(Q)rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
+	$(Q)for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
+	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
+	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
 
 tags:
-	find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
+	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
 	   xargs -0 etags --declarations --members
 
 cscope:
-	find src include -name "*.[ch]" -print | cscope -q -b -i -
+	$(Q)find src include -name "*.[ch]" -print | cscope -q -b -i -
 
 tar:	clean
 	$(Q)ln -s . haproxy-$(VERSION)$(SUBVERS)
