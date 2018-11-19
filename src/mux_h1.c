@@ -60,6 +60,7 @@
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 #define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
+#define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
 
 
 /* H1 connection descriptor */
@@ -728,6 +729,9 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	union h1_sl sl;
 	int ret = 0;
 
+	if (!max)
+		goto end;
+
 	/* Realing input buffer if necessary */
 	if (b_head(buf) + b_data(buf) > b_wrap(buf))
 		b_slow_realign(buf, trash.area, 0);
@@ -1064,7 +1068,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		errflag = H1S_F_RES_ERROR;
 	}
 
-	while (!(h1s->flags & errflag) && count) {
+	do {
 		if (h1m->state <= H1_MSG_LAST_LF) {
 			ret = h1_process_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (!ret)
@@ -1088,7 +1092,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		}
 
 		count -= ret;
-	}
+	} while (!(h1s->flags & errflag) && count);
 
 	if (h1s->flags & errflag)
 		goto parsing_err;
@@ -1323,7 +1327,7 @@ static int h1_recv(struct h1c *h1c)
 	if (!h1_recv_allowed(h1c))
 		goto end;
 
-	if (h1c->h1s && (h1c->h1s->flags & H1S_F_BUF_FLUSH)) {
+	if (h1c->h1s && (h1c->h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
 		rcvd = 1;
 		goto end;
 	}
@@ -1702,8 +1706,8 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	if (flags & CO_RFL_BUF_FLUSH)
 		h1s->flags |= H1S_F_BUF_FLUSH;
-	else if (ret > 0 || (h1s->flags & H1S_F_BUF_FLUSH)) {
-		h1s->flags &= ~H1S_F_BUF_FLUSH;
+	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
+		h1s->flags &= ~H1S_F_SPLICED_DATA;
 		if (!(h1c->wait_event.wait_reason & SUB_CAN_RECV))
 			tasklet_wakeup(h1c->wait_event.task);
 	}
@@ -1750,8 +1754,13 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	int ret = 0;
 
-	if (b_data(&h1s->h1c->ibuf))
+	if (b_data(&h1s->h1c->ibuf)) {
+		h1s->flags |= H1S_F_BUF_FLUSH;
 		goto end;
+	}
+
+	h1s->flags &= ~H1S_F_BUF_FLUSH;
+	h1s->flags |= H1S_F_SPLICED_DATA;
 	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
@@ -1765,16 +1774,17 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
 	struct h1s *h1s = cs->ctx;
-	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->res : &h1s->req);
 	int ret = 0;
 
 	if (b_data(&h1s->h1c->obuf))
 		goto end;
 
 	ret = cs->conn->xprt->snd_pipe(cs->conn, pipe);
-	if (h1m->state == H1_MSG_DATA && ret > 0)
-		h1m->curr_len -= ret;
   end:
+	if (pipe->data) {
+		if (!(h1s->h1c->wait_event.wait_reason & SUB_CAN_SEND))
+			cs->conn->xprt->subscribe(cs->conn, SUB_CAN_SEND, &h1s->h1c->wait_event);
+	}
 	return ret;
 }
 #endif
