@@ -1112,8 +1112,10 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		tasklet_wakeup(h1c->wait_event.task);
 	}
 
-	if (b_data(&h1c->ibuf))
-		h1s->cs->flags |= CS_FL_RCV_MORE;
+	if (b_data(&h1c->ibuf)) {
+		if (!htx_is_empty(htx))
+			h1s->cs->flags |= CS_FL_RCV_MORE;
+	}
 	else {
 		h1_release_buf(h1c, &h1c->ibuf);
 		h1_sync_messages(h1c);
