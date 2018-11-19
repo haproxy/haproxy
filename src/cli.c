@@ -1398,18 +1398,36 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	struct mworker_proc *child;
+	int old = 0;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "# <PID> <type> <relative PID> <reloads>\n");
-	chunk_appendf(&trash, "%u %s %u %d\n", getpid(), "master", 0, -1);
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>");
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15s\n", getpid(), "master", 0, "-");
 
+	/* displays current processes */
 
+	chunk_appendf(&trash, "# workers\n");
 	list_for_each_entry(child, &proc_list, list) {
-		chunk_appendf(&trash, "%u %s %u %d\n", child->pid, "worker", child->relative_pid, child->reloads);
+
+		if (child->reloads > 0) {
+			old++;
+			continue;
+		}
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d\n", child->pid, "worker", child->relative_pid, child->reloads);
+}
+
+	/* displays old processes */
+
+	if (old) {
+		chunk_appendf(&trash, "# old workers\n");
+		list_for_each_entry(child, &proc_list, list) {
+			if (child->reloads > 0)
+				chunk_appendf(&trash, "%-15u %-15s %-15u %-15d\n", child->pid, "worker", child->relative_pid, child->reloads);
+		}
 	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
