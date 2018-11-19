@@ -904,29 +904,26 @@ else
 all: haproxy $(EXTRA)
 endif
 
-OBJS = src/proto_http.o src/cfgparse.o src/cfgparse-global.o            \
-       src/cfgparse-listen.o src/server.o src/stream.o                  \
-       src/flt_spoe.o src/stick_table.o src/stats.o src/mux_h2.o        \
-       src/checks.o src/haproxy.o src/log.o src/dns.o src/peers.o       \
-       src/standard.o src/sample.o src/cli.o src/stream_interface.o     \
-       src/proto_tcp.o src/backend.o src/proxy.o src/tcp_rules.o        \
-       src/listener.o src/flt_http_comp.o src/pattern.o src/cache.o     \
-       src/filters.o src/vars.o src/acl.o src/payload.o                 \
-       src/connection.o src/raw_sock.o src/proto_uxst.o                 \
-       src/flt_trace.o src/session.o src/ev_select.o src/channel.o      \
-       src/task.o src/queue.o src/applet.o src/map.o src/frontend.o     \
-       src/freq_ctr.o src/lb_fwlc.o src/mux_pt.o src/auth.o src/fd.o    \
-       src/hpack-dec.o src/memory.o src/lb_fwrr.o src/lb_chash.o        \
-       src/lb_fas.o src/hathreads.o src/chunk.o src/lb_map.o            \
-       src/xxhash.o src/regex.o src/shctx.o src/buffer.o src/action.o   \
-       src/h1.o src/compression.o src/pipe.o                            \
-       src/sha1.o src/hpack-tbl.o src/hpack-enc.o src/uri_auth.o        \
-       src/time.o src/proto_udp.o src/arg.o src/signal.o                \
-       src/protocol.o src/lru.o src/hdr_idx.o src/hpack-huff.o          \
-       src/mailers.o src/h2.o src/base64.o src/hash.o src/http.o	\
-       src/http_acl.o src/http_fetch.o src/http_conv.o src/http_act.o   \
-       src/http_rules.o src/proto_sockpair.o src/proto_htx.o            \
-       src/mux_h1.o src/htx.o src/http_htx.o
+OBJS = src/proto_http.o src/cfgparse-listen.o src/proto_htx.o src/stream.o    \
+       src/mux_h2.o src/stats.o src/flt_spoe.o src/server.o src/checks.o      \
+       src/haproxy.o src/cfgparse.o src/flt_http_comp.o src/http_fetch.o      \
+       src/dns.o src/stick_table.o src/mux_h1.o src/peers.o src/standard.o    \
+       src/proxy.o src/cli.o src/log.o src/backend.o src/pattern.o            \
+       src/sample.o src/stream_interface.o src/proto_tcp.o src/listener.o     \
+       src/h1.o src/cfgparse-global.o src/cache.o src/http_rules.o            \
+       src/http_act.o src/tcp_rules.o src/filters.o src/connection.o          \
+       src/session.o src/acl.o src/vars.o src/raw_sock.o src/map.o            \
+       src/proto_uxst.o src/payload.o src/fd.o src/queue.o src/flt_trace.o    \
+       src/task.o src/lb_chash.o src/frontend.o src/applet.o src/mux_pt.o     \
+       src/signal.o src/ev_select.o src/proto_sockpair.o src/compression.o    \
+       src/http_conv.o src/memory.o src/lb_fwrr.o src/channel.o src/htx.o     \
+       src/uri_auth.o src/regex.o src/chunk.o src/pipe.o src/lb_fas.o         \
+       src/lb_map.o src/lb_fwlc.o src/auth.o src/time.o src/hathreads.o       \
+       src/http_htx.o src/buffer.o src/hpack-tbl.o src/shctx.o src/sha1.o     \
+       src/http.o src/hpack-dec.o src/action.o src/proto_udp.o src/http_acl.o \
+       src/xxhash.o src/hpack-enc.o src/h2.o src/freq_ctr.o src/lru.o         \
+       src/protocol.o src/arg.o src/hpack-huff.o src/hdr_idx.o src/base64.o   \
+       src/hash.o src/mailers.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
@@ -948,7 +945,7 @@ DEP = $(INCLUDES) .build_opts
 # Used only to force a rebuild if some build options change
 .build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 
-haproxy: $(OPTIONS_OBJS) $(EBTREE_OBJS) $(OBJS)
+haproxy: $(OPTIONS_OBJS) $(OBJS) $(EBTREE_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 $(LIB_EBTREE): $(EBTREE_OBJS)
