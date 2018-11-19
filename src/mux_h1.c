@@ -613,10 +613,6 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
 	if (h1s->flags & H1S_F_WANT_KAL && be->state == PR_STSTOPPED)
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-
-	/* TODO: For now on the server-side, we disable keep-alive */
-	if (h1s->flags & H1S_F_WANT_KAL)
-		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 }
 
 static void h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
@@ -1351,6 +1347,8 @@ static int h1_recv(struct h1c *h1c)
 
 	if (h1_recv_allowed(h1c))
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
+	else
+		rcvd = 1;
 
   end:
 	if (!b_data(&h1c->ibuf))
@@ -1462,7 +1460,7 @@ static int h1_process(struct h1c * h1c)
 		    conn->flags & CO_FL_ERROR     ||
 		    conn_xprt_read0_pending(conn))
 			goto release;
-		if (!(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))) {
+		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))) {
 			if (!h1s_create(h1c, NULL))
 				goto release;
 		}
@@ -1486,7 +1484,7 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 		ret = h1_send(h1c);
 	if (!(h1c->wait_event.wait_reason & SUB_CAN_RECV))
 		ret |= h1_recv(h1c);
-	if (ret/* || b_data(&h1c->ibuf)*/)
+	if (ret || !h1c->h1s)
 		h1_process(h1c);
 	return NULL;
 }
