@@ -25,7 +25,7 @@ To build haproxy, you will need :
   - GNU make. Neither Solaris nor OpenBSD's make work with the GNU Makefile.
     If you get many syntax errors when running "make", you may want to retry
     with "gmake" which is the name commonly used for GNU make on BSD systems.
-  - GCC between 2.95 and 4.8. Others may work, but not tested.
+  - GCC between 2.95 and 8.1. Others may work, but not tested.
   - GNU ld
 
 Also, you might want to build with libpcre support, which will provide a very
@@ -40,7 +40,7 @@ and assign it to the TARGET variable :
   - linux26     for Linux 2.6 and above
   - linux2628   for Linux 2.6.28, 3.x, and above (enables splice and tproxy)
   - solaris     for Solaris 8 or 10 (others untested)
-  - freebsd     for FreeBSD 5 to 10 (others untested)
+  - freebsd     for FreeBSD 5 to 12 (others untested)
   - netbsd      for NetBSD
   - osx         for Mac OS/X
   - openbsd     for OpenBSD 5.7 and above

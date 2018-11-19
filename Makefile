@@ -890,8 +890,9 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux2628, linux26, linux24, linux24e, linux22, solaris"
-	@echo "   freebsd, openbsd, cygwin, custom, generic"
+	@echo "   linux2628, linux26, linux24, linux24e, linux22, solaris,"
+	@echo "   freebsd, netbsd, osx, openbsd, aix51, aix52, cygwin, haiku,"
+	@echo "   generic, custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"
