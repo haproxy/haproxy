@@ -1405,19 +1405,20 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>");
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15s\n", getpid(), "master", 0, "-");
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15s %s\n", getpid(), "master", 0, "-", "-");
 
 	/* displays current processes */
 
 	chunk_appendf(&trash, "# workers\n");
 	list_for_each_entry(child, &proc_list, list) {
+		int up = now.tv_sec - child->timestamp;
 
 		if (child->reloads > 0) {
 			old++;
 			continue;
 		}
-		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d\n", child->pid, "worker", child->relative_pid, child->reloads);
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 }
 
 	/* displays old processes */
@@ -1425,8 +1426,9 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	if (old) {
 		chunk_appendf(&trash, "# old workers\n");
 		list_for_each_entry(child, &proc_list, list) {
+			int up = now.tv_sec - child->timestamp;
 			if (child->reloads > 0)
-				chunk_appendf(&trash, "%-15u %-15s %-15u %-15d\n", child->pid, "worker", child->relative_pid, child->reloads);
+				chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 		}
 	}
 

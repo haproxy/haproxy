@@ -541,9 +541,9 @@ static void mworker_proc_list_to_env()
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (msg)
-			memprintf(&msg, "%s|type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d", msg, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads);
+			memprintf(&msg, "%s|type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
 		else
-			memprintf(&msg, "type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d", child->ipc_fd[0], child->pid, child->relative_pid, child->reloads);
+			memprintf(&msg, "type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
 	}
 	if (msg)
 		setenv("HAPROXY_CHILDREN", msg, 1);
@@ -582,6 +582,8 @@ static void mworker_env_to_proc_list()
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
 				/* we reloaded this process once more */
 				child->reloads = atoi(subtoken+8) + 1;
+			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
+				child->timestamp = atoi(subtoken+10);
 			}
 		}
 		if (child->pid)
@@ -1745,6 +1747,7 @@ static void init(int argc, char **argv)
 
 			tmproc->pid = -1;
 			tmproc->reloads = 0;
+			tmproc->timestamp = -1;
 			tmproc->relative_pid = 1 + proc;
 			tmproc->ipc_fd[0] = -1;
 			tmproc->ipc_fd[1] = -1;
@@ -3018,6 +3021,7 @@ int main(int argc, char **argv)
 				list_for_each_entry(child, &proc_list, list) {
 					if (child->relative_pid == relative_pid &&
 					    child->reloads == 0) {
+						child->timestamp = now.tv_sec;
 						child->pid = ret;
 						break;
 					}

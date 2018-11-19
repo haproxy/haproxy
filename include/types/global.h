@@ -212,6 +212,7 @@ struct mworker_proc {
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int relative_pid;
 	int reloads;
+	int timestamp;
 	struct server *srv; /* the server entry in the master proxy */
 	struct list list;
 };
