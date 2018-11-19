@@ -981,16 +981,16 @@ src/dlmalloc.o: $(DLMALLOC_SRC) $(DEP)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 install-man:
-	install -d "$(DESTDIR)$(MANDIR)"/man1
-	install -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)install -v -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
 
 EXCLUDE_DOCUMENTATION = lgpl gpl coding-style
 DOCUMENTATION = $(filter-out $(EXCLUDE_DOCUMENTATION),$(patsubst doc/%.txt,%,$(wildcard doc/*.txt)))
 
 install-doc:
-	install -d "$(DESTDIR)$(DOCDIR)"
-	for x in $(DOCUMENTATION); do \
-		install -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
+	$(Q)install -v -d "$(DESTDIR)$(DOCDIR)"
+	$(Q)for x in $(DOCUMENTATION); do \
+		install -v -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
 install-bin:
@@ -1000,18 +1000,18 @@ install-bin:
 			exit 1; \
 		fi; \
 	done
-	install -d "$(DESTDIR)$(SBINDIR)"
-	install haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
+	$(Q)install -v -d "$(DESTDIR)$(SBINDIR)"
+	$(Q)install -v haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
 install: install-bin install-man install-doc
 
 uninstall:
-	rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
-	for x in $(DOCUMENTATION); do \
+	$(Q)rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
+	$(Q)for x in $(DOCUMENTATION); do \
 		rm -f "$(DESTDIR)$(DOCDIR)"/$$x.txt ; \
 	done
-	-rmdir "$(DESTDIR)$(DOCDIR)"
-	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
+	$(Q)-rmdir "$(DESTDIR)$(DOCDIR)"
+	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
 
 clean:
 	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
@@ -1027,15 +1027,17 @@ cscope:
 	find src include -name "*.[ch]" -print | cscope -q -b -i -
 
 tar:	clean
-	ln -s . haproxy-$(VERSION)$(SUBVERS)
-	tar --exclude=haproxy-$(VERSION)$(SUBVERS)/.git \
+	$(Q)ln -s . haproxy-$(VERSION)$(SUBVERS)
+	$(Q)tar --exclude=haproxy-$(VERSION)$(SUBVERS)/.git \
 	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS) \
 	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS).tar.gz \
 	    -cf - haproxy-$(VERSION)$(SUBVERS)/* | gzip -c9 >haproxy-$(VERSION)$(SUBVERS).tar.gz
-	rm -f haproxy-$(VERSION)$(SUBVERS)
+	$(Q)echo haproxy-$(VERSION)$(SUBVERS).tar.gz
+	$(Q)rm -f haproxy-$(VERSION)$(SUBVERS)
 
 git-tar:
-	git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
+	$(Q)git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
+	$(Q)echo haproxy-$(VERSION)$(SUBVERS).tar.gz
 
 version:
 	@echo "VERSION: $(VERSION)"
