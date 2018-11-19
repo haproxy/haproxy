@@ -219,7 +219,7 @@ struct list proc_list = LIST_HEAD_INIT(proc_list);
 
 int master = 0; /* 1 if in master, 0 if in child */
 
-struct mworker_proc *proc_self;
+struct mworker_proc *proc_self = NULL;
 
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
@@ -540,13 +540,10 @@ static void mworker_proc_list_to_env()
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if (msg)
-			memprintf(&msg, "%s|type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
-		else
-			memprintf(&msg, "type=worker;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
+		memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
 	}
 	if (msg)
-		setenv("HAPROXY_CHILDREN", msg, 1);
+		setenv("HAPROXY_PROCESSES", msg, 1);
 }
 
 /*
@@ -556,7 +553,7 @@ static void mworker_env_to_proc_list()
 {
 	char *msg, *token = NULL, *s1;
 
-	msg = getenv("HAPROXY_CHILDREN");
+	msg = getenv("HAPROXY_PROCESSES");
 	if (!msg)
 		return;
 
@@ -573,7 +570,11 @@ static void mworker_env_to_proc_list()
 
 			token = NULL;
 
-			if (strncmp(subtoken, "fd=", 3) == 0) {
+			if (strncmp(subtoken, "type=", 5) == 0) {
+				child->type = *(subtoken+5);
+				if (child->type == 'm') /* we are in the master, assign it */
+					proc_self = child;
+			} else if (strncmp(subtoken, "fd=", 3) == 0) {
 				child->ipc_fd[0] = atoi(subtoken+3);
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
 				child->pid = atoi(subtoken+4);
@@ -592,7 +593,7 @@ static void mworker_env_to_proc_list()
 			free(child);
 	}
 
-	unsetenv("HAPROXY_CHILDREN");
+	unsetenv("HAPROXY_PROCESSES");
 }
 
 /*
@@ -1735,9 +1736,29 @@ static void init(int argc, char **argv)
 	if (global.mode & MODE_MWORKER) {
 		int proc;
 		struct wordlist *it, *c;
+		struct mworker_proc *tmproc;
+
+		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
+
+			tmproc = malloc(sizeof(*tmproc));
+			if (!tmproc) {
+				ha_alert("Cannot allocate process structures.\n");
+				exit(EXIT_FAILURE);
+			}
+			tmproc->type = 'm'; /* master */
+			tmproc->reloads = 0;
+			tmproc->relative_pid = 0;
+			tmproc->pid = pid;
+			tmproc->timestamp = start_date.tv_sec;
+			tmproc->ipc_fd[0] = -1;
+			tmproc->ipc_fd[1] = -1;
+
+			proc_self = tmproc;
+
+			LIST_ADDQ(&proc_list, &tmproc->list);
+		}
 
 		for (proc = 0; proc < global.nbproc; proc++) {
-			struct mworker_proc *tmproc;
 
 			tmproc = malloc(sizeof(*tmproc));
 			if (!tmproc) {
@@ -1745,6 +1766,7 @@ static void init(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 
+			tmproc->type = 'w'; /* worker */
 			tmproc->pid = -1;
 			tmproc->reloads = 0;
 			tmproc->timestamp = -1;

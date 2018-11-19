@@ -209,6 +209,8 @@ struct activity {
  */
 struct mworker_proc {
 	int pid;
+	char type;  /* m(aster), w(orker)  */
+	/* 3 bytes hole here */
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int relative_pid;
 	int reloads;
@@ -242,6 +244,7 @@ extern struct task *global_listener_queue_task;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
 extern volatile unsigned long sleeping_thread_mask;
 extern struct list proc_list; /* list of process in mworker mode */
+extern struct mworker_proc *proc_self; /* process structure of current process */
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001

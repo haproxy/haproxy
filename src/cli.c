@@ -1399,6 +1399,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct mworker_proc *child;
 	int old = 0;
+	int up = now.tv_sec - proc_self->timestamp;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -1406,13 +1407,16 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15s %s\n", getpid(), "master", 0, "-", "-");
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", getpid(), "master", 0, proc_self->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 
 	/* displays current processes */
 
 	chunk_appendf(&trash, "# workers\n");
 	list_for_each_entry(child, &proc_list, list) {
-		int up = now.tv_sec - child->timestamp;
+		up = now.tv_sec - child->timestamp;
+
+		if (child->type != 'w')
+			continue;
 
 		if (child->reloads > 0) {
 			old++;
@@ -1426,7 +1430,11 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	if (old) {
 		chunk_appendf(&trash, "# old workers\n");
 		list_for_each_entry(child, &proc_list, list) {
-			int up = now.tv_sec - child->timestamp;
+			up = now.tv_sec - child->timestamp;
+
+			if (child->type != 'w')
+				continue;
+
 			if (child->reloads > 0)
 				chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 		}
@@ -1707,6 +1715,8 @@ static int pcli_prefix_to_pid(const char *prefix)
 		if (*errtol != '\0')
 			return -1;
 		list_for_each_entry(child, &proc_list, list) {
+			if (child->type != 'w')
+				continue;
 			if (child->pid == proc_pid){
 				return child->pid;
 			}
@@ -1725,6 +1735,8 @@ static int pcli_prefix_to_pid(const char *prefix)
 		/* chose the right process, the current one is the one with the
 		 least number of reloads */
 		list_for_each_entry(child, &proc_list, list) {
+			if (child->type != 'w')
+				continue;
 			if (child->relative_pid == proc_pid){
 				if (child->reloads == 0)
 					return child->pid;
