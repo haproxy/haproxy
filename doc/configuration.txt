@@ -11513,6 +11513,20 @@ agent-port <port>
 
   See also the "agent-check" and "agent-inter" parameters.
 
+alpn <protocols>
+  This enables the TLS ALPN extension and advertises the specified protocol
+  list as supported on top of ALPN. The protocol list consists in a comma-
+  delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
+  quotes). This requires that the SSL library is build with support for TLS
+  extensions enabled (check with haproxy -vv). The ALPN extension replaces the
+  initial NPN extension. ALPN is required to connect to HTTP/2 servers.
+  Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
+  now obsolete NPN extension.
+  If both HTTP/2 and HTTP/1.1 are expected to be supported, both versions can
+  be advertised, in order of preference, like below :
+
+       server 127.0.0.1:443 ssl crt pub.pem alpn h2,http/1.1
+
 backup
   When "backup" is present on a server line, the server is only used in load
   balancing when all other non-backup servers are unavailable. Requests coming
@@ -11889,6 +11903,15 @@ non-stick
   Never add connections allocated to this sever to a stick-table.
   This may be used in conjunction with backup to ensure that
   stick-table persistence is disabled for backup servers.
+
+npn <protocols>
+  This enables the NPN TLS extension and advertises the specified protocol list
+  as supported on top of NPN. The protocol list consists in a comma-delimited
+  list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
+  This requires that the SSL library is build with support for TLS extensions
+  enabled (check with haproxy -vv). Note that the NPN extension has been
+  replaced with the ALPN extension (see the "alpn" keyword), though this one is
+  only available starting with OpenSSL 1.0.2.
 
 observe <mode>
   This option enables health adjusting based on observing communication with

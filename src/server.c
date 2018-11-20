@@ -1486,6 +1486,27 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 #endif
 	if (src->sni_expr != NULL)
 		srv->sni_expr = strdup(src->sni_expr);
+
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (src->ssl_ctx.alpn_str) {
+		srv->ssl_ctx.alpn_str = malloc(src->ssl_ctx.alpn_len);
+		if (srv->ssl_ctx.alpn_str) {
+			memcpy(srv->ssl_ctx.alpn_str, src->ssl_ctx.alpn_str,
+			    src->ssl_ctx.alpn_len);
+			srv->ssl_ctx.alpn_len = src->ssl_ctx.alpn_len;
+		}
+	}
+#endif
+#ifdef OPENSSL_NPN_NEGOTIATED
+	if (src->ssl_ctx.npn_str) {
+		srv->ssl_ctx.npn_str = malloc(src->ssl_ctx.npn_len);
+		if (srv->ssl_ctx.npn_str) {
+			memcpy(srv->ssl_ctx.npn_str, src->ssl_ctx.npn_str,
+			    src->ssl_ctx.npn_len);
+			srv->ssl_ctx.npn_len = src->ssl_ctx.npn_len;
+		}
+	}
+#endif
 }
 #endif
 

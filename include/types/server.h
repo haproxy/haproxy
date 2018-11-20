@@ -299,6 +299,14 @@ struct server {
 		char *crl_file;			/* CRLfile to use on verify */
 		char *client_crt;		/* client certificate to send */
 		struct sample_expr *sni;        /* sample expression for SNI */
+#ifdef OPENSSL_NPN_NEGOTIATED
+		char *npn_str;                  /* NPN protocol string */
+		int npn_len;                    /* NPN protocol string length */
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+		char *alpn_str;                 /* ALPN protocol string */
+		int alpn_len;                   /* ALPN protocol string length */
+#endif
 	} ssl_ctx;
 #endif
 	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */

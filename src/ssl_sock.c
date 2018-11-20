@@ -1635,6 +1635,20 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 }
 
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+static int ssl_sock_srv_select_protos(SSL *s, unsigned char **out, unsigned char *outlen,
+                                      const unsigned char *in, unsigned int inlen,
+				      void *arg)
+{
+	struct server *srv = arg;
+
+	if (SSL_select_next_proto(out, outlen, in, inlen, (unsigned char *)srv->ssl_ctx.npn_str,
+	    srv->ssl_ctx.npn_len) == OPENSSL_NPN_NEGOTIATED)
+		return SSL_TLSEXT_ERR_OK;
+	return SSL_TLSEXT_ERR_NOACK;
+}
+#endif
+
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 /* This callback is used so that the server advertises the list of
  * negociable protocols for NPN.
  */
@@ -4701,6 +4715,15 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr++;
 	}
 #endif
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+	if (srv->ssl_ctx.npn_str)
+		SSL_CTX_set_next_proto_select_cb(ctx, ssl_sock_srv_select_protos, srv);
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (srv->ssl_ctx.alpn_str)
+		SSL_CTX_set_alpn_protos(ctx, (unsigned char *)srv->ssl_ctx.alpn_str, srv->ssl_ctx.alpn_len);
+#endif
+
 
 	return cfgerr;
 }
@@ -4815,8 +4838,16 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 /* release ssl context allocated for servers. */
 void ssl_sock_free_srv_ctx(struct server *srv)
 {
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (srv->ssl_ctx.alpn_str)
+		free(srv->ssl_ctx.alpn_str);
+#endif
+	if (srv->ssl_ctx.npn_str)
+		free(srv->ssl_ctx.npn_str);
+#ifdef OPENSSL_NPN_NEGOTIATED
 	if (srv->ssl_ctx.ctx)
 		SSL_CTX_free(srv->ssl_ctx.ctx);
+#endif
 }
 
 /* Walks down the two trees in bind_conf and frees all the certs. The pointer may
@@ -7853,6 +7884,112 @@ static int bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, st
 
 /************** "server" keywords ****************/
 
+/* parse the "npn" bind keyword */
+static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+	char *p1, *p2;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing the comma-delimited NPN protocol suite", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->ssl_ctx.npn_str);
+
+	/* the NPN string is built as a suite of (<len> <name>)*,
+	 * so we reuse each comma to store the next <len> and need
+	 * one more for the end of the string.
+	 */
+	newsrv->ssl_ctx.npn_len = strlen(args[*cur_arg + 1]) + 1;
+	newsrv->ssl_ctx.npn_str = calloc(1, newsrv->ssl_ctx.npn_len + 1);
+	memcpy(newsrv->ssl_ctx.npn_str + 1, args[*cur_arg + 1],
+	    newsrv->ssl_ctx.npn_len);
+
+	/* replace commas with the name length */
+	p1 = newsrv->ssl_ctx.npn_str;
+	p2 = p1 + 1;
+	while (1) {
+		p2 = memchr(p1 + 1, ',', newsrv->ssl_ctx.npn_str +
+		    newsrv->ssl_ctx.npn_len - (p1 + 1));
+		if (!p2)
+			p2 = p1 + 1 + strlen(p1 + 1);
+
+		if (p2 - (p1 + 1) > 255) {
+			*p2 = '\0';
+			memprintf(err, "'%s' : NPN protocol name too long : '%s'", args[*cur_arg], p1 + 1);
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+		*p1 = p2 - (p1 + 1);
+		p1 = p2;
+
+		if (!*p2)
+			break;
+
+		*(p2++) = '\0';
+	}
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support TLS NPN extension", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "alpn" bind keyword */
+static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	char *p1, *p2;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing the comma-delimited ALPN protocol suite", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->ssl_ctx.alpn_str);
+
+	/* the ALPN string is built as a suite of (<len> <name>)*,
+	 * so we reuse each comma to store the next <len> and need
+	 * one more for the end of the string.
+	 */
+	newsrv->ssl_ctx.alpn_len = strlen(args[*cur_arg + 1]) + 1;
+	newsrv->ssl_ctx.alpn_str = calloc(1, newsrv->ssl_ctx.alpn_len + 1);
+	memcpy(newsrv->ssl_ctx.alpn_str + 1, args[*cur_arg + 1],
+	    newsrv->ssl_ctx.alpn_len);
+
+	/* replace commas with the name length */
+	p1 = newsrv->ssl_ctx.alpn_str;
+	p2 = p1 + 1;
+	while (1) {
+		p2 = memchr(p1 + 1, ',', newsrv->ssl_ctx.alpn_str +
+		    newsrv->ssl_ctx.alpn_len - (p1 + 1));
+		if (!p2)
+			p2 = p1 + 1 + strlen(p1 + 1);
+
+		if (p2 - (p1 + 1) > 255) {
+			*p2 = '\0';
+			memprintf(err, "'%s' : ALPN protocol name too long : '%s'", args[*cur_arg], p1 + 1);
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+		*p1 = p2 - (p1 + 1);
+		p1 = p2;
+
+		if (!*p2)
+			break;
+
+		*(p2++) = '\0';
+	}
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support TLS ALPN extension", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
 /* parse the "ca-file" server keyword */
 static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -8949,6 +9086,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1 }, /* Allow using early data on this server */
+	{ "alpn",                    srv_parse_alpn,               1, 1 }, /* Set ALPN supported protocols */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
@@ -8974,6 +9112,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tlsv12",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv12 */
 	{ "no-tlsv13",               srv_parse_tls_method_options, 0, 0 }, /* disable TLSv13 */
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,     0, 1 }, /* disable session resumption tickets */
+	{ "npn",                     srv_parse_npn,                1, 1 }, /* Set NPN supported protocols */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1 }, /* send PROXY protocol header v2 with CN */
 	{ "sni",                     srv_parse_sni,                1, 1 }, /* send SNI extension */
