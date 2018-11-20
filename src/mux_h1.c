@@ -128,7 +128,7 @@ static void h1_shutw_conn(struct connection *conn);
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
 	if (b_data(&h1c->ibuf) == 0 &&
-	    (h1c->flags & (H1C_F_CS_ERROR||H1C_F_CS_SHUTW) ||
+	    (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW) ||
 	     h1c->conn->flags & CO_FL_ERROR ||
 	     conn_xprt_read0_pending(h1c->conn)))
 		return 0;
