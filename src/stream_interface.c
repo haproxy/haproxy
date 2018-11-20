@@ -626,6 +626,9 @@ int si_cs_send(struct conn_stream *cs)
 
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			return 1;
+
+		if (oc->pipe)
+			goto end;
 	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
