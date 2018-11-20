@@ -678,6 +678,9 @@ int si_cs_send(struct conn_stream *cs)
 			 * system buffers are full, we will try next time.
 			 */
 		}
+
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+			return 1;
 	}
  end:
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
