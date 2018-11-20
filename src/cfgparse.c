@@ -3321,6 +3321,10 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
 
+			/* Special case for HTX because it is still experimental */
+			if (curproxy->options2 & PR_O2_USE_HTX)
+				mode = PROTO_MODE_HTX;
+
 			if (!bind_conf->mux_proto)
 				continue;
 			if (!(bind_conf->mux_proto->mode & mode)) {
@@ -3334,6 +3338,10 @@ out_uri_auth_compat:
 		}
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
+
+			/* Special case for HTX because it is still experimental */
+			if (curproxy->options2 & PR_O2_USE_HTX)
+				mode = PROTO_MODE_HTX;
 
 			if (!newsrv->mux_proto)
 				continue;
