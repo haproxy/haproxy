@@ -783,10 +783,9 @@ int assign_server(struct stream *s)
  * to si->end.
  *
  */
-int assign_server_address(struct stream *s)
+int assign_server_address(struct stream *s, struct connection *srv_conn)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
-	struct connection *srv_conn = cs_conn(objt_cs(s->si[1].end));
 
 	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
@@ -1036,6 +1035,41 @@ static void assign_tproxy_address(struct stream *s)
 #endif
 }
 
+/*
+ * Pick the right mux once the connection is established, we should now have
+ * an alpn if available, so we are now able to choose.
+ */
+static int conn_complete_server(struct connection *conn)
+{
+	struct conn_stream *cs = NULL;
+	struct stream *s = conn->mux_ctx;
+
+	conn_clear_xprt_done_cb(conn);
+	/* Verify if the connection just established. */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
+
+	if (!s)
+		goto fail;
+	if (conn->flags & CO_FL_ERROR)
+		goto fail;
+	cs = si_alloc_cs(&s->si[1], conn);
+	if (!cs)
+		goto fail;
+	if (conn_install_mux_be(conn, cs) < 0)
+		goto fail;
+	return 0;
+
+fail:
+	if (cs)
+		cs_free(cs);
+	/* kill the connection now */
+	conn_stop_tracking(conn);
+	conn_full_close(conn);
+	conn_free(conn);
+	return -1;
+}
+
 
 /*
  * This function initiates a connection to the server assigned to this stream
@@ -1179,8 +1213,8 @@ int connect_server(struct stream *s)
 	}
 
 	if (!reuse) {
-		srv_cs = si_alloc_cs(&s->si[1], NULL);
-		srv_conn = cs_conn(srv_cs);
+		srv_conn = conn_new();
+		srv_cs = NULL;
 	} else {
 		if (srv_conn->mux->avail_streams(srv_conn) == 1) {
 			/* No more streams available, remove it from the list */
@@ -1198,11 +1232,11 @@ int connect_server(struct stream *s)
 		LIST_ADDQ(&srv_conn->session_list, &s->sess->conn_list);
 	}
 
-	if (!srv_cs)
+	if (!srv_conn)
 		return SF_ERR_RESOURCE;
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = assign_server_address(s);
+		err = assign_server_address(s, srv_conn);
 		if (err != SRV_STATUS_OK)
 			return SF_ERR_INTERNAL;
 	}
@@ -1223,8 +1257,33 @@ int connect_server(struct stream *s)
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
-		if (conn_install_mux_be(srv_conn, srv_cs) < 0)
-			return SF_ERR_INTERNAL;
+#ifdef USE_OPENSSL
+		if ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
+		    srv->mux_proto)
+#endif
+		{
+			srv_cs = si_alloc_cs(&s->si[1], srv_conn);
+			if (!srv_cs) {
+				conn_free(srv_conn);
+				return SF_ERR_RESOURCE;
+			}
+			if (conn_install_mux_be(srv_conn, srv_cs) < 0)
+				return SF_ERR_INTERNAL;
+		}
+#ifdef USE_OPENSSL
+		else {
+			srv_conn->mux_ctx = s;
+			/* Store the connection into the stream interface,
+			 * while we still don't have a mux, so that if the
+			 * stream is destroyed before the connection is
+			 * established, and a mux is set, we don't attempt
+			 * to access the stream
+			 */
+			conn_set_xprt_done_cb(srv_conn, conn_complete_server);
+		}
+
+#endif
+
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
@@ -1250,7 +1309,7 @@ int connect_server(struct stream *s)
 	if (s->be->options & PR_O_TCP_NOLING)
 		s->si[1].flags |= SI_FL_NOLINGER;
 
-	err = si_connect(&s->si[1]);
+	err = si_connect(&s->si[1], srv_conn);
 
 #ifdef USE_OPENSSL
 	if (!reuse && cli_conn && srv &&

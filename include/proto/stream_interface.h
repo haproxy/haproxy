@@ -460,10 +460,8 @@ static inline void si_chk_snd(struct stream_interface *si)
 }
 
 /* Calls chk_snd on the connection using the ctrl layer */
-static inline int si_connect(struct stream_interface *si)
+static inline int si_connect(struct stream_interface *si, struct connection *conn)
 {
-	struct conn_stream *cs = objt_cs(si->end);
-	struct connection *conn = cs_conn(cs);
 	int ret = SF_ERR_NONE;
 
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))

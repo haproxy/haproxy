@@ -638,10 +638,8 @@ static int sess_update_st_con_tcp(struct stream *s)
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 
-		/* XXX cognet: do we really want to kill the connection here ?
-		 * Probably not for multiple streams.
-		 */
-		cs_close(srv_cs);
+		if (srv_cs)
+			cs_close(srv_cs);
 
 		if (si->err_type)
 			return 0;

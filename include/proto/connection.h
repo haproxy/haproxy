@@ -672,6 +672,16 @@ static inline void conn_free(struct connection *conn)
 		LIST_DEL(&sess->conn_list);
 		LIST_INIT(&sess->conn_list);
 	}
+	/* If we temporarily stored the connection as the stream_interface's
+	 * end point, remove it.
+	 */
+	if (conn->mux_ctx != NULL && conn->mux == NULL) {
+		struct stream *s = conn->mux_ctx;
+
+		if (objt_conn(s->si[1].end) == conn)
+			s->si[1].end = NULL;
+	}
+
 	conn_force_unsubscribe(conn);
 	LIST_DEL(&conn->list);
 	LIST_INIT(&conn->list);
@@ -1034,6 +1044,9 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 	if (srv && srv->mux_proto)
 		mux_ops = srv->mux_proto->mux;
 	else {
+		struct ist mux_proto;
+		const char *alpn_str = NULL;
+		int alpn_len = 0;
 		int mode;
 
 		if (prx->mode == PR_MODE_TCP)
@@ -1043,7 +1056,10 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 		else
 			mode = PROTO_MODE_HTTP;
 
-		mux_ops = conn_get_best_mux(conn, ist(NULL), PROTO_SIDE_BE, mode);
+		conn_get_alpn(conn, &alpn_str, &alpn_len);
+		mux_proto = ist2(alpn_str, alpn_len);
+
+		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
 		if (!mux_ops)
 			return -1;
 	}

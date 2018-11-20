@@ -80,6 +80,14 @@ void session_free(struct session *sess)
 	conn = sess->srv_conn;
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn);
+	else if (conn) {
+		/* We have a connection, but not yet an associated mux.
+		 * So destroy it now.
+		 */
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		conn_free(conn);
+	}
 	pool_free(pool_head_session, sess);
 	HA_ATOMIC_SUB(&jobs, 1);
 }
