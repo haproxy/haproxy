@@ -254,3 +254,23 @@ void signal_unregister_target(int sig, void *target)
 		}
 	}
 }
+
+/*
+ * Immedialtely unregister every handler assigned to a signal <sig>.
+ * Once the handler list is empty, the signal is ignored with SIG_IGN.
+ */
+
+void signal_unregister(int sig)
+{
+	struct sig_handler *sh, *shb;
+
+	if (sig < 0 || sig >= MAX_SIGNAL)
+		return;
+
+	list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
+		LIST_DEL(&sh->list);
+		pool_free(pool_head_sig_handlers, sh);
+	}
+
+	signal(sig, SIG_IGN);
+}

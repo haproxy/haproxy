@@ -32,6 +32,7 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 struct sig_handler *signal_register_task(int sig, struct task *task, int reason);
 void signal_unregister_handler(struct sig_handler *handler);
 void signal_unregister_target(int sig, void *target);
+void signal_unregister(int sig);
 void haproxy_unblock_signals();
 
 static inline void signal_process_queue()
