@@ -921,6 +921,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.iocb == dgram_fd_handler) ? "dgram_fd_handler" :
 			     (fdt.iocb == listener_accept)  ? "listener_accept" :
 			     (fdt.iocb == poller_pipe_io_handler) ? "poller_pipe_io_handler" :
+			     (fdt.iocb == mworker_accept_wrapper) ? "mworker_accept_wrapper" :
 			     "unknown");
 
 		if (fdt.iocb == conn_fd_handler) {

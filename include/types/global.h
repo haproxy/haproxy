@@ -272,6 +272,8 @@ void hap_register_post_deinit(void (*fct)());
 void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
 
+void mworker_accept_wrapper(int fd);
+
 #endif /* _TYPES_GLOBAL_H */
 
 /*
