@@ -1807,6 +1807,12 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (!b_data(buf))
 			ret = count;
 	}
+
+	if (count && ret != count) {
+		if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
+			cs->conn->xprt->subscribe(cs->conn, SUB_CAN_SEND, &h1c->wait_event);
+	}
+
 	return ret;
 }
 
