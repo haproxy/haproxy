@@ -862,6 +862,10 @@ static void mworker_loop()
 
 	master = 1;
 
+	signal_unregister(SIGUSR1);
+	signal_unregister(SIGHUP);
+	signal_unregister(SIGQUIT);
+
 	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
 	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
 	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
