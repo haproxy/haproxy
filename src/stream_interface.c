@@ -609,7 +609,7 @@ int si_cs_send(struct conn_stream *cs)
 	}
 
 	/* we might have been called just after an asynchronous shutw */
-	if (si_oc(si)->flags & CF_SHUTW)
+	if (conn->flags & CO_FL_SOCK_WR_SH || oc->flags & CF_SHUTW)
 		return 1;
 
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
@@ -634,14 +634,11 @@ int si_cs_send(struct conn_stream *cs)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!co_data(oc))
-		goto end;
+	if (co_data(oc)) {
+		/* when we're here, we already know that there is no spliced
+		 * data left, and that there are sendable buffered data.
+		 */
 
-	/* when we're here, we already know that there is no spliced
-	 * data left, and that there are sendable buffered data.
-	 */
-	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_HANDSHAKE)) &&
-	    !(cs->flags & CS_FL_ERROR) && !(oc->flags & CF_SHUTW)) {
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
 		 *  - we're about to close after this last send and want to merge
@@ -685,6 +682,7 @@ int si_cs_send(struct conn_stream *cs)
 		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 			return 1;
 	}
+
  end:
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (!channel_is_empty(oc))
