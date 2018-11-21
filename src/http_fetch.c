@@ -1165,6 +1165,9 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 		if (args && args->type == ARGT_STR) {
 			name.ptr = args->data.str.area;
 			name.len = args->data.str.data;
+		} else {
+			name.ptr = NULL;
+			name.len = 0;
 		}
 
 		ctx.blk = NULL;
@@ -1390,6 +1393,9 @@ static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const c
 		if (args && args->type == ARGT_STR) {
 			name.ptr = args->data.str.area;
 			name.len = args->data.str.data;
+		} else {
+			name.ptr = NULL;
+			name.len = 0;
 		}
 
 		ctx.blk = NULL;
