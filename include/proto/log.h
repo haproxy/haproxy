@@ -111,6 +111,12 @@ void ha_warning(const char *fmt, ...)
 	__attribute__ ((format(printf, 1, 2)));
 
 /*
+ * Displays the message on stderr with the date and pid.
+ */
+void ha_notice(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
+
+/*
  * Displays the message on <out> only if quiet mode is not set.
  */
 void qfprintf(FILE *out, const char *fmt, ...)

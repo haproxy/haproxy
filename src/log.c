@@ -922,6 +922,20 @@ void ha_warning(const char *fmt, ...)
 }
 
 /*
+ * Displays the message on stderr with the date and pid.
+ */
+void ha_notice(const char *fmt, ...)
+{
+	va_list argp;
+
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+		va_start(argp, fmt);
+		print_message("NOTICE", fmt, argp);
+		va_end(argp);
+	}
+}
+
+/*
  * Displays the message on <out> only if quiet mode is not set.
  */
 void qfprintf(FILE *out, const char *fmt, ...)
