@@ -3221,18 +3221,7 @@ static void htx_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_DONE) {
 		struct htx_blk *blk;
 
-		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
-			// FIXME: if trailers failed, do not add EOD twice
-			if (!htx_add_endof(res_htx, HTX_BLK_EOD)) {
-				si_rx_room_blk(si);
-				goto out;
-			}
-			if (!htx_add_trailer(res_htx, ist("\r\n"))) {
-				si_rx_room_blk(si);
-				goto out;
-			}
-			appctx->ctx.stats.flags &= ~STAT_CHUNKED;
-		}
+		/* Don't add EOD and TLR because mux-h1 will take care of it */
 		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 			si_rx_room_blk(si);
 			goto out;
