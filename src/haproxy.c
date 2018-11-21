@@ -753,14 +753,6 @@ static void mworker_reload()
 		next_argv[next_argc++] = NULL;
 	}
 
-	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
-		struct per_thread_deinit_fct *ptdf;
-
-		list_for_each_entry(ptdf, &per_thread_deinit_list, list)
-			ptdf->fct();
-		deinit_pollers(); /* we don't want to leak the poller fd */
-	}
-
 	ha_warning("Reexecuting Master process\n");
 	execvp(next_argv[0], next_argv);
 
@@ -893,40 +885,6 @@ static void mworker_loop()
 
 	fork_poller();
 	run_thread_poll_loop((int []){0});
-}
-
-/*
- * This function initialize haproxy for the master wait mode, it won't fork any
- * new process and won't parse the configuration
- */
-static int mworker_wait_mode()
-{
-
-	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
-
-	if (!(global.tune.options & GTUNE_USE_KQUEUE))
-		disable_poller("kqueue");
-
-	if (!(global.tune.options & GTUNE_USE_EPOLL))
-		disable_poller("epoll");
-
-	if (!(global.tune.options & GTUNE_USE_POLL))
-		disable_poller("poll");
-
-	if (!(global.tune.options & GTUNE_USE_SELECT))
-		disable_poller("select");
-
-	if (global.tune.maxpollevents <= 0)
-		global.tune.maxpollevents = MAX_POLL_EVENTS;
-
-	init_pollers();
-
-
-	mworker_loop();
-
-	/* should never be there */
-
-	return -1;
 }
 
 /*
@@ -1681,11 +1639,10 @@ static void init(int argc, char **argv)
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
-	/* Master workers wait mode */
-	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_WAIT_ONLY") != NULL)) {
-
+	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
-		mworker_wait_mode();
+		global.mode |= MODE_MWORKER_WAIT;
+		global.mode &= ~MODE_MWORKER;
 	}
 
 	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
@@ -1698,44 +1655,47 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	/* handle cfgfiles that are actually directories */
-	cfgfiles_expand_directories();
-
-	if (LIST_ISEMPTY(&cfg_cfgfiles))
-		usage(progname);
-
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 
 	init_default_instance();
 
-	list_for_each_entry(wl, &cfg_cfgfiles, list) {
-		int ret;
+	/* in wait mode, we don't try to read the configuration files */
+	if (!(global.mode & MODE_MWORKER_WAIT)) {
 
-		ret = readcfgfile(wl->s);
-		if (ret == -1) {
-			ha_alert("Could not open configuration file %s : %s\n",
-				 wl->s, strerror(errno));
+		/* handle cfgfiles that are actually directories */
+		cfgfiles_expand_directories();
+
+		if (LIST_ISEMPTY(&cfg_cfgfiles))
+			usage(progname);
+
+
+		list_for_each_entry(wl, &cfg_cfgfiles, list) {
+			int ret;
+
+			ret = readcfgfile(wl->s);
+			if (ret == -1) {
+				ha_alert("Could not open configuration file %s : %s\n",
+					 wl->s, strerror(errno));
+				exit(1);
+			}
+			if (ret & (ERR_ABORT|ERR_FATAL))
+				ha_alert("Error(s) found in configuration file : %s\n", wl->s);
+			err_code |= ret;
+			if (err_code & ERR_ABORT)
+				exit(1);
+		}
+
+		/* do not try to resolve arguments nor to spot inconsistencies when
+		 * the configuration contains fatal errors caused by files not found
+		 * or failed memory allocations.
+		 */
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			ha_alert("Fatal errors found in configuration.\n");
 			exit(1);
 		}
-		if (ret & (ERR_ABORT|ERR_FATAL))
-			ha_alert("Error(s) found in configuration file : %s\n", wl->s);
-		err_code |= ret;
-		if (err_code & ERR_ABORT)
-			exit(1);
 	}
-
-	/* do not try to resolve arguments nor to spot inconsistencies when
-	 * the configuration contains fatal errors caused by files not found
-	 * or failed memory allocations.
-	 */
-	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		ha_alert("Fatal errors found in configuration.\n");
-		exit(1);
-	}
-
 	if (global.mode & MODE_MWORKER) {
 		int proc;
-		struct wordlist *it, *c;
 		struct mworker_proc *tmproc;
 
 		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
@@ -1780,6 +1740,10 @@ static void init(int argc, char **argv)
 
 			LIST_ADDQ(&proc_list, &tmproc->list);
 		}
+	}
+	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
+		struct wordlist *it, *c;
+
 		mworker_env_to_proc_list(); /* get the info of the children in the env */
 
 
@@ -2847,7 +2811,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	if (listeners == 0) {
+	if (!(global.mode & MODE_MWORKER_WAIT) && listeners == 0) {
 		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
 		/* Note: we don't have to send anything to the old pids because we
 		 * never stopped them. */
@@ -2941,7 +2905,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (nb_oldpids)
+	if (nb_oldpids && !(global.mode & MODE_MWORKER_WAIT))
 		nb_oldpids = tell_old_pids(oldpids_sig);
 
 	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
@@ -2983,14 +2947,13 @@ int main(int argc, char **argv)
 			   argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
 	}
 
-	if (global.mode & (MODE_DAEMON | MODE_MWORKER)) {
+	if (global.mode & (MODE_DAEMON | MODE_MWORKER | MODE_MWORKER_WAIT)) {
 		struct proxy *px;
 		struct peers *curpeers;
 		int ret = 0;
 		int proc;
 		int devnullfd = -1;
 
-		children = calloc(global.nbproc, sizeof(int));
 		/*
 		 * if daemon + mworker: must fork here to let a master
 		 * process live in background before forking children
@@ -3020,38 +2983,45 @@ int main(int argc, char **argv)
 		}
 
 		/* the father launches the required number of processes */
-		for (proc = 0; proc < global.nbproc; proc++) {
-			ret = fork();
-			if (ret < 0) {
-				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
-				protocol_unbind_all();
-				exit(1); /* there has been an error */
-			}
-			else if (ret == 0) /* child breaks here */
-				break;
-			children[proc] = ret;
-			if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
-				char pidstr[100];
-				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
-				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
-			}
-			if (global.mode & MODE_MWORKER) {
-				struct mworker_proc *child;
+		if (!(global.mode & MODE_MWORKER_WAIT)) {
+			children = calloc(global.nbproc, sizeof(int));
+			for (proc = 0; proc < global.nbproc; proc++) {
+				ret = fork();
+				if (ret < 0) {
+					ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
+					protocol_unbind_all();
+					exit(1); /* there has been an error */
+				}
+				else if (ret == 0) /* child breaks here */
+					break;
+				children[proc] = ret;
+				if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
+					char pidstr[100];
+					snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
+					shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
+				}
+				if (global.mode & MODE_MWORKER) {
+					struct mworker_proc *child;
 
-				qfprintf(stdout, "New worker #%d (%d) forked\n", relative_pid, ret);
-				/* find the right mworker_proc */
-				list_for_each_entry(child, &proc_list, list) {
-					if (child->relative_pid == relative_pid &&
-					    child->reloads == 0) {
-						child->timestamp = now.tv_sec;
-						child->pid = ret;
-						break;
+					qfprintf(stdout, "New worker #%d (%d) forked\n", relative_pid, ret);
+					/* find the right mworker_proc */
+					list_for_each_entry(child, &proc_list, list) {
+						if (child->relative_pid == relative_pid &&
+						    child->reloads == 0) {
+							child->timestamp = now.tv_sec;
+							child->pid = ret;
+							break;
+						}
 					}
 				}
-			}
 
-			relative_pid++; /* each child will get a different one */
-			pid_bit <<= 1;
+				relative_pid++; /* each child will get a different one */
+				pid_bit <<= 1;
+			}
+		} else {
+			/* wait mode */
+			global.nbproc = 1;
+			proc = 1;
 		}
 
 #ifdef USE_CPU_AFFINITY
@@ -3085,7 +3055,7 @@ int main(int argc, char **argv)
 		free(global.pidfile); global.pidfile = NULL;
 
 		if (proc == global.nbproc) {
-			if (global.mode & MODE_MWORKER) {
+			if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
 
 				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
 					(global.mode & MODE_DAEMON)) {
