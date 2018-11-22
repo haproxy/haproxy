@@ -2207,8 +2207,12 @@ int mworker_cli_proxy_create()
 		newsrv->conf.line = 0;
 
 		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
-		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, 0)) == 0)
+		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, 0)) == 0) {
+			free(msg);
 			return -1;
+		}
+		free(msg);
+		msg = NULL;
 
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto || !proto->connect) {
@@ -2364,9 +2368,12 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	}
 
 	if (!str2listener(path, global.stats_fe, bind_conf, "master-socket", 0, &err)) {
+		free(path);
 		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
 		return -1;
 	}
+	free(path);
+	path = NULL;
 
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->maxconn = global.stats_fe->maxconn;
