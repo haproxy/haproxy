@@ -211,6 +211,18 @@ static inline int32_t htx_get_prev(const struct htx *htx, uint32_t pos)
         return (pos - 1);
 }
 
+/* Returns the HTX block before <blk> in the HTX message <htx>. If <blk> is the
+ * head, NULL returned.
+*/
+static inline struct htx_blk *htx_get_prev_blk(const struct htx *htx,
+					       const struct htx_blk *blk)
+{
+	int32_t pos;
+
+	pos = htx_get_prev(htx, htx_get_blk_pos(htx, blk));
+	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+}
+
 /* Returns the position of block immediatly after the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the tail, -1 returned.
  *
@@ -231,6 +243,19 @@ static inline int32_t htx_get_next(const struct htx *htx, uint32_t pos)
         return pos;
 
 }
+
+/* Returns the HTX block after <blk> in the HTX message <htx>. If <blk> is the
+ * tail, NULL returned.
+*/
+static inline struct htx_blk *htx_get_next_blk(const struct htx *htx,
+					       const struct htx_blk *blk)
+{
+	int32_t pos;
+
+	pos = htx_get_next(htx, htx_get_blk_pos(htx, blk));
+	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+}
+
 static inline int32_t htx_find_front(const struct htx *htx)
 {
         int32_t  front, pos;
