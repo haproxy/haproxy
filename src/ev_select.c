@@ -172,6 +172,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
 			&delta);
+	tv_update_date(delta_ms, status);
 	tv_leaving_poll(delta_ms, status);
 
 	thread_harmless_end();

@@ -198,6 +198,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	tv_entering_poll();
 	activity_count_runtime();
 	status = poll(poll_events, nbfd, wait_time);
+	tv_update_date(wait_time, status);
 	tv_leaving_poll(wait_time, status);
 
 	thread_harmless_end();

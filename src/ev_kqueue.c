@@ -143,6 +143,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			kev,       // struct kevent *eventlist
 			fd,        // int nevents
 			&timeout); // const struct timespec *timeout
+	tv_update_date(delta_ms, status);
 	tv_leaving_poll(delta_ms, status);
 
 	thread_harmless_end();

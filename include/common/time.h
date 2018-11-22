@@ -586,7 +586,6 @@ static inline void tv_entering_poll()
  */
 static inline void tv_leaving_poll(int timeout, int interrupted)
 {
-	tv_update_date(timeout, interrupted);
 	measure_idle();
 	prev_cpu_time  = now_cpu_time();
 	prev_mono_time = now_mono_time();
