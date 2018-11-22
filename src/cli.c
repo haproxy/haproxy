@@ -2152,6 +2152,8 @@ void mworker_cli_proxy_stop()
 int mworker_cli_proxy_create()
 {
 	struct mworker_proc *child;
+	char *msg = NULL;
+	char *errmsg = NULL;
 
 	mworker_proxy = calloc(1, sizeof(*mworker_proxy));
 	if (!mworker_proxy)
@@ -2183,16 +2185,14 @@ int mworker_cli_proxy_create()
 
 	/* create all servers using the mworker_proc list */
 	list_for_each_entry(child, &proc_list, list) {
-		char *msg = NULL;
 		struct server *newsrv = NULL;
 		struct sockaddr_storage *sk;
 		int port1, port2, port;
 		struct protocol *proto;
-		char *errmsg;
 
 		newsrv = new_server(mworker_proxy);
 		if (!newsrv)
-			return -1;
+			goto error;
 
 		/* we don't know the new pid yet */
 		if (child->pid == -1)
@@ -2208,15 +2208,14 @@ int mworker_cli_proxy_create()
 
 		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
 		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, 0)) == 0) {
-			free(msg);
-			return -1;
+			goto error;
 		}
 		free(msg);
 		msg = NULL;
 
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto || !proto->connect) {
-			return -1;
+			goto error;
 		}
 
 		/* no port specified */
@@ -2230,6 +2229,24 @@ int mworker_cli_proxy_create()
 		child->srv = newsrv;
 	}
 	return 0;
+
+error:
+	ha_alert("%s\n", errmsg);
+
+	list_for_each_entry(child, &proc_list, list) {
+		free((char *)child->srv->conf.file); /* cast because of const char *  */
+		free(child->srv->id);
+		free(child->srv);
+		child->srv = NULL;
+	}
+	free(mworker_proxy->id);
+	free(mworker_proxy->conf.file);
+	free(mworker_proxy);
+	mworker_proxy = NULL;
+	free(errmsg);
+	free(msg);
+
+	return -1;
 }
 
 /*
@@ -2262,13 +2279,15 @@ int mworker_cli_proxy_new_listener(char *line)
 	args[++arg] = "\0";
 
 	bind_conf = bind_conf_alloc(mworker_proxy, "master-socket", 0, "", xprt_get(XPRT_RAW));
+	if (!bind_conf)
+		goto err;
 
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN;
 
 	if (!str2listener(args[0], mworker_proxy, bind_conf, "master-socket", 0, &err)) {
 		ha_alert("Cannot create the listener of the master CLI\n");
-		return -1;
+		goto err;
 	}
 
 	cur_arg = 1;
@@ -2326,6 +2345,8 @@ int mworker_cli_proxy_new_listener(char *line)
 
 err:
 	ha_alert("%s\n", err);
+	free(err);
+	free(bind_conf);
 	return -1;
 
 }
@@ -2351,11 +2372,14 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	if (!global.stats_fe) {
 		if ((global.stats_fe = alloc_stats_fe("GLOBAL", "master-socket", 0)) == NULL) {
 			ha_alert("out of memory trying to allocate the stats frontend");
-			return -1;
+			goto error;
 		}
 	}
 
 	bind_conf = bind_conf_alloc(global.stats_fe, "master-socket", 0, "", xprt_get(XPRT_RAW));
+	if (!bind_conf)
+		goto error;
+
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
 
@@ -2364,13 +2388,13 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");
-		return -1;
+		goto error;
 	}
 
 	if (!str2listener(path, global.stats_fe, bind_conf, "master-socket", 0, &err)) {
 		free(path);
 		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
-		return -1;
+		goto error;
 	}
 	free(path);
 	path = NULL;
@@ -2388,6 +2412,13 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	}
 
 	return 0;
+
+error:
+	close(mworker_proc->ipc_fd[0]);
+	close(mworker_proc->ipc_fd[1]);
+	free(err);
+
+	return -1;
 }
 
 static struct applet cli_applet = {
