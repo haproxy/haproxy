@@ -1784,36 +1784,39 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 {
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
-	size_t ret = 0;
+	size_t total = 0;
 
 	if (!h1s)
-		return ret;
+		return 0;
 
 	h1c = h1s->h1c;
-
 	if (h1c->flags & H1C_F_CS_WAIT_CONN)
 		return 0;
 
-	if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
-		ret = h1_process_output(h1c, buf, count);
-	if (ret > 0) {
-		h1_send(h1c);
+	while (total != count) {
+		size_t ret = 0;
 
-		/* We need to do that because of the infinite forwarding. <buf>
-		 * contains HTX messages so when infinite forwarding is enabled,
-		 * count is equal to the buffer size. From outside, the buffer
-		 * appears as full.
-		 */
-		if (!b_data(buf))
-			ret = count;
+		if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
+			ret = h1_process_output(h1c, buf, count);
+		if (!ret)
+			break;
+		total += ret;
+		if (!h1_send(h1c))
+			break;
 	}
 
-	if (count && ret != count) {
+	/* We need to do that because of the infinite forwarding. <buf>
+	 * contains HTX messages so when infinite forwarding is enabled,
+	 * count is equal to the buffer size. From outside, the buffer
+	 * appears as full.
+	 */
+	if (!b_data(buf))
+		total = count;
+	else if (total != count) {
 		if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
 			cs->conn->xprt->subscribe(cs->conn, SUB_CAN_SEND, &h1c->wait_event);
 	}
-
-	return ret;
+	return total;
 }
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
