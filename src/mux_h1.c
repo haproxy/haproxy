@@ -920,6 +920,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (!chksz) {
 					if (!htx_add_endof(htx, HTX_BLK_EOD))
 						goto end;
+					h1s->flags |= H1S_F_HAVE_EOD;
 					h1m->state = H1_MSG_TRAILERS;
 				}
 				else
@@ -956,6 +957,11 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			}
 
 			if (h1m->state == H1_MSG_TRAILERS) {
+				/* Trailers were alread parsed, only the EOM
+				 * need to be added */
+				if (h1s->flags & H1S_F_HAVE_TLR)
+					goto skip_tlr_parsing;
+
 				ret = h1_measure_trailers(buf, *ofs, *ofs + max);
 				if (ret > data_space)
 					ret = (htx_is_empty(htx) ? -1 : 0);
@@ -974,12 +980,12 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 
 				if (!htx_add_trailer(htx, ist2(b_peek(buf, *ofs), ret)))
 					goto end;
+				h1s->flags |= H1S_F_HAVE_TLR;
 				max -= ret;
 				*ofs += ret;
 				total += ret;
 
-				/* FIXME: if it fails here, this is a problem,
-				 * because there is no way to return here. */
+			  skip_tlr_parsing:
 				if (!htx_add_endof(htx, HTX_BLK_EOM))
 					goto end;
 				h1m->state = H1_MSG_DONE;
