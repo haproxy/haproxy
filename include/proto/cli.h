@@ -23,6 +23,12 @@
 #ifndef _PROTO_CLI_H
 #define _PROTO_CLI_H
 
+#include <types/applet.h>
+#include <types/channel.h>
+#include <types/cli.h>
+#include <types/global.h>
+#include <types/stream.h>
+
 
 void cli_register_kw(struct cli_kw_list *kw_list);
 
