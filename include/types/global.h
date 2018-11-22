@@ -68,6 +68,8 @@
 #define GTUNE_NOEXIT_ONFAILURE   (1<<9)
 #define GTUNE_USE_SYSTEMD        (1<<10)
 
+#define GTUNE_BUSY_POLLING       (1<<11)
+
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
 #define ACCESS_LVL_USER     1

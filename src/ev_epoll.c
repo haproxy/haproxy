@@ -27,6 +27,7 @@
 
 #include <proto/activity.h>
 #include <proto/fd.h>
+#include <proto/signal.h>
 
 
 /* private data */
@@ -149,8 +150,22 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	wait_time = compute_poll_timeout(exp);
 	tv_entering_poll();
 	activity_count_runtime();
-	status = epoll_wait(epoll_fd[tid], epoll_events, global.tune.maxpollevents, wait_time);
-	tv_update_date(wait_time, status);
+	do {
+		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
+
+		status = epoll_wait(epoll_fd[tid], epoll_events, global.tune.maxpollevents, timeout);
+		tv_update_date(timeout, status);
+
+		if (status)
+			break;
+		if (timeout || !wait_time)
+			break;
+		if (signal_queue_len)
+			break;
+		if (tick_isset(exp) && tick_is_expired(exp, now_ms))
+			break;
+	} while (1);
+
 	tv_leaving_poll(wait_time, status);
 
 	thread_harmless_end();

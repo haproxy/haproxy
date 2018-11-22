@@ -1294,6 +1294,25 @@ wurfl-useragent-priority { plain | sideloaded_browser }
 3.2. Performance tuning
 -----------------------
 
+busy-polling
+  In some situations, especially when dealing with low latency on processors
+  supporting a variable frequency or when running inside virtual machines, each
+  time the process waits for an I/O using the poller, the processor goes back
+  to sleep or is offered to another VM for a long time, and it causes
+  excessively high latencies. This option provides a solution preventing the
+  processor from sleeping by always using a null timeout on the pollers. This
+  results in a significant latency reduction (30 to 100 microseconds observed)
+  at the expense of a risk to overheat the processor. It may even be used with
+  threads, in which case improperly bound threads may heavily conflict,
+  resulting in a worse performance and high values for the CPU stolen fields
+  in "show info" output, indicating which threads are misconfigured. It is
+  important not to let the process run on the same processor as the network
+  interrupts when this option is used. It is also better to avoid using it on
+  multiple CPU threads sharing the same core. This option is disabled by
+  default. If it has been enabled, it may still be forcibly disabled by
+  prefixing it with the "no" keyword. It is ignored by the "select" and
+  "poll" pollers.
+
 max-spread-checks <delay in milliseconds>
   By default, haproxy tries to spread the start of health checks across the
   smallest health check interval of all the servers in a farm. The principle is

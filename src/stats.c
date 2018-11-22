@@ -139,6 +139,7 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_ACTIVE_PEERS]                   = "ActivePeers",
 	[INF_CONNECTED_PEERS]                = "ConnectedPeers",
 	[INF_DROPPED_LOGS]                   = "DroppedLogs",
+	[INF_BUSY_POLLING]                   = "BusyPolling",
 };
 
 const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
@@ -3562,6 +3563,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_ACTIVE_PEERS]                   = mkf_u32(0, active_peers);
 	info[INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
 	info[INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
+	info[INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
 
 	return 1;
 }

@@ -28,6 +28,7 @@
 
 #include <proto/activity.h>
 #include <proto/fd.h>
+#include <proto/signal.h>
 
 
 /* private data */
@@ -76,14 +77,14 @@ static int _update_fd(int fd, int start)
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
 	int status;
-	int count, fd, delta_ms;
-	struct timespec timeout;
+	int count, fd, wait_time;
+	struct timespec timeout_ts;
 	int updt_idx;
 	int changes = 0;
 	int old_fd;
 
-	timeout.tv_sec  = 0;
-	timeout.tv_nsec = 0;
+	timeout_ts.tv_sec  = 0;
+	timeout_ts.tv_nsec = 0;
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
@@ -126,25 +127,41 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 */
 		EV_SET(&kev[changes++], -1, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
 #endif
-		kevent(kqueue_fd[tid], kev, changes, kev_out, changes, &timeout);
+		kevent(kqueue_fd[tid], kev, changes, kev_out, changes, &timeout_ts);
 	}
 	fd_nbupdt = 0;
 
 	/* now let's wait for events */
-	delta_ms = compute_poll_timeout(exp);
-	timeout.tv_sec  = (delta_ms / 1000);
-	timeout.tv_nsec = (delta_ms % 1000) * 1000000;
+	wait_time = compute_poll_timeout(exp);
 	fd = global.tune.maxpollevents;
 	tv_entering_poll();
 	activity_count_runtime();
-	status = kevent(kqueue_fd[tid], // int kq
-			NULL,      // const struct kevent *changelist
-			0,         // int nchanges
-			kev,       // struct kevent *eventlist
-			fd,        // int nevents
-			&timeout); // const struct timespec *timeout
-	tv_update_date(delta_ms, status);
-	tv_leaving_poll(delta_ms, status);
+
+	do {
+		int timeout = (global.tune.options & GTUNE_BUSY_POLLING) ? 0 : wait_time;
+
+		timeout_ts.tv_sec  = (timeout / 1000);
+		timeout_ts.tv_nsec = (timeout % 1000) * 1000000;
+
+		status = kevent(kqueue_fd[tid], // int kq
+		                NULL,      // const struct kevent *changelist
+		                0,         // int nchanges
+		                kev,       // struct kevent *eventlist
+		                fd,        // int nevents
+		                &timeout_ts); // const struct timespec *timeout
+		tv_update_date(timeout, status);
+
+		if (status)
+			break;
+		if (timeout || !wait_time)
+			break;
+		if (signal_queue_len)
+			break;
+		if (tick_isset(exp) && tick_is_expired(exp, now_ms))
+			break;
+	} while (1);
+
+	tv_leaving_poll(wait_time, status);
 
 	thread_harmless_end();
 

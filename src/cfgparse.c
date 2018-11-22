@@ -1871,8 +1871,8 @@ next_line:
 		}
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 && 	\
-		     strcmp(args[0], "log") != 0) {
-			ha_alert("parsing [%s:%d]: negation/default currently supported only for options and log.\n", file, linenum);
+		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling")) {
+			ha_alert("parsing [%s:%d]: negation/default currently supported only for options, log, and busy-polling.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 

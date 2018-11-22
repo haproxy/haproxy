@@ -73,6 +73,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		global.tune.options &= ~GTUNE_USE_POLL;
 	}
+	else if (!strcmp(args[0], "busy-polling")) { /* "no busy-polling" or "busy-polling" */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		if (kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_BUSY_POLLING;
+		else
+			global.tune.options |=  GTUNE_BUSY_POLLING;
+	}
 	else if (!strcmp(args[0], "nosplice")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
