@@ -2408,6 +2408,9 @@ void deinit(void)
 			free(s->agent.send_string);
 			free(s->hostname_dn);
 			free((char*)s->conf.file);
+			free(s->idle_conns);
+			free(s->priv_conns);
+			free(s->safe_conns);
 
 			if (s->use_ssl || s->check.use_ssl) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
