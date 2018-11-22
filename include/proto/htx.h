@@ -278,6 +278,26 @@ static inline int32_t htx_find_front(const struct htx *htx)
         return front;
 }
 
+/* Returns the HTX block containing data with the <offset>, relatively to the
+ * beginning of the HTX message <htx>. It returns an htx_ret. if the HTX block is
+ * not found, htx_ret.blk is set to NULL. Otherwise, it points to the right HTX
+ * block and htx_ret.ret is set to the remaining offset inside the block.
+ */
+static inline struct htx_ret htx_find_blk(const struct htx *htx, uint32_t offset)
+{
+	int32_t pos;
+
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+		uint32_t sz = htx_get_blksz(blk);
+
+		if (offset < sz)
+			return (struct htx_ret){ .blk = blk, .ret = offset };
+		offset -= sz;
+	}
+
+	return (struct htx_ret){ .blk = NULL };
+}
 /* Changes the size of the value. It is the caller responsibility to change the
  * value itself, make sure there is enough space and update allocated value.
  */
