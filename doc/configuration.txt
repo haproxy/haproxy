@@ -14956,6 +14956,17 @@ ssl_bc_alg_keysize : integer
   Returns the symmetric cipher key size supported in bits when the outgoing
   connection was made over an SSL/TLS transport layer.
 
+ssl_bc_alpn : string
+  This extracts the Application Layer Protocol Negotiation field from an
+  outgoing connection made via a TLS transport layer.
+  The result is a string containing the protocol name negociated with the
+  server. The SSL library must have been built with support for TLS
+  extensions enabled (check haproxy -vv). Note that the TLS ALPN extension is
+  not advertised unless the "alpn" keyword on the "server" line specifies a
+  protocol list. Also, nothing forces the server to pick a protocol from this
+  list, any other one may be requested. The TLS ALPN extension is meant to
+  replace the TLS NPN extension. See also "ssl_bc_npn".
+
 ssl_bc_cipher : string
   Returns the name of the used cipher when the outgoing connection was made
   over an SSL/TLS transport layer.
@@ -14964,6 +14975,16 @@ ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
   layer and the newly created SSL session was resumed using a cached
   session or a TLS ticket.
+
+ssl_bc_npn : string
+  This extracts the Next Protocol Negotiation field from an outgoing connection
+  made via a TLS transport layer. The result is a string containing the
+  protocol name negociated with the server . The SSL library must have been
+  built with support for TLS extensions enabled (check haproxy -vv). Note that
+  the TLS NPN extension is not advertised unless the "npn" keyword on the
+  "server" line specifies a protocol list. Also, nothing forces the server to
+  pick a protocol from this list, any other one may be used. Please note that
+  the TLS NPN extension was replaced with ALPN.
 
 ssl_bc_protocol : string
   Returns the name of the used protocol when the outgoing connection was made

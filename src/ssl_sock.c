@@ -6875,7 +6875,8 @@ smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw,
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
-	conn = objt_conn(smp->sess->origin);
+	conn = (kw[4] != 'b' ) ? objt_conn(smp->sess->origin) :
+	    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -6900,7 +6901,9 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
-	conn = objt_conn(smp->sess->origin);
+	conn = (kw[4] != 'b' ) ? objt_conn(smp->sess->origin) :
+	    smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -8931,7 +8934,13 @@ static struct cli_kw_list cli_kws = {{ },{
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5SRV },
 	{ "ssl_bc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	{ "ssl_fc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+#endif
 	{ "ssl_bc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+	{ "ssl_bc_npn",             smp_fetch_ssl_fc_npn,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+#endif
 	{ "ssl_bc_is_resumed",      smp_fetch_ssl_fc_is_resumed,  0,                   NULL,    SMP_T_BOOL, SMP_USE_L5SRV },
 	{ "ssl_bc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_bc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
