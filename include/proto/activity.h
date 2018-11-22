@@ -28,6 +28,10 @@
 #include <types/activity.h>
 #include <proto/freq_ctr.h>
 
+/* bit fields for "profiling" */
+#define HA_PROF_TASKS       0x00000001     /* enable per-task CPU profiling */
+
+extern unsigned int profiling;
 extern struct activity activity[MAX_THREADS];
 
 

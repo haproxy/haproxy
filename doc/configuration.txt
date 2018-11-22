@@ -619,6 +619,7 @@ The following keywords are supported in the "global" section :
    - nosplice
    - nogetaddrinfo
    - noreuseport
+   - profiling.tasks
    - spread-checks
    - server-state-base
    - server-state-file
@@ -1433,6 +1434,16 @@ nogetaddrinfo
 noreuseport
   Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
   command line argument "-dR".
+
+profiling.tasks { on | off }
+  Enables ('on') or disables ('off') per-task CPU profiling. CPU profiling per
+  task can be very convenient to report where the time is spent and which
+  requests have what effect on which other request. It is not enabled by
+  default as it may consume a little bit extra CPU. This requires a system
+  supporting the clock_gettime(2) syscall with clock identifiers
+  CLOCK_MONOTONIC and CLOCK_THREAD_CPUTIME_ID, otherwise the reported time will
+  be zero. This option may be changed at run time using "set profiling" on the
+  CLI.
 
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending agent and health checks to
