@@ -25,6 +25,7 @@
 
 #include <types/global.h>
 
+#include <proto/activity.h>
 #include <proto/fd.h>
 
 
@@ -195,6 +196,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* now let's wait for events */
 	wait_time = compute_poll_timeout(exp);
 	tv_entering_poll();
+	activity_count_runtime();
 	status = poll(poll_events, nbfd, wait_time);
 	tv_leaving_poll(wait_time, status);
 

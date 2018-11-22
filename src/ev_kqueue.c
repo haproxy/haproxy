@@ -26,6 +26,7 @@
 
 #include <types/global.h>
 
+#include <proto/activity.h>
 #include <proto/fd.h>
 
 
@@ -135,6 +136,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	timeout.tv_nsec = (delta_ms % 1000) * 1000000;
 	fd = global.tune.maxpollevents;
 	tv_entering_poll();
+	activity_count_runtime();
 	status = kevent(kqueue_fd[tid], // int kq
 			NULL,      // const struct kevent *changelist
 			0,         // int nchanges

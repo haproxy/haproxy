@@ -28,7 +28,6 @@
 #include <common/standard.h>
 #include <common/hathreads.h>
 
-#include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/proxy.h>
 #include <types/task.h>
@@ -177,34 +176,6 @@ struct global {
 #endif
 };
 
-/* per-thread activity reports. It's important that it's aligned on cache lines
- * because some elements will be updated very often. Most counters are OK on
- * 32-bit since this will be used during debugging sessions for troubleshooting
- * in iterative mode.
- */
-struct activity {
-	unsigned int loops;        // complete loops in run_poll_loop()
-	unsigned int wake_cache;   // active fd_cache prevented poll() from sleeping
-	unsigned int wake_tasks;   // active tasks prevented poll() from sleeping
-	unsigned int wake_signal;  // pending signal prevented poll() from sleeping
-	unsigned int poll_exp;     // number of times poll() sees an expired timeout (includes wake_*)
-	unsigned int poll_drop;    // poller dropped a dead FD from the update list
-	unsigned int poll_dead;    // poller woke up with a dead FD
-	unsigned int poll_skip;    // poller skipped another thread's FD
-	unsigned int fd_skip;      // fd cache skipped another thread's FD
-	unsigned int fd_lock;      // fd cache skipped a locked FD
-	unsigned int fd_del;       // fd cache detected a deleted FD
-	unsigned int conn_dead;    // conn_fd_handler woke up on an FD indicating a dead connection
-	unsigned int stream;       // calls to process_stream()
-	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
-	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
-	unsigned int cpust_total;  // sum of half-ms stolen per thread
-	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
-	struct freq_ctr_period cpust_15s; // avg amount of half-ms stolen over last 15s
-	char __pad[0]; // unused except to check remaining room
-	char __end[0] __attribute__((aligned(64))); // align size to 64.
-};
-
 /*
  * Structure used to describe the processes in master worker mode
  */
@@ -221,7 +192,6 @@ struct mworker_proc {
 };
 
 extern struct global global;
-extern struct activity activity[MAX_THREADS];
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
 extern unsigned long pid_bit;   /* bit corresponding to the process id */

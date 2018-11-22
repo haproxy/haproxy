@@ -30,6 +30,7 @@
 
 #include <proto/acl.h>
 #include <proto/action.h>
+#include <proto/activity.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>

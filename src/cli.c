@@ -45,6 +45,7 @@
 #include <types/dns.h>
 #include <types/stats.h>
 
+#include <proto/activity.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>

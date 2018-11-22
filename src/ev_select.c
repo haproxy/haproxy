@@ -22,6 +22,7 @@
 
 #include <types/global.h>
 
+#include <proto/activity.h>
 #include <proto/fd.h>
 
 
@@ -165,6 +166,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	delta.tv_sec  = (delta_ms / 1000);
 	delta.tv_usec = (delta_ms % 1000) * 1000;
 	tv_entering_poll();
+	activity_count_runtime();
 	status = select(maxfd,
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,

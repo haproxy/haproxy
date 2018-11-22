@@ -85,11 +85,6 @@ REGPRM2 int tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
  */
 REGPRM2 int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
 
-/* Updates the current thread's statistics about stolen CPU time. The unit for
- * <stolen> is half-milliseconds.
- */
-REGPRM1 void report_stolen_time(uint64_t stolen);
-
 /**** general purpose functions and macros *******************************/
 
 
@@ -581,26 +576,6 @@ static inline void measure_idle()
  */
 static inline void tv_entering_poll()
 {
-	uint64_t new_mono_time;
-	uint64_t new_cpu_time;
-	int64_t stolen;
-
-	new_cpu_time   = now_cpu_time();
-	new_mono_time  = now_mono_time();
-
-	if (prev_cpu_time && prev_mono_time) {
-		new_cpu_time  -= prev_cpu_time;
-		new_mono_time -= prev_mono_time;
-		stolen = new_mono_time - new_cpu_time;
-		if (stolen >= 500000) {
-			stolen /= 500000;
-			/* more than half a millisecond difference might
-			 * indicate an undesired preemption.
-			 */
-			report_stolen_time(stolen);
-		}
-	}
-
 	gettimeofday(&before_poll, NULL);
 }
 
