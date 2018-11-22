@@ -13968,6 +13968,42 @@ connslots([<backend>]) : integer
   then this fetch clearly does not make sense, in which case the value returned
   will be -1.
 
+cpu_calls : integer
+  Returns the number of calls to the task processing the stream or current
+  request since it was allocated. This number is reset for each new request on
+  the same connections in case of HTTP keep-alive. This value should usually be
+  low and stable (around 2 calls for a typically simple request) but may become
+  high if some processing (compression, caching or analysis) is performed. This
+  is purely for performance monitoring purposes.
+
+cpu_ns_avg : integer
+  Returns the average number of nanoseconds spent in each call to the task
+  processing the stream or current request. This number is reset for each new
+  request on the same connections in case of HTTP keep-alive. This value
+  indicates the overall cost of processing the request or the connection for
+  each call. There is no good nor bad value but the time spent in a call
+  automatically causes latency for other processing (see lat_ns_avg below),
+  and may affect other connection's apparent response time. Certain operations
+  like compression, complex regex matching or heavy Lua operations may directly
+  affect this value, and having it in the logs will make it easier to spot the
+  faulty processing that needs to be fixed to recover decent performance.
+  Note: this value is exactly cpu_ns_tot divided by cpu_calls.
+
+cpu_ns_tot : integer
+  Returns the total number of nanoseconds spent in each call to the task
+  processing the stream or current request. This number is reset for each new
+  request on the same connections in case of HTTP keep-alive. This value
+  indicates the overall cost of processing the request or the connection for
+  each call. There is no good nor bad value but the time spent in a call
+  automatically causes latency for other processing (see lat_ns_avg below),
+  induces CPU costs on the machine, and may affect other connection's apparent
+  response time. Certain operations like compression, complex regex matching or
+  heavy Lua operations may directly affect this value, and having it in the
+  logs will make it easier to spot the faulty processing that needs to be fixed
+  to recover decent performance. The value may be artificially high due to a
+  high cpu_calls count, for example when processing many HTTP chunks, and for
+  this reason it is often preferred to log cpu_ns_avg instead.
+
 date([<offset>]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
   If an offset value is specified, then it is a number of seconds that is added
@@ -14075,6 +14111,43 @@ ipv4(<ipv4>) : ipv4
 
 ipv6(<ipv6>) : ipv6
   Returns an ipv6.
+
+lat_ns_avg : integer
+  Returns the average number of nanoseconds spent between the moment the task
+  handling the stream is woken up and the moment it is effectively called. This
+  number is reset for each new request on the same connections in case of HTTP
+  keep-alive. This value indicates the overall latency inflicted to the current
+  request by all other requests being processed in parallel, and is a direct
+  indicator of perceived performance due to noisy neighbours. In order to keep
+  the value low, it is possible to reduce the scheduler's run queue depth using
+  "tune.runqueue-depth", to reduce the number of concurrent events processed at
+  once using "tune.maxpollevents", to decrease the stream's nice value using
+  the "nice" option on the "bind" lines or in the frontend, or to look for
+  other heavy requests in logs (those exhibiting large values of "cpu_ns_avg"),
+  whose processing needs to be adjusted or fixed. Compression of large buffers
+  could be a culprit, like heavy regex or long lists of regex.
+  Note: this value is exactly lat_ns_tot divided by cpu_calls.
+
+lat_ns_tot : integer
+  Returns the total number of nanoseconds spent between the moment the task
+  handling the stream is woken up and the moment it is effectively called. This
+  number is reset for each new request on the same connections in case of HTTP
+  keep-alive. This value indicates the overall latency inflicted to the current
+  request by all other requests being processed in parallel, and is a direct
+  indicator of perceived performance due to noisy neighbours. In order to keep
+  the value low, it is possible to reduce the scheduler's run queue depth using
+  "tune.runqueue-depth", to reduce the number of concurrent events processed at
+  once using "tune.maxpollevents", to decrease the stream's nice value using
+  the "nice" option on the "bind" lines or in the frontend, or to look for
+  other heavy requests in logs (those exhibiting large values of "cpu_ns_avg"),
+  whose processing needs to be adjusted or fixed. Compression of large buffers
+  could be a culprit, like heavy regex or long lists of regex. Note: while it
+  may intuitively seem that the total latency adds to a transfer time, it is
+  almost never true because while a task waits for the CPU, network buffers
+  continue to fill up and the next call will process more at once. The value
+  may be artificially high due to a high cpu_calls count, for example when
+  processing many HTTP chunks, and for this reason it is often preferred to log
+  lat_ns_avg instead, which is a more relevant performance indicator.
 
 meth(<method>) : method
   Returns a method.

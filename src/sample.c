@@ -2889,6 +2889,51 @@ smp_fetch_stopping(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+/* returns the number of calls of the current stream's process_stream() */
+static int
+smp_fetch_cpu_calls(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->task->calls;
+	return 1;
+}
+
+/* returns the average number of nanoseconds spent processing the stream per call */
+static int
+smp_fetch_cpu_ns_avg(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->task->calls ? smp->strm->task->cpu_time / smp->strm->task->calls : 0;
+	return 1;
+}
+
+/* returns the total number of nanoseconds spent processing the stream */
+static int
+smp_fetch_cpu_ns_tot(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->task->cpu_time;
+	return 1;
+}
+
+/* returns the average number of nanoseconds per call spent waiting for other tasks to be processed */
+static int
+smp_fetch_lat_ns_avg(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->task->calls ? smp->strm->task->lat_time / smp->strm->task->calls : 0;
+	return 1;
+}
+
+/* returns the total number of nanoseconds per call spent waiting for other tasks to be processed */
+static int
+smp_fetch_lat_ns_tot(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = smp->strm->task->lat_time;
+	return 1;
+}
+
 static int smp_fetch_const_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags |= SMP_F_CONST;
@@ -3025,6 +3070,13 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "thread",       smp_fetch_thread,  0,          NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
+	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
+
+	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "cpu_ns_tot",   smp_fetch_cpu_ns_tot, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "lat_ns_avg",   smp_fetch_lat_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "lat_ns_tot",   smp_fetch_lat_ns_tot, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 
 	{ "str",  smp_fetch_const_str,  ARG1(1,STR),  NULL                , SMP_T_STR,  SMP_USE_INTRN },
 	{ "bool", smp_fetch_const_bool, ARG1(1,STR),  smp_check_const_bool, SMP_T_BOOL, SMP_USE_INTRN },
