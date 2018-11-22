@@ -788,6 +788,37 @@ struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob)
         return blk;
 }
 
+struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
+				    const struct ist data)
+{
+	struct htx_blk *blk;
+	int32_t prev;
+
+        /* FIXME: check data.len (< 256MB) */
+        blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
+        if (!blk)
+                return NULL;
+
+        blk->info += data.len;
+        memcpy(htx_get_blk_ptr(htx, blk), data.ptr, data.len);
+
+	for (prev = htx_get_prev(htx, htx->tail); prev != -1; prev = htx_get_prev(htx, prev)) {
+		struct htx_blk *pblk = htx_get_blk(htx, prev);
+
+		/* Swap .addr and .info fields */
+		blk->addr ^= pblk->addr; pblk->addr ^= blk->addr; blk->addr ^= pblk->addr;
+		blk->info ^= pblk->info; pblk->info ^= blk->info; blk->info ^= pblk->info;
+
+		if (blk->addr == pblk->addr)
+			blk->addr += htx_get_blksz(pblk);
+		htx->front = prev;
+
+		if (pblk == ref)
+			break;
+		blk = pblk;
+	}
+	return blk;
+}
 
 /* Appends the string representation of the request line block <blk> to the
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it

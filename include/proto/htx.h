@@ -57,6 +57,7 @@ struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_blk *htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
 struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob);
+struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 
 int htx_reqline_to_str(const union htx_sl *sl, struct buffer *chk);
 int htx_stline_to_str(const union htx_sl *sl, struct buffer *chk);
