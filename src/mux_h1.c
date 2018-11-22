@@ -594,8 +594,10 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
  */
 static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 {
-	struct proxy *be = h1s->h1c->px;
-	struct proxy *fe = strm_fe(si_strm(h1s->cs->data));
+	struct h1c *h1c = h1s->h1c;
+	struct session *sess = h1c->conn->owner;
+	struct proxy *fe = sess->fe;
+	struct proxy *be = h1c->px;
 	int flag =  H1S_F_WANT_KAL;
 
 	/* Tunnel mode can only by set on the frontend */
