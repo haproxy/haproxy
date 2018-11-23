@@ -1633,6 +1633,26 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
+	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL)) {
+		/* Never ever allow to reuse a connection from a non-reuse backend */
+		if (h1c->conn && (h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+			h1c->conn->flags |= CO_FL_PRIVATE;
+
+		/* we're in keep-alive with an idle connection, monitor it if not already done */
+		if (h1c->conn && LIST_ISEMPTY(&h1c->conn->list)) {
+			struct server *srv = objt_server(h1c->conn->target);
+
+			if (srv) {
+				if (h1c->conn->flags & CO_FL_PRIVATE)
+					LIST_ADD(&srv->priv_conns[tid], &h1c->conn->list);
+				else if (h1s->flags & H1S_F_NOT_FIRST)
+					LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
+				else
+					LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
+			}
+		}
+	}
+
 	h1s_destroy(h1s);
 
 	/* We don't want to close right now unless the connection is in error */
