@@ -289,7 +289,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	struct proxy *be;
 	struct conn_src *src;
 
-	conn->flags = CO_FL_WAIT_L4_CONN; /* connection in progress */
+	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_PROXY:

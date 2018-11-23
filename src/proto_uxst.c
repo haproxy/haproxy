@@ -434,8 +434,6 @@ static int uxst_connect_server(struct connection *conn, int data, int delack)
 	struct server *srv;
 	struct proxy *be;
 
-	conn->flags = 0;
-
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_PROXY:
 		be = objt_proxy(conn->target);

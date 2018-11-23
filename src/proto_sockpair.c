@@ -242,8 +242,6 @@ static int sockpair_connect_server(struct connection *conn, int data, int delack
 	/* the FD is stored in the sockaddr struct */
 	dst_fd = ((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr;
 
-	conn->flags = 0;
-
 	if (obj_type(conn->target) != OBJ_TYPE_PROXY &&
 	    obj_type(conn->target) != OBJ_TYPE_SERVER) {
 		conn->flags |= CO_FL_ERROR;
