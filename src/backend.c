@@ -1279,9 +1279,10 @@ int connect_server(struct stream *s)
 			/* Store the connection into the stream interface,
 			 * while we still don't have a mux, so that if the
 			 * stream is destroyed before the connection is
-			 * established, and a mux is set, we don't attempt
-			 * to access the stream
+			 * established, we have a chance to destroy it even
+			 * if it is no longer referenced in the session.
 			 */
+			s->si[1].end = &srv_conn->obj_type;
 			conn_set_xprt_done_cb(srv_conn, conn_complete_server);
 		}
 

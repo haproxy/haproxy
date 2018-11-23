@@ -161,6 +161,7 @@ static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
  */
 static inline void si_release_endpoint(struct stream_interface *si)
 {
+	struct connection *conn;
 	struct conn_stream *cs;
 	struct appctx *appctx;
 
@@ -177,7 +178,8 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		if (appctx->applet->release && si->state < SI_ST_DIS)
 			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
-	}
+	} else if ((conn = objt_conn(si->end)))
+		conn_free(conn);
 	si_detach_endpoint(si);
 }
 
