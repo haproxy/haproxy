@@ -164,6 +164,9 @@ DEBUG_CFLAGS = -g
 #### Add -Werror when set to non-empty
 ERR =
 
+#### May be used to force running a specific set of reg-tests
+REG_TEST_FILES =
+
 #### Compiler-specific flags that may be used to disable some negative over-
 # optimization or to silence some warnings. -fno-strict-aliasing is needed with
 # gcc >= 4.4.
@@ -1105,7 +1108,13 @@ reg-tests:
 	elif [ $$LEVEL = 4 ] ; then \
 	   EXPR='b*.vtc'; \
 	fi ; \
-	if [ -n "$$EXPR" ] ; then \
+	if [ -n "$(REG_TEST_FILES)" ] ; then \
+	   err=0; \
+	   for n in $(REG_TEST_FILES); do \
+	      HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} $(VARNISHTEST_PROGRAM) -l -t5 $$n || ((err++)); \
+	   done; \
+	   exit $$err; \
+	elif [ -n "$$EXPR" ] ; then \
 	   find reg-tests -type f -name "$$EXPR" -print0 | \
 	      HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} xargs -r -0 $(VARNISHTEST_PROGRAM) -l -t5 ; \
 	fi
