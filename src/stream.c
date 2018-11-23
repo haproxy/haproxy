@@ -434,8 +434,10 @@ static void stream_free(struct stream *s)
 	tasklet_free(s->si[0].wait_event.task);
 	tasklet_free(s->si[1].wait_event.task);
 
-	if (must_free_sess)
+	if (must_free_sess) {
+		sess->origin = NULL;
 		session_free(sess);
+	}
 
 	pool_free(pool_head_stream, s);
 
