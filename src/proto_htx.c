@@ -1423,6 +1423,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
+	struct connection *srv_conn;
 	union h1_sl sl;
 	int n;
 
@@ -1713,6 +1714,30 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
 	}
 
+	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
+	 * 407 (Proxy-Authenticate) responses and set the connection to private
+	 */
+	srv_conn = cs_conn(objt_cs(s->si[1].end));
+	if (srv_conn) {
+		struct ist hdr;
+		struct http_hdr_ctx ctx;
+
+		if (txn->status == 401)
+			hdr = ist("WWW-Authenticate");
+		else if (txn->status == 407)
+			hdr = ist("Proxy-Authenticate");
+		else
+			goto end;
+
+		ctx.blk = NULL;
+		while (http_find_header(htx, hdr, &ctx, 0)) {
+			if ((ctx.value.len >= 9 && word_match(ctx.value.ptr, ctx.value.len, "Negotiate", 9)) ||
+			    (ctx.value.len >= 4 && word_match(ctx.value.ptr, ctx.value.len, "NTLM", 4)))
+				srv_conn->flags |= CO_FL_PRIVATE;
+		}
+	}
+
+  end:
 	/* we want to have the response time before we start processing it */
 	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
