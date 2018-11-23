@@ -1035,6 +1035,7 @@ static void assign_tproxy_address(struct stream *s)
 #endif
 }
 
+#ifdef USE_OPENSSL
 /*
  * Pick the right mux once the connection is established, we should now have
  * an alpn if available, so we are now able to choose.
@@ -1069,6 +1070,7 @@ fail:
 	conn_free(conn);
 	return -1;
 }
+#endif
 
 
 /*
