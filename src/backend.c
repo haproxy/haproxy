@@ -1253,15 +1253,16 @@ int connect_server(struct stream *s)
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), xprt_get(XPRT_RAW));
-			if (!objt_cs(s->si[1].end) || !objt_cs(s->si[1].end)->conn->ctrl)
+			if (!(srv_conn->ctrl))
 				return SF_ERR_INTERNAL;
 		}
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
 #ifdef USE_OPENSSL
-		if ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		    srv->mux_proto)
+		if (!srv ||
+		    ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
+		    srv->mux_proto))
 #endif
 		{
 			srv_cs = si_alloc_cs(&s->si[1], srv_conn);
