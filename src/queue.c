@@ -337,7 +337,7 @@ void process_srv_queue(struct server *s)
  * The offset can be positive or negative, and an offset of 0 puts it in the
  * middle of this range (~ 8 min). Note that this also means if the adjusted
  * timestamp wraps around, the request will be misinterpreted as being of
- * the higest priority for that priority class.
+ * the highest priority for that priority class.
  *
  * This function must be called by the stream itself, so in the context of
  * process_stream.
