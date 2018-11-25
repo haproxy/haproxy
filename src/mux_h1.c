@@ -811,7 +811,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsibile to update the parser state <h1m>.
+ * responsible to update the parser state <h1m>.
  */
 static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				 struct buffer *buf, size_t *ofs, size_t max)
@@ -956,7 +956,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
  * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag
  * and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsibile to update the parser state <h1m>.
+ * responsible to update the parser state <h1m>.
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			      struct buffer *buf, size_t *ofs, size_t max)
