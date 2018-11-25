@@ -1547,11 +1547,11 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 
 #ifdef TCP_INFO
 
-/* Returns some tcp_info data is its avalaible. "dir" must be set to 0 if
- * the client connection is require, otherwise it is set to 1. "val" represents
+/* Returns some tcp_info data if it's available. "dir" must be set to 0 if
+ * the client connection is required, otherwise it is set to 1. "val" represents
  * the required value. Use 0 for rtt and 1 for rttavg. "unit" is the expected unit
  * by default, the rtt is in us. Id "unit" is set to 0, the unit is us, if it is
- * set to 1, the untis are milliseconds.
+ * set to 1, the units are milliseconds.
  * If the function fails it returns 0, otherwise it returns 1 and "result" is filled.
  */
 static inline int get_tcp_info(const struct arg *args, struct sample *smp,
