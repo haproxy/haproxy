@@ -80,8 +80,8 @@ enum fd_states {
 
 /* This is the value used to mark a file descriptor as dead. This value is
  * negative, this is important so that tests on fd < 0 properly match. It
- * also has the nice property of being highly negative but not overflowing
- * nor changing sign on 32-bit machines when multipled by sizeof(fdtab).
+ * also has the nice property of being highly negative but neither overflowing
+ * nor changing sign on 32-bit machines when multiplied by sizeof(fdtab).
  * This ensures that any unexpected dereference of such an uninitialized
  * file descriptor will lead to so large a dereference that it will crash
  * the process at the exact location of the bug with a clean stack trace
