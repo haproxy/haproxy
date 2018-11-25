@@ -213,7 +213,7 @@ int send_fd_uxst(int fd, int send_fd)
 
 /*
  *
- * This function works like uxst_connect_server but insteads of creating a
+ * This function works like uxst_connect_server but instead of creating a
  * socket and establishing a connection, it creates a pair of connected
  * sockets, and send one of them through the destination FD. The destination FD
  * is stored in addr.to->sin_addr.s_addr during configuration parsing.
@@ -346,11 +346,11 @@ static int sockpair_connect_server(struct connection *conn, int data, int delack
 
 
 /*
- * Receive a file descriptor transfered from a unix socket.
+ * Receives a file descriptor transferred from a unix socket.
  *
  * Return -1 or a socket fd;
  *
- * The iobuf variable could be use in the future to enhance the protocol.
+ * The iobuf variable could be used in the future to enhance the protocol.
  */
 int recv_fd_uxst(int sock)
 {
