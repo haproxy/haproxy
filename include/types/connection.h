@@ -87,7 +87,7 @@ enum {
 	 * the stream-interface :
 	 */
 	CS_FL_NOT_FIRST     = 0x00100000,  /* this stream is not the first one */
-	CS_FL_READ_PARTIAL  = 0x00200000,  /* some data were received (not necessarly xferred) */
+	CS_FL_READ_PARTIAL  = 0x00200000,  /* some data were received (not necessarily xferred) */
 };
 
 /* cs_shutr() modes */
