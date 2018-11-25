@@ -3582,6 +3582,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
+	struct h2c *h2c = h2s->h2c;
 	size_t ret = 0;
 
 	/* transfer possibly pending data to the upper layer */
@@ -3596,6 +3597,15 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
 			offer_buffers(NULL, tasks_run_queue);
+		}
+	}
+
+	if (ret && h2c->dsi == h2s->id) {
+		/* demux is blocking on this stream's buffer */
+		h2c->flags &= ~H2_CF_DEM_SFULL;
+		if (!(h2c->wait_event.wait_reason & SUB_CAN_RECV)) {
+			if (h2_recv_allowed(h2c))
+				tasklet_wakeup(h2c->wait_event.task);
 		}
 	}
 
