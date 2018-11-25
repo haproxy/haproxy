@@ -2137,10 +2137,8 @@ static void h2_process_demux(struct h2c *h2c)
 			ret = h2c_send_rst_stream(h2c, h2s);
 
 		/* error or missing data condition met above ? */
-		if (ret <= 0) {
-			h2s = NULL;
+		if (ret <= 0)
 			break;
-		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
 			b_del(&h2c->dbuf, h2c->dfl);
@@ -2163,7 +2161,9 @@ static void h2_process_demux(struct h2c *h2c)
 				h2s->recv_wait = NULL;
 		}
 	}
-	return;
+
+	if (h2_recv_allowed(h2c))
+		tasklet_wakeup(h2c->wait_event.task);
 }
 
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
