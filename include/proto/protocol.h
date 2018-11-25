@@ -35,7 +35,7 @@ void protocol_register(struct protocol *proto);
  */
 void protocol_unregister(struct protocol *proto);
 
-/* binds all listeneres of all registered protocols. Returns a composition
+/* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
 int protocol_bind_all(char *errmsg, int errlen);
