@@ -23,6 +23,7 @@
 #define _COMMON_HATHREADS_H
 
 #include <common/config.h>
+#include <common/initcall.h>
 
 /* Note about all_threads_mask :
  *    - with threads support disabled, this symbol is defined as zero (0UL).
@@ -43,6 +44,10 @@ enum { tid_bit = 1UL };
 enum { tid = 0 };
 
 #define __decl_hathreads(decl)
+#define __decl_spinlock(lock)
+#define __decl_aligned_spinlock(lock)
+#define __decl_rwlock(lock)
+#define __decl_aligned_rwlock(lock)
 
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
 #define HA_ATOMIC_ADD(val, i)        ({*(val) += (i);})
@@ -167,6 +172,26 @@ static inline unsigned long thread_isolated()
 #define MAX_THREADS_MASK ((unsigned long)-1)
 
 #define __decl_hathreads(decl) decl
+
+/* declare a self-initializing spinlock */
+#define __decl_spinlock(lock)                               \
+	HA_SPINLOCK_T (lock);                               \
+	INITCALL1(STG_LOCK, ha_spin_init, &(lock))
+
+/* declare a self-initializing spinlock, aligned on a cache line */
+#define __decl_aligned_spinlock(lock)                       \
+	HA_SPINLOCK_T (lock) __attribute__((aligned(64)));  \
+	INITCALL1(STG_LOCK, ha_spin_init, &(lock))
+
+/* declare a self-initializing rwlock */
+#define __decl_rwlock(lock)                                 \
+	HA_RWLOCK_T   (lock);                               \
+	INITCALL1(STG_LOCK, ha_rwlock_init, &(lock))
+
+/* declare a self-initializing rwlock, aligned on a cache line */
+#define __decl_aligned_rwlock(lock)                         \
+	HA_RWLOCK_T   (lock) __attribute__((aligned(64)));  \
+	INITCALL1(STG_LOCK, ha_rwlock_init, &(lock))
 
 /* TODO: thread: For now, we rely on GCC builtins but it could be a good idea to
  * have a header file regrouping all functions dealing with threads. */
