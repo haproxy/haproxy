@@ -696,7 +696,7 @@ static void h2s_destroy(struct h2s *h2s)
 		h2s->send_wait->wait_reason &= ~SUB_CAN_SEND;
 	if (h2s->recv_wait != NULL)
 		h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
-	/* There's no need to explicitely call unsubscribe here, the only
+	/* There's no need to explicitly call unsubscribe here, the only
 	 * reference left would be in the h2c send_list/fctl_list, and if
 	 * we're in it, we're getting out anyway
 	 */
@@ -1114,7 +1114,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
  *
  * Returns > 0 on success or zero if nothing was done. In case of lack of room
  * to write the message, it blocks the demuxer and subscribes it to future
- * notifications. It's worth mentionning that an RST may even be sent for a
+ * notifications. It's worth mentioning that an RST may even be sent for a
  * closed stream.
  */
 static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
