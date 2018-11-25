@@ -226,7 +226,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 		return 1;
 	}
 
-	/* If no default value avalaible, the converter fails. */
+	/* If no default value available, the converter fails. */
 	if (arg_p[1].type == ARGT_STOP)
 		return 0;
 
@@ -405,8 +405,8 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
 		/* Display the column headers. If the message cannot be sent,
-		 * quit the fucntion with returning 0. The function is called
-		 * later and restart at the state "STAT_ST_INIT".
+		 * quit the function with returning 0. The function is called
+		 * later and restarted at the state "STAT_ST_INIT".
 		 */
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
@@ -416,9 +416,9 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 		}
 
 		/* Now, we start the browsing of the references lists.
-		 * Note that the following call to LIST_ELEM return bad pointer. The only
+		 * Note that the following call to LIST_ELEM returns a bad pointer. The only
 		 * available field of this pointer is <list>. It is used with the function
-		 * pat_list_get_next() for retruning the first available entry
+		 * pat_list_get_next() for returning the first available entry
 		 */
 		appctx->ctx.map.ref = LIST_ELEM(&pattern_reference, struct pat_ref *, list);
 		appctx->ctx.map.ref = pat_list_get_next(appctx->ctx.map.ref, &pattern_reference,
@@ -431,7 +431,7 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			chunk_reset(&trash);
 
 			/* Build messages. If the reference is used by another category than
-			 * the listed categorie, display the information in the massage.
+			 * the listed categories, display the information in the message.
 			 */
 			chunk_appendf(&trash, "%d (%s) %s\n", appctx->ctx.map.ref->unique_id,
 			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
