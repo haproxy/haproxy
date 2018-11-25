@@ -131,7 +131,7 @@ void haproxy_unblock_signals()
 	sigset_t set;
 
 	/* Ensure signals are not blocked. Some shells or service managers may
-	 * accidently block all of our signals unfortunately, causing lots of
+	 * accidentally block all of our signals unfortunately, causing lots of
 	 * zombie processes to remain in the background during reloads.
 	 */
 	sigemptyset(&set);
