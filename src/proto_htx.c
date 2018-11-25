@@ -354,7 +354,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			}
 		}
 
-		/* nothing to fail, let's reply normaly */
+		/* nothing to fail, let's reply normally */
 		txn->status = 200;
 		htx_reply_and_close(s, txn->status, htx_error_message(s));
 		if (!(s->flags & SF_ERR_MASK))
@@ -3119,7 +3119,7 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				}
 				break;
 
-				/* other flags exists, but normaly, they never be matched. */
+				/* other flags exists, but normally, they never be matched. */
 			default:
 				break;
 		}
@@ -3470,7 +3470,7 @@ resume_execution:
 				}
 				break;
 
-				/* other flags exists, but normaly, they never be matched. */
+				/* other flags exists, but normally, they never be matched. */
 			default:
 				break;
 		}
@@ -4238,7 +4238,7 @@ static void htx_manage_client_side_cookies(struct stream *s, struct channel *req
 				 * - delete the complete cookie if we're in insert+indirect mode, so that
 				 *   the server never sees it ;
 				 * - remove the server id from the cookie value, and tag the cookie as an
-				 *   application cookie so that it does not get accidentely removed later,
+				 *   application cookie so that it does not get accidently removed later,
 				 *   if we're in cookie prefix mode
 				 */
 				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
@@ -5591,7 +5591,7 @@ static int htx_del_hdr_value(char *start, char *end, char **from, char *next)
 
 
 /* Formats the start line of the request (without CRLF) and puts it in <str> and
- * return the written lenght. The line can be truncated if it exceeds <len>.
+ * return the written length. The line can be truncated if it exceeds <len>.
  */
 static size_t htx_fmt_req_line(const struct htx_sl *sl, char *str, size_t len)
 {
@@ -5615,7 +5615,7 @@ static size_t htx_fmt_req_line(const struct htx_sl *sl, char *str, size_t len)
 }
 
 /* Formats the start line of the response (without CRLF) and puts it in <str> and
- * return the written lenght. The line can be truncated if it exceeds <len>.
+ * return the written length. The line can be truncated if it exceeds <len>.
  */
 static size_t htx_fmt_res_line(const struct htx_sl *sl, char *str, size_t len)
 {

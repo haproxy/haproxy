@@ -272,7 +272,7 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns the position of block immediatly before the one pointed by <pos>. If
+/* Returns the position of block immediately before the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the head, -1 returned.
  *
  * An signed 32-bits integer is returned to handle -1 case. Blocks position are
@@ -303,7 +303,7 @@ static inline struct htx_blk *htx_get_prev_blk(const struct htx *htx,
 	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
 }
 
-/* Returns the position of block immediatly after the one pointed by <pos>. If
+/* Returns the position of block immediately after the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the tail, -1 returned.
  *
  * An signed 32-bits integer is returned to handle -1 case. Blocks position are
