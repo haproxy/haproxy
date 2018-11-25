@@ -107,7 +107,7 @@ struct cond_wordlist {
 #define LIST_NEXT(lh, pt, el) (LIST_ELEM((lh)->n, pt, el))
 
 
-/* returns a pointer of type <pt> to a structure preceeding the element
+/* returns a pointer of type <pt> to a structure preceding the element
  * which contains list head <lh>, which is known as element <el> in
  * struct pt.
  */
