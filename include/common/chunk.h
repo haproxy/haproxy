@@ -196,7 +196,7 @@ static inline int chunk_strncat(struct buffer *chk, const char *str, int nb)
 
 /* Adds a trailing zero to the current chunk and returns the pointer to the
  * following part. The purpose is to be able to use a chunk as a series of
- * short independant strings with chunk_* functions, which do not need to be
+ * short independent strings with chunk_* functions, which do not need to be
  * released. Returns NULL if no space is available to ensure that the new
  * string will have its own trailing zero. For example :
  *   chunk_init(&trash);
