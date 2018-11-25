@@ -75,6 +75,7 @@
 #include <common/config.h>
 #include <common/defaults.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/namespace.h>
@@ -2733,6 +2734,15 @@ int main(int argc, char **argv)
 	int pidfd = -1;
 
 	setvbuf(stdout, NULL, _IONBF, 0);
+
+	/* process all initcalls in order of potential dependency */
+	RUN_INITCALLS(STG_PREPARE);
+	RUN_INITCALLS(STG_LOCK);
+	RUN_INITCALLS(STG_ALLOC);
+	RUN_INITCALLS(STG_POOL);
+	RUN_INITCALLS(STG_REGISTER);
+	RUN_INITCALLS(STG_INIT);
+
 	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
