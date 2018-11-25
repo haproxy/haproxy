@@ -4238,7 +4238,7 @@ static void htx_manage_client_side_cookies(struct stream *s, struct channel *req
 				 * - delete the complete cookie if we're in insert+indirect mode, so that
 				 *   the server never sees it ;
 				 * - remove the server id from the cookie value, and tag the cookie as an
-				 *   application cookie so that it does not get accidently removed later,
+				 *   application cookie so that it does not get accidentally removed later,
 				 *   if we're in cookie prefix mode
 				 */
 				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
