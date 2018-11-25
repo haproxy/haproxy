@@ -1035,7 +1035,7 @@ static void assign_tproxy_address(struct stream *s)
 #endif
 }
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 /*
  * Pick the right mux once the connection is established, we should now have
  * an alpn if available, so we are now able to choose.
@@ -1259,7 +1259,7 @@ int connect_server(struct stream *s)
 		else
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
 		    srv->mux_proto))
@@ -1273,7 +1273,7 @@ int connect_server(struct stream *s)
 			if (conn_install_mux_be(srv_conn, srv_cs) < 0)
 				return SF_ERR_INTERNAL;
 		}
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		else {
 			srv_conn->mux_ctx = s;
 			/* Store the connection into the stream interface,

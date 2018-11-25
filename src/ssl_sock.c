@@ -4842,9 +4842,9 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 	if (srv->ssl_ctx.alpn_str)
 		free(srv->ssl_ctx.alpn_str);
 #endif
+#ifdef OPENSSL_NPN_NEGOTIATED
 	if (srv->ssl_ctx.npn_str)
 		free(srv->ssl_ctx.npn_str);
-#ifdef OPENSSL_NPN_NEGOTIATED
 	if (srv->ssl_ctx.ctx)
 		SSL_CTX_free(srv->ssl_ctx.ctx);
 #endif
