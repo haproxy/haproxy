@@ -948,6 +948,9 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 #define __ha_barrier_full __sync_synchronize
 #endif
 
+void ha_spin_init(HA_SPINLOCK_T *l);
+void ha_rwlock_init(HA_RWLOCK_T *l);
+
 #endif /* USE_THREAD */
 
 static inline void __ha_compiler_barrier(void)

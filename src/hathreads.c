@@ -92,6 +92,18 @@ void thread_release()
 	thread_harmless_end();
 }
 
+/* these calls are used as callbacks at init time */
+void ha_spin_init(HA_SPINLOCK_T *l)
+{
+	HA_SPIN_INIT(l);
+}
+
+/* these calls are used as callbacks at init time */
+void ha_rwlock_init(HA_RWLOCK_T *l)
+{
+	HA_RWLOCK_INIT(l);
+}
+
 __attribute__((constructor))
 static void __hathreads_init(void)
 {
