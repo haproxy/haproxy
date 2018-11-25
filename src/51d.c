@@ -380,7 +380,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 	struct lru64 *lru = NULL;
 #endif
 
-	/* Needed to ensure that the HTTP message has been fully recieved when
+	/* Needed to ensure that the HTTP message has been fully received when
 	 * used with TCP operation. Not required for HTTP operation.
 	 * Data type has to be reset to ensure the string output is processed
 	 * correctly.
