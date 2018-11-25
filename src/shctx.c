@@ -243,7 +243,7 @@ int shctx_row_data_append(struct shared_context *shctx,
 
 /*
  * Copy <len> data from a row of blocks, return the remaining data to copy
- * If 0 is returned, the full data has successfuly be copied
+ * If 0 is returned, the full data has successfully been copied
  *
  * The row should be in the hot list
  */
