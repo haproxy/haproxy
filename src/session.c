@@ -123,7 +123,7 @@ void session_free(struct session *sess)
 }
 
 /* callback used from the connection/mux layer to notify that a connection is
- * gonig to be released.
+ * going to be released.
  */
 void conn_session_free(struct connection *conn)
 {
