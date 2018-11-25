@@ -1,6 +1,64 @@
 ChangeLog :
 ===========
 
+2018/11/25 : 1.9-dev8
+    - REORG: config: extract the global section parser into cfgparse-global
+    - REORG: config: extract the proxy parser into cfgparse-listen.c
+    - BUILD: update the list of supported targets and compilers in makefile and readme
+    - BUILD: reorder the objects in the makefile
+    - BUILD: Makefile: make "V=1" show some of the commands that are executed
+    - BUILD: Makefile: add the quiet mode to a few more targets
+    - BUILD: Makefile: add "$(Q)" to clean, tags and cscope targets
+    - BUILD: Makefile: switch to quiet mode by default for CC/LD/AR
+    - MINOR: cli: format `show proc` to be more readable
+    - MINOR: cli: displays uptime in `show proc`
+    - MINOR: cli: show master information in 'show proc'
+    - BUG/MEDIUM: hpack: fix encoding of "accept-ranges" field
+    - MAJOR: mux-h1: Remove the rxbuf and decode HTTP messages in channel's buffer
+    - BUG/MINOR: mux-h1: Enable keep-alive on server side
+    - BUG/MEDIUM: mux-h1: Fix freeze when the kernel splicing is used
+    - BUG/MEDIUM: mux-h1: Don't set the flag CS_FL_RCV_MORE when nothing was parsed
+    - BUG/MINOR: stats/htx: Remove channel's output when the request is eaten
+    - BUG/MINOR: proto_htx: Fix request/response synchronisation on error
+    - MINOR: stream-int: Notify caller when an error is reported after a rcv_pipe()
+    - MINOR: stream-int: Notify caller when an error is reported after a rcv_buf()
+    - BUG/MINOR: stream-int: Don't call snd_buf() if there are still data in the pipe
+    - MINOR: stream-int: remove useless checks on CS and conn flags in si_cs_send()
+    - BUG/MINOR: config: Be aware of the HTX during the check of mux protocols
+    - BUG/MINOR: mux-htx: Fix bad test on h1c flags in h1_recv_allowed()
+    - MEDIUM: mworker: wait mode use standard init code path
+    - MINOR: log: introduce ha_notice()
+    - MINOR: mworker: use ha_notice to announce a new worker
+    - BUG/MEDIUM: http_fetch: Make sure name is initialized before http_find_header.
+    - MINOR: cli: add mworker_accept_wrapper to 'show fd'
+    - MEDIUM: signal: signal_unregister() removes every handlers
+    - BUG/MEDIUM: mworker: unregister the signals of main()
+    - MINOR: cli: add a few missing includes in proto/cli.h
+    - REORG: time/activity: move activity measurements to activity.{c,h}
+    - MINOR: activity: report the average loop time in "show activity"
+    - MINOR: activity: add configuration and CLI support for "profiling.tasks"
+    - MEDIUM: tasks: collect per-task CPU time and latency
+    - MINOR: sample: add cpu_calls, cpu_ns_avg, cpu_ns_tot, lat_ns_avg, lat_ns_tot
+    - MINOR: cli/activity: rename the stolen CPU time fields to mention milliseconds
+    - BUG/MINOR: cli: Fix memory leak
+    - BUG/MINOR: mworker: fix FD leak and memory leak in error path
+    - MINOR: poller: move the call of tv_update_date() back to the pollers
+    - MINOR: polling: add an option to support busy polling
+    - MINOR: server: Add "alpn" and "npn" keywords.
+    - MEDIUM: connection: Don't bother reactivating polling after connection retry.
+    - MAJOR: connections: Defer mux creation for outgoing connection if alpn is set.
+    - MEDIUM: ssl: Add ssl_bc_alpn and ssl_bc_npn sample fetches.
+    - MINOR: servers: Free [idle|safe|priv]_conns on exit.
+    - REGTEST: add the option to test only a specific set of files
+    - REGTEST: add a test for connections to a "dispatch" address
+    - BUG/MEDIUM: connections: Don't reset the conn flags in *connect_server().
+    - MINOR: server: Only defined conn_complete_server if USE_OPENSSL is set.
+    - BUG/MEDIUM: servers: Don't check if we have a conn_stream too soon.
+    - BUG/MEDIUM: sessions: Set sess->origin to NULL if the origin was destroyed.
+    - MEDIUM: servers: Store the connection in the SI until we have a mux.
+    - BUG/MEDIUM: h2: wake the processing task up after demuxing
+    - BUG/MEDIUM: h2: restart demuxing after releasing buffer space
+
 2018/11/18 : 1.9-dev7
     - BUILD: cache: fix a build warning regarding too large an integer for the age
     - CLEANUP: fix typos in the comments of the Makefile
