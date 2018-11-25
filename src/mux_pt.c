@@ -11,6 +11,7 @@
  */
 
 #include <common/config.h>
+#include <common/initcall.h>
 #include <proto/connection.h>
 #include <proto/stream.h>
 #include <proto/task.h>
@@ -316,10 +317,11 @@ const struct mux_ops mux_pt_ops = {
 static struct mux_proto_list mux_proto_pt =
 	{ .token = IST(""), .mode = PROTO_MODE_ANY, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
 
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_pt);
+
 __attribute__((constructor))
 static void __mux_pt_init(void)
 {
-	register_mux_proto(&mux_proto_pt);
 	pool_head_pt_ctx = create_pool("mux_pt", sizeof(struct mux_pt_ctx),
 	    MEM_F_SHARED);
 }

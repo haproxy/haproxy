@@ -26,6 +26,7 @@
 
 #include <common/config.h>
 #include <common/compat.h>
+#include <common/initcall.h>
 #include <common/standard.h>
 #include <common/time.h>
 
@@ -2806,12 +2807,13 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
 __attribute__((constructor))
 static void __log_init(void)
 {
 	hap_register_per_thread_init(init_log_buffers_per_thread);
 	hap_register_per_thread_deinit(deinit_log_buffers_per_thread);
-	cli_register_kw(&cli_kws);
 }
 /*
  * Local variables:

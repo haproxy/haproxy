@@ -30,6 +30,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -2449,10 +2450,14 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "stats", stats_parse_global },
 	{ 0, NULL, NULL },
 }};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 static struct bind_kw_list bind_kws = { "STAT", { }, {
 	{ "level",     bind_parse_level,    1 }, /* set the unix socket admin level */
@@ -2461,13 +2466,7 @@ static struct bind_kw_list bind_kws = { "STAT", { }, {
 	{ NULL, NULL, 0 },
 }};
 
-__attribute__((constructor))
-static void __dumpstats_module_init(void)
-{
-	cfg_register_keywords(&cfg_kws);
-	cli_register_kw(&cli_kws);
-	bind_register_keywords(&bind_kws);
-}
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 /*
  * Local variables:

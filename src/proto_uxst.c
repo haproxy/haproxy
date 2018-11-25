@@ -30,6 +30,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -76,6 +77,8 @@ static struct protocol proto_unix = {
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
 	.nb_listeners = 0,
 };
+
+INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
 
 /********************************
  * 1) low-level socket functions
@@ -720,17 +723,7 @@ static struct bind_kw_list bind_kws = { "UNIX", { }, {
 	{ NULL, NULL, 0 },
 }};
 
-/********************************
- * 4) high-level functions
- ********************************/
-
-__attribute__((constructor))
-static void __uxst_protocol_init(void)
-{
-	protocol_register(&proto_unix);
-	bind_register_keywords(&bind_kws);
-}
-
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 /*
  * Local variables:

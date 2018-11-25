@@ -26,8 +26,9 @@
 
 #include <common/cfgparse.h>
 #include <common/compiler.h>
-#include <common/xref.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
+#include <common/xref.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>
@@ -7520,6 +7521,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 static int hlua_check_config()
 {
 	struct proxy *px;
@@ -7671,9 +7674,6 @@ void hlua_init(void)
 
 	/* Initialise struct hlua and com signals pool */
 	pool_head_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
-
-	/* Register configuration keywords. */
-	cfg_register_keywords(&cfg_kws);
 
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;

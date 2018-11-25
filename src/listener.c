@@ -22,6 +22,7 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -1013,12 +1014,16 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
+
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
@@ -1040,12 +1045,11 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
+
 __attribute__((constructor))
 static void __listener_init(void)
 {
-	sample_register_fetches(&smp_kws);
-	acl_register_keywords(&acl_kws);
-	bind_register_keywords(&bind_kws);
 	HA_SPIN_INIT(&lq_lock);
 }
 

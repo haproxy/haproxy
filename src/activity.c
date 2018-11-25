@@ -14,6 +14,7 @@
 #include <common/config.h>
 #include <common/standard.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
 #include <types/activity.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
@@ -116,6 +117,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ 0, NULL, NULL }
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "profiling", NULL }, "show profiling : show CPU profiling options",   NULL, cli_io_handler_show_profiling, NULL },
@@ -123,9 +126,4 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
-__attribute__((constructor))
-static void __activity_init(void)
-{
-	cfg_register_keywords(&cfg_kws);
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);

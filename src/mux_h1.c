@@ -11,6 +11,7 @@
  */
 #include <common/cfgparse.h>
 #include <common/config.h>
+#include <common/initcall.h>
 
 #include <types/pipe.h>
 #include <types/proxy.h>
@@ -1823,6 +1824,8 @@ const struct mux_ops mux_h1_ops = {
 static struct mux_proto_list mux_proto_htx =
 { .token = IST(""), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
 
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_htx);
+
 static void __h1_deinit(void)
 {
 	pool_destroy(pool_head_h1c);
@@ -1832,7 +1835,6 @@ static void __h1_deinit(void)
 __attribute__((constructor))
 static void __h1_init(void)
 {
-	register_mux_proto(&mux_proto_htx);
 	hap_register_post_deinit(__h1_deinit);
 	pool_head_h1c = create_pool("h1c", sizeof(struct h1c), MEM_F_SHARED);
 	pool_head_h1s = create_pool("h1s", sizeof(struct h1s), MEM_F_SHARED);

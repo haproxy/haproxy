@@ -30,6 +30,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -73,6 +74,8 @@ static struct protocol proto_sockpair = {
 	.listeners = LIST_HEAD_INIT(proto_sockpair.listeners),
 	.nb_listeners = 0,
 };
+
+INITCALL1(STG_REGISTER, protocol_register, &proto_sockpair);
 
 /* Add <listener> to the list of sockpair listeners (port is ignored). The
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
@@ -387,12 +390,6 @@ int recv_fd_uxst(int sock)
 		memcpy(&recv_fd, CMSG_DATA(cmsg), totlen);
 	}
 	return recv_fd;
-}
-
-__attribute__((constructor))
-static void __uxst_protocol_init(void)
-{
-	protocol_register(&proto_sockpair);
 }
 
 /*

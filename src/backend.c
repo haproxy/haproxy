@@ -24,6 +24,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/hash.h>
+#include <common/initcall.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <common/namespace.h>
@@ -2073,12 +2074,15 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "nbsrv", sample_conv_nbsrv, 0, NULL, SMP_T_STR, SMP_T_SINT },
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -2087,14 +2091,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
-
-__attribute__((constructor))
-static void __backend_init(void)
-{
-	sample_register_fetches(&smp_kws);
-	sample_register_convs(&sample_conv_kws);
-	acl_register_keywords(&acl_kws);
-}
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /*
  * Local variables:

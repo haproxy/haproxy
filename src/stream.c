@@ -18,8 +18,9 @@
 #include <common/config.h>
 #include <common/buffer.h>
 #include <common/debug.h>
-#include <common/memory.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
+#include <common/memory.h>
 
 #include <types/applet.h>
 #include <types/capture.h>
@@ -3411,24 +3412,22 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
 /* main configuration keyword registration. */
 static struct action_kw_list stream_tcp_keywords = { ILH, {
 	{ "use-service", stream_parse_use_service },
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &stream_tcp_keywords);
+
 static struct action_kw_list stream_http_keywords = { ILH, {
 	{ "use-service", stream_parse_use_service },
 	{ /* END */ }
 }};
 
-__attribute__((constructor))
-static void __stream_init(void)
-{
-	tcp_req_cont_keywords_register(&stream_tcp_keywords);
-	http_req_keywords_register(&stream_http_keywords);
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_keywords);
 
 /*
  * Local variables:

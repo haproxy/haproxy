@@ -14,6 +14,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/hash.h>
 #include <common/net_helper.h>
@@ -1314,9 +1315,4 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ /* END */ },
 }};
 
-
-__attribute__((constructor))
-static void __connection_init(void)
-{
-	sample_register_fetches(&sample_fetch_keywords);
-}
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);

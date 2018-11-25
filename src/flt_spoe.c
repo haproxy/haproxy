@@ -16,9 +16,10 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/hathreads.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/time.h>
-#include <common/hathreads.h>
 
 #include <types/arg.h>
 #include <types/global.h>
@@ -4641,37 +4642,44 @@ static struct flt_kw_list flt_kws = { "SPOE", { }, {
 	}
 };
 
+INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);
+
 /* Delcate the action parser for "spoe-action" keyword */
 static struct action_kw_list tcp_req_action_kws = { { }, {
 		{ "send-spoe-group", parse_send_spoe_group },
 		{ /* END */ },
 	}
 };
+
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_action_kws);
+
 static struct action_kw_list tcp_res_action_kws = { { }, {
 		{ "send-spoe-group", parse_send_spoe_group },
 		{ /* END */ },
 	}
 };
+
+INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_action_kws);
+
 static struct action_kw_list http_req_action_kws = { { }, {
 		{ "send-spoe-group", parse_send_spoe_group },
 		{ /* END */ },
 	}
 };
+
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_action_kws);
+
 static struct action_kw_list http_res_action_kws = { { }, {
 		{ "send-spoe-group", parse_send_spoe_group },
 		{ /* END */ },
 	}
 };
 
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_action_kws);
+
 __attribute__((constructor))
 static void __spoe_init(void)
 {
-	flt_register_keywords(&flt_kws);
-	tcp_req_cont_keywords_register(&tcp_req_action_kws);
-	tcp_res_cont_keywords_register(&tcp_res_action_kws);
-	http_req_keywords_register(&http_req_action_kws);
-	http_res_keywords_register(&http_res_action_kws);
-
 	pool_head_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
 	pool_head_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);
 }

@@ -34,6 +34,7 @@
 
 #include <common/cfgparse.h>
 #include <common/hash.h>
+#include <common/initcall.h>
 
 /* flt_cache_store */
 
@@ -1184,6 +1185,7 @@ static struct cli_kw_list cli_kws = {{},{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct action_kw_list http_res_actions = {
 	.kw = {
@@ -1192,12 +1194,16 @@ static struct action_kw_list http_res_actions = {
 	}
 };
 
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
+
 static struct action_kw_list http_req_actions = {
 	.kw = {
 		{ "cache-use", parse_cache_use },
 		{ NULL, NULL }
 	}
 };
+
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
@@ -1211,9 +1217,5 @@ static void __cache_init(void)
 {
 	cfg_register_section("cache", cfg_parse_cache, cfg_post_parse_section_cache);
 	cfg_register_postparser("cache", cfg_cache_postparser);
-	cli_register_kw(&cli_kws);
-	http_res_keywords_register(&http_res_actions);
-	http_req_keywords_register(&http_req_actions);
 	pool_head_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
 }
-

@@ -19,6 +19,7 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/time.h>
 
@@ -1221,11 +1222,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ NULL, NULL, 0 },
 }};
 
-__attribute__((constructor))
-static void __listener_init(void)
-{
-	srv_register_keywords(&srv_kws);
-}
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 /* Recomputes the server's eweight based on its state, uweight, the current time,
  * and the proxy's algorihtm. To be used after updating sv->uweight. The warmup
@@ -4700,11 +4697,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
-__attribute__((constructor))
-static void __server_init(void)
-{
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * This function applies server's status changes, it is

@@ -70,6 +70,7 @@
  */
 
 #include <common/config.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/time.h>
 #include <common/hathreads.h>
@@ -601,11 +602,15 @@ static struct action_kw_list tcp_cont_kws = {ILH, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_cont_kws);
+
 static struct action_kw_list http_req_kws = {ILH, {
 	{ "set-priority-class", parse_set_priority_class },
 	{ "set-priority-offset", parse_set_priority_offset },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static int
 smp_fetch_priority_class(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -638,13 +643,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */},
 }};
 
-__attribute__((constructor))
-static void __queue_init(void)
-{
-	tcp_req_cont_keywords_register(&tcp_cont_kws);
-	http_req_keywords_register(&http_req_kws);
-	sample_register_fetches(&smp_kws);
-}
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /*
  * Local variables:

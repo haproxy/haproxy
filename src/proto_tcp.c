@@ -36,6 +36,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/namespace.h>
@@ -90,6 +91,8 @@ static struct protocol proto_tcpv4 = {
 	.nb_listeners = 0,
 };
 
+INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv4);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv6 = {
 	.name = "tcpv6",
@@ -112,6 +115,8 @@ static struct protocol proto_tcpv6 = {
 	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
 	.nb_listeners = 0,
 };
+
+INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv6);
 
 /* Default TCP parameters, got by opening a temporary TCP socket. */
 #ifdef TCP_MAXSEG
@@ -1913,6 +1918,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
 /************************************************************************/
 /*           All supported bind keywords must be declared here.         */
 /************************************************************************/
@@ -1960,12 +1967,16 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ NULL, NULL, 0 },
 }};
 
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
+
 static struct srv_kw_list srv_kws = { "TCP", { }, {
 #ifdef TCP_USER_TIMEOUT
 	{ "tcp-ut",        srv_parse_tcp_ut,        1,  1 }, /* set TCP user timeout on server */
 #endif
 	{ NULL, NULL, 0 },
 }};
+
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
@@ -1976,6 +1987,8 @@ static struct action_kw_list tcp_req_conn_actions = {ILH, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_actions);
+
 static struct action_kw_list tcp_req_sess_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src_dst },
@@ -1985,15 +1998,21 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
+
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
+
 static struct action_kw_list tcp_res_cont_actions = {ILH, {
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 
 static struct action_kw_list http_req_actions = {ILH, {
 	{ "silent-drop",  tcp_parse_silent_drop },
@@ -2004,28 +2023,18 @@ static struct action_kw_list http_req_actions = {ILH, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
+
 static struct action_kw_list http_res_actions = {ILH, {
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
 
 __attribute__((constructor))
 static void __tcp_protocol_init(void)
 {
-	protocol_register(&proto_tcpv4);
-	protocol_register(&proto_tcpv6);
-	sample_register_fetches(&sample_fetch_keywords);
-	bind_register_keywords(&bind_kws);
-	srv_register_keywords(&srv_kws);
-	tcp_req_conn_keywords_register(&tcp_req_conn_actions);
-	tcp_req_sess_keywords_register(&tcp_req_sess_actions);
-	tcp_req_cont_keywords_register(&tcp_req_cont_actions);
-	tcp_res_cont_keywords_register(&tcp_res_cont_actions);
-	http_req_keywords_register(&http_req_actions);
-	http_res_keywords_register(&http_res_actions);
-
-
 	hap_register_build_opts("Built with transparent proxy support using:"
 #if defined(IP_TRANSPARENT)
 	       " IP_TRANSPARENT"

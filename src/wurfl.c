@@ -5,6 +5,7 @@
 #include <common/chunk.h>
 #include <common/buffer.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <proto/arg.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
@@ -669,6 +670,8 @@ static struct cfg_kw_list wurflcfg_kws = {{ }, {
 	}
 };
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &wurflcfg_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list fetch_kws = {ILH, {
 		{ "wurfl-get-all", ha_wurfl_get_all, 0, NULL, SMP_T_STR, SMP_USE_HRQHV },
@@ -677,19 +680,20 @@ static struct sample_fetch_kw_list fetch_kws = {ILH, {
 	}
 };
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &fetch_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
 		{ NULL, NULL, 0, 0, 0 },
 	}
 };
 
+INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
+
 __attribute__((constructor))
 static void __wurfl_init(void)
 {
 	/* register sample fetch and format conversion keywords */
-	sample_register_fetches(&fetch_kws);
-	sample_register_convs(&conv_kws);
-	cfg_register_keywords(&wurflcfg_kws);
 	hap_register_build_opts("Built with WURFL support.", 0);
 	hap_register_post_check(ha_wurfl_init);
 	hap_register_post_deinit(ha_wurfl_deinit);

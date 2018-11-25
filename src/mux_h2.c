@@ -16,6 +16,7 @@
 #include <common/hpack-dec.h>
 #include <common/hpack-enc.h>
 #include <common/hpack-tbl.h>
+#include <common/initcall.h>
 #include <common/net_helper.h>
 #include <proto/connection.h>
 #include <proto/h1.h>
@@ -3832,6 +3833,8 @@ const struct mux_ops h2_ops = {
 static struct mux_proto_list mux_proto_h2 =
 	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &h2_ops };
 
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
+
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
@@ -3839,6 +3842,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },
 	{ 0, NULL, NULL }
 }};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 static void __h2_deinit(void)
 {
@@ -3849,8 +3854,6 @@ static void __h2_deinit(void)
 __attribute__((constructor))
 static void __h2_init(void)
 {
-	register_mux_proto(&mux_proto_h2);
-	cfg_register_keywords(&cfg_kws);
 	hap_register_post_deinit(__h2_deinit);
 	pool_head_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
 	pool_head_h2s = create_pool("h2s", sizeof(struct h2s), MEM_F_SHARED);

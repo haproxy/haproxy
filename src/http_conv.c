@@ -21,6 +21,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/version.h>
@@ -335,11 +336,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
-__attribute__((constructor))
-static void __http_conv_init(void)
-{
-	sample_register_convs(&sample_conv_kws);
-}
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
 /*
  * Local variables:

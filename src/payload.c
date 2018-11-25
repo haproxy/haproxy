@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <common/initcall.h>
 #include <common/net_helper.h>
 #include <proto/acl.h>
 #include <proto/arg.h>
@@ -1151,6 +1152,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -1166,13 +1168,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
-
-__attribute__((constructor))
-static void __payload_init(void)
-{
-	sample_register_fetches(&smp_kws);
-	acl_register_keywords(&acl_kws);
-}
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /*
  * Local variables:

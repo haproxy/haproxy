@@ -69,6 +69,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
@@ -8927,6 +8928,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -9010,6 +9012,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -9018,6 +9022,8 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ "ssl_fc_sni_reg",         "ssl_fc_sni", PAT_MATCH_REG },
 	{ /* END */ },
 }};
+
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
@@ -9044,6 +9050,8 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "verify",                ssl_bind_parse_verify,           1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },
 };
+
+/* no initcall for ssl_bind_kws, these ones are parsed in the parser loop */
 
 static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "allow-0rtt",            bind_parse_allow_0rtt,         0 }, /* Allow 0RTT */
@@ -9085,6 +9093,8 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "prefer-client-ciphers", bind_parse_pcc,                0 }, /* prefer client ciphers */
 	{ NULL, NULL, 0 },
 }};
+
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
@@ -9135,6 +9145,8 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ NULL, NULL, 0, 0 },
 }};
 
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
@@ -9165,6 +9177,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 	{ 0, NULL, NULL },
 }};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* transport-layer operations for SSL sockets */
 static struct xprt_ops ssl_sock = {
@@ -9217,6 +9231,8 @@ static struct action_kw_list http_req_actions = {ILH, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
+
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 
 static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
@@ -9265,12 +9281,6 @@ static void __ssl_sock_init(void)
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
 	ssl_pkey_info_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-	sample_register_fetches(&sample_fetch_keywords);
-	acl_register_keywords(&acl_kws);
-	bind_register_keywords(&bind_kws);
-	srv_register_keywords(&srv_kws);
-	cfg_register_keywords(&cfg_kws);
-	cli_register_kw(&cli_kws);
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
@@ -9330,8 +9340,6 @@ static void __ssl_sock_init(void)
 #endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
-
-	http_req_keywords_register(&http_req_actions);
 }
 
 #ifndef OPENSSL_NO_ENGINE

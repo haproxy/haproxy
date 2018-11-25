@@ -13,6 +13,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/ticks.h>
@@ -1191,12 +1192,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ 0, NULL, NULL },
 }};
 
-
-__attribute__((constructor))
-static void __tcp_protocol_init(void)
-{
-	cfg_register_keywords(&cfg_kws);
-}
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:

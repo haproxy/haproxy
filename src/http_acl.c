@@ -21,6 +21,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/version.h>
@@ -180,11 +181,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
-__attribute__((constructor))
-static void __http_acl_init(void)
-{
-	acl_register_keywords(&acl_kws);
-}
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /*
  * Local variables:

@@ -2,6 +2,7 @@
 
 #include <common/cfgparse.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 
 #include <types/vars.h>
@@ -861,11 +862,15 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "set-var",   smp_conv_store, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
 	{ "unset-var", smp_conv_clear, ARG1(1,STR), conv_check_var, SMP_T_ANY, SMP_T_ANY },
 	{ /* END */ },
 }};
+
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
 static struct action_kw_list tcp_req_sess_kws = { { }, {
 	{ "set-var",   parse_store, 1 },
@@ -873,11 +878,15 @@ static struct action_kw_list tcp_req_sess_kws = { { }, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_kws);
+
 static struct action_kw_list tcp_req_cont_kws = { { }, {
 	{ "set-var",   parse_store, 1 },
 	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_kws);
 
 static struct action_kw_list tcp_res_kws = { { }, {
 	{ "set-var",   parse_store, 1 },
@@ -885,17 +894,23 @@ static struct action_kw_list tcp_res_kws = { { }, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
+
 static struct action_kw_list http_req_kws = { { }, {
 	{ "set-var",   parse_store, 1 },
 	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
+
 static struct action_kw_list http_res_kws = { { }, {
 	{ "set-var",   parse_store, 1 },
 	{ "unset-var", parse_store, 1 },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.vars.global-max-size", vars_max_size_global },
@@ -906,19 +921,12 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 __attribute__((constructor))
 static void __vars_init(void)
 {
 	var_pool = create_pool("vars", sizeof(struct var), MEM_F_SHARED);
-
-	sample_register_fetches(&sample_fetch_keywords);
-	sample_register_convs(&sample_conv_kws);
-	tcp_req_sess_keywords_register(&tcp_req_sess_kws);
-	tcp_req_cont_keywords_register(&tcp_req_cont_kws);
-	tcp_res_cont_keywords_register(&tcp_res_kws);
-	http_req_keywords_register(&http_req_kws);
-	http_res_keywords_register(&http_res_kws);
-	cfg_register_keywords(&cfg_kws);
 
 	HA_RWLOCK_INIT(&var_names_rwlock);
 }

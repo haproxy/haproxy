@@ -21,6 +21,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/version.h>
@@ -586,6 +587,8 @@ static struct action_kw_list http_req_actions = {
 	}
 };
 
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
+
 static struct action_kw_list http_res_actions = {
 	.kw = {
 		{ "capture",    parse_http_res_capture },
@@ -594,12 +597,7 @@ static struct action_kw_list http_res_actions = {
 	}
 };
 
-__attribute__((constructor))
-static void __http_act_init(void)
-{
-	http_req_keywords_register(&http_req_actions);
-	http_res_keywords_register(&http_res_actions);
-}
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
 
 /*
  * Local variables:

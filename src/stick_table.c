@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <common/config.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -3626,6 +3627,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct action_kw_list tcp_conn_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
@@ -3634,12 +3636,16 @@ static struct action_kw_list tcp_conn_kws = { { }, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_conn_kws);
+
 static struct action_kw_list tcp_sess_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_sess_kws);
 
 static struct action_kw_list tcp_req_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
@@ -3648,12 +3654,16 @@ static struct action_kw_list tcp_req_kws = { { }, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_kws);
+
 static struct action_kw_list tcp_res_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
@@ -3662,12 +3672,16 @@ static struct action_kw_list http_req_kws = { { }, {
 	{ /* END */ }
 }};
 
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
+
 static struct action_kw_list http_res_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
 	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
 	{ "sc-set-gpt0", parse_set_gpt0, 1 },
 	{ /* END */ }
 }};
+
+INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
 ///* Note: must not be declared <const> as its list will be overwritten.
 // * Please take care of keeping this list alphabetically sorted.
@@ -3805,6 +3819,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_fetch_keywords);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
@@ -3832,19 +3847,4 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ /* END */ },
 }};
 
-__attribute__((constructor))
-static void __stick_table_init(void)
-{
-	/* register som action keywords. */
-	tcp_req_conn_keywords_register(&tcp_conn_kws);
-	tcp_req_sess_keywords_register(&tcp_sess_kws);
-	tcp_req_cont_keywords_register(&tcp_req_kws);
-	tcp_res_cont_keywords_register(&tcp_res_kws);
-	http_req_keywords_register(&http_req_kws);
-	http_res_keywords_register(&http_res_kws);
-
-	/* register sample fetch and format conversion keywords */
-	sample_register_fetches(&smp_fetch_keywords);
-	sample_register_convs(&sample_conv_kws);
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);

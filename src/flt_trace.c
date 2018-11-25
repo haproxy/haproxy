@@ -12,10 +12,11 @@
 
 #include <ctype.h>
 
+#include <common/hathreads.h>
+#include <common/initcall.h>
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/tools.h>
-#include <common/hathreads.h>
 
 #include <types/channel.h>
 #include <types/filters.h>
@@ -628,9 +629,4 @@ static struct flt_kw_list flt_kws = { "TRACE", { }, {
 	}
 };
 
-__attribute__((constructor))
-static void
-__flt_trace_init(void)
-{
-	flt_register_keywords(&flt_kws);
-}
+INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);

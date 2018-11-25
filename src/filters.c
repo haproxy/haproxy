@@ -16,6 +16,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/standard.h>
 #include <common/hathreads.h>
@@ -1189,12 +1190,13 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	}
 };
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 __attribute__((constructor))
 static void
 __filters_init(void)
 {
         pool_head_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
-	cfg_register_keywords(&cfg_kws);
 	hap_register_post_check(flt_init_all);
 	hap_register_per_thread_init(flt_init_all_per_thread);
 	hap_register_per_thread_deinit(flt_deinit_all_per_thread);

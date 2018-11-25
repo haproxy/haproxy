@@ -21,6 +21,7 @@
 
 #include <common/cfgparse.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/time.h>
 #include <common/ticks.h>
 #include <common/net_helper.h>
@@ -2050,6 +2051,7 @@ static struct cli_kw_list cli_kws = {{ }, {
 	}
 };
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 __attribute__((constructor))
 static void __dns_init(void)
@@ -2059,6 +2061,4 @@ static void __dns_init(void)
 
 	cfg_register_postparser("dns runtime resolver", dns_finalize_config);
 	hap_register_post_deinit(dns_deinit);
-
-	cli_register_kw(&cli_kws);
 }

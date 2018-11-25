@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <common/config.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
@@ -1352,12 +1353,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
-__attribute__((constructor))
-static void __acl_init(void)
-{
-	acl_register_keywords(&acl_kws);
-}
-
+INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /*
  * Local variables:

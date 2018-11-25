@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <stdio.h>
 
+#include <common/initcall.h>
 #include <common/standard.h>
 
 #include <types/applet.h>
@@ -1106,6 +1107,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten
  *
@@ -1159,10 +1161,4 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ /* END */ },
 }};
 
-__attribute__((constructor))
-static void __map_init(void)
-{
-	/* register format conversion keywords */
-	sample_register_convs(&sample_conv_kws);
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);

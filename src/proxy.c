@@ -22,6 +22,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/time.h>
 
@@ -1497,6 +1498,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ 0, NULL, NULL },
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 /* Expects to find a frontend named <arg> and returns it, otherwise displays various
  * adequate error messages and returns NULL. This function is designed to be used by
  * functions requiring a frontend on the CLI.
@@ -2229,12 +2232,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
-__attribute__((constructor))
-static void __proxy_module_init(void)
-{
-	cfg_register_keywords(&cfg_kws);
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * Local variables:

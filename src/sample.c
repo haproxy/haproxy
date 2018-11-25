@@ -21,6 +21,7 @@
 #include <common/chunk.h>
 #include <common/hash.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <common/base64.h>
@@ -3089,6 +3090,8 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ /* END */ },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 #ifdef DEBUG_EXPR
@@ -3139,10 +3142,4 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
-__attribute__((constructor))
-static void __sample_init(void)
-{
-	/* register sample fetch and format conversion keywords */
-	sample_register_fetches(&smp_kws);
-	sample_register_convs(&sample_conv_kws);
-}
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);

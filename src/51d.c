@@ -4,6 +4,7 @@
 #include <common/chunk.h>
 #include <common/buffer.h>
 #include <common/errors.h>
+#include <common/initcall.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
@@ -667,11 +668,15 @@ static struct cfg_kw_list _51dcfg_kws = {{ }, {
 	{ 0, NULL, NULL },
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &_51dcfg_kws);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "51d.all", _51d_fetch, ARG5(1,STR,STR,STR,STR,STR), _51d_fetch_check, SMP_T_STR, SMP_USE_HRQHV },
 	{ NULL, NULL, 0, 0, 0 },
 }};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
@@ -679,13 +684,12 @@ static struct sample_conv_kw_list conv_kws = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
+INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
+
 __attribute__((constructor))
 static void __51d_init(void)
 {
 	/* register sample fetch and conversion keywords */
-	sample_register_fetches(&sample_fetch_keywords);
-	sample_register_convs(&conv_kws);
-	cfg_register_keywords(&_51dcfg_kws);
 	hap_register_build_opts("Built with 51Degrees support.", 0);
 	hap_register_post_check(init_51degrees);
 	hap_register_post_deinit(deinit_51degrees);

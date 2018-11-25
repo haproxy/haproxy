@@ -353,13 +353,7 @@ line:
             { NULL, NULL, NULL },
         }
     };
-
-    __attribute__((constructor))
-    static void
-    __my_filter_init(void)
-    {
-        flt_register_keywords(&flt_kws);
-    }
+    INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);
 
 
 Then you must define the internal configuration your filter will use. For

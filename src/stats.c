@@ -29,6 +29,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -3965,18 +3966,14 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
 struct applet http_stats_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
 	.release = NULL,
 };
-
-__attribute__((constructor))
-static void __stat_init(void)
-{
-	cli_register_kw(&cli_kws);
-}
 
 /*
  * Local variables:

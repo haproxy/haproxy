@@ -18,6 +18,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -526,11 +527,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{},}
 }};
 
-__attribute__((constructor))
-static void __memory_init(void)
-{
-	cli_register_kw(&cli_kws);
-}
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * Local variables:

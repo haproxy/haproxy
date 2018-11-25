@@ -28,8 +28,9 @@
 
 #include <common/cfgparse.h>
 #include <common/compat.h>
-#include <common/memory.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
+#include <common/memory.h>
 
 #include <types/global.h>
 #include <types/compression.h>
@@ -699,6 +700,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ 0, NULL, NULL }
 }};
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 __attribute__((constructor))
 static void __comp_fetch_init(void)
 {
@@ -735,5 +738,4 @@ static void __comp_fetch_init(void)
 		memprintf(&ptr, "%s none", ptr);
 
 	hap_register_build_opts(ptr, 1);
-	cfg_register_keywords(&cfg_kws);
 }

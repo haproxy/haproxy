@@ -12,6 +12,7 @@
 
 #include <common/buffer.h>
 #include <common/cfgparse.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 
@@ -993,12 +994,16 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	}
 };
 
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 /* Declare the filter parser for "compression" keyword */
 static struct flt_kw_list filter_kws = { "COMP", { }, {
 		{ "compression", parse_http_comp_flt, NULL },
 		{ NULL, NULL, NULL },
 	}
 };
+
+INITCALL1(STG_REGISTER, flt_register_keywords, &filter_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
@@ -1008,12 +1013,11 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	}
 };
 
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
 __attribute__((constructor))
 static void
 __flt_http_comp_init(void)
 {
-	cfg_register_keywords(&cfg_kws);
-	flt_register_keywords(&filter_kws);
-	sample_register_fetches(&sample_fetch_keywords);
 	pool_head_comp_state = create_pool("comp_state", sizeof(struct comp_state), MEM_F_SHARED);
 }
