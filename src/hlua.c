@@ -121,7 +121,7 @@
  * and RESET_SAFE_LJMP manipulates the Lua stack, so it will be careful
  * to set mutex around these functions.
  */
-__decl_hathreads(HA_SPINLOCK_T hlua_global_lock);
+__decl_spinlock(hlua_global_lock);
 THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
@@ -7669,8 +7669,6 @@ void hlua_init(void)
 		NULL
 	};
 #endif
-
-	HA_SPIN_INIT(&hlua_global_lock);
 
 	/* Initialise struct hlua and com signals pool */
 	pool_head_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);

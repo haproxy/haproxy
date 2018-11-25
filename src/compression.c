@@ -42,7 +42,7 @@
 
 
 #if defined(USE_ZLIB)
-__decl_hathreads(static HA_SPINLOCK_T comp_pool_lock);
+__decl_spinlock(comp_pool_lock);
 #endif
 
 #ifdef USE_ZLIB
@@ -721,7 +721,6 @@ static void __comp_fetch_init(void)
 	global.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U;
 #endif
 #ifdef USE_ZLIB
-	HA_SPIN_INIT(&comp_pool_lock);
 	memprintf(&ptr, "Built with zlib version : " ZLIB_VERSION);
 	memprintf(&ptr, "%s\nRunning on zlib version : %s", ptr, zlibVersion());
 #elif defined(USE_SLZ)

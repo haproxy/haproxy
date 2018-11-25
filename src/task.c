@@ -44,8 +44,8 @@ unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
 THREAD_LOCAL struct eb32sc_node *rq_next = NULL; /* Next task to be potentially run */
 
-__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) rq_lock); /* spin lock related to run queue */
-__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) wq_lock); /* spin lock related to wait queue */
+__decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
+__decl_aligned_spinlock(wq_lock); /* spin lock related to wait queue */
 
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global */
@@ -478,8 +478,6 @@ int init_task()
 	memset(&timers, 0, sizeof(timers));
 	memset(&rqueue, 0, sizeof(rqueue));
 #endif
-	HA_SPIN_INIT(&wq_lock);
-	HA_SPIN_INIT(&rq_lock);
 	memset(&task_per_thread, 0, sizeof(task_per_thread));
 	for (i = 0; i < MAX_THREADS; i++) {
 		LIST_INIT(&task_per_thread[i].task_list);

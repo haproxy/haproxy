@@ -24,7 +24,7 @@ struct pool_head *pool_head_buffer;
 
 /* list of objects waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
-__decl_hathreads(HA_SPINLOCK_T __attribute__((aligned(64))) buffer_wq_lock);
+__decl_aligned_spinlock(buffer_wq_lock);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
@@ -45,8 +45,6 @@ int init_buffer()
 	pool_head_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
 	if (global.tune.buf_limit)
 		pool_head_buffer->limit = global.tune.buf_limit;
-
-	HA_SPIN_INIT(&buffer_wq_lock);
 
 	buffer = pool_refill_alloc(pool_head_buffer, pool_head_buffer->minavail - 1);
 	if (!buffer)

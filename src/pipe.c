@@ -23,7 +23,7 @@
 struct pool_head *pool_head_pipe = NULL;
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
 
-__decl_hathreads(HA_SPINLOCK_T pipes_lock); /* lock used to protect pipes list */
+__decl_spinlock(pipes_lock); /* lock used to protect pipes list */
 
 int pipes_used = 0;             /* # of pipes in use (2 fds each) */
 int pipes_free = 0;             /* # of pipes unused */
@@ -32,9 +32,6 @@ int pipes_free = 0;             /* # of pipes unused */
 static void init_pipe()
 {
 	pool_head_pipe = create_pool("pipe", sizeof(struct pipe), MEM_F_SHARED);
-	pipes_used = 0;
-	pipes_free = 0;
-	HA_SPIN_INIT(&pipes_lock);
 }
 
 /* return a pre-allocated empty pipe. Try to allocate one if there isn't any

@@ -65,7 +65,7 @@
 
 struct pool_head *pool_head_stream;
 struct list streams;
-__decl_hathreads(HA_SPINLOCK_T streams_lock);
+__decl_spinlock(streams_lock);
 
 /* List of all use-service keywords. */
 static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
@@ -515,7 +515,6 @@ void stream_release_buffers(struct stream *s)
 int init_stream()
 {
 	LIST_INIT(&streams);
-	HA_SPIN_INIT(&streams_lock);
 	pool_head_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
 	return pool_head_stream != NULL;
 }

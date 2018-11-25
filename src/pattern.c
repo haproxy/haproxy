@@ -155,7 +155,7 @@ static THREAD_LOCAL struct sample_data static_sample_data;
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
 static struct lru64_head *pat_lru_tree;
-__decl_hathreads(HA_SPINLOCK_T pat_lru_tree_lock);
+__decl_spinlock(pat_lru_tree_lock);
 static unsigned long long pat_lru_seed;
 
 /*
@@ -2696,7 +2696,6 @@ void pattern_finalize_config(void)
 	pat_lru_seed = random();
 	if (global.tune.pattern_cache) {
 		pat_lru_tree = lru64_new(global.tune.pattern_cache);
-		HA_SPIN_INIT(&pat_lru_tree_lock);
 	}
 
 	list_for_each_entry(ref, &pattern_reference, list) {

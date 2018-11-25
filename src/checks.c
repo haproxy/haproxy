@@ -1632,7 +1632,7 @@ static int connect_conn_chk(struct task *t)
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
 static struct pool_head *pool_head_pid_list;
-__decl_hathreads(HA_SPINLOCK_T pid_list_lock);
+__decl_spinlock(pid_list_lock);
 
 void block_sigchld(void)
 {
@@ -1735,8 +1735,6 @@ static int init_pid_list(void)
 			 strerror(errno));
 		return 1;
 	}
-
-	HA_SPIN_INIT(&pid_list_lock);
 
 	return 0;
 }

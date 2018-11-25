@@ -322,7 +322,7 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
 static unsigned int       ssl_ctx_lru_seed = 0;
 static unsigned int	  ssl_ctx_serial;
-__decl_hathreads(static HA_RWLOCK_T ssl_ctx_lru_rwlock);
+__decl_rwlock(ssl_ctx_lru_rwlock);
 
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 
@@ -4929,7 +4929,6 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	if (global_ssl.ctx_cache) {
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
-		HA_RWLOCK_INIT(&ssl_ctx_lru_rwlock);
 	}
 	ssl_ctx_lru_seed = (unsigned int)time(NULL);
 	ssl_ctx_serial   = now_ms;

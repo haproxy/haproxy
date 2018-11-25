@@ -43,7 +43,7 @@
 #include <proto/task.h>
 
  /* listner_queue lock (same for global and per proxy queues) */
-__decl_hathreads(static HA_SPINLOCK_T lq_lock);
+__decl_spinlock(lq_lock);
 
 /* List head of all known bind keywords */
 static struct bind_kw_list bind_keywords = {
@@ -1046,12 +1046,6 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 }};
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
-
-__attribute__((constructor))
-static void __listener_init(void)
-{
-	HA_SPIN_INIT(&lq_lock);
-}
 
 /*
  * Local variables:

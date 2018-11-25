@@ -34,8 +34,7 @@ static unsigned int var_sess_limit = 0;
 static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 
-
-__decl_hathreads(HA_RWLOCK_T var_names_rwlock);
+__decl_rwlock(var_names_rwlock);
 
 /* This function adds or remove memory size from the accounting. The inner
  * pointers may be null when setting the outer ones only.
@@ -927,6 +926,4 @@ __attribute__((constructor))
 static void __vars_init(void)
 {
 	var_pool = create_pool("vars", sizeof(struct var), MEM_F_SHARED);
-
-	HA_RWLOCK_INIT(&var_names_rwlock);
 }
