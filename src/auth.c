@@ -29,6 +29,7 @@
 #include <common/config.h>
 #include <common/errors.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
 
 #include <proto/acl.h>
 #include <proto/log.h>
@@ -313,8 +314,4 @@ pat_match_auth(struct sample *smp, struct pattern_expr *expr, int fill)
 	return NULL;
 }
 
-__attribute__((constructor))
-static void __auth_init(void)
-{
-	hap_register_build_opts("Encrypted password support via crypt(3): yes", 0);
-}
+REGISTER_BUILD_OPTS("Encrypted password support via crypt(3): yes");

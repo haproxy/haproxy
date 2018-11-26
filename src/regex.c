@@ -411,8 +411,7 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 	return 1;
 }
 
-__attribute__((constructor))
-static void __regex_init(void)
+static void regex_register_build_options(void)
 {
 	char *ptr = NULL;
 
@@ -457,6 +456,8 @@ static void __regex_init(void)
 #endif
 	hap_register_build_opts(ptr, 1);
 }
+
+INITCALL0(STG_REGISTER, regex_register_build_options);
 
 /*
  * Local variables:

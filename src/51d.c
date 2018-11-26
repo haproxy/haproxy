@@ -5,6 +5,7 @@
 #include <common/buffer.h>
 #include <common/errors.h>
 #include <common/initcall.h>
+#include <types/global.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
@@ -689,8 +690,8 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 __attribute__((constructor))
 static void __51d_init(void)
 {
-	/* register sample fetch and conversion keywords */
-	hap_register_build_opts("Built with 51Degrees support.", 0);
 	hap_register_post_check(init_51degrees);
 	hap_register_post_deinit(deinit_51degrees);
 }
+
+REGISTER_BUILD_OPTS("Built with 51Degrees support.");

@@ -8210,8 +8210,15 @@ void hlua_init(void)
 __attribute__((constructor))
 static void __hlua_init(void)
 {
-	char *ptr = NULL;
-	memprintf(&ptr, "Built with Lua version : %s", LUA_RELEASE);
-	hap_register_build_opts(ptr, 1);
 	cfg_register_postparser("hlua", hlua_check_config);
 }
+
+static void hlua_register_build_options(void)
+{
+	char *ptr = NULL;
+
+	memprintf(&ptr, "Built with Lua version : %s", LUA_RELEASE);
+	hap_register_build_opts(ptr, 1);
+}
+
+INITCALL0(STG_REGISTER, hlua_register_build_options);

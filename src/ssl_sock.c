@@ -9251,9 +9251,6 @@ static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
-	char *ptr;
-	int i;
-
 	STACK_OF(SSL_COMP)* cm;
 
 	if (global_ssl.listen_default_ciphers)
@@ -9288,7 +9285,26 @@ static void __ssl_sock_init(void)
 	hap_register_post_check(tlskeys_finalize_config);
 #endif
 
-	ptr = NULL;
+	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
+	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
+
+#ifndef OPENSSL_NO_DH
+	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
+	hap_register_post_deinit(ssl_free_dh);
+#endif
+#ifndef OPENSSL_NO_ENGINE
+	hap_register_post_deinit(ssl_free_engines);
+#endif
+	/* Load SSL string for the verbose & debug mode. */
+	ERR_load_SSL_strings();
+}
+
+/* Compute and register the version string */
+static void ssl_register_build_options()
+{
+	char *ptr = NULL;
+	int i;
+
 	memprintf(&ptr, "Built with OpenSSL version : "
 #ifdef OPENSSL_IS_BORINGSSL
 		"BoringSSL");
@@ -9326,20 +9342,10 @@ static void __ssl_sock_init(void)
 			memprintf(&ptr, "%s %s", ptr, methodVersions[i].name);
 
 	hap_register_build_opts(ptr, 1);
-
-	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
-	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
-
-#ifndef OPENSSL_NO_DH
-	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
-	hap_register_post_deinit(ssl_free_dh);
-#endif
-#ifndef OPENSSL_NO_ENGINE
-	hap_register_post_deinit(ssl_free_engines);
-#endif
-	/* Load SSL string for the verbose & debug mode. */
-	ERR_load_SSL_strings();
 }
+
+INITCALL0(STG_REGISTER, ssl_register_build_options);
+
 
 #ifndef OPENSSL_NO_ENGINE
 void ssl_free_engines(void) {

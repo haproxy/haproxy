@@ -705,9 +705,6 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 __attribute__((constructor))
 static void __comp_fetch_init(void)
 {
-	char *ptr = NULL;
-	int i;
-
 #ifdef USE_SLZ
 	slz_make_crc_table();
 	slz_prepare_dist_table();
@@ -720,6 +717,13 @@ static void __comp_fetch_init(void)
 #if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
 	global.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U;
 #endif
+}
+
+static void comp_register_build_opts(void)
+{
+	char *ptr = NULL;
+	int i;
+
 #ifdef USE_ZLIB
 	memprintf(&ptr, "Built with zlib version : " ZLIB_VERSION);
 	memprintf(&ptr, "%s\nRunning on zlib version : %s", ptr, zlibVersion());
@@ -738,3 +742,5 @@ static void __comp_fetch_init(void)
 
 	hap_register_build_opts(ptr, 1);
 }
+
+INITCALL0(STG_REGISTER, comp_register_build_opts);

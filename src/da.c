@@ -4,6 +4,7 @@
 #include <common/errors.h>
 #include <common/http.h>
 #include <common/initcall.h>
+#include <types/global.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
@@ -398,8 +399,8 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 __attribute__((constructor))
 static void __da_init(void)
 {
-	/* register sample fetch and format conversion keywords */
-	hap_register_build_opts("Built with DeviceAtlas support.", 0);
 	hap_register_post_check(init_deviceatlas);
 	hap_register_post_deinit(deinit_deviceatlas);
 }
+
+REGISTER_BUILD_OPTS("Built with DeviceAtlas support.");

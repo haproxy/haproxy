@@ -6,6 +6,7 @@
 #include <common/buffer.h>
 #include <common/errors.h>
 #include <common/initcall.h>
+#include <types/global.h>
 #include <proto/arg.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
@@ -693,8 +694,6 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 __attribute__((constructor))
 static void __wurfl_init(void)
 {
-	/* register sample fetch and format conversion keywords */
-	hap_register_build_opts("Built with WURFL support.", 0);
 	hap_register_post_check(ha_wurfl_init);
 	hap_register_post_deinit(ha_wurfl_deinit);
 }
@@ -802,3 +801,5 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	ha_wurfl_log("WURFL: retrieve header request returns [%s]\n", ((ha_wurfl_header_t *)wh)->header_value);
 	return ((ha_wurfl_header_t *)wh)->header_value;
 }
+
+REGISTER_BUILD_OPTS("Built with WURFL support.");

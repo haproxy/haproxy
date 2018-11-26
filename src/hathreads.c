@@ -17,6 +17,7 @@
 #include <common/cfgparse.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
+#include <types/global.h>
 #include <proto/fd.h>
 
 
@@ -110,7 +111,6 @@ static void __hathreads_init(void)
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif
-	hap_register_build_opts("Built with multi-threading support.", 0);
 }
 
 #endif // USE_THREAD
@@ -148,3 +148,5 @@ int parse_nbthread(const char *arg, char **err)
 #endif
 	return nbthread;
 }
+
+REGISTER_BUILD_OPTS("Built with multi-threading support.");

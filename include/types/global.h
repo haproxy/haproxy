@@ -25,8 +25,9 @@
 #include <netinet/in.h>
 
 #include <common/config.h>
-#include <common/standard.h>
+#include <common/initcall.h>
 #include <common/hathreads.h>
+#include <common/standard.h>
 
 #include <types/listener.h>
 #include <types/proxy.h>
@@ -245,6 +246,10 @@ void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
 
 void mworker_accept_wrapper(int fd);
+
+/* simplified way to declare static build options in a file */
+#define REGISTER_BUILD_OPTS(str) \
+	INITCALL2(STG_REGISTER, hap_register_build_opts, (str), 0)
 
 #endif /* _TYPES_GLOBAL_H */
 
