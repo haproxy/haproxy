@@ -40,7 +40,7 @@
 #include <proto/stream.h>
 
 
-#if defined(USE_SLZ) || defined(USE_ZLIB)
+#if defined(USE_ZLIB)
 __decl_hathreads(static HA_SPINLOCK_T comp_pool_lock);
 #endif
 
@@ -157,13 +157,6 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 	if (global.maxzlibmem > 0 && (global.maxzlibmem - zlib_used_memory) < sizeof(struct comp_ctx))
 		return -1;
 #endif
-
-	if (unlikely(pool_comp_ctx == NULL)) {
-		HA_SPIN_LOCK(COMP_POOL_LOCK, &comp_pool_lock);
-		if (unlikely(pool_comp_ctx == NULL))
-			pool_comp_ctx = create_pool("comp_ctx", sizeof(struct comp_ctx), MEM_F_SHARED);
-		HA_SPIN_UNLOCK(COMP_POOL_LOCK, &comp_pool_lock);
-	}
 
 	*comp_ctx = pool_alloc(pool_comp_ctx);
 	if (*comp_ctx == NULL)
@@ -716,6 +709,11 @@ static void __comp_fetch_init(void)
 	slz_make_crc_table();
 	slz_prepare_dist_table();
 #endif
+
+#if defined(USE_ZLIB) || defined(USE_SLZ)
+	pool_comp_ctx = create_pool("comp_ctx", sizeof(struct comp_ctx), MEM_F_SHARED);
+#endif
+
 #if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
 	global.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U;
 #endif
