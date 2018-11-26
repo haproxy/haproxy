@@ -3851,21 +3851,17 @@ void cfg_restore_sections(struct list *backup_sections)
 	}
 }
 
-__attribute__((constructor))
-static void cfgparse_init(void)
-{
-	/* Register internal sections */
-	cfg_register_section("listen",         cfg_parse_listen,    NULL);
-	cfg_register_section("frontend",       cfg_parse_listen,    NULL);
-	cfg_register_section("backend",        cfg_parse_listen,    NULL);
-	cfg_register_section("defaults",       cfg_parse_listen,    NULL);
-	cfg_register_section("global",         cfg_parse_global,    NULL);
-	cfg_register_section("userlist",       cfg_parse_users,     NULL);
-	cfg_register_section("peers",          cfg_parse_peers,     NULL);
-	cfg_register_section("mailers",        cfg_parse_mailers,   NULL);
-	cfg_register_section("namespace_list", cfg_parse_netns,     NULL);
-	cfg_register_section("resolvers",      cfg_parse_resolvers, NULL);
-}
+/* these are the config sections handled by default */
+REGISTER_CONFIG_SECTION("listen",         cfg_parse_listen,    NULL);
+REGISTER_CONFIG_SECTION("frontend",       cfg_parse_listen,    NULL);
+REGISTER_CONFIG_SECTION("backend",        cfg_parse_listen,    NULL);
+REGISTER_CONFIG_SECTION("defaults",       cfg_parse_listen,    NULL);
+REGISTER_CONFIG_SECTION("global",         cfg_parse_global,    NULL);
+REGISTER_CONFIG_SECTION("userlist",       cfg_parse_users,     NULL);
+REGISTER_CONFIG_SECTION("peers",          cfg_parse_peers,     NULL);
+REGISTER_CONFIG_SECTION("mailers",        cfg_parse_mailers,   NULL);
+REGISTER_CONFIG_SECTION("namespace_list", cfg_parse_netns,     NULL);
+REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, NULL);
 
 /*
  * Local variables:

@@ -2058,8 +2058,7 @@ static void __dns_init(void)
 {
 	dns_answer_item_pool = create_pool("dns_answer_item", sizeof(struct dns_answer_item), MEM_F_SHARED);
 	dns_resolution_pool  = create_pool("dns_resolution",  sizeof(struct dns_resolution),  MEM_F_SHARED);
-
-	cfg_register_postparser("dns runtime resolver", dns_finalize_config);
 }
 
 REGISTER_POST_DEINIT(dns_deinit);
+REGISTER_CONFIG_POSTPARSER("dns runtime resolver", dns_finalize_config);

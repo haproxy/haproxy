@@ -8207,12 +8207,6 @@ void hlua_init(void)
 	RESET_SAFE_LJMP(gL.T);
 }
 
-__attribute__((constructor))
-static void __hlua_init(void)
-{
-	cfg_register_postparser("hlua", hlua_check_config);
-}
-
 static void hlua_register_build_options(void)
 {
 	char *ptr = NULL;
@@ -8222,3 +8216,4 @@ static void hlua_register_build_options(void)
 }
 
 INITCALL0(STG_REGISTER, hlua_register_build_options);
+REGISTER_CONFIG_POSTPARSER("hlua", hlua_check_config);

@@ -1215,7 +1215,9 @@ struct applet http_cache_applet = {
 __attribute__((constructor))
 static void __cache_init(void)
 {
-	cfg_register_section("cache", cfg_parse_cache, cfg_post_parse_section_cache);
-	cfg_register_postparser("cache", cfg_cache_postparser);
 	pool_head_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
 }
+
+/* config parsers for this section */
+REGISTER_CONFIG_SECTION("cache", cfg_parse_cache, cfg_post_parse_section_cache);
+REGISTER_CONFIG_POSTPARSER("cache", cfg_cache_postparser);

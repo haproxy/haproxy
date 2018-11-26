@@ -24,6 +24,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 
 #include <proto/log.h>
@@ -142,6 +143,13 @@ static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, i
 	}
 	return 0;
 }
+
+/* simplified way to define a section parser */
+#define REGISTER_CONFIG_SECTION(name, parse, post)                            \
+	INITCALL3(STG_REGISTER, cfg_register_section, (name), (parse), (post))
+
+#define REGISTER_CONFIG_POSTPARSER(name, parser)                              \
+	INITCALL2(STG_REGISTER, cfg_register_postparser, (name), (parser))
 
 #endif /* _COMMON_CFGPARSE_H */
 
