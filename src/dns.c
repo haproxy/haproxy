@@ -2060,5 +2060,6 @@ static void __dns_init(void)
 	dns_resolution_pool  = create_pool("dns_resolution",  sizeof(struct dns_resolution),  MEM_F_SHARED);
 
 	cfg_register_postparser("dns runtime resolver", dns_finalize_config);
-	hap_register_post_deinit(dns_deinit);
 }
+
+REGISTER_POST_DEINIT(dns_deinit);

@@ -687,11 +687,6 @@ static struct sample_conv_kw_list conv_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 
-__attribute__((constructor))
-static void __51d_init(void)
-{
-	hap_register_post_check(init_51degrees);
-	hap_register_post_deinit(deinit_51degrees);
-}
-
+REGISTER_POST_CHECK(init_51degrees);
+REGISTER_POST_DEINIT(deinit_51degrees);
 REGISTER_BUILD_OPTS("Built with 51Degrees support.");

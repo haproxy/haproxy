@@ -92,10 +92,6 @@ static void deinit_trash_buffers_per_thread()
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
 int init_trash_buffers(int first)
 {
-	if (!first) {
-		hap_register_per_thread_init(init_trash_buffers_per_thread);
-		hap_register_per_thread_deinit(deinit_trash_buffers_per_thread);
-	}
 	pool_destroy(pool_head_trash);
 	pool_head_trash = create_pool("trash",
 				      sizeof(struct buffer) + global.tune.bufsize,
@@ -319,6 +315,9 @@ int chunk_strcasecmp(const struct buffer *chk, const char *str)
 	} while (!diff);
 	return diff;
 }
+
+REGISTER_PER_THREAD_INIT(init_trash_buffers_per_thread);
+REGISTER_PER_THREAD_DEINIT(deinit_trash_buffers_per_thread);
 
 /*
  * Local variables:

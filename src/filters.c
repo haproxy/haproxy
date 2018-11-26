@@ -1197,9 +1197,6 @@ static void
 __filters_init(void)
 {
         pool_head_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
-	hap_register_post_check(flt_init_all);
-	hap_register_per_thread_init(flt_init_all_per_thread);
-	hap_register_per_thread_deinit(flt_deinit_all_per_thread);
 }
 
 __attribute__((destructor))
@@ -1208,6 +1205,10 @@ __filters_deinit(void)
 {
 	pool_destroy(pool_head_filter);
 }
+
+REGISTER_POST_CHECK(flt_init_all);
+REGISTER_PER_THREAD_INIT(flt_init_all_per_thread);
+REGISTER_PER_THREAD_DEINIT(flt_deinit_all_per_thread);
 
 /*
  * Local variables:

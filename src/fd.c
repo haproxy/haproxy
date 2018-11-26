@@ -526,8 +526,6 @@ int init_pollers()
 
 	fd_cache.first = fd_cache.last = -1;
 	update_list.first = update_list.last = -1;
-	hap_register_per_thread_init(init_pollers_per_thread);
-	hap_register_per_thread_deinit(deinit_pollers_per_thread);
 
 	for (p = 0; p < global.maxsock; p++) {
 		HA_SPIN_INIT(&fdtab[p].lock);
@@ -666,6 +664,9 @@ int fork_poller()
 	}
 	return 1;
 }
+
+REGISTER_PER_THREAD_INIT(init_pollers_per_thread);
+REGISTER_PER_THREAD_DEINIT(deinit_pollers_per_thread);
 
 /*
  * Local variables:

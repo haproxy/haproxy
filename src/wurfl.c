@@ -691,13 +691,6 @@ static struct sample_conv_kw_list conv_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 
-__attribute__((constructor))
-static void __wurfl_init(void)
-{
-	hap_register_post_check(ha_wurfl_init);
-	hap_register_post_deinit(ha_wurfl_deinit);
-}
-
 // WURFL properties wrapper functions
 static const char *ha_wurfl_get_wurfl_root_id (wurfl_handle wHandle, wurfl_device_handle dHandle)
 {
@@ -802,4 +795,6 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	return ((ha_wurfl_header_t *)wh)->header_value;
 }
 
+REGISTER_POST_CHECK(ha_wurfl_init);
+REGISTER_POST_DEINIT(ha_wurfl_deinit);
 REGISTER_BUILD_OPTS("Built with WURFL support.");

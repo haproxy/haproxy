@@ -3517,12 +3517,11 @@ int srv_check_healthcheck_port(struct check *chk)
 __attribute__((constructor))
 static void __check_init(void)
 {
-	hap_register_post_check(start_checks);
-
 	pool_head_email_alert   = create_pool("email_alert",   sizeof(struct email_alert),   MEM_F_SHARED);
 	pool_head_tcpcheck_rule = create_pool("tcpcheck_rule", sizeof(struct tcpcheck_rule), MEM_F_SHARED);
 }
 
+REGISTER_POST_CHECK(start_checks);
 
 /*
  * Local variables:

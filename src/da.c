@@ -396,11 +396,6 @@ static struct sample_conv_kw_list conv_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 
-__attribute__((constructor))
-static void __da_init(void)
-{
-	hap_register_post_check(init_deviceatlas);
-	hap_register_post_deinit(deinit_deviceatlas);
-}
-
+REGISTER_POST_CHECK(init_deviceatlas);
+REGISTER_POST_DEINIT(deinit_deviceatlas);
 REGISTER_BUILD_OPTS("Built with DeviceAtlas support.");

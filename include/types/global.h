@@ -251,6 +251,22 @@ void mworker_accept_wrapper(int fd);
 #define REGISTER_BUILD_OPTS(str) \
 	INITCALL2(STG_REGISTER, hap_register_build_opts, (str), 0)
 
+/* simplified way to declare a post-check callback in a file */
+#define REGISTER_POST_CHECK(fct) \
+	INITCALL1(STG_REGISTER, hap_register_post_check, (fct))
+
+/* simplified way to declare a post-deinit callback in a file */
+#define REGISTER_POST_DEINIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_post_deinit, (fct))
+
+/* simplified way to declare a per-thread init callback in a file */
+#define REGISTER_PER_THREAD_INIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_per_thread_init, (fct))
+
+/* simplified way to declare a per-thread deinit callback in a file */
+#define REGISTER_PER_THREAD_DEINIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_per_thread_deinit, (fct))
+
 #endif /* _TYPES_GLOBAL_H */
 
 /*

@@ -1835,10 +1835,12 @@ static void __h1_deinit(void)
 __attribute__((constructor))
 static void __h1_init(void)
 {
-	hap_register_post_deinit(__h1_deinit);
 	pool_head_h1c = create_pool("h1c", sizeof(struct h1c), MEM_F_SHARED);
 	pool_head_h1s = create_pool("h1s", sizeof(struct h1s), MEM_F_SHARED);
 }
+
+REGISTER_POST_DEINIT(__h1_deinit);
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -2809,12 +2809,9 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
-__attribute__((constructor))
-static void __log_init(void)
-{
-	hap_register_per_thread_init(init_log_buffers_per_thread);
-	hap_register_per_thread_deinit(deinit_log_buffers_per_thread);
-}
+REGISTER_PER_THREAD_INIT(init_log_buffers_per_thread);
+REGISTER_PER_THREAD_DEINIT(deinit_log_buffers_per_thread);
+
 /*
  * Local variables:
  *  c-indent-level: 8
