@@ -39,9 +39,6 @@ extern struct data_cb sess_conn_cb;
 struct stream *stream_new(struct session *sess, enum obj_type *origin);
 int stream_create_from_cs(struct conn_stream *cs);
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_stream();
-
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why);
 

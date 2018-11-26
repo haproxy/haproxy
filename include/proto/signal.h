@@ -25,7 +25,6 @@ __decl_hathreads(extern HA_SPINLOCK_T signals_lock);
 
 void signal_handler(int sig);
 void __signal_process_queue();
-int signal_init();
 void deinit_signals();
 struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler *), int arg);
 struct sig_handler *signal_register_task(int sig, struct task *task, int reason);

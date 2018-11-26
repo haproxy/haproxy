@@ -1426,12 +1426,9 @@ static void init(int argc, char **argv)
 
 	srandom(now_ms - getpid());
 
-	init_log();
-	signal_init();
 	if (init_acl() != 0)
 		exit(1);
-	init_task();
-	init_stream();
+
 	/* warning, we init buffers later */
 	if (!init_http(&err_msg)) {
 		ha_alert("%s. Aborting.\n", err_msg);

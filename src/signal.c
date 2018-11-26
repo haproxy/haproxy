@@ -100,8 +100,8 @@ void __signal_process_queue()
 	ha_sigmask(SIG_SETMASK, &old_sig, NULL);
 }
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int signal_init()
+/* perform minimal intializations */
+static void signal_init()
 {
 	int sig;
 
@@ -121,8 +121,6 @@ int signal_init()
 	sigdelset(&blocked_sig, SIGSEGV);
 	for (sig = 0; sig < MAX_SIGNAL; sig++)
 		LIST_INIT(&signal_state[sig].handlers);
-
-	return 1;
 }
 
 /*
@@ -273,3 +271,5 @@ void signal_unregister(int sig)
 
 	signal(sig, SIG_IGN);
 }
+
+INITCALL0(STG_PREPARE, signal_init);

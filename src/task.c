@@ -469,8 +469,8 @@ void process_runnable_tasks()
 	}
 }
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_task()
+/* perform minimal intializations */
+static void init_task()
 {
 	int i;
 
@@ -482,8 +482,9 @@ int init_task()
 	for (i = 0; i < MAX_THREADS; i++) {
 		LIST_INIT(&task_per_thread[i].task_list);
 	}
-	return 1;
 }
+
+INITCALL0(STG_PREPARE, init_task);
 
 /*
  * Local variables:

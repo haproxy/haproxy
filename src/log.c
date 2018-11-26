@@ -1581,9 +1581,8 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 		} while(0)
 
 
-/* Initializes some log data.
- */
-void init_log()
+/* Initializes some log data at boot */
+static void init_log()
 {
 	char *tmp;
 	int i;
@@ -1655,6 +1654,8 @@ void init_log()
 		FD_SET(i, http_encode_map);
 	FD_SET(0x7f, http_encode_map);
 }
+
+INITCALL0(STG_PREPARE, init_log);
 
 static int init_log_buffers_per_thread()
 {

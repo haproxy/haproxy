@@ -65,7 +65,7 @@
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
 
-struct list streams;
+struct list streams = LIST_HEAD_INIT(streams);
 __decl_spinlock(streams_lock);
 
 /* List of all use-service keywords. */
@@ -510,14 +510,6 @@ void stream_release_buffers(struct stream *s)
 	 */
 	if (offer)
 		offer_buffers(s, tasks_run_queue);
-}
-
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_stream()
-{
-	LIST_INIT(&streams);
-
-	return 1;
 }
 
 void stream_process_counters(struct stream *s)

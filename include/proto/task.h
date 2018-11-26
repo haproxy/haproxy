@@ -553,9 +553,6 @@ void process_runnable_tasks();
  */
 int wake_expired_tasks();
 
-/* Perform minimal initializations, report 0 in case of error, 1 if OK. */
-int init_task();
-
 #endif /* _PROTO_TASK_H */
 
 /*
