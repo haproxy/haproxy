@@ -32,6 +32,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
+#include <common/initcall.h>
 
 #ifndef DEBUG_DONT_SHARE_POOLS
 #define MEM_F_SHARED	0x1
@@ -116,6 +117,21 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
  * is available for a new creation.
  */
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
+void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
+
+/* This registers a call to create_pool_callback(ptr, name, size) */
+#define REGISTER_POOL(ptr, name, size)  \
+	INITCALL3(STG_POOL, create_pool_callback, (ptr), (name), (size))
+
+/* This macro declares a pool head <ptr> and registers its creation */
+#define DECLARE_POOL(ptr, name, size)   \
+	struct pool_head *(ptr) = NULL; \
+	REGISTER_POOL(&ptr, name, size)
+
+/* This macro declares a static pool head <ptr> and registers its creation */
+#define DECLARE_STATIC_POOL(ptr, name, size) \
+	static struct pool_head *(ptr);      \
+	REGISTER_POOL(&ptr, name, size)
 
 /* Dump statistics on pools usage.
  */

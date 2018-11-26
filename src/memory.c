@@ -9,6 +9,7 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <errno.h>
 
 #include <types/applet.h>
 #include <types/cli.h>
@@ -520,6 +521,21 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
 	}
 	return 1;
 }
+
+/* callback used to create early pool <name> of size <size> and store the
+ * resulting pointer into <ptr>. If the allocation fails, it quits with after
+ * emitting an error message.
+ */
+void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
+{
+	*ptr = create_pool(name, size, MEM_F_SHARED);
+	if (!*ptr) {
+		ha_alert("Failed to allocate pool '%s' of size %u : %s. Aborting.\n",
+			 name, size, strerror(errno));
+		exit(1);
+	}
+}
+
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
