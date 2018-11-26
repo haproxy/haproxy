@@ -138,6 +138,17 @@ static inline const struct ist htx_sl_res_reason(const struct htx_sl *sl)
 	return htx_sl_p3(sl);
 }
 
+/* Returns the HTX start-line if set, otherwise it returns NULL. */
+static inline struct htx_sl *htx_get_stline(struct htx *htx)
+{
+	struct htx_sl *sl = NULL;
+
+	if (htx->sl_off != -1)
+		sl = ((void *)htx->blocks + htx->sl_off);
+
+	return sl;
+}
+
 /* Returns the array index of a block given its position <pos> */
 static inline uint32_t htx_pos_to_idx(const struct htx *htx, uint32_t pos)
 {
@@ -421,6 +432,7 @@ static inline struct ist htx_get_blk_name(const struct htx *htx, const struct ht
         return ret;
 }
 
+
 /* Returns the value of the block <blk>, depending on its type. If there is no
  * value, an empty one is retruned.
  */
@@ -512,6 +524,7 @@ static inline void htx_reset(struct htx *htx)
         htx->data = htx->used = htx->tail = htx->wrap  = htx->front = 0;
 	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
+	htx->sl_off = -1;
 }
 
 /* Returns an HTX message using the buffer <buf>. */

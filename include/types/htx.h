@@ -152,6 +152,9 @@ struct htx {
 	uint64_t extra;  /* known bytes amount remaining to receive */
 	uint32_t flags;  /* HTX_FL_* */
 
+	int32_t sl_off; /* Offset of the start-line of the HTTP message relatively to the beginning the
+			   data block. -1 if unset */
+
 	struct htx_blk blocks[0]; /* Blocks representing the HTTP message itself */
 };
 

@@ -53,6 +53,10 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
                 new++;
                 addr += blksz;
 
+		/* update the start-line offset */
+		if (htx->sl_off == oldblk->addr)
+			htx->sl_off = addr;
+
                 /* if <blk> is defined, set its new location */
                 if (blk != NULL && blk == oldblk)
                         blk = newblk;
@@ -206,12 +210,15 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
  */
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 {
+	enum htx_blk_type type = htx_get_blk_type(blk);
         uint32_t next, head, pos;
 
-        if (htx_get_blk_type(blk) != HTX_BLK_UNUSED) {
+        if (type != HTX_BLK_UNUSED) {
                 /* Mark the block as unused, decrement allocated size */
                 htx->data -= htx_get_blksz(blk);
                 blk->info = ((uint32_t)HTX_BLK_UNUSED << 28);
+		if (htx->sl_off == blk->addr)
+			htx->sl_off = -1;
         }
 
         /* This is the last block in use */
@@ -263,6 +270,12 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
         }
 
         blk = htx_get_blk(htx, next);
+	if (htx->sl_off == -1) {
+		/* Try to update the start-line offset, if possible */
+		type = htx_get_blk_type(blk);
+		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)
+			htx->sl_off = blk->addr;
+	}
   end:
         if (pos == htx->front)
                 htx->front = htx_find_front(htx);
@@ -487,6 +500,8 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			break;
 		}
 
+		if (dst->sl_off == -1 && src->sl_off == blk->addr)
+			dst->sl_off = dstblk->addr;
 	  next:
 		blk = htx_remove_blk(src, blk);
 		if (type == mark)
@@ -578,6 +593,9 @@ static void htx_set_blk_reqline(struct htx *htx, struct htx_blk *blk, const unio
 	htx_sl = htx_get_blk_ptr(htx, blk);
 	htx_sl->info.req.meth = sl.rq.meth;
 
+	if (htx->sl_off == -1)
+		htx->sl_off = blk->addr;
+
 	HTX_SL_REQ_MLEN(htx_sl) = sl.rq.m.len;
 	HTX_SL_REQ_ULEN(htx_sl) = sl.rq.u.len;
 	HTX_SL_REQ_VLEN(htx_sl) = sl.rq.v.len;
@@ -594,6 +612,9 @@ static void htx_set_blk_resline(struct htx *htx, struct htx_blk *blk, const unio
 
 	htx_sl = htx_get_blk_ptr(htx, blk);
 	htx_sl->info.res.status = sl.st.status;
+
+	if (htx->sl_off == -1)
+		htx->sl_off = blk->addr;
 
 	HTX_SL_RES_VLEN(htx_sl) = sl.st.v.len;
 	HTX_SL_RES_CLEN(htx_sl) = sl.st.c.len;
@@ -617,6 +638,9 @@ struct htx_blk *htx_replace_reqline(struct htx *htx, struct htx_blk *blk,
         if (type != HTX_BLK_REQ_SL)
                 return NULL;
 
+	if (htx->sl_off == blk->addr)
+		htx->sl_off = -1;
+
 	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
@@ -639,6 +663,9 @@ struct htx_blk *htx_replace_resline(struct htx *htx, struct htx_blk *blk,
         type = htx_get_blk_type(blk);
         if (type != HTX_BLK_RES_SL)
                 return NULL;
+
+	if (htx->sl_off == blk->addr)
+		htx->sl_off = -1;
 
 	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
