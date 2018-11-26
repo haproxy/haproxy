@@ -149,7 +149,7 @@ static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 	cached = 0;
 	idx = pool_get_index(pool_head_buffer);
 	if (idx >= 0)
-		cached = pool_cache[idx].count;
+		cached = pool_cache[tid][idx].count;
 
 	*buf = BUF_WANTED;
 

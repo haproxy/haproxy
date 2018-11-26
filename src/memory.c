@@ -37,8 +37,9 @@
 struct pool_head pool_base_start[MAX_BASE_POOLS] = { };
 unsigned int pool_base_count = 0;
 
-THREAD_LOCAL struct pool_cache_head pool_cache[MAX_BASE_POOLS] = { };
-THREAD_LOCAL struct list pool_lru_head = { };            /* oldest objects   */
+/* These ones are initialized per-thread on startup by init_pools() */
+struct pool_cache_head pool_cache[MAX_THREADS][MAX_BASE_POOLS];
+static struct list pool_lru_head[MAX_THREADS];           /* oldest objects   */
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
@@ -259,18 +260,10 @@ void pool_gc(struct pool_head *pool_ctx)
 void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
 {
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
-	struct pool_cache_head *ph = &pool_cache[idx];
-
-	/* never allocated or empty */
-	if (unlikely(ph->list.n == NULL)) {
-		LIST_INIT(&ph->list);
-		ph->size = pool->size;
-		if (pool_lru_head.n == NULL)
-			LIST_INIT(&pool_lru_head);
-	}
+	struct pool_cache_head *ph = &pool_cache[tid][idx];
 
 	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&pool_lru_head, &item->by_lru);
+	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
 	ph->count++;
 	pool_cache_count++;
 	pool_cache_bytes += ph->size;
@@ -279,7 +272,7 @@ void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
 		return;
 
 	do {
-		item = LIST_PREV(&pool_lru_head, struct pool_cache_item *, by_lru);
+		item = LIST_PREV(&pool_lru_head[tid], struct pool_cache_item *, by_lru);
 		/* note: by definition we remove oldest objects so they also are the
 		 * oldest in their own pools, thus their next is the pool's head.
 		 */
@@ -289,7 +282,7 @@ void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
 		ph->count--;
 		pool_cache_count--;
 		pool_cache_bytes -= ph->size;
-		__pool_free(pool_base_start + (ph - pool_cache), item);
+		__pool_free(pool_base_start + (ph - pool_cache[tid]), item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
@@ -545,6 +538,21 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 	}
 }
 
+/* Initializes all per-thread arrays on startup */
+static void init_pools()
+{
+	int thr, idx;
+
+	for (thr = 0; thr < MAX_THREADS; thr++) {
+		for (idx = 0; idx < MAX_BASE_POOLS; idx++) {
+			LIST_INIT(&pool_cache[thr][idx].list);
+			pool_cache[thr][idx].size = 0;
+		}
+		LIST_INIT(&pool_lru_head[thr]);
+	}
+}
+
+INITCALL0(STG_PREPARE, init_pools);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

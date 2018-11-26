@@ -63,8 +63,7 @@ struct pool_cache_item {
 	struct list by_lru;  /* link to objects by LRU order */
 };
 
-extern THREAD_LOCAL struct pool_cache_head pool_cache[MAX_BASE_POOLS];
-extern THREAD_LOCAL struct list pool_lru_head; /* oldest objects   */
+extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
@@ -183,18 +182,19 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 {
 	ssize_t idx = pool_get_index(pool);
 	struct pool_cache_item *item;
+	struct pool_cache_head *ph;
 
 	/* pool not in cache */
 	if (idx < 0)
 		return NULL;
 
-	/* never allocated or empty */
-	if (pool_cache[idx].list.n == NULL || LIST_ISEMPTY(&pool_cache[idx].list))
-		return NULL;
+	ph = &pool_cache[tid][idx];
+	if (LIST_ISEMPTY(&ph->list))
+		return NULL; // empty
 
-	item = LIST_NEXT(&pool_cache[idx].list, typeof(item), by_pool);
-	pool_cache[idx].count--;
-	pool_cache_bytes -= pool_cache[idx].size;
+	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+	ph->count--;
+	pool_cache_bytes -= ph->size;
 	pool_cache_count--;
 	LIST_DEL(&item->by_pool);
 	LIST_DEL(&item->by_lru);
@@ -306,7 +306,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	 */
 	if (idx < 0 ||
 	    (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
-	     pool_cache[idx].count >= 16 + pool_cache_count / 8)) {
+	     pool_cache[tid][idx].count >= 16 + pool_cache_count / 8)) {
 		__pool_free(pool, ptr);
 		return;
 	}
