@@ -717,7 +717,7 @@ static void __comp_fetch_init(void)
 	slz_prepare_dist_table();
 #endif
 #if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)
-	global.tune.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
+	global.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U;
 #endif
 #ifdef USE_ZLIB
 	HA_SPIN_INIT(&comp_pool_lock);
