@@ -40,8 +40,6 @@
 
 static const char *cache_store_flt_id = "cache store filter";
 
-static struct pool_head *pool_head_cache_st = NULL;
-
 struct applet http_cache_applet;
 
 struct flt_ops cache_ops;
@@ -78,6 +76,8 @@ struct cache_entry {
 
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct cache *tmp_cache_config = NULL;
+
+DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
 
 struct cache_entry *entry_exist(struct cache *cache, char *hash)
 {
@@ -1211,12 +1211,6 @@ struct applet http_cache_applet = {
 	.fct = http_cache_io_handler,
 	.release = http_cache_applet_release,
 };
-
-__attribute__((constructor))
-static void __cache_init(void)
-{
-	pool_head_cache_st = create_pool("cache_st", sizeof(struct cache_st), MEM_F_SHARED);
-}
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("cache", cfg_parse_cache, cfg_post_parse_section_cache);

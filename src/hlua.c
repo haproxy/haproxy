@@ -164,7 +164,7 @@ struct hlua gL;
 /* This is the memory pool containing struct lua for applets
  * (including cli).
  */
-struct pool_head *pool_head_hlua;
+DECLARE_STATIC_POOL(pool_head_hlua, "hlua", sizeof(struct hlua));
 
 /* Used for Socket connection. */
 static struct proxy socket_proxy;
@@ -7669,9 +7669,6 @@ void hlua_init(void)
 		NULL
 	};
 #endif
-
-	/* Initialise struct hlua and com signals pool */
-	pool_head_hlua = create_pool("hlua", sizeof(struct hlua), MEM_F_SHARED);
 
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;

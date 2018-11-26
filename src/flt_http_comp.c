@@ -33,14 +33,6 @@ static const char *http_comp_flt_id = "compression filter";
 
 struct flt_ops comp_ops;
 
-
-/* Pools used to allocate comp_state structs */
-static struct pool_head *pool_head_comp_state = NULL;
-
-static THREAD_LOCAL struct buffer tmpbuf;
-static THREAD_LOCAL struct buffer zbuf;
-static THREAD_LOCAL unsigned int buf_output;
-
 struct comp_state {
 	struct comp_ctx  *comp_ctx;   /* compression context */
 	struct comp_algo *comp_algo;  /* compression algorithm if not NULL */
@@ -50,6 +42,13 @@ struct comp_state {
 	int initialized;
 	int finished;
 };
+
+/* Pools used to allocate comp_state structs */
+DECLARE_STATIC_POOL(pool_head_comp_state, "comp_state", sizeof(struct comp_state));
+
+static THREAD_LOCAL struct buffer tmpbuf;
+static THREAD_LOCAL struct buffer zbuf;
+static THREAD_LOCAL unsigned int buf_output;
 
 static int select_compression_request_header(struct comp_state *st,
 					     struct stream *s,
@@ -1014,10 +1013,3 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 };
 
 INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
-
-__attribute__((constructor))
-static void
-__flt_http_comp_init(void)
-{
-	pool_head_comp_state = create_pool("comp_state", sizeof(struct comp_state), MEM_F_SHARED);
-}

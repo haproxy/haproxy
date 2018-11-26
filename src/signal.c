@@ -29,10 +29,10 @@
 int signal_queue_len; /* length of signal queue, <= MAX_SIGNAL (1 entry per signal max) */
 int signal_queue[MAX_SIGNAL];                     /* in-order queue of received signals */
 struct signal_descriptor signal_state[MAX_SIGNAL];
-struct pool_head *pool_head_sig_handlers = NULL;
 sigset_t blocked_sig;
 int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
+DECLARE_POOL(pool_head_sig_handlers, "sig_handlers", sizeof(struct sig_handler));
 
 /* Common signal handler, used by all signals. Received signals are queued.
  * Signal number zero has a specific status, as it cannot be delivered by the
@@ -122,8 +122,7 @@ int signal_init()
 	for (sig = 0; sig < MAX_SIGNAL; sig++)
 		LIST_INIT(&signal_state[sig].handlers);
 
-	pool_head_sig_handlers = create_pool("sig_handlers", sizeof(struct sig_handler), MEM_F_SHARED);
-	return pool_head_sig_handlers != NULL;
+	return 1;
 }
 
 /*

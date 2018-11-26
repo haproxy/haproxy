@@ -36,9 +36,6 @@ extern struct pool_head *pool_head_connstream;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_connection();
-
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops.
  */

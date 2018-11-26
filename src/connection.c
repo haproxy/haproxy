@@ -30,33 +30,15 @@
 #include <proto/ssl_sock.h>
 #endif
 
-struct pool_head *pool_head_connection;
-struct pool_head *pool_head_connstream;
+DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
+DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
+
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
 /* List head of all known muxes for PROTO */
 struct mux_proto_list mux_proto_list = {
         .list = LIST_HEAD_INIT(mux_proto_list.list)
 };
-
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_connection()
-{
-	pool_head_connection = create_pool("connection", sizeof (struct connection), MEM_F_SHARED);
-	if (!pool_head_connection)
-		goto fail_conn;
-
-	pool_head_connstream = create_pool("conn_stream", sizeof(struct conn_stream), MEM_F_SHARED);
-	if (!pool_head_connstream)
-		goto fail_cs;
-
-	return 1;
- fail_cs:
-	pool_destroy(pool_head_connection);
-	pool_head_connection = NULL;
- fail_conn:
-	return 0;
-}
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops, which must be valid.

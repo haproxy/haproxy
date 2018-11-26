@@ -87,13 +87,6 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_UNKN] = "UNKN",
 };
 
-void init_proto_http()
-{
-	/* memory allocations */
-	pool_head_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
-	pool_head_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
-}
-
 /*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
  * the last CRLF. <len> bytes are copied, not counting the CRLF.
@@ -584,10 +577,12 @@ void http_return_srv_error(struct stream *s, struct stream_interface *si)
 extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
-struct pool_head *pool_head_http_txn;
-struct pool_head *pool_head_requri;
+
+DECLARE_POOL(pool_head_http_txn, "http_txn", sizeof(struct http_txn));
+DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
+
+struct pool_head *pool_head_requri = NULL;
 struct pool_head *pool_head_capture = NULL;
-struct pool_head *pool_head_uniqueid;
 
 /*
  * Capture headers from message starting at <som> according to header list
@@ -7951,12 +7946,6 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s)
 	txn->hdr_idx.v[0].len += delta;
 	http_msg_move_end(&txn->rsp, delta);
 }
-
-__attribute__((constructor))
-static void __http_protocol_init(void)
-{
-}
-
 
 /*
  * Local variables:

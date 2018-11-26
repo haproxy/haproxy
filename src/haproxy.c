@@ -1432,16 +1432,12 @@ static void init(int argc, char **argv)
 		exit(1);
 	init_task();
 	init_stream();
-	init_session();
-	init_connection();
 	/* warning, we init buffers later */
-	init_pendconn();
 	if (!init_http(&err_msg)) {
 		ha_alert("%s. Aborting.\n", err_msg);
 		free(err_msg);
 		abort();
 	}
-	init_proto_http();
 
 	/* Initialise lua. */
 	hlua_init();

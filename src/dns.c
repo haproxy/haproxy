@@ -48,8 +48,10 @@ struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);
 
 static THREAD_LOCAL int64_t dns_query_id_seed = 0; /* random seed */
-static struct pool_head *dns_answer_item_pool = NULL;
-static struct pool_head *dns_resolution_pool  = NULL;
+
+DECLARE_STATIC_POOL(dns_answer_item_pool, "dns_answer_item", sizeof(struct dns_answer_item));
+DECLARE_STATIC_POOL(dns_resolution_pool,  "dns_resolution",  sizeof(struct dns_resolution));
+
 static unsigned int resolution_uuid = 1;
 
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
@@ -2052,13 +2054,6 @@ static struct cli_kw_list cli_kws = {{ }, {
 };
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
-
-__attribute__((constructor))
-static void __dns_init(void)
-{
-	dns_answer_item_pool = create_pool("dns_answer_item", sizeof(struct dns_answer_item), MEM_F_SHARED);
-	dns_resolution_pool  = create_pool("dns_resolution",  sizeof(struct dns_resolution),  MEM_F_SHARED);
-}
 
 REGISTER_POST_DEINIT(dns_deinit);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", dns_finalize_config);

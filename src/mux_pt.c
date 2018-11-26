@@ -16,13 +16,13 @@
 #include <proto/stream.h>
 #include <proto/task.h>
 
-static struct pool_head *pool_head_pt_ctx;
-
 struct mux_pt_ctx {
 	struct conn_stream *cs;
 	struct connection *conn;
 	struct wait_event wait_event;
 };
+
+DECLARE_STATIC_POOL(pool_head_pt_ctx, "mux_pt", sizeof(struct mux_pt_ctx));
 
 static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
@@ -318,10 +318,3 @@ static struct mux_proto_list mux_proto_pt =
 	{ .token = IST(""), .mode = PROTO_MODE_ANY, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_pt);
-
-__attribute__((constructor))
-static void __mux_pt_init(void)
-{
-	pool_head_pt_ctx = create_pool("mux_pt", sizeof(struct mux_pt_ctx),
-	    MEM_F_SHARED);
-}

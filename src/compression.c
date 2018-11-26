@@ -146,7 +146,8 @@ int comp_append_algo(struct comp *comp, const char *algo)
 }
 
 #if defined(USE_ZLIB) || defined(USE_SLZ)
-static struct pool_head *pool_comp_ctx = NULL;
+DECLARE_STATIC_POOL(pool_comp_ctx, "comp_ctx", sizeof(struct comp_ctx));
+
 /*
  * Alloc the comp_ctx
  */
@@ -708,10 +709,6 @@ static void __comp_fetch_init(void)
 #ifdef USE_SLZ
 	slz_make_crc_table();
 	slz_prepare_dist_table();
-#endif
-
-#if defined(USE_ZLIB) || defined(USE_SLZ)
-	pool_comp_ctx = create_pool("comp_ctx", sizeof(struct comp_ctx), MEM_F_SHARED);
 #endif
 
 #if defined(USE_ZLIB) && defined(DEFAULT_MAXZLIBMEM)

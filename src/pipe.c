@@ -20,19 +20,14 @@
 #include <types/global.h>
 #include <types/pipe.h>
 
-struct pool_head *pool_head_pipe = NULL;
+DECLARE_STATIC_POOL(pool_head_pipe, "pipe", sizeof(struct pipe));
+
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
 
 __decl_spinlock(pipes_lock); /* lock used to protect pipes list */
 
 int pipes_used = 0;             /* # of pipes in use (2 fds each) */
 int pipes_free = 0;             /* # of pipes unused */
-
-/* allocate memory for the pipes */
-static void init_pipe()
-{
-	pool_head_pipe = create_pool("pipe", sizeof(struct pipe), MEM_F_SHARED);
-}
 
 /* return a pre-allocated empty pipe. Try to allocate one if there isn't any
  * left. NULL is returned if a pipe could not be allocated.
@@ -113,13 +108,6 @@ void put_pipe(struct pipe *p)
 	pipes_used--;
  out:
 	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
-}
-
-
-__attribute__((constructor))
-static void __pipe_module_init(void)
-{
-	init_pipe();
 }
 
 /*

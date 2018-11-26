@@ -96,8 +96,8 @@ struct h1s {
 };
 
 /* the h1c and h1s pools */
-static struct pool_head *pool_head_h1c;
-static struct pool_head *pool_head_h1s;
+DECLARE_STATIC_POOL(pool_head_h1c, "h1c", sizeof(struct h1c));
+DECLARE_STATIC_POOL(pool_head_h1s, "h1s", sizeof(struct h1s));
 
 static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);
@@ -1830,13 +1830,6 @@ static void __h1_deinit(void)
 {
 	pool_destroy(pool_head_h1c);
 	pool_destroy(pool_head_h1s);
-}
-
-__attribute__((constructor))
-static void __h1_init(void)
-{
-	pool_head_h1c = create_pool("h1c", sizeof(struct h1c), MEM_F_SHARED);
-	pool_head_h1s = create_pool("h1s", sizeof(struct h1s), MEM_F_SHARED);
 }
 
 REGISTER_POST_DEINIT(__h1_deinit);

@@ -28,7 +28,7 @@
 #include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
-struct pool_head *pool_head_session;
+DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
 
 static int conn_complete_session(struct connection *conn);
 static struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state);
@@ -98,13 +98,6 @@ void session_free(struct session *sess)
 void conn_session_free(struct connection *conn)
 {
 	session_free(conn->owner);
-}
-
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_session()
-{
-	pool_head_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
-	return pool_head_session != NULL;
 }
 
 /* count a new session to keep frontend, listener and track stats up to date */

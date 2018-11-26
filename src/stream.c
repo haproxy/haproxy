@@ -63,7 +63,8 @@
 #include <proto/tcp_rules.h>
 #include <proto/vars.h>
 
-struct pool_head *pool_head_stream;
+DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
+
 struct list streams;
 __decl_spinlock(streams_lock);
 
@@ -515,8 +516,8 @@ void stream_release_buffers(struct stream *s)
 int init_stream()
 {
 	LIST_INIT(&streams);
-	pool_head_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
-	return pool_head_stream != NULL;
+
+	return 1;
 }
 
 void stream_process_counters(struct stream *s)

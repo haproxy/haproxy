@@ -16,7 +16,7 @@
 #include <proto/vars.h>
 
 /* This contains a pool of struct vars */
-static struct pool_head *var_pool = NULL;
+DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));
 
 /* This array contain all the names of all the HAProxy vars.
  * This permits to identify two variables name with
@@ -921,9 +921,3 @@ static struct cfg_kw_list cfg_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
-
-__attribute__((constructor))
-static void __vars_init(void)
-{
-	var_pool = create_pool("vars", sizeof(struct var), MEM_F_SHARED);
-}

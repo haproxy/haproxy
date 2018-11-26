@@ -32,7 +32,7 @@
 #include <proto/stream_interface.h>
 
 /* Pool used to allocate filters */
-struct pool_head *pool_head_filter = NULL;
+DECLARE_STATIC_POOL(pool_head_filter, "filter", sizeof(struct filter));
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
@@ -1191,13 +1191,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 };
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
-
-__attribute__((constructor))
-static void
-__filters_init(void)
-{
-        pool_head_filter = create_pool("filter", sizeof(struct filter), MEM_F_SHARED);
-}
 
 __attribute__((destructor))
 static void

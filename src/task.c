@@ -25,13 +25,13 @@
 #include <proto/task.h>
 #include <proto/fd.h>
 
-struct pool_head *pool_head_task;
-struct pool_head *pool_head_tasklet;
+DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
+DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
 
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each required signal between two tasks.
  */
-struct pool_head *pool_head_notification;
+DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
 unsigned int nb_tasks = 0;
 volatile unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
@@ -482,15 +482,6 @@ int init_task()
 	for (i = 0; i < MAX_THREADS; i++) {
 		LIST_INIT(&task_per_thread[i].task_list);
 	}
-	pool_head_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
-	if (!pool_head_task)
-		return 0;
-	pool_head_tasklet = create_pool("tasklet", sizeof(struct tasklet), MEM_F_SHARED);
-	if (!pool_head_tasklet)
-		return 0;
-	pool_head_notification = create_pool("notification", sizeof(struct notification), MEM_F_SHARED);
-	if (!pool_head_notification)
-		return 0;
 	return 1;
 }
 

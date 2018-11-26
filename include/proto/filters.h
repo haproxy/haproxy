@@ -93,8 +93,6 @@
 				FLT_STRM_DATA_CB_IMPL_2(strm, chn, call, ##__VA_ARGS__), \
 				FLT_STRM_DATA_CB_IMPL_1(strm, chn, call, ##__VA_ARGS__))
 
-extern struct pool_head *pool_head_filter;
-
 void flt_deinit(struct proxy *p);
 int  flt_check(struct proxy *p);
 

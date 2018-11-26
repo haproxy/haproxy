@@ -101,8 +101,8 @@ int curpxopts;
 int curpxopts2;
 
 /* Pools used to allocate SPOE structs */
-static struct pool_head *pool_head_spoe_ctx = NULL;
-static struct pool_head *pool_head_spoe_appctx = NULL;
+DECLARE_STATIC_POOL(pool_head_spoe_ctx,    "spoe_ctx",    sizeof(struct spoe_context));
+DECLARE_STATIC_POOL(pool_head_spoe_appctx, "spoe_appctx", sizeof(struct spoe_appctx));
 
 struct flt_ops spoe_ops;
 
@@ -4676,13 +4676,6 @@ static struct action_kw_list http_res_action_kws = { { }, {
 };
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_action_kws);
-
-__attribute__((constructor))
-static void __spoe_init(void)
-{
-	pool_head_spoe_ctx = create_pool("spoe_ctx", sizeof(struct spoe_context), MEM_F_SHARED);
-	pool_head_spoe_appctx = create_pool("spoe_appctx", sizeof(struct spoe_appctx), MEM_F_SHARED);
-}
 
 __attribute__((destructor))
 static void

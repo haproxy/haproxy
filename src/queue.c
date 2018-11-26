@@ -93,14 +93,7 @@
 #define KEY_CLASS_OFFSET_BOUNDARY(key) (KEY_CLASS(key) | NOW_OFFSET_BOUNDARY())
 #define MAKE_KEY(class, offset)        (((u32)(class + 0x7ff) << 20) | ((u32)(now_ms + offset) & 0xfffff))
 
-struct pool_head *pool_head_pendconn;
-
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_pendconn()
-{
-	pool_head_pendconn = create_pool("pendconn", sizeof(struct pendconn), MEM_F_SHARED);
-	return pool_head_pendconn != NULL;
-}
+DECLARE_POOL(pool_head_pendconn, "pendconn", sizeof(struct pendconn));
 
 /* returns the effective dynamic maxconn for a server, considering the minconn
  * and the proxy's usage relative to its dynamic connections limit. It is

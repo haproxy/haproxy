@@ -72,8 +72,8 @@ static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
 static void __event_srv_chk_r(struct conn_stream *cs);
 
-static struct pool_head *pool_head_email_alert   = NULL;
-static struct pool_head *pool_head_tcpcheck_rule = NULL;
+DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
+DECLARE_STATIC_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
 
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
@@ -3512,13 +3512,6 @@ int srv_check_healthcheck_port(struct check *chk)
 		return i;
 
 	return 0;
-}
-
-__attribute__((constructor))
-static void __check_init(void)
-{
-	pool_head_email_alert   = create_pool("email_alert",   sizeof(struct email_alert),   MEM_F_SHARED);
-	pool_head_tcpcheck_rule = create_pool("tcpcheck_rule", sizeof(struct tcpcheck_rule), MEM_F_SHARED);
 }
 
 REGISTER_POST_CHECK(start_checks);

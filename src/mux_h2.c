@@ -29,11 +29,6 @@
 static const struct h2s *h2_closed_stream;
 static const struct h2s *h2_idle_stream;
 
-/* the h2c connection pool */
-static struct pool_head *pool_head_h2c;
-/* the h2s stream pool */
-static struct pool_head *pool_head_h2s;
-
 /* Connection flags (32 bit), in h2c->flags */
 #define H2_CF_NONE              0x00000000
 
@@ -199,6 +194,12 @@ struct h2_fh {
 	uint8_t ft;         /* frame type */
 	uint8_t ff;         /* frame flags */
 };
+
+/* the h2c connection pool */
+DECLARE_STATIC_POOL(pool_head_h2c, "h2c", sizeof(struct h2c));
+
+/* the h2s stream pool */
+DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
@@ -3849,13 +3850,6 @@ static void __h2_deinit(void)
 {
 	pool_destroy(pool_head_h2s);
 	pool_destroy(pool_head_h2c);
-}
-
-__attribute__((constructor))
-static void __h2_init(void)
-{
-	pool_head_h2c = create_pool("h2c", sizeof(struct h2c), MEM_F_SHARED);
-	pool_head_h2s = create_pool("h2s", sizeof(struct h2s), MEM_F_SHARED);
 }
 
 REGISTER_POST_DEINIT(__h2_deinit);
