@@ -30,6 +30,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
 /* Structure defining a buffer's head */
 struct buffer {

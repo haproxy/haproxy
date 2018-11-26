@@ -30,6 +30,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <common/config.h>
 

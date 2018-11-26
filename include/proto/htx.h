@@ -440,10 +440,10 @@ static inline void htx_dump(struct htx *htx)
 {
         int32_t pos;
 
-        fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%lu]\n",
+        fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%llu]\n",
                 htx, htx->size, htx->data, htx->used,
                 (!htx->used || htx->tail+1 == htx->wrap) ? "NO" : "YES",
-		(unsigned long)htx->extra);
+		(unsigned long long)htx->extra);
         fprintf(stderr, "\thead=%d - tail=%u - front=%u - wrap=%u\n",
                 htx_get_head(htx), htx->tail, htx->front, htx->wrap);
 
