@@ -704,6 +704,7 @@ static void mworker_reload()
 	int next_argc = 0;
 	int j;
 	char *msg = NULL;
+	struct per_thread_deinit_fct *ptdf;
 
 	mworker_block_signals();
 #if defined(USE_SYSTEMD)
@@ -713,6 +714,18 @@ static void mworker_reload()
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
 
 	mworker_proc_list_to_env(); /* put the children description in the env */
+
+	/* during the reload we must ensure that every FDs that can't be
+	 * reuse (ie those that are not referenced in the proc_list)
+	 * are closed or they will leak. */
+
+	/* close the listeners FD */
+	mworker_cli_proxy_stop();
+	/* close the poller FD and the thread waker pipe FD */
+	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+		ptdf->fct();
+	if (fdtab)
+		deinit_pollers();
 
 	/* compute length  */
 	while (next_argv[next_argc])
