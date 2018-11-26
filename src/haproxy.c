@@ -2500,7 +2500,6 @@ void deinit(void)
 	cfg_unregister_sections();
 
 	deinit_log_buffers();
-	deinit_trash_buffers();
 
 	protocol_unbind_all();
 
@@ -2534,20 +2533,7 @@ void deinit(void)
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
-
-	deinit_buffer();
-
-	pool_destroy(pool_head_stream);
-	pool_destroy(pool_head_session);
-	pool_destroy(pool_head_connection);
-	pool_destroy(pool_head_connstream);
-	pool_destroy(pool_head_requri);
-	pool_destroy(pool_head_task);
-	pool_destroy(pool_head_capture);
-	pool_destroy(pool_head_pendconn);
-	pool_destroy(pool_head_sig_handlers);
-	pool_destroy(pool_head_hdr_idx);
-	pool_destroy(pool_head_http_txn);
+	pool_destroy_all();
 	deinit_pollers();
 } /* end deinit() */
 

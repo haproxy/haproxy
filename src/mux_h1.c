@@ -1826,14 +1826,6 @@ static struct mux_proto_list mux_proto_htx =
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_htx);
 
-static void __h1_deinit(void)
-{
-	pool_destroy(pool_head_h1c);
-	pool_destroy(pool_head_h1s);
-}
-
-REGISTER_POST_DEINIT(__h1_deinit);
-
 /*
  * Local variables:
  *  c-indent-level: 8

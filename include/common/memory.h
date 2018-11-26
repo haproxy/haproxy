@@ -161,6 +161,7 @@ void pool_gc(struct pool_head *pool_ctx);
  * This should be called only under extreme circumstances.
  */
 void *pool_destroy(struct pool_head *pool);
+void pool_destroy_all();
 
 /* returns the pool index for pool <pool>, or -1 if this pool has no index */
 static inline ssize_t pool_get_index(const struct pool_head *pool)

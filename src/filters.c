@@ -1192,13 +1192,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
-__attribute__((destructor))
-static void
-__filters_deinit(void)
-{
-	pool_destroy(pool_head_filter);
-}
-
 REGISTER_POST_CHECK(flt_init_all);
 REGISTER_PER_THREAD_INIT(flt_init_all_per_thread);
 REGISTER_PER_THREAD_DEINIT(flt_deinit_all_per_thread);

@@ -3845,11 +3845,3 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
-
-static void __h2_deinit(void)
-{
-	pool_destroy(pool_head_h2s);
-	pool_destroy(pool_head_h2c);
-}
-
-REGISTER_POST_DEINIT(__h2_deinit);

@@ -47,7 +47,6 @@ int chunk_strcasecmp(const struct buffer *chk, const char *str);
 struct buffer *get_trash_chunk(void);
 struct buffer *alloc_trash_chunk(void);
 int init_trash_buffers(int first);
-void deinit_trash_buffers(void);
 
 /*
  * free a trash chunk allocated by alloc_trash_chunk(). NOP on NULL.

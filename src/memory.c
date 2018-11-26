@@ -436,6 +436,15 @@ void *pool_destroy(struct pool_head *pool)
 	return NULL;
 }
 
+/* This destroys all pools on exit. It is *not* thread safe. */
+void pool_destroy_all()
+{
+	struct pool_head *entry, *back;
+
+	list_for_each_entry_safe(entry, back, &pools, list)
+		pool_destroy(entry);
+}
+
 /* This function dumps memory usage information into the trash buffer. */
 void dump_pools_to_trash()
 {

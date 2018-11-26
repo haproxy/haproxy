@@ -102,14 +102,6 @@ int init_trash_buffers(int first)
 }
 
 /*
- * free the trash buffers
- */
-void deinit_trash_buffers(void)
-{
-	pool_destroy(pool_head_trash);
-}
-
-/*
  * Allocate a trash chunk from the reentrant pool. The buffer starts at the
  * end of the chunk. This chunk must be freed using free_trash_chunk(). This
  * call may fail and the caller is responsible for checking that the returned

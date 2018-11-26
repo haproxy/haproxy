@@ -4676,11 +4676,3 @@ static struct action_kw_list http_res_action_kws = { { }, {
 };
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_action_kws);
-
-__attribute__((destructor))
-static void
-__spoe_deinit(void)
-{
-	pool_destroy(pool_head_spoe_ctx);
-	pool_destroy(pool_head_spoe_appctx);
-}

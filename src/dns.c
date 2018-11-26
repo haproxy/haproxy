@@ -1839,9 +1839,6 @@ static void dns_deinit(void)
 		LIST_DEL(&srvrq->list);
 		free(srvrq);
 	}
-
-	pool_destroy(dns_answer_item_pool);
-	pool_destroy(dns_resolution_pool);
 }
 
 /* Finalizes the DNS configuration by allocating required resources and checking

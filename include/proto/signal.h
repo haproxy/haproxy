@@ -20,7 +20,6 @@
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];
-extern struct pool_head *pool_head_sig_handlers;
 
 __decl_hathreads(extern HA_SPINLOCK_T signals_lock);
 

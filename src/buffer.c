@@ -54,11 +54,6 @@ int init_buffer()
 	return 1;
 }
 
-void deinit_buffer()
-{
-	pool_destroy(pool_head_buffer);
-}
-
 /*
  * Dumps part or all of a buffer.
  */
