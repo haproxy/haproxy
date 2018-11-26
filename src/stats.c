@@ -2984,15 +2984,14 @@ static int stats_send_htx_headers(struct stream_interface *si, struct htx *htx)
 	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __objt_appctx(si->end);
-	union h1_sl sl;
+	struct htx_sl *sl;
+	unsigned int flags;
 
-	sl.st.status = 200;
-	sl.st.v = ist("HTTP/1.1");
-	sl.st.c = ist("200");
-	sl.st.r = ist("OK");
-
-	if (!htx_add_resline(htx, sl))
+	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_ENC|HTX_SL_F_XFER_LEN|HTX_SL_F_CHNK);
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), ist("200"), ist("OK"));
+	if (!sl)
 		goto full;
+	sl->info.res.status = 200;
 
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
 	    !htx_add_header(htx, ist("Connection"), ist("close")))
@@ -3035,7 +3034,8 @@ static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
 	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = __objt_appctx(si->end);
-	union h1_sl sl;
+	struct htx_sl *sl;
+	unsigned int flags;
 
 	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
@@ -3060,12 +3060,11 @@ static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
 		     (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 		     scope_txt);
 
-	sl.st.status = 303;
-	sl.st.v = ist("HTTP/1.1");
-	sl.st.c = ist("303");
-	sl.st.r = ist("See Other");
-	if (!htx_add_resline(htx, sl))
+	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CHNK);
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), ist("303"), ist("See Other"));
+	if (!sl)
 		goto full;
+	sl->info.res.status = 303;
 
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
 	    !htx_add_header(htx, ist("Connection"), ist("close")) ||

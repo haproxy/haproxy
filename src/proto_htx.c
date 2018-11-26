@@ -43,9 +43,9 @@ static void htx_end_response(struct stream *s);
 
 static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr);
 static int htx_del_hdr_value(char *start, char *end, char **from, char *next);
-static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len);
-static size_t htx_fmt_res_line(const union h1_sl sl, char *str, size_t len);
-static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl);
+static size_t htx_fmt_req_line(const struct htx_sl *sl, char *str, size_t len);
+static size_t htx_fmt_res_line(const struct htx_sl *sl, char *str, size_t len);
+static void htx_debug_stline(const char *dir, struct stream *s, const struct htx_sl *sl);
 static void htx_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
 static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, int *deny_status);
@@ -81,7 +81,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
-	union h1_sl sl;
+	struct htx_sl *sl;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -301,19 +301,19 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * 1: identify the method
 	 */
 	sl = http_find_stline(htx);
-	txn->meth = sl.rq.meth;
+	txn->meth = sl->info.req.meth;
 	msg->flags |= HTTP_MSGF_XFER_LEN;
 
 	/* ... and check if the request is HTTP/1.1 or above */
-        if ((sl.rq.v.len == 8) &&
-            ((*(sl.rq.v.ptr + 5) > '1') ||
-             ((*(sl.rq.v.ptr + 5) == '1') && (*(sl.rq.v.ptr + 7) >= '1'))))
+        if ((HTX_SL_REQ_VLEN(sl) == 8) &&
+            ((*(HTX_SL_REQ_VPTR(sl) + 5) > '1') ||
+             ((*(HTX_SL_REQ_VPTR(sl) + 5) == '1') && (*(HTX_SL_REQ_VPTR(sl) + 7) >= '1'))))
                 msg->flags |= HTTP_MSGF_VER_11;
 
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		s->flags |= SF_REDIRECTABLE;
-	else if (txn->meth == HTTP_METH_OTHER && isteqi(sl.rq.m, ist("PRI"))) {
+	else if (txn->meth == HTTP_METH_OTHER && isteqi(htx_sl_req_meth(sl), ist("PRI"))) {
 		/* PRI is reserved for the HTTP/2 preface */
 		goto return_bad_req;
 	}
@@ -324,7 +324,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * the monitor-uri is defined by the frontend.
 	 */
 	if (unlikely((sess->fe->monitor_uri_len != 0) &&
-		     isteqi(sl.rq.u, ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len)))) {
+		     isteqi(htx_sl_req_uri(sl), ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len)))) {
 		/*
 		 * We have found the monitor URI
 		 */
@@ -389,7 +389,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * CONNECT ip:port.
 	 */
 	if ((sess->fe->options2 & PR_O2_USE_PXHDR) &&
-	    *(sl.rq.u.ptr) != '/' && *(sl.rq.u.ptr) != '*')
+	    *HTX_SL_REQ_UPTR(sl) != '/' && *HTX_SL_REQ_UPTR(sl) != '*')
 		txn->flags |= TX_USE_PX_CONN;
 
 	/* 5: we may need to capture headers */
@@ -777,8 +777,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
 		struct connection *conn;
-		union h1_sl sl;
-		struct ist path;
+		struct htx_sl *sl;
+		struct ist uri, path;
 
 		/* Note that for now we don't reuse existing proxy connections */
 		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL)) {
@@ -796,8 +796,9 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 			return 0;
 		}
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
-		if (url2sa(sl.rq.u.ptr, sl.rq.u.len - path.len, &conn->addr.to, NULL) == -1)
+		uri = htx_sl_req_uri(sl);
+		path = http_get_path(uri);
+		if (url2sa(uri.ptr, uri.len - path.len, &conn->addr.to, NULL) == -1)
 			goto return_bad_req;
 
 		/* if the path was found, we have to remove everything between
@@ -805,13 +806,10 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 		 * to replace from all the uri by a single "/".
 		 *
 		 * Instead of rewritting the whole start line, we just update
-		 * <sl.rq.u>. Some space will be lost but it should be
+		 * the star-line URI. Some space will be lost but it should be
 		 * insignificant.
 		 */
-		if (path.ptr)
-			sl.rq.u = path;
-		else
-			istcpy(&sl.rq.u, ist("/"), 1);
+		istcpy(&uri, (path.len ? path : ist("/")), uri.len);
 	}
 
 	/*
@@ -1429,7 +1427,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
 	struct connection *srv_conn;
-	union h1_sl sl;
+	struct htx_sl *sl;
 	int n;
 
 	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
@@ -1612,14 +1610,14 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	/* 1: get the status code */
 	sl = http_find_stline(htx);
-	txn->status = sl.st.status;
+	txn->status = sl->info.res.status;
 	if (htx->extra != ULLONG_MAX)
 		msg->flags |= HTTP_MSGF_XFER_LEN;
 
 	/* ... and check if the request is HTTP/1.1 or above */
-        if ((sl.st.v.len == 8) &&
-            ((*(sl.st.v.ptr + 5) > '1') ||
-             ((*(sl.st.v.ptr + 5) == '1') && (*(sl.st.v.ptr + 7) >= '1'))))
+        if ((HTX_SL_RES_VLEN(sl) == 8) &&
+            ((*(HTX_SL_RES_VPTR(sl) + 5) > '1') ||
+             ((*(HTX_SL_RES_VPTR(sl) + 5) == '1') && (*(HTX_SL_RES_VPTR(sl) + 7) >= '1'))))
                 msg->flags |= HTTP_MSGF_VER_11;
 
 	n = txn->status / 100;
@@ -2319,7 +2317,7 @@ void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn)
 int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
 	struct htx *htx = htx_from_buf(&s->req.buf);
-	union h1_sl sl;
+	struct htx_sl *sl;
 	const char *msg_fmt;
 	struct buffer *chunk;
 	int ret = 0;
@@ -2362,7 +2360,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 			host = ctx.value;
 
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		/* build message using path */
 		if (path.ptr) {
 			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
@@ -2409,7 +2407,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 		struct ist path;
 
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		/* build message using path */
 		if (path.ptr) {
 			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
@@ -3535,7 +3533,8 @@ static int htx_apply_filter_to_req_line(struct stream *s, struct channel *req, s
 
 	/* Now we have the request line between cur_ptr and cur_end */
 	if (regex_exec_match2(exp->preg, reqline->area, reqline->data, MAX_MATCH, pmatch, 0)) {
-		union h1_sl sl;
+		struct htx_sl *sl = http_find_stline(htx);
+		struct ist meth, uri, vsn;
 		int len;
 
 		switch (exp->action) {
@@ -3559,11 +3558,9 @@ static int htx_apply_filter_to_req_line(struct stream *s, struct channel *req, s
 				if (len < 0)
 					return -1;
 
-				http_parse_stline(ist2(trash.area, len),
-						  &sl.rq.m, &sl.rq.u, &sl.rq.v);
-				sl.rq.meth = find_http_meth(sl.rq.m.ptr, sl.rq.m.len);
-
-				if (!http_replace_reqline(htx, sl))
+				http_parse_stline(ist2(trash.area, len), &meth, &uri, &vsn);
+				sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
+				if (!http_replace_stline(htx, meth, uri, vsn))
 					return -1;
 				done = 1;
 				break;
@@ -3745,7 +3742,8 @@ static int htx_apply_filter_to_sts_line(struct stream *s, struct channel *res, s
 
 	/* Now we have the status line between cur_ptr and cur_end */
 	if (regex_exec_match2(exp->preg, resline->area, resline->data, MAX_MATCH, pmatch, 0)) {
-		union h1_sl sl;
+		struct htx_sl *sl = http_find_stline(htx);
+		struct ist vsn, code, reason;
 		int len;
 
 		switch (exp->action) {
@@ -3764,11 +3762,9 @@ static int htx_apply_filter_to_sts_line(struct stream *s, struct channel *res, s
 				if (len < 0)
 					return -1;
 
-				http_parse_stline(ist2(trash.area, len),
-						  &sl.st.v, &sl.st.c, &sl.st.r);
-				sl.st.status = strl2ui(sl.st.c.ptr, sl.st.c.len);
-
-				if (!http_replace_resline(htx, sl))
+				http_parse_stline(ist2(trash.area, len), &vsn, &code, &reason);
+				sl->info.res.status = strl2ui(code.ptr, code.len);
+				if (!http_replace_stline(htx, vsn, code, reason))
 					return -1;
 
 				done = 1;
@@ -4729,8 +4725,8 @@ static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct pr
 {
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct htx *htx;
+	struct htx_sl *sl;
 	struct ist uri;
-	union h1_sl sl;
 
 	if (!uri_auth)
 		return 0;
@@ -4740,7 +4736,7 @@ static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct pr
 
 	htx = htx_from_buf(&s->req.buf);
 	sl = http_find_stline(htx);
-	uri = sl.rq.u;
+	uri = htx_sl_req_uri(sl);
 
 	/* check URI size */
 	if (uri_auth->uri_len > uri.len)
@@ -4771,7 +4767,7 @@ static int htx_handle_stats(struct stream *s, struct channel *req)
 	const char *h, *lookup, *end;
 	struct appctx *appctx;
 	struct htx *htx;
-	union h1_sl sl;
+	struct htx_sl *sl;
 
 	appctx = si_appctx(si);
 	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
@@ -4783,8 +4779,8 @@ static int htx_handle_stats(struct stream *s, struct channel *req)
 
 	htx = htx_from_buf(&req->buf);
 	sl = http_find_stline(htx);
-	lookup = sl.rq.u.ptr + uri_auth->uri_len;
-	end = sl.rq.u.ptr + sl.rq.u.len;
+	lookup = HTX_SL_REQ_UPTR(sl) + uri_auth->uri_len;
+	end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
 
 	for (h = lookup; h <= end - 3; h++) {
 		if (memcmp(h, ";up", 3) == 0) {
@@ -4913,8 +4909,8 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 {
 	struct http_txn *txn = s->txn;
 	struct htx *htx;
+	struct htx_sl *sl;
 	struct server *srv;
-	union h1_sl sl;
 	struct ist path;
 
 	/* 1: create the response header */
@@ -4932,7 +4928,7 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	/* 3: add the request Path */
 	htx = htx_from_buf(&s->req.buf);
 	sl = http_find_stline(htx);
-	path = http_get_path(sl.rq.u);
+	path = http_get_path(htx_sl_req_uri(sl));
 	if (!path.ptr)
 		return;
 
@@ -5358,23 +5354,23 @@ static int htx_del_hdr_value(char *start, char *end, char **from, char *next)
 /* Formats the start line of the request (without CRLF) and puts it in <str> and
  * return the written lenght. The line can be truncated if it exceeds <len>.
  */
-static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len)
+static size_t htx_fmt_req_line(const struct htx_sl *sl, char *str, size_t len)
 {
 	struct ist dst = ist2(str, 0);
 
-	if (istcat(&dst, sl.rq.m, len) == -1)
+	if (istcat(&dst, htx_sl_req_meth(sl), len) == -1)
 		goto end;
 	if (dst.len + 1 > len)
 		goto end;
 	dst.ptr[dst.len++] = ' ';
 
-	if (istcat(&dst, sl.rq.u, len) == -1)
+	if (istcat(&dst, htx_sl_req_uri(sl), len) == -1)
 		goto end;
 	if (dst.len + 1 > len)
 		goto end;
 	dst.ptr[dst.len++] = ' ';
 
-	istcat(&dst, sl.rq.v, len);
+	istcat(&dst, htx_sl_req_vsn(sl), len);
   end:
 	return dst.len;
 }
@@ -5382,23 +5378,23 @@ static size_t htx_fmt_req_line(const union h1_sl sl, char *str, size_t len)
 /* Formats the start line of the response (without CRLF) and puts it in <str> and
  * return the written lenght. The line can be truncated if it exceeds <len>.
  */
-static size_t htx_fmt_res_line(const union h1_sl sl, char *str, size_t len)
+static size_t htx_fmt_res_line(const struct htx_sl *sl, char *str, size_t len)
 {
 	struct ist dst = ist2(str, 0);
 
-	if (istcat(&dst, sl.st.v, len) == -1)
+	if (istcat(&dst, htx_sl_res_vsn(sl), len) == -1)
 		goto end;
 	if (dst.len + 1 > len)
 		goto end;
 	dst.ptr[dst.len++] = ' ';
 
-	if (istcat(&dst, sl.st.c, len) == -1)
+	if (istcat(&dst, htx_sl_res_code(sl), len) == -1)
 		goto end;
 	if (dst.len + 1 > len)
 		goto end;
 	dst.ptr[dst.len++] = ' ';
 
-	istcat(&dst, sl.st.r, len);
+	istcat(&dst, htx_sl_res_reason(sl), len);
   end:
 	return dst.len;
 }
@@ -5407,7 +5403,7 @@ static size_t htx_fmt_res_line(const union h1_sl sl, char *str, size_t len)
 /*
  * Print a debug line with a start line.
  */
-static void htx_debug_stline(const char *dir, struct stream *s, const union h1_sl sl)
+static void htx_debug_stline(const char *dir, struct stream *s, const struct htx_sl *sl)
 {
         struct session *sess = strm_sess(s);
         int max;
@@ -5417,19 +5413,19 @@ static void htx_debug_stline(const char *dir, struct stream *s, const union h1_s
                      objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->handle.fd : -1,
                      objt_cs(s->si[1].end) ? (unsigned short)objt_cs(s->si[1].end)->conn->handle.fd : -1);
 
-        max = sl.rq.m.len;
+        max = HTX_SL_P1_LEN(sl);
         UBOUND(max, trash.size - trash.data - 3);
-        chunk_memcat(&trash, sl.rq.m.ptr, max);
+        chunk_memcat(&trash, HTX_SL_P1_PTR(sl), max);
         trash.area[trash.data++] = ' ';
 
-        max = sl.rq.u.len;
+        max = HTX_SL_P2_LEN(sl);
         UBOUND(max, trash.size - trash.data - 2);
-        chunk_memcat(&trash, sl.rq.u.ptr, max);
+        chunk_memcat(&trash, HTX_SL_P2_PTR(sl), max);
         trash.area[trash.data++] = ' ';
 
-        max = sl.rq.v.len;
+        max = HTX_SL_P3_LEN(sl);
         UBOUND(max, trash.size - trash.data - 1);
-        chunk_memcat(&trash, sl.rq.v.ptr, max);
+        chunk_memcat(&trash, HTX_SL_P3_PTR(sl), max);
         trash.area[trash.data++] = '\n';
 
         shut_your_big_mouth_gcc(write(1, trash.area, trash.data));

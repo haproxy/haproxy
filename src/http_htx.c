@@ -17,44 +17,33 @@
 #include <proto/htx.h>
 
 /* Finds the start line in the HTX message stopping at the first
- * end-of-message. It returns an empty start line when not found, otherwise, it
- * returns the corresponding <struct h1_sl>.
+ * end-of-message. It returns NULL when not found, otherwise, it returns the
+ * pointer on the htx_sl structure. The HTX message may be updated if the
+ * start-line is returned following a lookup.
  */
-union h1_sl http_find_stline(const struct htx *htx)
+struct htx_sl *http_find_stline(struct htx *htx)
 {
-	struct htx_sl *htx_sl;
-	union h1_sl sl;
+	struct htx_sl *sl = NULL;
 	int32_t pos;
+
+	sl = htx_get_stline(htx);
+	if (sl)
+		return sl;
 
         for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
                 struct htx_blk    *blk  = htx_get_blk(htx, pos);
                 enum htx_blk_type  type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_REQ_SL) {
-			htx_sl = htx_get_blk_ptr(htx, blk);
-			sl.rq.meth = htx_sl->info.req.meth;
-			sl.rq.m = htx_sl_req_meth(htx_sl);
-			sl.rq.u = htx_sl_req_uri(htx_sl);
-			sl.rq.v = htx_sl_req_vsn(htx_sl);
-			return sl;
-		}
-
-		if (type == HTX_BLK_RES_SL) {
-			htx_sl = htx_get_blk_ptr(htx, blk);
-			sl.st.status = htx_sl->info.res.status;
-			sl.st.v = htx_sl_res_vsn(htx_sl);
-			sl.st.c = htx_sl_res_code(htx_sl);
-			sl.st.r = htx_sl_res_reason(htx_sl);
-			return sl;
+		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
+			sl = htx_get_blk_ptr(htx, blk);
+			htx->sl_off = blk->addr;
+			break;
 		}
 
 		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
 			break;
 	}
 
-	sl.rq.m = ist("");
-	sl.rq.u = ist("");
-	sl.rq.v = ist("");
 	return sl;
 }
 
@@ -193,50 +182,24 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 	return 1;
 }
 
-/* Replaces the request start line of the HTX message <htx> by <sl>. It returns
- * 1 on success, otherwise it returns 0. The start line must be found in the
+/* Replaces parts of the start-line of the HTX message <htx>. It returns 1 on
+ * success, otherwise it returns 0. The right block is search in the HTX
  * message.
  */
-int http_replace_reqline(struct htx *htx, const union h1_sl sl)
+int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3)
 {
 	int32_t pos;
 
         for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-                struct htx_blk    *blk  = htx_get_blk(htx, pos);
-                enum htx_blk_type  type = htx_get_blk_type(blk);
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+                enum htx_blk_type type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_REQ_SL) {
-			blk = htx_replace_reqline(htx, blk, sl);
-			if (!blk)
+		if (htx->sl_off == blk->addr) {
+			if (!htx_replace_stline(htx, blk, p1, p2, p3))
 				return 0;
 			return 1;
 		}
-		if (type == HTX_BLK_EOM)
-			break;
-	}
 
-	return 0;
-}
-
-
-/* Replaces the response start line of the HTX message <htx> by <sl>. It returns
- * 1 on success, otherwise it returns 0. The start line must be found in the
- * message.
- */
-int http_replace_resline(struct htx *htx, const union h1_sl sl)
-{
-	int32_t pos;
-
-        for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-                struct htx_blk    *blk  = htx_get_blk(htx, pos);
-                enum htx_blk_type  type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_RES_SL) {
-			blk = htx_replace_resline(htx, blk, sl);
-			if (!blk)
-				return 0;
-			return 1;
-		}
 		if (type == HTX_BLK_EOM)
 			break;
 	}
@@ -250,20 +213,19 @@ int http_replace_resline(struct htx *htx, const union h1_sl sl)
 int http_replace_req_meth(struct htx *htx, const struct ist meth)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist uri, vsn;
 
 	/* Start by copying old uri and version */
-	chunk_memcat(temp, sl.rq.u.ptr, sl.rq.u.len); /* uri */
-	chunk_memcat(temp, sl.rq.v.ptr, sl.rq.v.len); /* vsn */
+	chunk_memcat(temp, HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl)); /* uri */
+	uri = ist2(temp->area, HTX_SL_REQ_ULEN(sl));
+
+	chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area + uri.len, HTX_SL_REQ_VLEN(sl));
 
 	/* create the new start line */
-	new_sl.rq.meth = find_http_meth(meth.ptr, meth.len);
-	new_sl.rq.m    = meth;
-	new_sl.rq.u    = ist2(temp->area, sl.rq.u.len);
-	new_sl.rq.v    = ist2(temp->area + sl.rq.u.len, sl.rq.v.len);
-
-	return http_replace_reqline(htx, new_sl);
+	sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
+	return http_replace_stline(htx, meth, uri, vsn);
 }
 
 /* Replace the request uri in the HTX message <htx> by <uri>. It returns 1 on
@@ -272,20 +234,18 @@ int http_replace_req_meth(struct htx *htx, const struct ist meth)
 int http_replace_req_uri(struct htx *htx, const struct ist uri)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist meth, vsn;
 
 	/* Start by copying old method and version */
-	chunk_memcat(temp, sl.rq.m.ptr, sl.rq.m.len); /* meth */
-	chunk_memcat(temp, sl.rq.v.ptr, sl.rq.v.len); /* vsn */
+	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
+	meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
+
+	chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 	/* create the new start line */
-	new_sl.rq.meth = sl.rq.meth;
-	new_sl.rq.m    = ist2(temp->area, sl.rq.m.len);
-	new_sl.rq.u    = uri;
-	new_sl.rq.v    = ist2(temp->area + sl.rq.m.len, sl.rq.v.len);
-
-	return http_replace_reqline(htx, new_sl);
+	return http_replace_stline(htx, meth, uri, vsn);
 }
 
 /* Replace the request path in the HTX message <htx> by <path>. The host part
@@ -294,36 +254,31 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 int http_replace_req_path(struct htx *htx, const struct ist path)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
-	struct ist p, uri;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist meth, uri, vsn, p;
 	size_t plen = 0;
 
-	p = http_get_path(sl.rq.u);
+	uri = htx_sl_req_uri(sl);
+	p = http_get_path(uri);
 	if (!p.ptr)
-		p = sl.rq.u;
+		p = uri;
 	while (plen < p.len && *(p.ptr + plen) != '?')
 		plen++;
 
 	/* Start by copying old method and version and create the new uri */
-	chunk_memcat(temp, sl.rq.m.ptr, sl.rq.m.len);         /* meth */
-	chunk_memcat(temp, sl.rq.v.ptr, sl.rq.v.len);         /* vsn */
+	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
+	meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
 
-	chunk_memcat(temp, sl.rq.u.ptr, p.ptr - sl.rq.u.ptr); /* uri: host part */
+	chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
+
+	chunk_memcat(temp, uri.ptr, p.ptr - uri.ptr);         /* uri: host part */
 	chunk_memcat(temp, path.ptr, path.len);               /* uri: new path */
 	chunk_memcat(temp, p.ptr + plen, p.len - plen);       /* uri: QS part */
-
-	/* Get uri ptr and len */
-	uri.ptr = temp->area + sl.rq.m.len + sl.rq.v.len;
-	uri.len = sl.rq.u.len - plen + path.len;
+	uri = ist2(temp->area + meth.len + vsn.len, uri.len - plen + path.len);
 
 	/* create the new start line */
-	new_sl.rq.meth = sl.rq.meth;
-	new_sl.rq.m    = ist2(temp->area, sl.rq.m.len);
-	new_sl.rq.u    = uri;
-	new_sl.rq.v    = ist2(temp->area + sl.rq.m.len, sl.rq.v.len);
-
-	return http_replace_reqline(htx, new_sl);
+	return http_replace_stline(htx, meth, uri, vsn);
 }
 
 /* Replace the request query-string in the HTX message <htx> by <query>. The
@@ -333,12 +288,12 @@ int http_replace_req_path(struct htx *htx, const struct ist path)
 int http_replace_req_query(struct htx *htx, const struct ist query)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
-	struct ist q, uri;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist meth, uri, vsn, q;
 	int offset = 1;
 
-	q = sl.rq.u;
+	uri = htx_sl_req_uri(sl);
+	q = uri;
 	while (q.len > 0 && *(q.ptr) != '?') {
 		q.ptr++;
 		q.len--;
@@ -355,23 +310,18 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 		offset = 0;
 
 	/* Start by copying old method and version and create the new uri */
-	chunk_memcat(temp, sl.rq.m.ptr, sl.rq.m.len);         /* meth */
-	chunk_memcat(temp, sl.rq.v.ptr, sl.rq.v.len);         /* vsn */
+	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
+	meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
 
-	chunk_memcat(temp, sl.rq.u.ptr, q.ptr - sl.rq.u.ptr);       /* uri: host + path part */
+	chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
+
+	chunk_memcat(temp, uri.ptr, q.ptr - uri.ptr);               /* uri: host + path part */
 	chunk_memcat(temp, query.ptr + offset, query.len - offset); /* uri: new QS */
-
-	/* Get uri ptr and len */
-	uri.ptr = temp->area + sl.rq.m.len + sl.rq.v.len;
-	uri.len = sl.rq.u.len - q.len + query.len - offset;
+	uri = ist2(temp->area + meth.len + vsn.len, uri.len - q.len + query.len - offset);
 
 	/* create the new start line */
-	new_sl.rq.meth = sl.rq.meth;
-	new_sl.rq.m    = ist2(temp->area, sl.rq.m.len);
-	new_sl.rq.u    = uri;
-	new_sl.rq.v    = ist2(temp->area + sl.rq.m.len, sl.rq.v.len);
-
-	return http_replace_reqline(htx, new_sl);
+	return http_replace_stline(htx, meth, uri, vsn);
 }
 
 /* Replace the response status in the HTX message <htx> by <status>. It returns
@@ -380,20 +330,19 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 int http_replace_res_status(struct htx *htx, const struct ist status)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist vsn, reason;
 
 	/* Start by copying old uri and version */
-	chunk_memcat(temp, sl.st.v.ptr, sl.st.v.len); /* vsn */
-	chunk_memcat(temp, sl.st.r.ptr, sl.st.r.len); /* reason */
+	chunk_memcat(temp, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area, HTX_SL_RES_VLEN(sl));
+
+	chunk_memcat(temp, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl)); /* reason */
+	reason = ist2(temp->area + vsn.len, HTX_SL_RES_RLEN(sl));
 
 	/* create the new start line */
-	new_sl.st.status = strl2ui(status.ptr, status.len);
-	new_sl.st.v      = ist2(temp->area, sl.st.v.len);
-	new_sl.st.c      = status;
-	new_sl.st.r      = ist2(temp->area + sl.st.v.len, sl.st.r.len);
-
-	return http_replace_resline(htx, new_sl);
+	sl->info.res.status = strl2ui(status.ptr, status.len);
+	return http_replace_stline(htx, vsn, status, reason);
 }
 
 /* Replace the response reason in the HTX message <htx> by <reason>. It returns
@@ -402,20 +351,18 @@ int http_replace_res_status(struct htx *htx, const struct ist status)
 int http_replace_res_reason(struct htx *htx, const struct ist reason)
 {
 	struct buffer *temp = get_trash_chunk();
-	union h1_sl sl = http_find_stline(htx);
-	union h1_sl new_sl;
+	struct htx_sl *sl = http_find_stline(htx);
+	struct ist vsn, status;
 
 	/* Start by copying old uri and version */
-	chunk_memcat(temp, sl.st.v.ptr, sl.st.v.len); /* vsn */
-	chunk_memcat(temp, sl.st.c.ptr, sl.st.c.len); /* code */
+	chunk_memcat(temp, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area, HTX_SL_RES_VLEN(sl));
+
+	chunk_memcat(temp, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl)); /* code */
+	status = ist2(temp->area + vsn.len, HTX_SL_RES_CLEN(sl));
 
 	/* create the new start line */
-	new_sl.st.status = sl.st.status;
-	new_sl.st.v      = ist2(temp->area, sl.st.v.len);
-	new_sl.st.c      = ist2(temp->area + sl.st.v.len, sl.st.c.len);
-	new_sl.st.r      = reason;
-
-	return http_replace_resline(htx, new_sl);
+	return http_replace_stline(htx, vsn, status, reason);
 }
 
 /* Replaces a part of a header value referenced in the context <ctx> by

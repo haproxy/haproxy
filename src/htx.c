@@ -586,136 +586,90 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
         return blk;
 }
 
-static void htx_set_blk_reqline(struct htx *htx, struct htx_blk *blk, const union h1_sl sl)
-{
-	struct htx_sl *htx_sl;
-
-	htx_sl = htx_get_blk_ptr(htx, blk);
-	htx_sl->info.req.meth = sl.rq.meth;
-
-	if (htx->sl_off == -1)
-		htx->sl_off = blk->addr;
-
-	HTX_SL_REQ_MLEN(htx_sl) = sl.rq.m.len;
-	HTX_SL_REQ_ULEN(htx_sl) = sl.rq.u.len;
-	HTX_SL_REQ_VLEN(htx_sl) = sl.rq.v.len;
-
-	memcpy(HTX_SL_REQ_MPTR(htx_sl), sl.rq.m.ptr, sl.rq.m.len);
-	memcpy(HTX_SL_REQ_UPTR(htx_sl), sl.rq.u.ptr, sl.rq.u.len);
-	memcpy(HTX_SL_REQ_VPTR(htx_sl), sl.rq.v.ptr, sl.rq.v.len);
-}
-
-
-static void htx_set_blk_resline(struct htx *htx, struct htx_blk *blk, const union h1_sl sl)
-{
-	struct htx_sl *htx_sl;
-
-	htx_sl = htx_get_blk_ptr(htx, blk);
-	htx_sl->info.res.status = sl.st.status;
-
-	if (htx->sl_off == -1)
-		htx->sl_off = blk->addr;
-
-	HTX_SL_RES_VLEN(htx_sl) = sl.st.v.len;
-	HTX_SL_RES_CLEN(htx_sl) = sl.st.c.len;
-	HTX_SL_RES_RLEN(htx_sl) = sl.st.r.len;
-
-	memcpy(HTX_SL_RES_VPTR(htx_sl), sl.st.v.ptr, sl.st.v.len);
-	memcpy(HTX_SL_RES_CPTR(htx_sl), sl.st.c.ptr, sl.st.c.len);
-	memcpy(HTX_SL_RES_RPTR(htx_sl), sl.st.r.ptr, sl.st.r.len);
-}
-
-/* Replaces the request start line a new one. It returns the new block on
- * success, otherwise it returns NULL.
+/* Replaces the parts of the start-line. It returns the new start-line on
+ * success, otherwise it returns NULL. It is the caller responsibility to update
+ * sl->info, if necessary.
  */
-struct htx_blk *htx_replace_reqline(struct htx *htx, struct htx_blk *blk,
-				    const union h1_sl sl)
+struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const struct ist p1,
+				  const struct ist p2, const struct ist p3)
 {
+	struct htx_sl *sl;
+	struct htx_sl tmp; /* used to save sl->info and sl->flags */
         enum htx_blk_type type;
 	uint32_t size;
 
         type = htx_get_blk_type(blk);
-        if (type != HTX_BLK_REQ_SL)
+        if (type != HTX_BLK_REQ_SL || HTX_BLK_RES_SL)
                 return NULL;
 
+	/* Save start-line info and flags */
+	sl = htx_get_blk_ptr(htx, blk);
+	tmp.info = sl->info;
+	tmp.flags = sl->flags;
 	if (htx->sl_off == blk->addr)
 		htx->sl_off = -1;
 
-	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+
+	size = sizeof(*sl) + p1.len + p2.len + p3.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
 		return NULL;
-
 	blk->info = (type << 28) + size;
-        htx_set_blk_reqline(htx, blk, sl);
-	return blk;
+
+	/* Restore start-line info and flags*/
+	sl = htx_get_blk_ptr(htx, blk);
+	sl->info = tmp.info;
+	sl->flags = tmp.flags;
+	if (htx->sl_off == -1)
+		htx->sl_off = blk->addr;
+
+	HTX_SL_P1_LEN(sl) = p1.len;
+	HTX_SL_P2_LEN(sl) = p2.len;
+	HTX_SL_P3_LEN(sl) = p3.len;
+
+	memcpy(HTX_SL_P1_PTR(sl), p1.ptr, p1.len);
+	memcpy(HTX_SL_P2_PTR(sl), p2.ptr, p2.len);
+	memcpy(HTX_SL_P3_PTR(sl), p3.ptr, p3.len);
+
+	return sl;
 }
 
-/* Replaces the response start line a new one. It returns the new block on
- * success, otherwise it returns NULL.
+/* Add a new start-line. It returns it on success, otherwise it returns NULL. It
+ * is the caller responsibility to set sl->info, if necessary.
  */
-struct htx_blk *htx_replace_resline(struct htx *htx, struct htx_blk *blk,
-				    const union h1_sl sl)
+struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned int flags,
+			      const struct ist p1, const struct ist p2, const struct ist p3)
 {
-        enum htx_blk_type type;
+        struct htx_blk *blk;
+	struct htx_sl  *sl;
 	uint32_t size;
 
-        type = htx_get_blk_type(blk);
-        if (type != HTX_BLK_RES_SL)
-                return NULL;
-
-	if (htx->sl_off == blk->addr)
-		htx->sl_off = -1;
-
-	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
-	blk = htx_new_blk_value(htx, blk, size);
-	if (!blk)
+	if (type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL)
 		return NULL;
 
-	blk->info = (type << 28) + size;
-        htx_set_blk_resline(htx, blk, sl);
-	return blk;
-}
-
-
-/* Adds an HTX block of type SL in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
- */
-struct htx_blk *htx_add_reqline(struct htx *htx, const union h1_sl sl)
-{
-        struct htx_blk *blk;
-	uint32_t size;
-
-	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(*sl) + p1.len + p2.len + p3.len;
 
         /* FIXME: check size (< 256MB) */
-        blk = htx_add_blk(htx, HTX_BLK_REQ_SL, size);
+        blk = htx_add_blk(htx, type, size);
         if (!blk)
                 return NULL;
-
         blk->info += size;
-        htx_set_blk_reqline(htx, blk, sl);
-        return blk;
-}
 
-/* Adds an HTX block of type SL in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
- */
-struct htx_blk *htx_add_resline(struct htx *htx, const union h1_sl sl)
-{
-        struct htx_blk *blk;
-	uint32_t size;
+	sl = htx_get_blk_ptr(htx, blk);
+	if (htx->sl_off == -1)
+		htx->sl_off = blk->addr;
 
-	size = sizeof(struct htx_sl) + sl.st.v.len + sl.st.c.len + sl.st.r.len;
+	sl->flags = flags;
 
-        /* FIXME: check size (< 256MB) */
-        blk = htx_add_blk(htx, HTX_BLK_RES_SL, size);
-        if (!blk)
-                return NULL;
+	HTX_SL_P1_LEN(sl) = p1.len;
+	HTX_SL_P2_LEN(sl) = p2.len;
+	HTX_SL_P3_LEN(sl) = p3.len;
 
-        blk->info += size;
-        htx_set_blk_resline(htx, blk, sl);
-        return blk;
+	memcpy(HTX_SL_P1_PTR(sl), p1.ptr, p1.len);
+	memcpy(HTX_SL_P2_PTR(sl), p2.ptr, p2.len);
+	memcpy(HTX_SL_P3_PTR(sl), p3.ptr, p3.len);
+
+        return sl;
 }
 
 /* Adds an HTX block of type HDR in <htx>. It returns the new block on

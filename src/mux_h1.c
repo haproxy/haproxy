@@ -490,7 +490,13 @@ static int h1_process_req_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
 
 		/* Add HTTP version */
 		sl.rq.v = ist("HTTP/1.0");
+		return 1;
 	}
+
+	if ((sl.rq.v.len == 8) &&
+            ((*(sl.rq.v.ptr + 5) > '1') ||
+             ((*(sl.rq.v.ptr + 5) == '1') && (*(sl.rq.v.ptr + 7) >= '1'))))
+		h1m->flags |= H1_MF_VER_11;
 	return 1;
 }
 
@@ -516,6 +522,12 @@ static int h1_process_res_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
 		    !isdigit((unsigned char)*(sl.st.v.ptr + 7)))
 			return 0;
 	}
+
+	if ((sl.st.v.len == 8) &&
+            ((*(sl.st.v.ptr + 5) > '1') ||
+             ((*(sl.st.v.ptr + 5) == '1') && (*(sl.st.v.ptr + 7) >= '1'))))
+		h1m->flags |= H1_MF_VER_11;
+
 	return 1;
 }
 /* Remove all "Connection:" headers from the HTX message <htx> */
@@ -752,7 +764,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 				 struct buffer *buf, size_t *ofs, size_t max)
 {
 	struct http_hdr hdrs[MAX_HTTP_HDR];
-	union h1_sl sl;
+	union h1_sl h1sl;
+	unsigned int flags = HTX_SL_F_NONE;
 	int ret = 0;
 
 	if (!max)
@@ -763,7 +776,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		b_slow_realign(buf, trash.area, 0);
 
 	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_peek(buf, *ofs) + max,
-				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &sl);
+				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &h1sl);
 	if (ret <= 0) {
 		/* Incomplete or invalid message. If the buffer is full, it's an
 		 * error because headers are too large to be handled by the
@@ -784,21 +797,21 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	/* Save the request's method or the response's status, check if the body
 	 * length is known and check the VSN validity */
 	if (!(h1m->flags & H1_MF_RESP)) {
-		h1s->meth = sl.rq.meth;
+		h1s->meth = h1sl.rq.meth;
 
 		/* Request have always a known length */
 		h1m->flags |= H1_MF_XFER_LEN;
 		if (!(h1m->flags & H1_MF_CHNK) && !h1m->body_len)
 			h1m->state = H1_MSG_DONE;
 
-		if (!h1_process_req_vsn(h1s, h1m, sl)) {
-			h1m->err_pos = sl.rq.v.ptr - b_head(buf);
+		if (!h1_process_req_vsn(h1s, h1m, h1sl)) {
+			h1m->err_pos = h1sl.rq.v.ptr - b_head(buf);
 			h1m->err_state = h1m->state;
 			goto vsn_error;
 		}
 	}
 	else {
-		h1s->status = sl.st.status;
+		h1s->status = h1sl.st.status;
 
 		if ((h1s->meth == HTTP_METH_HEAD) ||
 		    (h1s->status >= 100 && h1s->status < 200) ||
@@ -817,21 +830,44 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		else
 			h1m->state = H1_MSG_TUNNEL;
 
-		if (!h1_process_res_vsn(h1s, h1m, sl)) {
-			h1m->err_pos = sl.st.v.ptr - b_head(buf);
+		if (!h1_process_res_vsn(h1s, h1m, h1sl)) {
+			h1m->err_pos = h1sl.st.v.ptr - b_head(buf);
 			h1m->err_state = h1m->state;
 			goto vsn_error;
 		}
 	}
 
+	/* Set HTX start-line flags */
+	if (h1m->flags & H1_MF_VER_11)
+		flags |= HTX_SL_F_VER_11;
+	if (h1m->flags & H1_MF_XFER_ENC)
+		flags |= HTX_SL_F_XFER_ENC;
+	if (h1m->flags & H1_MF_XFER_LEN) {
+		flags |= HTX_SL_F_XFER_LEN;
+		if (h1m->flags & H1_MF_CHNK)
+			flags |= HTX_SL_F_CHNK;
+		else if (h1m->flags & H1_MF_CLEN)
+			flags |= HTX_SL_F_CLEN;
+	}
+
 	if (!(h1m->flags & H1_MF_RESP)) {
-		if (!htx_add_reqline(htx, sl) || !htx_add_all_headers(htx, hdrs))
+		struct htx_sl *sl;
+
+		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
+		if (!sl || !htx_add_all_headers(htx, hdrs))
 			goto error;
+		sl->info.req.meth = h1s->meth;
 	}
 	else {
-		if (!htx_add_resline(htx, sl) || !htx_add_all_headers(htx, hdrs))
+		struct htx_sl *sl;
+
+		flags |= HTX_SL_F_IS_RESP;
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
+		if (!sl || !htx_add_all_headers(htx, hdrs))
 			goto error;
+		sl->info.res.status = h1s->status;
 	}
+
 	if (h1m->state == H1_MSG_DONE)
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
 			goto error;

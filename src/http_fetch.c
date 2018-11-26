@@ -173,6 +173,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 	unsigned int opt = smp->opt;
 	struct http_txn *txn = NULL;
 	struct htx *htx = NULL;
+	struct htx_sl *sl;
 
 	/* Note: it is possible that <s> is NULL when called before stream
 	 * initialization (eg: tcp-request connection), so this function is the
@@ -190,8 +191,6 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 
 	if (px->mode == PR_MODE_HTTP) {
 		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			union h1_sl sl;
-
 			htx = htx_from_buf(&s->req.buf);
 			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
 				/* Parsing is done by the mux, just wait */
@@ -205,7 +204,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 			 */
 			if (txn) {
 				sl = http_find_stline(htx);
-				txn->meth = sl.rq.meth;
+				txn->meth = sl->info.req.meth;
 				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 					s->flags |= SF_REDIRECTABLE;
 			}
@@ -226,7 +225,8 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 			struct buffer *buf;
 			struct h1m h1m;
 			struct http_hdr hdrs[MAX_HTTP_HDR];
-			union h1_sl sl;
+			union h1_sl h1sl;
+			unsigned int flags = HTX_FL_NONE;
 			int ret;
 
 			buf = &s->req.buf;
@@ -235,7 +235,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 
 			h1m_init_req(&h1m);
 			ret = h1_headers_to_hdr_list(b_head(buf), b_stop(buf),
-						     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &sl);
+						     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
 			if (ret <= 0) {
 				/* Invalid or too big*/
 				if (ret < 0 || channel_full(&s->req, global.tune.maxrewrite))
@@ -249,18 +249,39 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 			/* OK we just got a valid HTTP request. We have to
 			 * convert it into an HTX message.
 			 */
-			if (unlikely(sl.rq.v.len == 0)) {
+			if (unlikely(h1sl.rq.v.len == 0)) {
 				/* try to convert HTTP/0.9 requests to HTTP/1.0 */
-				if (sl.rq.meth != HTTP_METH_GET || !sl.rq.u.len)
+				if (h1sl.rq.meth != HTTP_METH_GET || !h1sl.rq.u.len)
 					return NULL;
-				sl.rq.v = ist("HTTP/1.0");
+				h1sl.rq.v = ist("HTTP/1.0");
 			}
+			else if ((h1sl.rq.v.len == 8) &&
+				 ((*(h1sl.rq.v.ptr + 5) > '1') ||
+				  ((*(h1sl.rq.v.ptr + 5) == '1') && (*(h1sl.rq.v.ptr + 7) >= '1'))))
+				h1m.flags |= H1_MF_VER_11;
+
+
+			/* Set HTX start-line flags */
+			if (h1m.flags & H1_MF_VER_11)
+				flags |= HTX_SL_F_VER_11;
+			if (h1m.flags & H1_MF_XFER_ENC)
+				flags |= HTX_SL_F_XFER_ENC;
+			if (h1m.flags & H1_MF_XFER_LEN) {
+				flags |= HTX_SL_F_XFER_LEN;
+				if (h1m.flags & H1_MF_CHNK)
+					flags |= HTX_SL_F_CHNK;
+				else if (h1m.flags & H1_MF_CLEN)
+					flags |= HTX_SL_F_CLEN;
+			}
+
 			htx = htx_from_buf(get_trash_chunk());
-			if (!htx_add_reqline(htx, sl) || !htx_add_all_headers(htx, hdrs))
+			sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
+			if (!sl || !htx_add_all_headers(htx, hdrs))
 				return NULL;
+			sl->info.req.meth = h1sl.rq.meth;
 
 			if (txn) {
-				txn->meth = sl.rq.meth;
+				txn->meth = h1sl.rq.meth;
 				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 					s->flags |= SF_REDIRECTABLE;
 			}
@@ -411,7 +432,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 		smp->data.type = SMP_T_METH;
 		smp->data.u.meth.meth = meth;
 		if (meth == HTTP_METH_OTHER) {
-			union h1_sl sl;
+			struct htx_sl *sl;
 
 			if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 				/* ensure the indexes are not affected */
@@ -419,8 +440,8 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 
 			sl = http_find_stline(htx);
 			smp->flags |= SMP_F_CONST;
-			smp->data.u.meth.str.area = sl.rq.m.ptr;
-			smp->data.u.meth.str.data = sl.rq.m.len;
+			smp->data.u.meth.str.area = HTX_SL_REQ_MPTR(sl);
+			smp->data.u.meth.str.data = HTX_SL_REQ_MLEN(sl);
 		}
 		smp->flags |= SMP_F_VOL_1ST;
 	}
@@ -454,14 +475,14 @@ static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const cha
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 
 		sl = http_find_stline(htx);
-		len = sl.rq.v.len;
-		ptr = sl.rq.v.ptr;
+		len = HTX_SL_REQ_VLEN(sl);
+		ptr = HTX_SL_REQ_VPTR(sl);
 	}
 	else {
 		/* LEGACY version */
@@ -493,14 +514,14 @@ static int smp_fetch_stver(const struct arg *args, struct sample *smp, const cha
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 
 		sl = http_find_stline(htx);
-		len = sl.st.v.len;
-		ptr = sl.st.v.ptr;
+		len = HTX_SL_RES_VLEN(sl);
+		ptr = HTX_SL_RES_VPTR(sl);
 	}
 	else {
 		/* LEGACY version */
@@ -536,14 +557,14 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 
 		sl = http_find_stline(htx);
-		len = sl.st.c.len;
-		ptr = sl.st.c.ptr;
+		len = HTX_SL_RES_CLEN(sl);
+		ptr = HTX_SL_RES_CPTR(sl);
 	}
 	else {
 		/* LEGACY version */
@@ -955,14 +976,14 @@ static int smp_fetch_url(const struct arg *args, struct sample *smp, const char 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 		sl = http_find_stline(htx);
 		smp->data.type = SMP_T_STR;
-		smp->data.u.str.area = sl.rq.u.ptr;
-		smp->data.u.str.data = sl.rq.u.len;
+		smp->data.u.str.area = HTX_SL_REQ_UPTR(sl);
+		smp->data.u.str.data = HTX_SL_REQ_ULEN(sl);
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	}
 	else {
@@ -986,12 +1007,12 @@ static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const ch
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 		sl = http_find_stline(htx);
-		url2sa(sl.rq.u.ptr, sl.rq.u.len, &addr, NULL);
+		url2sa(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), &addr, NULL);
 	}
 	else {
 		/* LEGACY version */
@@ -1018,12 +1039,12 @@ static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 		sl = http_find_stline(htx);
-		url2sa(sl.rq.u.ptr, sl.rq.u.len, &addr, NULL);
+		url2sa(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), &addr, NULL);
 	}
 	else {
 		/* LEGACY version */
@@ -1492,7 +1513,7 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 		struct ist path;
 		size_t len;
 
@@ -1500,7 +1521,7 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 			return 0;
 
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		if (!path.ptr)
 			return 0;
 
@@ -1551,7 +1572,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
 
@@ -1568,7 +1589,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 
 		/* now retrieve the path */
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		if (path.ptr) {
 			size_t len;
 
@@ -1634,7 +1655,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
 
@@ -1650,7 +1671,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 
 		/* now retrieve the path */
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		if (path.ptr) {
 			size_t len;
 
@@ -1757,14 +1778,14 @@ static int smp_fetch_query(const struct arg *args, struct sample *smp, const cha
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		union h1_sl sl;
+		struct htx_sl *sl;
 
 		if (!htx)
 			return 0;
 
 		sl = http_find_stline(htx);
-		ptr = sl.rq.u.ptr;
-		end = sl.rq.u.ptr + sl.rq.u.len;
+		ptr = HTX_SL_REQ_UPTR(sl);
+		end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
 	}
 	else {
 		/* LEGACY version */
@@ -2432,17 +2453,17 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 		if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 			/* HTX version */
 			struct htx *htx = smp_prefetch_htx(smp, args);
-			union h1_sl sl;
+			struct htx_sl *sl;
 
 			if (!htx)
 				return 0;
 
 			sl = http_find_stline(htx);
-			smp->ctx.a[0] = http_find_param_list(sl.rq.u.ptr, sl.rq.u.len, delim);
+			smp->ctx.a[0] = http_find_param_list(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), delim);
 			if (!smp->ctx.a[0])
 				return 0;
 
-			smp->ctx.a[1] = sl.rq.u.ptr + sl.rq.u.len;
+			smp->ctx.a[1] = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
 		}
 		else {
 			/* LEGACY version */
@@ -2603,7 +2624,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
 		struct http_hdr_ctx ctx;
-		union h1_sl sl;
+		struct htx_sl *sl;
 		struct ist path;
 
 		if (!htx)
@@ -2618,7 +2639,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 
 		/* now retrieve the path */
 		sl = http_find_stline(htx);
-		path = http_get_path(sl.rq.u);
+		path = http_get_path(htx_sl_req_uri(sl));
 		while (path.len > 0 && *(path.ptr) != '?') {
 			path.ptr++;
 			path.len--;

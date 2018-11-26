@@ -28,11 +28,10 @@
 #include <types/h1.h>
 #include <types/http_htx.h>
 
-union h1_sl http_find_stline(const struct htx *htx);
+struct htx_sl *http_find_stline(struct htx *htx);
 int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);
 int http_add_header(struct htx *htx, const struct ist n, const struct ist v);
-int http_replace_reqline(struct htx *htx, const union h1_sl sl);
-int http_replace_resline(struct htx *htx, const union h1_sl sl);
+int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3);
 int http_replace_req_meth(struct htx *htx, const struct ist meth);
 int http_replace_req_uri(struct htx *htx, const struct ist uri);
 int http_replace_req_path(struct htx *htx, const struct ist path);
