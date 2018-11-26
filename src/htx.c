@@ -617,7 +617,7 @@ struct htx_blk *htx_replace_reqline(struct htx *htx, struct htx_blk *blk,
         if (type != HTX_BLK_REQ_SL)
                 return NULL;
 
-	size = sizeof(sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
 		return NULL;
@@ -640,7 +640,7 @@ struct htx_blk *htx_replace_resline(struct htx *htx, struct htx_blk *blk,
         if (type != HTX_BLK_RES_SL)
                 return NULL;
 
-	size = sizeof(sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
 		return NULL;
@@ -659,7 +659,7 @@ struct htx_blk *htx_add_reqline(struct htx *htx, const union h1_sl sl)
         struct htx_blk *blk;
 	uint32_t size;
 
-	size = sizeof(sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 
         /* FIXME: check size (< 256MB) */
         blk = htx_add_blk(htx, HTX_BLK_REQ_SL, size);
@@ -679,7 +679,7 @@ struct htx_blk *htx_add_resline(struct htx *htx, const union h1_sl sl)
         struct htx_blk *blk;
 	uint32_t size;
 
-	size = sizeof(sl) + sl.st.v.len + sl.st.c.len + sl.st.r.len;
+	size = sizeof(union htx_sl) + sl.st.v.len + sl.st.c.len + sl.st.r.len;
 
         /* FIXME: check size (< 256MB) */
         blk = htx_add_blk(htx, HTX_BLK_RES_SL, size);
