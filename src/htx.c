@@ -573,35 +573,35 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 
 static void htx_set_blk_reqline(struct htx *htx, struct htx_blk *blk, const union h1_sl sl)
 {
-	union htx_sl *htx_sl;
+	struct htx_sl *htx_sl;
 
 	htx_sl = htx_get_blk_ptr(htx, blk);
-	htx_sl->rq.meth = sl.rq.meth;
+	htx_sl->info.req.meth = sl.rq.meth;
 
-	htx_sl->rq.m_len = sl.rq.m.len;
-	htx_sl->rq.u_len = sl.rq.u.len;
-	htx_sl->rq.v_len = sl.rq.v.len;
+	HTX_SL_REQ_MLEN(htx_sl) = sl.rq.m.len;
+	HTX_SL_REQ_ULEN(htx_sl) = sl.rq.u.len;
+	HTX_SL_REQ_VLEN(htx_sl) = sl.rq.v.len;
 
-	memcpy(htx_sl->rq.l,                             sl.rq.m.ptr, sl.rq.m.len);
-	memcpy(htx_sl->rq.l + sl.rq.m.len,               sl.rq.u.ptr, sl.rq.u.len);
-	memcpy(htx_sl->rq.l + sl.rq.m.len + sl.rq.u.len, sl.rq.v.ptr, sl.rq.v.len);
+	memcpy(HTX_SL_REQ_MPTR(htx_sl), sl.rq.m.ptr, sl.rq.m.len);
+	memcpy(HTX_SL_REQ_UPTR(htx_sl), sl.rq.u.ptr, sl.rq.u.len);
+	memcpy(HTX_SL_REQ_VPTR(htx_sl), sl.rq.v.ptr, sl.rq.v.len);
 }
 
 
 static void htx_set_blk_resline(struct htx *htx, struct htx_blk *blk, const union h1_sl sl)
 {
-	union htx_sl *htx_sl;
+	struct htx_sl *htx_sl;
 
 	htx_sl = htx_get_blk_ptr(htx, blk);
-	htx_sl->st.status = sl.st.status;
+	htx_sl->info.res.status = sl.st.status;
 
-	htx_sl->st.v_len = sl.st.v.len;
-	htx_sl->st.c_len = sl.st.c.len;
-	htx_sl->st.r_len = sl.st.r.len;
+	HTX_SL_RES_VLEN(htx_sl) = sl.st.v.len;
+	HTX_SL_RES_CLEN(htx_sl) = sl.st.c.len;
+	HTX_SL_RES_RLEN(htx_sl) = sl.st.r.len;
 
-	memcpy(htx_sl->st.l,                             sl.st.v.ptr, sl.st.v.len);
-	memcpy(htx_sl->st.l + sl.st.v.len,               sl.st.c.ptr, sl.st.c.len);
-	memcpy(htx_sl->st.l + sl.st.v.len + sl.st.c.len, sl.st.r.ptr, sl.st.r.len);
+	memcpy(HTX_SL_RES_VPTR(htx_sl), sl.st.v.ptr, sl.st.v.len);
+	memcpy(HTX_SL_RES_CPTR(htx_sl), sl.st.c.ptr, sl.st.c.len);
+	memcpy(HTX_SL_RES_RPTR(htx_sl), sl.st.r.ptr, sl.st.r.len);
 }
 
 /* Replaces the request start line a new one. It returns the new block on
@@ -617,7 +617,7 @@ struct htx_blk *htx_replace_reqline(struct htx *htx, struct htx_blk *blk,
         if (type != HTX_BLK_REQ_SL)
                 return NULL;
 
-	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
 		return NULL;
@@ -640,7 +640,7 @@ struct htx_blk *htx_replace_resline(struct htx *htx, struct htx_blk *blk,
         if (type != HTX_BLK_RES_SL)
                 return NULL;
 
-	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 	blk = htx_new_blk_value(htx, blk, size);
 	if (!blk)
 		return NULL;
@@ -659,7 +659,7 @@ struct htx_blk *htx_add_reqline(struct htx *htx, const union h1_sl sl)
         struct htx_blk *blk;
 	uint32_t size;
 
-	size = sizeof(union htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
+	size = sizeof(struct htx_sl) + sl.rq.m.len + sl.rq.u.len + sl.rq.v.len;
 
         /* FIXME: check size (< 256MB) */
         blk = htx_add_blk(htx, HTX_BLK_REQ_SL, size);
@@ -679,7 +679,7 @@ struct htx_blk *htx_add_resline(struct htx *htx, const union h1_sl sl)
         struct htx_blk *blk;
 	uint32_t size;
 
-	size = sizeof(union htx_sl) + sl.st.v.len + sl.st.c.len + sl.st.r.len;
+	size = sizeof(struct htx_sl) + sl.st.v.len + sl.st.c.len + sl.st.r.len;
 
         /* FIXME: check size (< 256MB) */
         blk = htx_add_blk(htx, HTX_BLK_RES_SL, size);
@@ -824,16 +824,16 @@ struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
  */
-int htx_reqline_to_str(const union htx_sl *sl, struct buffer *chk)
+int htx_reqline_to_str(const struct htx_sl *sl, struct buffer *chk)
 {
-	if (sl->rq.m_len + sl->rq.u_len + sl->rq.v_len + 4 > b_room(chk))
+	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
 		return 0;
 
-	chunk_memcat(chk, sl->rq.l, sl->rq.m_len);
+	chunk_memcat(chk, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, sl->rq.l + sl->rq.m_len, sl->rq.u_len);
+	chunk_memcat(chk, HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, sl->rq.l + sl->rq.m_len + sl->rq.u_len, sl->rq.v_len);
+	chunk_memcat(chk, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
 	chunk_memcat(chk, "\r\n", 2);
 
 	return 1;
@@ -843,16 +843,16 @@ int htx_reqline_to_str(const union htx_sl *sl, struct buffer *chk)
  * <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
  */
-int htx_stline_to_str(const union htx_sl *sl, struct buffer *chk)
+int htx_stline_to_str(const struct htx_sl *sl, struct buffer *chk)
 {
-	if (sl->st.v_len + sl->st.c_len + sl->st.r_len + 4 > b_size(chk))
+	if (HTX_SL_LEN(sl) + 4 > b_size(chk))
 		return 0;
 
-	chunk_memcat(chk, sl->st.l, sl->st.v_len);
+	chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, sl->st.l + sl->st.v_len, sl->st.c_len);
+	chunk_memcat(chk, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, sl->st.l + sl->st.v_len + sl->st.c_len, sl->st.r_len);
+	chunk_memcat(chk, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl));
 	chunk_memcat(chk, "\r\n", 2);
 
 	return 1;

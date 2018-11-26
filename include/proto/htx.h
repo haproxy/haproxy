@@ -59,12 +59,84 @@ struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
 struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob);
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 
-int htx_reqline_to_str(const union htx_sl *sl, struct buffer *chk);
-int htx_stline_to_str(const union htx_sl *sl, struct buffer *chk);
+int htx_reqline_to_str(const struct htx_sl *sl, struct buffer *chk);
+int htx_stline_to_str(const struct htx_sl *sl, struct buffer *chk);
 int htx_hdr_to_str(const struct ist n, const struct ist v, struct buffer *chk);
 int htx_data_to_str(const struct ist data, struct buffer *chk, int chunked);
 int htx_trailer_to_str(const struct ist tlr, struct buffer *chk);
 
+/* Functions and macros to get parts of the start-line or legnth of these
+ * parts
+ */
+#define HTX_SL_LEN(sl) ((sl)->len[0] + (sl)->len[1] + (sl)->len[2])
+
+#define HTX_SL_P1_LEN(sl) ((sl)->len[0])
+#define HTX_SL_P2_LEN(sl) ((sl)->len[1])
+#define HTX_SL_P3_LEN(sl) ((sl)->len[2])
+#define HTX_SL_P1_PTR(sl) ((sl)->l)
+#define HTX_SL_P2_PTR(sl) (HTX_SL_P1_PTR(sl) + HTX_SL_P1_LEN(sl))
+#define HTX_SL_P3_PTR(sl) (HTX_SL_P2_PTR(sl) + HTX_SL_P2_LEN(sl))
+
+#define HTX_SL_REQ_MLEN(sl) HTX_SL_P1_LEN(sl)
+#define HTX_SL_REQ_ULEN(sl) HTX_SL_P2_LEN(sl)
+#define HTX_SL_REQ_VLEN(sl) HTX_SL_P3_LEN(sl)
+#define HTX_SL_REQ_MPTR(sl) HTX_SL_P1_PTR(sl)
+#define HTX_SL_REQ_UPTR(sl) HTX_SL_P2_PTR(sl)
+#define HTX_SL_REQ_VPTR(sl) HTX_SL_P3_PTR(sl)
+
+#define HTX_SL_RES_VLEN(sl) HTX_SL_P1_LEN(sl)
+#define HTX_SL_RES_CLEN(sl) HTX_SL_P2_LEN(sl)
+#define HTX_SL_RES_RLEN(sl) HTX_SL_P3_LEN(sl)
+#define HTX_SL_RES_VPTR(sl) HTX_SL_P1_PTR(sl)
+#define HTX_SL_RES_CPTR(sl) HTX_SL_P2_PTR(sl)
+#define HTX_SL_RES_RPTR(sl) HTX_SL_P3_PTR(sl)
+
+static inline const struct ist htx_sl_p1(const struct htx_sl *sl)
+{
+	return ist2(HTX_SL_P1_PTR(sl), HTX_SL_P1_LEN(sl));
+}
+
+static inline const struct ist htx_sl_p2(const struct htx_sl *sl)
+{
+	return ist2(HTX_SL_P2_PTR(sl), HTX_SL_P2_LEN(sl));
+}
+
+static inline const struct ist htx_sl_p3(const struct htx_sl *sl)
+{
+	return ist2(HTX_SL_P3_PTR(sl), HTX_SL_P3_LEN(sl));
+}
+
+
+static inline const struct ist htx_sl_req_meth(const struct htx_sl *sl)
+{
+	return htx_sl_p1(sl);
+}
+
+static inline const struct ist htx_sl_req_uri(const struct htx_sl *sl)
+{
+	return htx_sl_p2(sl);
+}
+
+static inline const struct ist htx_sl_req_vsn(const struct htx_sl *sl)
+{
+	return htx_sl_p3(sl);
+}
+
+
+static inline const struct ist htx_sl_res_vsn(const struct htx_sl *sl)
+{
+	return htx_sl_p1(sl);
+}
+
+static inline const struct ist htx_sl_res_code(const struct htx_sl *sl)
+{
+	return htx_sl_p2(sl);
+}
+
+static inline const struct ist htx_sl_res_reason(const struct htx_sl *sl)
+{
+	return htx_sl_p3(sl);
+}
 
 /* Returns the array index of a block given its position <pos> */
 static inline uint32_t htx_pos_to_idx(const struct htx *htx, uint32_t pos)
@@ -507,7 +579,7 @@ static inline void htx_dump(struct htx *htx)
                 htx_get_head(htx), htx->tail, htx->front, htx->wrap);
 
         for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		union htx_sl      *sl;
+		struct htx_sl     *sl;
                 struct htx_blk    *blk  = htx_get_blk(htx, pos);
                 enum htx_blk_type  type = htx_get_blk_type(blk);
                 enum htx_phdr_type phdr = htx_get_blk_phdr(blk);
@@ -517,21 +589,13 @@ static inline void htx_dump(struct htx *htx)
                 n = htx_get_blk_name(htx, blk);
                 v = htx_get_blk_value(htx, blk);
 
-                if (type == HTX_BLK_REQ_SL) {
+                if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
 			sl = htx_get_blk_ptr(htx, blk);
                         fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s %.*s %.*s\n",
                                 pos, htx_blk_type_str(type), sz, blk->addr,
-                                (int)sl->rq.m_len, sl->rq.l,
-                                (int)sl->rq.u_len, sl->rq.l + sl->rq.m_len,
-                                (int)sl->rq.v_len, sl->rq.l + sl->rq.m_len + sl->rq.u_len);
-		}
-                else if (type == HTX_BLK_RES_SL) {
-			sl = htx_get_blk_ptr(htx, blk);
-                        fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s %.*s %.*s\n",
-                                pos, htx_blk_type_str(type), sz, blk->addr,
-                                (int)sl->st.v_len, sl->st.l,
-                                (int)sl->st.c_len, sl->st.l + sl->st.v_len,
-                                (int)sl->st.r_len, sl->st.l + sl->rq.v_len + sl->st.c_len);
+                                HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
+                                HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
+                                HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 		}
                 else if (type == HTX_BLK_HDR)
                         fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s: %.*s\n",

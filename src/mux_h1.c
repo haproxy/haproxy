@@ -432,11 +432,11 @@ static void h1_release(struct connection *conn)
 /* Parse the request version and set H1_MF_VER_11 on <h1m> if the version is
  * greater or equal to 1.1
  */
-static void h1_parse_req_vsn(struct h1m *h1m, const union htx_sl *sl)
+static void h1_parse_req_vsn(struct h1m *h1m, const struct htx_sl *sl)
 {
-	const char *p = sl->rq.l + sl->rq.m_len + sl->rq.u_len;
+	const char *p = HTX_SL_REQ_VPTR(sl);
 
-	if ((sl->rq.v_len == 8) &&
+	if ((HTX_SL_REQ_VLEN(sl) == 8) &&
 	    (*(p + 5) > '1' ||
 	     (*(p + 5) == '1' && *(p + 7) >= '1')))
 		h1m->flags |= H1_MF_VER_11;
@@ -445,11 +445,11 @@ static void h1_parse_req_vsn(struct h1m *h1m, const union htx_sl *sl)
 /* Parse the response version and set H1_MF_VER_11 on <h1m> if the version is
  * greater or equal to 1.1
  */
-static void h1_parse_res_vsn(struct h1m *h1m, const union htx_sl *sl)
+static void h1_parse_res_vsn(struct h1m *h1m, const struct htx_sl *sl)
 {
-	const char *p = sl->rq.l;
+	const char *p = HTX_SL_RES_VPTR(sl);
 
-	if ((sl->st.v_len == 8) &&
+	if ((HTX_SL_RES_VLEN(sl) == 8) &&
 	    (*(p + 5) > '1' ||
 	     (*(p + 5) == '1' && *(p + 7) >= '1')))
 		h1m->flags |= H1_MF_VER_11;
@@ -1205,7 +1205,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	blk = htx_get_head_blk(chn_htx);
 	while (!(h1s->flags & errflag) && blk) {
-		union htx_sl *sl;
+		struct htx_sl *sl;
 		struct ist n, v;
 		uint32_t sz = htx_get_blksz(blk);
 
@@ -1220,7 +1220,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m_init_req(h1m);
 				h1m->flags |= H1_MF_NO_PHDR;
 				sl = htx_get_blk_ptr(chn_htx, blk);
-				h1s->meth = sl->rq.meth;
+				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
 				if (!htx_reqline_to_str(sl, tmp))
 					goto copy;
@@ -1232,7 +1232,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m_init_res(h1m);
 				h1m->flags |= H1_MF_NO_PHDR;
 				sl = htx_get_blk_ptr(chn_htx, blk);
-				h1s->status = sl->st.status;
+				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
 				if (!htx_stline_to_str(sl, tmp))
 					goto copy;

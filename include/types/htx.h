@@ -73,6 +73,15 @@
  *
  */
 
+/*HTX start-line flags */
+#define HTX_SL_F_NONE          0x00000000
+#define HTX_SL_F_IS_RESP       0x00000001 /* It is the response start-line (unset means the request one) */
+#define HTX_SL_F_XFER_LEN      0x00000002 /* The message xfer size can be dertermined */
+#define HTX_SL_F_XFER_ENC      0x00000004 /* The transfer-encoding header was found in message */
+#define HTX_SL_F_CLEN          0x00000008 /* The content-length header was found in message */
+#define HTX_SL_F_CHNK          0x00000010 /* The message payload is chunked */
+#define HTX_SL_F_VER_11        0x00000020 /* The message indicates version 1.1 or above */
+
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000
 #define HTX_FL_PARSING_ERROR     0x00000001
@@ -111,21 +120,21 @@ struct htx_ret {
 	struct htx_blk *blk;
 };
 
-union htx_sl {
-	struct {
-		enum http_meth_t meth; /* method */
-		int m_len;             /* METHOD length */
-		int u_len;             /* URI length */
-		int v_len;             /* VERSION length */
-		char l[0];
-	} rq;                          /* request line : field, length, data */
-	struct {
-		uint16_t status;       /* status code */
-		int v_len;             /* VERSION length */
-		int c_len;             /* CODE length */
-		int r_len;             /* REASON length */
-		char l[0];
-	} st;                          /* status line : field, length, data */
+struct htx_sl {
+	unsigned int flags; /* HTX_SL_F_* */
+	union {
+		struct {
+			enum http_meth_t meth;   /* method */
+		} req;
+		struct {
+			uint16_t         status; /* status code */
+		} res;
+	} info;
+
+	/* XXX 2 bytes unused */
+
+	unsigned int len[3]; /* length of differnt parts of the start-line */
+	char         l[0];
 };
 
 /* Internal representation of an HTTP message */

@@ -22,7 +22,7 @@
  */
 union h1_sl http_find_stline(const struct htx *htx)
 {
-	union htx_sl *htx_sl;
+	struct htx_sl *htx_sl;
 	union h1_sl sl;
 	int32_t pos;
 
@@ -32,19 +32,19 @@ union h1_sl http_find_stline(const struct htx *htx)
 
 		if (type == HTX_BLK_REQ_SL) {
 			htx_sl = htx_get_blk_ptr(htx, blk);
-			sl.rq.meth = htx_sl->rq.meth;
-			sl.rq.m = ist2(htx_sl->rq.l, htx_sl->rq.m_len);
-			sl.rq.u = ist2(htx_sl->rq.l + htx_sl->rq.m_len, htx_sl->rq.u_len);
-			sl.rq.v = ist2(htx_sl->rq.l + htx_sl->rq.m_len + htx_sl->rq.u_len, htx_sl->rq.v_len);
+			sl.rq.meth = htx_sl->info.req.meth;
+			sl.rq.m = htx_sl_req_meth(htx_sl);
+			sl.rq.u = htx_sl_req_uri(htx_sl);
+			sl.rq.v = htx_sl_req_vsn(htx_sl);
 			return sl;
 		}
 
 		if (type == HTX_BLK_RES_SL) {
 			htx_sl = htx_get_blk_ptr(htx, blk);
-			sl.st.status = htx_sl->st.status;
-			sl.st.v = ist2(htx_sl->st.l, htx_sl->st.v_len);
-			sl.st.c = ist2(htx_sl->st.l + htx_sl->st.v_len, htx_sl->st.c_len);
-			sl.st.r = ist2(htx_sl->st.l + htx_sl->st.v_len + htx_sl->st.c_len, htx_sl->st.r_len);
+			sl.st.status = htx_sl->info.res.status;
+			sl.st.v = htx_sl_res_vsn(htx_sl);
+			sl.st.c = htx_sl_res_code(htx_sl);
+			sl.st.r = htx_sl_res_reason(htx_sl);
 			return sl;
 		}
 
