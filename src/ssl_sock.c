@@ -4846,9 +4846,9 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (srv->ssl_ctx.npn_str)
 		free(srv->ssl_ctx.npn_str);
+#endif
 	if (srv->ssl_ctx.ctx)
 		SSL_CTX_free(srv->ssl_ctx.ctx);
-#endif
 }
 
 /* Walks down the two trees in bind_conf and frees all the certs. The pointer may
