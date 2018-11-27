@@ -319,3 +319,257 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int
  fail:
 	return -1;
 }
+
+/* Prepare the request line into <htx> from pseudo headers stored in <phdr[]>.
+ * <fields> indicates what was found so far. This should be called once at the
+ * detection of the first general header field or at the end of the request if
+ * no general header field was found yet. Returns the created start line on
+ * success, or NULL on failure. Upon success, <msgf> is updated with a few
+ * H2_MSGF_* flags indicating what was found while parsing.
+ */
+static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
+{
+	int uri_idx = H2_PHDR_IDX_PATH;
+	unsigned int flags = HTX_SL_F_NONE;
+	struct htx_sl *sl;
+
+	if ((fields & H2_PHDR_FND_METH) && isteq(phdr[H2_PHDR_IDX_METH], ist("CONNECT"))) {
+		/* RFC 7540 #8.2.6 regarding CONNECT: ":scheme" and ":path"
+		 * MUST be omitted ; ":authority" contains the host and port
+		 * to connect to.
+		 */
+		if (fields & H2_PHDR_FND_SCHM) {
+			/* scheme not allowed */
+			goto fail;
+		}
+		else if (fields & H2_PHDR_FND_PATH) {
+			/* path not allowed */
+			goto fail;
+		}
+		else if (!(fields & H2_PHDR_FND_AUTH)) {
+			/* missing authority */
+			goto fail;
+		}
+		// otherwise OK ; let's use the authority instead of the URI
+		uri_idx = H2_PHDR_IDX_AUTH;
+		*msgf |= H2_MSGF_BODY_TUNNEL;
+	}
+	else if ((fields & (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) !=
+	         (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) {
+		/* RFC 7540 #8.1.2.3 : all requests MUST include exactly one
+		 * valid value for the ":method", ":scheme" and ":path" phdr
+		 * unless it is a CONNECT request.
+		 */
+		if (!(fields & H2_PHDR_FND_METH)) {
+			/* missing method */
+			goto fail;
+		}
+		else if (!(fields & H2_PHDR_FND_SCHM)) {
+			/* missing scheme */
+			goto fail;
+		}
+		else {
+			/* missing path */
+			goto fail;
+		}
+	}
+
+	/* 7540#8.1.2.3: :path must not be empty */
+	if (!phdr[uri_idx].len)
+		goto fail;
+
+	/* Set HTX start-line flags */
+	flags |= HTX_SL_F_VER_11;    // V2 in fact
+	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
+
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, phdr[H2_PHDR_IDX_METH], phdr[uri_idx], ist("HTTP/2.0"));
+	if (!sl)
+		goto fail;
+
+	sl->info.req.meth = find_http_meth(phdr[H2_PHDR_IDX_METH].ptr, phdr[H2_PHDR_IDX_METH].len);
+	return sl;
+ fail:
+	return NULL;
+}
+
+/* Takes an H2 request present in the headers list <list> terminated by a name
+ * being <NULL,0> and emits the equivalent HTX request according to the rules
+ * documented in RFC7540 #8.1.2. The output contents are emitted in <htx>, and
+ * non-zero is returned if some bytes were emitted. In case of error, a
+ * negative error code is returned.
+ *
+ * Upon success, <msgf> is filled with a few H2_MSGF_* flags indicating what
+ * was found while parsing. The caller must set it to zero in or H2_MSGF_BODY
+ * if a body is detected (!ES).
+ *
+ * The headers list <list> must be composed of :
+ *   - n.name != NULL, n.len  > 0 : literal header name
+ *   - n.name == NULL, n.len  > 0 : indexed pseudo header name number <n.len>
+ *                                  among H2_PHDR_IDX_*
+ *   - n.name ignored, n.len == 0 : end of list
+ *   - in all cases except the end of list, v.name and v.len must designate a
+ *     valid value.
+ *
+ * The Cookie header will be reassembled at the end, and for this, the <list>
+ * will be used to create a linked list, so its contents may be destroyed.
+ */
+int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf)
+{
+	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
+	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
+	uint32_t idx;
+	int ck, lck; /* cookie index and last cookie index */
+	int phdr;
+	int ret;
+	int i;
+	struct htx_sl *sl = NULL;
+	unsigned int sl_flags = 0;
+
+	lck = ck = -1; // no cookie for now
+	fields = 0;
+	for (idx = 0; list[idx].n.len != 0; idx++) {
+		if (!list[idx].n.ptr) {
+			/* this is an indexed pseudo-header */
+			phdr = list[idx].n.len;
+		}
+		else {
+			/* this can be any type of header */
+			/* RFC7540#8.1.2: upper case not allowed in header field names */
+			for (i = 0; i < list[idx].n.len; i++)
+				if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A')
+					goto fail;
+
+			phdr = h2_str_to_phdr(list[idx].n);
+		}
+
+		if (phdr > 0 && phdr < H2_PHDR_NUM_ENTRIES) {
+			/* insert a pseudo header by its index (in phdr) and value (in value) */
+			if (fields & ((1 << phdr) | H2_PHDR_FND_NONE)) {
+				if (fields & H2_PHDR_FND_NONE) {
+					/* pseudo header field after regular headers */
+					goto fail;
+				}
+				else {
+					/* repeated pseudo header field */
+					goto fail;
+				}
+			}
+			fields |= 1 << phdr;
+			phdr_val[phdr] = list[idx].v;
+			continue;
+		}
+		else if (phdr != 0) {
+			/* invalid pseudo header -- should never happen here */
+			goto fail;
+		}
+
+		/* regular header field in (name,value) */
+		if (unlikely(!(fields & H2_PHDR_FND_NONE))) {
+			/* no more pseudo-headers, time to build the request line */
+			sl = h2_prepare_htx_reqline(fields, phdr_val, htx, msgf);
+			if (!sl)
+				goto fail;
+			fields |= H2_PHDR_FND_NONE;
+		}
+
+		if (isteq(list[idx].n, ist("host")))
+			fields |= H2_PHDR_FND_HOST;
+
+		if ((*msgf & (H2_MSGF_BODY|H2_MSGF_BODY_TUNNEL|H2_MSGF_BODY_CL)) == H2_MSGF_BODY &&
+		    isteq(list[idx].n, ist("content-length"))) {
+			*msgf |= H2_MSGF_BODY_CL;
+			sl_flags |= HTX_SL_F_CLEN;
+		}
+
+		/* these ones are forbidden in requests (RFC7540#8.1.2.2) */
+		if (isteq(list[idx].n, ist("connection")) ||
+		    isteq(list[idx].n, ist("proxy-connection")) ||
+		    isteq(list[idx].n, ist("keep-alive")) ||
+		    isteq(list[idx].n, ist("upgrade")) ||
+		    isteq(list[idx].n, ist("transfer-encoding")))
+			goto fail;
+
+		if (isteq(list[idx].n, ist("te")) && !isteq(list[idx].v, ist("trailers")))
+			goto fail;
+
+		/* cookie requires special processing at the end */
+		if (isteq(list[idx].n, ist("cookie"))) {
+			list[idx].n.len = -1;
+
+			if (ck < 0)
+				ck = idx;
+			else
+				list[lck].n.len = idx;
+
+			lck = idx;
+			continue;
+		}
+
+		if (!htx_add_header(htx, list[idx].n, list[idx].v))
+			goto fail;
+	}
+
+	/* RFC7540#8.1.2.1 mandates to reject response pseudo-headers (:status) */
+	if (fields & H2_PHDR_FND_STAT)
+		goto fail;
+
+	/* Let's dump the request now if not yet emitted. */
+	if (!(fields & H2_PHDR_FND_NONE)) {
+		sl = h2_prepare_htx_reqline(fields, phdr_val, htx, msgf);
+		if (!sl)
+			goto fail;
+	}
+
+	/* update the start line with last detected header info */
+	sl->flags |= sl_flags;
+
+	/* complete with missing Host if needed */
+	if ((fields & (H2_PHDR_FND_HOST|H2_PHDR_FND_AUTH)) == H2_PHDR_FND_AUTH) {
+		/* missing Host field, use :authority instead */
+		if (!htx_add_header(htx, ist("host"), phdr_val[H2_PHDR_IDX_AUTH]))
+			goto fail;
+	}
+
+	/* now we may have to build a cookie list. We'll dump the values of all
+	 * visited headers.
+	 */
+	if (ck >= 0) {
+		uint32_t fs; // free space
+		uint32_t bs; // block size
+		uint32_t vl; // value len
+		struct htx_blk *blk;
+
+		blk = htx_add_header(htx, ist("cookie"), list[ck].v);
+		if (!blk)
+			goto fail;
+
+		fs = htx_free_data_space(htx);
+		bs = htx_get_blksz(blk);
+
+		/* for each extra cookie, we'll extend the cookie's value and
+		 * insert "; " before the new value.
+		 */
+		for ( ; (ck = list[ck].n.len) >= 0 ; ) {
+			vl = list[ck].v.len;
+			if (vl + 2 > fs)
+				goto fail;
+
+			htx_set_blk_value_len(blk, bs + 2 + vl);
+			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
+			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
+			memcpy(htx_get_blk_ptr(htx, blk) + bs + 2, list[ck].v.ptr, vl);
+			bs += vl + 2;
+			fs -= vl + 2;
+		}
+
+	}
+
+	/* now send the end of headers marker */
+	htx_add_endof(htx, HTX_BLK_EOH);
+
+	ret = 1;
+	return ret;
+
+ fail:
+	return -1;
+}

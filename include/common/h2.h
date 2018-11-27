@@ -32,6 +32,7 @@
 #include <common/config.h>
 #include <common/http-hdr.h>
 #include <common/ist.h>
+#include <proto/htx.h>
 
 
 /* indexes of most important pseudo headers can be simplified to an almost
@@ -154,6 +155,7 @@ enum h2_err {
 /* various protocol processing functions */
 
 int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf);
+int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf);
 
 /*
  * Some helpful debugging functions.
