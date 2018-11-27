@@ -219,6 +219,7 @@ extern unsigned int warned;     /* bitfield of a few warnings to emit just once 
 extern volatile unsigned long sleeping_thread_mask;
 extern struct list proc_list; /* list of process in mworker mode */
 extern struct mworker_proc *proc_self; /* process structure of current process */
+extern int master; /* 1 if in master, 0 otherwise */
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001

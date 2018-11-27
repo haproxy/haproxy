@@ -50,8 +50,6 @@ static struct bind_kw_list bind_keywords = {
 	.list = LIST_HEAD_INIT(bind_keywords.list)
 };
 
-extern int master;
-
 struct xfer_sock_list *xfer_sock_list = NULL;
 
 /* This function adds the specified listener's file descriptor to the polling
