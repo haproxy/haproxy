@@ -2721,7 +2721,19 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
  */
 static struct conn_stream *h2_attach(struct connection *conn)
 {
-	return NULL;
+	struct conn_stream *cs;
+	struct h2s *h2s;
+	struct h2c *h2c = conn->mux_ctx;
+
+	cs = cs_new(conn);
+	if (!cs)
+		return NULL;
+	h2s = h2c_bck_stream_new(h2c, cs);
+	if (!h2s) {
+		cs_free(cs);
+		return NULL;
+	}
+	return cs;
 }
 
 /* Retrieves the first valid conn_stream from this connection, or returns NULL.
