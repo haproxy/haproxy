@@ -1095,28 +1095,5 @@ opts:
 # LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter).
 # LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter).
 reg-tests:
-	$(Q)if [ ! -x "$(VARNISHTEST_PROGRAM)" ]; then \
-		echo "Please make the VARNISHTEST_PROGRAM variable point to the location of the varnishtest program."; \
-		exit 1; \
-	fi
-	$(Q)export LEVEL=$${LEVEL:-1}; \
-	if [ $$LEVEL = 1 ] ; then \
-	   EXPR='h*.vtc'; \
-	elif [ $$LEVEL = 2 ] ; then \
-	   EXPR='s*.vtc'; \
-	elif [ $$LEVEL = 3 ] ; then \
-	   EXPR='l*.vtc'; \
-	elif [ $$LEVEL = 4 ] ; then \
-	   EXPR='b*.vtc'; \
-	fi ; \
-	if [ -n "$(REG_TEST_FILES)" ] ; then \
-	   err=0; \
-	   for n in $(REG_TEST_FILES); do \
-	      HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} $(VARNISHTEST_PROGRAM) -l -t5 $$n || ((err++)); \
-	   done; \
-	   exit $$err; \
-	elif [ -n "$$EXPR" ] ; then \
-	   find reg-tests -type f -name "$$EXPR" -print0 | \
-	      HAPROXY_PROGRAM=$${HAPROXY_PROGRAM:-$$PWD/haproxy} xargs -r -0 $(VARNISHTEST_PROGRAM) -l -t5 ; \
-	fi
+	./scripts/run-regtests.sh --LEVEL "$$LEVEL" $(REG_TEST_FILES)
 .PHONY: reg-tests
