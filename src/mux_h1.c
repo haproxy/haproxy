@@ -1219,6 +1219,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					 * right one.
 					 */
 					ctx.blk = blk;
+					ctx.value = ist(NULL);
 					if (http_find_header(chn_htx, n, &ctx, 1))
 						goto process_hdr;
 					h1_process_conn_mode(h1s, h1m, NULL, &v);
