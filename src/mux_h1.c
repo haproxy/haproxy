@@ -848,6 +848,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			flags |= HTX_SL_F_CHNK;
 		else if (h1m->flags & H1_MF_CLEN)
 			flags |= HTX_SL_F_CLEN;
+		if (h1m->state == H1_MSG_DONE)
+			flags |= HTX_SL_F_BODYLESS;
 	}
 
 	if (!(h1m->flags & H1_MF_RESP)) {

@@ -307,6 +307,8 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
                 msg->flags |= HTTP_MSGF_VER_11;
 	msg->flags |= HTTP_MSGF_XFER_LEN;
 	msg->flags |= ((sl->flags & HTX_SL_F_CHNK) ? HTTP_MSGF_TE_CHNK : HTTP_MSGF_CNT_LEN);
+	if (sl->flags & HTX_SL_F_BODYLESS)
+		msg->flags |= HTTP_MSGF_BODYLESS;
 
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
@@ -1610,6 +1612,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (sl->flags & HTX_SL_F_XFER_LEN) {
 		msg->flags |= HTTP_MSGF_XFER_LEN;
 		msg->flags |= ((sl->flags & HTX_SL_F_CHNK) ? HTTP_MSGF_TE_CHNK : HTTP_MSGF_CNT_LEN);
+		if (sl->flags & HTX_SL_F_BODYLESS)
+			msg->flags |= HTTP_MSGF_BODYLESS;
 	}
 
 	n = txn->status / 100;

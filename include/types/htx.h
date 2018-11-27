@@ -81,6 +81,7 @@
 #define HTX_SL_F_CLEN          0x00000008 /* The content-length header was found in message */
 #define HTX_SL_F_CHNK          0x00000010 /* The message payload is chunked */
 #define HTX_SL_F_VER_11        0x00000020 /* The message indicates version 1.1 or above */
+#define HTX_SL_F_BODYLESS      0x00000040 /* The message has no body (content-length = 0) */
 
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000

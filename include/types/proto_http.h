@@ -148,6 +148,8 @@
 #define HTTP_MSGF_WAIT_CONN   0x00000010  /* Wait for connect() to be confirmed before processing body */
 #define HTTP_MSGF_COMPRESSING 0x00000020  /* data compression is in progress */
 
+#define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */
+
 
 /* Redirect flags */
 enum {
