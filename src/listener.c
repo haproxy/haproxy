@@ -544,7 +544,7 @@ void listener_accept(int fd)
 		/* with sockpair@ we don't want to do an accept */
 		if (unlikely(l->addr.ss_family == AF_CUST_SOCKPAIR)) {
 			if ((cfd = recv_fd_uxst(fd)) != -1)
-				fcntl(cfd, F_SETFL, O_NONBLOCK|O_CLOEXEC);
+				fcntl(cfd, F_SETFL, O_NONBLOCK);
 		} else
 
 #ifdef USE_ACCEPT4
@@ -552,12 +552,12 @@ void listener_accept(int fd)
 		 * fallback to the legacy accept() + fcntl().
 		 */
 		if (unlikely(accept4_broken ||
-			((cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK|SOCK_CLOEXEC)) == -1 &&
+			((cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK)) == -1 &&
 			(errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
 			(accept4_broken = 1))))
 #endif
 			if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) != -1)
-				fcntl(cfd, F_SETFL, O_NONBLOCK|O_CLOEXEC);
+				fcntl(cfd, F_SETFL, O_NONBLOCK);
 
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
@@ -603,6 +603,10 @@ void listener_accept(int fd)
 				goto stop;
 			}
 		}
+
+		/* we don't want to leak the FD upon reload if it's in the master */
+		if (unlikely(master == 1))
+			fcntl(cfd, F_SETFD, FD_CLOEXEC);
 
 		if (unlikely(cfd >= global.maxsock)) {
 			send_log(p, LOG_EMERG,
