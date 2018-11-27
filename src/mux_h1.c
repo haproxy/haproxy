@@ -1272,7 +1272,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1_parse_res_vsn(h1m, sl);
 				if (!htx_stline_to_str(sl, tmp))
 					goto copy;
-				if (chn_htx->extra != ULLONG_MAX)
+				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
 				h1m->state = H1_MSG_HDR_FIRST;
 				break;

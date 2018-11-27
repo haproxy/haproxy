@@ -275,12 +275,14 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	txn->flags &= ~TX_WAIT_NEXT_RQ;
 	req->analyse_exp = TICK_ETERNITY;
 
+	sl = http_find_stline(htx);
+
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int32_t pos;
 
-		htx_debug_stline("clireq", s, http_find_stline(htx));
+		htx_debug_stline("clireq", s, sl);
 
 		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -298,17 +300,13 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	/*
-	 * 1: identify the method
+	 * 1: identify the method and the version. Also set HTTP flags
 	 */
-	sl = http_find_stline(htx);
 	txn->meth = sl->info.req.meth;
-	msg->flags |= HTTP_MSGF_XFER_LEN;
-
-	/* ... and check if the request is HTTP/1.1 or above */
-        if ((HTX_SL_REQ_VLEN(sl) == 8) &&
-            ((*(HTX_SL_REQ_VPTR(sl) + 5) > '1') ||
-             ((*(HTX_SL_REQ_VPTR(sl) + 5) == '1') && (*(HTX_SL_REQ_VPTR(sl) + 7) >= '1'))))
+	if (sl->flags & HTX_SL_F_VER_11)
                 msg->flags |= HTTP_MSGF_VER_11;
+	msg->flags |= HTTP_MSGF_XFER_LEN;
+	msg->flags |= ((sl->flags & HTX_SL_F_CHNK) ? HTTP_MSGF_TE_CHNK : HTTP_MSGF_CNT_LEN);
 
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
@@ -1241,7 +1239,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * message is stored into a buffer, it appears as full.
 	 */
 	b_set_data(&req->buf, co_data(req));
-	if (htx->extra != ULLONG_MAX)
+	if (msg->flags & HTTP_MSGF_XFER_LEN)
 		htx->extra -= channel_forward(req, htx->extra);
 	b_set_data(&req->buf, b_size(&req->buf));
 
@@ -1332,9 +1330,6 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (msg->flags & HTTP_MSGF_XFER_LEN)
 		channel_dont_close(req);
 
-#if 0 // FIXME [Cf]: Probably not required now, but I need more time to think
-      // about if
-
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
@@ -1345,7 +1340,6 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		req->flags |= CF_EXPECT_MORE;
-#endif
 
 	return 0;
 
@@ -1585,13 +1579,14 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 
 	msg->msg_state = HTTP_MSG_BODY;
+	sl = http_find_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int32_t pos;
 
-		htx_debug_stline("srvrep", s, http_find_stline(htx));
+		htx_debug_stline("srvrep", s, sl);
 
 		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -1608,17 +1603,14 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 	}
 
-	/* 1: get the status code */
-	sl = http_find_stline(htx);
+	/* 1: get the status code and the version. Also set HTTP flags */
 	txn->status = sl->info.res.status;
-	if (htx->extra != ULLONG_MAX)
-		msg->flags |= HTTP_MSGF_XFER_LEN;
-
-	/* ... and check if the request is HTTP/1.1 or above */
-        if ((HTX_SL_RES_VLEN(sl) == 8) &&
-            ((*(HTX_SL_RES_VPTR(sl) + 5) > '1') ||
-             ((*(HTX_SL_RES_VPTR(sl) + 5) == '1') && (*(HTX_SL_RES_VPTR(sl) + 7) >= '1'))))
+	if (sl->flags & HTX_SL_F_VER_11)
                 msg->flags |= HTTP_MSGF_VER_11;
+	if (sl->flags & HTX_SL_F_XFER_LEN) {
+		msg->flags |= HTTP_MSGF_XFER_LEN;
+		msg->flags |= ((sl->flags & HTX_SL_F_CHNK) ? HTTP_MSGF_TE_CHNK : HTTP_MSGF_CNT_LEN);
+	}
 
 	n = txn->status / 100;
 	if (n < 1 || n > 5)
@@ -2165,7 +2157,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	 * message is stored into a buffer, it appears as full.
 	 */
 	b_set_data(&res->buf, co_data(res));
-	if (htx->extra != ULLONG_MAX)
+	if (msg->flags & HTTP_MSGF_XFER_LEN)
 		htx->extra -= channel_forward(res, htx->extra);
 	b_set_data(&res->buf, b_size(&res->buf));
 
@@ -2239,9 +2231,6 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	if ((msg->flags & HTTP_MSGF_XFER_LEN) || HAS_DATA_FILTERS(s, res))
 		channel_dont_close(res);
 
-#if 0 // FIXME [Cf]: Probably not required now, but I need more time to think
-      // about if
-
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
@@ -2252,7 +2241,6 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	 */
 	if ((msg->flags & HTTP_MSGF_TE_CHNK) || (msg->flags & HTTP_MSGF_COMPRESSING))
 		res->flags |= CF_EXPECT_MORE;
-#endif
 
 	/* the stream handler will take care of timeouts and errors */
 	return 0;
