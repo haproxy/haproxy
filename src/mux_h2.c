@@ -2766,10 +2766,10 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	h2_do_shutw(h2s);
 }
 
-/* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1
- * request. Returns the number of bytes emitted if > 0, or 0 if it couldn't
- * proceed. Stream errors are reported in h2s->errcode and connection errors
- * in h2c->errcode.
+/* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
+ * HTX request. Returns the number of bytes emitted if > 0, or 0 if it couldn't
+ * proceed. Stream errors are reported in h2s->errcode and connection errors in
+ * h2c->errcode.
  */
 static int h2_frt_decode_headers(struct h2s *h2s)
 {
@@ -2780,10 +2780,11 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 	struct buffer *copy = NULL;
 	unsigned int msgf;
 	struct buffer *csbuf;
+	struct htx *htx = NULL;
 	int flen = h2c->dfl;
 	int outlen = 0;
 	int wrap;
-	int try;
+	int try = 0;
 
 	if (!h2c->dfl) {
 		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR); // empty headers frame!
@@ -2853,11 +2854,18 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 	 * always empty except maybe for trailers, in which case we simply have
 	 * to wait for the upper layer to finish consuming what is available.
 	 */
-	if (b_data(csbuf))
-		goto fail;
 
-	csbuf->head = 0;
-	try = b_size(csbuf);
+	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
+		htx = htx_from_buf(&h2s->rxbuf);
+		if (!htx_is_empty(htx))
+			goto fail;
+	} else {
+		if (b_data(csbuf))
+			goto fail;
+
+		csbuf->head = 0;
+		try = b_size(csbuf);
+	}
 
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
@@ -2868,7 +2876,11 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
-	outlen = h2_make_h1_request(list, b_tail(csbuf), try, &msgf);
+
+	if (htx)
+		outlen = h2_make_htx_request(list, htx, &msgf);
+	else
+		outlen = h2_make_h1_request(list, b_tail(csbuf), try, &msgf);
 
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
@@ -2891,6 +2903,8 @@ static int h2_frt_decode_headers(struct h2s *h2s)
 	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
 		h2s->flags |= H2_SF_ES_RCVD;
 		h2s->cs->flags |= CS_FL_REOS;
+		if (htx)
+			htx_add_endof(htx, HTX_BLK_EOM);
 	}
 
  leave:
