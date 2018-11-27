@@ -3811,7 +3811,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 /***************************************/
 
 /* The mux operations */
-const struct mux_ops h2_ops = {
+static const struct mux_ops h2_ops = {
 	.init = h2_init,
 	.wake = h2_wake,
 	.snd_buf = h2_snd_buf,
