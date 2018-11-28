@@ -830,9 +830,6 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs)
 	cs->ctx = h2s;
 	h2c->nb_cs++;
 
-	/* OK done, the stream lives its own life now */
-	if (h2_has_too_many_cs(h2c))
-		h2c->flags |= H2_CF_DEM_TOOMANY;
  out:
 	return h2s;
 }
