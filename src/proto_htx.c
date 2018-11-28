@@ -61,6 +61,7 @@ static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct pr
 static int htx_handle_stats(struct stream *s, struct channel *req);
 
 static int htx_reply_100_continue(struct stream *s);
+static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm);
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -2759,11 +2760,10 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				 * count one error, because normal browsing won't significantly
 				 * increase the counter but brute force attempts will.
 				 */
-				chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
-				txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
-				htx_reply_and_close(s, txn->status, &trash);
-				stream_inc_http_err_ctr(s);
 				rule_ret = HTTP_RULE_RES_ABRT;
+				if (htx_reply_40x_unauthorized(s, auth_realm) == -1)
+					rule_ret = HTTP_RULE_RES_BADREQ;
+				stream_inc_http_err_ctr(s);
 				goto end;
 
 			case ACT_HTTP_REDIR:
@@ -5272,6 +5272,78 @@ static int htx_reply_100_continue(struct stream *s)
 	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
+	return 0;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_truncate(res);
+	return -1;
+}
+
+
+/* Send a 401-Unauthorized or 407-Unauthorized response to the client, depending
+ * ont whether we use a proxy or not. It returns 0 on success and -1 on
+ * error. The response channel is updated accordingly.
+ */
+static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
+{
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct htx_sl *sl;
+	struct ist code, body;
+	int status;
+	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
+	size_t data;
+
+	if (!(s->txn->flags & TX_USE_PX_CONN)) {
+		status = 401;
+		code = ist("401");
+		body = ist("<html><body><h1>401 Unauthorized</h1>\n"
+			   "You need a valid user and password to access this content.\n"
+			   "</body></html>\n");
+	}
+	else {
+		status = 407;
+		code = ist("407");
+		body = ist("<html><body><h1>407 Unauthorized</h1>\n"
+			   "You need a valid user and password to access this content.\n"
+			   "</body></html>\n");
+	}
+
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+			    ist("HTTP/1.1"), code, ist("Unauthorized"));
+	if (!sl)
+		goto fail;
+	sl->info.res.status = status;
+	s->txn->status = status;
+
+	if (chunk_printf(&trash, "Basic realm=\"%s\"", auth_realm) == -1)
+		goto fail;
+
+        if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
+	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
+	    !htx_add_header(htx, ist("Content-Type"), ist("text/html")) ||
+	    !htx_add_header(htx, ist("Proxy-Authenticate"), ist2(trash.area, trash.data)))
+		goto fail;
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_data(htx, body) || !htx_add_endof(htx, HTX_BLK_EOM))
+		goto fail;
+
+	data = htx->data - co_data(res);
+	b_set_data(&res->buf, b_size(&res->buf));
+	c_adv(res, data);
+	res->total += data;
+
+	channel_auto_read(&s->req);
+	channel_abort(&s->req);
+	channel_auto_close(&s->req);
+	channel_erase(&s->req);
+
+	res->wex = tick_add_ifset(now_ms, res->wto);
+	channel_auto_read(res);
+	channel_auto_close(res);
+	channel_shutr_now(res);
 	return 0;
 
   fail:
