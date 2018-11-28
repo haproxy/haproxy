@@ -1217,6 +1217,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct htx_blk *blk;
 	struct buffer *tmp;
 	size_t total = 0;
+	int process_conn_mode = 1; /* If still 1 on EOH, process the connection mode */
 	int errflag;
 
 	if (!count)
@@ -1276,32 +1277,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto copy;
 				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
+				if (sl->info.res.status < 200 &&
+				    (sl->info.res.status == 100 || sl->info.res.status >= 102))
+					process_conn_mode = 0;
 				h1m->state = H1_MSG_HDR_FIRST;
 				break;
 
 			case HTX_BLK_HDR:
-				if (h1m->state == H1_MSG_HDR_FIRST) {
-					struct http_hdr_ctx ctx;
-
-					n = ist("Connection");
-					v = ist("");
-
-					/* If there is no "Connection:" header,
-					 * process conn_mode now and add the
-					 * right one.
-					 */
-					ctx.blk = blk;
-					ctx.value = ist(NULL);
-					if (http_find_header(chn_htx, n, &ctx, 1))
-						goto process_hdr;
-					h1_process_conn_mode(h1s, h1m, NULL, &v);
-					if (!v.len)
-						goto process_hdr;
-
-					if (!htx_hdr_to_str(n, v, tmp))
-						goto copy;
-				}
-			  process_hdr:
 				h1m->state = H1_MSG_HDR_NAME;
 				n = htx_get_blk_name(chn_htx, blk);
 				v = htx_get_blk_value(chn_htx, blk);
@@ -1311,6 +1293,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				else if (isteqi(n, ist("connection"))) {
 					h1_parse_connection_header(h1m, v);
 					h1_process_conn_mode(h1s, h1m, NULL, &v);
+					process_conn_mode = 0;
 					if (!v.len)
 						goto skip_hdr;
 				}
@@ -1327,6 +1310,19 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_EOH:
+				if (h1m->state == H1_MSG_HDR_L2_LWS && process_conn_mode) {
+					/* There is no "Connection:" header and
+					 * it the conn_mode must be
+					 * processed. So do it */
+					n = ist("Connection");
+					v = ist("");
+					h1_process_conn_mode(h1s, h1m, NULL, &v);
+					process_conn_mode = 0;
+					if (v.len) {
+						if (!htx_hdr_to_str(n, v, tmp))
+							goto copy;
+					}
+				}
 				h1m->state = H1_MSG_LAST_LF;
 				if (!chunk_memcat(tmp, "\r\n", 2))
 					goto copy;
