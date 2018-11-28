@@ -2299,197 +2299,238 @@ void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn)
 }
 
 /* Perform an HTTP redirect based on the information in <rule>. The function
- * returns non-zero on success, or zero in case of a, irrecoverable error such
+ * returns zero on success, or zero in case of a, irrecoverable error such
  * as too large a request to build a valid response.
  */
 int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
-	struct htx *htx = htx_from_buf(&s->req.buf);
+	struct channel *req = &s->req;
+	struct channel *res = &s->res;
+	struct htx *htx;
 	struct htx_sl *sl;
-	const char *msg_fmt;
 	struct buffer *chunk;
-	int ret = 0;
+	struct ist status, reason, location;
+	unsigned int flags;
+	size_t data;
 
 	chunk = alloc_trash_chunk();
 	if (!chunk)
-		goto leave;
+		goto fail;
 
-	/* build redirect message */
-	switch(rule->code) {
-	case 308:
-		msg_fmt = HTTP_308;
-		break;
-	case 307:
-		msg_fmt = HTTP_307;
-		break;
-	case 303:
-		msg_fmt = HTTP_303;
-		break;
-	case 301:
-		msg_fmt = HTTP_301;
-		break;
-	case 302:
-	default:
-		msg_fmt = HTTP_302;
-		break;
-	}
-
-	if (unlikely(!chunk_strcpy(chunk, msg_fmt)))
-		goto leave;
-
+	/*
+	 * Create the location
+	 */
+	htx = htx_from_buf(&req->buf);
 	switch(rule->type) {
-	case REDIRECT_TYPE_SCHEME: {
-		struct http_hdr_ctx ctx;
-		struct ist path, host;
+		case REDIRECT_TYPE_SCHEME: {
+			struct http_hdr_ctx ctx;
+			struct ist path, host;
 
-		host = ist("");
-		ctx.blk = NULL;
-		if (http_find_header(htx, ist("Host"), &ctx, 0))
-			host = ctx.value;
+			host = ist("");
+			ctx.blk = NULL;
+			if (http_find_header(htx, ist("Host"), &ctx, 0))
+				host = ctx.value;
 
-		sl = http_find_stline(htx);
-		path = http_get_path(htx_sl_req_uri(sl));
-		/* build message using path */
-		if (path.ptr) {
-			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
-				int qs = 0;
-				while (qs < path.len) {
-					if (*(path.ptr + qs) == '?') {
-						path.len = qs;
-						break;
+			sl = http_find_stline(htx);
+			path = http_get_path(htx_sl_req_uri(sl));
+			/* build message using path */
+			if (path.ptr) {
+				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+					int qs = 0;
+					while (qs < path.len) {
+						if (*(path.ptr + qs) == '?') {
+							path.len = qs;
+							break;
+						}
+						qs++;
 					}
-					qs++;
 				}
 			}
-		}
-		else
-			path = ist("/");
+			else
+				path = ist("/");
 
-		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			/* add scheme */
-			if (!chunk_memcat(chunk, rule->rdr_str, rule->rdr_len))
-				goto leave;
-		}
-		else {
-			/* add scheme with executing log format */
-			chunk->data += build_logline(s, chunk->area + chunk->data,
-						     chunk->size - chunk->data,
-						     &rule->rdr_fmt);
-		}
-		/* add "://" + host + path */
-		if (!chunk_memcat(chunk, "://", 3) ||
-		    !chunk_memcat(chunk, host.ptr, host.len) ||
-		    !chunk_memcat(chunk, path.ptr, path.len))
-			goto leave;
-
-		/* append a slash at the end of the location if needed and missing */
-		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
-		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (chunk->data + 1 >= chunk->size)
-				goto leave;
-			chunk->area[chunk->data++] = '/';
-		}
-		break;
-	}
-	case REDIRECT_TYPE_PREFIX: {
-		struct ist path;
-
-		sl = http_find_stline(htx);
-		path = http_get_path(htx_sl_req_uri(sl));
-		/* build message using path */
-		if (path.ptr) {
-			if (rule->flags & REDIRECT_FLAG_DROP_QS) {
-				int qs = 0;
-				while (qs < path.len) {
-					if (*(path.ptr + qs) == '?') {
-						path.len = qs;
-						break;
-					}
-					qs++;
-				}
-			}
-		}
-		else
-			path = ist("/");
-
-		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			/* add prefix. Note that if prefix == "/", we don't want to
-			 * add anything, otherwise it makes it hard for the user to
-			 * configure a self-redirection.
-			 */
-			if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+			if (rule->rdr_str) { /* this is an old "redirect" rule */
+				/* add scheme */
 				if (!chunk_memcat(chunk, rule->rdr_str, rule->rdr_len))
-					goto leave;
+					goto fail;
 			}
-		}
-		else {
-			/* add prefix with executing log format */
-			chunk->data += build_logline(s, chunk->area + chunk->data,
-						     chunk->size - chunk->data,
-						     &rule->rdr_fmt);
+			else {
+				/* add scheme with executing log format */
+				chunk->data += build_logline(s, chunk->area + chunk->data,
+							     chunk->size - chunk->data,
+							     &rule->rdr_fmt);
+			}
+			/* add "://" + host + path */
+			if (!chunk_memcat(chunk, "://", 3) ||
+			    !chunk_memcat(chunk, host.ptr, host.len) ||
+			    !chunk_memcat(chunk, path.ptr, path.len))
+				goto fail;
+
+			/* append a slash at the end of the location if needed and missing */
+			if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
+			    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+				if (chunk->data + 1 >= chunk->size)
+					goto fail;
+				chunk->area[chunk->data++] = '/';
+			}
+			break;
 		}
 
-		/* add path */
-		if (!chunk_memcat(chunk, path.ptr, path.len))
-			goto leave;
+		case REDIRECT_TYPE_PREFIX: {
+			struct ist path;
 
-		/* append a slash at the end of the location if needed and missing */
-		if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
-		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
-			if (chunk->data + 1 >= chunk->size)
-				goto leave;
-			chunk->area[chunk->data++] = '/';
+			sl = http_find_stline(htx);
+			path = http_get_path(htx_sl_req_uri(sl));
+			/* build message using path */
+			if (path.ptr) {
+				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+					int qs = 0;
+					while (qs < path.len) {
+						if (*(path.ptr + qs) == '?') {
+							path.len = qs;
+							break;
+						}
+						qs++;
+					}
+				}
+			}
+			else
+				path = ist("/");
+
+			if (rule->rdr_str) { /* this is an old "redirect" rule */
+				/* add prefix. Note that if prefix == "/", we don't want to
+				 * add anything, otherwise it makes it hard for the user to
+				 * configure a self-redirection.
+				 */
+				if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+					if (!chunk_memcat(chunk, rule->rdr_str, rule->rdr_len))
+						goto fail;
+				}
+			}
+			else {
+				/* add prefix with executing log format */
+				chunk->data += build_logline(s, chunk->area + chunk->data,
+							     chunk->size - chunk->data,
+							     &rule->rdr_fmt);
+			}
+
+			/* add path */
+			if (!chunk_memcat(chunk, path.ptr, path.len))
+				goto fail;
+
+			/* append a slash at the end of the location if needed and missing */
+			if (chunk->data && chunk->area[chunk->data - 1] != '/' &&
+			    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+				if (chunk->data + 1 >= chunk->size)
+					goto fail;
+				chunk->area[chunk->data++] = '/';
+			}
+			break;
 		}
-		break;
+		case REDIRECT_TYPE_LOCATION:
+		default:
+			if (rule->rdr_str) { /* this is an old "redirect" rule */
+				/* add location */
+				if (!chunk_memcat(chunk, rule->rdr_str, rule->rdr_len))
+					goto fail;
+			}
+			else {
+				/* add location with executing log format */
+				chunk->data += build_logline(s, chunk->area + chunk->data,
+							     chunk->size - chunk->data,
+							     &rule->rdr_fmt);
+			}
+			break;
 	}
-	case REDIRECT_TYPE_LOCATION:
-	default:
-		if (rule->rdr_str) { /* this is an old "redirect" rule */
-			/* add location */
-			if (!chunk_memcat(chunk, rule->rdr_str, rule->rdr_len))
-				goto leave;
-		}
-		else {
-			/* add location with executing log format */
-			chunk->data += build_logline(s, chunk->area + chunk->data,
-						     chunk->size - chunk->data,
-						     &rule->rdr_fmt);
-		}
-		break;
+	location = ist2(chunk->area, chunk->data);
+
+	/*
+	 * Create the 30x response
+	 */
+	switch (rule->code) {
+		case 308:
+			status = ist("308");
+			reason = ist("Permanent Redirect");
+			break;
+		case 307:
+			status = ist("307");
+			reason = ist("Temporary Redirect");
+			break;
+		case 303:
+			status = ist("303");
+			reason = ist("See Other");
+			break;
+		case 301:
+			status = ist("301");
+			reason = ist("Moved Permanently");
+			break;
+		case 302:
+		default:
+			status = ist("302");
+			reason = ist("Found");
+			break;
+	}
+
+	htx = htx_from_buf(&res->buf);
+	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), status, reason);
+	if (!sl)
+		goto fail;
+	sl->info.res.status = rule->code;
+	s->txn->status = rule->code;
+
+	if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
+	    !htx_add_header(htx, ist("Content-length"), ist("0")) ||
+	    !htx_add_header(htx, ist("Location"), location))
+		goto fail;
+
+	if (rule->code == 302 || rule->code == 303 || rule->code == 307) {
+		if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")))
+			goto fail;
 	}
 
 	if (rule->cookie_len) {
-		if (!chunk_memcat(chunk, "\r\nSet-Cookie: ", 14) ||
-		    !chunk_memcat(chunk, rule->cookie_str, rule->cookie_len))
-			goto leave;
+		if (!htx_add_header(htx, ist("Set-Cookie"), ist2(rule->cookie_str, rule->cookie_len)))
+			goto fail;
 	}
 
-	/* add end of headers and the keep-alive/close status. */
-	txn->status = rule->code;
+	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM))
+		goto fail;
+
 	/* let's log the request time */
 	s->logs.tv_request = now;
 
-	/* FIXME: close for now, but it could be cool to handle the keep-alive here */
-	/* FIXME: check if EOM is here to do keep-alive or not */
-	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
-		if (!chunk_memcat(chunk, "\r\nProxy-Connection: close\r\n\r\n", 29))
-			goto leave;
-	} else {
-		if (!chunk_memcat(chunk, "\r\nConnection: close\r\n\r\n", 23))
-			goto leave;
-	}
-	htx_reply_and_close(s, txn->status, chunk);
-	s->req.analysers &= AN_REQ_FLT_END;
+	data = htx->data - co_data(res);
+	b_set_data(&res->buf, b_size(&res->buf));
+	c_adv(res, data);
+	res->total += data;
+
+	channel_auto_read(req);
+	channel_abort(req);
+	channel_auto_close(req);
+	channel_erase(req);
+
+	res->wex = tick_add_ifset(now_ms, res->wto);
+	channel_auto_read(res);
+	channel_auto_close(res);
+	channel_shutr_now(res);
+
+	req->analysers &= AN_REQ_FLT_END;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	ret = 1;
-  leave:
 	free_trash_chunk(chunk);
-	return ret;
+	return 1;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_truncate(res);
+	free_trash_chunk(chunk);
+	return 0;
 }
 
 int htx_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
