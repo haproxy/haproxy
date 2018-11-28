@@ -1450,7 +1450,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * we should only check for HTTP status there, and check I/O
 	 * errors somewhere else.
 	 */
-	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
+	if (unlikely(co_data(rep) || htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
 		/*
 		 * First catch invalid response
 		 */
