@@ -2469,6 +2469,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	s->logs.tv_request = now;
 
 	/* FIXME: close for now, but it could be cool to handle the keep-alive here */
+	/* FIXME: check if EOM is here to do keep-alive or not */
 	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
 		if (!chunk_memcat(chunk, "\r\nProxy-Connection: close\r\n\r\n", 29))
 			goto leave;
@@ -2532,61 +2533,70 @@ static int htx_transform_header(struct stream* s, struct channel *chn, struct ht
 	return ret;
 }
 
+
+/* Terminate a 103-Erly-hints response and send it to the client. It returns 0
+ * on success and -1 on error. The response channel is updated accordingly.
+ */
+static int htx_reply_103_early_hints(struct channel *res)
+{
+	struct htx *htx = htx_from_buf(&res->buf);
+	size_t data;
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM)) {
+		/* If an error occurred during an Early-hint rule,
+		 * remove the incomplete HTTP 103 response from the
+		 * buffer */
+		channel_truncate(res);
+		return -1;
+	}
+
+	data = htx->data - co_data(res);
+	b_set_data(&res->buf, b_size(&res->buf));
+	c_adv(res, data);
+	res->total += data;
+	return 0;
+}
+
 /*
  * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
  * built according to <fmt> log line format.
- * If <early_hints> is NULL, it is allocated and the HTTP 103 response first
- * line is inserted before the header. If an error occurred <early_hints> is
- * released and NULL is returned. On success the updated buffer is returned.
+ * If <early_hints> is 0, it is starts a new response by adding the start
+ * line. If an error occurred -1 is returned. On success 0 is returned. The
+ * channel is not updated here. It must be done calling the function
+ * htx_reply_103_early_hints().
  */
-static struct buffer *htx_apply_early_hint_rule(struct stream* s, struct buffer *early_hints,
-						const char* name, unsigned int name_len,
-						struct list *fmt)
+static int htx_add_early_hint_header(struct stream *s, int early_hints, const struct ist name, struct list *fmt)
 {
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct buffer *value = alloc_trash_chunk();
+
 	if (!early_hints) {
-		early_hints = alloc_trash_chunk();
-		if (!early_hints)
+		struct htx_sl *sl;
+		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
+				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
+
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+				    ist("HTTP/1.1"), ist("103"), ist("Early Hints"));
+		if (!sl)
 			goto fail;
-		if (!chunk_memcat(early_hints, HTTP_103.ptr, HTTP_103.len))
-			goto fail;
+		sl->info.res.status = 103;
 	}
 
-	if (!chunk_memcat(early_hints, name, name_len) || !chunk_memcat(early_hints, ": ", 2))
+	value->data = build_logline(s, b_tail(value), b_room(value), fmt);
+	if (!htx_add_header(htx, name, ist2(b_head(value), b_data(value))))
 		goto fail;
 
-	early_hints->data += build_logline(s, b_tail(early_hints), b_room(early_hints), fmt);
-	if (!chunk_memcat(early_hints, "\r\n", 2))
-		goto fail;
-
-	return early_hints;
+	free_trash_chunk(value);
+	b_set_data(&res->buf, b_size(&res->buf));
+	return 1;
 
   fail:
-	free_trash_chunk(early_hints);
-	return NULL;
-}
-
-/* Sends an HTTP 103 response. Before sending it, the last CRLF finishing the
- * response is added. If an error occurred or if another response was already
- * sent, this function does nothing.
- */
-static void htx_send_early_hints(struct stream *s, struct buffer *early_hints)
-{
-	struct channel *chn = s->txn->rsp.chn;
-	struct htx *htx;
-
-	/* If a response was already sent, skip early hints */
-	if (s->txn->status > 0)
-		return;
-
-	if (!chunk_memcat(early_hints, "\r\n", 2))
-		return;
-
-	htx = htx_from_buf(&chn->buf);
-	if (!htx_add_oob(htx, ist2(early_hints->area, early_hints->data)))
-		return;
-
-	c_adv(chn, early_hints->data);
-	chn->total += early_hints->data;
+	/* If an error occurred during an Early-hint rule, remove the incomplete
+	 * HTTP 103 response from the buffer */
+	channel_truncate(res);
+	free_trash_chunk(value);
+	return -1;
 }
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
@@ -2674,9 +2684,9 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 	struct act_rule *rule;
 	struct http_hdr_ctx ctx;
 	const char *auth_realm;
-	struct buffer *early_hints = NULL;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_flags = 0;
+	int early_hints = 0;
 
 	htx = htx_from_buf(&s->req.buf);
 
@@ -2710,6 +2720,14 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 
 		act_flags |= ACT_FLAG_FIRST;
   resume_execution:
+		if (early_hints && rule->action != ACT_HTTP_EARLY_HINT) {
+			early_hints = 0;
+			if (htx_reply_103_early_hints(&s->res) == -1) {
+				rule_ret = HTTP_RULE_RES_BADREQ;
+				goto end;
+			}
+		}
+
 		switch (rule->action) {
 			case ACT_ACTION_ALLOW:
 				rule_ret = HTTP_RULE_RES_STOP;
@@ -2729,12 +2747,6 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				goto end;
 
 			case ACT_HTTP_REQ_AUTH:
-				/* Be sure to sned any pending HTTP 103 response first */
-				if (early_hints) {
-					htx_send_early_hints(s, early_hints);
-					free_trash_chunk(early_hints);
-					early_hints = NULL;
-				}
 				/* Auth might be performed on regular http-req rules as well as on stats */
 				auth_realm = rule->arg.auth.realm;
 				if (!auth_realm) {
@@ -2755,12 +2767,6 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				goto end;
 
 			case ACT_HTTP_REDIR:
-				/* Be sure to sned any pending HTTP 103 response first */
-				if (early_hints) {
-					htx_send_early_hints(s, early_hints);
-					free_trash_chunk(early_hints);
-					early_hints = NULL;
-				}
 				rule_ret = HTTP_RULE_RES_DONE;
 				if (!htx_apply_redirect_rule(rule->arg.redir, s, txn))
 					rule_ret = HTTP_RULE_RES_BADREQ;
@@ -2959,12 +2965,11 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 			case ACT_HTTP_EARLY_HINT:
 				if (!(txn->req.flags & HTTP_MSGF_VER_11))
 					break;
-				early_hints = htx_apply_early_hint_rule(s, early_hints,
-									rule->arg.early_hint.name,
-									rule->arg.early_hint.name_len,
+				early_hints = htx_add_early_hint_header(s, early_hints,
+									ist2(rule->arg.early_hint.name, rule->arg.early_hint.name_len),
 									&rule->arg.early_hint.fmt);
-				if (!early_hints) {
-					rule_ret = HTTP_RULE_RES_DONE;
+				if (early_hints == -1) {
+					rule_ret = HTTP_RULE_RES_BADREQ;
 					goto end;
 				}
 				break;
@@ -3042,8 +3047,8 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 
   end:
 	if (early_hints) {
-		htx_send_early_hints(s, early_hints);
-		free_trash_chunk(early_hints);
+		if (htx_reply_103_early_hints(&s->res) == -1)
+			rule_ret = HTTP_RULE_RES_BADREQ;
 	}
 
 	/* we reached the end of the rules, nothing to report */
