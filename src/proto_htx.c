@@ -60,6 +60,8 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct proxy *backend);
 static int htx_handle_stats(struct stream *s, struct channel *req);
 
+static int htx_reply_100_continue(struct stream *s);
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -1077,15 +1079,8 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 			/* Expect is allowed in 1.1, look for it */
 			if (http_find_header(htx, hdr, &ctx, 0) &&
 			    unlikely(isteqi(ctx.value, ist2("100-continue", 12)))) {
-				struct htx *rsp = htx_from_buf(&s->res.buf);
-				struct htx_blk *blk;
-
-				blk = htx_add_oob(rsp, HTTP_100);
-				if (!blk)
-					goto missing_data;
-				b_set_data(&s->res.buf, b_size(&s->res.buf));
-				c_adv(&s->res, HTTP_100.len);
-				s->res.total += HTTP_100.len;
+				if (htx_reply_100_continue(s) == -1)
+					goto return_bad_req;
 				http_remove_header(htx, &ctx);
 			}
 		}
@@ -5245,6 +5240,40 @@ void htx_reply_and_close(struct stream *s, short status, struct buffer *msg)
 	channel_auto_read(&s->res);
 	channel_auto_close(&s->res);
 	channel_shutr_now(&s->res);
+}
+
+/* Send a 100-Continue response to the client. It returns 0 on success and -1
+ * on error. The response channel is updated accordingly.
+ */
+static int htx_reply_100_continue(struct stream *s)
+{
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct htx_sl *sl;
+	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
+			      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
+	size_t data;
+
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+			    ist("HTTP/1.1"), ist("100"), ist("Continue"));
+	if (!sl)
+		goto fail;
+	sl->info.res.status = 100;
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM))
+		goto fail;
+
+	data = htx->data - co_data(res);
+	b_set_data(&res->buf, b_size(&res->buf));
+	c_adv(res, data);
+	res->total += data;
+	return 0;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_truncate(res);
+	return -1;
 }
 
 /*
