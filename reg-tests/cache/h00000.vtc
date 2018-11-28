@@ -1,0 +1,54 @@
+varnishtest "Basic cache test"
+
+#REQUIRE_VERSION=1.8
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -nolen -hdr "Transfer-Encoding: chunked"
+    chunkedlen 1
+    chunkedlen 1
+    chunkedlen 2
+    chunkedlen 3
+    chunkedlen 5
+    chunkedlen 8
+    chunkedlen 13
+    chunkedlen 21
+    chunkedlen 34
+    chunkedlen 55
+    chunkedlen 89
+    chunkedlen 144
+    chunkedlen 233
+    chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+	    total-max-size 3
+	    max-age 20
+	    max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 609
+} -repeat 4 -run
