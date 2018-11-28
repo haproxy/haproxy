@@ -1920,13 +1920,6 @@ static void h2_process_demux(struct h2c *h2c)
 				tasklet_wakeup(h2s->recv_wait->task);
 				h2s->recv_wait = NULL;
 			}
-			if (h2c->st0 >= H2_CS_ERROR)
-				goto strm_err;
-
-			if (h2s->st >= H2_SS_ERROR) {
-				/* stream error : send RST_STREAM */
-				h2c->st0 = H2_CS_FRAME_E;
-			}
 		}
 		h2s = tmp_h2s;
 
