@@ -1187,6 +1187,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_REQ_SL:
+				h1m_init_req(h1m);
+				h1m->flags |= H1_MF_NO_PHDR;
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->rq.meth;
 				h1_parse_req_vsn(h1m, sl);
@@ -1197,6 +1199,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_RES_SL:
+				h1m_init_res(h1m);
+				h1m->flags |= H1_MF_NO_PHDR;
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->st.status;
 				h1_parse_res_vsn(h1m, sl);
