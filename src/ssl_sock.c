@@ -1561,10 +1561,19 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 
 	/* Expect 2 bytes for protocol version (1 byte for major and 1 byte
 	 * for minor, the random, composed by 4 bytes for the unix time and
-	 * 28 bytes for unix payload, and them 1 byte for the session id. So
-	 * we jump 1 + 1 + 4 + 28 + 1 bytes.
+	 * 28 bytes for unix payload. So we jump 1 + 1 + 4 + 28.
 	 */
-	msg += 1 + 1 + 4 + 28 + 1;
+	msg += 1 + 1 + 4 + 28;
+	if (msg > end)
+		return;
+
+	/* Next, is session id:
+	 * if present, we have to jump by length + 1 for the size information
+	 * if not present, we have to jump by 1 only
+	 */
+	if (msg[0] > 0)
+		msg += msg[0];
+	msg += 1;
 	if (msg > end)
 		return;
 
