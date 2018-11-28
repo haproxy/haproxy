@@ -47,7 +47,8 @@ union h1_sl http_find_stline(const struct htx *htx)
 			sl.st.r = ist2(htx_sl->st.l + htx_sl->st.v_len + htx_sl->st.c_len, htx_sl->st.r_len);
 			return sl;
 		}
-		if (type == HTX_BLK_EOM)
+
+		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
 			break;
 	}
 
@@ -107,6 +108,8 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	  rescan_hdr:
 		blk  = htx_get_blk(htx, pos);
 		type = htx_get_blk_type(blk);
+		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
+			break;
 		if (type != HTX_BLK_HDR)
 			goto next_blk;
 		if (name.len) {
