@@ -40,6 +40,7 @@
 /* referenced below */
 struct connection;
 struct conn_stream;
+struct cs_info;
 struct buffer;
 struct proxy;
 struct server;
@@ -334,6 +335,7 @@ struct mux_ops {
 	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	void (*destroy)(struct connection *conn); /* Let the mux know one of its users left, so it may have to disappear */
+	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
@@ -384,6 +386,19 @@ struct conn_stream {
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */
+};
+
+/*
+ * This structure describes the info related to a conn_stream known by the mux
+ * only but usefull for the upper layer.
+ * For now, only some dates and durations are reported. This structure will
+ * envolved. But for now, only the bare minimum is referenced.
+ */
+struct cs_info {
+	struct timeval create_date;  /* Creation date of the conn_stream in user date */
+	struct timeval tv_create;    /* Creation date of the conn_stream in internal date (monotonic) */
+	long t_handshake;            /* hanshake duration, -1 if never occurs */
+	long t_idle;                 /* idle duration, -1 if never occurs */
 };
 
 /* This structure describes a connection with its methods and data.
