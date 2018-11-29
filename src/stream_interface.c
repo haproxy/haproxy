@@ -1095,10 +1095,12 @@ int si_cs_recv(struct conn_stream *cs)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
-	if (!conn_xprt_ready(conn))
-		return 0;
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
+	if (!(cs->flags & CS_FL_RCV_MORE)) {
+		if (!conn_xprt_ready(conn))
+			return 0;
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+			return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
+	}
 
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
@@ -1202,7 +1204,7 @@ int si_cs_recv(struct conn_stream *cs)
 	 * recv().
 	 */
 	while (!(conn->flags & (CO_FL_ERROR | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) &&
-	       !(cs->flags & (CS_FL_ERROR|CS_FL_EOS)) && !(ic->flags & CF_SHUTR)) {
+	       (!(cs->flags & (CS_FL_ERROR|CS_FL_EOS)) || (cs->flags & CS_FL_RCV_MORE)) && !(ic->flags & CF_SHUTR)) {
 		/* <max> may be null. This is the mux responsibility to set
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
 		 */
