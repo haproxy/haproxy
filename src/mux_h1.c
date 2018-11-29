@@ -83,7 +83,8 @@ struct h1c {
 struct h1s {
 	struct h1c *h1c;
 	struct conn_stream *cs;
-	uint32_t flags; /* Connection flags: H1S_F_* */
+	struct cs_info csinfo;         /* CS info, only used for client connections */
+	uint32_t flags;                /* Connection flags: H1S_F_* */
 
 	struct wait_event *recv_wait; /* Address of the wait_event the conn_stream associated is waiting on */
 	struct wait_event *send_wait; /* Address of the wait_event the conn_stream associated is waiting on */
@@ -274,10 +275,22 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs)
 	 * create a new one.
 	 */
 	if (cs) {
+		h1s->csinfo.create_date = date;
+		h1s->csinfo.tv_create   = now;
+		h1s->csinfo.t_handshake = 0;
+		h1s->csinfo.t_idle      = -1;
+
 		cs->ctx = h1s;
 		h1s->cs = cs;
 	}
 	else {
+		struct session *sess = h1c->conn->owner;
+
+		h1s->csinfo.create_date = sess->accept_date;
+		h1s->csinfo.tv_create   = sess->tv_accept;
+		h1s->csinfo.t_handshake = sess->t_handshake;
+		h1s->csinfo.t_idle      = -1;
+
 		cs = h1s_new_cs(h1s);
 		if (!cs)
 			goto fail;
@@ -308,6 +321,15 @@ static void h1s_destroy(struct h1s *h1s)
 		cs_free(h1s->cs);
 		pool_free(pool_head_h1s, h1s);
 	}
+}
+
+static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
+{
+	struct h1s *h1s = cs->ctx;
+
+	if (h1s && !conn_is_back(cs->conn))
+		return &h1s->csinfo;
+	return NULL;
 }
 
 /*
@@ -1326,6 +1348,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 static int h1_recv(struct h1c *h1c)
 {
 	struct connection *conn = h1c->conn;
+		struct h1s *h1s = h1c->h1s;
 	size_t ret, max;
 	int rcvd = 0;
 
@@ -1335,7 +1358,7 @@ static int h1_recv(struct h1c *h1c)
 	if (!h1_recv_allowed(h1c))
 		goto end;
 
-	if (h1c->h1s && (h1c->h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
+	if (h1s && (h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
 		rcvd = 1;
 		goto end;
 	}
@@ -1353,8 +1376,11 @@ static int h1_recv(struct h1c *h1c)
 	}
 	if (ret > 0) {
 		rcvd = 1;
-		if (h1c->h1s && h1c->h1s->cs)
-			h1c->h1s->cs->flags |= CS_FL_READ_PARTIAL;
+		if (h1s && h1s->cs) {
+			h1s->cs->flags |= CS_FL_READ_PARTIAL;
+			if (h1s->csinfo.t_idle == -1)
+				h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
+		}
 	}
 
 	if (h1_recv_allowed(h1c))
@@ -1457,6 +1483,7 @@ static void h1_wake_stream(struct h1c *h1c)
 static int h1_process(struct h1c * h1c)
 {
 	struct connection *conn = h1c->conn;
+	struct h1s *h1s = h1c->h1s;
 
 	if (!conn->mux_ctx)
 		return -1;
@@ -1467,7 +1494,7 @@ static int h1_process(struct h1c * h1c)
 		h1c->flags &= ~H1C_F_CS_WAIT_CONN;
 	}
 
-	if (!h1c->h1s) {
+	if (!h1s) {
 		if (h1c->flags & H1C_F_CS_ERROR   ||
 		    conn->flags & CO_FL_ERROR     ||
 		    conn_xprt_read0_pending(conn))
@@ -1476,7 +1503,11 @@ static int h1_process(struct h1c * h1c)
 			if (!h1s_create(h1c, NULL))
 				goto release;
 		}
+		h1s = h1c->h1s;
 	}
+
+	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
+		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 
 	h1_wake_stream(h1c);
   end:
@@ -1807,6 +1838,7 @@ const struct mux_ops mux_h1_ops = {
 	.wake        = h1_wake,
 	.attach      = h1_attach,
 	.get_first_cs = h1_get_first_cs,
+	.get_cs_info = h1_get_cs_info,
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
