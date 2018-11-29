@@ -1046,6 +1046,7 @@ static int conn_complete_server(struct connection *conn)
 	struct conn_stream *cs = NULL;
 	struct stream *s = conn->mux_ctx;
 
+	task_wakeup(s->task, TASK_WOKEN_IO);
 	conn_clear_xprt_done_cb(conn);
 	/* Verify if the connection just established. */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
