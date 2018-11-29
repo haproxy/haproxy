@@ -1045,6 +1045,7 @@ static int conn_complete_server(struct connection *conn)
 {
 	struct conn_stream *cs = NULL;
 	struct stream *s = conn->mux_ctx;
+	struct server *srv;
 
 	task_wakeup(s->task, TASK_WOKEN_IO);
 	conn_clear_xprt_done_cb(conn);
@@ -1062,6 +1063,11 @@ static int conn_complete_server(struct connection *conn)
 		goto fail;
 	if (conn_install_mux_be(conn, cs) < 0)
 		goto fail;
+	srv = objt_server(s->target);
+	if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+			    conn->mux->avail_streams(conn) > 0)
+				LIST_ADD(&srv->idle_conns[tid], &conn->list);
+
 	return 0;
 
 fail:
@@ -1279,6 +1285,13 @@ int connect_server(struct stream *s)
 			}
 			if (conn_install_mux_be(srv_conn, srv_cs) < 0)
 				return SF_ERR_INTERNAL;
+			/* If we're doing http-reuse always, and the connection
+			 * is an http2 connection, add it to the available list,
+			 * so that others can use it right away.
+			 */
+			if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+			    srv_conn->mux->avail_streams(srv_conn) > 0)
+				LIST_ADD(&srv->idle_conns[tid], &srv_conn->list);
 		}
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		else {
