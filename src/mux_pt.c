@@ -142,6 +142,7 @@ static struct conn_stream *mux_pt_attach(struct connection *conn)
 	struct conn_stream *cs;
 	struct mux_pt_ctx *ctx = conn->mux_ctx;
 
+	conn->xprt->unsubscribe(conn, SUB_CAN_RECV, &ctx->wait_event);
 	cs = cs_new(conn);
 	if (!cs)
 		goto fail;
