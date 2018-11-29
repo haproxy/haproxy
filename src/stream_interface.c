@@ -601,13 +601,6 @@ int si_cs_send(struct conn_stream *cs)
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
 		return 1;
 
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		/* a handshake was requested */
-		/* Schedule ourself to be woken up once the handshake is done */
-		conn->xprt->subscribe(conn, SUB_CAN_SEND,  &si->wait_event);
-		return 0;
-	}
-
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH || oc->flags & CF_SHUTW)
 		return 1;
