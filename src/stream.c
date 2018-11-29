@@ -613,7 +613,11 @@ static int sess_update_st_con_tcp(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
-	struct conn_stream *srv_cs = __objt_cs(si->end);
+	struct conn_stream *srv_cs = objt_cs(si->end);
+	struct connection *conn = NULL;
+
+	if (!srv_cs)
+		conn = objt_conn(si->end);
 
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
@@ -635,6 +639,11 @@ static int sess_update_st_con_tcp(struct stream *s)
 
 		if (srv_cs)
 			cs_close(srv_cs);
+		else if (conn) {
+			conn_stop_tracking(conn);
+			conn_full_close(conn);
+			conn_free(conn);
+		}
 
 		if (si->err_type)
 			return 0;
