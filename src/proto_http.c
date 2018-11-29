@@ -413,6 +413,9 @@ struct buffer *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
+	if (IS_HTX_STRM(s))
+               return htx_error_message(s);
+
 	if (s->be->errmsg[msgnum].area)
 		return &s->be->errmsg[msgnum];
 	else if (strm_fe(s)->errmsg[msgnum].area)

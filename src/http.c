@@ -230,7 +230,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_504] = 504,
 };
 
-static const char *http_err_msgs[HTTP_ERR_SIZE] = {
+const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_200] =
 	"HTTP/1.0 200 OK\r\n"
 	"Cache-Control: no-cache\r\n"

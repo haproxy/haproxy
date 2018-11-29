@@ -78,7 +78,7 @@ int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_nam
 void htx_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void htx_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
 void htx_reply_and_close(struct stream *s, short status, struct buffer *msg);
-
+struct buffer *htx_error_message(struct stream *s);
 
 void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end);
 int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp);

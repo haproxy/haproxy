@@ -119,6 +119,7 @@ struct http_method_desc {
 };
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
+extern const char *http_err_msgs[HTTP_ERR_SIZE];
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
