@@ -88,6 +88,7 @@ void session_free(struct session *sess)
 		conn_full_close(conn);
 		conn_free(conn);
 	}
+	LIST_DEL(&sess->conn_list);
 	pool_free(pool_head_session, sess);
 	HA_ATOMIC_SUB(&jobs, 1);
 }
