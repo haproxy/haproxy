@@ -98,8 +98,13 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	s->srv_error = http_return_srv_error;
 
 	/* If there is data available for analysis, log the end of the idle time. */
-	if (c_data(req) && s->logs.t_idle == -1)
-		s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
+	if (c_data(req) && s->logs.t_idle == -1) {
+		const struct cs_info *csinfo = si_get_cs_info(objt_cs(s->si[0].end));
+
+		s->logs.t_idle = ((csinfo)
+				  ? csinfo->t_idle
+				  : tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake);
+	}
 
 	/*
 	 * Now we quickly check if we have found a full valid request.
