@@ -1056,6 +1056,7 @@ static int conn_complete_server(struct connection *conn)
 		goto fail;
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
+	si_detach_endpoint(&s->si[1]);
 	cs = si_alloc_cs(&s->si[1], conn);
 	if (!cs)
 		goto fail;
