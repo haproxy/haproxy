@@ -585,7 +585,8 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
 		    h1s->status == 101)
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
-		else if (!(h1m->flags & H1_MF_XFER_LEN)) /* no length known => close */
+		else if (!(h1m->flags & H1_MF_XFER_LEN) || /* no length known => close */
+			 (h1m->flags & H1_MF_CONN_CLO && h1s->req.state != H1_MSG_DONE)) /*explicit close and unfinished request */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 	}
 	else {
