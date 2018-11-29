@@ -78,9 +78,12 @@ void session_free(struct session *sess)
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn);
 	conn = sess->srv_conn;
-	if (conn != NULL && conn->mux)
+	if (conn != NULL && conn->mux) {
+		LIST_DEL(&conn->list);
+		LIST_INIT(&conn->list);
+		conn->owner = NULL;
 		conn->mux->destroy(conn);
-	else if (conn) {
+	} else if (conn) {
 		/* We have a connection, but not yet an associated mux.
 		 * So destroy it now.
 		 */
