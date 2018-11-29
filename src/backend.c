@@ -1213,7 +1213,10 @@ int connect_server(struct stream *s)
 		 */
 		if (old_conn && !did_switch) {
 			old_conn->owner = NULL;
-			old_conn->mux->destroy(old_conn);
+			LIST_DEL(&old_conn->list);
+			LIST_INIT(&old_conn->list);
+			if (old_conn->mux)
+				old_conn->mux->destroy(old_conn);
 			old_conn = NULL;
 		}
 	}
