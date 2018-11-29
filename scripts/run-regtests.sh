@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
 if [ "$1" = "--help" ]; then
   cat << EOF
@@ -180,8 +180,8 @@ _version() {
 echo ""
 echo "########################## Preparing to run tests ##########################"
 
-HAPROXY_PROGRAM=${HAPROXY_PROGRAM:-haproxy}
-VARNISHTEST_PROGRAM=${VARNISHTEST_PROGRAM:-varnishtest}
+HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
+VARNISHTEST_PROGRAM="${VARNISHTEST_PROGRAM:-varnishtest}"
 
 preparefailed=
 if ! [ -x "$(command -v $HAPROXY_PROGRAM)" ]; then
@@ -205,12 +205,12 @@ echo "Testing with haproxy version: $HAPROXY_VERSION"
 
 TESTRUNDATETIME="$(date '+%Y-%m-%d_%H-%M-%S')"
 
-TESTDIR=${TMPDIR:-/tmp}/varnishtest_haproxy
-mkdir -p "$TESTDIR"
-TESTDIR=$(mktemp -d $TESTDIR/$TESTRUNDATETIME.XXXX)
+TESTDIR="${TMPDIR:-/tmp}"
+mkdir -p "$TESTDIR" || exit 1
+TESTDIR=$(mktemp -d "$TESTDIR/$TESTRUNDATETIME.XXXXXX") || exit 1
 
-export TMPDIR=$TESTDIR
-export HAPROXY_PROGRAM=$HAPROXY_PROGRAM
+export TMPDIR="$TESTDIR"
+export HAPROXY_PROGRAM="$HAPROXY_PROGRAM"
 
 # Mimic implicit build options from haproxy MakeFile that are present for each target:
 
@@ -300,18 +300,18 @@ fi
 if [ $_vtresult != 0 ]
 then
   echo "########################## Gathering failed results ##########################"
-  for i in $(find $TESTDIR/ -type d -name "vtc.*");
-  do
-    cat <<- EOF | tee $TESTDIR/failedtests.log
-$(echo "###### $(cat $i/INFO) ######")
-$(echo "## test results in: $i")
-$(grep -- ---- $i/LOG)
-
+  export TESTDIR
+  find "$TESTDIR" -type d -name "vtc.*" -exec sh -c 'for i; do
+    if [ ! -e "$i/LOG" ] ; then continue; fi
+    cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
+$(echo "###### $(cat "$i/INFO") ######")
+$(echo "## test results in: \"$i\"")
+$(grep -- ---- "$i/LOG")
 EOF
-  done
+  done' sh {} +
   exit 1
 else
   # all tests were succesfull, removing tempdir (the last part.)
-  rm -d $TESTDIR
+  rmdir "$TESTDIR"
 fi
 exit 0
