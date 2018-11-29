@@ -128,6 +128,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	struct task *t;
 	struct conn_stream *cs  = objt_cs(origin);
 	struct appctx *appctx   = objt_appctx(origin);
+	const struct cs_info *csinfo;
 
 	if (unlikely((s = pool_alloc(pool_head_stream)) == NULL))
 		goto out_fail_alloc;
@@ -141,10 +142,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->flags = 0;
 	s->logs.logwait = sess->fe->to_log;
 	s->logs.level = 0;
-	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
-	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
-	s->logs.t_handshake = sess->t_handshake;
-	s->logs.t_idle = -1;
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = -1;
 	s->logs.t_connect = -1;
@@ -153,6 +150,20 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->logs.bytes_in = s->logs.bytes_out = 0;
 	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_pos = 0; /* we will get this number soon */
+
+	csinfo = si_get_cs_info(cs);
+	if (csinfo) {
+		s->logs.accept_date = csinfo->create_date;
+		s->logs.tv_accept = csinfo->tv_create;
+		s->logs.t_handshake = csinfo->t_handshake;
+		s->logs.t_idle = csinfo->t_idle;
+	}
+	else {
+		s->logs.accept_date = sess->accept_date;
+		s->logs.tv_accept = sess->tv_accept;
+		s->logs.t_handshake = sess->t_handshake;
+		s->logs.t_idle = -1;
+	}
 
 	/* default logging function */
 	s->do_log = strm_log;
