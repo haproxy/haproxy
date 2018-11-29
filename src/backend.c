@@ -1106,8 +1106,8 @@ int connect_server(struct stream *s)
 	old_conn = srv_conn = s->sess->srv_conn;
 	if (srv_conn)
 		reuse = (s->target == srv_conn->target) &&
-		    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
-		    conn_xprt_ready(srv_conn);
+		    conn_xprt_ready(srv_conn) && srv_conn->mux &&
+		    (srv_conn->mux->avail_streams(srv_conn) > 0);
 
 	if (srv && !reuse) {
 		srv_conn = NULL;
@@ -1195,15 +1195,16 @@ int connect_server(struct stream *s)
 				LIST_DEL(&sess->conn_list);
 				if (old_conn &&
 				    !(old_conn->flags & CO_FL_PRIVATE) &&
+				    old_conn->mux != NULL &&
 				    (old_conn->mux->avail_streams(old_conn) > 0) &&
 				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
 					LIST_ADDQ(&old_conn->session_list, &sess->conn_list);
 					sess->srv_conn = old_conn;
+					did_switch = 1;
 				} else {
 					LIST_INIT(&sess->conn_list);
 					sess->srv_conn = NULL;
 				}
-				did_switch = 1;
 			}
 
 		}
