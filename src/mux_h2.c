@@ -2258,7 +2258,7 @@ static int h2_recv(struct h2c *h2c)
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
-		return conn_xprt_read0_pending(conn);
+		return (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn));
 	}
 
 	if (b_data(buf) == buf->size)
