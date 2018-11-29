@@ -7421,7 +7421,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
  */
 void http_show_error_snapshot(struct buffer *out, const struct error_snapshot *es)
 {
-	chunk_appendf(&trash,
+	chunk_appendf(out,
 	              "  stream #%d, stream flags 0x%08x, tx flags 0x%08x\n"
 	              "  HTTP msg state %s(%d), msg flags 0x%08x\n"
 	              "  HTTP chunk len %lld bytes, HTTP body len %lld bytes, channel flags 0x%08x :\n",
