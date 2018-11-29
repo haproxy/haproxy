@@ -216,8 +216,18 @@ struct http_snapshot {
 	unsigned long long m_blen;	/* body len for this message */
 };
 
+struct h1_snapshot {
+	unsigned int state;		/* H1 message state when the error occurred */
+	unsigned int c_flags;		/* H1 connection flags */
+	unsigned int s_flags;		/* H1 stream flags */
+	unsigned int m_flags;		/* H1 message flags */
+	unsigned long long m_clen;	/* chunk len for this message */
+	unsigned long long m_blen;	/* body len for this message */
+};
+
 union error_snapshot_ctx {
 	struct http_snapshot http;
+	struct h1_snapshot h1;
 };
 
 struct error_snapshot {

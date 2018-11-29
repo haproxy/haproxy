@@ -755,6 +755,54 @@ static void h1_process_conn_mode(struct h1s *h1s, struct h1m *h1m,
 	}
 }
 
+
+/* Append the description of what is present in error snapshot <es> into <out>.
+ * The description must be small enough to always fit in a buffer. The output
+ * buffer may be the trash so the trash must not be used inside this function.
+ */
+static void h1_show_error_snapshot(struct buffer *out, const struct error_snapshot *es)
+{
+	chunk_appendf(out,
+	              "  H1 connection flags 0x%08x, H1 stream flags 0x%08x\n"
+	              "  H1 msg state %s(%d), H1 msg flags 0x%08x\n"
+	              "  H1 chunk len %lld bytes, H1 body len %lld bytes :\n",
+	              es->ctx.h1.c_flags, es->ctx.h1.s_flags,
+	              h1m_state_str(es->ctx.h1.state), es->ctx.h1.state,
+	              es->ctx.h1.m_flags, es->ctx.h1.m_clen, es->ctx.h1.m_blen);
+}
+/*
+ * Capture a bad request or response and archive it in the proxy's structure.
+ * By default it tries to report the error position as h1m->err_pos. However if
+ * this one is not set, it will then report h1m->next, which is the last known
+ * parsing point. The function is able to deal with wrapping buffers. It always
+ * displays buffers as a contiguous area starting at buf->p. The direction is
+ * determined thanks to the h1m's flags.
+ */
+static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
+				   struct h1m *h1m, struct buffer *buf)
+{
+	struct session *sess = h1c->conn->owner;
+	struct proxy *proxy = h1c->px;
+	struct proxy *other_end = sess->fe;
+	union error_snapshot_ctx ctx;
+
+	if (h1s->cs->data)
+		other_end = si_strm(h1s->cs->data)->be;
+
+	/* http-specific part now */
+	ctx.h1.state   = h1m->state;
+	ctx.h1.c_flags = h1c->flags;
+	ctx.h1.s_flags = h1s->flags;
+	ctx.h1.m_flags = h1m->flags;
+	ctx.h1.m_clen  = h1m->curr_len;
+	ctx.h1.m_blen  = h1m->body_len;
+
+	proxy_capture_error(proxy, !!(h1m->flags & H1_MF_RESP), other_end,
+			    h1c->conn->target, sess, buf, 0, 0,
+	                    (h1m->err_pos >= 0) ? h1m->err_pos : h1m->next,
+	                    &ctx, h1_show_error_snapshot);
+}
+
 /*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
@@ -895,6 +943,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	h1m->err_pos = h1m->next;
   vsn_error:
 	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 	ret = 0;
 	goto end;
 }
@@ -1060,6 +1109,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 		h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
 		h1m->err_state = h1m->state;
 		h1m->err_pos = *ofs + max + ret;
+		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		return 0;
 	}
 	/* update htx->extra, only when the body length is known */
