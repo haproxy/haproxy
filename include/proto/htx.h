@@ -337,6 +337,19 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
         return ret;
 }
 
+/* Removes <n> bytes from the beginning of DATA block <blk>. The block's start
+ * address and its length are adjusted, and the htx's total data count is
+ * updated. This is used to mark that part of some data were transfered
+ * from a DATA block without removing this DATA block. No sanity check is
+ * performed, the caller is reponsible for doing this exclusively on DATA
+ * blocks, and never removing more than the block's size.
+ */
+static inline void htx_cut_data_blk(struct htx *htx, struct htx_blk *blk, uint32_t n)
+{
+	blk->addr += n;
+	blk->info -= n;
+	htx->data -= n;
+}
 
 /* Returns the space used by metadata in <htx>. */
 static inline uint32_t htx_meta_space(const struct htx *htx)
