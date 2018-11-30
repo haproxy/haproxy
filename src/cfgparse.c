@@ -1880,32 +1880,31 @@ next_line:
 		list_for_each_entry(ics, &sections, list) {
 			if (strcmp(args[0], ics->section_name) == 0) {
 				cursection = ics->section_name;
+				pcs = cs;
 				cs = ics;
 				break;
 			}
+		}
+
+		if (pcs && pcs->post_section_parser) {
+			err_code |= pcs->post_section_parser();
+			if (err_code & ERR_ABORT)
+				goto err;
+			pcs = NULL;
 		}
 
 		if (!cs) {
 			ha_alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		} else {
-			/* else it's a section keyword */
-
-			if (pcs != cs && pcs && pcs->post_section_parser) {
-				err_code |= pcs->post_section_parser();
-				if (err_code & ERR_ABORT)
-					goto err;
-			}
-
 			err_code |= cs->section_parser(file, linenum, args, kwm);
 			if (err_code & ERR_ABORT)
 				goto err;
 		}
-		pcs = cs;
 	}
 
-	if (pcs == cs && pcs && pcs->post_section_parser)
-		err_code |= pcs->post_section_parser();
+	if (cs && pcs->post_section_parser)
+		err_code |= cs->post_section_parser();
 
 err:
 	free(cfg_scope);
