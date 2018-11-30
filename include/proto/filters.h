@@ -36,6 +36,9 @@
 /* Useful macros to access per-channel values. It can be safely used inside
  * filters. */
 #define CHN_IDX(chn)     (((chn)->flags & CF_ISRESP) == CF_ISRESP)
+#define FLT_STRM_OFF(s, chn) (strm_flt(s)->offset[CHN_IDX(chn)])
+#define FLT_OFF(flt, chn) ((flt)->offset[CHN_IDX(chn)])
+
 #define FLT_NXT(flt, chn) ((flt)->next[CHN_IDX(chn)])
 #define FLT_FWD(flt, chn) ((flt)->fwd[CHN_IDX(chn)])
 #define flt_req_nxt(flt) ((flt)->next[0])
@@ -103,9 +106,11 @@ int  flt_stream_init(struct stream *s);
 void flt_stream_release(struct stream *s, int only_backend);
 void flt_stream_check_timeouts(struct stream *s);
 
+int  flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len);
+int  flt_http_end(struct stream *s, struct http_msg *msg);
+
 int  flt_http_data(struct stream *s, struct http_msg *msg);
 int  flt_http_chunk_trailers(struct stream *s, struct http_msg *msg);
-int  flt_http_end(struct stream *s, struct http_msg *msg);
 int  flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len);
 
 void flt_http_reset(struct stream *s, struct http_msg *msg);
@@ -216,6 +221,27 @@ flt_change_forward_size(struct filter *filter, struct channel *chn, int len)
 				FLT_FWD(f, chn) += len;
 			FLT_NXT(f, chn) += len;
 		}
+	}
+}
+
+/* This function must be called when a filter alter payload data. It updates
+ * offsets of all previous filters and the offset of the stream. Do not call
+ * this function when a filter change the size of payload data leads to an
+ * undefined behavior.
+ *
+ * This is the filter's responsiblitiy to update data itself..
+ */
+static inline void
+flt_update_offsets(struct filter *filter, struct channel *chn, int len)
+{
+	struct stream *s = chn_strm(chn);
+	struct filter *f;
+
+	list_for_each_entry(f, &strm_flt(s)->filters, list) {
+		if (f == filter)
+			break;
+		if (IS_DATA_FILTER(filter, chn))
+			FLT_OFF(f, chn) += len;
 	}
 }
 
