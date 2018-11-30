@@ -70,6 +70,7 @@
 #include <proto/queue.h>
 #include <proto/sample.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
@@ -3748,10 +3749,6 @@ void http_end_txn_clean_session(struct stream *s)
 
 	/* unless we're doing keep-alive, we want to quickly close the connection
 	 * to the server.
-	 * XXX cognet: If the connection doesn't have a owner then it may not
-	 * be referenced  anywhere, just kill it now, even if it could be reused.
-	 * To be revisited later when revisited later when we handle connection
-	 * pools properly.
 	 */
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
 	    !si_conn_ready(&s->si[1]) || !srv_conn->owner) {
@@ -3842,8 +3839,12 @@ void http_end_txn_clean_session(struct stream *s)
 	 * We then can call si_release_endpoint() to destroy the conn_stream
 	 */
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(&s->si[1]) || !srv_conn->owner)
+	    !si_conn_ready(&s->si[1]))
 		srv_conn = NULL;
+	else if (!srv_conn->owner) {
+		srv_conn->owner = s->sess;
+		session_add_conn(s->sess, srv_conn, s->target);
+	}
 	si_release_endpoint(&s->si[1]);
 
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
