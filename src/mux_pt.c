@@ -253,7 +253,11 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 /* Called from the upper layer, to send data */
 static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
-	size_t ret = cs->conn->xprt->snd_buf(cs->conn, buf, count, flags);
+	size_t ret;
+
+	if (cs->conn->flags & CO_FL_HANDSHAKE)
+		return 0;
+	ret = cs->conn->xprt->snd_buf(cs->conn, buf, count, flags);
 
 	if (ret > 0)
 		b_del(buf, ret);
