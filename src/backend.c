@@ -52,6 +52,7 @@
 #include <proto/queue.h>
 #include <proto/sample.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
@@ -559,8 +560,9 @@ int assign_server(struct stream *s)
 {
 	struct connection *conn;
 	struct server *conn_slot;
-	struct server *srv, *prev_srv;
+	struct server *srv = NULL, *prev_srv;
 	int err;
+	int i;
 
 	DPRINTF(stderr,"assign_server : s=%p\n",s);
 
@@ -584,27 +586,27 @@ int assign_server(struct stream *s)
 
 	srv = NULL;
 	s->target = NULL;
-	conn = s->sess->srv_conn;
 
-	if (conn &&
-	    (conn->flags & CO_FL_CONNECTED) &&
-	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
-	    (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
-	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
-	     ((s->be->options & PR_O_PREF_LAST) &&
-	      (!s->be->max_ka_queue ||
-	       server_has_room(__objt_server(conn->target)) ||
-	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
-	    srv_currently_usable(__objt_server(conn->target))) {
-		/* This stream was relying on a server in a previous request
-		 * and the proxy has "option prefer-last-server" set
-		 * and balance algorithm dont tell us to do otherwise, so
-		 * let's try to reuse the same server.
-		 */
-		srv = __objt_server(conn->target);
-		s->target = &srv->obj_type;
+	for (i = 0; i < MAX_SRV_LIST; i++) {
+		list_for_each_entry(conn, &s->sess->srv_list[i].list, session_list) {
+			if (conn->flags & CO_FL_CONNECTED &&
+			    objt_server(conn->target) &&
+			    __objt_server(conn->target)->proxy == s->be &&
+			    (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
+			    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
+			     ((s->be->options & PR_O_PREF_LAST) &&
+			      (!s->be->max_ka_queue ||
+			       server_has_room(__objt_server(conn->target)) ||
+			       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
+			    srv_currently_usable(__objt_server(conn->target))) {
+				srv = __objt_server(conn->target);
+				s->target = &srv->obj_type;
+				goto out_ok;
+
+			}
+		}
 	}
-	else if (s->be->lbprm.algo & BE_LB_KIND) {
+	if (s->be->lbprm.algo & BE_LB_KIND) {
 
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
@@ -748,6 +750,7 @@ int assign_server(struct stream *s)
 		goto out;
 	}
 
+out_ok:
 	s->flags |= SF_ASSIGNED;
 	err = SRV_STATUS_OK;
  out:
@@ -1100,20 +1103,39 @@ fail:
 int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = NULL;
-	struct connection *srv_conn;
-	struct connection *old_conn;
+	struct connection *srv_conn = NULL;
+	struct connection *old_conn = NULL;
 	struct conn_stream *srv_cs;
 	struct server *srv;
 	int reuse = 0;
 	int err;
+	int i;
 
+
+	for (i = 0; i < MAX_SRV_LIST; i++) {
+		if (s->sess->srv_list[i].target == s->target) {
+			list_for_each_entry(srv_conn, &s->sess->srv_list[i].list,
+			    session_list) {
+				if (conn_xprt_ready(srv_conn) &&
+				    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
+					reuse = 1;
+					break;
+				}
+			}
+		}
+	}
+	if (!srv_conn) {
+		for (i = 0; i < MAX_SRV_LIST; i++) {
+			if (!LIST_ISEMPTY(&s->sess->srv_list[i].list)) {
+				srv_conn = LIST_ELEM(&s->sess->srv_list[i].list,
+				    struct connection *, session_list);
+				break;
+			}
+		}
+	}
+	old_conn = srv_conn;
 
 	srv = objt_server(s->target);
-	old_conn = srv_conn = s->sess->srv_conn;
-	if (srv_conn)
-		reuse = (s->target == srv_conn->target) &&
-		    conn_xprt_ready(srv_conn) && srv_conn->mux &&
-		    (srv_conn->mux->avail_streams(srv_conn) > 0);
 
 	if (srv && !reuse) {
 		srv_conn = NULL;
@@ -1176,54 +1198,24 @@ int connect_server(struct stream *s)
 	/* We're about to use another connection, let the mux know we're
 	 * done with this one
 	 */
-	if (old_conn != srv_conn) {
-		int did_switch = 0;
+	if (old_conn != srv_conn || !reuse) {
 
 		if (srv_conn && reuse) {
-			struct session *sess;
-			int count = 0;
+			struct session *sess = srv_conn->owner;
 
-			/*
-			 * If we're attempting to reuse a connection, and
-			 * the new connection has only one user, and there
-			 * are no more streams available, attempt to give
-			 * it our old connection
-			 */
-			list_for_each_entry(sess, &srv_conn->session_list,
-			    conn_list) {
-				count++;
-				if (count > 1)
-					break;
-			}
-			if (count == 1) {
-				sess = LIST_ELEM(srv_conn->session_list.n,
-				    struct session *, conn_list);
-				LIST_DEL(&sess->conn_list);
+			if (sess) {
 				if (old_conn &&
 				    !(old_conn->flags & CO_FL_PRIVATE) &&
 				    old_conn->mux != NULL &&
 				    (old_conn->mux->avail_streams(old_conn) > 0) &&
 				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
-					LIST_ADDQ(&old_conn->session_list, &sess->conn_list);
-					sess->srv_conn = old_conn;
-					did_switch = 1;
-				} else {
-					LIST_INIT(&sess->conn_list);
-					sess->srv_conn = NULL;
+					LIST_DEL(&old_conn->session_list);
+					LIST_INIT(&old_conn->session_list);
+					session_add_conn(sess, old_conn, s->target);
+					old_conn->owner = sess;
 				}
 			}
 
-		}
-		/*
-		 * We didn't manage to give our old connection, destroy it
-		 */
-		if (old_conn && !did_switch) {
-			old_conn->owner = NULL;
-			LIST_DEL(&old_conn->list);
-			LIST_INIT(&old_conn->list);
-			if (old_conn->mux)
-				old_conn->mux->destroy(old_conn);
-			old_conn = NULL;
 		}
 	}
 
@@ -1242,9 +1234,8 @@ int connect_server(struct stream *s)
 	}
 	if (srv_conn && old_conn != srv_conn) {
 		srv_conn->owner = s->sess;
-		s->sess->srv_conn = srv_conn;
-		LIST_DEL(&s->sess->conn_list);
-		LIST_ADDQ(&srv_conn->session_list, &s->sess->conn_list);
+		LIST_DEL(&srv_conn->session_list);
+		session_add_conn(s->sess, srv_conn, s->target);
 	}
 
 	if (!srv_conn)

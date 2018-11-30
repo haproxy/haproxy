@@ -41,6 +41,7 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin)
 {
 	struct session *sess;
+	int i;
 
 	sess = pool_alloc(pool_head_session);
 	if (sess) {
@@ -53,21 +54,24 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
-		LIST_INIT(&sess->conn_list);
-		sess->srv_conn = NULL;
 		HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.conn_max,
 				     HA_ATOMIC_ADD(&fe->feconn, 1));
 		if (li)
 			proxy_inc_fe_conn_ctr(li, fe);
 		HA_ATOMIC_ADD(&totalconn, 1);
 		HA_ATOMIC_ADD(&jobs, 1);
+		for (i = 0; i < MAX_SRV_LIST; i++) {
+			sess->srv_list[i].target = NULL;
+			LIST_INIT(&sess->srv_list[i].list);
+		}
 	}
 	return sess;
 }
 
 void session_free(struct session *sess)
 {
-	struct connection *conn;
+	struct connection *conn, *conn_back;
+	int i;
 
 	HA_ATOMIC_SUB(&sess->fe->feconn, 1);
 	if (sess->listener)
@@ -77,21 +81,25 @@ void session_free(struct session *sess)
 	conn = objt_conn(sess->origin);
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn);
-	conn = sess->srv_conn;
-	if (conn != NULL && conn->mux) {
-		LIST_DEL(&conn->list);
-		LIST_INIT(&conn->list);
-		conn->owner = NULL;
-		conn->mux->destroy(conn);
-	} else if (conn) {
-		/* We have a connection, but not yet an associated mux.
-		 * So destroy it now.
-		 */
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		conn_free(conn);
+	for (i = 0; i < MAX_SRV_LIST; i++) {
+		int count = 0;
+		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[i].list, session_list) {
+			count++;
+			if (conn->mux) {
+				LIST_DEL(&conn->session_list);
+				LIST_INIT(&conn->session_list);
+				conn->owner = NULL;
+				conn->mux->destroy(conn);
+			} else {
+				/* We have a connection, but not yet an associated mux.
+				 * So destroy it now.
+				 */
+				conn_stop_tracking(conn);
+				conn_full_close(conn);
+				conn_free(conn);
+			}
+		}
 	}
-	LIST_DEL(&sess->conn_list);
 	pool_free(pool_head_session, sess);
 	HA_ATOMIC_SUB(&jobs, 1);
 }

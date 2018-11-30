@@ -662,13 +662,8 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	struct session *sess, *sess_back;
-
-	list_for_each_entry_safe(sess, sess_back, &conn->session_list, conn_list) {
-		sess->srv_conn = NULL;
-		LIST_DEL(&sess->conn_list);
-		LIST_INIT(&sess->conn_list);
-	}
+	/* Remove ourself from the session's connections list, if any. */
+	LIST_DEL(&conn->session_list);
 	/* If we temporarily stored the connection as the stream_interface's
 	 * end point, remove it.
 	 */

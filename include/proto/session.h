@@ -71,6 +71,46 @@ static inline void session_store_counters(struct session *sess)
 	}
 }
 
+static inline void session_add_conn(struct session *sess, struct connection *conn, void *target)
+{
+	int avail = -1;
+	int i;
+
+	for (i = 0; i < MAX_SRV_LIST; i++) {
+		if (sess->srv_list[i].target == target) {
+			avail = i;
+			break;
+		}
+		if (LIST_ISEMPTY(&sess->srv_list[i].list) && avail == -1)
+			avail = i;
+	}
+	if (avail == -1) {
+		struct connection *conn, *conn_back;
+		int count = 0;
+		/* We have no slot free, let's free the one with the fewer connections */
+		for (i = 0; i < MAX_SRV_LIST; i++) {
+			int count_list = 0;
+			list_for_each_entry(conn, &sess->srv_list[i].list, session_list)
+			    count_list++;
+			if (count == 0 || count_list < count) {
+				count = count_list;
+				avail = i;
+			}
+		}
+		/* Now unown all the connections */
+		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[avail].list, session_list) {
+			conn->owner = NULL;
+			LIST_DEL(&conn->session_list);
+			LIST_INIT(&conn->session_list);
+			if (conn->mux)
+				conn->mux->destroy(conn);
+		}
+
+	}
+	sess->srv_list[avail].target = target;
+	LIST_ADDQ(&sess->srv_list[avail].list, &conn->session_list);
+}
+
 
 #endif /* _PROTO_SESSION_H */
 
