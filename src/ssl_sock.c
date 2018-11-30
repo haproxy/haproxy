@@ -2811,9 +2811,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 struct cert_key_and_chain {
 	X509 *cert;
 	EVP_PKEY *key;
-	unsigned int num_chain_certs;
-	/* This is an array of X509 pointers */
-	X509 **chain_certs;
+	STACK_OF(X509) *chain;
 	DH *dh;
 };
 
@@ -2908,8 +2906,6 @@ end:
  */
 static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
 {
-	int i;
-
 	if (!ckch)
 		return;
 
@@ -2924,17 +2920,9 @@ static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain 
 	ckch->key = NULL;
 
 	/* Free each certificate in the chain */
-	for (i = 0; i < ckch->num_chain_certs; i++) {
-		if (ckch->chain_certs[i])
-			X509_free(ckch->chain_certs[i]);
-	}
-
-	/* Free the chain obj itself and set to NULL */
-	if (ckch->num_chain_certs > 0) {
-		free(ckch->chain_certs);
-		ckch->num_chain_certs = 0;
-		ckch->chain_certs = NULL;
-	}
+	if (ckch->chain)
+		sk_X509_pop_free(ckch->chain, X509_free);
+	ckch->chain = NULL;
 
 }
 
@@ -2959,7 +2947,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 {
 
 	BIO *in;
-	X509 *ca = NULL;
+	X509 *ca;
 	int ret = 1;
 
 	ssl_sock_free_cert_key_and_chain_contents(ckch);
@@ -3000,19 +2988,18 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 	if (ckch->cert == NULL) {
 		memprintf(err, "%sunable to load certificate from file '%s'.\n",
-				err && *err ? *err : "", path);
+			  err && *err ? *err : "", path);
 		goto end;
 	}
 
 	/* Read Certificate Chain */
-	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
-		/* Grow the chain certs */
-		ckch->num_chain_certs++;
-		ckch->chain_certs = realloc(ckch->chain_certs, (ckch->num_chain_certs * sizeof(X509 *)));
+	ckch->chain = sk_X509_new_null();
+	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL)))
+		if (!sk_X509_push(ckch->chain, ca)) {
+			X509_free(ca);
+			goto end;
+		}
 
-		/* use - 1 here since we just incremented it above */
-		ckch->chain_certs[ckch->num_chain_certs - 1] = ca;
-	}
 	ret = ERR_get_error();
 	if (ret && (ERR_GET_LIB(ret) != ERR_LIB_PEM && ERR_GET_REASON(ret) != PEM_R_NO_START_LINE)) {
 		memprintf(err, "%sunable to load certificate chain from file '%s'.\n",
@@ -3045,8 +3032,6 @@ end:
  */
 static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
 {
-	int i = 0;
-
 	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
 		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
 				err && *err ? *err : "", path);
@@ -3060,12 +3045,10 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
-	for (i = 0; i < ckch->num_chain_certs; i++) {
-		if (!SSL_CTX_add1_chain_cert(ctx, ckch->chain_certs[i])) {
-			memprintf(err, "%sunable to load chain certificate #%d into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
-					err && *err ? *err : "", (i+1), path);
-			return 1;
-		}
+        if (!SSL_CTX_set1_chain(ctx, ckch->chain)) {
+		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
+			  err && *err ? *err : "", path);
+		return 1;
 	}
 
 	if (SSL_CTX_check_private_key(ctx) <= 0) {
