@@ -899,7 +899,7 @@ static inline void list_mux_proto(FILE *out)
 	char *mode, *side;
 
 	fprintf(out, "Available multiplexer protocols :\n"
-		"(protocols markes as <default> cannot be specified using 'proto' keyword)\n");
+		"(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
 	list_for_each_entry(item, &mux_proto_list.list, list) {
 		proto = item->token;
 
@@ -909,6 +909,10 @@ static inline void list_mux_proto(FILE *out)
 			mode = "TCP";
 		else if (item->mode == PROTO_MODE_HTTP)
 			mode = "HTTP";
+		else if (item->mode == PROTO_MODE_HTX)
+			mode = "HTX";
+		else if (item->mode == (PROTO_MODE_HTTP | PROTO_MODE_HTX))
+			mode = "HTTP|HTX";
 		else
 			mode = "NONE";
 
