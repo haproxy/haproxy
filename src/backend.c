@@ -744,10 +744,16 @@ int assign_server(struct stream *s)
 	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
 		s->target = &s->be->obj_type;
 	}
-	else if ((s->be->options & PR_O_HTTP_PROXY) &&
-		 conn && is_addr(&conn->addr.to)) {
-		/* in proxy mode, we need a valid destination address */
-		s->target = &s->be->obj_type;
+	else if ((s->be->options & PR_O_HTTP_PROXY)) {
+		conn = cs_conn(objt_cs(s->si[1].end));
+
+		if (conn && is_addr(&conn->addr.to)) {
+			/* in proxy mode, we need a valid destination address */
+			s->target = &s->be->obj_type;
+		} else {
+			err = SRV_STATUS_NOSRV;
+			goto out;
+		}
 	}
 	else {
 		err = SRV_STATUS_NOSRV;
@@ -1109,33 +1115,45 @@ int connect_server(struct stream *s)
 	struct connection *cli_conn = NULL;
 	struct connection *srv_conn = NULL;
 	struct connection *old_conn = NULL;
-	struct conn_stream *srv_cs;
+	struct conn_stream *srv_cs = NULL;
 	struct server *srv;
 	int reuse = 0;
 	int err;
 	int i;
 
 
-	for (i = 0; i < MAX_SRV_LIST; i++) {
-		if (s->sess->srv_list[i].target == s->target) {
-			list_for_each_entry(srv_conn, &s->sess->srv_list[i].list,
-			    session_list) {
-				if (conn_xprt_ready(srv_conn) &&
-				    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
-					reuse = 1;
+	if (!(s->be->options & PR_O_HTTP_PROXY)) {
+		for (i = 0; i < MAX_SRV_LIST; i++) {
+			if (s->sess->srv_list[i].target == s->target) {
+				list_for_each_entry(srv_conn, &s->sess->srv_list[i].list,
+				    session_list) {
+					if (conn_xprt_ready(srv_conn) &&
+					    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
+						reuse = 1;
+						break;
+					}
+				}
+			}
+		}
+		if (!srv_conn) {
+			for (i = 0; i < MAX_SRV_LIST; i++) {
+				if (!LIST_ISEMPTY(&s->sess->srv_list[i].list)) {
+					srv_conn = LIST_ELEM(&s->sess->srv_list[i].list,
+					    struct connection *, session_list);
 					break;
 				}
 			}
 		}
-	}
-	if (!srv_conn) {
-		for (i = 0; i < MAX_SRV_LIST; i++) {
-			if (!LIST_ISEMPTY(&s->sess->srv_list[i].list)) {
-				srv_conn = LIST_ELEM(&s->sess->srv_list[i].list,
-				    struct connection *, session_list);
-				break;
-			}
-		}
+	} else {
+		/* http_proxy is special, we can't just reuse any connection,
+		 * as the destination may be different. We should have created
+		 * a connection and a conn_stream earlier, so get the
+		 * connection from the conn_stream.
+		 */
+		srv_cs = objt_cs(s->si[1].end);
+		old_conn = srv_conn = cs_conn(srv_cs);
+		if (old_conn)
+			reuse = 1;
 	}
 	old_conn = srv_conn;
 
@@ -1227,14 +1245,19 @@ int connect_server(struct stream *s)
 		srv_conn = conn_new();
 		srv_cs = NULL;
 	} else {
-		if (srv_conn->mux->avail_streams(srv_conn) == 1) {
-			/* No more streams available, remove it from the list */
-			LIST_DEL(&srv_conn->list);
-			LIST_INIT(&srv_conn->list);
+		/* We already created a cs earlier when using http_proxy, so
+		 * only create a new one if we don't have one already.
+		 */
+		if (!srv_cs) {
+			if (srv_conn->mux->avail_streams(srv_conn) == 1) {
+				/* No more streams available, remove it from the list */
+				LIST_DEL(&srv_conn->list);
+				LIST_INIT(&srv_conn->list);
+			}
+			srv_cs = srv_conn->mux->attach(srv_conn);
+			if (srv_cs)
+				si_attach_cs(&s->si[1], srv_cs);
 		}
-		srv_cs = srv_conn->mux->attach(srv_conn);
-		if (srv_cs)
-			si_attach_cs(&s->si[1], srv_cs);
 	}
 	if (srv_conn && old_conn != srv_conn) {
 		srv_conn->owner = s->sess;
