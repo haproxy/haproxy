@@ -558,7 +558,7 @@ static struct server *get_server_rnd(struct stream *s)
 
 int assign_server(struct stream *s)
 {
-	struct connection *conn;
+	struct connection *conn = NULL;
 	struct server *conn_slot;
 	struct server *srv = NULL, *prev_srv;
 	int err;
@@ -587,22 +587,26 @@ int assign_server(struct stream *s)
 	srv = NULL;
 	s->target = NULL;
 
-	for (i = 0; i < MAX_SRV_LIST; i++) {
-		list_for_each_entry(conn, &s->sess->srv_list[i].list, session_list) {
-			if (conn->flags & CO_FL_CONNECTED &&
-			    objt_server(conn->target) &&
-			    __objt_server(conn->target)->proxy == s->be &&
-			    (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
-			    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
-			     ((s->be->options & PR_O_PREF_LAST) &&
-			      (!s->be->max_ka_queue ||
-			       server_has_room(__objt_server(conn->target)) ||
-			       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
-			    srv_currently_usable(__objt_server(conn->target))) {
-				srv = __objt_server(conn->target);
-				s->target = &srv->obj_type;
-				goto out_ok;
+	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
+	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
+	     (s->be->options & PR_O_PREF_LAST))) {
+		for (i = 0; i < MAX_SRV_LIST; i++) {
+			struct server *tmpsrv = objt_server(s->sess->srv_list[i].target);
 
+			if (tmpsrv && tmpsrv->proxy == s->be &&
+			    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
+			     (!s->be->max_ka_queue ||
+			      server_has_room(tmpsrv) || (
+			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
+			    srv_currently_usable(tmpsrv)) {
+				list_for_each_entry(conn, &s->sess->srv_list[i].list, session_list) {
+					if (conn->flags & CO_FL_CONNECTED) {
+
+						srv = tmpsrv;
+						s->target = &srv->obj_type;
+						goto out_ok;
+					}
+				}
 			}
 		}
 	}
