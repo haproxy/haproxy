@@ -422,7 +422,7 @@ struct connection {
 	const struct mux_ops  *mux;   /* mux layer opreations. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *mux_ctx;                /* mux-specific context, initialized to NULL */
-	void *owner;                  /* pointer to the owner session for incoming connections, or NULL */
+	void *owner;                  /* pointer to the owner session, or NULL */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 
 	/* second cache line */
