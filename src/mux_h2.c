@@ -3579,10 +3579,31 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 {
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
+	struct htx *h2s_htx = NULL;
+	struct htx *buf_htx = NULL;
+	struct htx_ret htx_ret;
 	size_t ret = 0;
 
 	/* transfer possibly pending data to the upper layer */
-	ret = b_xfer(buf, &h2s->rxbuf, count);
+	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
+		/* in HTX mode we ignore the count argument */
+		h2s_htx = htx_from_buf(&h2s->rxbuf);
+		if (htx_is_empty(h2s_htx))
+			goto end;
+
+		buf_htx = htx_from_buf(buf);
+		count = htx_free_space(buf_htx);
+
+		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, (h2s_htx->sl_off != -1) ? HTX_BLK_EOH : HTX_BLK_EOM);
+
+		buf_htx->extra = h2s_htx->extra;
+		if (htx_is_not_empty(buf_htx))
+			b_set_data(buf, b_size(buf));
+		ret = htx_ret.ret;
+	}
+	else {
+		ret = b_xfer(buf, &h2s->rxbuf, count);
+	}
 
 	if (b_data(&h2s->rxbuf))
 		cs->flags |= CS_FL_RCV_MORE;
@@ -3604,7 +3625,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				tasklet_wakeup(h2c->wait_event.task);
 		}
 	}
-
+end:
 	return ret;
 }
 
