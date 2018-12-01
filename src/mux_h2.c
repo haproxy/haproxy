@@ -2921,13 +2921,13 @@ static int h2_frt_decode_headers(struct h2s *h2s)
  * because the smallest chunk takes 1 byte for the size, 2 for CRLF, X for the
  * data, 2 for the extra CRLF, so that's 5+X, while on the H2 side the smallest
  * frame will be 9+X bytes based on the same buffer size. The HTTP/2 frame
- * parser state is automatically updated. Returns the number of bytes emitted
- * if > 0, or 0 if it couldn't proceed, in which case CS_FL_RCV_MORE must be
- * checked to know if some data remain pending (an empty DATA frame can return
- * 0 as a valid result). Stream errors are reported in h2s->errcode and
- * connection errors in h2c->errcode. The caller must already have checked the
- * frame header and ensured that the frame was complete or the buffer full. It
- * changes the frame state to FRAME_A once done.
+ * parser state is automatically updated. Returns > 0 if it could completely
+ * send the current frame, 0 if it couldn't complete, in which case
+ * CS_FL_RCV_MORE must be checked to know if some data remain pending (an empty
+ * DATA frame can return 0 as a valid result). Stream errors are reported in
+ * h2s->errcode and connection errors in h2c->errcode. The caller must already
+ * have checked the frame header and ensured that the frame was complete or the
+ * buffer full. It changes the frame state to FRAME_A once done.
  */
 static int h2_frt_transfer_data(struct h2s *h2s)
 {
@@ -2935,6 +2935,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	int block1, block2;
 	unsigned int flen = 0;
 	unsigned int chklen = 0;
+	struct htx *htx = NULL;
 	struct buffer *csbuf;
 
 	h2c->flags &= ~H2_CF_DEM_SFULL;
@@ -2966,6 +2967,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 		goto fail;
 	}
 
+try_again:
 	flen = h2c->dfl - h2c->dpl;
 	if (!flen)
 		goto end_transfer;
@@ -2976,7 +2978,33 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 			goto fail;
 	}
 
-	if (unlikely(b_space_wraps(csbuf))) {
+	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
+		htx = htx_from_buf(csbuf);
+		block1 = htx_free_data_space(htx);
+		if (!block1) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto fail;
+		}
+		if (flen > block1)
+			flen = block1;
+
+		/* here, flen is the max we can copy into the output buffer */
+		block1 = b_contig_data(&h2c->dbuf, 0);
+		if (flen > block1)
+			flen = block1;
+
+		if (!htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen))) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto fail;
+		}
+
+		b_del(&h2c->dbuf, flen);
+		h2c->dfl    -= flen;
+		h2c->rcvd_c += flen;
+		h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
+		goto try_again;
+	}
+	else if (unlikely(b_space_wraps(csbuf))) {
 		/* it doesn't fit and the buffer is fragmented,
 		 * so let's defragment it and try again.
 		 */
@@ -3054,14 +3082,22 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	 * transferred.
 	 */
 
-	if (h2c->dff & H2_F_DATA_END_STREAM && h2s->flags & H2_SF_DATA_CHNK) {
-		/* emit the trailing 0 CRLF CRLF */
-		if (b_room(csbuf) < 5) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
+	if (h2c->dff & H2_F_DATA_END_STREAM) {
+		if (htx) {
+			if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+				h2c->flags |= H2_CF_DEM_SFULL;
+				goto fail;
+			}
 		}
-		chklen += 5;
-		b_putblk(csbuf, "0\r\n\r\n", 5);
+		else if (h2s->flags & H2_SF_DATA_CHNK) {
+			/* emit the trailing 0 CRLF CRLF */
+			if (b_room(csbuf) < 5) {
+				h2c->flags |= H2_CF_DEM_SFULL;
+				goto fail;
+			}
+			chklen += 5;
+			b_putblk(csbuf, "0\r\n\r\n", 5);
+		}
 	}
 
 	h2c->rcvd_c += h2c->dpl;
@@ -3074,7 +3110,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 		h2s->cs->flags |= CS_FL_REOS;
 	}
 
-	return flen + chklen;
+	return 1;
  fail:
 	return 0;
 }
