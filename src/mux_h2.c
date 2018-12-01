@@ -20,6 +20,8 @@
 #include <common/net_helper.h>
 #include <proto/connection.h>
 #include <proto/h1.h>
+#include <proto/http_htx.h>
+#include <proto/htx.h>
 #include <proto/stream.h>
 #include <types/session.h>
 #include <eb32tree.h>
@@ -3652,6 +3654,11 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	struct h2s *h2s = cs->ctx;
 	size_t total = 0;
 	size_t ret;
+	struct htx *htx;
+	struct htx_blk *blk;
+	enum htx_blk_type btype;
+	uint32_t bsize;
+	int32_t idx;
 
 	if (h2s->send_wait) {
 		h2s->send_wait->wait_reason &= ~SUB_CALL_UNSUBSCRIBE;
@@ -3662,9 +3669,31 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2s->h2c->st0 < H2_CS_FRAME_H)
 		return 0;
 
+	/* htx will be enough to decide if we're using HTX or legacy */
+	htx = (h2s->h2c->proxy->options2 & PR_O2_USE_HTX) ? htx_from_buf(buf) : NULL;
+
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
 
+	if (htx) {
+		while (count && !htx_is_empty(htx)) {
+			idx   = htx_get_head(htx);
+			blk   = htx_get_blk(htx, idx);
+			btype = htx_get_blk_type(blk);
+			bsize = htx_get_blksz(blk);
+
+			switch (btype) {
+			default:
+				htx_remove_blk(htx, blk);
+				total += bsize;
+				count -= bsize;
+				break;
+			}
+		}
+		goto done;
+	}
+
+	/* legacy transfer mode */
 	while (h2s->h1m.state < H1_MSG_DONE && count) {
 		if (h2s->h1m.state <= H1_MSG_LAST_LF) {
 			ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
@@ -3702,6 +3731,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 	}
 
+ done:
 	if (h2s->st >= H2_SS_ERROR) {
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
@@ -3717,12 +3747,20 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			h2s_close(h2s);
 	}
 
-	b_del(buf, total);
+	if (htx) {
+		if (htx_is_empty(htx)) {
+			htx_reset(htx);
+			b_set_data(buf, 0);
+		}
+	} else {
+		b_del(buf, total);
+	}
 
 	/* The mux is full, cancel the pending tasks */
 	if ((h2s->h2c->flags & H2_CF_MUX_BLOCK_ANY) ||
 	    (h2s->flags & H2_SF_BLK_MBUSY))
 		h2_stop_senders(h2s->h2c);
+
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.wait_reason & SUB_CAN_SEND))
 			tasklet_wakeup(h2s->h2c->wait_event.task);
