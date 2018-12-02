@@ -93,6 +93,8 @@ int hpack_encode_header(struct buffer *out, const struct ist n,
 		out->area[len++] = 0x61; // literal with indexing -- name="date" (idx 33)
 	else if (isteq(n, ist("etag")))
 		out->area[len++] = 0x62; // literal with indexing -- name="etag" (idx 34)
+	else if (isteq(n, ist(":path")))
+		out->area[len++] = 0x44; // literal with indexing -- name=":path" (idx 4)
 	else if (isteq(n, ist("server")))
 		out->area[len++] = 0x76; // literal with indexing -- name="server" (idx 54)
 	else if (isteq(n, ist("location")))
