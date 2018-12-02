@@ -352,7 +352,7 @@ static void stream_free(struct stream *s)
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;
-			HA_ATOMIC_SUB(&objt_server(s->target)->cur_sess, 1);
+			HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
 		}
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -713,7 +713,7 @@ static int sess_update_st_cer(struct stream *s)
 
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;
-			HA_ATOMIC_SUB(&objt_server(s->target)->cur_sess, 1);
+			HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
 		}
 
 		if ((si->flags & SI_FL_ERR) &&

@@ -1478,8 +1478,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-				health_adjust(objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
+				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
 			}
 
 			rep->analysers &= AN_RES_FLT_END;
@@ -1509,8 +1509,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-				health_adjust(objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
+				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
 			}
 
 			rep->analysers &= AN_RES_FLT_END;
@@ -1530,7 +1530,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
 			HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.cli_aborts, 1);
 
 			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 400;
@@ -1552,8 +1552,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-				health_adjust(objt_server(s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
+				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
 			}
 
 			rep->analysers &= AN_RES_FLT_END;
@@ -1644,7 +1644,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		stream_inc_http_err_ctr(s);
 
 	if (objt_server(s->target))
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.p.http.rsp[n], 1);
+		HA_ATOMIC_ADD(&__objt_server(s->target)->counters.p.http.rsp[n], 1);
 
 	/* Adjust server's health based on status code. Note: status codes 501
 	 * and 505 are triggered on demand by client request, so we must not
@@ -1652,9 +1652,9 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	if (objt_server(s->target)) {
 		if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
-			health_adjust(objt_server(s->target), HANA_STATUS_HTTP_OK);
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_OK);
 		else
-			health_adjust(objt_server(s->target), HANA_STATUS_HTTP_STS);
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_STS);
 	}
 
 	/*
@@ -1764,8 +1764,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
  return_bad_res:
 	HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 	if (objt_server(s->target)) {
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
+		HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 	}
 	txn->status = 502;
 	s->si[1].flags |= SI_FL_NOLINGER;
@@ -1885,7 +1885,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		/* has the response been denied ? */
 		if (txn->flags & TX_SVDENY) {
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
+				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_secu, 1);
 
 			HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
 			HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
@@ -2072,8 +2072,8 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 
   return_bad_resp:
 	if (objt_server(s->target)) {
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
-		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_RSP);
+		HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
 	}
 	HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 
@@ -2297,7 +2297,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	res->analysers   &= AN_RES_FLT_END;
 	s->req.analysers &= AN_REQ_FLT_END; /* we're in data phase, we want to abort both directions */
 	if (objt_server(s->target))
-		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
+		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
