@@ -1,6 +1,155 @@
 ChangeLog :
 ===========
 
+2018/12/02 : 1.9-dev9
+    - BUILD/MINOR: ssl: fix build with non-alpn/non-npn libssl
+    - BUG/MINOR: mworker: Do not attempt to close(2) fd -1
+    - BUILD: compression: fix build error with DEFAULT_MAXZLIBMEM
+    - MINOR: compression: always create the compression pool
+    - BUG/MEDIUM: mworker: fix FD leak upon reload
+    - BUILD: htx: fix fprintf format inconsistency on 32-bit platforms
+    - BUILD: buffers: buf.h requires unistd to get ssize_t on libmusl
+    - MINOR: initcall: introduce a way to register init functions to call at boot
+    - MINOR: init: process all initcalls in order at boot time
+    - MEDIUM: init: convert all trivial registration calls to initcalls
+    - MINOR: thread: provide a set of lock initialisers
+    - MINOR: threads: add new macros to declare self-initializing locks
+    - MEDIUM: init: use self-initializing spinlocks and rwlocks
+    - MINOR: initcall: apply initcall to all register_build_opts() calls
+    - MINOR: initcall: use initcalls for most post_{check,deinit} and per_thread*
+    - MINOR: initcall: use initcalls for section parsers
+    - MINOR: memory: add a callback function to create a pool
+    - MEDIUM: init: use initcall for all fixed size pool creations
+    - MEDIUM: memory: use pool_destroy_all() to destroy all pools on deinit()
+    - MEDIUM: initcall: use initcalls for a few initialization functions
+    - MEDIUM: memory: make the pool cache an array and not a thread_local
+    - MINOR: ssl: free ctx when libssl doesn't support NPN
+    - BUG/MINOR: proto_htx: only mark connections private if NTLM is detected
+    - MINOR: h2: make struct h2_ops static
+    - BUG/MEDIUM: mworker: avoid leak of client socket
+    - REORG: mworker: declare master variable in global.h
+    - BUG/MEDIUM: listeners: CLOEXEC flag is not correctly set
+    - CLEANUP: http: Fix typo in init_http's comment
+    - BUILD: Makefile: Disable -Wcast-function-type if it exists.
+    - BUG/MEDIUM: h2: Don't bogusly error if the previous stream was closed.
+    - REGTEST/MINOR: script: add run-regtests.sh script
+    - REGTEST: Add a basic test for the cache.
+    - BUG/MEDIUM: mux_pt: Don't forget to unsubscribe() on attach.
+    - BUG/MINOR: ssl: ssl_sock_parse_clienthello ignores session id
+    - BUG/MEDIUM: connections: Wake the stream once the mux is chosen.
+    - BUG/MEDIUM: connections: Don't forget to detach the connection from the SI.
+    - BUG/MEDIUM: stream_interface: Don't check if the handshake is done.
+    - BUG/MEDIUM: stream_interface: Make sure we read all the data available.
+    - BUG/MEDIUM: h2: Call h2_process() if there's an error on the connection.
+    - REGTEST: Fix several issues.
+    - REGTEST: lua: check socket functionality from a lua-task
+    - BUG/MEDIUM: session: Remove the session from the session_list in session_free.
+    - BUG/MEDIUM: streams: Don't assume we have a CS in sess_update_st_con_tcp.
+    - BUG/MEDIUM: connections: Don't assume we have a mux in connect_server().
+    - BUG/MEDIUM: connections: Remove the connection from the idle list before destroy.
+    - BUG/MEDIUM: session: properly clean the outgoing connection before freeing.
+    - BUG/MEDIUM: mux_pt: Don't try to send if handshake is not done.
+    - MEDIUM: connections: Put H2 connections in the idle list if http-reuse always.
+    - MEDIUM: h2: Destroy a connection with no stream if it has no owner.
+    - MAJOR: sessions: Store multiple outgoing connections in the session.
+    - MEDIUM: session: Steal owner-less connections on end of transaction.
+    - MEDIUM: server: Be smarter about deciding to reuse the last server.
+    - BUG/MEDIUM: Special-case http_proxy when dealing with outgoing connections.
+    - BUG/MINOR: cfgparse: Fix transition between 2 sections with the same name
+    - BUG/MINOR: http: Use out buffer instead of trash to display error snapshot
+    - BUG/MINOR: htx: Fix block size calculation when a start-line is added/replaced
+    - BUG/MINOR: mux-h1: Fix processing of "Connection: " header on outgoing messages
+    - BUG/MEDIUM: mux-h1: Reset the H1 parser when an outgoing message is processed
+    - BUG/MINOR: proto_htx: Send outgoing data to client to start response processing
+    - BUG/MINOR: htx: Stop a header or a start line lookup on the first EOH or EOM
+    - BUG/MINOR: connection: report mux modes when HTX is supported
+    - MINOR: htx: add a function to cut the beginning of a DATA block
+    - MEDIUM: conn_stream: Add a way to get mux's info on a CS from the upper layer
+    - MINOR: mux-h1: Implement get_cs_info() callback
+    - MINOR: stream: Rely on CS's info if it exists and fallback on session's ones
+    - MINOR: proto_htx: Use conn_stream's info to set t_idle duration when possible
+    - MINOR: mux-h1: Don't rely on the stream anymore in h1_set_srv_conn_mode()
+    - MINOR: mux-h1: Write last chunk and trailers if not found in the HTX message
+    - MINOR: mux-h1: Be prepare to fail when EOM is added during trailers parsing
+    - MINOR: mux-h1: Subscribe to send in h1_snd_buf() when not all data have been sent
+    - MINOR: mux-h1: Consume channel's data in a loop in h1_snd_buf()
+    - MEDIUM: mux-h1: Add keep-alive outgoing connections in connections list
+    - MINOR: htx: Add function to add an HTX block just before another one
+    - MINOR: htx: Add function to iterate on an HTX message using HTX blocks
+    - MINOR: htx: Add a function to find the HTX block corresponding to a data offset
+    - MINOR: stats: Don't add end-of-data marker and trailers in the HTX response
+    - MEDIUM: htx: Change htx_sl to be a struct instead of an union
+    - MINOR: htx: Add the start-line offset for the HTX message in the HTX structure
+    - MEDIUM: htx: Don't rely on h1_sl anymore except during H1 header parsing
+    - MINOR: proto-htx: Use the start-line flags to set the HTTP messsage ones
+    - MINOR: htx: Add BODYLESS flags on the HTX start-line and the HTTP message
+    - MINOR: proto_htx: Use full HTX messages to send 100-Continue responses
+    - MINOR: proto_htx: Use full HTX messages to send 103-Early-Hints responses
+    - MINOR: proto_htx: Use full HTX messages to send 401 and 407 responses
+    - MINOR: proto_htx: Send valid HTX message when redir mode is enabled on a server
+    - MINOR: proto_htx: Send valid HTX message to send 30x responses
+    - MEDIUM: proto_htx: Convert all HTTP error messages into HTX
+    - MINOR: mux-h1: Process conn_mode on the EOH when no connection header is found
+    - MINOR: mux-h1: Change client conn_mode on an explicit close for the response
+    - MINOR: mux-h1: Capture bad H1 messages
+    - MAJOR: filters: Adapt filters API to be compatible with the HTX represenation
+    - MEDIUM: proto_htx/filters: Add data filtering during the forwarding
+    - MINOR: flt_trace: Adapt to be compatible with the HTX representation
+    - MEDIUM: compression: Adapt to be compatible with the HTX representation
+    - MINOR: h2: implement H2->HTX request header frame transcoding
+    - MEDIUM: mux-h2: register mux for both HTTP and HTX modes
+    - MEDIUM: mux-h2: make h2_rcv_buf() support HTX transfers
+    - MEDIUM: mux-h2: make h2_snd_buf() HTX-aware
+    - MEDIUM: mux-h2: add basic H2->HTX transcoding support for headers
+    - MEDIUM: mux-h2: implement emission of H2 headers frames from HTX blocks
+    - MEDIUM: mux-h2: implement the emission of DATA frames from HTX DATA blocks
+    - MEDIUM: mux-h2: support passing H2 DATA frames to HTX blocks
+    - BUG/MINOR: cfgparse: Fix the call to post parser of the last sections parsed
+    - BUG/MEDIUM: mux-h2: don't lose the first response header in HTX mode
+    - BUG/MEDIUM: mux-h2: remove the HTX EOM block on H2 response headers
+    - MINOR: listener: the mux_proto entry in the bind_conf is const
+    - MINOR: connection: create conn_get_best_mux_entry()
+    - MINOR: server: the mux_proto entry in the server is const
+    - MINOR: config: make sure to associate the proper mux to bind and servers
+    - MINOR: hpack: add ":path" to the list of common header fields
+    - MINOR: h2: add new functions to produce an HTX message from an H2 response
+    - MINOR: mux-h2: mention that the mux is compatible with both sides
+    - MINOR: mux-h2: implement an outgoing stream allocator : h2c_bck_stream_new()
+    - MEDIUM: mux-h2: start to create the outgoing mux
+    - MEDIUM: mux-h2: implement encoding of H2 request on the backend side
+    - MEDIUM: mux-h2: make h2_frt_decode_headers() direction-agnostic
+    - MEDIUM: mux-h2: make h2_process_demux() capable of processing responses as well
+    - MEDIUM: mux-h2: Implement h2_attach().
+    - MEDIUM: mux-h2: Don't bother flagging outgoing connections as TOOMANY.
+    - REGTEST: Fix LEVEL 4 script 0 of "connection" module.
+    - MINOR: connection: Fix a comment.
+    - MINOR: mux: add a "max_streams" method.
+    - MEDIUM: servers: Add a way to keep idle connections alive.
+    - CLEANUP: fix typos in the htx subsystem
+    - CLEANUP: Fix typo in the chunk headers file
+    - CLEANUP: Fix typos in the h1 subsystem
+    - CLEANUP: Fix typos in the h2 subsystem
+    - CLEANUP: Fix a typo in the mini-clist header
+    - CLEANUP: Fix a typo in the proto_htx subsystem
+    - CLEANUP: Fix typos in the proto_tcp subsystem
+    - CLEANUP: Fix a typo in the signal subsystem
+    - CLEANUP: Fix a typo in the session subsystem
+    - CLEANUP: Fix a typo in the queue subsystem
+    - CLEANUP: Fix typos in the shctx subsystem
+    - CLEANUP: Fix typos in the socket pair protocol subsystem
+    - CLEANUP: Fix typos in the map management functions
+    - CLEANUP: Fix typo in the fwrr subsystem
+    - CLEANUP: Fix typos in the cli subsystem
+    - CLEANUP: Fix typo in the 51d subsystem
+    - CLEANUP: Fix a typo in the base64 subsystem
+    - CLEANUP: Fix a typo in the connection subsystem
+    - CLEANUP: Fix a typo in the protocol header file
+    - CLEANUP: Fix a typo in the checks header file
+    - CLEANUP: Fix typos in the file descriptor subsystem
+    - CLEANUP: Fix a typo in the listener subsystem
+    - BUG/MINOR: lb-map: fix unprotected update to server's score
+    - BUILD: threads: fix minor build warnings when threads are disabled
+
 2018/11/25 : 1.9-dev8
     - REORG: config: extract the global section parser into cfgparse-global
     - REORG: config: extract the proxy parser into cfgparse-listen.c
