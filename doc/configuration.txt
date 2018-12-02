@@ -11676,6 +11676,12 @@ id <value>
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
+idle-timeout <delay>
+  Set the time to keep a connection alive before destroying it. By default
+  connections are destroyed as soon as they are unused, if idle-timeout is
+  non-zero, then connection are kept alive for up to <delay> before being
+  destroyed, and can be reused if no other connection is available.
+
 init-addr {last | libc | none | <ip>},[...]*
   Indicate in what order the server's address should be resolved upon startup
   if it uses an FQDN. Attempts are made to resolve the address by applying in

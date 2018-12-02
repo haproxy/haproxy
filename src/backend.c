@@ -1118,6 +1118,7 @@ int connect_server(struct stream *s)
 	struct conn_stream *srv_cs = NULL;
 	struct server *srv;
 	int reuse = 0;
+	int reuse_orphan = 0;
 	int err;
 	int i;
 
@@ -1189,6 +1190,13 @@ int connect_server(struct stream *s)
 		else if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 			 (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) {
 			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
+		} else if (srv->idle_orphan_conns && !LIST_ISEMPTY(&srv->idle_orphan_conns[tid]) &&
+		    (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) ||
+		    (((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+		     s->txn && (s->txn->flags & TX_NOT_FIRST)))) {
+			srv_conn = LIST_ELEM(srv->idle_orphan_conns[tid].n,
+			    struct connection *, list);
+			reuse_orphan = 1;
 		}
 
 		/* If we've picked a connection from the pool, we now have to
@@ -1215,6 +1223,15 @@ int connect_server(struct stream *s)
 			if ((s->be->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
 				reuse = 0;
 		}
+	}
+	/* If we're really reusing the connection, remove it from the orphan
+	 * list and add it back to the idle list.
+	 */
+	if (reuse && reuse_orphan) {
+		LIST_DEL(&srv_conn->list);
+		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
+		if (LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
+			task_unlink_wq(srv->idle_task[tid]);
 	}
 
 	/* We're about to use another connection, let the mux know we're

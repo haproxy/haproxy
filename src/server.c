@@ -50,6 +50,7 @@ static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
+static struct task *cleanup_idle_connections(struct task *task, void *ctx, unsigned short state);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -354,6 +355,28 @@ static int srv_parse_enabled(char **args, int *cur_arg,
 	newsrv->next_state = SRV_ST_RUNNING;
 	newsrv->check.state &= ~CHK_ST_PAUSED;
 	newsrv->check.health = newsrv->check.rise;
+	return 0;
+}
+
+static int srv_parse_idle_timeout(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	const char *res;
+	char *arg;
+	unsigned int time;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	res = parse_time_err(arg, &time, TIME_UNIT_MS);
+	if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n",
+		    *res, args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->idle_timeout = time;
+
 	return 0;
 }
 
@@ -1197,6 +1220,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
+	{ "idle-timeout",        srv_parse_idle_timeout,        1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 0 */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
@@ -1640,6 +1664,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->tcp_ut = src->tcp_ut;
 #endif
 	srv->mux_proto = src->mux_proto;
+	srv->idle_timeout = src->idle_timeout;
 
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;
@@ -1889,7 +1914,28 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 		px->srv_act++;
 	srv_lb_commit_status(srv);
 
+	if (!srv->tmpl_info.prefix && srv->idle_timeout != 0) {
+			int i;
+
+			srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
+			if (!srv->idle_orphan_conns)
+				goto err;
+			srv->idle_task = calloc(global.nbthread, sizeof(*srv->idle_task));
+			if (!srv->idle_task)
+				goto err;
+			for (i = 0; i < global.nbthread; i++) {
+				LIST_INIT(&srv->idle_orphan_conns[i]);
+				srv->idle_task[i] = task_new(1 << i);
+				if (!srv->idle_task[i])
+					goto err;
+				srv->idle_task[i]->process = cleanup_idle_connections;
+				srv->idle_task[i]->context = srv;
+			}
+		}
+
 	return 0;
+err:
+	return ERR_ALERT | ERR_FATAL;
 }
 
 /*
@@ -1973,6 +2019,24 @@ static int server_template_init(struct server *srv, struct proxy *px)
 		/* Linked backwards first. This will be restablished after parsing. */
 		newsrv->next = px->srv;
 		px->srv = newsrv;
+		if (newsrv->idle_timeout != 0) {
+			int i;
+
+			newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
+			if (!newsrv->idle_orphan_conns)
+				goto err;
+			newsrv->idle_task = calloc(global.nbthread, sizeof(*newsrv->idle_task));
+			if (!newsrv->idle_task)
+				goto err;
+			for (i = 0; i < global.nbthread; i++) {
+				LIST_INIT(&newsrv->idle_orphan_conns[i]);
+				newsrv->idle_task[i] = task_new(1 << i);
+				if (!newsrv->idle_task[i])
+					goto err;
+				newsrv->idle_task[i]->process = cleanup_idle_connections;
+				newsrv->idle_task[i]->context = newsrv;
+			}
+		}
 	}
 	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 
@@ -5230,6 +5294,23 @@ static void srv_update_status(struct server *s)
 	*s->adm_st_chg_cause = 0;
 }
 
+static struct task *cleanup_idle_connections(struct task *task, void *context, unsigned short state)
+{
+	struct server *srv = context;
+	struct connection *conn, *conn_back;
+	unsigned int next_wakeup = 0;
+
+	list_for_each_entry_safe(conn, conn_back, &srv->idle_orphan_conns[tid], list) {
+		if (conn->idle_time + srv->idle_timeout > now_ms) {
+			next_wakeup = conn->idle_time + srv->idle_timeout;
+			break;
+		}
+		conn->mux->destroy(conn);
+	}
+	if (next_wakeup > 0)
+		task_schedule(task, next_wakeup);
+	return task;
+}
 /*
  * Local variables:
  *  c-indent-level: 8

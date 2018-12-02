@@ -86,10 +86,28 @@ void session_free(struct session *sess)
 		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[i].list, session_list) {
 			count++;
 			if (conn->mux) {
+				struct server *srv;
+
 				LIST_DEL(&conn->session_list);
 				LIST_INIT(&conn->session_list);
+				srv = objt_server(conn->target);
 				conn->owner = NULL;
-				conn->mux->destroy(conn);
+				if (srv && srv->idle_timeout > 0 &&
+				    !(conn->flags & CO_FL_PRIVATE) &&
+				    conn->mux->avail_streams(conn) ==
+				    conn->mux->max_streams(conn)) {
+					LIST_DEL(&conn->list);
+
+					LIST_ADDQ(&srv->idle_orphan_conns[tid],
+					    &conn->list);
+
+					conn->idle_time = now_ms;
+					if (!(task_in_wq(srv->idle_task[tid])) &&
+					    !(task_in_rq(srv->idle_task[tid])))
+						task_schedule(srv->idle_task[tid],
+						    tick_add(now_ms, srv->idle_timeout));
+				} else
+					conn->mux->destroy(conn);
 			} else {
 				/* We have a connection, but not yet an associated mux.
 				 * So destroy it now.

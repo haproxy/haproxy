@@ -2418,6 +2418,14 @@ void deinit(void)
 			free(s->idle_conns);
 			free(s->priv_conns);
 			free(s->safe_conns);
+			free(s->idle_orphan_conns);
+			if (s->idle_task) {
+				int i;
+
+				for (i = 0; i < global.nbthread; i++)
+					task_free(s->idle_task[i]);
+				free(s->idle_task);
+			}
 
 			if (s->use_ssl || s->check.use_ssl) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
