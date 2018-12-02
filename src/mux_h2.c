@@ -3762,6 +3762,9 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		ret += htx_get_blksz(blk);
 		blk = htx_remove_blk(htx, blk);
 	}
+
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+		htx_remove_blk(htx, blk_end);
  end:
 	return ret;
  full:
