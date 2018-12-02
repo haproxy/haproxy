@@ -161,7 +161,7 @@ struct bind_conf {
 	EVP_PKEY *ca_sign_pkey;    /* CA private key referenced by ca_key */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
-	struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */
+	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */
 	struct xprt_ops *xprt;     /* transport-layer operations for all listeners */
 	int is_ssl;                /* SSL is required for these listeners */
 	int generate_certs;        /* 1 if generate-certificates option is set, else 0 */
