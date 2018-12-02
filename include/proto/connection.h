@@ -930,6 +930,33 @@ static inline void list_mux_proto(FILE *out)
 	}
 }
 
+/* returns the first mux entry in the list matching the exact same <mux_proto>
+ * and compatible with the <proto_side> (FE or BE) and the <proto_mode> (TCP or
+ * HTTP). <mux_proto> can be empty. Will fall back to the first compatible mux
+ * with exactly the same <proto_mode> or with an empty name. May return
+ * null if the code improperly registered the default mux to use as a fallback.
+ */
+static inline const struct mux_proto_list *conn_get_best_mux_entry(
+        const struct ist mux_proto,
+        int proto_side, int proto_mode)
+{
+	struct mux_proto_list *item;
+	struct mux_proto_list *fallback = NULL;
+
+	list_for_each_entry(item, &mux_proto_list.list, list) {
+		if (!(item->side & proto_side) || !(item->mode & proto_mode))
+			continue;
+		if (istlen(mux_proto) && isteq(mux_proto, item->token))
+			return item;
+		else if (!istlen(item->token)) {
+			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
+				fallback = item;
+		}
+	}
+	return fallback;
+
+}
+
 /* returns the first mux in the list matching the exact same <mux_proto> and
  * compatible with the <proto_side> (FE or BE) and the <proto_mode> (TCP or
  * HTTP). <mux_proto> can be empty. Will fall back to the first compatible mux
@@ -940,21 +967,11 @@ static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 						      const struct ist mux_proto,
 						      int proto_side, int proto_mode)
 {
-	struct mux_proto_list *item;
-	struct mux_proto_list *fallback = NULL;
+	const struct mux_proto_list *item;
 
-	list_for_each_entry(item, &mux_proto_list.list, list) {
-		if (!(item->side & proto_side) || !(item->mode & proto_mode))
-			continue;
-		if (istlen(mux_proto) && isteq(mux_proto, item->token))
-			return item->mux;
-		else if (!istlen(item->token)) {
-			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
-				fallback = item;
-		}
-	}
-	return (fallback ? fallback->mux : NULL);
+	item = conn_get_best_mux_entry(mux_proto, proto_side, proto_mode);
 
+	return item ? item->mux : NULL;
 }
 
 /* returns 0 if the connection is valid and is a frontend connection, otherwise
