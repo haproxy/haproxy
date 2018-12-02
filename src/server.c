@@ -520,11 +520,6 @@ static int srv_parse_proto(char **args, int *cur_arg,
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[*cur_arg], args[*cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	else if (!(newsrv->mux_proto->side & PROTO_SIDE_BE)) {
-		memprintf(err, "'%s' :  MUX protocol '%s' cannot be used for outgoing connections",
-			  args[*cur_arg], args[*cur_arg+1]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 	return 0;
 }
 

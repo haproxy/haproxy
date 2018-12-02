@@ -999,11 +999,6 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[cur_arg], args[cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	else if (!(conf->mux_proto->side & PROTO_SIDE_FE)) {
-		memprintf(err, "'%s' :  MUX protocol '%s' cannot be used for incoming connections",
-			  args[cur_arg], args[cur_arg+1]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 	return 0;
 }
 

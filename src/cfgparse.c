@@ -3319,6 +3319,7 @@ out_uri_auth_compat:
 		 * attached to the current proxy */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
+			const struct mux_proto_list *mux_ent;
 
 			/* Special case for HTX because it is still experimental */
 			if (curproxy->options2 & PR_O2_USE_HTX)
@@ -3326,7 +3327,14 @@ out_uri_auth_compat:
 
 			if (!bind_conf->mux_proto)
 				continue;
-			if (!(bind_conf->mux_proto->mode & mode)) {
+
+			/* it is possible that an incorrect mux was referenced
+			 * due to the proxy's mode not being taken into account
+			 * on first pass. Let's adjust it now.
+			 */
+			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
+
+			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
 				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
 					 proxy_type_str(curproxy), curproxy->id,
 					 (int)bind_conf->mux_proto->token.len,
@@ -3334,9 +3342,13 @@ out_uri_auth_compat:
 					 bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
+
+			/* update the mux */
+			bind_conf->mux_proto = mux_ent;
 		}
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
+			const struct mux_proto_list *mux_ent;
 
 			/* Special case for HTX because it is still experimental */
 			if (curproxy->options2 & PR_O2_USE_HTX)
@@ -3344,7 +3356,14 @@ out_uri_auth_compat:
 
 			if (!newsrv->mux_proto)
 				continue;
-			if (!(newsrv->mux_proto->mode & mode)) {
+
+			/* it is possible that an incorrect mux was referenced
+			 * due to the proxy's mode not being taken into account
+			 * on first pass. Let's adjust it now.
+			 */
+			mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, mode);
+
+			if (!mux_ent || !isteq(mux_ent->token, newsrv->mux_proto->token)) {
 				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
 					 proxy_type_str(curproxy), curproxy->id,
 					 (int)newsrv->mux_proto->token.len,
@@ -3352,6 +3371,9 @@ out_uri_auth_compat:
 					 newsrv->id, newsrv->conf.file, newsrv->conf.line);
 				cfgerr++;
 			}
+
+			/* update the mux */
+			newsrv->mux_proto = mux_ent;
 		}
 	}
 
