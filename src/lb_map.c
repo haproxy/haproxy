@@ -132,7 +132,8 @@ void recalc_server_map(struct proxy *px)
 			}
 		}
 		px->lbprm.map.srv[o] = best;
-		HA_ATOMIC_SUB(&best->wscore, tot);
+		if (best)
+			HA_ATOMIC_SUB(&best->wscore, tot);
 	}
 }
 
