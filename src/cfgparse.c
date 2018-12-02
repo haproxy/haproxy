@@ -1890,8 +1890,8 @@ next_line:
 			err_code |= pcs->post_section_parser();
 			if (err_code & ERR_ABORT)
 				goto err;
-			pcs = NULL;
 		}
+		pcs = NULL;
 
 		if (!cs) {
 			ha_alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
@@ -1903,7 +1903,7 @@ next_line:
 		}
 	}
 
-	if (cs && pcs->post_section_parser)
+	if (cs && cs->post_section_parser)
 		err_code |= cs->post_section_parser();
 
 err:
