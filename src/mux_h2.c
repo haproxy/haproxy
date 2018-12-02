@@ -3613,7 +3613,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
 
-	idx = htx_get_next(htx, htx->sl_off);
+	idx = htx->sl_off;
 	while ((idx = htx_get_next(htx, idx)) != -1) {
 		blk = htx_get_blk(htx, idx);
 		type = htx_get_blk_type(blk);
