@@ -334,6 +334,7 @@ struct mux_ops {
 	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
+	int (*max_streams)(struct connection *conn);   /* Returns the max number of streams available for that connection. */
 	void (*destroy)(struct connection *conn); /* Let the mux know one of its users left, so it may have to disappear */
 	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
@@ -443,6 +444,7 @@ struct connection {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
+	struct timeval idle_tv;                 /* Time the connection was added to the idle list */
 };
 
 /* PROTO token registration */

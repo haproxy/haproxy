@@ -198,6 +198,11 @@ static int mux_pt_avail_streams(struct connection *conn)
 	return (ctx->cs == NULL ? 1 : 0);
 }
 
+static int mux_pt_max_streams(struct connection *conn)
+{
+	return 1;
+}
+
 static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	if (cs->flags & CS_FL_SHR)
@@ -311,6 +316,7 @@ const struct mux_ops mux_pt_ops = {
 	.get_first_cs = mux_pt_get_first_cs,
 	.detach = mux_pt_detach,
 	.avail_streams = mux_pt_avail_streams,
+	.max_streams = mux_pt_max_streams,
 	.destroy = mux_pt_destroy_meth,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,

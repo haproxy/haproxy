@@ -206,6 +206,10 @@ static int h1_avail_streams(struct connection *conn)
 	return h1c->h1s ? 0 : 1;
 }
 
+static int h1_max_streams(struct connection *conn)
+{
+	return 1;
+}
 
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
@@ -1981,6 +1985,7 @@ const struct mux_ops mux_h1_ops = {
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
+	.max_streams = h1_max_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
 #if defined(CONFIG_HAP_LINUX_SPLICE)
