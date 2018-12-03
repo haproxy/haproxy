@@ -814,7 +814,11 @@ int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 	chunk_memcat(chk, " ", 1);
 	chunk_memcat(chk, HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
+	if (sl->flags & HTX_SL_F_VER_11)
+		chunk_memcat(chk, "HTTP/1.1", 8);
+	else
+		chunk_memcat(chk, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
+
 	chunk_memcat(chk, "\r\n", 2);
 
 	return 1;
@@ -829,7 +833,10 @@ int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 	if (HTX_SL_LEN(sl) + 4 > b_size(chk))
 		return 0;
 
-	chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl));
+	if (sl->flags & HTX_SL_F_VER_11)
+		chunk_memcat(chk, "HTTP/1.1", 8);
+	else
+		chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl));
 	chunk_memcat(chk, " ", 1);
 	chunk_memcat(chk, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 	chunk_memcat(chk, " ", 1);
