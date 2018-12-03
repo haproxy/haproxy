@@ -2862,6 +2862,8 @@ static void h2_do_shutr(struct h2s *h2s)
 	    h2c_send_goaway_error(h2c, h2s) <= 0)
 		return;
 
+	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
+		tasklet_wakeup(h2c->wait_event.task);
 	h2s_close(h2s);
 
 	return;
@@ -2918,6 +2920,9 @@ static void h2_do_shutw(struct h2s *h2s)
 		h2s_close(h2s);
 	}
 
+	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
+		tasklet_wakeup(h2c->wait_event.task);
+	return;
 
  add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
