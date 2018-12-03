@@ -169,7 +169,7 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	else
 		memprintf(&conf->name, "TRACE/%s", px->id);
 
-	fconf->flags |= STRM_FLT_FL_HAS_FILTERS;
+	fconf->flags |= FLT_CFG_FL_HTX;
 	fconf->conf = conf;
 
 	TRACE(conf, "filter initialized [read random=%s - fwd random=%s - hexdump=%s]",

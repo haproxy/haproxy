@@ -79,7 +79,7 @@ static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 static int
 comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 {
-	fconf->flags |= STRM_FLT_FL_HAS_FILTERS;
+	fconf->flags |= FLT_CFG_FL_HTX;
 	return 0;
 }
 
