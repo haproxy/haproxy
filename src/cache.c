@@ -37,6 +37,9 @@
 #include <common/initcall.h>
 
 /* flt_cache_store */
+#define CACHE_F_LEGACY_HTTP 0x00000001 /* The cache is used to store raw HTTP
+					* messages (legacy implementation) */
+#define CACHE_F_HTX         0x00000002 /* The cache is used to store HTX messages */
 
 static const char *cache_store_flt_id = "cache store filter";
 
@@ -51,6 +54,7 @@ struct cache {
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
 	char id[33];             /* cache name */
+	unsigned int flags;      /* CACHE_F_* */
 };
 
 /*
@@ -882,6 +886,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
+			tmp_cache_config->flags = 0;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
 		unsigned long int maxsize;
@@ -1035,6 +1040,9 @@ int cfg_cache_postparser()
 				if (!strcmp(cache->id, cache_ptr)) {
 					/* don't free there, it's still used in the filter conf */
 					cache_ptr = cache;
+					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
+							 ? CACHE_F_HTX
+							 : CACHE_F_LEGACY_HTTP);
 					break;
 				}
 			}
@@ -1060,6 +1068,9 @@ int cfg_cache_postparser()
 				if (!strcmp(cache->id, cache_ptr)) {
 					free(cache_ptr);
 					cache_ptr = cache;
+					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
+							 ? CACHE_F_HTX
+							 : CACHE_F_LEGACY_HTTP);
 					break;
 				}
 			}
@@ -1086,6 +1097,9 @@ int cfg_cache_postparser()
 					/* there can be only one filter per cache, so we free it there */
 					free(cache_ptr);
 					cache_ptr = cache;
+					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
+							 ? CACHE_F_HTX
+							 : CACHE_F_LEGACY_HTTP);
 					break;
 				}
 			}
@@ -1098,6 +1112,18 @@ int cfg_cache_postparser()
 			fconf->conf = cache_ptr;
 		}
 	}
+
+	/* Check if the cache is used by HTX and legacy HTTP proxies in same
+	 * time
+	 */
+	list_for_each_entry(cache, &caches, list) {
+		if ((cache->flags & (CACHE_F_HTX|CACHE_F_LEGACY_HTTP)) == (CACHE_F_HTX|CACHE_F_LEGACY_HTTP)) {
+			ha_alert("Cache '%s': cannot be used by HTX and legacy HTTP proxies in same time.\n",
+				 cache->id);
+			err++;
+		}
+	}
+
 	return err;
 }
 
