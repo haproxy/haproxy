@@ -1722,7 +1722,7 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
-	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL)) {
+	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL) && h1c->conn->owner) {
 		/* Never ever allow to reuse a connection from a non-reuse backend */
 		if (h1c->conn && (h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			h1c->conn->flags |= CO_FL_PRIVATE;
@@ -1746,7 +1746,7 @@ static void h1_detach(struct conn_stream *cs)
 
 	/* We don't want to close right now unless the connection is in error */
 	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW)) ||
-	    (h1c->conn->flags & CO_FL_ERROR))
+	    (h1c->conn->flags & CO_FL_ERROR) || !h1c->conn->owner)
 		h1_release(h1c->conn);
 	else
 		tasklet_wakeup(h1c->wait_event.task);
