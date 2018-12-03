@@ -1316,7 +1316,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
-				if (!htx_reqline_to_str(sl, tmp))
+				if (!htx_reqline_to_h1(sl, tmp))
 					goto copy;
 				h1m->flags |= H1_MF_XFER_LEN;
 				h1m->state = H1_MSG_HDR_FIRST;
@@ -1328,7 +1328,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
-				if (!htx_stline_to_str(sl, tmp))
+				if (!htx_stline_to_h1(sl, tmp))
 					goto copy;
 				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
@@ -1353,7 +1353,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						goto skip_hdr;
 				}
 
-				if (!htx_hdr_to_str(n, v, tmp))
+				if (!htx_hdr_to_h1(n, v, tmp))
 					goto copy;
 			  skip_hdr:
 				h1m->state = H1_MSG_HDR_L2_LWS;
@@ -1374,7 +1374,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1_process_conn_mode(h1s, h1m, NULL, &v);
 					process_conn_mode = 0;
 					if (v.len) {
-						if (!htx_hdr_to_str(n, v, tmp))
+						if (!htx_hdr_to_h1(n, v, tmp))
 							goto copy;
 					}
 				}
@@ -1387,7 +1387,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(chn_htx, blk);
-				if (!htx_data_to_str(v, tmp, !!(h1m->flags & H1_MF_CHNK)))
+				if (!htx_data_to_h1(v, tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto copy;
 				break;
 
@@ -1405,7 +1405,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1s->flags |= H1S_F_HAVE_EOD;
 				}
 				v = htx_get_blk_value(chn_htx, blk);
-				if (!htx_trailer_to_str(v, tmp))
+				if (!htx_trailer_to_h1(v, tmp))
 					goto copy;
 				h1s->flags |= H1S_F_HAVE_TLR;
 				break;

@@ -628,7 +628,7 @@ static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char
 				struct ist n = htx_get_blk_name(htx, blk);
 				struct ist v = htx_get_blk_value(htx, blk);
 
-				if (!htx_hdr_to_str(n, v, temp))
+				if (!htx_hdr_to_h1(n, v, temp))
 					return 0;
 			}
 			else if (type == HTX_BLK_EOH) {
@@ -856,7 +856,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
 				break;
 			if (type == HTX_BLK_DATA) {
-				if (!htx_data_to_str(htx_get_blk_value(htx, blk), temp, 0))
+				if (!htx_data_to_h1(htx_get_blk_value(htx, blk), temp, 0))
 					return 0;
 			}
 		}
@@ -2531,7 +2531,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
 					break;
 				if (type == HTX_BLK_DATA) {
-					if (!htx_data_to_str(htx_get_blk_value(htx, blk), temp, 0))
+					if (!htx_data_to_h1(htx_get_blk_value(htx, blk), temp, 0))
 						return 0;
 				}
 			}

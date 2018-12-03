@@ -56,11 +56,11 @@ struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
 struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob);
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 
-int htx_reqline_to_str(const struct htx_sl *sl, struct buffer *chk);
-int htx_stline_to_str(const struct htx_sl *sl, struct buffer *chk);
-int htx_hdr_to_str(const struct ist n, const struct ist v, struct buffer *chk);
-int htx_data_to_str(const struct ist data, struct buffer *chk, int chunked);
-int htx_trailer_to_str(const struct ist tlr, struct buffer *chk);
+int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk);
+int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk);
+int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk);
+int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked);
+int htx_trailer_to_h1(const struct ist tlr, struct buffer *chk);
 
 /* Functions and macros to get parts of the start-line or legnth of these
  * parts

@@ -801,11 +801,11 @@ struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
 	return blk;
 }
 
-/* Appends the string representation of the request line block <blk> to the
+/* Appends the H1 representation of the request line block <blk> to the
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
  */
-int htx_reqline_to_str(const struct htx_sl *sl, struct buffer *chk)
+int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
 	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
 		return 0;
@@ -820,11 +820,11 @@ int htx_reqline_to_str(const struct htx_sl *sl, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the string representation of the status line block <blk> to the chunk
+/* Appends the H1 representation of the status line block <blk> to the chunk
  * <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
  */
-int htx_stline_to_str(const struct htx_sl *sl, struct buffer *chk)
+int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
 	if (HTX_SL_LEN(sl) + 4 > b_size(chk))
 		return 0;
@@ -839,11 +839,11 @@ int htx_stline_to_str(const struct htx_sl *sl, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the string representation of the header block <blk> to the chunk
+/* Appends the H1 representation of the header block <blk> to the chunk
  * <chk>. It returns 1 if data are successfully appended, otherwise it returns
  * 0.
  */
-int htx_hdr_to_str(const struct ist n, const struct ist v, struct buffer *chk)
+int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk)
 {
 	if (n.len + v.len + 4 > b_room(chk))
 		return 0;
@@ -856,11 +856,11 @@ int htx_hdr_to_str(const struct ist n, const struct ist v, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the string representation of the data block <blk> to the chunk
+/* Appends the H1 representation of the data block <blk> to the chunk
  * <chk>. If <chunked> is non-zero, it emits HTTP/1 chunk-encoded data. It
  * returns 1 if data are successfully appended, otherwise it returns 0.
  */
-int htx_data_to_str(const struct ist data, struct buffer *chk, int chunked)
+int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 {
 	if (chunked) {
 		uint32_t chksz;
@@ -890,11 +890,11 @@ int htx_data_to_str(const struct ist data, struct buffer *chk, int chunked)
 	return 1;
 }
 
-/* Appends the string representation of the trailer block <blk> to the chunk
+/* Appends the h1 representation of the trailer block <blk> to the chunk
  * <chk>. It returns 1 if data are successfully appended, otherwise it returns
  * 0.
  */
-int htx_trailer_to_str(const struct ist tlr, struct buffer *chk)
+int htx_trailer_to_h1(const struct ist tlr, struct buffer *chk)
 {
 	/* FIXME: be sure the CRLF is here or remove it when inserted */
 	if (!chunk_memcat(chk, tlr.ptr, tlr.len))
