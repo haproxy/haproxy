@@ -3045,11 +3045,24 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
+#ifdef SSL_CTX_set1_chain
         if (!SSL_CTX_set1_chain(ctx, ckch->chain)) {
 		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
 			  err && *err ? *err : "", path);
 		return 1;
 	}
+#else
+	{ /* legacy compat (< openssl 1.0.2) */
+		X509 *ca;
+		while ((ca = sk_X509_shift(ckch->chain)))
+			if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
+				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
+					  err && *err ? *err : "", path);
+				X509_free(ca);
+				return 1;
+			}
+	}
+#endif
 
 	if (SSL_CTX_check_private_key(ctx) <= 0) {
 		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
