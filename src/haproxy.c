@@ -623,6 +623,8 @@ static void mworker_cleanlisteners()
 	}
 
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+		int listen_in_master = 0;
+
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 			/* remove the listener, but not those we need in the master... */
 			if (!(l->options & LI_O_MWORKER)) {
@@ -634,8 +636,13 @@ static void mworker_cleanlisteners()
 				else
 					unbind_listener(l);
 				delete_listener(l);
+			} else {
+				listen_in_master = 1;
 			}
 		}
+		/* if the proxy shouldn't be in the master, we stop it */
+		if (!listen_in_master)
+			curproxy->state = PR_STSTOPPED;
 	}
 }
 
