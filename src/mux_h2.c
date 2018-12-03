@@ -4559,6 +4559,7 @@ static void h2_stop_senders(struct h2c *h2c)
 static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
+	size_t orig_count = count;
 	size_t total = 0;
 	size_t ret;
 	struct htx *htx;
@@ -4721,6 +4722,14 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if ((h2s->h2c->flags & H2_CF_MUX_BLOCK_ANY) ||
 	    (h2s->flags & H2_SF_BLK_MBUSY))
 		h2_stop_senders(h2s->h2c);
+
+	/* If we're running HTX, and we read the whole buffer, then pretend
+	 * we read exactly what the caller specified, as with HTX the caller
+	 * will always give the buffer size, instead of the amount of data
+	 * available.
+	 */
+	if (htx && !b_data(buf))
+		total = orig_count;
 
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.wait_reason & SUB_CAN_SEND))
