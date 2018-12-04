@@ -2937,11 +2937,11 @@ static int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
 /* Loads the contents of a crt file (path) into a cert_key_and_chain
  * This allows us to carry the contents of the file without having to
  * read the file multiple times.
+ * The caller must call ssl_sock_free_cert_key_and_chain_contents.
  *
  * returns:
  *      0 on Success
  *      1 on SSL Failure
- *      2 on file not found
  */
 static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
 {
@@ -2949,8 +2949,6 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 	BIO *in;
 	X509 *ca;
 	int ret = 1;
-
-	ssl_sock_free_cert_key_and_chain_contents(ckch);
 
 	in = BIO_new(BIO_s_file());
 	if (in == NULL)
