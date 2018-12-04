@@ -1492,7 +1492,7 @@ static int h1_recv(struct h1c *h1c)
 	if (ret > 0) {
 		rcvd = 1;
 		if (h1s && h1s->cs) {
-			h1s->cs->flags |= CS_FL_READ_PARTIAL;
+			h1s->cs->flags |= (CS_FL_READ_PARTIAL|CS_FL_RCV_MORE);
 			if (h1s->csinfo.t_idle == -1)
 				h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 		}
