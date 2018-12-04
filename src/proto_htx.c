@@ -5220,7 +5220,7 @@ static void htx_end_response(struct stream *s)
 
 	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
 		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
-		channel_truncate(chn);
+		channel_truncate(&s->req);
 		channel_abort(&s->req);
 		goto end;
 	}
@@ -5292,7 +5292,7 @@ static void htx_end_response(struct stream *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	  http_msg_closed:
 		/* drop any pending data */
-		channel_truncate(chn);
+		channel_truncate(&s->req);
 		channel_abort(&s->req);
 		goto end;
 	}
