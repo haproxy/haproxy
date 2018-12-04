@@ -4234,7 +4234,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
  * subsequently to a successful send. Returns the number of data bytes
  * consumed, or zero if nothing done. Note that EOD/EOM count for 1 byte.
  */
-static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
+static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx, size_t count)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct buffer outbuf;
@@ -4263,7 +4263,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 	 */
 
  new_frame:
-	if (htx_is_empty(htx))
+	if (!count || htx_is_empty(htx))
 		goto end;
 
 	idx   = htx_get_head(htx);
@@ -4278,8 +4278,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 		 * deal with. Let's simply remove the EOD and return.
 		 */
 		htx_remove_blk(htx, blk);
-		// FIXME, it seems we must not return it in the total bytes count?
-		//total++; // EOD counts as one byte
+		total++; // EOD counts as one byte
+		count--;
 		goto end;
 	}
 
@@ -4334,6 +4334,9 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 		goto end;
 	}
 
+	if (fsize > count)
+		fsize = count;
+
 	if (fsize > h2s->mws)
 		fsize = h2s->mws; // >0
 
@@ -4371,6 +4374,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 	memcpy(outbuf.area + 9, htx_get_blk_ptr(htx, blk), fsize);
 	h2s->mws -= fsize;
 	h2c->mws -= fsize;
+	count    -= fsize;
 
  send_empty:
 	/* update the frame's size */
@@ -4380,8 +4384,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 	 * meeting EOM. We should optimize this later.
 	 */
 	if (type == HTX_BLK_EOM) {
-		// FIXME, it seems we must not return it in the total bytes count?
-		// total++; // EOM counts as one byte
+		total++; // EOM counts as one byte
+		count--;
 		es_now = 1;
 	}
 
@@ -4635,7 +4639,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			case HTX_BLK_EOD:
 			case HTX_BLK_EOM:
 				/* all these cause the emission of a DATA frame (possibly empty) */
-				ret = h2s_htx_frt_make_resp_data(h2s, htx);
+				ret = h2s_htx_frt_make_resp_data(h2s, htx, count);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
