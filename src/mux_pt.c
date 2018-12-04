@@ -90,6 +90,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx)
 	}
 	conn->mux_ctx = ctx;
 	ctx->cs = cs;
+	cs->flags |= CS_FL_RCV_MORE;
 	return 0;
 
  fail_free:
@@ -148,6 +149,7 @@ static struct conn_stream *mux_pt_attach(struct connection *conn)
 		goto fail;
 
 	ctx->cs = cs;
+	cs->flags |= CS_FL_RCV_MORE;
 	return (cs);
 fail:
 	return NULL;
@@ -207,6 +209,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	if (cs->flags & CS_FL_SHR)
 		return;
+	cs->flags &= ~CS_FL_RCV_MORE;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
 	if (cs->flags & CS_FL_SHW)
@@ -246,12 +249,17 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 		cs->flags |= CS_FL_RCV_MORE;
 		return 0;
 	}
-	cs->flags &= ~CS_FL_RCV_MORE;
 	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count, flags);
-	if (conn_xprt_read0_pending(cs->conn))
+	if (conn_xprt_read0_pending(cs->conn)) {
+		if (ret == 0)
+			cs->flags &= ~CS_FL_RCV_MORE;
 		cs->flags |= CS_FL_EOS;
-	if (cs->conn->flags & CO_FL_ERROR)
+	}
+	if (cs->conn->flags & CO_FL_ERROR) {
+		if (ret == 0)
+			cs->flags &= ~CS_FL_RCV_MORE;
 		cs->flags |= CS_FL_ERROR;
+	}
 	return ret;
 }
 
