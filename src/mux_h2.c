@@ -4505,7 +4505,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		buf_htx = htx_from_buf(buf);
 		count = htx_free_space(buf_htx);
 
-		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, (h2s_htx->sl_off != -1) ? HTX_BLK_EOH : HTX_BLK_EOM);
+		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
 		buf_htx->extra = h2s_htx->extra;
 		if (htx_is_not_empty(buf_htx))
