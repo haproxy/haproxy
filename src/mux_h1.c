@@ -1467,7 +1467,7 @@ static int h1_recv(struct h1c *h1c)
 	int rcvd = 0;
 
 	if (h1c->wait_event.wait_reason & SUB_CAN_RECV)
-		return 0;
+		return (b_data(&h1c->ibuf));
 
 	if (!h1_recv_allowed(h1c)) {
 		rcvd = 1;
@@ -1498,7 +1498,7 @@ static int h1_recv(struct h1c *h1c)
 		}
 	}
 
-	if (h1_recv_allowed(h1c))
+	if (h1_recv_allowed(h1c) && (b_data(&h1c->ibuf) < b_size(&h1c->ibuf)))
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
 	else
 		rcvd = 1;
