@@ -4369,6 +4369,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx)
 
 	/* now let's copy this this into the output buffer */
 	memcpy(outbuf.area + 9, htx_get_blk_ptr(htx, blk), fsize);
+	h2s->mws -= fsize;
+	h2c->mws -= fsize;
 
  send_empty:
 	/* update the frame's size */
