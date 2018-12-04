@@ -1484,6 +1484,13 @@ static int h1_recv(struct h1c *h1c)
 		goto end;
 	}
 
+	/*
+	 * If we only have a small amount of data, realign it,
+	 * it's probably cheaper than doing 2 recv() calls.
+	 */
+	if (b_data(&h1c->ibuf) > 0 && b_data(&h1c->ibuf) < 128)
+		b_slow_realign(&h1c->ibuf, trash.area, 0);
+
 	max = b_room(&h1c->ibuf);
 	if (max) {
 		h1c->flags &= ~H1C_F_IN_FULL;
