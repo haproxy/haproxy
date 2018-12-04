@@ -4283,6 +4283,9 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx, size_
 		goto end;
 	}
 
+	if (type != HTX_BLK_DATA && type != HTX_BLK_EOM)
+		goto end;
+
 	/* for DATA and EOM we'll have to emit a frame, even if empty */
 
 	while (1) {
