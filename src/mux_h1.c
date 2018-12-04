@@ -1103,8 +1103,8 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
 				goto end;
 
-			*ofs += max;
-			total = max;
+			*ofs += ret;
+			total = ret;
 		}
 	}
 
