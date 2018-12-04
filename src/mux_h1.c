@@ -1600,6 +1600,8 @@ static int h1_process(struct h1c * h1c)
 			if (!h1s_create(h1c, NULL))
 				goto release;
 		}
+		else
+			goto release;
 		h1s = h1c->h1s;
 	}
 
