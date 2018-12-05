@@ -1123,7 +1123,16 @@ int connect_server(struct stream *s)
 	int i;
 
 
-	if (!(s->be->options & PR_O_HTTP_PROXY)) {
+	/* Some, such as http_proxy and the LUA, create their connection and
+	 * conn_stream manually, so if we already have a conn_stream, try
+	 * to use it.
+	 */
+	srv_cs = objt_cs(s->si[1].end);
+	if (srv_cs) {
+		old_conn = srv_conn = cs_conn(srv_cs);
+		if (old_conn)
+			reuse = 1;
+	} else {
 		for (i = 0; i < MAX_SRV_LIST; i++) {
 			if (s->sess->srv_list[i].target == s->target) {
 				list_for_each_entry(srv_conn, &s->sess->srv_list[i].list,
@@ -1145,16 +1154,6 @@ int connect_server(struct stream *s)
 				}
 			}
 		}
-	} else {
-		/* http_proxy is special, we can't just reuse any connection,
-		 * as the destination may be different. We should have created
-		 * a connection and a conn_stream earlier, so get the
-		 * connection from the conn_stream.
-		 */
-		srv_cs = objt_cs(s->si[1].end);
-		old_conn = srv_conn = cs_conn(srv_cs);
-		if (old_conn)
-			reuse = 1;
 	}
 	old_conn = srv_conn;
 
@@ -1313,7 +1312,9 @@ int connect_server(struct stream *s)
 		    srv->mux_proto))
 #endif
 		{
-			srv_cs = si_alloc_cs(&s->si[1], srv_conn);
+			srv_cs = objt_cs(s->si[1].end);
+			if (!srv_cs || srv_cs->conn != srv_conn)
+				srv_cs = si_alloc_cs(&s->si[1], srv_conn);
 			if (!srv_cs) {
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
