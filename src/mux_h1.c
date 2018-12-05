@@ -1231,7 +1231,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		b_set_data(buf, 0);
 	}
 
-	if (h1c->flags & H1C_F_IN_FULL && b_room(&h1c->ibuf)) {
+	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		tasklet_wakeup(h1c->wait_event.task);
 	}
@@ -1443,7 +1443,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
   copy:
 	b_putblk(&h1c->obuf, tmp->area, tmp->data);
 
-	if (b_full(&h1c->obuf))
+	if (!buf_room_for_htx_data(&h1c->obuf))
 		h1c->flags |= H1C_F_OUT_FULL;
 	if (htx_is_empty(chn_htx)) {
 		htx_reset(chn_htx);
@@ -1491,7 +1491,7 @@ static int h1_recv(struct h1c *h1c)
 	if (b_data(&h1c->ibuf) > 0 && b_data(&h1c->ibuf) < 128)
 		b_slow_realign(&h1c->ibuf, trash.area, 0);
 
-	max = b_room(&h1c->ibuf);
+	max = buf_room_for_htx_data(&h1c->ibuf);
 	if (max) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		ret = conn->xprt->rcv_buf(conn, &h1c->ibuf, max, 0);
@@ -1505,7 +1505,7 @@ static int h1_recv(struct h1c *h1c)
 		}
 	}
 
-	if (h1_recv_allowed(h1c) && (b_data(&h1c->ibuf) < b_size(&h1c->ibuf)))
+	if (h1_recv_allowed(h1c) && buf_room_for_htx_data(&h1c->ibuf))
 		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
 	else
 		rcvd = 1;
@@ -1520,7 +1520,7 @@ static int h1_recv(struct h1c *h1c)
 	}
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-	else if (b_full(&h1c->ibuf))
+	else if (!buf_room_for_htx_data(&h1c->ibuf))
 		h1c->flags |= H1C_F_IN_FULL;
 	return rcvd;
 }
