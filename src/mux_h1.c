@@ -1980,13 +1980,6 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 	}
 
-	/* We need to do that because of the infinite forwarding. <buf>
-	 * contains HTX messages so when infinite forwarding is enabled,
-	 * count is equal to the buffer size. From outside, the buffer
-	 * appears as full.
-	 */
-	if (!b_data(buf))
-		total = count;
 	return total;
 }
 
