@@ -36,6 +36,7 @@
 #include <types/global.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
+#include <types/htx.h>
 
 #include <proto/task.h>
 
@@ -358,6 +359,24 @@ static inline void channel_forward_forever(struct channel *chn)
 {
 	c_adv(chn, ci_data(chn));
 	chn->to_forward = CHN_INFINITE_FORWARD;
+}
+
+static inline unsigned long long channel_htx_forward(struct channel *chn, struct htx *htx, unsigned long long bytes)
+{
+	unsigned long long ret;
+
+	b_set_data(&chn->buf, htx->data);
+	ret = channel_forward(chn, bytes);
+	b_set_data(&chn->buf, b_size(&chn->buf));
+	return ret;
+}
+
+
+static inline void channel_htx_forward_forever(struct channel *chn, struct htx *htx)
+{
+	b_set_data(&chn->buf, htx->data);
+	channel_forward_forever(chn);
+	b_set_data(&chn->buf, b_size(&chn->buf));
 }
 
 /*********************************************************************/

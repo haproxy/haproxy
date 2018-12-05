@@ -46,6 +46,7 @@
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>
+#include <proto/htx.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
@@ -2184,19 +2185,27 @@ redo:
 		channel_auto_close(req);
 		c_adv(req, ci_data(req));
 
-		/* We'll let data flow between the producer (if still connected)
-		 * to the consumer (which might possibly not be connected yet).
-		 */
-		if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			channel_forward_forever(req);
+		if (IS_HTX_STRM(s) && s->txn) {
+			/* We'll let data flow between the producer (if still connected)
+			 * to the consumer (which might possibly not be connected yet).
+			 */
+			if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+				channel_htx_forward_forever(req, htxbuf(&req->buf));
+		}
+		else {
+			/* We'll let data flow between the producer (if still connected)
+			 * to the consumer (which might possibly not be connected yet).
+			 */
+			if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+				channel_forward_forever(req);
 
-		/* Just in order to support fetching HTTP contents after start
-		 * of forwarding when the HTTP forwarding analyser is not used,
-		 * we simply reset msg->sov so that HTTP rewinding points to the
-		 * headers.
-		 */
-		if (IS_HTX_STRM(s) && s->txn)
+			/* Just in order to support fetching HTTP contents after start
+			 * of forwarding when the HTTP forwarding analyser is not used,
+			 * we simply reset msg->sov so that HTTP rewinding points to the
+			 * headers.
+			 */
 			s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - co_data(req);
+		}
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
@@ -2345,19 +2354,28 @@ redo:
 		channel_auto_close(res);
 		c_adv(res, ci_data(res));
 
-		/* We'll let data flow between the producer (if still connected)
-		 * to the consumer.
-		 */
-		if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			channel_forward_forever(res);
 
-		/* Just in order to support fetching HTTP contents after start
-		 * of forwarding when the HTTP forwarding analyser is not used,
-		 * we simply reset msg->sov so that HTTP rewinding points to the
-		 * headers.
-		 */
-		if (IS_HTX_STRM(s) && s->txn)
+		if (IS_HTX_STRM(s) && s->txn) {
+			/* We'll let data flow between the producer (if still connected)
+			 * to the consumer.
+			 */
+			if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+				channel_htx_forward_forever(res, htxbuf(&res->buf));
+		}
+		else {
+			/* We'll let data flow between the producer (if still connected)
+			 * to the consumer.
+			 */
+			if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+				channel_forward_forever(res);
+
+			/* Just in order to support fetching HTTP contents after start
+			 * of forwarding when the HTTP forwarding analyser is not used,
+			 * we simply reset msg->sov so that HTTP rewinding points to the
+			 * headers.
+			 */
 			s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - co_data(res);
+		}
 
 		/* if we have no analyser anymore in any direction and have a
 		 * tunnel timeout set, use it now. Note that we must respect

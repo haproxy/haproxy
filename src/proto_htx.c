@@ -1245,10 +1245,8 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		 * right length is then restored. We must do that, because when an HTX
 		 * message is stored into a buffer, it appears as full.
 		 */
-		b_set_data(&req->buf, co_data(req));
-		if (msg->flags & HTTP_MSGF_XFER_LEN)
-			htx->extra -= channel_forward(req, htx->extra);
-		b_set_data(&req->buf, b_size(&req->buf));
+		if ((msg->flags & HTTP_MSGF_XFER_LEN) && htx->extra)
+			htx->extra -= channel_htx_forward(req, htx, htx->extra);
 	}
 
 	/* Check if the end-of-message is reached and if so, switch the message
@@ -2185,10 +2183,8 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		 * right length is then restored. We must do that, because when an HTX
 		 * message is stored into a buffer, it appears as full.
 		 */
-		b_set_data(&res->buf, co_data(res));
-		if (msg->flags & HTTP_MSGF_XFER_LEN)
-			htx->extra -= channel_forward(res, htx->extra);
-		b_set_data(&res->buf, b_size(&res->buf));
+		if ((msg->flags & HTTP_MSGF_XFER_LEN) && htx->extra)
+			htx->extra -= channel_htx_forward(res, htx, htx->extra);
 	}
 
 	if (!(msg->flags & HTTP_MSGF_XFER_LEN)) {
