@@ -1326,6 +1326,15 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 
 	tmp = get_trash_chunk();
+
+	/* pre-align the output buffer like the HTX in case it's empty. In this
+	 * case since it's aligned we don't need to use the temporary trash.
+	 */
+	if (!b_data(&h1c->obuf)) {
+		h1c->obuf.head = sizeof(struct htx);
+		tmp->area = h1c->obuf.area + h1c->obuf.head;
+	}
+
 	tmp->size = b_room(&h1c->obuf);
 
 	blk = htx_get_head_blk(chn_htx);
@@ -1472,7 +1481,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	}
 
   copy:
-	b_putblk(&h1c->obuf, tmp->area, tmp->data);
+	/* when the output buffer is empty, tmp shares the same area so that we
+	 * only have to update pointers and lengths.
+	 */
+	if (tmp->area == h1c->obuf.area)
+		h1c->obuf.data = tmp->data;
+	else
+		b_putblk(&h1c->obuf, tmp->area, tmp->data);
 
 	if (!buf_room_for_htx_data(&h1c->obuf))
 		h1c->flags |= H1C_F_OUT_FULL;
