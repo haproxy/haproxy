@@ -1214,7 +1214,8 @@ int si_cs_recv(struct conn_stream *cs)
 		          flags |
 		          (co_data(ic) ? CO_RFL_BUF_WET : 0) |
 		          ((channel_recv_limit(ic) < b_size(&ic->buf)) ? CO_RFL_KEEP_RSV : 0));
-		if (cs->flags & CS_FL_RCV_MORE)
+
+		if (b_data(&ic->buf) && (cs->flags & CS_FL_RCV_MORE))
 			si_rx_room_blk(si);
 
 		if (cs->flags & CS_FL_READ_PARTIAL) {
