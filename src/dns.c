@@ -394,7 +394,7 @@ static inline unsigned short dns_response_get_query_id(unsigned char *resp)
  */
 int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 		  unsigned char *name, char *destination, int dest_len,
-		  int *offset)
+		  int *offset, unsigned int depth)
 {
 	int nb_bytes = 0, n = 0;
 	int label_len;
@@ -408,8 +408,11 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 			if ((buffer + reader[1]) > reader)
 				goto err;
 
+			if (depth++ > 100)
+				goto err;
+
 			n = dns_read_name(buffer, bufend, buffer + reader[1],
-					  dest, dest_len - nb_bytes, offset);
+					  dest, dest_len - nb_bytes, offset, depth);
 			if (n == 0)
 				goto err;
 
@@ -695,7 +698,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		 * one query per response and the first one can't be compressed
 		 * (using the 0x0c format) */
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, dns_query->name, DNS_MAX_NAME_SIZE, &offset);
+		len = dns_read_name(resp, bufend, reader, dns_query->name, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0)
 			return DNS_RESP_INVALID;
@@ -732,7 +735,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			return (DNS_RESP_INVALID);
 
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
+		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0) {
 			pool_free(dns_answer_item_pool, dns_answer_record);
@@ -829,7 +832,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				}
 
 				offset = 0;
-				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
+				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 				if (len == 0) {
 					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
@@ -859,7 +862,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				dns_answer_record->port = read_n16(reader);
 				reader += sizeof(uint16_t);
 				offset = 0;
-				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset);
+				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 				if (len == 0) {
 					pool_free(dns_answer_item_pool, dns_answer_record);
 					return DNS_RESP_INVALID;
