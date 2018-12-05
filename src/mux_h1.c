@@ -959,7 +959,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * responsible to update the parser state <h1m>.
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-			      struct buffer *buf, size_t *ofs, size_t max)
+                              struct buffer *buf, size_t *ofs, size_t max,
+                              struct buffer *htxbuf)
 {
 	uint32_t data_space = htx_free_data_space(htx);
 	size_t total = 0;
@@ -976,7 +977,34 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			if (ret > b_contig_data(buf, *ofs))
 				ret = b_contig_data(buf, *ofs);
 			if (ret) {
-				if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
+				/* very often with large files we'll face the following
+				 * situation :
+				 *   - htx is empty and points to <htxbuf>
+				 *   - ret == buf->data
+				 *   - buf->head == sizeof(struct htx)
+				 *   => we can swap the buffers and place an htx header into
+				 *      the target buffer instead
+				 */
+				if (unlikely(htx_is_empty(htx) && ret == b_data(buf) &&
+					     !*ofs && b_head_ofs(buf) == sizeof(struct htx))) {
+					void *raw_area = buf->area;
+					void *htx_area = htxbuf->area;
+					struct htx_blk *blk;
+
+					buf->area = htx_area;
+					htxbuf->area = raw_area;
+					htx = (struct htx *)htxbuf->area;
+					htx->size = htxbuf->size - sizeof(*htx);
+					htx_reset(htx);
+					b_set_data(htxbuf, b_size(htxbuf));
+
+					blk = htx_add_blk(htx, HTX_BLK_DATA, ret);
+					blk->info += ret;
+					/* nothing else to do, the old buffer now contains an
+					 * empty pre-initialized HTX header
+					 */
+				}
+				else if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
 					goto end;
 				h1m->curr_len -= ret;
 				*ofs += ret;
@@ -1173,6 +1201,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	int errflag;
 
 	htx = htx_from_buf(buf);
+	b_set_data(buf, b_size(buf));
 	count = b_data(&h1c->ibuf);
 	max = htx_free_space(htx);
 	if (flags & CO_RFL_KEEP_RSV) {
@@ -1199,14 +1228,16 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 				break;
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
+			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
 		}
 		else if (h1m->state == H1_MSG_DONE)
 			break;
 		else if (h1m->state == H1_MSG_TUNNEL) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
+			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
 		}
@@ -1493,8 +1524,21 @@ static int h1_recv(struct h1c *h1c)
 
 	max = buf_room_for_htx_data(&h1c->ibuf);
 	if (max) {
+		int aligned = 0;
 		h1c->flags &= ~H1C_F_IN_FULL;
+
+		if (!b_data(&h1c->ibuf)) {
+			/* try to pre-align the buffer like the rxbufs will be
+			 * to optimize memory copies.
+			 */
+			h1c->ibuf.data  = sizeof(struct htx);
+			aligned = 1;
+		}
 		ret = conn->xprt->rcv_buf(conn, &h1c->ibuf, max, 0);
+		if (aligned) {
+			h1c->ibuf.data -= sizeof(struct htx);
+			h1c->ibuf.head  = sizeof(struct htx);
+		}
 	}
 	if (ret > 0) {
 		rcvd = 1;
