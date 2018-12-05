@@ -402,8 +402,14 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 	char *dest = destination;
 
 	while (1) {
+		if (reader >= bufend)
+			goto err;
+
 		/* Name compression is in use */
 		if ((*reader & 0xc0) == 0xc0) {
+			if (reader + 1 >= bufend)
+				goto err;
+
 			/* Must point BEFORE current position */
 			if ((buffer + reader[1]) > reader)
 				goto err;
