@@ -34,9 +34,9 @@ struct htx_sl *http_find_stline(struct htx *htx)
 	if (sl)
 		return sl;
 
-        for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-                struct htx_blk    *blk  = htx_get_blk(htx, pos);
-                enum htx_blk_type  type = htx_get_blk_type(blk);
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk    *blk  = htx_get_blk(htx, pos);
+		enum htx_blk_type  type = htx_get_blk_type(blk);
 
 		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
 			sl = htx_get_blk_ptr(htx, blk);
@@ -194,9 +194,9 @@ int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p
 {
 	int32_t pos;
 
-        for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
-                enum htx_blk_type type = htx_get_blk_type(blk);
+		enum htx_blk_type type = htx_get_blk_type(blk);
 
 		if (htx->sl_off == blk->addr) {
 			if (!htx_replace_stline(htx, blk, p1, p2, p3))

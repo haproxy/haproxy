@@ -498,8 +498,8 @@ static int h1_process_req_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
 	}
 
 	if ((sl.rq.v.len == 8) &&
-            ((*(sl.rq.v.ptr + 5) > '1') ||
-             ((*(sl.rq.v.ptr + 5) == '1') && (*(sl.rq.v.ptr + 7) >= '1'))))
+	    ((*(sl.rq.v.ptr + 5) > '1') ||
+	     ((*(sl.rq.v.ptr + 5) == '1') && (*(sl.rq.v.ptr + 7) >= '1'))))
 		h1m->flags |= H1_MF_VER_11;
 	return 1;
 }
@@ -528,8 +528,8 @@ static int h1_process_res_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
 	}
 
 	if ((sl.st.v.len == 8) &&
-            ((*(sl.st.v.ptr + 5) > '1') ||
-             ((*(sl.st.v.ptr + 5) == '1') && (*(sl.st.v.ptr + 7) >= '1'))))
+	    ((*(sl.st.v.ptr + 5) > '1') ||
+	     ((*(sl.st.v.ptr + 5) == '1') && (*(sl.st.v.ptr + 7) >= '1'))))
 		h1m->flags |= H1_MF_VER_11;
 
 	return 1;
@@ -773,12 +773,12 @@ static void h1_process_conn_mode(struct h1s *h1s, struct h1m *h1m,
 static void h1_show_error_snapshot(struct buffer *out, const struct error_snapshot *es)
 {
 	chunk_appendf(out,
-	              "  H1 connection flags 0x%08x, H1 stream flags 0x%08x\n"
-	              "  H1 msg state %s(%d), H1 msg flags 0x%08x\n"
-	              "  H1 chunk len %lld bytes, H1 body len %lld bytes :\n",
-	              es->ctx.h1.c_flags, es->ctx.h1.s_flags,
-	              h1m_state_str(es->ctx.h1.state), es->ctx.h1.state,
-	              es->ctx.h1.m_flags, es->ctx.h1.m_clen, es->ctx.h1.m_blen);
+		      "  H1 connection flags 0x%08x, H1 stream flags 0x%08x\n"
+		      "  H1 msg state %s(%d), H1 msg flags 0x%08x\n"
+		      "  H1 chunk len %lld bytes, H1 body len %lld bytes :\n",
+		      es->ctx.h1.c_flags, es->ctx.h1.s_flags,
+		      h1m_state_str(es->ctx.h1.state), es->ctx.h1.state,
+		      es->ctx.h1.m_flags, es->ctx.h1.m_clen, es->ctx.h1.m_blen);
 }
 /*
  * Capture a bad request or response and archive it in the proxy's structure.
@@ -809,8 +809,8 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 
 	proxy_capture_error(proxy, !!(h1m->flags & H1_MF_RESP), other_end,
 			    h1c->conn->target, sess, buf, 0, 0,
-	                    (h1m->err_pos >= 0) ? h1m->err_pos : h1m->next,
-	                    &ctx, h1_show_error_snapshot);
+			    (h1m->err_pos >= 0) ? h1m->err_pos : h1m->next,
+			    &ctx, h1_show_error_snapshot);
 }
 
 /*
@@ -965,8 +965,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * responsible to update the parser state <h1m>.
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-                              struct buffer *buf, size_t *ofs, size_t max,
-                              struct buffer *htxbuf)
+			      struct buffer *buf, size_t *ofs, size_t max,
+			      struct buffer *htxbuf)
 {
 	uint32_t data_space = htx_free_data_space(htx);
 	size_t total = 0;
