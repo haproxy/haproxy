@@ -930,7 +930,7 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	} RESUME_FILTER_END;
 
 	if (IS_HTX_STRM(s)) {
-		struct htx *htx = htx_from_buf(&chn->buf);
+		struct htx *htx = htxbuf(&chn->buf);
 		int32_t pos;
 
 		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {

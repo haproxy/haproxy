@@ -412,7 +412,7 @@ trace_http_headers(struct stream *s, struct filter *filter,
 		   channel_label(msg->chn), proxy_mode(s), stream_pos(s));
 
 	if (IS_HTX_STRM(s)) {
-		struct htx *htx = htx_from_buf(&msg->chn->buf);
+		struct htx *htx = htxbuf(&msg->chn->buf);
 		struct htx_sl *sl = http_find_stline(htx);
 		int32_t pos;
 
@@ -473,7 +473,7 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 		   offset, len, ret);
 
 	 if (conf->hexdump)
-		 trace_htx_hexdump(htx_from_buf(&msg->chn->buf), offset, len);
+		 trace_htx_hexdump(htxbuf(&msg->chn->buf), offset, len);
 
 	 if (ret != len)
 		 task_wakeup(s->task, TASK_WOKEN_MSG);

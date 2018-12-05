@@ -541,19 +541,47 @@ static inline size_t buf_room_for_htx_data(const struct buffer *buf)
 	return room;
 }
 
-/* Returns an HTX message using the buffer <buf>. */
-static inline struct htx *htx_from_buf(struct buffer *buf)
-{
-        struct htx *htx;
 
-        if (b_is_null(buf))
-                return &htx_empty;
-        htx = (struct htx *)(buf->area);
-        if (!b_data(buf)) {
+/* Returns an HTX message using the buffer <buf>. Unlike htx_from_buf(), this
+ * function does not update to the buffer. */
+static inline struct htx *htxbuf(const struct buffer *buf)
+{
+	struct htx *htx;
+
+	if (b_is_null(buf))
+		return &htx_empty;
+	htx = ((struct htx *)(buf->area));
+	if (!b_data(buf)) {
 		htx->size = buf->size - sizeof(*htx);
-                htx_reset(htx);
+		htx_reset(htx);
 	}
 	return htx;
+}
+
+/* Returns an HTX message using the buffer <buf>. <buf> is updated to appear as
+ * full. It is the caller responsibility to call htx_to_buf() when it finish to
+ * manipulate the HTX message to update <buf> accordingly.
+ *
+ * If the caller can call htxbuf() function to avoir any update of the
+ * buffer.
+ */
+static inline struct htx *htx_from_buf(struct buffer *buf)
+{
+	struct htx *htx = htxbuf(buf);
+
+	b_set_data(buf, b_size(buf));
+	return htx;
+}
+
+/* Upate <buf> accordingly to the HTX message <htx> */
+static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
+{
+	if (!htx->used) {
+		htx_reset(htx);
+		b_set_data(buf, 0);
+	}
+	else
+		b_set_data(buf, b_size(buf));
 }
 
 /* Returns 1 if the message is empty, otherwise it returns 0. */

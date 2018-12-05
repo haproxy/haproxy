@@ -3118,6 +3118,8 @@ static int h2s_decode_headers(struct h2s *h2s)
 	}
 
  leave:
+	if (htx)
+		htx_to_buf(htx, &h2s->rxbuf);
 	free_trash_chunk(copy);
 	return outlen;
  fail:
@@ -3319,9 +3321,12 @@ try_again:
 		h2s->flags |= H2_SF_ES_RCVD;
 		h2s->cs->flags |= CS_FL_REOS;
 	}
-
+	if (htx)
+		htx_to_buf(htx, csbuf);
 	return 1;
  fail:
+	if (htx)
+		htx_to_buf(htx, csbuf);
 	return 0;
 }
 
@@ -4515,8 +4520,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
 		buf_htx->extra = h2s_htx->extra;
-		if (htx_is_not_empty(buf_htx))
-			b_set_data(buf, b_size(buf));
+		htx_to_buf(buf_htx, buf);
+		htx_to_buf(h2s_htx, &h2s->rxbuf);
 		ret = htx_ret.ret;
 	}
 	else {
@@ -4719,10 +4724,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (htx) {
-		if (htx_is_empty(htx)) {
-			htx_reset(htx);
-			b_set_data(buf, 0);
-		}
+		htx_to_buf(htx, buf);
 	} else {
 		b_del(buf, total);
 	}

@@ -675,8 +675,6 @@ static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 	}
 	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto error;
-
-	b_set_data(buf, b_size(buf));
 	return htx;
 
 error:

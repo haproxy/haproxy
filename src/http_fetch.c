@@ -73,7 +73,7 @@ static int get_http_auth(struct sample *smp)
 
 	if (IS_HTX_STRM(s) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = htx_from_buf(&s->req.buf);
+		struct htx *htx = htxbuf(&s->req.buf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr;
 
@@ -82,7 +82,6 @@ static int get_http_auth(struct sample *smp)
 		else
 			hdr = ist("Authorization");
 
-		htx = htx_from_buf(&s->req.buf);
 		ctx.blk = NULL;
 		if (!http_find_header(htx, hdr, &ctx, 0))
 			return 0;
@@ -191,7 +190,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 
 	if (px->mode == PR_MODE_HTTP) {
 		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			htx = htx_from_buf(&s->req.buf);
+			htx = htxbuf(&s->req.buf);
 			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
 				/* Parsing is done by the mux, just wait */
 				smp->flags |= SMP_F_MAY_CHANGE;
@@ -212,7 +211,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 			/* otherwise everything's ready for the request */
 		}
 		else {
-			htx = htx_from_buf(&s->res.buf);
+			htx = htxbuf(&s->res.buf);
 			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
 				/* Parsing is done by the mux, just wait */
 				smp->flags |= SMP_F_MAY_CHANGE;

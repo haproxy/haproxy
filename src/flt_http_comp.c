@@ -197,7 +197,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		  unsigned int offset, unsigned int len)
 {
 	struct comp_state *st = filter->ctx;
-	struct htx *htx = htx_from_buf(&msg->chn->buf);
+	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_blk *blk;
 	struct htx_ret htx_ret;
 	int ret, consumed = 0, to_forward = 0;
@@ -575,7 +575,7 @@ http_select_comp_reqhdr(struct comp_state *st, struct stream *s, struct http_msg
 static int
 htx_select_comp_reqhdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
-	struct htx *htx = htx_from_buf(&msg->chn->buf);
+	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct http_hdr_ctx ctx;
 	struct comp_algo *comp_algo = NULL;
 	struct comp_algo *comp_algo_back = NULL;
@@ -818,7 +818,7 @@ fail:
 static int
 htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
-	struct htx *htx = htx_from_buf(&msg->chn->buf);
+	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct http_txn *txn = s->txn;
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;

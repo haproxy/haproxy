@@ -95,7 +95,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		ci_data(req),
 		req->analysers);
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
@@ -496,7 +496,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 		ci_data(req),
 		req->analysers);
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	/* just in case we have some per-backend tracking */
 	stream_inc_be_http_req_ctr(s);
@@ -771,7 +771,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * whatever we want with the remaining request. Also, now we
 	 * may have separate values for ->fe, ->be.
 	 */
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	/*
 	 * If HTTP PROXY is set we simply get remote server address parsing
@@ -1057,7 +1057,7 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 		ci_data(req),
 		req->analysers);
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	if (msg->msg_state < HTTP_MSG_BODY)
 		goto missing_data;
@@ -1178,7 +1178,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		ci_data(req),
 		req->analysers);
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	if ((req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((req->flags & CF_SHUTW) && (req->to_forward || co_data(req)))) {
@@ -1450,7 +1450,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		ci_data(rep),
 		rep->analysers);
 
-	htx = htx_from_buf(&rep->buf);
+	htx = htxbuf(&rep->buf);
 
 	/*
 	 * Now we quickly check if we have found a full valid response.
@@ -1820,7 +1820,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 		ci_data(rep),
 		rep->analysers);
 
-	htx = htx_from_buf(&rep->buf);
+	htx = htxbuf(&rep->buf);
 
 	/* The stats applet needs to adjust the Connection header but we don't
 	 * apply any filter there.
@@ -2136,7 +2136,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		ci_data(res),
 		res->analysers);
 
-	htx = htx_from_buf(&res->buf);
+	htx = htxbuf(&res->buf);
 
 	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((res->flags & CF_SHUTW) && (res->to_forward || co_data(res)))) {
@@ -2359,7 +2359,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	/*
 	 * Create the location
 	 */
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 	switch(rule->type) {
 		case REDIRECT_TYPE_SCHEME: {
 			struct http_hdr_ctx ctx;
@@ -2540,7 +2540,6 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	s->logs.tv_request = now;
 
 	data = htx->data - co_data(res);
-	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
 
@@ -2632,7 +2631,6 @@ static int htx_reply_103_early_hints(struct channel *res)
 	}
 
 	data = htx->data - co_data(res);
-	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
 	return 0;
@@ -2669,7 +2667,6 @@ static int htx_add_early_hint_header(struct stream *s, int early_hints, const st
 		goto fail;
 
 	free_trash_chunk(value);
-	b_set_data(&res->buf, b_size(&res->buf));
 	return 1;
 
   fail:
@@ -2697,7 +2694,7 @@ static int htx_add_early_hint_header(struct stream *s, int early_hints, const st
 int htx_req_replace_stline(int action, const char *replace, int len,
 			   struct proxy *px, struct stream *s)
 {
-	struct htx *htx = htx_from_buf(&s->req.buf);
+	struct htx *htx = htxbuf(&s->req.buf);
 
 	switch (action) {
 		case 0: // method
@@ -2731,7 +2728,7 @@ int htx_req_replace_stline(int action, const char *replace, int len,
  */
 void htx_res_set_status(unsigned int status, const char *reason, struct stream *s)
 {
-	struct htx *htx = htx_from_buf(&s->res.buf);
+	struct htx *htx = htxbuf(&s->res.buf);
 	char *res;
 
 	chunk_reset(&trash);
@@ -2769,7 +2766,7 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 	int act_flags = 0;
 	int early_hints = 0;
 
-	htx = htx_from_buf(&s->req.buf);
+	htx = htxbuf(&s->req.buf);
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -3157,7 +3154,7 @@ static enum rule_result htx_res_get_intercept_rule(struct proxy *px, struct list
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_flags = 0;
 
-	htx = htx_from_buf(&s->res.buf);
+	htx = htxbuf(&s->res.buf);
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -3493,7 +3490,7 @@ static int htx_apply_filter_to_req_headers(struct stream *s, struct channel *req
 	struct buffer *hdr = get_trash_chunk();
 	int32_t pos;
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -3587,7 +3584,7 @@ static int htx_apply_filter_to_req_line(struct stream *s, struct channel *req, s
 	struct buffer *reqline = get_trash_chunk();
 	int done;
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 
 	if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
 		return 1;
@@ -3709,7 +3706,7 @@ static int htx_apply_filter_to_resp_headers(struct stream *s, struct channel *re
 	struct buffer *hdr = get_trash_chunk();
 	int32_t pos;
 
-	htx = htx_from_buf(&res->buf);
+	htx = htxbuf(&res->buf);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -3798,7 +3795,7 @@ static int htx_apply_filter_to_sts_line(struct stream *s, struct channel *res, s
 	struct buffer *resline = get_trash_chunk();
 	int done;
 
-	htx = htx_from_buf(&res->buf);
+	htx = htxbuf(&res->buf);
 
 	if (unlikely(txn->flags & TX_SVDENY))
 		return 1;
@@ -3920,7 +3917,7 @@ static void htx_manage_client_side_cookies(struct stream *s, struct channel *req
 	char *prev, *att_beg, *att_end, *equal, *val_beg, *val_end, *next;
 	int preserve_hdr;
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 	ctx.blk = NULL;
 	while (http_find_header(htx, ist("Cookie"), &ctx, 1)) {
 		del_from = NULL;  /* nothing to be deleted */
@@ -4321,7 +4318,7 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 	char *prev, *att_beg, *att_end, *equal, *val_beg, *val_end, *next;
 	int is_cookie2;
 
-	htx = htx_from_buf(&res->buf);
+	htx = htxbuf(&res->buf);
 
 	ctx.blk = NULL;
 	while (1) {
@@ -4601,7 +4598,7 @@ void htx_check_request_for_cacheability(struct stream *s, struct channel *req)
 	if ((txn->flags & (TX_CACHEABLE|TX_CACHE_IGNORE)) == TX_CACHE_IGNORE)
 		return; /* nothing more to do here */
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 	pragma_found = cc_found = 0;
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
                 struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -4690,7 +4687,7 @@ void htx_check_response_for_cacheability(struct stream *s, struct channel *res)
 		return;
 	}
 
-	htx = htx_from_buf(&res->buf);
+	htx = htxbuf(&res->buf);
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
                 struct htx_blk *blk  = htx_get_blk(htx, pos);
                 enum htx_blk_type type = htx_get_blk_type(blk);
@@ -4767,7 +4764,7 @@ int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_nam
 	uint32_t data;
 
 	hdr = ist2(be->server_id_hdr_name, be->server_id_hdr_len);
-	htx = htx_from_buf(&s->req.buf);
+	htx = htxbuf(&s->req.buf);
 	data = htx->data;
 
 	ctx.blk = NULL;
@@ -4806,7 +4803,7 @@ static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct pr
 	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_POST)
 		return 0;
 
-	htx = htx_from_buf(&s->req.buf);
+	htx = htxbuf(&s->req.buf);
 	sl = http_find_stline(htx);
 	uri = htx_sl_req_uri(sl);
 
@@ -4849,7 +4846,7 @@ static int htx_handle_stats(struct stream *s, struct channel *req)
 	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
 		appctx->ctx.stats.flags |= STAT_CHUNKED;
 
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 	sl = http_find_stline(htx);
 	lookup = HTX_SL_REQ_UPTR(sl) + uri_auth->uri_len;
 	end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
@@ -5002,7 +4999,7 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	}
 
 	/* 2: add the request Path */
-	htx = htx_from_buf(&req->buf);
+	htx = htxbuf(&req->buf);
 	sl = http_find_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
 	if (!path.ptr)
@@ -5037,7 +5034,6 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	 * Send the message
 	 */
 	data = htx->data - co_data(res);
-	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
 
@@ -5333,7 +5329,6 @@ void htx_server_error(struct stream *s, struct stream_interface *si, int err,
 		chn->buf.data = msg->data;
 		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
-		b_set_data(&chn->buf, b_size(&chn->buf));
 		c_adv(chn, htx->data);
 		chn->total += htx->data;
 	}
@@ -5364,7 +5359,6 @@ void htx_reply_and_close(struct stream *s, short status, struct buffer *msg)
 		chn->buf.data = msg->data;
 		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
-		b_set_data(&chn->buf, b_size(&chn->buf));
 		c_adv(chn, htx->data);
 		chn->total += htx->data;
 	}
@@ -5410,7 +5404,6 @@ static int htx_reply_100_continue(struct stream *s)
 		goto fail;
 
 	data = htx->data - co_data(res);
-	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
 	return 0;
@@ -5472,7 +5465,6 @@ static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 		goto fail;
 
 	data = htx->data - co_data(res);
-	b_set_data(&res->buf, b_size(&res->buf));
 	c_adv(res, data);
 	res->total += data;
 

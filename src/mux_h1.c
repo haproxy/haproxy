@@ -1207,7 +1207,6 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	int errflag;
 
 	htx = htx_from_buf(buf);
-	b_set_data(buf, b_size(buf));
 	count = b_data(&h1c->ibuf);
 	max = htx_free_space(htx);
 	if (flags & CO_RFL_KEEP_RSV) {
@@ -1261,12 +1260,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	b_del(&h1c->ibuf, total);
 
   end:
-	if (htx_is_not_empty(htx))
-		b_set_data(buf, b_size(buf));
-	else {
-		htx_reset(htx);
-		b_set_data(buf, 0);
-	}
+	htx_to_buf(htx, buf);
 
 	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
@@ -1288,10 +1282,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	return total;
 
   parsing_err:
-	// FIXME: create an error snapshot here
 	b_reset(&h1c->ibuf);
 	htx->flags |= HTX_FL_PARSING_ERROR;
-	b_set_data(buf, b_size(buf));
+	htx_to_buf(htx, buf);
 	h1s->cs->flags |= CS_FL_EOS;
 	return 0;
 }
@@ -1497,10 +1490,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	if (!buf_room_for_htx_data(&h1c->obuf))
 		h1c->flags |= H1C_F_OUT_FULL;
-	if (htx_is_empty(chn_htx)) {
-		htx_reset(chn_htx);
-		b_set_data(buf, 0);
-	}
+	htx_to_buf(chn_htx, buf);
   end:
 	return total;
 }

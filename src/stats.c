@@ -3218,8 +3218,6 @@ static void htx_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DONE) {
-		struct htx_blk *blk;
-
 		/* Don't add EOD and TLR because mux-h1 will take care of it */
 		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 			si_rx_room_blk(si);
@@ -3227,20 +3225,10 @@ static void htx_stats_io_handler(struct appctx *appctx)
 		}
 
 		/* eat the whole request */
-		req_htx = htx_from_buf(&req->buf);
-		blk = htx_get_head_blk(req_htx);
-		while (blk) {
-			enum htx_blk_type type = htx_get_blk_type(blk);
-
-			blk = htx_remove_blk(req_htx, blk);
-			if (type == HTX_BLK_EOM)
-				break;
-		}
+		req_htx = htxbuf(&req->buf);
+		htx_reset(req_htx);
+		htx_to_buf(req_htx, &req->buf);
 		co_set_data(req, 0);
-		if (htx_is_empty(req_htx)) {
-			htx_reset(req_htx);
-			b_set_data(&req->buf, 0);
-		}
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
@@ -3262,14 +3250,9 @@ static void htx_stats_io_handler(struct appctx *appctx)
 	 * deciding to wake the applet up. It saves it from looping when
 	 * emitting large blocks into small TCP windows.
 	 */
-	if (htx_is_empty(res_htx)) {
-		htx_reset(res_htx);
-		b_set_data(&res->buf, 0);
-	}
-	else {
-		b_set_data(&res->buf, b_size(&res->buf));
+	htx_to_buf(res_htx, &res->buf);
+	if (!channel_is_empty(res))
 		si_stop_get(si);
-	}
 }
 
 

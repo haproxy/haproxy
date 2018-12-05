@@ -24,7 +24,7 @@ struct htx htx_empty = { .size = 0, .data = 0, .used = 0 };
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 {
         struct buffer *chunk = get_trash_chunk();
-        struct htx *tmp = htx_from_buf(chunk);
+        struct htx *tmp = htxbuf(chunk);
         struct htx_blk *newblk, *oldblk;
         uint32_t new, old;
         uint32_t addr, blksz;
