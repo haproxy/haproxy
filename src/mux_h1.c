@@ -653,6 +653,12 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			  h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 	}
+	else {
+		if (h1s->flags & H1S_F_WANT_KAL &&
+		    (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
+		     h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+	}
 
 	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
 	if (h1s->flags & H1S_F_WANT_KAL && be->state == PR_STSTOPPED)
