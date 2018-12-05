@@ -524,6 +524,23 @@ static inline void htx_reset(struct htx *htx)
 	htx->sl_off = -1;
 }
 
+/* returns the available room for raw data in buffer <buf> once HTX overhead is
+ * taken into account (one HTX header and two blocks). The purpose is to figure
+ * the optimal fill length to avoid copies.
+ */
+static inline size_t buf_room_for_htx_data(const struct buffer *buf)
+{
+	size_t room;
+
+	room = b_room(buf);
+	if (room <= sizeof(struct htx) + 2 * sizeof(struct htx_blk))
+		room = 0;
+	else
+		room -= sizeof(struct htx) + 2 * sizeof(struct htx_blk);
+
+	return room;
+}
+
 /* Returns an HTX message using the buffer <buf>. */
 static inline struct htx *htx_from_buf(struct buffer *buf)
 {
