@@ -532,9 +532,10 @@ static inline struct htx *htx_from_buf(struct buffer *buf)
         if (b_is_null(buf))
                 return &htx_empty;
         htx = (struct htx *)(buf->area);
-        htx->size = buf->size - sizeof(*htx);
-        if (!b_data(buf))
+        if (!b_data(buf)) {
+		htx->size = buf->size - sizeof(*htx);
                 htx_reset(htx);
+	}
 	return htx;
 }
 
