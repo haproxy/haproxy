@@ -2204,7 +2204,8 @@ redo:
 			 * we simply reset msg->sov so that HTTP rewinding points to the
 			 * headers.
 			 */
-			s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - co_data(req);
+			if (s->txn)
+				s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - co_data(req);
 		}
 	}
 
@@ -2374,7 +2375,8 @@ redo:
 			 * we simply reset msg->sov so that HTTP rewinding points to the
 			 * headers.
 			 */
-			s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - co_data(res);
+			if (s->txn)
+				s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - co_data(res);
 		}
 
 		/* if we have no analyser anymore in any direction and have a
