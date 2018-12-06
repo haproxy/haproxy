@@ -28,6 +28,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	struct htx_blk *newblk, *oldblk;
 	uint32_t new, old;
 	uint32_t addr, blksz;
+	int32_t sl_off = -1;
 
 	if (!htx->used)
 		return NULL;
@@ -49,19 +50,20 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		newblk->info = oldblk->info;
 		blksz = htx_get_blksz(oldblk);
 
+		/* update the start-line offset */
+		if (htx->sl_off == oldblk->addr)
+			sl_off = addr;
+
 		memcpy((void *)tmp->blocks + addr, htx_get_blk_ptr(htx, oldblk), blksz);
 		new++;
 		addr += blksz;
-
-		/* update the start-line offset */
-		if (htx->sl_off == oldblk->addr)
-			htx->sl_off = addr;
 
 		/* if <blk> is defined, set its new location */
 		if (blk != NULL && blk == oldblk)
 			blk = newblk;
 	} while (new < htx->used);
 
+	htx->sl_off = sl_off;
 	htx->wrap = htx->used;
 	htx->front = htx->tail = new - 1;
 	memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
