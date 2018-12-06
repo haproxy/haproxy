@@ -66,10 +66,10 @@ _findtests() {
 
   for i in $( find "$1" -name "$EXPR" ); do
     skiptest=
-    require_version="$(grep "#REQUIRE_VERSION=" "$i" | sed -e 's/.*=//')"
-    require_version_below="$(grep "#REQUIRE_VERSION_BELOW=" "$i" | sed -e 's/.*=//')"
-    require_options="$(grep "#REQUIRE_OPTIONS=" "$i" | sed -e 's/.*=//')"
-    exclude_targets=",$(grep "#EXCLUDE_TARGETS=" "$i" | sed -e 's/.*=//'),"
+    require_version="$(sed -ne 's/^#REQUIRE_VERSION=//p' "$i")"
+    require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"
+    require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i")"
+    exclude_targets=",$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i"),"
 
     if [ -n "$require_version" ]; then
       if [ $(_version "$HAPROXY_VERSION") -lt $(_version "$require_version") ]; then
