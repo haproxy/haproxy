@@ -436,7 +436,7 @@ static inline void si_chk_rcv(struct stream_interface *si)
 	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
-	if (si->state > SI_ST_EST)
+	if (si->state != SI_ST_EST)
 		return;
 
 	si->flags |= SI_FL_RX_WAIT_EP;
