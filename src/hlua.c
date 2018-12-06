@@ -1616,6 +1616,7 @@ static void hlua_socket_handler(struct appctx *appctx)
 	 */
 	if (!(c->flags & CO_FL_CONNECTED)) {
 		si_cant_get(si);
+		si_rx_conn_blk(si);
 		si_rx_endp_more(si);
 		return;
 	}
