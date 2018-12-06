@@ -80,8 +80,9 @@ enum {
 	SI_FL_RXBLK_BUFF = 0x00020000,  /* stream-int waits for a buffer allocation to complete */
 	SI_FL_RXBLK_ROOM = 0x00040000,  /* stream-int waits for more buffer room to store incoming data */
 	SI_FL_RXBLK_SHUT = 0x00080000,  /* input is now closed, nothing new will ever come */
-	SI_FL_RXBLK_ANY  = 0x000F0000,  /* any of the RXBLK flags above */
-	SI_FL_RX_WAIT_EP = 0x00100000,  /* stream-int waits for more data from the end point */
+	SI_FL_RXBLK_CONN = 0x00100000,  /* other side is not connected */
+	SI_FL_RXBLK_ANY  = 0x001F0000,  /* any of the RXBLK flags above */
+	SI_FL_RX_WAIT_EP = 0x00200000,  /* stream-int waits for more data from the end point */
 };
 
 /* A stream interface has 3 parts :

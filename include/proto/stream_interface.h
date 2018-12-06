@@ -266,6 +266,18 @@ static inline void si_rx_chan_blk(struct stream_interface *si)
 	si->flags |=  SI_FL_RXBLK_CHAN;
 }
 
+/* Tell a stream interface the other side is connected */
+static inline void si_rx_conn_rdy(struct stream_interface *si)
+{
+	si->flags &= ~SI_FL_RXBLK_CONN;
+}
+
+/* Tell a stream interface it must wait for the other side to connect */
+static inline void si_rx_conn_blk(struct stream_interface *si)
+{
+	si->flags |=  SI_FL_RXBLK_CONN;
+}
+
 /* The stream interface just got the input buffer it was waiting for */
 static inline void si_rx_buff_rdy(struct stream_interface *si)
 {
@@ -418,6 +430,9 @@ static inline void si_shutw(struct stream_interface *si)
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
+	if (si->flags & SI_FL_RXBLK_CONN && (si_opposite(si)->state >= SI_ST_EST))
+		si_rx_conn_rdy(si);
+
 	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
