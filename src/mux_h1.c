@@ -1682,7 +1682,7 @@ static int h1_process(struct h1c * h1c)
 				goto release;
 		}
 		else
-			goto release;
+			goto end;
 		h1s = h1c->h1s;
 	}
 
