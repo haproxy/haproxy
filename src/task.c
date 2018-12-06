@@ -469,6 +469,54 @@ void process_runnable_tasks()
 	}
 }
 
+/*
+ * Delete every tasks before running the master polling loop
+ */
+void mworker_cleantasks()
+{
+	struct task *t;
+	int i;
+	struct eb32_node *next_wq = NULL;
+	struct eb32sc_node *next_rq = NULL;
+
+#ifdef USE_THREAD
+	/* cleanup the global run queue */
+	next_rq = eb32sc_first(&rqueue, MAX_THREADS);
+	while (next_rq) {
+		t = eb32sc_entry(next_rq, struct task, rq);
+		next_rq = eb32sc_next(rq_next, MAX_THREADS_MASK);
+		task_delete(t);
+		task_free(t);
+	}
+	/* cleanup the timers queue */
+	next_wq = eb32_first(&timers);
+	while (next_wq) {
+		t = eb32_entry(next_wq, struct task, wq);
+		next_wq = eb32_next(next_wq);
+		task_delete(t);
+		task_free(t);
+	}
+#endif
+	/* clean the per thread run queue */
+	for (i = 0; i < global.nbthread; i++) {
+		next_rq = eb32sc_first(&task_per_thread[i].rqueue, MAX_THREADS_MASK);
+		while (next_rq) {
+			t = eb32sc_entry(next_rq, struct task, rq);
+			next_rq = eb32sc_next(next_rq, MAX_THREADS_MASK);
+			task_delete(t);
+			task_free(t);
+		}
+		/* cleanup the per thread timers queue */
+		next_wq = eb32_first(&task_per_thread[i].timers);
+		while (next_wq) {
+			t = eb32_entry(next_wq, struct task, wq);
+			next_wq = eb32_next(next_wq);
+			task_delete(t);
+			task_free(t);
+		}
+	}
+}
+
 /* perform minimal intializations */
 static void init_task()
 {

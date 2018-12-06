@@ -553,6 +553,11 @@ void process_runnable_tasks();
  */
 int wake_expired_tasks();
 
+/*
+ * Delete every tasks before running the master polling loop
+ */
+void mworker_cleantasks();
+
 #endif /* _PROTO_TASK_H */
 
 /*

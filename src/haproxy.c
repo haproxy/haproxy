@@ -895,6 +895,7 @@ static void mworker_loop()
 
 	mworker_unblock_signals();
 	mworker_cleanlisteners();
+	mworker_cleantasks();
 
 	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
 				     some SIGCHLD were lost */
