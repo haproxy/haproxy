@@ -4527,9 +4527,9 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (b_data(&h2s->rxbuf))
-		cs->flags |= CS_FL_RCV_MORE;
+		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
-		cs->flags &= ~CS_FL_RCV_MORE;
+		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (cs->flags & CS_FL_REOS)
 			cs->flags |= CS_FL_EOS;
 		if (b_size(&h2s->rxbuf)) {
