@@ -1337,15 +1337,21 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	tmp->size = b_room(&h1c->obuf);
 
 	blk = htx_get_head_blk(chn_htx);
-	while (!(h1s->flags & errflag) && blk) {
+	while (count && !(h1s->flags & errflag) && blk) {
 		struct htx_sl *sl;
 		struct ist n, v;
+		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
+		uint32_t vlen;
 
-		if (total + sz > count)
-			goto copy;
+		vlen = sz;
+		if (vlen > count) {
+			if (type != HTX_BLK_DATA && type != HTX_BLK_TLR)
+				goto copy;
+			vlen = count;
+		}
 
-		switch (htx_get_blk_type(blk)) {
+		switch (type) {
 			case HTX_BLK_UNUSED:
 				break;
 
@@ -1426,6 +1432,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(chn_htx, blk);
+				v.len = vlen;
 				if (!htx_data_to_h1(v, tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto copy;
 				break;
@@ -1444,6 +1451,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1s->flags |= H1S_F_HAVE_EOD;
 				}
 				v = htx_get_blk_value(chn_htx, blk);
+				v.len = vlen;
 				if (!htx_trailer_to_h1(v, tmp))
 					goto copy;
 				h1s->flags |= H1S_F_HAVE_TLR;
@@ -1475,8 +1483,14 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->flags |= errflag;
 				break;
 		}
-		total += sz;
-		blk = htx_remove_blk(chn_htx, blk);
+		total += vlen;
+		count -= vlen;
+		if (sz == vlen)
+			blk = htx_remove_blk(chn_htx, blk);
+		else {
+			htx_cut_data_blk(chn_htx, blk, vlen);
+			break;
+		}
 	}
 
   copy:
