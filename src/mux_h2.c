@@ -4612,7 +4612,8 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (htx) {
-		while (!(h2s->flags & H2_SF_BLK_ANY) && count && !htx_is_empty(htx)) {
+		while (h2s->st < H2_SS_ERROR && !(h2s->flags & H2_SF_BLK_ANY) &&
+		       count && !htx_is_empty(htx)) {
 			idx   = htx_get_head(htx);
 			blk   = htx_get_blk(htx, idx);
 			btype = htx_get_blk_type(blk);
