@@ -3821,14 +3821,13 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	}
 
 	/* get the start line, we do have one */
-	blk = htx_get_blk(htx, htx->sl_off);
-	sl = htx_get_blk_ptr(htx, blk);
+	sl = htx_get_stline(htx);
 	h2s->status = sl->info.res.status;
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
 
-	idx = htx->sl_off;
+	idx = htx_get_head(htx); // returns the SL that we skip
 	while ((idx = htx_get_next(htx, idx)) != -1) {
 		blk = htx_get_blk(htx, idx);
 		type = htx_get_blk_type(blk);
@@ -4047,15 +4046,14 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	}
 
 	/* get the start line, we do have one */
-	blk = htx_get_blk(htx, htx->sl_off);
-	sl = htx_get_blk_ptr(htx, blk);
+	sl = htx_get_stline(htx);
 	meth = htx_sl_req_meth(sl);
 	path = htx_sl_req_uri(sl);
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
 
-	idx = htx->sl_off;
+	idx = htx_get_head(htx); // returns the SL that we skip
 	while ((idx = htx_get_next(htx, idx)) != -1) {
 		blk = htx_get_blk(htx, idx);
 		type = htx_get_blk_type(blk);
