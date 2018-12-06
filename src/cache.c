@@ -144,8 +144,6 @@ cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct ch
 		filter->ctx     = st;
 	}
 
-	register_data_filter(s, chn, filter);
-
 	return 1;
 }
 
@@ -186,8 +184,10 @@ cache_store_http_headers(struct stream *s, struct filter *filter, struct http_ms
 	if (!(msg->chn->flags & CF_ISRESP) || !st)
 		return 1;
 
-	st->hdrs_len = msg->sov;
-
+	if (st->first_block) {
+		register_data_filter(s, msg->chn, filter);
+		st->hdrs_len = msg->sov;
+	}
 	return 1;
 }
 
@@ -219,8 +219,11 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 	 * We need to skip the HTTP headers first, because we saved them in the
 	 * http-response action.
 	 */
-	if (!(msg->chn->flags & CF_ISRESP) || !st)
+	if (!(msg->chn->flags & CF_ISRESP) || !st) {
+		/* should never happen */
+		unregister_data_filter(s, msg->chn, filter);
 		return len;
+	}
 
 	if (!len) {
 		/* Nothing to forward */
@@ -233,7 +236,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 	}
 	else {
 		/* Forward data */
-		if (filter->ctx && st->first_block) {
+		if (st->first_block) {
 			int to_append, append;
 			struct shared_block *fb;
 
@@ -244,6 +247,7 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 			if (!fb) {
 				shctx_unlock(shctx);
 				disable_cache_entry(st, filter, shctx);
+				unregister_data_filter(s, msg->chn, filter);
 				return len;
 			}
 			shctx_unlock(shctx);
@@ -256,11 +260,16 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 			/* Rewind the buffer to forward all data */
 			c_rew(msg->chn, st->hdrs_len);
 			st->hdrs_len = 0;
-			if (ret < 0)
+			if (ret < 0) {
 				disable_cache_entry(st, filter, shctx);
+				unregister_data_filter(s, msg->chn, filter);
+			}
 		}
-		else
+		else {
+			/* should never happen */
+			unregister_data_filter(s, msg->chn, filter);
 			ret = len;
+		}
 	}
 
 	if ((ret != len) ||
