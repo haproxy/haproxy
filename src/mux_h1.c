@@ -1627,6 +1627,11 @@ static int h1_send(struct h1c *h1c)
 		sent = 1;
 	}
 
+	if (conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) {
+		/* error or output closed, nothing to send, clear the buffer to release it */
+		b_reset(&h1c->obuf);
+	}
+
   end:
 	if (!(h1c->flags & H1C_F_OUT_FULL) && h1c->h1s && h1c->h1s->send_wait) {
 		struct h1s *h1s = h1c->h1s;
