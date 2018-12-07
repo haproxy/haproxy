@@ -106,7 +106,8 @@ struct appctx {
 		} cli;                          /* context used by the CLI */
 		struct {
 			struct cache_entry *entry;  /* Entry to be sent from cache. */
-			int sent;                   /* The number of bytes already sent for this cache entry. */
+			unsigned int sent;          /* The number of bytes already sent for this cache entry. */
+			unsigned int offset;        /* start offset of remaining data relative to beginning of the next block */
 			struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
 		} cache;
 		/* all entries below are used by various CLI commands, please
