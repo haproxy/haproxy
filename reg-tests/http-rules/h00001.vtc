@@ -1,6 +1,5 @@
-varnishtest "Composite HTTP manipulation test (H1 clear to H1 clear)"
-#REQUIRE_VERSION=1.6
-#REQUIRE_VERSION_BELOW=1.9
+varnishtest "Composite HTTP manipulation test (H1 and H2 clear to H1 clear)"
+#REQUIRE_VERSION=1.9
 
 # This config tests several http-request features and their interactions.
 # It extracts some samples, places them into variables, modifies some header
@@ -35,7 +34,7 @@ server s1 {
 	expect req.http.be-sl1-crc == 2604236007
 	expect req.http.be-sl2-crc == 4181358964
 	expect req.http.be-hdr-crc == 3634102538
-} -start
+} -repeat 2 -start
 
 haproxy h1 -conf {
     defaults
@@ -45,7 +44,8 @@ haproxy h1 -conf {
 	timeout server  1s
 
     frontend fe
-	bind "fd@${fe}"
+	bind "fd@${feh1}"
+	bind "fd@${feh2}" proto h2
 
 	#### requests
 	http-request set-var(req.method)     method
@@ -165,7 +165,7 @@ haproxy h1 -conf {
 	server s1 ${s1_addr}:${s1_port}
 } -start
 
-client c1 -connect ${h1_fe_sock} {
+client c1h1 -connect ${h1_feh1_sock} {
 	txreq \
 	  -req GET \
 	  -url /path/to/file.extension?qs_arg=qs_value \
@@ -185,4 +185,33 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.fe-hdr-crc == 3634102538
 	expect resp.bodylen == 14
 	expect resp.body == "This is a body"
+} -run
+
+client c1h2 -connect ${h1_feh2_sock} {
+	stream 1 {
+		# warning: -req, -scheme, -url MUST be placed first otherwise
+		# the H2 protocol is invalid since they are pseudo-headers
+		txreq \
+		  -req GET \
+		  -scheme "https" \
+		  -url /path/to/file.extension?qs_arg=qs_value \
+		  -hdr "hdr1" "val1" \
+		  -hdr "hdr2" " val2a" \
+		  -hdr "hdr2" "   val2b" \
+		  -hdr "hdr3" "     val3a, val3b" \
+		  -hdr "hdr4" ""
+
+		rxhdrs
+		expect resp.status == 200
+		expect resp.http.be-sl1-crc == 487202719
+		expect resp.http.be-sl2-crc == 561949791
+		expect resp.http.be-hdr-crc == 1719311923
+		expect resp.http.fe-sl1-crc == 146151597
+		expect resp.http.fe-sl2-crc == 561949791
+		expect resp.http.fe-hdr-crc == 3634102538
+		expect resp.http.content-length == 14
+
+		rxdata -all
+		expect resp.body == "This is a body"
+	} -run
 } -run
