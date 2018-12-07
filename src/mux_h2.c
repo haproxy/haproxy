@@ -3843,18 +3843,6 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
-
-#if 1
-		{
-			/* FIXME: header names MUST be lower case in H2. For now it's
-			 * not granted by HTX so let's force them now.
-			 */
-			char *p;
-			for (p = list[hdr].n.ptr; p != list[hdr].n.ptr + list[hdr].n.len; p++)
-				if (unlikely(isupper(*p)))
-					*p = tolower(*p);
-		}
-#endif
 		hdr++;
 	}
 
@@ -4069,18 +4057,6 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
-
-#if 1
-		{
-			/* FIXME: header names MUST be lower case in H2. For now it's
-			 * not granted by HTX so let's force them now.
-			 */
-			char *p;
-			for (p = list[hdr].n.ptr; p != list[hdr].n.ptr + list[hdr].n.len; p++)
-				if (unlikely(isupper(*p)))
-					*p = tolower(*p);
-		}
-#endif
 		hdr++;
 	}
 
