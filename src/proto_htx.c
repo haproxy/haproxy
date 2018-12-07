@@ -4609,7 +4609,7 @@ void htx_check_request_for_cacheability(struct stream *s, struct channel *req)
 		n = htx_get_blk_name(htx, blk);
 		v = htx_get_blk_value(htx, blk);
 
-		if (isteqi(n, ist("Pragma"))) {
+		if (isteq(n, ist("pragma"))) {
 			if (v.len >= 8 && strncasecmp(v.ptr, "no-cache", 8) == 0) {
 				pragma_found = 1;
 				continue;
@@ -4618,13 +4618,13 @@ void htx_check_request_for_cacheability(struct stream *s, struct channel *req)
 
 		/* Don't use the cache and don't try to store if we found the
 		 * Authorization header */
-		if (isteqi(n, ist("Authorization"))) {
+		if (isteq(n, ist("authorization"))) {
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 			txn->flags |= TX_CACHE_IGNORE;
 			continue;
 		}
 
-		if (!isteqi(n, ist("Cache-control")))
+		if (!isteq(n, ist("cache-control")))
 			continue;
 
 		/* OK, right now we know we have a cache-control header */
@@ -4697,14 +4697,14 @@ void htx_check_response_for_cacheability(struct stream *s, struct channel *res)
 		n = htx_get_blk_name(htx, blk);
 		v = htx_get_blk_value(htx, blk);
 
-		if (isteqi(n, ist("Pragma"))) {
+		if (isteq(n, ist("pragma"))) {
 			if ((v.len >= 8) && strncasecmp(v.ptr, "no-cache", 8) == 0) {
 				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 				return;
 			}
 		}
 
-		if (!isteqi(n, ist("Cache-control")))
+		if (!isteq(n, ist("cache-control")))
 			continue;
 
 		/* OK, right now we know we have a cache-control header */
