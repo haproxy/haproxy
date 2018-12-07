@@ -11,7 +11,7 @@ server s1 {
 
 haproxy h1 -conf {
     global
-        lua-load ${testdir}/b00004.lua
+        lua-load ${testdir}/h00002.lua
 
     frontend fe1
         mode http
