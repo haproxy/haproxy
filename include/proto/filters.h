@@ -29,6 +29,11 @@
 
 #include <proto/channel.h>
 
+extern const char *trace_flt_id;
+extern const char *http_comp_flt_id;
+extern const char *cache_store_flt_id;
+extern const char *spoe_filter_id;
+
 #define FLT_ID(flt)   (flt)->config->id
 #define FLT_CONF(flt) (flt)->config->conf
 #define FLT_OPS(flt)  (flt)->config->ops

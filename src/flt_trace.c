@@ -33,6 +33,8 @@
 #include <proto/proto_http.h>
 #include <proto/stream.h>
 
+const char *trace_flt_id = "trace filter";
+
 struct flt_ops trace_ops;
 
 struct trace_config {
@@ -709,6 +711,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 			pos++;
 		}
 		*cur_arg = pos;
+		fconf->id   = trace_flt_id;
 		fconf->ops  = &trace_ops;
 	}
 

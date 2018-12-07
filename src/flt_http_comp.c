@@ -31,7 +31,7 @@
 #include <proto/sample.h>
 #include <proto/stream.h>
 
-static const char *http_comp_flt_id = "compression filter";
+const char *http_comp_flt_id = "compression filter";
 
 struct flt_ops comp_ops;
 

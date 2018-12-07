@@ -43,7 +43,7 @@
 					* messages (legacy implementation) */
 #define CACHE_F_HTX         0x00000002 /* The cache is used to store HTX messages */
 
-static const char *cache_store_flt_id = "cache store filter";
+const char *cache_store_flt_id = "cache store filter";
 
 struct applet http_cache_applet;
 
