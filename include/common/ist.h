@@ -372,6 +372,145 @@ static inline ssize_t istscat(struct ist *dst, const struct ist src, size_t coun
 	return -1;
 }
 
+/* copies the entire <src> over <dst>, which must be allocated large enough to
+ * hold the whole contents. No trailing zero is appended, this is mainly used
+ * for protocol processing where the frame length has already been checked. An
+ * ist made of the output and its length are returned. The destination is not
+ * touched if src.len is null.
+ */
+static inline struct ist ist2bin(char *dst, const struct ist src)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			dst[ofs] = src.ptr[ofs];
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	return ist2(dst, ofs);
+}
+
+/* copies the entire <src> over <dst>, which must be allocated large enough to
+ * hold the whole contents as well as a trailing zero which is always appended.
+ * This is mainly used for protocol conversions where the frame length has
+ * already been checked. An ist made of the output and its length (not counting
+ * the trailing zero) are returned.
+ */
+static inline struct ist ist2str(char *dst, const struct ist src, size_t count)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			dst[ofs] = src.ptr[ofs];
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	dst[ofs] = 0;
+	return ist2(dst, ofs);
+}
+
+/* makes a lower case copy of the entire <src> into <dst>, which must have been
+ * allocated large enough to hold the whole contents. No trailing zero is
+ * appended, this is mainly used for protocol processing where the frame length
+ * has already been checked. An ist made of the output and its length are
+ * returned. The destination is not touched if src.len is null.
+ */
+static inline struct ist ist2bin_lc(char *dst, const struct ist src)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			char c = src.ptr[ofs];
+			dst[ofs] = ((unsigned char)(c - 'A') <= 'Z' - 'A') ? c + ('a' - 'A') : c;
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	return ist2(dst, ofs);
+}
+
+/* makes a lower case copy of the entire <src> into <dst>, which must have been
+ * allocated large enough to hold the whole contents as well as a trailing zero
+ * which is always appended. This is mainly used for protocol conversions where
+ * the frame length has already been checked. An ist made of the output and its
+ * length (not counting the trailing zero) are returned.
+ */
+static inline struct ist ist2str_lc(char *dst, const struct ist src, size_t count)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			char c = src.ptr[ofs];
+			dst[ofs] = ((unsigned char)(c - 'A') <= 'Z' - 'A') ? c + ('a' - 'A') : c;
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	dst[ofs] = 0;
+	return ist2(dst, ofs);
+}
+
+/* makes an upper case copy of the entire <src> into <dst>, which must have
+ * been allocated large enough to hold the whole contents. No trailing zero is
+ * appended, this is mainly used for protocol processing where the frame length
+ * has already been checked. An ist made of the output and its length are
+ * returned. The destination is not touched if src.len is null.
+ */
+static inline struct ist ist2bin_uc(char *dst, const struct ist src)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			char c = src.ptr[ofs];
+			dst[ofs] = ((unsigned char)(c - 'a') <= 'z' - 'a') ? c + ('A' - 'a') : c;
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	return ist2(dst, ofs);
+}
+
+/* makes an upper case copy of the entire <src> into <dst>, which must have been
+ * allocated large enough to hold the whole contents as well as a trailing zero
+ * which is always appended. This is mainly used for protocol conversions where
+ * the frame length has already been checked. An ist made of the output and its
+ * length (not counting the trailing zero) are returned.
+ */
+static inline struct ist ist2str_uc(char *dst, const struct ist src, size_t count)
+{
+	size_t ofs = 0;
+
+	/* discourage the compiler from trying to optimize for large strings,
+	 * but tell it that most of our strings are not empty.
+	 */
+	if (__builtin_expect(ofs < src.len, 1)) {
+		do {
+			char c = src.ptr[ofs];
+			dst[ofs] = ((unsigned char)(c - 'a') <= 'z' - 'a') ? c + ('A' - 'a') : c;
+			ofs++;
+		} while (__builtin_expect(ofs < src.len, 0));
+	}
+	dst[ofs] = 0;
+	return ist2(dst, ofs);
+}
+
 /* looks for first occurrence of character <chr> in string <ist>. Returns the
  * pointer if found, or NULL if not found.
  */
