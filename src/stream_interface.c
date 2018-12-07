@@ -1089,19 +1089,6 @@ int si_cs_recv(struct conn_stream *cs)
 	int read_poll = MAX_READ_POLL_LOOPS;
 	int flags = 0;
 
-	/* stop immediately on errors. Note that we DON'T want to stop on
-	 * POLL_ERR, as the poller might report a write error while there
-	 * are still data available in the recv buffer. This typically
-	 * happens when we send too large a request to a backend server
-	 * which rejects it before reading it all.
-	 */
-	if (!(cs->flags & CS_FL_RCV_MORE)) {
-		if (!conn_xprt_ready(conn))
-			return 0;
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-			return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
-	}
-
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
@@ -1116,6 +1103,18 @@ int si_cs_recv(struct conn_stream *cs)
 	if (cs->flags & CS_FL_EOS)
 		goto out_shutdown_r;
 
+	/* stop immediately on errors. Note that we DON'T want to stop on
+	 * POLL_ERR, as the poller might report a write error while there
+	 * are still data available in the recv buffer. This typically
+	 * happens when we send too large a request to a backend server
+	 * which rejects it before reading it all.
+	 */
+	if (!(cs->flags & CS_FL_RCV_MORE)) {
+		if (!conn_xprt_ready(conn))
+			return 0;
+		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+			return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
+	}
 
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
