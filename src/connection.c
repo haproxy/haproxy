@@ -1258,7 +1258,8 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 static int
 smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn(smp->sess->origin);
+	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+										smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (conn && strcmp(conn_get_mux_name(conn), "H2") == 0) ? 2 : 1;
@@ -1293,6 +1294,7 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
