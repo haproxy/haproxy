@@ -3101,7 +3101,7 @@ static int h2s_decode_headers(struct h2s *h2s)
 		/* a payload is present */
 		if (msgf & H2_MSGF_BODY_CL)
 			h2s->flags |= H2_SF_DATA_CLEN;
-		else if (!(msgf & H2_MSGF_BODY_TUNNEL))
+		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
 			h2s->flags |= H2_SF_DATA_CHNK;
 	}
 
