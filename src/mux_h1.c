@@ -1587,7 +1587,7 @@ static int h1_recv(struct h1c *h1c)
 		h1s->recv_wait = NULL;
 
 	}
-	if (conn_xprt_read0_pending(conn))
+	if (conn_xprt_read0_pending(conn) && h1s && h1s->cs)
 		h1s->cs->flags |= CS_FL_REOS;
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
