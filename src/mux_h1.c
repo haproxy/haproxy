@@ -689,6 +689,12 @@ static void h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 			if (htx)
 				h1_add_conn_hdr(h1m, htx, ist("keep-alive"));
 		}
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) == (H1_MF_VER_11|H1_MF_CONN_KAL)) {
+			if (conn_val)
+				*conn_val = ist("");
+			if (htx)
+				h1_remove_conn_hdrs(h1m, htx);
+		}
 	}
 	else { /* H1S_F_WANT_CLO && !PR_O2_FAKE_KA */
 		if (h1m->flags & H1_MF_CONN_KAL) {
@@ -702,6 +708,12 @@ static void h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 				*conn_val = ist("close");
 			if (htx)
 				h1_add_conn_hdr(h1m, htx, ist("close"));
+		}
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_CONN_CLO) {
+			if (conn_val)
+				*conn_val = ist("");
+			if (htx)
+				h1_remove_conn_hdrs(h1m, htx);
 		}
 	}
 }
@@ -728,6 +740,12 @@ static void h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 			if (htx)
 				h1_add_conn_hdr(h1m, htx, ist("keep-alive"));
 		}
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) == (H1_MF_VER_11|H1_MF_CONN_KAL)) {
+			if (conn_val)
+				*conn_val = ist("");
+			if (htx)
+				h1_remove_conn_hdrs(h1m, htx);
+		}
 	}
 	else { /* H1S_F_WANT_CLO */
 		if (h1m->flags & H1_MF_CONN_KAL) {
@@ -741,6 +759,12 @@ static void h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 				*conn_val = ist("close");
 			if (htx)
 				h1_add_conn_hdr(h1m, htx, ist("close"));
+		}
+		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_CONN_CLO) {
+			if (conn_val)
+				*conn_val = ist("");
+			if (htx)
+				h1_remove_conn_hdrs(h1m, htx);
 		}
 	}
 }
