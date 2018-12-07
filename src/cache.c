@@ -59,6 +59,15 @@ struct cache {
 	unsigned int flags;      /* CACHE_F_* */
 };
 
+/* cache config for filters */
+struct cache_flt_conf {
+	union {
+		struct cache *cache; /* cache used by the filter */
+		char *name;          /* cache name used during conf parsing */
+	} c;
+	unsigned int flags;   /* CACHE_FLT_F_* */
+};
+
 /*
  * cache ctx for filters
  */
@@ -133,6 +142,42 @@ cache_store_init(struct proxy *px, struct flt_conf *fconf)
 	return 0;
 }
 
+static void
+cache_store_deinit(struct proxy *px, struct flt_conf *fconf)
+{
+	struct cache_flt_conf *cconf = fconf->conf;
+
+	free(cconf);
+}
+
+static int
+cache_store_check(struct proxy *px, struct flt_conf *fconf)
+{
+	struct cache_flt_conf *cconf = fconf->conf;
+	struct cache *cache;
+
+	/* resolve the cache name to a ptr in the filter config */
+	list_for_each_entry(cache, &caches, list) {
+		if (!strcmp(cache->id, cconf->c.name)) {
+			/* there can be only one filter per cache, so we free it there */
+			cache->flags |= ((px->options2 & PR_O2_USE_HTX)
+					 ? CACHE_F_HTX
+					 : CACHE_F_LEGACY_HTTP);
+
+			free(cconf->c.name);
+			cconf->c.cache = cache;
+			goto found;
+		}
+	}
+
+	ha_alert("config: %s '%s': unable to find the cache '%s' referenced by the filter 'cache'.\n",
+		 proxy_type_str(px), px->id, (char *)cconf->c.name);
+	return 1;
+
+  found:
+	return 0;
+}
+
 static int
 cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
@@ -158,7 +203,8 @@ static int
 cache_store_chn_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
 {
 	struct cache_st *st = filter->ctx;
-	struct cache *cache = filter->config->conf;
+	struct cache_flt_conf *cconf = FLT_CONF(filter);
+	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 
 	if (!(chn->flags & CF_ISRESP))
@@ -217,7 +263,8 @@ static int
 cache_store_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 			 unsigned int offset, unsigned int len)
 {
-	struct shared_context *shctx = shctx_ptr((struct cache *)filter->config->conf);
+	struct cache_flt_conf *cconf = FLT_CONF(filter);
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct cache_st *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_blk *blk;
@@ -301,7 +348,8 @@ cache_store_http_forward_data(struct stream *s, struct filter *filter,
 		       struct http_msg *msg, unsigned int len)
 {
 	struct cache_st *st = filter->ctx;
-	struct shared_context *shctx = shctx_ptr((struct cache *)filter->config->conf);
+	struct cache_flt_conf *cconf = FLT_CONF(filter);
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	int ret;
 
 	ret = 0;
@@ -375,7 +423,8 @@ cache_store_http_end(struct stream *s, struct filter *filter,
                      struct http_msg *msg)
 {
 	struct cache_st *st = filter->ctx;
-	struct cache *cache = filter->config->conf;
+	struct cache_flt_conf *cconf = FLT_CONF(filter);
+	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 	struct cache_entry *object;
 
@@ -525,8 +574,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct http_msg *msg = &txn->rsp;
 	struct filter *filter;
 	struct shared_block *first = NULL;
-	struct cache *cache = (struct cache *)rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cache);
+	struct cache_flt_conf *cconf = rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct cache_entry *object;
 
 	/* Don't cache if the response came from a cache */
@@ -665,35 +714,32 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* register the buffer in the filter ctx for filling it with data*/
-	if (!LIST_ISEMPTY(&s->strm_flt.filters)) {
-		list_for_each_entry(filter, &s->strm_flt.filters, list) {
-			if (filter->config->id == cache_store_flt_id  &&
-			    filter->config->conf == rule->arg.act.p[0]) {
-				if (filter->ctx) {
-					struct cache_st *cache_ctx = filter->ctx;
-					struct cache_entry *old;
+	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		if (FLT_ID(filter) == cache_store_flt_id  && FLT_CONF(filter) == cconf) {
+			if (filter->ctx) {
+				struct cache_st *cache_ctx = filter->ctx;
+				struct cache_entry *old;
 
-					cache_ctx->first_block = first;
+				cache_ctx->first_block = first;
 
-					object->eb.key = (*(unsigned int *)&txn->cache_hash);
-					memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
-					/* Insert the node later on caching success */
+				object->eb.key = (*(unsigned int *)&txn->cache_hash);
+				memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
+				/* Insert the node later on caching success */
 
-					shctx_lock(shctx);
+				shctx_lock(shctx);
 
-					old = entry_exist(cache, txn->cache_hash);
-					if (old) {
-						eb32_delete(&old->eb);
-						old->eb.key = 0;
-					}
-					shctx_unlock(shctx);
-
-					/* store latest value and expiration time */
-					object->latest_validation = now.tv_sec;
-					object->expire = now.tv_sec + http_calc_maxage(s, cache);
+				old = entry_exist(cconf->c.cache, txn->cache_hash);
+				if (old) {
+					eb32_delete(&old->eb);
+					old->eb.key = 0;
 				}
-				return ACT_RET_CONT;
+				shctx_unlock(shctx);
+
+				/* store latest value and expiration time */
+				object->latest_validation = now.tv_sec;
+				object->expire = now.tv_sec + http_calc_maxage(s, cconf->c.cache);
 			}
+			return ACT_RET_CONT;
 		}
 	}
 
@@ -725,8 +771,9 @@ out:
 
 static void http_cache_applet_release(struct appctx *appctx)
 {
-	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
+	struct cache *cache = cconf->c.cache;
 	struct shared_block *first = block_ptr(cache_ptr);
 
 	shctx_lock(shctx_ptr(cache));
@@ -736,8 +783,8 @@ static void http_cache_applet_release(struct appctx *appctx)
 
 static size_t htx_cache_dump_headers(struct appctx *appctx, struct htx *htx)
 {
-	struct cache *cache = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cache);
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
 	struct shared_block *shblk  = appctx->ctx.cache.next;
 	struct buffer *tmp = get_trash_chunk();
@@ -809,8 +856,8 @@ static size_t htx_cache_dump_headers(struct appctx *appctx, struct htx *htx)
 static size_t htx_cache_dump_data(struct appctx *appctx, struct htx *htx,
 				  enum htx_blk_type type, unsigned int len)
 {
-	struct cache *cache = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cache);
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct shared_block *shblk  = appctx->ctx.cache.next;
 	uint32_t max = htx_free_data_space(htx);
 	unsigned int offset;
@@ -1036,7 +1083,8 @@ static int cache_channel_row_data_get(struct appctx *appctx, int len)
 	int ret, total;
 	struct stream_interface *si = appctx->owner;
 	struct channel *res = si_ic(si);
-	struct cache *cache = (struct cache *)appctx->rule->arg.act.p[0];
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
+	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
 	struct shared_block *blk, *next = appctx->ctx.cache.next;
@@ -1139,55 +1187,71 @@ out:
 	;
 }
 
-enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct proxy *proxy,
-                                          struct act_rule *rule, char **err)
+static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
 {
 	struct flt_conf *fconf;
-	int cur_arg = *orig_arg;
-	rule->action       = ACT_CUSTOM;
-	rule->action_ptr   = http_action_store_cache;
+	struct cache_flt_conf *cconf = NULL;
 
-	if (!*args[cur_arg] || strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
+	if (!*name || strcmp(name, "if") == 0 || strcmp(name, "unless") == 0) {
 		memprintf(err, "expects a cache name");
-		return ACT_RET_PRS_ERR;
+		goto err;
 	}
 
 	/* check if a cache filter was already registered with this cache
 	 * name, if that's the case, must use it. */
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
-		if (fconf->id == cache_store_flt_id && !strcmp((char *)fconf->conf, args[cur_arg])) {
-			rule->arg.act.p[0] = fconf->conf;
-			(*orig_arg)++;
-			/* filter already registered */
-			return ACT_RET_PRS_OK;
+		if (fconf->id == cache_store_flt_id) {
+			cconf = fconf->conf;
+			if (cconf && !strcmp((char *)cconf->c.name, name)) {
+				rule->arg.act.p[0] = cconf;
+				return 1;
+			}
 		}
 	}
 
-	rule->arg.act.p[0] = strdup(args[cur_arg]);
-	if (!rule->arg.act.p[0]) {
-		ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
-		err++;
+	/* Create the filter cache config  */
+	cconf = calloc(1, sizeof(*cconf));
+	if (!cconf) {
+		memprintf(err, "out of memory\n");
 		goto err;
 	}
+	cconf->flags = 0;
+	cconf->c.name = strdup(name);
+	if (!cconf->c.name) {
+		memprintf(err, "out of memory\n");
+		goto err;
+	}
+
 	/* register a filter to fill the cache buffer */
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
-		ha_alert("config: %s '%s': out of memory\n",
-			 proxy_type_str(proxy), proxy->id);
-		err++;
+		memprintf(err, "out of memory\n");
 		goto err;
 	}
-	fconf->id   = cache_store_flt_id;
-	fconf->conf = rule->arg.act.p[0]; /* store the proxy name */
+	fconf->id = cache_store_flt_id;
+	fconf->conf = cconf;
 	fconf->ops  = &cache_ops;
 	LIST_ADDQ(&proxy->filter_configs, &fconf->list);
 
+	rule->arg.act.p[0] = cconf;
+	return 1;
+
+  err:
+	free(cconf);
+	return 0;
+}
+
+enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct proxy *proxy,
+                                          struct act_rule *rule, char **err)
+{
+	rule->action       = ACT_CUSTOM;
+	rule->action_ptr   = http_action_store_cache;
+
+	if (!parse_cache_rule(proxy, args[*orig_arg], rule, err))
+		return ACT_RET_PRS_ERR;
+
 	(*orig_arg)++;
-
 	return ACT_RET_PRS_OK;
-
-err:
-	return ACT_RET_PRS_ERR;
 }
 
 /* This produces a sha1 hash of the concatenation of the first
@@ -1250,7 +1314,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 {
 
 	struct cache_entry *res;
-	struct cache *cache = (struct cache *)rule->arg.act.p[0];
+	struct cache_flt_conf *cconf = rule->arg.act.p[0];
+	struct cache *cache = cconf->c.cache;
 
 	if (IS_HTX_STRM(s))
 		htx_check_request_for_cacheability(s, &s->req);
@@ -1295,29 +1360,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 enum act_parse_ret parse_cache_use(const char **args, int *orig_arg, struct proxy *proxy,
                                           struct act_rule *rule, char **err)
 {
-	int cur_arg = *orig_arg;
-
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_req_cache_use;
 
-	if (!*args[cur_arg] || strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
-		memprintf(err, "expects a cache name");
+	if (!parse_cache_rule(proxy, args[*orig_arg], rule, err))
 		return ACT_RET_PRS_ERR;
-	}
-
-	rule->arg.act.p[0] = strdup(args[cur_arg]);
-	if (!rule->arg.act.p[0]) {
-		ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
-		err++;
-		goto err;
-	}
 
 	(*orig_arg)++;
 	return ACT_RET_PRS_OK;
-
-err:
-	return ACT_RET_PRS_ERR;
-
 }
 
 int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
@@ -1488,99 +1538,8 @@ out:
  */
 int cfg_cache_postparser()
 {
-	struct act_rule *hresrule, *hrqrule;
-	void *cache_ptr;
 	struct cache *cache;
-	struct proxy *curproxy = NULL;
 	int err = 0;
-	struct flt_conf *fconf;
-
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-
-		/* resolve the http response cache name to a ptr in the action rule */
-		list_for_each_entry(hresrule, &curproxy->http_res_rules, list) {
-			if (hresrule->action  != ACT_CUSTOM ||
-			    hresrule->action_ptr != http_action_store_cache)
-				continue;
-
-			cache_ptr = hresrule->arg.act.p[0];
-
-			list_for_each_entry(cache, &caches, list) {
-				if (!strcmp(cache->id, cache_ptr)) {
-					/* don't free there, it's still used in the filter conf */
-					cache_ptr = cache;
-					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
-							 ? CACHE_F_HTX
-							 : CACHE_F_LEGACY_HTTP);
-					break;
-				}
-			}
-
-			if (cache_ptr == hresrule->arg.act.p[0]) {
-				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by http-response cache-store rule.\n",
-					 curproxy->id, (char *)hresrule->arg.act.p[0]);
-				err++;
-			}
-
-			hresrule->arg.act.p[0] = cache_ptr;
-		}
-
-		/* resolve the http request cache name to a ptr in the action rule */
-		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
-			if (hrqrule->action  != ACT_CUSTOM ||
-			    hrqrule->action_ptr != http_action_req_cache_use)
-				continue;
-
-			cache_ptr = hrqrule->arg.act.p[0];
-
-			list_for_each_entry(cache, &caches, list) {
-				if (!strcmp(cache->id, cache_ptr)) {
-					free(cache_ptr);
-					cache_ptr = cache;
-					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
-							 ? CACHE_F_HTX
-							 : CACHE_F_LEGACY_HTTP);
-					break;
-				}
-			}
-
-			if (cache_ptr == hrqrule->arg.act.p[0]) {
-				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by http-request cache-use rule.\n",
-					 curproxy->id, (char *)hrqrule->arg.act.p[0]);
-				err++;
-			}
-
-			hrqrule->arg.act.p[0] = cache_ptr;
-		}
-
-		/* resolve the cache name to a ptr in the filter config */
-		list_for_each_entry(fconf, &curproxy->filter_configs, list) {
-
-			if (fconf->id != cache_store_flt_id)
-				continue;
-
-			cache_ptr = fconf->conf;
-
-			list_for_each_entry(cache, &caches, list) {
-				if (!strcmp(cache->id, cache_ptr)) {
-					/* there can be only one filter per cache, so we free it there */
-					free(cache_ptr);
-					cache_ptr = cache;
-					cache->flags |= ((curproxy->options2 & PR_O2_USE_HTX)
-							 ? CACHE_F_HTX
-							 : CACHE_F_LEGACY_HTTP);
-					break;
-				}
-			}
-
-			if (cache_ptr == fconf->conf) {
-				ha_alert("Proxy '%s': unable to find the cache '%s' referenced by the filter 'cache'.\n",
-					 curproxy->id, (char *)fconf->conf);
-				err++;
-			}
-			fconf->conf = cache_ptr;
-		}
-	}
 
 	/* Check if the cache is used by HTX and legacy HTTP proxies in same
 	 * time
@@ -1599,6 +1558,8 @@ int cfg_cache_postparser()
 
 struct flt_ops cache_ops = {
 	.init   = cache_store_init,
+	.check  = cache_store_check,
+	.deinit = cache_store_deinit,
 
 	/* Handle channels activity */
 	.channel_start_analyze = cache_store_chn_start_analyze,
