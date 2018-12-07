@@ -1699,7 +1699,7 @@ static int h1_process(struct h1c * h1c)
 		if (h1c->flags & H1C_F_CS_ERROR || conn->flags & CO_FL_ERROR)
 			flags |= CS_FL_ERROR;
 		if (conn_xprt_read0_pending(conn))
-			flags |= CS_FL_REOS;
+			flags |= CS_FL_EOS;
 		h1s->cs->flags |= flags;
 		h1s->cs->data_cb->wake(h1s->cs);
 	}
