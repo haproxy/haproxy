@@ -567,6 +567,7 @@ static struct htx_blk *htx_new_blk_value(struct htx *htx, struct htx_blk *blk,
 
 /* Replaces an header by a new one. The new header can be smaller or larger than
  * the old one. It returns the new block on success, otherwise it returns NULL.
+ * The header name is always lower cased.
  */
 struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value)
@@ -582,7 +583,7 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 		return NULL;
 
 	blk->info = (type << 28) + (value.len << 8) + name.len;
-	memcpy(htx_get_blk_ptr(htx, blk), name.ptr, name.len);
+	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk) + name.len, value.ptr, value.len);
 
 	return blk;
@@ -675,7 +676,7 @@ struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned 
 }
 
 /* Adds an HTX block of type HDR in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
+ * success. Otherwise, it returns NULL. The header name is always lower cased.
  */
 struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 			       const struct ist value)
@@ -688,7 +689,7 @@ struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 		return NULL;
 
 	blk->info += (value.len << 8) + name.len;
-	memcpy(htx_get_blk_ptr(htx, blk), name.ptr, name.len);
+	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
 	return blk;
 }
