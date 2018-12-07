@@ -602,7 +602,7 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	uint32_t size;
 
 	type = htx_get_blk_type(blk);
-	if (type != HTX_BLK_REQ_SL || HTX_BLK_RES_SL)
+	if (type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL)
 		return NULL;
 
 	/* Save start-line info and flags */
