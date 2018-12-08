@@ -1,6 +1,76 @@
 ChangeLog :
 ===========
 
+2018/12/08 : 1.9-dev10
+    - MINOR: htx: Rename functions htx_*_to_str() to be H1 specific
+    - BUG/MINOR: htx: Force HTTP/1.1 on H1 formatting when version is 1.1 or above
+    - BUG/MINOR: fix ssl_fc_alpn and actually add ssl_bc_alpn
+    - BUG/MEDIUM: mworker: stop proxies which have no listener in the master
+    - BUG/MEDIUM: h1: Destroy a connection after detach if it has no owner.
+    - BUG/MEDIUM: h2: Don't forget to wake the tasklet after shutr/shutw.
+    - BUG/MINOR: flt_trace/compression: Use the right flag to add the HTX support
+    - BUG/MEDIUM: stream_interface: Make REALLY sure we read all the data.
+    - MEDIUM: mux-h1: Revamp the way subscriptions are handled.
+    - BUG/MEDIUM: mux-h1: Always set CS_FL_RCV_MORE when data are received in h1_recv()
+    - MINOR: mux-h1: Make sure to return 1 in h1_recv() when needed
+    - BUG/MEDIUM: mux-h1: Release the mux H1 in h1_process() if there is no h1s
+    - BUG/MINOR: proto_htx: Truncate the request when an error is detected
+    - BUG/MEDIUM: h2: When sending in HTX, make sure the caller knows we sent all.
+    - BUG/MEDIUM: mux-h2: properly update the window size in HTX mode
+    - BUG/MEDIUM: mux-h2: make sure to always report HTX EOM when consumed by headers
+    - BUG/MEDIUM: mux-h2: stop sending HTX once the mux is blocked
+    - BUG/MEDIUM: mux-h2: don't send more HTX data than requested
+    - MINOR: mux-h2: stop on non-DATA and non-EOM HTX blocks
+    - BUG/MEDIUM: h1: Correctly report used data with no len.
+    - MEDIUM: h1: Realign the ibuf before calling rcv_buf if needed.
+    - BUG/MEDIUM: mux_pt: Always set CS_FL_RCV_MORE.
+    - MINOR: htx: make htx_from_buf() adjust the size only on new buffers
+    - MINOR: htx: add buf_room_for_htx_data() to help optimize buffer transfers
+    - MEDIUM: mux-h1: make use of buf_room_for_htx_data() instead of b_room()
+    - MEDIUM: mux-h1: attempt to zero-copy Rx DATA transfers
+    - MEDIUM: mux-h1: avoid a double copy on the Tx path whenever possible
+    - BUG/MEDIUM: stream-int: don't mark as blocked an empty buffer on Rx
+    - BUG/MINOR: mux-h1: Check h1m flags to set the server conn_mode on request path
+    - MEDIUM: htx: Rework conversion from a buffer to an htx structure
+    - MEDIUM: channel/htx: Add functions for forward HTX data
+    - MINOR: mux-h1: Don't adjust anymore the amount of data sent in h1_snd_buf()
+    - CLEANUP: htx: Fix indentation here and there in HTX files
+    - MINOR: mux-h1: Allow partial data consumption during outgoing data processing
+    - BUG/MEDIUM: mux-h2: use the correct offset for the HTX start line
+    - BUG/MEDIUM: mux-h2: stop sending using HTX on errors
+    - MINOR: mux-h1: Drain obuf if the output is closed after sending data
+    - BUG/MEDIUM: mworker: stop every tasks in the master
+    - BUG/MEDIUM: htx: Set the right start-line offset after a defrag
+    - BUG/MEDIUM: stream: Don't dereference s->txn when it is not there yet.
+    - BUG/MEDIUM: connections: Reuse an already attached conn_stream.
+    - MINOR: stream-int: add a new blocking condition on the remote connection
+    - BUG/MEDIUM: stream-int: don't attempt to receive if the connection is not established
+    - BUG/MEDIUM: lua: block on remote connection establishment
+    - BUG/MEDIUM: mworker: fix several typos in mworker_cleantasks()
+    - SCRIPTS/REGTEST: merge grep+sed into sed in run-regtests
+    - BUG/MEDIUM: connections: Split CS_FL_RCV_MORE into 2 flags.
+    - BUG/MEDIUM: h1: Don't free the connection if it's an outgoing connection.
+    - BUG/MEDIUM: h1: Set CS_FL_REOS if we had a read0.
+    - BUG/MEDIUM: mux-h1: Be sure to have a conn_stream to set CS_FL_REOS in h1_recv
+    - REGTEST: Move LUA reg test 4 to level 1.
+    - MINOR: ist: add functions to copy/uppercase/lowercase into a buffer or string
+    - MEDIUM: ist: always turn header names to lower case
+    - MINOR: h2: don't turn HTX header names to lower case anymore
+    - MEDIUM: ist: use local conversion arrays to case conversion
+    - MINOR: htx: switch to case sensitive search of lower case header names
+    - MINOR: mux-h1: Set CS_FL_EOS when read0 is detected and no data are pending
+    - BUG/MINOR: stream-int: Process read0 even if no data was received in si_cs_recv
+    - REGTEST: fix the Lua test file name in test lua/h00002 :-)
+    - REGTEST: add a basic test for HTTP rules manipulating headers
+    - BUG/MEDIUM: sample: Don't treat SMP_T_METH as SMP_T_STR.
+    - MINOR: sample: add bc_http_major
+    - BUG/MEDIUM: htx: fix typo in htx_replace_stline() making it fail all the time
+    - REGTEST: make the HTTP rules test compatible with HTTP/2 as well
+    - BUG/MEDIUM: h2: Don't try to chunk data when using HTX.
+    - MINOR: compiler: add a new macro ALREADY_CHECKED()
+    - BUILD: h2: mark the start line already checked to avoid warnings
+    - BUG/MINOR: mux-h1: Remove the connection header when it is useless
+
 2018/12/02 : 1.9-dev9
     - BUILD/MINOR: ssl: fix build with non-alpn/non-npn libssl
     - BUG/MINOR: mworker: Do not attempt to close(2) fd -1
