@@ -25,7 +25,6 @@ server s1 {
 	  -hdr "hdr2:    val2b" \
 	  -hdr "hdr3:      val3a, val3b" \
 	  -hdr "hdr4:" \
-	  -bodylen 14 \
 	  -body "This is a body"
 
 	expect req.method == "GET"
