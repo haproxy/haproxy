@@ -1130,9 +1130,11 @@ int connect_server(struct stream *s)
 	srv_cs = objt_cs(s->si[1].end);
 	if (srv_cs) {
 		old_conn = srv_conn = cs_conn(srv_cs);
-		if (old_conn &&
-		    !(old_conn->flags & (CO_FL_ERROR | CO_FL_WAIT_L4_CONN)))
+		if (old_conn) {
+			old_conn->flags &= ~(CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
+			srv_cs->flags &= ~CS_FL_ERROR;
 			reuse = 1;
+		}
 	} else {
 		for (i = 0; i < MAX_SRV_LIST; i++) {
 			if (s->sess->srv_list[i].target == s->target) {
