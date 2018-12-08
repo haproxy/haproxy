@@ -94,6 +94,20 @@
 #define my_unreachable()
 #endif
 
+/* This macro may be used to block constant propagation that lets the compiler
+ * detect a possible NULL dereference on a variable resulting from an explicit
+ * assignment in an impossible check. Sometimes a function is called which does
+ * safety checks and returns NULL if safe conditions are not met. The place
+ * where it's called cannot hit this condition and dereferencing the pointer
+ * without first checking it will make the compiler emit a warning about a
+ * "potential null pointer dereference" which is hard to work around. This
+ * macro "washes" the pointer and prevents the compiler from emitting tests
+ * branching to undefined instructions. It may only be used when the developer
+ * is absolutely certain that the conditions are guaranteed and that the
+ * pointer passed in argument cannot be NULL by design.
+ */
+#define ALREADY_CHECKED(p) do { asm("" : "=rm"(p) : "0"(p)); } while (0)
+
 /*
  * Gcc >= 3 provides the ability for the programme to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
