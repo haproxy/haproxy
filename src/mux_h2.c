@@ -3822,6 +3822,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	/* get the start line, we do have one */
 	sl = htx_get_stline(htx);
+	ALREADY_CHECKED(sl);
 	h2s->status = sl->info.res.status;
 
 	/* and the rest of the headers, that we dump starting at header 0 */
@@ -4035,6 +4036,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	/* get the start line, we do have one */
 	sl = htx_get_stline(htx);
+	ALREADY_CHECKED(sl);
 	meth = htx_sl_req_meth(sl);
 	path = htx_sl_req_uri(sl);
 
