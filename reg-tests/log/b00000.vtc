@@ -50,7 +50,7 @@ frontend fe1
     default_backend    be_app
 
 backend be_app
-    server app1 ${s1_addr}:${s1_port} check
+    server app1 ${s1_addr}:${s1_port}
 } -start
 
 client c1 -connect ${h1_fe_1_sock} {
