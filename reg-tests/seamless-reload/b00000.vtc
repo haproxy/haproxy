@@ -11,6 +11,11 @@
 varnishtest "Seamless reload issue with abns sockets"
 feature ignore_unknown_macro
 
+# expose-fd is available starting at version 1.8
+#REQUIRE_VERSION=1.8
+# abns@ sockets are not available on freebsd
+#EXCLUDE_TARGETS=freebsd
+
 haproxy h1 -W -conf {
   global
     stats socket ${tmpdir}/h1/stats level admin expose-fd listeners
