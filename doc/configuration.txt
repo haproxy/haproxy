@@ -12166,7 +12166,8 @@ sni <expression>
   expression, though alternatives such as req.hdr(host) can also make sense. If
   "verify required" is set (which is the recommended setting), the resulting
   name will also be matched against the server certificate's names. See the
-  "verify" directive for more details.
+  "verify" directive for more details. If you want to set a SNI for health
+  checks, see the "check-sni" directive for more details.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
