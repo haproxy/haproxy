@@ -38,6 +38,7 @@
 /* Flags indicating why reading input data are blocked. */
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
+#define H1C_F_IN_BUSY        0x00000040
 /* 0x00000040 - 0x00000800 unused */
 
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
@@ -136,7 +137,7 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 	     conn_xprt_read0_pending(h1c->conn)))
 		return 0;
 
-	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL)))
+	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_BUSY)))
 		return 1;
 
 	return 0;
@@ -319,6 +320,7 @@ static void h1s_destroy(struct h1s *h1s)
 		if (h1s->send_wait != NULL)
 			h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
 
+		h1c->flags &= ~H1C_F_IN_BUSY;
 		h1c->flags |= H1C_F_WAIT_NEXT_REQ;
 		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR))
 			h1c->flags |= H1C_F_CS_ERROR;
@@ -1203,6 +1205,7 @@ static void h1_sync_messages(struct h1c *h1c)
 		 */
 		h1m_init_res(&h1s->res);
 		h1s->res.flags |= H1_MF_NO_PHDR;
+		h1c->flags &= ~H1C_F_IN_BUSY;
 	}
 	else if (!b_data(&h1c->obuf) &&
 		 h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
@@ -1211,6 +1214,7 @@ static void h1_sync_messages(struct h1c *h1c)
 			h1m_init_res(&h1s->res);
 			h1s->req.state = H1_MSG_TUNNEL;
 			h1s->res.state = H1_MSG_TUNNEL;
+			h1c->flags &= ~H1C_F_IN_BUSY;
 		}
 	}
 }
@@ -1262,8 +1266,10 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 			if (!ret)
 				break;
 		}
-		else if (h1m->state == H1_MSG_DONE)
+		else if (h1m->state == H1_MSG_DONE) {
+			h1c->flags |= H1C_F_IN_BUSY;
 			break;
+		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
 			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
 			htx = htx_from_buf(buf);
