@@ -219,5 +219,23 @@ static inline int hpack_encode_method(struct buffer *out, enum http_meth_t meth,
 	return 1;
 }
 
+/* Tries to encode a :scheme pseudo-header with the scheme in <scheme>, into
+ * the aligned buffer <out>. Returns non-zero on success or 0 on failure
+ * (buffer full). Only "http" and "https" are recognized and handled as indexed
+ * values, others are turned into short literals. The caller is responsible for
+ * ensuring that the scheme is smaller than 127 bytes, and that the buffer is
+ * aligned. Normally the compiler will detect constant strings in the comparison
+ * if the code remains inlined.
+ */
+static inline int hpack_encode_scheme(struct buffer *out, struct ist scheme)
+{
+	if (out->data < out->size && isteq(scheme, ist("https")))
+		out->area[out->data++] = 0x87; // indexed field : idx[07]=(":scheme", "https")
+	else if (out->data < out->size && isteq(scheme, ist("http")))
+		out->area[out->data++] = 0x86; // indexed field : idx[06]=(":scheme", "http")
+	else
+		return hpack_encode_short_idx(out, 6, scheme); // name=":scheme" (idx 6)
+	return 1;
+}
 
 #endif /* _COMMON_HPACK_ENC_H */
