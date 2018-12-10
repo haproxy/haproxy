@@ -4069,8 +4069,12 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	}
 
 	/* encode the scheme which is always "https" (or 0x86 for "http") */
-	if (outbuf.data < outbuf.size)
-		outbuf.area[outbuf.data++] = 0x87; // indexed field : idx[02]=(":scheme", "https")
+	if (!hpack_encode_scheme(&outbuf, ist("https"))) {
+		/* output full */
+		if (b_space_wraps(&h2c->mbuf))
+			goto realign_again;
+		goto full;
+	}
 
 	/* encode the path, which necessarily is the second one */
 	if (outbuf.data < outbuf.size && isteq(path, ist("/"))) {
