@@ -43,13 +43,18 @@
  */
 static inline int len_to_bytes(size_t len)
 {
-	if (len < 127)
+	ssize_t slen = len;
+
+	slen -= 127;
+	if (__builtin_expect(slen < 0, 1))
 		return 1;
-	if (len < 127 + (1 << 7))
-		return 2;
-	if (len < 127 + (1 << 14))
-		return 3;
-	if (len < 127 + (1 << 21))
+	if (slen < (1 << 14)) {
+		if (__builtin_expect(slen < (1 << 7), 1))
+			return 2;
+		else
+			return 3;
+	}
+	if (slen < (1 << 21))
 		return 4;
 	return 0;
 }
