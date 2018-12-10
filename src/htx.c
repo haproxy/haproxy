@@ -368,26 +368,27 @@ static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type t
 struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 				      const struct ist old, const struct ist new)
 {
-	struct htx_blk *frtblk;
-	struct buffer  *tmp;
+	struct buffer *tmp;
 	struct ist n, v;
-	uint32_t info, room;
+	int32_t delta;
 
 	n = htx_get_blk_name(htx, blk);
 	v = htx_get_blk_value(htx, blk);
 
+	delta = new.len - old.len;
+
 	/* easy case, new data are smaller, so replace it in-place */
-	if (new.len <= old.len) {
+	if (delta <= 0) {
 		memcpy(old.ptr, new.ptr, new.len);
 		if (old.len != v.len)
 			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
-		htx_set_blk_value_len(blk, v.len - old.len + new.len);
-		htx->data -= (old.len - new.len);
+		htx_set_blk_value_len(blk, v.len + delta);
+		htx->data += delta;
 		return blk;
 	}
 
 	/* we need to allocate more space to store the new header value */
-	if ((new.len - old.len) > htx_free_space(htx))
+	if (delta > htx_free_space(htx))
 		return NULL; /* not enough space */
 
 	/*
@@ -409,36 +410,16 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	if (old.len != v.len)
 		chunk_memcat(tmp, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
 
-	/*
-	 * temporarely remove space reserved for the header
+
+	/* Expand the block size. But data are not copied yet. Then defragment
+	 * the HTX message.
 	 */
-	info = blk->info;
-	blk->info &= 0xf0000000;
-	htx->data -= (n.len + v.len);
+	htx_set_blk_value_len(blk, v.len + delta);
+	htx->data += delta;
+	blk = htx_defrag(htx, blk);
 
-	/*
-	 * Try to find right addr to copy all the data
-	 */
-	if (htx->tail + 1 == htx->wrap) {
-		frtblk = htx_get_blk(htx, htx->front);
-		room   = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - (frtblk->addr + htx_get_blksz(frtblk));
-		if (room >= htx->data) {
-			blk->addr = frtblk->addr + htx_get_blksz(frtblk);
-			goto replace_value;
-		}
-	}
-
-	/* HTX message need to be defragmented first */
-	blk    = htx_defrag(htx, blk);
-	frtblk = htx_get_blk(htx, htx->front);
-	blk->addr = frtblk->addr + htx_get_blksz(frtblk);
-
-  replace_value:
-	blk->info = info;
-	htx_set_blk_value_len(blk, v.len - old.len + new.len);
+	/* Finaly, copy data. */
 	memcpy(htx_get_blk_ptr(htx, blk), tmp->area, tmp->data);
-	htx->data += tmp->data;
-	htx->front = htx_get_blk_pos(htx, blk);
 
 	return blk;
 }
@@ -514,57 +495,6 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	return (struct htx_ret){.ret = ret, .blk = dstblk};
 }
 
-static struct htx_blk *htx_new_blk_value(struct htx *htx, struct htx_blk *blk,
-					 uint32_t newsz)
-{
-	struct htx_blk *frtblk;
-	uint32_t sz, room;
-	int32_t delta;
-
-	sz = htx_get_blksz(blk);
-	delta = newsz - sz;
-
-	/* easy case, new value is smaller, so replace it in-place */
-	if (delta <= 0) {
-		/* Reset value size. It is the caller responsibility to set the new one */
-		blk->info &= 0xf0000000;
-		htx->data += delta;
-		return blk;
-	}
-
-	/* we need to allocate more space to store the new value */
-	if (delta > htx_free_space(htx))
-		return NULL; /* not enough space */
-
-	/*
-	 * temporarely remove space reserved for the old value
-	 */
-	/* Reset value size. It is the caller responsibility to set the new one */
-	blk->info &= 0xf0000000;
-	htx->data -= sz;
-
-	/*
-	 * Try to find right addr to copy all the data
-	 */
-	if (htx->tail + 1 == htx->wrap) {
-		frtblk = htx_get_blk(htx, htx->front);
-		room   = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - (frtblk->addr + htx_get_blksz(frtblk));
-		if (room >= newsz)
-			goto replace_value;
-	}
-
-	/* HTX message need to be defragmented first */
-	blk    = htx_defrag(htx, blk);
-	frtblk = htx_get_blk(htx, htx->front);
-
-  replace_value:
-	blk->addr = frtblk->addr + htx_get_blksz(frtblk);
-	htx->data += newsz;
-	htx->front = htx_get_blk_pos(htx, blk);
-
-	return blk;
-}
-
 /* Replaces an header by a new one. The new header can be smaller or larger than
  * the old one. It returns the new block on success, otherwise it returns NULL.
  * The header name is always lower cased.
@@ -573,19 +503,36 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value)
 {
 	enum htx_blk_type type;
+	int32_t delta;
 
 	type = htx_get_blk_type(blk);
 	if (type != HTX_BLK_HDR)
 		return NULL;
 
-	blk = htx_new_blk_value(htx, blk, (name.len + value.len));
-	if (!blk)
-		return NULL;
+	delta = name.len + value.len - htx_get_blksz(blk);
 
+	/* easy case, new value is smaller, so replace it in-place */
+	if (delta <= 0) {
+		blk->info = (type << 28) + (value.len << 8) + name.len;
+		htx->data += delta;
+		goto copy;
+	}
+
+	/* we need to allocate more space to store the new value */
+	if (delta > htx_free_space(htx))
+		return NULL; /* not enough space */
+
+	/* Expand the block size. But data are not copied yet. Then defragment
+	 * the HTX message.
+	 */
 	blk->info = (type << 28) + (value.len << 8) + name.len;
+	htx->data += delta;
+	blk = htx_defrag(htx, blk);
+
+  copy:
+	/* Finaly, copy data. */
 	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk) + name.len, value.ptr, value.len);
-
 	return blk;
 }
 
@@ -600,6 +547,7 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	struct htx_sl tmp; /* used to save sl->info and sl->flags */
 	enum htx_blk_type type;
 	uint32_t size;
+	int32_t delta;
 
 	type = htx_get_blk_type(blk);
 	if (type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL)
@@ -614,12 +562,28 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 
 
 	size = sizeof(*sl) + p1.len + p2.len + p3.len;
-	blk = htx_new_blk_value(htx, blk, size);
-	if (!blk)
-		return NULL;
-	blk->info = (type << 28) + size;
+	delta = size - htx_get_blksz(blk);
 
-	/* Restore start-line info and flags*/
+	/* easy case, new data are smaller, so replace it in-place */
+	if (delta <= 0) {
+		htx_set_blk_value_len(blk, size);
+		htx->data += delta;
+		goto copy;
+	}
+
+	/* we need to allocate more space to store the new value */
+	if (delta > htx_free_space(htx))
+		return NULL; /* not enough space */
+
+	/* Expand the block size. But data are not copied yet. Then defragment
+	 * the HTX message.
+	 */
+	htx_set_blk_value_len(blk, size);
+	htx->data += delta;
+	blk = htx_defrag(htx, blk);
+
+  copy:
+	/* Restore start-line info and flags and copy parts of the start-line */
 	sl = htx_get_blk_ptr(htx, blk);
 	sl->info = tmp.info;
 	sl->flags = tmp.flags;
