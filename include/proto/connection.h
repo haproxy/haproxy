@@ -558,6 +558,7 @@ static inline void conn_init(struct connection *conn)
 	LIST_INIT(&conn->session_list);
 	conn->send_wait = NULL;
 	conn->recv_wait = NULL;
+	conn->idle_time = 0;
 }
 
 /* sets <owner> as the connection's owner */
@@ -672,6 +673,13 @@ static inline void conn_free(struct connection *conn)
 
 		if (objt_conn(s->si[1].end) == conn)
 			s->si[1].end = NULL;
+	}
+	/* The connection is currently in the server's idle list, so tell it
+	 * there's one less connection available in that list.
+	 */
+	if (conn->idle_time > 0) {
+		struct server *srv = __objt_server(conn->target);
+		srv->curr_idle_conns--;
 	}
 
 	conn_force_unsubscribe(conn);

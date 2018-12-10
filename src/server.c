@@ -380,6 +380,20 @@ static int srv_parse_idle_timeout(char **args, int *cur_arg, struct proxy *curpr
 	return 0;
 }
 
+static int srv_parse_pool_max_conn(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->max_idle_conns = atoi(arg);
+
+	return 0;
+}
+
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
@@ -1230,6 +1244,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1 }, /* Set the max number of orphan idle connections, 0 means unlimited */
 	{ "proto",               srv_parse_proto,               1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
@@ -1665,6 +1680,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 #endif
 	srv->mux_proto = src->mux_proto;
 	srv->idle_timeout = src->idle_timeout;
+	srv->max_idle_conns = src->max_idle_conns;
 
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;
@@ -1707,6 +1723,9 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.status = HCHK_STATUS_INI;
 	srv->agent.server = srv;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
+
+	srv->idle_timeout = 1000;
+	srv->max_idle_conns = -1;
 
 	return srv;
 
@@ -1914,7 +1933,7 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 		px->srv_act++;
 	srv_lb_commit_status(srv);
 
-	if (!srv->tmpl_info.prefix && srv->idle_timeout != 0) {
+	if (!srv->tmpl_info.prefix && srv->max_idle_conns != 0) {
 			int i;
 
 			srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
@@ -2019,7 +2038,7 @@ static int server_template_init(struct server *srv, struct proxy *px)
 		/* Linked backwards first. This will be restablished after parsing. */
 		newsrv->next = px->srv;
 		px->srv = newsrv;
-		if (newsrv->idle_timeout != 0) {
+		if (newsrv->max_idle_conns != 0) {
 			int i;
 
 			newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));

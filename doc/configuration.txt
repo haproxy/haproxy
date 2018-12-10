@@ -11972,6 +11972,14 @@ on-marked-up <action>
 
   Actions are disabled by default
 
+pool-max-conn <max>
+  Set the maximum number of idling connections for a server. -1 means unlimited
+  connections, 0 means no idle connections. The default is -1. When idle
+  connections are enabled, orphaned idle connections which do not belong to any
+  client session anymore are moved to a dedicated pool so that they remain
+  usable by future clients. This only applies to connections that can be shared
+  according to the same principles as those applying to "http-reuse".
+
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port

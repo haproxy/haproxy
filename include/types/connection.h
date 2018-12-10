@@ -446,7 +446,7 @@ struct connection {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
-	unsigned int idle_time;                 /* Time the connection was added to the idle list */
+	unsigned int idle_time;                 /* Time the connection was added to the idle list, or 0 if not in the idle list */
 };
 
 /* PROTO token registration */

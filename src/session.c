@@ -93,6 +93,8 @@ void session_free(struct session *sess)
 				srv = objt_server(conn->target);
 				conn->owner = NULL;
 				if (srv && srv->idle_timeout > 0 &&
+				    (srv->max_idle_conns == -1 ||
+				     srv->max_idle_conns > srv->curr_idle_conns) &&
 				    !(conn->flags & CO_FL_PRIVATE) &&
 				    conn->mux->avail_streams(conn) ==
 				    conn->mux->max_streams(conn)) {
@@ -100,6 +102,7 @@ void session_free(struct session *sess)
 
 					LIST_ADDQ(&srv->idle_orphan_conns[tid],
 					    &conn->list);
+					srv->curr_idle_conns++;
 
 					conn->idle_time = now_ms;
 					if (!(task_in_wq(srv->idle_task[tid])) &&
