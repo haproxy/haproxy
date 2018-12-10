@@ -336,7 +336,7 @@ flt_check(struct proxy *proxy)
 		if (fconf->ops->check)
 			err += fconf->ops->check(proxy, fconf);
 	}
-	err += check_legacy_http_comp_flt(proxy);
+	err += check_implicit_http_comp_flt(proxy);
 	return err;
 }
 

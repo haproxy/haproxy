@@ -23,7 +23,6 @@
 
 #include <types/proxy.h>
 
-int check_legacy_http_comp_flt(struct proxy *proxy);
-
+int check_implicit_http_comp_flt(struct proxy *proxy);
 
 #endif // _PROTO_FLT_HTTP_COMP_H

@@ -1302,7 +1302,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 
 
 int
-check_legacy_http_comp_flt(struct proxy *proxy)
+check_implicit_http_comp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
 	int err = 0;
