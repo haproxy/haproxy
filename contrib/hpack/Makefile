@@ -1,5 +1,5 @@
 CFLAGS = -O2 -Wall -g -I../../include -I../../ebtree -fwrapv -fno-strict-aliasing
-OBJS = gen-rht decode
+OBJS = gen-rht gen-enc decode
 
 all: $(OBJS)
 
