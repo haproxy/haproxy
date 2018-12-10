@@ -1434,7 +1434,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_EOH:
-				if (h1m->state == H1_MSG_HDR_L2_LWS && process_conn_mode) {
+				if (h1m->state != H1_MSG_LAST_LF && process_conn_mode) {
 					/* There is no "Connection:" header and
 					 * it the conn_mode must be
 					 * processed. So do it */
