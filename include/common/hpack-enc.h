@@ -123,4 +123,80 @@ static inline int hpack_encode_long_idx(struct buffer *out, int idx, struct ist 
 	return 1;
 }
 
+/* Tries to encode a :status pseudo-header with the integer status <status>
+ * into the aligned buffer <out>. Returns non-zero on success, 0 on failure
+ * (buffer full). The caller is responsible for ensuring that the status is
+ * comprised between 100 and 999 inclusive and that the buffer is aligned. It's
+ * inlined because it's easily optimizable by the compiler.
+ */
+static inline int hpack_encode_int_status(struct buffer *out, unsigned int status)
+{
+	int len = out->data;
+	int size = out->size;
+	unsigned char c = 0;
+
+	/* try to emit a single byte code */
+	len++;
+	if (__builtin_expect(len > size, 0))
+		goto fail;
+
+	c = (status <= 304) ?
+		(status <= 204) ?
+			(status == 204) ? 0x89 :
+			(status == 200) ? 0x88 :
+		0: /* > 204 */
+			(status == 304) ? 0x8b :
+			(status == 206) ? 0x8a :
+		0:
+		(status <= 404) ?
+			(status == 404) ? 0x8d :
+			(status == 400) ? 0x8c :
+		0: /* > 404 */
+			(status == 500) ? 0x8e :
+		0;
+
+	if (c)
+		goto last;
+
+	/* fall back to literal */
+	len += 4;
+	if (__builtin_expect(len > size, 0))
+		goto fail;
+
+	/* basic encoding of the status code */
+	out->area[len - 5] = 0x48; // indexed name -- name=":status" (idx 8)
+	out->area[len - 4] = 0x03; // 3 bytes status
+	out->area[len - 3] = '0' + status / 100;
+	out->area[len - 2] = '0' + status / 10 % 10;
+	c = '0' + status % 10;
+ last:
+	out->area[len - 1] = c;
+	out->data = len;
+	return 1;
+ fail:
+	return 0;
+}
+
+/* Tries to encode a :status pseudo-header with the integer status <status>
+ * also represented by <str> into the aligned buffer <out>. Returns non-zero
+ * on success or 0 on failure (buffer full). The caller is responsible for
+ * ensuring that the status is comprised between 100 and 999 inclusive, that
+ * <str> contains a valid representation of the numerical value, and that the
+ * buffer is aligned. This version is preferred when the caller already knows
+ * a string representation of the status because it avoids the computation in
+ * the uncompressed case. It's inlined because it's easily optimizable.
+ */
+static inline int hpack_encode_str_status(struct buffer *out, unsigned int status, struct ist str)
+{
+	/* don't try too hard, we already have the ASCII value for less common cases */
+	if (status == 200 || status == 304) {
+		if (out->data >= out->size)
+			return 0;
+		out->area[out->data] = (status == 304) ? 0x8b : 0x88;
+		out->data++;
+		return 1;
+	}
+	return hpack_encode_short_idx(out, 8, str); // name=":status" (idx 8)
+}
+
 #endif /* _COMMON_HPACK_ENC_H */
