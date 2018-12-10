@@ -4488,8 +4488,11 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
 		/* in HTX mode we ignore the count argument */
 		h2s_htx = htx_from_buf(&h2s->rxbuf);
-		if (htx_is_empty(h2s_htx))
+		if (htx_is_empty(h2s_htx)) {
+			if (cs->flags & CS_FL_REOS)
+				cs->flags |= CS_FL_EOS;
 			goto end;
+		}
 
 		buf_htx = htx_from_buf(buf);
 		count = htx_free_space(buf_htx);
