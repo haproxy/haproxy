@@ -4077,13 +4077,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	}
 
 	/* encode the path, which necessarily is the second one */
-	if (outbuf.data < outbuf.size && isteq(path, ist("/"))) {
-		outbuf.area[outbuf.data++] = 0x84; // indexed field : idx[04]=(":path", "/")
-	}
-	else if (outbuf.data < outbuf.size && isteq(path, ist("/index.html"))) {
-		outbuf.area[outbuf.data++] = 0x85; // indexed field : idx[04]=(":path", "/index.html")
-	}
-	else if (!hpack_encode_header(&outbuf, ist(":path"), path)) {
+	if (!hpack_encode_path(&outbuf, path)) {
 		/* output full */
 		if (b_space_wraps(&h2c->mbuf))
 			goto realign_again;
