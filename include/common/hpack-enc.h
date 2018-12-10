@@ -238,4 +238,25 @@ static inline int hpack_encode_scheme(struct buffer *out, struct ist scheme)
 	return 1;
 }
 
+/* Tries to encode a :path pseudo-header with the path in <path>, into the
+ * aligned buffer <out>. Returns non-zero on success or 0 on failure (buffer
+ * full). The well-known values "/" and "/index.html" are recognized, and other
+ * ones are handled as literals. The caller is responsible for ensuring that
+ * the buffer is aligned.  Normally the compiler will detect constant strings
+ * in the comparison if the code remains inlined.
+ */
+static inline int hpack_encode_path(struct buffer *out, struct ist path)
+{
+	if (out->data < out->size && isteq(path, ist("/")))
+		out->area[out->data++] = 0x84; // indexed field : idx[04]=(":path", "/")
+	else if (out->data < out->size && isteq(path, ist("/index.html")))
+		out->area[out->data++] = 0x85; // indexed field : idx[05]=(":path", "/index.html")
+	else if (path.len < 127)
+		return hpack_encode_short_idx(out, 4, path); // name=":path" (idx 4)
+	else
+		return hpack_encode_long_idx(out, 4, path); // name=":path" (idx 4)
+	return 1;
+}
+
+
 #endif /* _COMMON_HPACK_ENC_H */
