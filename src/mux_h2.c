@@ -3416,25 +3416,14 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	outbuf.data = 9;
 
 	/* encode status, which necessarily is the first one */
-	if (outbuf.data < outbuf.size && h2s->status == 200)
-		outbuf.area[outbuf.data++] = 0x88; // indexed field : idx[08]=(":status", "200")
-	else if (outbuf.data < outbuf.size && h2s->status == 304)
-		outbuf.area[outbuf.data++] = 0x8b; // indexed field : idx[11]=(":status", "304")
-	else if (unlikely(list[0].v.len != 3)) {
+	if (unlikely(list[0].v.len != 3)) {
 		/* this is an unparsable response */
 		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
 		ret = 0;
 		goto end;
 	}
-	else if (unlikely(outbuf.data + 2 + 3 <= outbuf.size)) {
-		/* basic encoding of the status code */
-		outbuf.area[outbuf.data++] = 0x48; // indexed name -- name=":status" (idx 8)
-		outbuf.area[outbuf.data++] = 0x03; // 3 bytes status
-		outbuf.area[outbuf.data++] = list[0].v.ptr[0];
-		outbuf.area[outbuf.data++] = list[0].v.ptr[1];
-		outbuf.area[outbuf.data++] = list[0].v.ptr[2];
-	}
-	else {
+
+	if (!hpack_encode_str_status(&outbuf, h2s->status, list[0].v)) {
 		if (b_space_wraps(&h2c->mbuf))
 			goto realign_again;
 		goto full;
@@ -3824,6 +3813,8 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	sl = htx_get_stline(htx);
 	ALREADY_CHECKED(sl);
 	h2s->status = sl->info.res.status;
+	if (h2s->status < 100 || h2s->status > 999)
+		goto fail;
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
@@ -3877,23 +3868,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	outbuf.data = 9;
 
 	/* encode status, which necessarily is the first one */
-	if (outbuf.data < outbuf.size && h2s->status == 200)
-		outbuf.area[outbuf.data++] = 0x88; // indexed field : idx[08]=(":status", "200")
-	else if (outbuf.data < outbuf.size && h2s->status == 304)
-		outbuf.area[outbuf.data++] = 0x8b; // indexed field : idx[11]=(":status", "304")
-	else if (unlikely(h2s->status < 100 || h2s->status > 999)) {
-		/* this is an unparsable response */
-		goto fail;
-	}
-	else if (unlikely(outbuf.data + 2 + 3 <= outbuf.size)) {
-		/* basic encoding of the status code */
-		outbuf.area[outbuf.data++] = 0x48; // indexed name -- name=":status" (idx 8)
-		outbuf.area[outbuf.data++] = 0x03; // 3 bytes status
-		outbuf.area[outbuf.data++] = '0' + h2s->status / 100;
-		outbuf.area[outbuf.data++] = '0' + h2s->status / 10 % 10;
-		outbuf.area[outbuf.data++] = '0' + h2s->status % 10;
-	}
-	else {
+	if (!hpack_encode_int_status(&outbuf, h2s->status)) {
 		if (b_space_wraps(&h2c->mbuf))
 			goto realign_again;
 		goto full;
