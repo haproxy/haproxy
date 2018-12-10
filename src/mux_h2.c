@@ -4062,18 +4062,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	outbuf.data = 9;
 
 	/* encode the method, which necessarily is the first one */
-	if (outbuf.data < outbuf.size && sl->info.req.meth == HTTP_METH_GET)
-		outbuf.area[outbuf.data++] = 0x82; // indexed field : idx[02]=(":method", "GET")
-	else if (outbuf.data < outbuf.size && sl->info.req.meth == HTTP_METH_POST)
-		outbuf.area[outbuf.data++] = 0x83; // indexed field : idx[03]=(":method", "POST")
-	else if (unlikely(outbuf.data + 2 + meth.len <= outbuf.size)) {
-		/* basic encoding of the method code */
-		outbuf.area[outbuf.data++] = 0x42; // indexed name -- name=":method" (idx 2)
-		outbuf.area[outbuf.data++] = meth.len; // method length
-		memcpy(&outbuf.area[outbuf.data], meth.ptr, meth.len);
-		outbuf.data += meth.len;
-	}
-	else {
+	if (!hpack_encode_method(&outbuf, sl->info.req.meth, meth)) {
 		if (b_space_wraps(&h2c->mbuf))
 			goto realign_again;
 		goto full;
