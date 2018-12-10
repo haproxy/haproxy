@@ -32,6 +32,7 @@
 #include <string.h>
 #include <common/buf.h>
 #include <common/config.h>
+#include <common/http.h>
 #include <common/ist.h>
 
 int hpack_encode_header(struct buffer *out, const struct ist n,
@@ -198,5 +199,25 @@ static inline int hpack_encode_str_status(struct buffer *out, unsigned int statu
 	}
 	return hpack_encode_short_idx(out, 8, str); // name=":status" (idx 8)
 }
+
+/* Tries to encode a :method pseudo-header with the method in <meth>, which
+ * also exists as a string in <str>, into the aligned buffer <out>. Returns
+ * non-zero on success or 0 on failure (buffer full). The caller is responsible
+ * for ensuring that the string matches <meth>, that it's smaller than 127
+ * bytes, and that the buffer is aligned. If <meth> is unknown then using
+ * HTTP_METH_OTHER will lead to the string being encoded as a literal. It's
+ * inlined because it's easily optimizable.
+ */
+static inline int hpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist str)
+{
+	if (out->data < out->size && meth == HTTP_METH_GET)
+		out->area[out->data++] = 0x82; // indexed field : idx[02]=(":method", "GET")
+	else if (out->data < out->size && meth == HTTP_METH_POST)
+		out->area[out->data++] = 0x83; // indexed field : idx[03]=(":method", "POST")
+	else
+		return hpack_encode_short_idx(out, 2, str); // name=":method" (idx 2)
+	return 1;
+}
+
 
 #endif /* _COMMON_HPACK_ENC_H */
