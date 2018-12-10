@@ -1304,11 +1304,14 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	else {
 		h1_release_buf(h1c, &h1c->ibuf);
 		h1_sync_messages(h1c);
-
 		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (h1s->cs->flags & CS_FL_REOS)
-			h1s->cs->flags |= CS_FL_EOS;
 	}
+
+	if ((h1s->cs->flags & CS_FL_REOS) && (!b_data(&h1c->ibuf) || htx_is_empty(htx))) {
+		h1s->cs->flags |= CS_FL_EOS;
+		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+	}
+
 	return total;
 
   parsing_err:
