@@ -1293,7 +1293,7 @@ int connect_server(struct stream *s)
 			return SF_ERR_INTERNAL;
 	}
 
-	if (!conn_xprt_ready(srv_conn)) {
+	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
 		/* the target was only on the stream, assign it to the SI now */
 		srv_conn->target = s->target;
 
@@ -1360,6 +1360,10 @@ int connect_server(struct stream *s)
 		}
 
 		assign_tproxy_address(s);
+	}
+	else if (!conn_xprt_ready(srv_conn)) {
+		if (srv_conn->mux->reset)
+			srv_conn->mux->reset(srv_conn);
 	}
 	else
 		s->flags |= SF_SRV_REUSED;

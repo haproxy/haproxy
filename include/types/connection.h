@@ -337,6 +337,7 @@ struct mux_ops {
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	int (*max_streams)(struct connection *conn);   /* Returns the max number of streams available for that connection. */
 	void (*destroy)(struct connection *conn); /* Let the mux know one of its users left, so it may have to disappear */
+	void (*reset)(struct connection *conn); /* Reset the mux, because we're re-trying to connect */
 	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */

@@ -1824,6 +1824,13 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 	return NULL;
 }
 
+static void h1_reset(struct connection *conn)
+{
+	struct h1c *h1c = conn->mux_ctx;
+
+	/* Reset the flags, and let the mux know we're waiting for a connection */
+	h1c->flags = H1C_F_CS_WAIT_CONN;
+}
 
 static int h1_wake(struct connection *conn)
 {
@@ -2171,6 +2178,7 @@ const struct mux_ops mux_h1_ops = {
 	.unsubscribe = h1_unsubscribe,
 	.shutr       = h1_shutr,
 	.shutw       = h1_shutw,
+	.reset       = h1_reset,
 	.flags       = MX_FL_NONE,
 	.name        = "h1",
 };
