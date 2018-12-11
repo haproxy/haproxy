@@ -36,4 +36,46 @@
 int hpack_encode_header(struct buffer *out, const struct ist n,
 			const struct ist v);
 
+/* Returns the number of bytes required to encode the string length <len>. The
+ * number of usable bits is an integral multiple of 7 plus 6 for the last byte.
+ * The maximum number of bytes returned is 4 (2097279 max length). Larger values
+ * return 0.
+ */
+static inline int hpack_len_to_bytes(size_t len)
+{
+	ssize_t slen = len;
+
+	slen -= 127;
+	if (__builtin_expect(slen < 0, 1))
+		return 1;
+	if (slen < (1 << 14)) {
+		if (__builtin_expect(slen < (1 << 7), 1))
+			return 2;
+		else
+			return 3;
+	}
+	if (slen < (1 << 21))
+		return 4;
+	return 0;
+}
+
+/* Encodes <len> into <out>+<pos> and return the new position. The caller is
+ * responsible for checking for available room using hpack_len_to_bytes()
+ * first.
+ */
+static inline int hpack_encode_len(char *out, int pos, int len)
+{
+	int code = len - 127;
+
+	if (code < 0) {
+		out[pos++] = len;
+	} else {
+		out[pos++] = 127;
+		for (; code >= 128; code >>= 7)
+			out[pos++] = code | 128;
+		out[pos++] = code;
+	}
+	return pos;
+}
+
 #endif /* _COMMON_HPACK_ENC_H */
