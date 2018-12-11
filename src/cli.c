@@ -1658,7 +1658,7 @@ void pcli_write_prompt(struct stream *s)
 	struct buffer *msg = get_trash_chunk();
 	struct channel *oc = si_oc(&s->si[0]);
 
-	if (!s->pcli_prompt)
+	if (!(s->pcli_flags & APPCTX_CLI_ST1_PROMPT))
 		return;
 
 	if (s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) {
@@ -1790,7 +1790,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			*next_pid = target_pid;
 		return 1;
 	} else if (!strcmp("prompt", args[0])) {
-		s->pcli_prompt ^= 1;
+		s->pcli_flags ^= APPCTX_CLI_ST1_PROMPT;
 		return argl; /* return the number of elements in the array */
 
 	} else if (!strcmp("quit", args[0])) {

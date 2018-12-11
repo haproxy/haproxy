@@ -201,7 +201,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 
 	s->flags |= SF_INITIALIZED;
 	s->pcli_next_pid = 0;
-	s->pcli_prompt = 0;
 	s->pcli_flags = 0;
 	s->unique_id = NULL;
 
