@@ -32,6 +32,7 @@
 
 #include <proto/arg.h>
 #include <proto/auth.h>
+#include <proto/h1.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>

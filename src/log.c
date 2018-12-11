@@ -37,7 +37,6 @@
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/frontend.h>
-#include <proto/h1.h>
 #include <proto/log.h>
 #include <proto/sample.h>
 #include <proto/stream.h>

@@ -19,7 +19,6 @@
 
 #include <types/compression.h>
 #include <types/filters.h>
-#include <types/h1.h>
 #include <types/proxy.h>
 #include <types/sample.h>
 

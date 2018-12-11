@@ -22,7 +22,6 @@
 #include <types/channel.h>
 #include <types/filters.h>
 #include <types/global.h>
-#include <types/h1.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 

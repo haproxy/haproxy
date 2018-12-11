@@ -29,7 +29,6 @@
 #include <common/regex.h>
 
 #include <types/channel.h>
-#include <types/h1.h>
 #include <types/hdr_idx.h>
 #include <types/filters.h>
 //#include <types/sample.h>

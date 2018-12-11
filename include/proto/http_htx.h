@@ -26,7 +26,6 @@
 #include <common/buf.h>
 #include <common/ist.h>
 
-#include <types/h1.h>
 #include <types/http_htx.h>
 
 extern struct buffer htx_err_chunks[HTTP_ERR_SIZE];
