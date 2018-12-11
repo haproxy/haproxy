@@ -8,7 +8,7 @@
 
 #include <common/xref.h>
 
-#include <types/h1.h>
+#include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/server.h>
 

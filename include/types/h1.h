@@ -25,68 +25,6 @@
 #include <common/http.h>
 #include <common/ist.h>
 
-/* Legacy version of the HTTP/1 message state, used by the channels, should
- * ultimately be removed.
- */
-enum h1_state {
-	HTTP_MSG_RQBEFORE     =  0, // request: leading LF, before start line
-	HTTP_MSG_RQBEFORE_CR  =  1, // request: leading CRLF, before start line
-	/* these ones define a request start line */
-	HTTP_MSG_RQMETH       =  2, // parsing the Method
-	HTTP_MSG_RQMETH_SP    =  3, // space(s) after the Method
-	HTTP_MSG_RQURI        =  4, // parsing the Request URI
-	HTTP_MSG_RQURI_SP     =  5, // space(s) after the Request URI
-	HTTP_MSG_RQVER        =  6, // parsing the Request Version
-	HTTP_MSG_RQLINE_END   =  7, // end of request line (CR or LF)
-
-	HTTP_MSG_RPBEFORE     =  8, // response: leading LF, before start line
-	HTTP_MSG_RPBEFORE_CR  =  9, // response: leading CRLF, before start line
-
-	/* these ones define a response start line */
-	HTTP_MSG_RPVER        = 10, // parsing the Response Version
-	HTTP_MSG_RPVER_SP     = 11, // space(s) after the Response Version
-	HTTP_MSG_RPCODE       = 12, // response code
-	HTTP_MSG_RPCODE_SP    = 13, // space(s) after the response code
-	HTTP_MSG_RPREASON     = 14, // response reason
-	HTTP_MSG_RPLINE_END   = 15, // end of response line (CR or LF)
-
-	/* common header processing */
-	HTTP_MSG_HDR_FIRST    = 16, // waiting for first header or last CRLF (no LWS possible)
-	HTTP_MSG_HDR_NAME     = 17, // parsing header name
-	HTTP_MSG_HDR_COL      = 18, // parsing header colon
-	HTTP_MSG_HDR_L1_SP    = 19, // parsing header LWS (SP|HT) before value
-	HTTP_MSG_HDR_L1_LF    = 20, // parsing header LWS (LF) before value
-	HTTP_MSG_HDR_L1_LWS   = 21, // checking whether it's a new header or an LWS
-	HTTP_MSG_HDR_VAL      = 22, // parsing header value
-	HTTP_MSG_HDR_L2_LF    = 23, // parsing header LWS (LF) inside/after value
-	HTTP_MSG_HDR_L2_LWS   = 24, // checking whether it's a new header or an LWS
-
-	HTTP_MSG_LAST_LF      = 25, // parsing last LF
-
-	/* error state : must be before HTTP_MSG_BODY so that (>=BODY) always indicates
-	 * that data are being processed.
-	 */
-	HTTP_MSG_ERROR        = 26, // an error occurred
-	/* Body processing.
-	 * The state HTTP_MSG_BODY is a delimiter to know if we're waiting for headers
-	 * or body. All the sub-states below also indicate we're processing the body,
-	 * with some additional information.
-	 */
-	HTTP_MSG_BODY         = 27, // parsing body at end of headers
-	HTTP_MSG_100_SENT     = 28, // parsing body after a 100-Continue was sent
-	HTTP_MSG_CHUNK_SIZE   = 29, // parsing the chunk size (RFC7230 #4.1)
-	HTTP_MSG_DATA         = 30, // skipping data chunk / content-length data
-	HTTP_MSG_CHUNK_CRLF   = 31, // skipping CRLF after data chunk
-	HTTP_MSG_TRAILERS     = 32, // trailers (post-data entity headers)
-	/* we enter this state when we've received the end of the current message */
-	HTTP_MSG_ENDING       = 33, // message end received, wait that the filters end too
-	HTTP_MSG_DONE         = 34, // message end received, waiting for resync or close
-	HTTP_MSG_CLOSING      = 35, // shutdown_w done, not all bytes sent yet
-	HTTP_MSG_CLOSED       = 36, // shutdown_w done, all bytes sent
-	HTTP_MSG_TUNNEL       = 37, // tunneled data after DONE
-} __attribute__((packed));
-
-
 /* Possible states while parsing HTTP/1 messages (request|response) */
 enum h1m_state {
 	H1_MSG_RQBEFORE     =  0, // request: leading LF, before start line
