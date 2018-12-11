@@ -51,6 +51,14 @@ int http_upgrade_v09_to_v10(struct http_txn *txn);
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 void http_txn_reset_req(struct http_txn *txn);
 void http_txn_reset_res(struct http_txn *txn);
+int http_legacy_replace_header(struct hdr_idx *idx, struct http_msg *msg,
+                               const char *name, unsigned int name_len,
+                               const char *str, struct my_regex *re,
+                               struct buffer *output);
+int http_legacy_replace_full_header(struct hdr_idx *idx, struct http_msg *msg,
+                                    const char *name, unsigned int name_len,
+                                    const char *str, struct my_regex *re,
+                                    struct buffer *output);
 
 /* Export HTX analyzers and helpers */
 // FIXME: Rename all these functions http_* once legacy code will be removed
