@@ -164,6 +164,7 @@ struct stream {
 
 	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
 	int pcli_prompt;                        /* is there a prompt ?! */
+	int pcli_flags;                         /* flags for CLI proxy */
 
 	char *unique_id;                        /* custom unique ID */
 

@@ -1661,10 +1661,14 @@ void pcli_write_prompt(struct stream *s)
 	if (!s->pcli_prompt)
 		return;
 
-	if (s->pcli_next_pid == 0)
-		chunk_appendf(msg, "master> ");
-	else
-		chunk_appendf(msg, "%d> ", s->pcli_next_pid);
+	if (s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) {
+		chunk_appendf(msg, "+ ");
+	} else {
+		if (s->pcli_next_pid == 0)
+			chunk_appendf(msg, "master> ");
+		else
+			chunk_appendf(msg, "%d> ", s->pcli_next_pid);
+	}
 	co_inject(oc, msg->area, msg->data);
 }
 
@@ -1815,26 +1819,39 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	int argl; /* number of args */
 	char *p;
 	char *trim = NULL;
+	char *payload = NULL;
 	int wtrim = 0; /* number of words to trim */
 	int reql = 0;
 	int i = 0;
 
 	p = str;
 
-	/* Looks for the end of one command */
-	while (p+reql < end) {
-		/* handle escaping */
-		if (str[reql] == '\\') {
+	if (!(s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD)) {
+
+		/* Looks for the end of one command */
+		while (p+reql < end) {
+			/* handle escaping */
+			if (p[reql] == '\\') {
+				reql++;
+				continue;
+			}
+			if (p[reql] == ';' || p[reql] == '\n') {
+				/* found the end of the command */
+				p[reql] = '\n';
+				reql++;
+				break;
+			}
 			reql++;
-			continue;
 		}
-		if (str[reql] == ';' || str[reql] == '\n') {
-			/* found the end of the command */
-			str[reql] = '\n';
+	} else {
+		while (p+reql < end) {
+			if (p[reql] == '\n') {
+				/* found the end of the line */
+				reql++;
+				break;
+			}
 			reql++;
-			break;
 		}
-		reql++;
 	}
 
 	/* set end to first byte after the end of the command */
@@ -1843,6 +1860,19 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	/* there is no end to this command, need more to parse ! */
 	if (*(end-1) != '\n') {
 		return -1;
+	}
+
+	/* last line of the payload */
+	if ((s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) && (reql == 1)) {
+		s->pcli_flags &= ~APPCTX_CLI_ST1_PAYLOAD;
+		return reql;
+	}
+
+	payload = strstr(p, PAYLOAD_PATTERN);
+	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
+		/* if the payload pattern is at the end */
+		s->pcli_flags |= APPCTX_CLI_ST1_PAYLOAD;
+		return reql;
 	}
 
 	*(end-1) = '\0';
@@ -1952,8 +1982,15 @@ read_again:
 
 		/* forward only 1 command */
 		channel_forward(req, to_forward);
-		/* we send only 1 command per request, and we write close after it */
-		channel_shutw_now(req);
+
+		if (!(s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD)) {
+			/* we send only 1 command per request, and we write close after it */
+			channel_shutw_now(req);
+		} else {
+			pcli_write_prompt(s);
+		}
+
+		s->res.flags |= CF_WAKE_ONCE; /* need to be called again */
 
 		/* remove the XFER_DATA analysers, which forwards all
 		 * the data, we don't want to forward the next requests
@@ -1963,15 +2000,17 @@ read_again:
 		req->analysers |= AN_REQ_FLT_END|CF_FLT_ANALYZE;
 		s->res.analysers |= AN_RES_WAIT_CLI;
 
-		if (next_pid > -1)
-			target_pid = next_pid;
-		else
-			target_pid = s->pcli_next_pid;
-		/* we can connect now */
-		s->target = pcli_pid_to_server(target_pid);
+		if (!(s->flags & SF_ASSIGNED)) {
+			if (next_pid > -1)
+				target_pid = next_pid;
+			else
+				target_pid = s->pcli_next_pid;
+			/* we can connect now */
+			s->target = pcli_pid_to_server(target_pid);
 
-		s->flags |= (SF_DIRECT | SF_ASSIGNED);
-		channel_auto_connect(req);
+			s->flags |= (SF_DIRECT | SF_ASSIGNED);
+			channel_auto_connect(req);
+		}
 
 	} else if (to_forward == 0) {
 		/* we trimmed things but we might have other commands to consume */
@@ -2010,6 +2049,13 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* don't forward the close */
 	channel_dont_close(&s->res);
 	channel_dont_close(&s->req);
+
+	if (s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) {
+		s->req.analysers |= AN_REQ_WAIT_CLI;
+		s->res.analysers &= ~AN_RES_WAIT_CLI;
+		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
+		return 0;
+	}
 
 	/* forward the data */
 	if (ci_data(rep)) {
