@@ -360,11 +360,8 @@ void show_strm_flags(unsigned int f)
 	case SF_ERR_CHK_PORT: f &= ~SF_ERR_MASK ; printf("SF_ERR_CHK_PORT%s",       f ? " | " : ""); break;
 	}
 
-	SHOW_FLAG(f, SF_TUNNEL);
 	SHOW_FLAG(f, SF_REDIRECTABLE);
-	SHOW_FLAG(f, SF_CONN_TAR);
 	SHOW_FLAG(f, SF_REDISP);
-	SHOW_FLAG(f, SF_INITIALIZED);
 	SHOW_FLAG(f, SF_CURR_SESS);
 	SHOW_FLAG(f, SF_MONITOR);
 	SHOW_FLAG(f, SF_FORCE_PRST);

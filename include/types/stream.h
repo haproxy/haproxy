@@ -54,11 +54,11 @@
 #define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SF_MONITOR	0x00000020	/* this stream comes from a monitoring system */
 #define SF_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
-#define SF_INITIALIZED	0x00000080	/* the stream was fully initialized */
+/* unused: 0x00000080 */
 #define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
-#define SF_CONN_TAR	0x00000200	/* set if this stream is turning around before reconnecting */
+/* unused: 0x00000200 */
 #define SF_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */
-#define SF_TUNNEL	0x00000800	/* tunnel-mode stream, nothing to catch after data */
+/* unused: 0x00000800 */
 
 /* stream termination conditions, bits values 0x1000 to 0x7000 (0-9 shift 12) */
 #define SF_ERR_NONE     0x00000000	/* normal end of request */

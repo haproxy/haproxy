@@ -199,7 +199,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->buffer_wait.target = s;
 	s->buffer_wait.wakeup_cb = stream_buf_available;
 
-	s->flags |= SF_INITIALIZED;
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
 	s->unique_id = NULL;
@@ -859,14 +858,12 @@ static void sess_establish(struct stream *s)
 		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
-	if (!(s->flags & SF_TUNNEL)) {
-		rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
+	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
-		/* Be sure to filter response headers if the backend is an HTTP proxy
-		 * and if there are filters attached to the stream. */
-		if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
-			rep->analysers |= AN_RES_FLT_HTTP_HDRS;
-	}
+	/* Be sure to filter response headers if the backend is an HTTP proxy
+	 * and if there are filters attached to the stream. */
+	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
+		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 
 	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
