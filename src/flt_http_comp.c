@@ -12,6 +12,7 @@
 
 #include <common/buffer.h>
 #include <common/cfgparse.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -26,7 +27,6 @@
 #include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/proto_http.h>
 #include <proto/sample.h>
 #include <proto/stream.h>

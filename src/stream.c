@@ -19,6 +19,7 @@
 #include <common/buffer.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/memory.h>
 
@@ -46,7 +47,6 @@
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>
-#include <proto/htx.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>

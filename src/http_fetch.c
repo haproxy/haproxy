@@ -22,6 +22,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
@@ -33,7 +34,6 @@
 #include <proto/auth.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/obj_type.h>
 #include <proto/proto_http.h>

@@ -29,6 +29,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
@@ -54,7 +55,6 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
-#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>

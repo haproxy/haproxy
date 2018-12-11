@@ -13,6 +13,7 @@
 #include <common/base64.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/htx.h>
 #include <common/uri_auth.h>
 
 #include <types/cache.h>
@@ -26,7 +27,6 @@
 #include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/proto_http.h>

@@ -29,6 +29,7 @@
 
 #include <common/config.h>
 #include <common/chunk.h>
+#include <common/htx.h>
 #include <common/ticks.h>
 #include <common/time.h>
 
@@ -36,7 +37,6 @@
 #include <types/global.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
-#include <types/htx.h>
 
 #include <proto/task.h>
 

@@ -24,7 +24,6 @@
 #include <proto/proxy.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/filters.h>
 #include <proto/http_rules.h>
 #include <proto/proto_http.h>
@@ -36,6 +35,7 @@
 
 #include <common/cfgparse.h>
 #include <common/hash.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 
 /* flt_cache_store */

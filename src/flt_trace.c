@@ -13,6 +13,7 @@
 #include <ctype.h>
 
 #include <common/hathreads.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -28,7 +29,6 @@
 #include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/stream.h>

@@ -11,7 +11,7 @@
  */
 
 #include <common/chunk.h>
-#include <proto/htx.h>
+#include <common/htx.h>
 
 struct htx htx_empty = { .size = 0, .data = 0, .used = 0 };
 

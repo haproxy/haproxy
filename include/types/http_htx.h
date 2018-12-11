@@ -23,8 +23,8 @@
 #ifndef _TYPES_HTTP_HTX_H
 #define _TYPES_HTTP_HTX_H
 
+#include <common/htx.h>
 #include <common/ist.h>
-#include <types/htx.h>
 
 /* Context used to find/remove an HTTP header. */
 struct http_hdr_ctx {

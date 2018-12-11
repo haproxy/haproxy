@@ -16,6 +16,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/standard.h>
@@ -28,7 +29,6 @@
 #include <proto/filters.h>
 #include <proto/flt_http_comp.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/proto_http.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>

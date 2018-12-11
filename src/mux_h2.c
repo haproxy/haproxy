@@ -16,12 +16,12 @@
 #include <common/hpack-dec.h>
 #include <common/hpack-enc.h>
 #include <common/hpack-tbl.h>
+#include <common/htx.h>
 #include <common/initcall.h>
 #include <common/net_helper.h>
 #include <proto/connection.h>
 #include <proto/h1.h>
 #include <proto/http_htx.h>
-#include <proto/htx.h>
 #include <proto/stream.h>
 #include <types/session.h>
 #include <eb32tree.h>
