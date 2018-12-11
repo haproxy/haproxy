@@ -758,7 +758,8 @@ static void cli_io_handler(struct appctx *appctx)
 			 * buffer is empty. This still allows pipelined requests
 			 * to be sent in non-interactive mode.
 			 */
-			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !co_data(req))) {
+			if (((res->flags & (CF_SHUTW|CF_SHUTW_NOW))) ||
+			   (!(appctx->st1 & APPCTX_CLI_ST1_PROMPT) && !co_data(req) && (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)))) {
 				appctx->st0 = CLI_ST_END;
 				continue;
 			}
