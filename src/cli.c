@@ -1679,6 +1679,10 @@ static enum obj_type *pcli_pid_to_server(int proc_pid)
 {
 	struct mworker_proc *child;
 
+	/* return the CLI applet of the master */
+	if (proc_pid == 0)
+		return &cli_applet.obj_type;
+
 	list_for_each_entry(child, &proc_list, list) {
 		if (child->pid == proc_pid){
 			return &child->srv->obj_type;
@@ -1752,123 +1756,154 @@ static int pcli_prefix_to_pid(const char *prefix)
 	return -1;
 }
 
-/* Parse the CLI request:
- *
- *  - it can rewrite the buffer by trimming the prefix
- *  - fill dst with the destination server if there is one
+/* Return::
+ *  >= 0 : number of words to escape
+ *  = -1 : error
+ */
+
+int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg, int *next_pid)
+{
+	if (argl < 1)
+		return 0;
+
+	/* there is a prefix */
+	if (args[0][0] == '@') {
+		int target_pid = pcli_prefix_to_pid(args[0]);
+
+		if (target_pid == -1) {
+			memprintf(errmsg, "Can't find the target PID matching the prefix '%s'\n", args[0]);
+			return -1;
+		}
+
+		/* if the prefix is alone, define a default target */
+		if (argl == 1)
+			s->pcli_next_pid = target_pid;
+		else
+			*next_pid = target_pid;
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * Parse the CLI request:
+ *  - It does basically the same as the cli_io_handler, but as a proxy
+ *  - It can exec a command and strip non forwardable commands
  *
  *  Return:
- *  - the amount of data to forward or
- *  - -1 if there is no end to the command or
- *  - 0 everything has been trimmed (only a prefix)
+ *  - the number of characters to forward or
+ *  - 1 if there is an error or not enough data
  */
-#define PCLI_REQ_INIT      0
-#define PCLI_REQ_PFX       1
-#define PCLI_REQ_TRIM      2
-#define PCLI_REQ_CMD       3
-
-int pcli_parse_request(struct channel *req, int *target_pid)
+int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int *next_pid)
 {
-	char *input = (char *)ci_head(req);
-	const char *end;
-	char *ptr, *trim = NULL, *pfx_b = NULL, *cmd_b = NULL;
-	struct buffer *buf = &req->buf;
-	int ret = 0;
-	int state = PCLI_REQ_INIT;
+	char *str = (char *)ci_head(req);
+	char *end = (char *)ci_stop(req);
+	char *args[MAX_STATS_ARGS + 1]; /* +1 for storing a NULL */
+	int argl; /* number of args */
+	char *p;
+	char *trim = NULL;
+	int wtrim = 0; /* number of words to trim */
+	int reql = 0;
+	int i = 0;
 
-	ptr = input;
-	end = b_stop(buf);
+	p = str;
 
-	 /* The while loop condition is checking the end of the command.
-	    It is needed to iterate for each ptr++ done in the parser */
-	while (ptr < end && *ptr != '\n' && *ptr != '\r' && *ptr != ';') {
-		switch (state) {
-			/* The init state only trims the useless chars */
-			case PCLI_REQ_INIT:
+	/* Looks for the end of one command */
+	while (p+reql < end) {
+		/* handle escaping */
+		if (str[reql] == '\\') {
+			reql++;
+			continue;
+		}
+		if (str[reql] == ';' || str[reql] == '\n') {
+			/* found the end of the command */
+			str[reql] = '\n';
+			reql++;
+			break;
+		}
+		reql++;
+	}
 
-				/* skip every  spaces at the start of the command */
-				if (*ptr == ' ') {
-					ptr++;
-					continue;
-				}
-				pfx_b = ptr; /* this is the start of the command or of the @ prefix */
-				state = PCLI_REQ_PFX;
+	/* set end to first byte after the end of the command */
+	end = p + reql;
 
-			/* the atprefix state looks for a @ prefix. If it finds
-			   it, it will check to which server send the request.
-			   It also ajust the trim pointer */
-			case PCLI_REQ_PFX:
+	/* there is no end to this command, need more to parse ! */
+	if (*(end-1) != '\n') {
+		return -1;
+	}
 
-				if (*pfx_b != '@') {
-					/* there is no prefix */
-					pfx_b = NULL;
-					cmd_b = input; /* if no prefix we don't trim anything */
-					state = PCLI_REQ_CMD;
-					continue;
-				}
+	*(end-1) = '\0';
 
-				if (*ptr != ' ') {
-					ptr++;
-					continue;
-				}
-				*ptr = '\0';  /* this the end of the prefix */
-				ptr++;
-				trim = ptr;
-				state = PCLI_REQ_TRIM;
+	/* splits the command in words */
+	while (i < MAX_STATS_ARGS && p < end) {
+		int j, k;
+
+		/* skip leading spaces/tabs */
+		p += strspn(p, " \t");
+		if (!*p)
 			break;
 
-			/* we really need to trim there because that's the only
-			   way to know if we are going to send a command or if
-			   there is only a prefix */
-			case PCLI_REQ_TRIM:
-				if (*ptr == ' ') {
-					ptr++;
+		args[i] = p;
+		p += strcspn(p, " \t");
+		*p++ = 0;
+
+		/* unescape backslashes (\) */
+		for (j = 0, k = 0; args[i][k]; k++) {
+			if (args[i][k] == '\\') {
+				if (args[i][k + 1] == '\\')
+					k++;
+				else
 					continue;
-				}
-				cmd_b = trim = ptr;
-				state = PCLI_REQ_CMD;
-
-			/* just look for the end of the command */
-			case PCLI_REQ_CMD:
-				ptr++;
-				continue;
+			}
+			args[i][j] = args[i][k];
+			j++;
 		}
+		args[i][j] = 0;
+		i++;
 	}
 
-	/* we didn't find a command separator, not enough data */
-	if (ptr >= end)
+	argl = i;
+
+	for (; i < MAX_STATS_ARGS + 1; i++)
+		args[i] = NULL;
+
+	wtrim = pcli_find_and_exec_kw(s, args, argl, errmsg, next_pid);
+
+	/* End of words are ending by \0, we need to replace the \0s by spaces
+1	   before forwarding them */
+	p = str;
+	while (p < end) {
+		if (*p == '\0')
+			*p = ' ';
+		p++;
+	}
+
+	*(end-1) = '\n';
+
+	if (wtrim > 0) {
+		trim = &args[wtrim][0];
+		if (trim == NULL) /* if this was the last word in the table */
+			trim = end;
+
+		b_del(&req->buf, trim - str);
+
+		return end - trim;
+	} else if (wtrim < 0) {
+		/* parsing error */
 		return -1;
-
-	if (!pfx_b && !cmd_b) {
-		/* probably just a \n or a ; */
-		return 1;
-	} else if (pfx_b && !cmd_b) {
-		/* it's only a prefix, we don't want to forward it */
-		*ptr = '\0';
-		trim = ptr + 1; /* we want to trim the whole command */
-		ret = 0;
-	} else if (cmd_b) {
-		/* command without a prefix */
-		*ptr = '\n';
-		ret = ptr - cmd_b + 1;
 	}
 
-	if (pfx_b)
-		*target_pid = pcli_prefix_to_pid(pfx_b);
+	/* foward the whole comand */
+	return end - str;
 
-	/* trim the useless chars */
-	if (trim)
-		b_del(&req->buf, trim - input);
-
-	return ret;
 }
 
 int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 {
-	int target_pid;
+	int next_pid = -1;
 	int to_forward;
-
-	target_pid = s->pcli_next_pid;
+	char *errmsg = NULL;
 
 read_again:
 	/* if the channel is closed for read, we won't receive any more data
@@ -1898,15 +1933,10 @@ read_again:
 	if (c_data(req) && s->logs.t_idle == -1)
 		s->logs.t_idle = tv_ms_elapsed(&s->logs.tv_accept, &now) - s->logs.t_handshake;
 
-	to_forward = pcli_parse_request(req, &target_pid);
+	to_forward = pcli_parse_request(s, req, &errmsg, &next_pid);
 	if (to_forward > 0) {
+		int target_pid;
 		/* enough data */
-
-		/* we didn't find the process, send an error and close */
-		if (target_pid < 0) {
-			pcli_reply_and_close(s, "Can't find the target CLI!\n");
-			return 0;
-		}
 
 		/* forward only 1 command */
 		channel_forward(req, to_forward);
@@ -1921,29 +1951,24 @@ read_again:
 		req->analysers |= AN_REQ_FLT_END|CF_FLT_ANALYZE;
 		s->res.analysers |= AN_RES_WAIT_CLI;
 
+		if (next_pid > -1)
+			target_pid = next_pid;
+		else
+			target_pid = s->pcli_next_pid;
 		/* we can connect now */
 		s->target = pcli_pid_to_server(target_pid);
-		if (!s->target) {
-			s->target = &cli_applet.obj_type;
-		}
 
 		s->flags |= (SF_DIRECT | SF_ASSIGNED);
 		channel_auto_connect(req);
 
 	} else if (to_forward == 0) {
-		/* we only received a prefix without command, which
-		   mean that we want to store it for every other
-		   command for this session */
-		if (target_pid > -1) {
-			s->pcli_next_pid = target_pid;
-			pcli_write_prompt(s);
-		} else {
-			s->pcli_next_pid = 0;
-			pcli_reply_and_close(s, "Can't find the target CLI!\n");
-		}
-
 		/* we trimmed things but we might have other commands to consume */
+		pcli_write_prompt(s);
 		goto read_again;
+	} else if (to_forward == -1 && errmsg) {
+		/* there was an error during the parsing */
+			pcli_reply_and_close(s, errmsg);
+			return 0;
 	} else if (to_forward == -1 && channel_full(req, global.tune.maxrewrite)) {
 		/* buffer is full and we didn't catch the end of a command */
 		goto send_help;
