@@ -78,4 +78,23 @@ static inline int hpack_encode_len(char *out, int pos, int len)
 	return pos;
 }
 
+/* Tries to encode header field index <idx> with short value <val> into the
+ * aligned buffer <out>. Returns non-zero on success, 0 on failure (buffer
+ * full). The caller is responsible for ensuring that the length of <val> is
+ * strictly lower than 127, and that <idx> is lower than 64 (static list only),
+ * and that the buffer is aligned (head==0).
+ */
+static inline int hpack_encode_short_idx(struct buffer *out, int idx, struct ist val)
+{
+	if (out->data + 2 + val.len > out->size)
+		return 0;
+
+	/* literal header field with incremental indexing */
+	out->area[out->data++] = idx | 0x40;
+	out->area[out->data++] = val.len;
+	ist2bin(&out->area[out->data], val);
+	out->data += val.len;
+	return 1;
+}
+
 #endif /* _COMMON_HPACK_ENC_H */
