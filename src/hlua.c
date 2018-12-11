@@ -5373,33 +5373,26 @@ __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 __LJMP static int hlua_txn_set_tos(lua_State *L)
 {
 	struct hlua_txn *htxn;
-	struct connection *cli_conn;
 	int tos;
 
 	MAY_LJMP(check_args(L, 2, "set_tos"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	tos = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	if ((cli_conn = objt_conn(htxn->s->sess->origin)) && conn_ctrl_ready(cli_conn))
-		inet_set_tos(cli_conn->handle.fd, &cli_conn->addr.from, tos);
-
+	conn_set_tos(objt_conn(htxn->s->sess->origin), tos);
 	return 0;
 }
 
 __LJMP static int hlua_txn_set_mark(lua_State *L)
 {
-#ifdef SO_MARK
 	struct hlua_txn *htxn;
-	struct connection *cli_conn;
 	int mark;
 
 	MAY_LJMP(check_args(L, 2, "set_mark"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	mark = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	if ((cli_conn = objt_conn(htxn->s->sess->origin)) && conn_ctrl_ready(cli_conn))
-		setsockopt(cli_conn->handle.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
-#endif
+	conn_set_tos(objt_conn(htxn->s->sess->origin), mark);
 	return 0;
 }
 

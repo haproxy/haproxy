@@ -738,6 +738,56 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
+/* Sets the TOS header in IPv4 and the traffic class header in IPv6 packets
+ * (as per RFC3260 #4 and BCP37 #4.2 and #5.2). The connection is tested and if
+ * it is null, nothing is done.
+ */
+static inline void conn_set_tos(const struct connection *conn, int tos)
+{
+	if (!conn || !conn_ctrl_ready(conn))
+		return;
+
+#ifdef IP_TOS
+	if (conn->addr.from.ss_family == AF_INET)
+		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+#endif
+#ifdef IPV6_TCLASS
+	if (conn->addr.from.ss_family == AF_INET6) {
+		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr))
+			/* v4-mapped addresses need IP_TOS */
+			setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+		else
+			setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
+	}
+#endif
+}
+
+/* Sets the netfilter mark on the connection's socket. The connection is tested
+ * and if it is null, nothing is done.
+ */
+static inline void conn_set_mark(const struct connection *conn, int mark)
+{
+	if (!conn || !conn_ctrl_ready(conn))
+		return;
+
+#ifdef SO_MARK
+	setsockopt(conn->handle.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+#endif
+}
+
+/* Sets adjust the TCP quick-ack feature on the connection's socket. The
+ * connection is tested and if it is null, nothing is done.
+ */
+static inline void conn_set_quickack(const struct connection *conn, int value)
+{
+	if (!conn || !conn_ctrl_ready(conn))
+		return;
+
+#ifdef TCP_QUICKACK
+	setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &value, sizeof(value));
+#endif
+}
+
 /* Attaches a conn_stream to a data layer and sets the relevant callbacks */
 static inline void cs_attach(struct conn_stream *cs, void *data, const struct data_cb *data_cb)
 {

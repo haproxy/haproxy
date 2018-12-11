@@ -105,7 +105,6 @@ void http_set_status(unsigned int status, const char *reason, struct stream *s);
 int http_transform_header_str(struct stream* s, struct http_msg *msg, const char* name,
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
-void inet_set_tos(int fd, const struct sockaddr_storage *from, int tos);
 int http_handle_stats(struct stream *s, struct channel *req);
 enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules,
 					     struct stream *s, int *deny_status);

@@ -23,8 +23,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <netinet/tcp.h>
-
 #include <common/base64.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
@@ -1088,16 +1086,14 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		channel_dont_connect(req);
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-#ifdef TCP_QUICKACK
-		if (sess->listener->options & LI_O_NOQUICKACK && ci_data(req) &&
-		    objt_conn(sess->origin) && conn_ctrl_ready(__objt_conn(sess->origin))) {
+
+		if (sess->listener->options & LI_O_NOQUICKACK && ci_data(req)) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(__objt_conn(sess->origin)->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			conn_set_quickack(objt_conn(sess->origin), 1);
 		}
-#endif
 
 		if ((msg->msg_state != HTTP_MSG_RQBEFORE) && (txn->flags & TX_WAIT_NEXT_RQ)) {
 			/* If the client starts to talk, let's fall back to
@@ -1638,26 +1634,6 @@ int http_handle_stats(struct stream *s, struct channel *req)
 	return 1;
 }
 
-/* Sets the TOS header in IPv4 and the traffic class header in IPv6 packets
- * (as per RFC3260 #4 and BCP37 #4.2 and #5.2).
- */
-void inet_set_tos(int fd, const struct sockaddr_storage *from, int tos)
-{
-#ifdef IP_TOS
-	if (from->ss_family == AF_INET)
-		setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
-#endif
-#ifdef IPV6_TCLASS
-	if (from->ss_family == AF_INET6) {
-		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)from)->sin6_addr))
-			/* v4-mapped addresses need IP_TOS */
-			setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
-		else
-			setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
-	}
-#endif
-}
-
 int http_transform_header_str(struct stream* s, struct http_msg *msg,
                               const char* name, unsigned int name_len,
                               const char *str, struct my_regex *re,
@@ -1802,7 +1778,6 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
-	struct connection *cli_conn;
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
 	const char *auth_realm;
@@ -1903,15 +1878,11 @@ resume_execution:
 			break;
 
 		case ACT_HTTP_SET_TOS:
-			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				inet_set_tos(cli_conn->handle.fd, &cli_conn->addr.from, rule->arg.tos);
+			conn_set_tos(objt_conn(sess->origin), rule->arg.tos);
 			break;
 
 		case ACT_HTTP_SET_MARK:
-#ifdef SO_MARK
-			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				setsockopt(cli_conn->handle.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
-#endif
+			conn_set_mark(objt_conn(sess->origin), rule->arg.mark);
 			break;
 
 		case ACT_HTTP_SET_LOGL:
@@ -2213,7 +2184,6 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
-	struct connection *cli_conn;
 	struct act_rule *rule;
 	struct hdr_ctx ctx;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
@@ -2265,15 +2235,11 @@ resume_execution:
 			break;
 
 		case ACT_HTTP_SET_TOS:
-			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				inet_set_tos(cli_conn->handle.fd, &cli_conn->addr.from, rule->arg.tos);
+			conn_set_tos(objt_conn(sess->origin), rule->arg.tos);
 			break;
 
 		case ACT_HTTP_SET_MARK:
-#ifdef SO_MARK
-			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
-				setsockopt(cli_conn->handle.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
-#endif
+			conn_set_mark(objt_conn(sess->origin), rule->arg.mark);
 			break;
 
 		case ACT_HTTP_SET_LOGL:
@@ -3414,18 +3380,16 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	req->analysers &= ~AN_REQ_FLT_XFER_DATA;
 	req->analysers |= AN_REQ_HTTP_XFER_BODY;
-#ifdef TCP_QUICKACK
+
 	/* We expect some data from the client. Unless we know for sure
 	 * we already have a full request, we have to re-enable quick-ack
 	 * in case we previously disabled it, otherwise we might cause
 	 * the client to delay further data.
 	 */
 	if ((sess->listener->options & LI_O_NOQUICKACK) &&
-	    cli_conn && conn_ctrl_ready(cli_conn) &&
 	    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 	     (msg->body_len > ci_data(req) - txn->req.eoh - 2)))
-		setsockopt(cli_conn->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
-#endif
+		conn_set_quickack(cli_conn, 1);
 
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
