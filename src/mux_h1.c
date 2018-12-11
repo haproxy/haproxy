@@ -1356,20 +1356,47 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		errflag = H1S_F_REQ_ERROR;
 	}
 
+	blk = htx_get_head_blk(chn_htx);
 
 	tmp = get_trash_chunk();
 
-	/* pre-align the output buffer like the HTX in case it's empty. In this
-	 * case since it's aligned we don't need to use the temporary trash.
+	/* Perform some optimizations to reduce the number of buffer copies.
+	 * First, if the mux's buffer is empty and the htx area contains
+	 * exactly one data block of the same size as the requested count,
+	 * then it's possible to simply swap the caller's buffer with the
+	 * mux's output buffer and adjust offsets and length to match the
+	 * entire DATA HTX block in the middle. In this case we perform a
+	 * true zero-copy operation from end-to-end. This is the situation
+	 * that happens all the time with large files. Second, if this is not
+	 * possible, but the mux's output buffer is empty, we still have an
+	 * opportunity to avoid the copy to the intermediary buffer, by making
+	 * the intermediary buffer's area point to the output buffer's area.
+	 * In this case we want to skip the HTX header to make sure that copies
+	 * remain aligned and that this operation remains possible all the
+	 * time. This goes for headers, data blocks and any data extracted from
+	 * the HTX blocks.
 	 */
 	if (!b_data(&h1c->obuf)) {
 		h1c->obuf.head = sizeof(struct htx);
+
+		if (chn_htx->used == 1 &&
+		    blk && htx_get_blk_type(blk) == HTX_BLK_DATA &&
+		    htx_get_blk_value(chn_htx, blk).len == count) {
+			void *old_area = h1c->obuf.area;
+
+			h1c->obuf.area = buf->area;
+			h1c->obuf.data = count;
+
+			buf->area = old_area;
+			buf->data = buf->head = 0;
+			total += count;
+			goto out;
+		}
 		tmp->area = h1c->obuf.area + h1c->obuf.head;
 	}
 
 	tmp->size = b_room(&h1c->obuf);
 
-	blk = htx_get_head_blk(chn_htx);
 	while (count && !(h1s->flags & errflag) && blk) {
 		struct htx_sl *sl;
 		struct ist n, v;
@@ -1535,9 +1562,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	else
 		b_putblk(&h1c->obuf, tmp->area, tmp->data);
 
+	htx_to_buf(chn_htx, buf);
+ out:
 	if (!buf_room_for_htx_data(&h1c->obuf))
 		h1c->flags |= H1C_F_OUT_FULL;
-	htx_to_buf(chn_htx, buf);
   end:
 	return total;
 }
