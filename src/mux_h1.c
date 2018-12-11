@@ -131,10 +131,10 @@ static void h1_shutw_conn(struct connection *conn);
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
-	if (b_data(&h1c->ibuf) == 0 &&
-	    (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW) ||
-	     h1c->conn->flags & CO_FL_ERROR ||
-	     conn_xprt_read0_pending(h1c->conn)))
+	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW)))
+		return 0;
+
+	if (h1c->conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(h1c->conn))
 		return 0;
 
 	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_BUSY)))
@@ -1325,19 +1325,17 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		tasklet_wakeup(h1c->wait_event.task);
 	}
 
-	if (b_data(&h1c->ibuf)) {
-		if (!htx_is_empty(htx))
-			h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
-	}
-	else {
+	h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+
+	if (!b_data(&h1c->ibuf)) {
 		h1_release_buf(h1c, &h1c->ibuf);
 		h1_sync_messages(h1c);
-		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	}
+	else if (!htx_is_empty(htx))
+		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
 	if ((h1s->cs->flags & CS_FL_REOS) && (!b_data(&h1c->ibuf) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
-		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	}
 
 	return total;
@@ -1673,10 +1671,12 @@ static int h1_recv(struct h1c *h1c)
 		}
 	}
 
-	if (h1_recv_allowed(h1c) && buf_room_for_htx_data(&h1c->ibuf))
-		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
-	else
+	if (!h1_recv_allowed(h1c) || !buf_room_for_htx_data(&h1c->ibuf)) {
 		rcvd = 1;
+		goto end;
+	}
+
+	conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
 
   end:
 	if ((ret > 0 || (conn->flags & CO_FL_ERROR) ||
