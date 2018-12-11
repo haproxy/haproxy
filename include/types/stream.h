@@ -163,6 +163,8 @@ struct stream {
 			  struct stream_interface *si);
 
 	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
+	int pcli_prompt;                        /* is there a prompt ?! */
+
 	char *unique_id;                        /* custom unique ID */
 
 	/* These two pointers are used to resume the execution of the rule lists. */

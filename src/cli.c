@@ -1657,6 +1657,9 @@ void pcli_write_prompt(struct stream *s)
 	struct buffer *msg = get_trash_chunk();
 	struct channel *oc = si_oc(&s->si[0]);
 
+	if (!s->pcli_prompt)
+		return;
+
 	if (s->pcli_next_pid == 0)
 		chunk_appendf(msg, "master> ");
 	else
@@ -1781,6 +1784,9 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		else
 			*next_pid = target_pid;
 		return 1;
+	} else if (!strcmp("prompt", args[0])) {
+		s->pcli_prompt ^= 1;
+		return argl; /* return the number of elements in the array */
 	}
 
 	return 0;
