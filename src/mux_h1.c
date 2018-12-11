@@ -1780,6 +1780,7 @@ static int h1_process(struct h1c * h1c)
 		if (!(conn->flags & (CO_FL_CONNECTED|CO_FL_ERROR)))
 			goto end;
 		h1c->flags &= ~H1C_F_CS_WAIT_CONN;
+		h1_wake_stream_for_send(h1s);
 	}
 
 	if (!h1s) {
