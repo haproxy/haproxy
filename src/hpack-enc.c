@@ -116,9 +116,8 @@ int hpack_encode_header(struct buffer *out, const struct ist n,
 		out->area[len++] = 0x5c; // literal with indexing -- name="content-length" (idx 28)
 	else if (len_to_bytes(n.len) && len + 1 + len_to_bytes(n.len) + n.len <= size) {
 		out->area[len++] = 0x00;      /* literal without indexing -- new name */
-
 		len = hpack_encode_len(out->area, len, n.len);
-		memcpy(out->area + len, n.ptr, n.len);
+		ist2bin(out->area + len, n);
 		len += n.len;
 	}
 	else {
