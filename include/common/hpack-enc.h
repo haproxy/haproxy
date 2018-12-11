@@ -29,6 +29,7 @@
 #define _COMMON_HPACK_ENC_H
 
 #include <stdint.h>
+#include <string.h>
 #include <common/buf.h>
 #include <common/config.h>
 #include <common/ist.h>
@@ -94,6 +95,31 @@ static inline int hpack_encode_short_idx(struct buffer *out, int idx, struct ist
 	out->area[out->data++] = val.len;
 	ist2bin(&out->area[out->data], val);
 	out->data += val.len;
+	return 1;
+}
+
+/* Tries to encode header field index <idx> with long value <val> into the
+ * aligned buffer <out>. Returns non-zero on success, 0 on failure (buffer
+ * full). The caller is responsible for ensuring <idx> is lower than 64 (static
+ * list only), and that the buffer is aligned (head==0).
+ */
+static inline int hpack_encode_long_idx(struct buffer *out, int idx, struct ist val)
+{
+	int len = out->data;
+
+	if (!hpack_len_to_bytes(val.len) ||
+	    1 + len + hpack_len_to_bytes(val.len) + val.len > out->size)
+		return 0;
+
+	/* emit literal with indexing (7541#6.2.1) :
+	 * [ 0 | 1 | Index (6+) ]
+	 */
+	out->area[len++] = idx | 0x40;
+	len = hpack_encode_len(out->area, len, val.len);
+	memcpy(out->area + len, val.ptr, val.len);
+	len += val.len;
+
+	out->data = len;
 	return 1;
 }
 
