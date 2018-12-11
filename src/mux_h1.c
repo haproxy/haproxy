@@ -1609,6 +1609,23 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 /*********************************************************/
 /* functions below are I/O callbacks from the connection */
 /*********************************************************/
+static void h1_wake_stream_for_recv(struct h1s *h1s)
+{
+	if (h1s && h1s->recv_wait) {
+		h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		tasklet_wakeup(h1s->recv_wait->task);
+		h1s->recv_wait = NULL;
+	}
+}
+static void h1_wake_stream_for_send(struct h1s *h1s)
+{
+	if (h1s && h1s->send_wait) {
+		h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		tasklet_wakeup(h1s->send_wait->task);
+		h1s->send_wait = NULL;
+	}
+}
+
 /*
  * Attempt to read data, and subscribe if none available
  */
@@ -1679,13 +1696,9 @@ static int h1_recv(struct h1c *h1c)
 	conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
 
   end:
-	if ((ret > 0 || (conn->flags & CO_FL_ERROR) ||
-	    conn_xprt_read0_pending(conn)) && h1s && h1s->recv_wait) {
-		h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
-		tasklet_wakeup(h1s->recv_wait->task);
-		h1s->recv_wait = NULL;
+	if (ret > 0 || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn))
+		h1_wake_stream_for_recv(h1s);
 
-	}
 	if (conn_xprt_read0_pending(conn) && h1s && h1s->cs)
 		h1s->cs->flags |= CS_FL_REOS;
 	if (!b_data(&h1c->ibuf))
@@ -1734,13 +1747,9 @@ static int h1_send(struct h1c *h1c)
 	}
 
   end:
-	if (!(h1c->flags & H1C_F_OUT_FULL) && h1c->h1s && h1c->h1s->send_wait) {
-		struct h1s *h1s = h1c->h1s;
+	if (!(h1c->flags & H1C_F_OUT_FULL))
+		h1_wake_stream_for_send(h1c->h1s);
 
-		h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
-		tasklet_wakeup(h1s->send_wait->task);
-		h1s->send_wait = NULL;
-	}
 	/* We're done, no more to send */
 	if (!b_data(&h1c->obuf)) {
 		h1_release_buf(h1c, &h1c->obuf);
