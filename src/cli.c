@@ -1787,6 +1787,11 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 	} else if (!strcmp("prompt", args[0])) {
 		s->pcli_prompt ^= 1;
 		return argl; /* return the number of elements in the array */
+
+	} else if (!strcmp("quit", args[0])) {
+		channel_shutr_now(&s->req);
+		channel_shutw_now(&s->res);
+		return argl; /* return the number of elements in the array */
 	}
 
 	return 0;
