@@ -107,6 +107,7 @@ Summary
 9.1.      Trace
 9.2.      HTTP compression
 9.3.      Stream Processing Offload Engine (SPOE)
+9.4.      Cache
 
 10.   Cache
 10.1. Limitation
@@ -17752,6 +17753,25 @@ Important note:
     The SPOE filter is highly experimental for now and was not heavily
     tested. It is really not production ready. So use it carefully.
 
+9.4. Cache
+----------
+
+filter cache <name>
+
+  Arguments :
+
+    <name>      is name of the cache section this filter will use.
+
+The cache uses a filter to store cacheable responses. The HTTP rules
+"cache-store" and "cache-use" must be used to define how and when to use a
+cache. By default the correpsonding filter is implicitly defined. And when no
+other filter than cache is used, it is enough. But it is mandatory to
+explicitly use a filter line to use a cache when two or more filters are used
+for the same listener/frontend/backend. This is important to know the filters
+evaluation order.
+
+See also : section 10 about cache.
+
 10. Cache
 ---------
 
@@ -17789,9 +17809,11 @@ The cache won't store and won't deliver objects in these cases:
 - If the HTTP version of the request is smaller than 1.1
 - If the request contains an Authorization header
 
-Caution!: Due to the current limitation of the filters, it is not recommended
-to use the cache with other filters. Using them can cause undefined behavior
-if they modify the response (compression for example).
+Caution!: For HAProxy version prior to 1.9, due to the limitation of the
+filters, it is not recommended to use the cache with other filters. Using them
+can cause undefined behavior if they modify the response (compression for
+example). For HAProxy 1.9 and greater, it is safe, for HTX proxies only (see
+"option http-use-htx" for details).
 
 10.2. Setup
 -----------

@@ -45,6 +45,8 @@
 
 #define CACHE_FLT_F_IGNORE_CNT_ENC 0x00000001 /* Ignore 'Content-Encoding' header when response is cached
 					       * if compression is already started */
+#define CACHE_FLT_F_IMPLICIT_DECL  0x00000002 /* The cache filtre was implicitly declared (ie without
+					       * the filter keyword) */
 
 const char *cache_store_flt_id = "cache store filter";
 
@@ -189,11 +191,18 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	 * compressed in the cache. When the compression is after the cache, the
 	 * 'Content-encoding' header must be ignored because the response will
 	 * be stored uncompressed. The compression will be done on the cached
-	 * response too. */
+	 * response too. Also check if the cache filter must be explicitly
+	 * declaired or not. */
 	list_for_each_entry(f, &px->filter_configs, list) {
 		if (f == fconf) {
 			ignore = 1;
 			continue;
+		}
+
+		if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
+			ha_alert("config: %s '%s': require an explicit filter declaration "
+				 "to use the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
+			return 1;
 		}
 
 		if (f->id == http_comp_flt_id) {
@@ -1264,7 +1273,7 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 		memprintf(err, "out of memory\n");
 		goto err;
 	}
-	cconf->flags = 0;
+	cconf->flags = CACHE_FLT_F_IMPLICIT_DECL;
 	cconf->c.name = strdup(name);
 	if (!cconf->c.name) {
 		memprintf(err, "out of memory\n");
@@ -1623,6 +1632,81 @@ struct flt_ops cache_ops = {
 
 };
 
+
+
+static int
+parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
+		struct flt_conf *fconf, char **err, void *private)
+{
+	struct flt_conf *f, *back;
+	struct cache_flt_conf *cconf;
+	char *name = NULL;
+	int pos = *cur_arg;
+
+	/* Get the cache filter name*/
+	if (!strcmp(args[pos], "cache")) {
+		if (!*args[pos + 1]) {
+			memprintf(err, "%s : expects an <id> argument", args[pos]);
+			goto error;
+		}
+		name = strdup(args[pos + 1]);
+		if (!name) {
+			memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
+			goto error;
+		}
+		pos += 2;
+	}
+
+	/* Check if an implicit filter with the same name already exists. If so,
+	 * we remove the implicit filter to use the explicit one. */
+	list_for_each_entry_safe(f, back, &px->filter_configs, list) {
+		if (f->id != cache_store_flt_id)
+			continue;
+
+		cconf = f->conf;
+		if (strcmp(name, cconf->c.name)) {
+			cconf = NULL;
+			continue;
+		}
+
+		if (!(cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
+			cconf = NULL;
+			memprintf(err, "%s: multiple explicit declarations of the cache filter '%s'",
+				  px->id, name);
+			return -1;
+		}
+
+		/* Remove the implicit filter. <cconf> is kept for the explicit one */
+		LIST_DEL(&f->list);
+		free(f);
+		free(name);
+		break;
+	}
+
+	/* No implicit cache filter found, create configuration for the explicit one */
+	if (!cconf) {
+		cconf = calloc(1, sizeof(*cconf));
+		if (!cconf) {
+			memprintf(err, "%s: out of memory", args[*cur_arg]);
+			goto error;
+		}
+		cconf->c.name = name;
+	}
+
+	cconf->flags = 0;
+	fconf->id   = cache_store_flt_id;
+	fconf->conf = cconf;
+	fconf->ops  = &cache_ops;
+
+	*cur_arg = pos;
+	return 0;
+
+  error:
+	free(name);
+	free(cconf);
+	return -1;
+}
+
 static int cli_parse_show_cache(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -1685,6 +1769,15 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 	return 1;
 
 }
+
+/* Declare the filter parser for "cache" keyword */
+static struct flt_kw_list filter_kws = { "CACHE", { }, {
+		{ "cache", parse_cache_flt, NULL },
+		{ NULL, NULL, NULL },
+	}
+};
+
+INITCALL1(STG_REGISTER, flt_register_keywords, &filter_kws);
 
 static struct cli_kw_list cli_kws = {{},{
 	{ { "show", "cache", NULL }, "show cache     : show cache status", cli_parse_show_cache, cli_io_handler_show_cache, NULL, NULL },
