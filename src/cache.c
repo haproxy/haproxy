@@ -43,6 +43,9 @@
 					* messages (legacy implementation) */
 #define CACHE_F_HTX         0x00000002 /* The cache is used to store HTX messages */
 
+#define CACHE_FLT_F_IGNORE_CNT_ENC 0x00000001 /* Ignore 'Content-Encoding' header when response is cached
+					       * if compression is already started */
+
 const char *cache_store_flt_id = "cache store filter";
 
 struct applet http_cache_applet;
@@ -154,7 +157,9 @@ static int
 cache_store_check(struct proxy *px, struct flt_conf *fconf)
 {
 	struct cache_flt_conf *cconf = fconf->conf;
+	struct flt_conf *f;
 	struct cache *cache;
+	int ignore = 0;
 
 	/* resolve the cache name to a ptr in the filter config */
 	list_for_each_entry(cache, &caches, list) {
@@ -175,6 +180,34 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	return 1;
 
   found:
+	/* Here <cache> points on the cache the filter must use and <cconf>
+	 * points on the cache filter configuration. */
+
+	/* Check all filters for proxy <px> to know if the compression is
+	 * enabled and if it is before or after the cache. When the compression
+	 * is before the cache, nothing special is done. The response is stored
+	 * compressed in the cache. When the compression is after the cache, the
+	 * 'Content-encoding' header must be ignored because the response will
+	 * be stored uncompressed. The compression will be done on the cached
+	 * response too. */
+	list_for_each_entry(f, &px->filter_configs, list) {
+		if (f == fconf) {
+			ignore = 1;
+			continue;
+		}
+
+		if (f->id == http_comp_flt_id) {
+			if (!(px->options2 & PR_O2_USE_HTX)) {
+				ha_alert("config: %s '%s' : compression and cache filters cannot be "
+					 "both enabled on non HTX proxy.\n",
+					 proxy_type_str(px), px->id);
+				return 1;
+			}
+			if (ignore)
+				cconf->flags |= CACHE_FLT_F_IGNORE_CNT_ENC;
+			break;
+		}
+	}
 	return 0;
 }
 
@@ -630,10 +663,26 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		chunk_reset(&trash);
 		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
 			uint32_t sz = htx_get_blksz(blk);
 
+			/* Check if we need to skip 'Content-encoding' header or not */
+			if ((msg->flags & HTTP_MSGF_COMPRESSING) && /* Compression in progress */
+			    (cconf->flags & CACHE_FLT_F_IGNORE_CNT_ENC) &&  /* Compression before the cache */
+			    (type == HTX_BLK_HDR)) {
+				struct ist n = htx_get_blk_name(htx, blk);
+				struct ist v = htx_get_blk_value(htx, blk);
+
+				if (isteq(n, ist("content-encoding")))
+					continue;
+				if (!(msg->flags & HTTP_MSGF_TE_CHNK) &&
+				    isteq(n, ist("transfer-encoding")) &&
+				    isteqi(v, ist("chunked")))
+				    continue;
+			}
+
 			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
-			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+			if (type == HTX_BLK_EOH)
 				break;
 			chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 		}
