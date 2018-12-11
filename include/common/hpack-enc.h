@@ -29,7 +29,7 @@
 #define _COMMON_HPACK_ENC_H
 
 #include <stdint.h>
-#include <common/chunk.h>
+#include <common/buf.h>
 #include <common/config.h>
 #include <common/ist.h>
 
