@@ -29,6 +29,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/h1.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -57,7 +58,6 @@
 #include <proto/fd.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>
-#include <proto/h1.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>

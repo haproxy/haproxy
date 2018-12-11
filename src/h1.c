@@ -12,10 +12,10 @@
 
 #include <ctype.h>
 #include <common/config.h>
+#include <common/h1.h>
 #include <common/http-hdr.h>
 
 #include <proto/channel.h>
-#include <proto/h1.h>
 #include <proto/hdr_idx.h>
 
 /* Parse the Content-Length header field of an HTTP/1 request. The function

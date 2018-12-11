@@ -12,6 +12,7 @@
 
 #include <common/cfgparse.h>
 #include <common/config.h>
+#include <common/h1.h>
 #include <common/h2.h>
 #include <common/hpack-dec.h>
 #include <common/hpack-enc.h>
@@ -20,7 +21,6 @@
 #include <common/initcall.h>
 #include <common/net_helper.h>
 #include <proto/connection.h>
-#include <proto/h1.h>
 #include <proto/http_htx.h>
 #include <proto/stream.h>
 #include <types/session.h>

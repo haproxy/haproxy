@@ -11,6 +11,7 @@
  */
 #include <common/cfgparse.h>
 #include <common/config.h>
+#include <common/h1.h>
 #include <common/htx.h>
 #include <common/initcall.h>
 
@@ -19,7 +20,6 @@
 #include <types/session.h>
 
 #include <proto/connection.h>
-#include <proto/h1.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/stream.h>

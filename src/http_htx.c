@@ -12,10 +12,10 @@
 
 #include <common/config.h>
 #include <common/cfgparse.h>
+#include <common/h1.h>
 #include <common/http.h>
 #include <common/htx.h>
 
-#include <proto/h1.h>
 #include <proto/http_htx.h>
 
 struct buffer htx_err_chunks[HTTP_ERR_SIZE];

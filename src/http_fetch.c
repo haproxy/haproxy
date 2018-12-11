@@ -21,6 +21,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/h1.h>
 #include <common/http.h>
 #include <common/htx.h>
 #include <common/initcall.h>
@@ -32,7 +33,6 @@
 
 #include <proto/arg.h>
 #include <proto/auth.h>
-#include <proto/h1.h>
 #include <proto/hdr_idx.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
