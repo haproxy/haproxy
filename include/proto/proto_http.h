@@ -51,6 +51,13 @@ int http_upgrade_v09_to_v10(struct http_txn *txn);
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
 void http_txn_reset_req(struct http_txn *txn);
 void http_txn_reset_res(struct http_txn *txn);
+const char *http_parse_reqline(struct http_msg *msg,
+                               enum h1_state state, const char *ptr, const char *end,
+                               unsigned int *ret_ptr, enum h1_state *ret_state);
+const char *http_parse_stsline(struct http_msg *msg,
+                               enum h1_state state, const char *ptr, const char *end,
+                               unsigned int *ret_ptr, enum h1_state *ret_state);
+int http_forward_trailers(struct http_msg *msg);
 int http_legacy_replace_header(struct hdr_idx *idx, struct http_msg *msg,
                                const char *name, unsigned int name_len,
                                const char *str, struct my_regex *re,

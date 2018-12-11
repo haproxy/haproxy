@@ -29,16 +29,7 @@
 #include <common/http-hdr.h>
 #include <common/standard.h>
 #include <types/h1.h>
-#include <proto/hdr_idx.h>
 
-const char *http_parse_reqline(struct http_msg *msg,
-                               enum h1_state state, const char *ptr, const char *end,
-                               unsigned int *ret_ptr, enum h1_state *ret_state);
-const char *http_parse_stsline(struct http_msg *msg,
-                               enum h1_state state, const char *ptr, const char *end,
-                               unsigned int *ret_ptr, enum h1_state *ret_state);
-void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx);
-int http_forward_trailers(struct http_msg *msg);
 int h1_headers_to_hdr_list(char *start, const char *stop,
                            struct http_hdr *hdr, unsigned int hdr_num,
                            struct h1m *h1m, union h1_sl *slp);
@@ -47,36 +38,6 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value);
 void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
 void h1_parse_connection_header(struct h1m *h1m, struct ist value);
-
-/* Macros used in the HTTP/1 parser, to check for the expected presence of
- * certain bytes (ef: LF) or to skip to next byte and yield in case of failure.
- */
-
-
-/* Expects to find an LF at <ptr>. If not, set <state> to <where> and jump to
- * <bad>.
- */
-#define EXPECT_LF_HERE(ptr, bad, state, where)                  \
-	do {                                                    \
-		if (unlikely(*(ptr) != '\n')) {                 \
-			state = (where);                        \
-			goto bad;                               \
-		}                                               \
-	} while (0)
-
-/* Increments pointer <ptr>, continues to label <more> if it's still below
- * pointer <end>, or goes to <stop> and sets <state> to <where> if the end
- * of buffer was reached.
- */
-#define EAT_AND_JUMP_OR_RETURN(ptr, end, more, stop, state, where)        \
-	do {                                                              \
-		if (likely(++(ptr) < (end)))                              \
-			goto more;                                        \
-		else {                                                    \
-			state = (where);                                  \
-			goto stop;                                        \
-		}                                                         \
-	} while (0)
 
 /* for debugging, reports the HTTP/1 message state name (legacy version) */
 static inline const char *h1_msg_state_str(enum h1_state msg_state)
