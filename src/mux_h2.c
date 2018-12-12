@@ -3552,6 +3552,17 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
 			break;
 	realign_again:
+		/* If there are pending data in the output buffer, and we have
+		 * less than 1/4 of the mbuf's size and everything fits, we'll
+		 * still perform a copy anyway. Otherwise we'll pretend the mbuf
+		 * is full and wait, to save some slow realign calls.
+		 */
+		if ((max + 9 > b_room(&h2c->mbuf) || max >= b_size(&h2c->mbuf) / 4)) {
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2s->flags |= H2_SF_BLK_MROOM;
+			goto end;
+		}
+
 		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
 	}
 
