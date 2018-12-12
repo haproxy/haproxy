@@ -839,6 +839,34 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 			    &ctx, h1_show_error_snapshot);
 }
 
+/* Emit the chunksize followed by a CRLF in front of data of the buffer
+ * <buf>. It goes backwards and starts with the byte before the buffer's
+ * head. The caller is responsible for ensuring there is enough room left before
+ * the buffer's head for the string.
+ */
+static void h1_emit_chunk_size(struct buffer *buf, size_t chksz)
+{
+	char *beg, *end;
+
+	beg = end = b_head(buf);
+	*--beg = '\n';
+	*--beg = '\r';
+	do {
+		*--beg = hextab[chksz & 0xF];
+	} while (chksz >>= 4);
+	buf->head -= (end - beg);
+	b_add(buf, end - beg);
+}
+
+/* Emit a CRLF after the data of the buffer <buf>. The caller is responsible for
+ * ensuring there is enough room left in the buffer for the string. */
+static void h1_emit_chunk_crlf(struct buffer *buf)
+{
+	*(b_peek(buf, b_data(buf)))     = '\r';
+	*(b_peek(buf, b_data(buf) + 1)) = '\n';
+	b_add(buf, 2);
+}
+
 /*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
@@ -1389,6 +1417,16 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			buf->area = old_area;
 			buf->data = buf->head = 0;
+
+			/* The message is chunked. We need to emit the chunk
+			 * size. We have at least the size of the struct htx to
+			 * write the chunk envelope. It should be enough.
+			 */
+			if (h1m->flags & H1_MF_CHNK) {
+				h1_emit_chunk_size(&h1c->obuf, count);
+				h1_emit_chunk_crlf(&h1c->obuf);
+			}
+
 			total += count;
 			goto out;
 		}
