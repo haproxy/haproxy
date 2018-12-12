@@ -203,6 +203,13 @@ DECLARE_STATIC_POOL(pool_head_h2c, "h2c", sizeof(struct h2c));
 /* the h2s stream pool */
 DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 
+/* The default connection window size is 65535, it may only be enlarged using
+ * a WINDOW_UPDATE message. Since the window must never be larger than 2G-1,
+ * we'll pretend we already received the difference between the two to send
+ * an equivalent window update to enlarge it to 2G-1.
+ */
+#define H2_INITIAL_WINDOW_INCREMENT ((1U<<31)-1 - 65535)
+
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
@@ -417,7 +424,7 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 	h2c->conn = conn;
 	h2c->max_id = -1;
 	h2c->errcode = H2_ERR_NO_ERROR;
-	h2c->rcvd_c = 0;
+	h2c->rcvd_c = H2_INITIAL_WINDOW_INCREMENT;
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
 	h2c->nb_cs = 0;
