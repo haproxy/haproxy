@@ -4191,14 +4191,15 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 }
 
 /* Try to send a DATA frame matching HTTP response present in HTX structure
- * <htx>, for stream <h2s>. Returns the number of bytes sent. The caller must
- * check the stream's status to detect any error which might have happened
- * subsequently to a successful send. Returns the number of data bytes
+ * present in <buf>, for stream <h2s>. Returns the number of bytes sent. The
+ * caller must check the stream's status to detect any error which might have
+ * happened subsequently to a successful send. Returns the number of data bytes
  * consumed, or zero if nothing done. Note that EOD/EOM count for 1 byte.
  */
-static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx, size_t count)
+static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
 	struct h2c *h2c = h2s->h2c;
+	struct htx *htx;
 	struct buffer outbuf;
 	size_t total = 0;
 	int es_now = 0;
@@ -4218,6 +4219,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx, size_
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
 	}
+
+	htx = htx_from_buf(buf);
 
 	/* We only come here with HTX_BLK_DATA or HTX_BLK_EOD blocks. However,
 	 * while looping, we can meet an HTX_BLK_EOM block that we'll leave to
@@ -4248,6 +4251,66 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct htx *htx, size_
 	if (type != HTX_BLK_DATA && type != HTX_BLK_EOM)
 		goto end;
 
+	/* Perform some optimizations to reduce the number of buffer copies.
+	 * First, if the mux's buffer is empty and the htx area contains
+	 * exactly one data block of the same size as the requested count, and
+	 * this count fits within the frame size, the stream's window size, and
+	 * the connection's window size, then it's possible to simply swap the
+	 * caller's buffer with the mux's output buffer and adjust offsets and
+	 * length to match the entire DATA HTX block in the middle. In this
+	 * case we perform a true zero-copy operation from end-to-end. This is
+	 * the situation that happens all the time with large files. Second, if
+	 * this is not possible, but the mux's output buffer is empty, we still
+	 * have an opportunity to avoid the copy to the intermediary buffer, by
+	 * making the intermediary buffer's area point to the output buffer's
+	 * area. In this case we want to skip the HTX header to make sure that
+	 * copies remain aligned and that this operation remains possible all
+	 * the time. This goes for headers, data blocks and any data extracted
+	 * from the HTX blocks.
+	 */
+	if (unlikely(fsize == count &&
+	             htx->used == 1 && type == HTX_BLK_DATA &&
+	             fsize <= h2s->mws && fsize <= h2c->mws && fsize <= h2c->mfs)) {
+		void *old_area = h2c->mbuf.area;
+
+		if (b_data(&h2c->mbuf)) {
+			/* too bad there are data left there. If we have less
+			 * than 1/4 of the mbuf's size and everything fits,
+			 * we'll perform a copy anyway. Otherwise we'll pretend
+			 * the mbuf is full and wait.
+			 */
+			if (fsize <= b_size(&h2c->mbuf) / 4 && fsize + 9 <= b_room(&h2c->mbuf))
+				goto copy;
+			h2c->flags |= H2_CF_MUX_MFULL;
+			h2s->flags |= H2_SF_BLK_MROOM;
+			goto end;
+		}
+
+		/* map an H2 frame to the HTX block so that we can put the
+		 * frame header there.
+		 */
+		h2c->mbuf.area = buf->area;
+		h2c->mbuf.head = sizeof(struct htx) - 9;
+		h2c->mbuf.data = fsize + 9;
+		outbuf.area    = b_head(&h2c->mbuf);
+
+		/* prepend an H2 DATA frame header just before the DATA block */
+		memcpy(outbuf.area, "\x00\x00\x00\x00\x00", 5);
+		write_n32(outbuf.area + 5, h2s->id); // 4 bytes
+		h2_set_frame_size(outbuf.area, fsize);
+
+		/* update windows */
+		h2s->mws -= fsize;
+		h2c->mws -= fsize;
+
+		/* and exchange with our old area */
+		buf->area = old_area;
+		buf->data = buf->head = 0;
+		total += fsize;
+		goto end;
+	}
+
+ copy:
 	/* for DATA and EOM we'll have to emit a frame, even if empty */
 
 	while (1) {
@@ -4608,8 +4671,9 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			case HTX_BLK_EOD:
 			case HTX_BLK_EOM:
 				/* all these cause the emission of a DATA frame (possibly empty) */
-				ret = h2s_htx_frt_make_resp_data(h2s, htx, count);
+				ret = h2s_htx_frt_make_resp_data(h2s, buf, count);
 				if (ret > 0) {
+					htx = htx_from_buf(buf);
 					total += ret;
 					count -= ret;
 					if (ret < bsize)
