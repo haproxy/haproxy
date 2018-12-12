@@ -917,7 +917,28 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 {
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		return 0; /* TODO: to be implemented */
+		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx_blk *blk;
+		unsigned long long len = 0;
+
+		if (!htx)
+			return 0;
+
+		len = htx->data;
+
+		/* Remove the length of headers part */
+		blk = htx_get_head_blk(htx);
+		while (blk) {
+			len -= htx_get_blksz(blk);
+			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+				break;
+			blk = htx_get_next_blk(htx, blk);
+		}
+
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = len;
+
+		smp->flags = SMP_F_VOL_TEST;
 	}
 	else {
 		/* LEGACY version */
@@ -947,7 +968,30 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 {
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		return 0; /* TODO: to be implemented */
+		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx_blk *blk;
+		unsigned long long len = 0;
+
+		if (!htx)
+			return 0;
+
+		len = htx->data;
+
+		/* Remove the length of headers part */
+		blk = htx_get_head_blk(htx);
+		while (blk) {
+			len -= htx_get_blksz(blk);
+			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+				break;
+			blk = htx_get_next_blk(htx, blk);
+		}
+		if (htx->extra != ULLONG_MAX)
+			len += htx->extra;
+
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = len;
+
+		smp->flags = SMP_F_VOL_TEST;
 	}
 	else {
 		/* LEGACY version */
