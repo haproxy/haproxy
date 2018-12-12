@@ -1426,11 +1426,13 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			continue;
 		}
 		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-}
+	}
 
 	/* displays old processes */
 
 	if (old) {
+		char *msg = NULL;
+
 		chunk_appendf(&trash, "# old workers\n");
 		list_for_each_entry(child, &proc_list, list) {
 			up = now.tv_sec - child->timestamp;
@@ -1438,9 +1440,12 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			if (child->type != 'w')
 				continue;
 
-			if (child->reloads > 0)
-				chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+			if (child->reloads > 0) {
+				memprintf(&msg, "[was: %u]", child->relative_pid);
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", msg, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+			}
 		}
+		free(msg);
 	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
