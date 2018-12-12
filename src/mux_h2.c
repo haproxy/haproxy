@@ -2353,7 +2353,7 @@ static int h2_process_mux(struct h2c *h2c)
 			h2c->st0 = H2_CS_SETTINGS1;
 		}
 		/* need to wait for the other side */
-		if (h2c->st0 == H2_CS_SETTINGS1)
+		if (h2c->st0 < H2_CS_FRAME_H)
 			return 1;
 	}
 
