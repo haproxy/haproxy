@@ -149,9 +149,9 @@ struct global global = {
 		 }
 	},
 	.tune = {
-		.bufsize = BUFSIZE,
+		.bufsize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.maxrewrite = -1,
-		.chksize = BUFSIZE,
+		.chksize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.reserved_bufs = RESERVED_BUFS,
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
 #ifdef USE_OPENSSL

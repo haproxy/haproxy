@@ -1532,7 +1532,9 @@ tune.bufsize <number>
   addition, use of HTTP/2 mandates that this value must be 16384 or more. If an
   HTTP request is larger than (tune.bufsize - tune.maxrewrite), haproxy will
   return HTTP 400 (Bad Request) error. Similarly if an HTTP response is larger
-  than this size, haproxy will return HTTP 502 (Bad Gateway).
+  than this size, haproxy will return HTTP 502 (Bad Gateway). Note that the
+  value set using this parameter will automatically be rounded up to the next
+  multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
 tune.chksize <number>
   Sets the check buffer size to this size (in bytes). Higher values may help
