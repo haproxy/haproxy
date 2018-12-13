@@ -92,6 +92,12 @@
 
 #define SF_SRV_REUSED   0x00100000	/* the server-side connection was reused */
 
+
+/* flags for the proxy of the master CLI */
+
+#define PCLI_F_PROMPT          0x4
+#define PCLI_F_PAYLOAD         0x8
+
 /* some external definitions */
 struct strm_logs {
 	int logwait;                    /* log fields waiting to be collected : LW_* */

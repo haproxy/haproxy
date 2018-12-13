@@ -1702,10 +1702,10 @@ void pcli_write_prompt(struct stream *s)
 	struct buffer *msg = get_trash_chunk();
 	struct channel *oc = si_oc(&s->si[0]);
 
-	if (!(s->pcli_flags & APPCTX_CLI_ST1_PROMPT))
+	if (!(s->pcli_flags & PCLI_F_PROMPT))
 		return;
 
-	if (s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) {
+	if (s->pcli_flags & PCLI_F_PAYLOAD) {
 		chunk_appendf(msg, "+ ");
 	} else {
 		if (s->pcli_next_pid == 0)
@@ -1834,7 +1834,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			*next_pid = target_pid;
 		return 1;
 	} else if (!strcmp("prompt", args[0])) {
-		s->pcli_flags ^= APPCTX_CLI_ST1_PROMPT;
+		s->pcli_flags ^= PCLI_F_PROMPT;
 		return argl; /* return the number of elements in the array */
 
 	} else if (!strcmp("quit", args[0])) {
@@ -1870,7 +1870,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	p = str;
 
-	if (!(s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD)) {
+	if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
 
 		/* Looks for the end of one command */
 		while (p+reql < end) {
@@ -1907,15 +1907,15 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	}
 
 	/* last line of the payload */
-	if ((s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) && (reql == 1)) {
-		s->pcli_flags &= ~APPCTX_CLI_ST1_PAYLOAD;
+	if ((s->pcli_flags & PCLI_F_PAYLOAD) && (reql == 1)) {
+		s->pcli_flags &= ~PCLI_F_PAYLOAD;
 		return reql;
 	}
 
 	payload = strstr(p, PAYLOAD_PATTERN);
 	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
 		/* if the payload pattern is at the end */
-		s->pcli_flags |= APPCTX_CLI_ST1_PAYLOAD;
+		s->pcli_flags |= PCLI_F_PAYLOAD;
 		return reql;
 	}
 
@@ -2027,7 +2027,7 @@ read_again:
 		/* forward only 1 command */
 		channel_forward(req, to_forward);
 
-		if (!(s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD)) {
+		if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
 			/* we send only 1 command per request, and we write close after it */
 			channel_shutw_now(req);
 		} else {
@@ -2094,7 +2094,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	channel_dont_close(&s->res);
 	channel_dont_close(&s->req);
 
-	if (s->pcli_flags & APPCTX_CLI_ST1_PAYLOAD) {
+	if (s->pcli_flags & PCLI_F_PAYLOAD) {
 		s->req.analysers |= AN_REQ_WAIT_CLI;
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
