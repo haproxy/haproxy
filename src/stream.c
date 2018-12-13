@@ -650,11 +650,10 @@ static int sess_update_st_con_tcp(struct stream *s)
 		si->state = SI_ST_CER;
 
 		if (srv_cs)
-			cs_close(srv_cs);
-		else if (conn) {
+			conn = srv_cs->conn;
+		if (conn) {
 			conn_stop_tracking(conn);
 			conn_full_close(conn);
-			conn_free(conn);
 		}
 
 		if (si->err_type)
