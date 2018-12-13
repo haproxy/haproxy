@@ -2685,34 +2685,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
  *
  */
 
-/* The state between the channel data and the HTTP parser state can be
- * inconsistent, so reset the parser and call it again. Warning, this
- * action does not revalidate the request and does not send a 400 if the modified
- * request is not valid.
- *
- * This function never fails. The direction is set using dir, which equals
- * either SMP_OPT_DIR_REQ or SMP_OPT_DIR_RES.
- */
-static void hlua_resynchonize_proto(struct stream *stream, int dir)
-{
-	/* Protocol HTTP. */
-	if (stream->be->mode == PR_MODE_HTTP) {
-
-		if (dir == SMP_OPT_DIR_REQ)
-			http_txn_reset_req(stream->txn);
-		else if (dir == SMP_OPT_DIR_RES)
-			http_txn_reset_res(stream->txn);
-
-		if (stream->txn->hdr_idx.v)
-			hdr_idx_init(&stream->txn->hdr_idx);
-
-		if (dir == SMP_OPT_DIR_REQ)
-			http_msg_analyzer(&stream->txn->req, &stream->txn->hdr_idx);
-		else if (dir == SMP_OPT_DIR_RES)
-			http_msg_analyzer(&stream->txn->rsp, &stream->txn->hdr_idx);
-	}
-}
-
 /* This function is called before the Lua execution. It stores
  * the differents parsers state before executing some Lua code.
  */
@@ -2831,6 +2803,9 @@ __LJMP static int hlua_channel_dup_yield(lua_State *L, int status, lua_KContext 
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	if (_hlua_channel_dup(chn, L) == 0)
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup_yield, TICK_ETERNITY, 0));
 	return 1;
@@ -2856,6 +2831,9 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	ret = _hlua_channel_dup(chn, L);
 	if (unlikely(ret == 0))
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_yield, TICK_ETERNITY, 0));
@@ -2864,7 +2842,6 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 		return 1;
 
 	b_sub(&chn->buf, ret);
-	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
 
@@ -2894,6 +2871,9 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	ret = ci_getline_nc(chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline_yield, TICK_ETERNITY, 0));
@@ -2912,7 +2892,6 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 	}
 	luaL_pushresult(&b);
 	b_rep_blk(&chn->buf, ci_head(chn), ci_head(chn) + len,  NULL, 0);
-	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 	return 1;
 }
 
@@ -2940,6 +2919,9 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	int ret;
 	int max;
 
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	/* Check if the buffer is available because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
@@ -2964,7 +2946,6 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
-	hlua_resynchonize_proto(chn_strm(chn), !!(chn->flags & CF_ISRESP));
 
 	max = channel_recv_limit(chn) - b_data(&chn->buf);
 	if (max == 0 && co_data(chn) == 0) {
@@ -3010,6 +2991,9 @@ __LJMP static int hlua_channel_set(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, 0);
 
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	b_set_data(&chn->buf, co_data(chn));
 
 	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
@@ -3028,6 +3012,9 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
 	struct hlua *hlua = hlua_gethlua(L);
+
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
 
 	if (unlikely(channel_output_closed(chn))) {
 		lua_pushinteger(L, -1);
@@ -3129,6 +3116,10 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 	struct hlua *hlua = hlua_gethlua(L);
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
+	if (chn_strm(chn)->be->mode == PR_MODE_HTTP)
+		WILL_LJMP(lua_error(L));
+
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
 	l = MAY_LJMP(luaL_checkinteger(L, -1));
 
