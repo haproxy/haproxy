@@ -22,7 +22,9 @@
 #include <common/net_helper.h>
 #include <proto/connection.h>
 #include <proto/http_htx.h>
+#include <proto/session.h>
 #include <proto/stream.h>
+#include <proto/stream_interface.h>
 #include <types/session.h>
 #include <eb32tree.h>
 
@@ -2815,6 +2817,34 @@ static void h2_detach(struct conn_stream *cs)
 		return;
 
 	h2c = h2s->h2c;
+	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
+		struct stream_interface *si;
+		struct stream *s;
+
+		si = cs->data;
+		s = si_strm(si);
+		if (!(h2c->conn->flags &
+		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+			if (!h2c->conn->owner) {
+				h2c->conn->owner = s->sess;
+				session_add_conn(s->sess, h2c->conn, s->target);
+			}
+			/* Never ever allow to reuse a connection from a non-reuse backend */
+			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+				h2c->conn->flags |= CO_FL_PRIVATE;
+			if (LIST_ISEMPTY(&h2c->conn->list)) {
+				struct server *srv = objt_server(h2c->conn->target);
+
+				if (srv) {
+					if (h2c->conn->flags & CO_FL_PRIVATE)
+						LIST_ADD(&srv->priv_conns[tid], &h2c->conn->list);
+					else
+						LIST_ADD(&srv->idle_conns[tid], &h2c->conn->list);
+				}
+
+			}
+		}
+	}
 	h2s->cs = NULL;
 	h2c->nb_cs--;
 	if (h2c->flags & H2_CF_DEM_TOOMANY &&

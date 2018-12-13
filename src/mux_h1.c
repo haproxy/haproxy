@@ -22,6 +22,7 @@
 #include <proto/connection.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
@@ -1925,13 +1926,21 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
-	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL) && h1c->conn->owner) {
+	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL) &&
+	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+	        struct stream_interface *si = cs->data;
+		struct stream *s = si_strm(si);
+
 		/* Never ever allow to reuse a connection from a non-reuse backend */
-		if (h1c->conn && (h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			h1c->conn->flags |= CO_FL_PRIVATE;
 
+		if (!(h1c->conn->owner)) {
+			h1c->conn->owner = s->sess;
+			session_add_conn(s->sess, h1c->conn, s->target);
+		}
 		/* we're in keep-alive with an idle connection, monitor it if not already done */
-		if (h1c->conn && LIST_ISEMPTY(&h1c->conn->list)) {
+		if (LIST_ISEMPTY(&h1c->conn->list)) {
 			struct server *srv = objt_server(h1c->conn->target);
 
 			if (srv) {
