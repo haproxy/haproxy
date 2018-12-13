@@ -1,0 +1,207 @@
+varnishtest "Health-check test"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.8
+
+# This script test health-checks for four backends with one server by backend.
+# A syslog server is attached to each backend to check the syslog messages
+# in the righ order.
+
+# First, we check a health-check has passed for all the servers thanks to the syslog
+# messages. Then each server is disabled. The health-check status are checked.
+# Then each server is re-enabled. Finally health-check status
+# verifications for each server terminate the execution of this script.
+
+# Note that the CLI is synchronized with the syslog servers so that
+# to be sure to receive the passed health-checks status messages before
+# disabling the servers. Same thing, when we check that the servers are down
+# before enabling the servers.
+
+# Cyclic barrier to synchonize the CLI with the syslog servers
+barrier b1 sock 5 -cyclic
+
+# These servers are there only for the health-check test.
+server s1 {
+} -start
+
+server s2 {
+} -start
+
+server s3 {
+} -start
+
+server s4 {
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "Proxy be1 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    barrier b1 sync
+    recv alert
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be1/srv1 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
+    recv emerg
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be1 has no server available!"
+    barrier b1 sync
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be1/srv1 is UP/READY \\(leaving forced maintenance\\).|Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    barrier b1 sync
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "Proxy be2 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    barrier b1 sync
+    recv alert
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be2/srv2 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
+    recv emerg
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be2 has no server available!"
+    barrier b1 sync
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be2/srv2 is UP/READY \\(leaving forced maintenance\\).|Health check for server be2/srv2 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    barrier b1 sync
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "Proxy be3 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    barrier b1 sync
+    recv alert
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be3/srv3 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
+    recv emerg
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be3 has no server available!"
+    barrier b1 sync
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be3/srv3 is UP/READY \\(leaving forced maintenance\\).|Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    barrier b1 sync
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "Proxy be4 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    barrier b1 sync
+    recv alert
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be4/srv4 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
+    recv emerg
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be4 has no server available!"
+    barrier b1 sync
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be4/srv4 is UP/READY \\(leaving forced maintenance\\).|Health check for server be4/srv4 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    barrier b1 sync
+} -start
+
+
+haproxy h1 -conf {
+    defaults
+        timeout client  1s
+        timeout server  1s
+        timeout connect 1s
+        default-server check downinter 1s rise 1 fall 1
+
+    frontend fe1
+        bind "fd@${fe1}"
+        use_backend be1
+
+    frontend fe2
+        bind "fd@${fe2}"
+        use_backend be2
+
+    frontend fe3
+        bind "fd@${fe3}"
+        use_backend be3
+
+    frontend fe4
+        bind "fd@${fe4}"
+        use_backend be4
+
+    backend be1
+        option log-health-checks
+        log ${S1_addr}:${S1_port} daemon
+        server srv1 ${s1_addr}:${s1_port}
+
+    backend be2
+        option log-health-checks
+        log ${S2_addr}:${S2_port} daemon
+        server srv2 ${s2_addr}:${s2_port}
+
+    backend be3
+        option log-health-checks
+        log ${S3_addr}:${S3_port} daemon
+        server srv3 ${s3_addr}:${s3_port}
+
+    backend be4
+        option log-health-checks
+        log ${S4_addr}:${S4_port} daemon
+        server srv4 ${s4_addr}:${s4_port}
+} -start
+
+haproxy h1 -cli {
+    barrier b1 sync
+    send "show servers state"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s4_port} -"
+}
+
+haproxy h1 -cli {
+    send "disable server be1/srv1"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "disable server be2/srv2"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "disable server be3/srv3"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "disable server be4/srv4"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    barrier b1 sync
+    send "show servers state"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s4_port} -"
+}
+
+haproxy h1 -cli {
+    send "enable server be1/srv1"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "enable server be2/srv2"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "enable server be3/srv3"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    send "enable server be4/srv4"
+    expect ~ .*
+}
+
+haproxy h1 -cli {
+    barrier b1 sync
+    send "show servers state"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s4_port} -"
+}
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait
+syslog S4 -wait
+
