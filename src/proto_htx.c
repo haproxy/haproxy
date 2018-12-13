@@ -2727,7 +2727,7 @@ void htx_res_set_status(unsigned int status, const char *reason, struct stream *
 	if (reason == NULL)
 		reason = http_get_reason(status);
 
-	if (!http_replace_res_status(htx, ist2(trash.area, trash.data)))
+	if (http_replace_res_status(htx, ist2(trash.area, trash.data)))
 		http_replace_res_reason(htx, ist2(reason, strlen(reason)));
 }
 
