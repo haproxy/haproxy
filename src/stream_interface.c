@@ -1340,11 +1340,13 @@ int si_cs_recv(struct conn_stream *cs)
 	return (cur_read != 0) || si_rx_blocked(si);
 
  out_shutdown_r:
-	/* we received a shutdown */
-	ic->flags |= CF_READ_NULL;
-	if (ic->flags & CF_AUTO_CLOSE)
-		channel_shutw_now(ic);
-	stream_sock_read0(si);
+	if (conn->flags & CO_FL_CONNECTED) {
+		/* we received a shutdown */
+		ic->flags |= CF_READ_NULL;
+		if (ic->flags & CF_AUTO_CLOSE)
+			channel_shutw_now(ic);
+		stream_sock_read0(si);
+	}
 	return 1;
 }
 
