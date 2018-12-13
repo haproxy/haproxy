@@ -29,6 +29,7 @@
 #include <common/hathreads.h>
 #include <common/initcall.h>
 #include <common/xref.h>
+#include <common/h1.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>
@@ -45,6 +46,7 @@
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>
+#include <proto/http_htx.h>
 #include <proto/http_rules.h>
 #include <proto/map.h>
 #include <proto/obj_type.h>
@@ -4662,16 +4664,6 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
  */
 __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
 {
-	const char *cur_ptr, *cur_next, *p;
-	int old_idx, cur_idx;
-	struct hdr_idx_elem *cur_hdr;
-	const char *hn, *hv;
-	int hnl, hvl;
-	int type;
-	const char *in;
-	char *out;
-	int len;
-
 	/* Create the table. */
 	lua_newtable(L);
 
@@ -4682,84 +4674,148 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 1;
 
-	/* Build array of headers. */
-	old_idx = 0;
-	cur_next = ci_head(msg->chn) + hdr_idx_first_pos(&htxn->s->txn->hdr_idx);
+	if (IS_HTX_STRM(htxn->s)) {
+		/* HTX version */
+		struct htx *htx = htxbuf(&msg->chn->buf);
+		int32_t pos;
 
-	while (1) {
-		cur_idx = htxn->s->txn->hdr_idx.v[old_idx].next;
-		if (!cur_idx)
-			break;
-		old_idx = cur_idx;
+		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
+			struct ist n, v;
+			int len;
 
-		cur_hdr  = &htxn->s->txn->hdr_idx.v[cur_idx];
-		cur_ptr  = cur_next;
-		cur_next = cur_ptr + cur_hdr->len + cur_hdr->cr + 1;
+			if (type == HTX_BLK_HDR) {
+				n = htx_get_blk_name(htx,blk);
+				v = htx_get_blk_value(htx, blk);
+			}
+			else if (type == HTX_BLK_EOH)
+				break;
+			else
+				continue;
 
-		/* Now we have one full header at cur_ptr of len cur_hdr->len,
-		 * and the next header starts at cur_next. We'll check
-		 * this header in the list as well as against the default
-		 * rule.
-		 */
+			/* Check for existing entry:
+			 * assume that the table is on the top of the stack, and
+			 * push the key in the stack, the function lua_gettable()
+			 * perform the lookup.
+			 */
+			lua_pushlstring(L, n.ptr, n.len);
+			lua_gettable(L, -2);
 
-		/* look for ': *'. */
-		hn = cur_ptr;
-		for (p = cur_ptr; p < cur_ptr + cur_hdr->len && *p != ':'; p++);
-		if (p >= cur_ptr+cur_hdr->len)
-			continue;
-		hnl = p - hn;
-		p++;
-		while (p < cur_ptr+cur_hdr->len && ( *p == ' ' || *p == '\t' ))
-			p++;
-		if (p >= cur_ptr+cur_hdr->len)
-			continue;
-		hv = p;
-		hvl = cur_ptr+cur_hdr->len-p;
+			switch (lua_type(L, -1)) {
+				case LUA_TNIL:
+					/* Table not found, create it. */
+					lua_pop(L, 1); /* remove the nil value. */
+					lua_pushlstring(L, n.ptr, n.len);  /* push the header name as key. */
+					lua_newtable(L); /* create and push empty table. */
+					lua_pushlstring(L, v.ptr, v.len); /* push header value. */
+					lua_rawseti(L, -2, 0); /* index header value (pop it). */
+					lua_rawset(L, -3); /* index new table with header name (pop the values). */
+					break;
 
-		/* Lowercase the key. Don't check the size of trash, it have
-		 * the size of one buffer and the input data contains in one
-		 * buffer.
-		 */
-		out = trash.area;
-		for (in=hn; in<hn+hnl; in++, out++)
-			*out = tolower(*in);
-		*out = '\0';
+				case LUA_TTABLE:
+					/* Entry found: push the value in the table. */
+					len = lua_rawlen(L, -1);
+					lua_pushlstring(L, v.ptr, v.len); /* push header value. */
+					lua_rawseti(L, -2, len+1); /* index header value (pop it). */
+					lua_pop(L, 1); /* remove the table (it is stored in the main table). */
+					break;
 
-		/* Check for existing entry:
-		 * assume that the table is on the top of the stack, and
-		 * push the key in the stack, the function lua_gettable()
-		 * perform the lookup.
-		 */
-		lua_pushlstring(L, trash.area, hnl);
-		lua_gettable(L, -2);
-		type = lua_type(L, -1);
-
-		switch (type) {
-		case LUA_TNIL:
-			/* Table not found, create it. */
-			lua_pop(L, 1); /* remove the nil value. */
-			lua_pushlstring(L, trash.area, hnl);  /* push the header name as key. */
-			lua_newtable(L); /* create and push empty table. */
-			lua_pushlstring(L, hv, hvl); /* push header value. */
-			lua_rawseti(L, -2, 0); /* index header value (pop it). */
-			lua_rawset(L, -3); /* index new table with header name (pop the values). */
-			break;
-
-		case LUA_TTABLE:
-			/* Entry found: push the value in the table. */
-			len = lua_rawlen(L, -1);
-			lua_pushlstring(L, hv, hvl); /* push header value. */
-			lua_rawseti(L, -2, len+1); /* index header value (pop it). */
-			lua_pop(L, 1); /* remove the table (it is stored in the main table). */
-			break;
-
-		default:
-			/* Other cases are errors. */
-			hlua_pusherror(L, "internal error during the parsing of headers.");
-			WILL_LJMP(lua_error(L));
+				default:
+					/* Other cases are errors. */
+					hlua_pusherror(L, "internal error during the parsing of headers.");
+					WILL_LJMP(lua_error(L));
+			}
 		}
 	}
+	else {
+		/* Legacy HTTP version */
+		const char *cur_ptr, *cur_next, *p;
+		int old_idx, cur_idx;
+		struct hdr_idx_elem *cur_hdr;
+		const char *hn, *hv;
+		int hnl, hvl;
+		const char *in;
+		char *out;
+		int len;
 
+		/* Build array of headers. */
+		old_idx = 0;
+		cur_next = ci_head(msg->chn) + hdr_idx_first_pos(&htxn->s->txn->hdr_idx);
+
+		while (1) {
+			cur_idx = htxn->s->txn->hdr_idx.v[old_idx].next;
+			if (!cur_idx)
+				break;
+			old_idx = cur_idx;
+
+			cur_hdr  = &htxn->s->txn->hdr_idx.v[cur_idx];
+			cur_ptr  = cur_next;
+			cur_next = cur_ptr + cur_hdr->len + cur_hdr->cr + 1;
+
+			/* Now we have one full header at cur_ptr of len cur_hdr->len,
+			 * and the next header starts at cur_next. We'll check
+			 * this header in the list as well as against the default
+			 * rule.
+			 */
+
+			/* look for ': *'. */
+			hn = cur_ptr;
+			for (p = cur_ptr; p < cur_ptr + cur_hdr->len && *p != ':'; p++);
+			if (p >= cur_ptr+cur_hdr->len)
+				continue;
+			hnl = p - hn;
+			p++;
+			while (p < cur_ptr+cur_hdr->len && ( *p == ' ' || *p == '\t' ))
+				p++;
+			if (p >= cur_ptr+cur_hdr->len)
+				continue;
+			hv = p;
+			hvl = cur_ptr+cur_hdr->len-p;
+
+			/* Lowercase the key. Don't check the size of trash, it have
+			 * the size of one buffer and the input data contains in one
+			 * buffer.
+			 */
+			out = trash.area;
+			for (in=hn; in<hn+hnl; in++, out++)
+				*out = tolower(*in);
+			*out = '\0';
+
+			/* Check for existing entry:
+			 * assume that the table is on the top of the stack, and
+			 * push the key in the stack, the function lua_gettable()
+			 * perform the lookup.
+			 */
+			lua_pushlstring(L, trash.area, hnl);
+			lua_gettable(L, -2);
+
+			switch (lua_type(L, -1)) {
+				case LUA_TNIL:
+					/* Table not found, create it. */
+					lua_pop(L, 1); /* remove the nil value. */
+					lua_pushlstring(L, trash.area, hnl);  /* push the header name as key. */
+					lua_newtable(L); /* create and push empty table. */
+					lua_pushlstring(L, hv, hvl); /* push header value. */
+					lua_rawseti(L, -2, 0); /* index header value (pop it). */
+					lua_rawset(L, -3); /* index new table with header name (pop the values). */
+					break;
+
+				case LUA_TTABLE:
+					/* Entry found: push the value in the table. */
+					len = lua_rawlen(L, -1);
+					lua_pushlstring(L, hv, hvl); /* push header value. */
+					lua_rawseti(L, -2, len+1); /* index header value (pop it). */
+					lua_pop(L, 1); /* remove the table (it is stored in the main table). */
+					break;
+
+				default:
+					/* Other cases are errors. */
+					hlua_pusherror(L, "internal error during the parsing of headers.");
+					WILL_LJMP(lua_error(L));
+			}
+		}
+	}
 	return 1;
 }
 
@@ -4855,16 +4911,29 @@ __LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, 
 {
 	size_t len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	struct hdr_ctx ctx;
-	struct http_txn *txn = htxn->s->txn;
 
 	/* Check if a valid response is parsed */
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
-	ctx.idx = 0;
-	while (http_find_header2(name, len, ci_head(msg->chn), &txn->hdr_idx, &ctx))
-		http_remove_header2(msg, &txn->hdr_idx, &ctx);
+	if (IS_HTX_STRM(htxn->s)) {
+		/* HTX version */
+		struct htx *htx = htxbuf(&msg->chn->buf);
+		struct http_hdr_ctx ctx;
+
+		ctx.blk = NULL;
+		while (http_find_header(htx, ist2(name, len), &ctx, 1))
+			http_remove_header(htx, &ctx);
+	}
+	else {
+		/* Legacy HTTP version */
+		struct hdr_ctx ctx;
+		struct http_txn *txn = htxn->s->txn;
+
+		ctx.idx = 0;
+		while (http_find_header2(name, len, ci_head(msg->chn), &txn->hdr_idx, &ctx))
+			http_remove_header2(msg, &txn->hdr_idx, &ctx);
+	}
 	return 0;
 }
 
@@ -4903,24 +4972,33 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
-	/* Check length. */
-	trash.data = value_len + name_len + 2;
-	if (trash.data > trash.size)
-		return 0;
+	if (IS_HTX_STRM(htxn->s)) {
+		/* HTX version */
+		struct htx *htx = htxbuf(&msg->chn->buf);
 
-	/* Creates the header string. */
-	p = trash.area;
-	memcpy(p, name, name_len);
-	p += name_len;
-	*p = ':';
-	p++;
-	*p = ' ';
-	p++;
-	memcpy(p, value, value_len);
+		lua_pushboolean(L, http_add_header(htx, ist2(name, name_len),
+						   ist2(value, value_len)));
+	}
+	else {
+		/* Legacy HTTP version */
+		/* Check length. */
+		trash.data = value_len + name_len + 2;
+		if (trash.data > trash.size)
+			return 0;
 
-	lua_pushboolean(L, http_header_add_tail2(msg, &htxn->s->txn->hdr_idx,
-	                                         trash.area, trash.data) != 0);
+		/* Creates the header string. */
+		p = trash.area;
+		memcpy(p, name, name_len);
+		p += name_len;
+		*p = ':';
+		p++;
+		*p = ' ';
+		p++;
+		memcpy(p, value, value_len);
 
+		lua_pushboolean(L, http_header_add_tail2(msg, &htxn->s->txn->hdr_idx,
+							 trash.area, trash.data) != 0);
+	}
 	return 0;
 }
 
@@ -5742,11 +5820,6 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	if (!stream)
 		return 0;
 
-	if (IS_HTX_STRM(stream)) {
-		SEND_ERR(stream->be, "Lua converter '%s': Lua fetches cannot be used when the"
-			 " HTX internal representation is enabled.\n", fcn->name);
-		return 0;
-	}
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
@@ -5878,12 +5951,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	if (!stream)
 		return 0;
-
-	if (IS_HTX_STRM(stream)) {
-		SEND_ERR(stream->be, "Lua sample-fetch '%s': Lua fetches cannot be used when the"
-			 " HTX internal representation is enabled.\n", fcn->name);
-		return 0;
-	}
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -6830,11 +6897,6 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	struct hlua_function *fcn = rule->kw->private;
 	int i;
 
-	if (px->options2 & PR_O2_USE_HTX) {
-		memprintf(err, "Lua actions cannot be used when the HTX internal representation is enabled");
-		return ACT_RET_PRS_ERR;
-	}
-
 	/* Memory for the rule. */
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
@@ -7508,33 +7570,6 @@ static struct cfg_kw_list cfg_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
-static int hlua_check_config()
-{
-	struct proxy *px;
-	struct acl *acl;
-	struct acl_expr *expr;
-	struct sample_fetch *fetch;
-	int err = 0;
-
-	for (px = proxies_list; px; px = px->next) {
-		if (!(px->options2 & PR_O2_USE_HTX))
-			continue;
-
-		list_for_each_entry(acl, &px->acl, list) {
-			list_for_each_entry(expr, &acl->expr, list) {
-				fetch = expr->smp->fetch;
-				if (fetch->process != hlua_sample_fetch_wrapper)
-					continue;
-
-				ha_alert("config: %s '%s': sample-fetch '%s' cannot be used used "
-					 "when the HTX internal representation is enabled.\n",
-					 proxy_type_str(px), px->id, fetch->kw);
-				err++;
-			}
-		}
-	}
-	return err;
-}
 
 /* This function can fail with an abort() due to an Lua critical error.
  * We are in the initialisation process of HAProxy, this abort() is
@@ -8198,4 +8233,3 @@ static void hlua_register_build_options(void)
 }
 
 INITCALL0(STG_REGISTER, hlua_register_build_options);
-REGISTER_CONFIG_POSTPARSER("hlua", hlua_check_config);
