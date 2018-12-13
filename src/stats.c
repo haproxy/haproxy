@@ -2712,26 +2712,85 @@ static int stats_process_http_post(struct stream_interface *si)
 	char *st_cur_param = NULL;
 	char *st_next_param = NULL;
 
-	struct buffer *temp;
-	int reql;
+	struct buffer *temp = get_trash_chunk();
 
-	temp = get_trash_chunk();
-	if (temp->size < s->txn->req.body_len) {
+	if (IS_HTX_STRM(s)) {
+		struct htx *htx = htxbuf(&s->req.buf);
+		struct htx_blk *blk;
+		size_t count = co_data(&s->req);
+
+		/* Remove the headers */
+		blk = htx_get_head_blk(htx);
+		while (count && blk) {
+			enum htx_blk_type type = htx_get_blk_type(blk);
+			uint32_t sz = htx_get_blksz(blk);
+
+			if (sz > count) {
+				appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+				return 0;
+			}
+
+			count -= sz;
+			co_set_data(&s->req, co_data(&s->req) - sz);
+			blk = htx_remove_blk(htx, blk);
+
+			if (type == HTX_BLK_EOH)
+				break;
+		}
+
 		/* too large request */
-		appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
-		goto out;
-	}
+		if (htx->data + htx->extra > b_size(temp)) {
+			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+			goto out;
+		}
 
-	reql = co_getblk(si_oc(si), temp->area, s->txn->req.body_len,
-			 s->txn->req.eoh + 2);
-	if (reql <= 0) {
 		/* we need more data */
-		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
-		return 0;
+		if (htx->extra || htx->data > count) {
+			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+			return 0;
+		}
+
+		while (count && blk) {
+			enum htx_blk_type type = htx_get_blk_type(blk);
+			uint32_t sz = htx_get_blksz(blk);
+
+			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+				break;
+			if (type == HTX_BLK_DATA) {
+				struct ist v = htx_get_blk_value(htx, blk);
+
+				if (!chunk_memcat(temp, v.ptr, v.len)) {
+					appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+					goto out;
+				}
+			}
+
+			count -= sz;
+			co_set_data(&s->req, co_data(&s->req) - sz);
+			blk = htx_remove_blk(htx, blk);
+		}
+	}
+	else {
+		int reql;
+
+		if (temp->size < s->txn->req.body_len) {
+			/* too large request */
+			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+			goto out;
+		}
+
+		reql = co_getblk(si_oc(si), temp->area, s->txn->req.body_len,
+				 s->txn->req.eoh + 2);
+		if (reql <= 0) {
+			/* we need more data */
+			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+			return 0;
+		}
+		temp->data = reql;
 	}
 
 	first_param = temp->area;
-	end_params  = temp->area + reql;
+	end_params  = temp->area + temp->data;
 	cur_param = next_param = end_params;
 	*end_params = '\0';
 
