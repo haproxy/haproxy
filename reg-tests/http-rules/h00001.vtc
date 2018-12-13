@@ -187,6 +187,15 @@ client c1h1 -connect ${h1_feh1_sock} {
 } -run
 
 client c1h2 -connect ${h1_feh2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxwinup
+		rxsettings
+		expect settings.ack == true
+	} -run
 	stream 1 {
 		# warning: -req, -scheme, -url MUST be placed first otherwise
 		# the H2 protocol is invalid since they are pseudo-headers
