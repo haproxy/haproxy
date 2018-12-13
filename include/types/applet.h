@@ -66,6 +66,7 @@ struct appctx {
 	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
 	                                               if the command is terminated or the session released */
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
+	int cli_level;              /* the level of CLI which can be lowered dynamically */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	unsigned long thread_mask;      /* mask of thread IDs authorized to process the applet */
 	struct task *t;                  /* task associated to the applet */

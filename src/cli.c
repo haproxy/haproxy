@@ -381,10 +381,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
  */
 int cli_has_level(struct appctx *appctx, int level)
 {
-	struct stream_interface *si = appctx->owner;
-	struct stream *s = si_strm(si);
 
-	if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) < level) {
+	if ((appctx->cli_level & ACCESS_LVL_MASK) < level) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = CLI_ST_PRINT;
@@ -563,6 +561,7 @@ static void cli_io_handler(struct appctx *appctx)
 			/* reset severity to default at init */
 			appctx->cli_severity_output = bind_conf->severity_output;
 			appctx->st0 = CLI_ST_GETREQ;
+			appctx->cli_level = bind_conf->level;
 		}
 		else if (appctx->st0 == CLI_ST_END) {
 			/* Let's close for real now. We just close the request
