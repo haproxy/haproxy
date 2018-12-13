@@ -40,9 +40,84 @@ if [ "$1" = "--help" ]; then
   Configure environment variables to set the haproxy and varnishtest binaries to use
     setenv HAPROXY_PROGRAM /usr/local/sbin/haproxy
     setenv VARNISHTEST_PROGRAM /usr/local/bin/varnishtest
+  or
+    export HAPROXY_PROGRAM=/usr/local/sbin/haproxy
+    export VARNISHTEST_PROGRAM=/usr/local/bin/varnishtest
 EOF
   return
 fi
+
+add_range_to_test_list()
+{
+    level0="*.vtc"
+    level1="h*.vtc"
+    level2="s*.vtc"
+    level3="l*.vtc"
+    level4="b*.vtc"
+    level5="k*.vtc"
+    level6="e*.vtc"
+
+    new_range=$(echo $1 | tr '-' ' ')
+    non_digit=$(echo $new_range | grep '[^0-9 ]')
+    if [ -n "$non_digit" ] ; then
+        return
+    fi
+    if [ "$new_range" = "$1" ] ; then
+        if [ $1 -gt 6 ] ; then
+            return
+        fi
+        eval echo '$'level$1
+        return
+    fi
+    if [ -z "$new_range" ] ; then
+        return
+    fi
+    list=
+    for l in $(seq $new_range) ; do
+        if [ -n "l" ] ; then
+            if [ -z "$list" ] ; then
+                list="$(eval echo '$'level${l})"
+            else
+                list="$list $(eval echo '$'level${l})"
+            fi
+        fi
+    done
+
+    echo $list
+}
+
+
+build_test_list()
+{
+    # Remove any spacing character
+    LEVEL="$(echo $LEVEL | tr -d ' ')"
+    # Replave any comma character by a space character
+    LEVEL="$(echo $LEVEL | tr ',' ' ')"
+    list=
+    for range in $LEVEL ; do
+        if [ -z "$list" ] ; then
+            list=$(add_range_to_test_list $range)
+        else
+            list="$list $(add_range_to_test_list $range)"
+        fi
+    done
+
+    echo $list
+}
+
+build_find_expr()
+{
+    expr=
+    for i in $@; do
+        if [ -z "$expr" ] ; then
+            expr="-name \"$i\""
+        else
+            expr="$expr -o -name \"$i\""
+        fi
+    done
+
+    echo $expr
+}
 
 _startswith() {
   _str="$1"
@@ -53,18 +128,14 @@ _startswith() {
 _findtests() {
   set -f
   LEVEL=${LEVEL:-0};
-  EXPR='*.vtc'
-  if [ $LEVEL = 1 ] ; then
-    EXPR='h*.vtc';
-  elif [ $LEVEL = 2 ] ; then
-    EXPR='s*.vtc';
-  elif [ $LEVEL = 3 ] ; then
-    EXPR='l*.vtc';
-  elif [ $LEVEL = 4 ] ; then
-    EXPR='b*.vtc';
+  list=$(build_test_list "$LEVEL")
+  if [ -z "$list" ] ; then
+      echo "Invalid level specification '"$LEVEL"' or no file was found."
+      exit 1
   fi
+  EXPR=$(build_find_expr $list)
 
-  for i in $( find "$1" -name "$EXPR" ); do
+  for i in $( find "$1" $(eval echo $EXPR) ); do
     skiptest=
     require_version="$(sed -ne 's/^#REQUIRE_VERSION=//p' "$i")"
     require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"

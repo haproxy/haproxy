@@ -1093,10 +1093,34 @@ opts:
 	@echo 'OBJS="$(strip $(OBJS))"'
 
 # Target to run the regression testing script files.
-# LEVEL 1 scripts are dedicated to pure haproxy compliance tests (prefixed with 'h' letter).
-# LEVEL 2 scripts are slow scripts (prefixed with 's' letter).
-# LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter).
-# LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter).
 reg-tests:
 	./scripts/run-regtests.sh --LEVEL "$$LEVEL" $(REG_TEST_FILES)
-.PHONY: reg-tests
+
+reg-tests-help:
+	@echo
+	@echo "To launch the reg tests for haproxy, first export to your environment VARNISHTEST_PROGRAM variable to point to your varnishtest program:"
+	@echo "    $$ export VARNISHTEST_PROGRAM=/opt/local/bin/varnishtest"
+	@echo "or"
+	@echo "    $$ setenv VARNISHTEST_PROGRAM /opt/local/bin/varnishtest"
+	@echo
+	@echo "The same thing may be done to set your haproxy program with HAPROXY_PROGRAM but with ./haproxy as default value."
+	@echo
+	@echo "To run all the tests:"
+	@echo "    $$ make reg-tests"
+	@echo
+	@echo "You can also set the programs to be used on the command line:"
+	@echo "    $$ VARNISHTEST_PROGRAM=<...> HAPROXY_PROGRAM=<...> make reg-tests"
+	@echo
+	@echo "To run tests with specific levels:"
+	@echo "    $$ LEVEL=1,3,4   make reg-tests  #list of levels"
+	@echo "    $$ LEVEL=1-3,5-6 make reg-tests  #list of range of levels"
+	@echo
+	@echo "About the levels:"
+	@echo "    LEVEL 1 scripts are dedicated to pure haproxy compliance tests (prefixed with 'h' letter)."
+	@echo "    LEVEL 2 scripts are slow scripts (prefixed with 's' letter)."
+	@echo "    LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter)."
+	@echo "    LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter)."
+	@echo "    LEVEL 5 scripts are broken scripts, typically used to fastly disable broken scripts (prefixed with 'k' letter)."
+	@echo "    LEVEL 6 scripts are experimental, typically used to develop new scripts (prefixed with 'e' lettre)."
+
+.PHONY: reg-tests reg-tests-help
