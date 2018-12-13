@@ -94,6 +94,7 @@
 
 
 /* flags for the proxy of the master CLI */
+/* 0x1.. to 0x3 are reserved for ACCESS_LVL_MASK */
 
 #define PCLI_F_PROMPT          0x4
 #define PCLI_F_PAYLOAD         0x8

@@ -2517,6 +2517,7 @@ Example:
 
    # haproxy -W -S 127.0.0.1:1234 -f test1.cfg
    # haproxy -Ws -S /tmp/master-socket,uid,1000,gid,1000,mode,600 -f test1.cfg
+   # haproxy -W -S /tmp/master-socket,level,user -f test1.cfg
 
 The master CLI introduces a new 'show proc' command to surpervise the
 processes:

@@ -391,6 +391,15 @@ int cli_has_level(struct appctx *appctx, int level)
 	return 1;
 }
 
+/* same as cli_has_level but for the CLI proxy and without error message */
+int pcli_has_level(struct stream *s, int level)
+{
+	if ((s->pcli_flags & ACCESS_LVL_MASK) < level) {
+		return 0;
+	}
+	return 1;
+}
+
 /* Returns severity_output for the current session if set, or default for the socket */
 static int cli_get_severity_output(struct appctx *appctx)
 {
@@ -1841,6 +1850,23 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		channel_shutr_now(&s->req);
 		channel_shutw_now(&s->res);
 		return argl; /* return the number of elements in the array */
+	} else if (!strcmp(args[0], "operator")) {
+		if (!pcli_has_level(s, ACCESS_LVL_OPER)) {
+			memprintf(errmsg, "Permission denied!\n");
+			return -1;
+		}
+		s->pcli_flags &= ~ACCESS_LVL_MASK;
+		s->pcli_flags |= ACCESS_LVL_OPER;
+		return argl;
+
+	} else if (!strcmp(args[0], "user")) {
+		if (!pcli_has_level(s, ACCESS_LVL_USER)) {
+			memprintf(errmsg, "Permission denied!\n");
+			return -1;
+		}
+		s->pcli_flags &= ~ACCESS_LVL_MASK;
+		s->pcli_flags |= ACCESS_LVL_USER;
+		return argl;
 	}
 
 	return 0;
@@ -1866,6 +1892,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	char *payload = NULL;
 	int wtrim = 0; /* number of words to trim */
 	int reql = 0;
+	int ret;
 	int i = 0;
 
 	p = str;
@@ -1974,15 +2001,29 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 		b_del(&req->buf, trim - str);
 
-		return end - trim;
+		ret = end - trim;
 	} else if (wtrim < 0) {
 		/* parsing error */
 		return -1;
+	} else {
+		/* the whole string */
+		ret = end - str;
 	}
 
-	/* foward the whole comand */
-	return end - str;
+	if (ret > 1) {
+		if (pcli_has_level(s, ACCESS_LVL_ADMIN)) {
+			goto end;
+		} else if (pcli_has_level(s, ACCESS_LVL_OPER)) {
+			ci_insert_line2(req, 0, "operator", strlen("operator"));
+			ret += strlen("operator") + 2;
+		} else if (pcli_has_level(s, ACCESS_LVL_USER)) {
+			ci_insert_line2(req, 0, "user", strlen("user"));
+			ret += strlen("user") + 2;
+		}
+	}
+end:
 
+	return ret;
 }
 
 int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
@@ -1990,6 +2031,9 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	int next_pid = -1;
 	int to_forward;
 	char *errmsg = NULL;
+
+	if ((s->pcli_flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
+		s->pcli_flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
 
 read_again:
 	/* if the channel is closed for read, we won't receive any more data
