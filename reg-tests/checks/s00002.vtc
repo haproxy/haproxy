@@ -1,0 +1,677 @@
+varnishtest "Health-checks"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.8
+
+# This script start 40 servers named s0 up to s39.
+# For 0 <= i <= 19:
+#   - s(i) and s(i+1) belong to backend be(2*i+1),
+#   - fe(2*i+1) backend is configured to used be(2*i+1) backend.
+#   - only s(2*i+1) servers have health-checks enabled,
+#   - we start 20 clients named s(2*i+1) which connect to fe(2*i+1) frontend,
+#   - so that to ensure that health-checks do not consume any connection
+#     (any varnishtest server without -repeat <n> with n > 1 accepts
+#     only one connection).
+
+# Note that the first syslog message received is: "Proxy <name> started."
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S5 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be5 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv5 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S7 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be7 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be7/srv7 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S9 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be9 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be9/srv9 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S11 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be11 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be11/srv11 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S13 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be13 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be13/srv13 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S15 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be15 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be15/srv15 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S17 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be17 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be17/srv17 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S19 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be19 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be19/srv19 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S21 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be21 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be21/srv21 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S23 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be23 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be23/srv23 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S25 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be25 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be25/srv25 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S27 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be27 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be27/srv27 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S29 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be29 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be29/srv29 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S31 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be31 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be31/srv31 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S33 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be33 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be33/srv33 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S35 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be35 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be35/srv35 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S37 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be37 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be37/srv37 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+syslog S39 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be39 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be39/srv39 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+} -start
+
+server s0 {} -start
+server s2 {} -start
+server s4 {} -start
+server s6 {} -start
+server s8 {} -start
+server s10 {} -start
+server s12 {} -start
+server s14 {} -start
+server s16 {} -start
+server s18 {} -start
+server s20 {} -start
+server s22 {} -start
+server s24 {} -start
+server s26 {} -start
+server s28 {} -start
+server s30 {} -start
+server s32 {} -start
+server s34 {} -start
+server s36 {} -start
+server s38 {} -start
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+server s3 {
+    rxreq
+    txresp
+} -start
+
+server s5 {
+    rxreq
+    txresp
+} -start
+
+server s7 {
+    rxreq
+    txresp
+} -start
+
+server s9 {
+    rxreq
+    txresp
+} -start
+
+server s11 {
+    rxreq
+    txresp
+} -start
+
+server s13 {
+    rxreq
+    txresp
+} -start
+
+server s15 {
+    rxreq
+    txresp
+} -start
+
+server s17 {
+    rxreq
+    txresp
+} -start
+
+server s19 {
+    rxreq
+    txresp
+} -start
+
+server s21 {
+    rxreq
+    txresp
+} -start
+
+server s23 {
+    rxreq
+    txresp
+} -start
+
+server s25 {
+    rxreq
+txresp
+} -start
+
+server s27 {
+    rxreq
+    txresp
+} -start
+
+server s29 {
+    rxreq
+    txresp
+} -start
+
+server s31 {
+    rxreq
+    txresp
+} -start
+
+server s33 {
+    rxreq
+    txresp
+} -start
+
+server s35 {
+    rxreq
+    txresp
+} -start
+
+server s37 {
+    rxreq
+    txresp
+} -start
+
+server s39 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+        balance first
+        default-server no-check inter 5ms downinter 1s rise 1 fall 1
+
+    backend be1
+        option log-health-checks
+        log ${S1_addr}:${S1_port} daemon
+        server srv1 ${s1_addr}:${s1_port} check
+        server srv0 ${s0_addr}:${s0_port}
+
+    backend be3
+        option log-health-checks
+        log ${S3_addr}:${S3_port} daemon
+        server srv3 ${s3_addr}:${s3_port} check
+        server srv2 ${s2_addr}:${s2_port}
+
+    backend be5
+        option log-health-checks
+        log ${S5_addr}:${S5_port} daemon
+        server srv5 ${s5_addr}:${s5_port} check
+        server srv4 ${s4_addr}:${s4_port}
+
+    backend be7
+        option log-health-checks
+        log ${S7_addr}:${S7_port} daemon
+        server srv7 ${s7_addr}:${s7_port} check
+        server srv6 ${s6_addr}:${s6_port}
+
+    backend be9
+        option log-health-checks
+        log ${S9_addr}:${S9_port} daemon
+        server srv9 ${s9_addr}:${s9_port} check
+        server srv8 ${s8_addr}:${s8_port}
+
+    backend be11
+        option log-health-checks
+        log ${S11_addr}:${S11_port} daemon
+        server srv11 ${s11_addr}:${s11_port} check
+        server srv10 ${s10_addr}:${s10_port}
+
+    backend be13
+        option log-health-checks
+        log ${S13_addr}:${S13_port} daemon
+        server srv13 ${s13_addr}:${s13_port} check
+        server srv12 ${s12_addr}:${s12_port}
+
+    backend be15
+        option log-health-checks
+        log ${S15_addr}:${S15_port} daemon
+        server srv15 ${s15_addr}:${s15_port} check
+        server srv14 ${s14_addr}:${s14_port}
+
+    backend be17
+        option log-health-checks
+        log ${S17_addr}:${S17_port} daemon
+        server srv17 ${s17_addr}:${s17_port} check
+        server srv16 ${s16_addr}:${s16_port}
+
+    backend be19
+        option log-health-checks
+        log ${S19_addr}:${S19_port} daemon
+        server srv19 ${s19_addr}:${s19_port} check
+        server srv18 ${s18_addr}:${s18_port}
+
+    backend be21
+        option log-health-checks
+        log ${S21_addr}:${S21_port} daemon
+        server srv21 ${s21_addr}:${s21_port} check
+        server srv20 ${s20_addr}:${s20_port}
+
+    backend be23
+        option log-health-checks
+        log ${S23_addr}:${S23_port} daemon
+        server srv23 ${s23_addr}:${s23_port} check
+        server srv22 ${s22_addr}:${s22_port}
+
+    backend be25
+        option log-health-checks
+        log ${S25_addr}:${S25_port} daemon
+        server srv25 ${s25_addr}:${s25_port} check
+        server srv24 ${s24_addr}:${s24_port}
+
+    backend be27
+        option log-health-checks
+        log ${S27_addr}:${S27_port} daemon
+        server srv27 ${s27_addr}:${s27_port} check
+        server srv26 ${s26_addr}:${s26_port}
+
+    backend be29
+        option log-health-checks
+        log ${S29_addr}:${S29_port} daemon
+        server srv29 ${s29_addr}:${s29_port} check
+        server srv28 ${s28_addr}:${s28_port}
+
+    backend be31
+        option log-health-checks
+        log ${S31_addr}:${S31_port} daemon
+        server srv31 ${s31_addr}:${s31_port} check
+        server srv30 ${s30_addr}:${s30_port}
+
+    backend be33
+        option log-health-checks
+        log ${S33_addr}:${S33_port} daemon
+        server srv33 ${s33_addr}:${s33_port} check
+        server srv32 ${s32_addr}:${s32_port}
+
+    backend be35
+        option log-health-checks
+        log ${S35_addr}:${S35_port} daemon
+        server srv35 ${s35_addr}:${s35_port} check
+        server srv34 ${s34_addr}:${s34_port}
+
+    backend be37
+        option log-health-checks
+        log ${S37_addr}:${S37_port} daemon
+        server srv37 ${s37_addr}:${s37_port} check
+        server srv36 ${s36_addr}:${s36_port}
+
+    backend be39
+        option log-health-checks
+        log ${S39_addr}:${S39_port} daemon
+        server srv39 ${s39_addr}:${s39_port} check
+        server srv38 ${s38_addr}:${s38_port}
+
+    frontend fe1
+        bind "fd@${fe1}"
+        use_backend be1
+
+    frontend fe3
+        bind "fd@${fe3}"
+        use_backend be3
+
+    frontend fe5
+        bind "fd@${fe5}"
+        use_backend be5
+
+    frontend fe7
+        bind "fd@${fe7}"
+        use_backend be7
+
+    frontend fe9
+        bind "fd@${fe9}"
+        use_backend be9
+
+    frontend fe11
+        bind "fd@${fe11}"
+        use_backend be11
+
+    frontend fe13
+        bind "fd@${fe13}"
+        use_backend be13
+
+    frontend fe15
+        bind "fd@${fe15}"
+        use_backend be15
+
+    frontend fe17
+        bind "fd@${fe17}"
+        use_backend be17
+
+    frontend fe19
+        bind "fd@${fe19}"
+        use_backend be19
+
+    frontend fe21
+        bind "fd@${fe21}"
+        use_backend be21
+
+    frontend fe23
+        bind "fd@${fe23}"
+        use_backend be23
+
+    frontend fe25
+        bind "fd@${fe25}"
+        use_backend be25
+
+    frontend fe27
+        bind "fd@${fe27}"
+        use_backend be27
+
+    frontend fe29
+        bind "fd@${fe29}"
+        use_backend be29
+
+    frontend fe31
+        bind "fd@${fe31}"
+        use_backend be31
+
+    frontend fe33
+        bind "fd@${fe33}"
+        use_backend be33
+
+    frontend fe35
+        bind "fd@${fe35}"
+        use_backend be35
+
+    frontend fe37
+        bind "fd@${fe37}"
+        use_backend be37
+
+    frontend fe39
+        bind "fd@${fe39}"
+        use_backend be39
+} -start
+
+# This is a sort of synchronization: after having waited for all the syslog
+# servers we are sure that all the health-checks have succeeded.
+syslog S1 -wait
+syslog S3 -wait
+syslog S5 -wait
+syslog S7 -wait
+syslog S9 -wait
+syslog S11 -wait
+syslog S13 -wait
+syslog S15 -wait
+syslog S17 -wait
+syslog S19 -wait
+syslog S21 -wait
+syslog S23 -wait
+syslog S25 -wait
+syslog S27 -wait
+syslog S29 -wait
+syslog S31 -wait
+syslog S33 -wait
+syslog S35 -wait
+syslog S37 -wait
+syslog S39 -wait
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c3 -connect ${h1_fe3_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c5 -connect ${h1_fe5_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c7 -connect ${h1_fe7_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c9 -connect ${h1_fe9_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c11 -connect ${h1_fe11_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c13 -connect ${h1_fe13_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c15 -connect ${h1_fe15_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c17 -connect ${h1_fe17_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c19 -connect ${h1_fe19_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c21 -connect ${h1_fe21_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c23 -connect ${h1_fe23_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c25 -connect ${h1_fe25_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c27 -connect ${h1_fe27_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c29 -connect ${h1_fe29_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c31 -connect ${h1_fe31_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c33 -connect ${h1_fe33_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c35 -connect ${h1_fe35_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c37 -connect ${h1_fe37_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c39 -connect ${h1_fe39_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -start
+
+client c1 -wait
+client c3 -wait
+client c5 -wait
+client c7 -wait
+client c9 -wait
+client c11 -wait
+client c13 -wait
+client c15 -wait
+client c17 -wait
+client c19 -wait
+client c21 -wait
+client c23 -wait
+client c25 -wait
+client c27 -wait
+client c29 -wait
+client c31 -wait
+client c33 -wait
+client c35 -wait
+client c37 -wait
+client c39 -wait
+
+server s1 -wait
+server s3 -wait
+server s5 -wait
+server s7 -wait
+server s9 -wait
+server s11 -wait
+server s13 -wait
+server s15 -wait
+server s17 -wait
+server s19 -wait
+server s21 -wait
+server s23 -wait
+server s25 -wait
+server s27 -wait
+server s29 -wait
+server s31 -wait
+server s33 -wait
+server s35 -wait
+server s37 -wait
+server s39 -wait
+
+
+haproxy h1 -cli {
+    send "show servers state"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n2 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s1_port} -\n2 be1 2 srv0 ${s0_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s0_port} -\n3 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s3_port} -\n3 be3 2 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s2_port} -\n4 be5 1 srv5 ${s5_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s5_port} -\n4 be5 2 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s4_port} -\n5 be7 1 srv7 ${s7_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s7_port} -\n5 be7 2 srv6 ${s6_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s6_port} -\n6 be9 1 srv9 ${s9_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s9_port} -\n6 be9 2 srv8 ${s8_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s8_port} -\n7 be11 1 srv11 ${s11_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s11_port} -\n7 be11 2 srv10 ${s10_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s10_port} -\n8 be13 1 srv13 ${s13_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s13_port} -\n8 be13 2 srv12 ${s12_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s12_port} -\n9 be15 1 srv15 ${s15_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s15_port} -\n9 be15 2 srv14 ${s14_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s14_port} -\n10 be17 1 srv17 ${s17_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s17_port} -\n10 be17 2 srv16 ${s16_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s16_port} -\n11 be19 1 srv19 ${s19_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s19_port} -\n11 be19 2 srv18 ${s18_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s18_port} -\n12 be21 1 srv21 ${s21_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s21_port} -\n12 be21 2 srv20 ${s20_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s20_port} -\n13 be23 1 srv23 ${s23_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s23_port} -\n13 be23 2 srv22 ${s22_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s22_port} -\n14 be25 1 srv25 ${s25_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s25_port} -\n14 be25 2 srv24 ${s24_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s24_port} -\n15 be27 1 srv27 ${s27_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s27_port} -\n15 be27 2 srv26 ${s26_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s26_port} -\n16 be29 1 srv29 ${s29_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s29_port} -\n16 be29 2 srv28 ${s28_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s28_port} -\n17 be31 1 srv31 ${s31_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s31_port} -\n17 be31 2 srv30 ${s30_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s30_port} -\n18 be33 1 srv33 ${s33_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s33_port} -\n18 be33 2 srv32 ${s32_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s32_port} -\n19 be35 1 srv35 ${s35_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s35_port} -\n19 be35 2 srv34 ${s34_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s34_port} -\n20 be37 1 srv37 ${s37_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s37_port} -\n20 be37 2 srv36 ${s36_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s36_port} -\n21 be39 1 srv39 ${s39_addr} 2 0 1 1 [[:digit:]]+ 6 ([[:digit:]]+ ){3}0 0 0 - ${s39_port} -\n21 be39 2 srv38 ${s38_addr} 2 0 1 1 [[:digit:]]+ 1 0 1 0 0 0 0 - ${s38_port} -\n"
+}
+
