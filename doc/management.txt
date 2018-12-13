@@ -1804,6 +1804,31 @@ show acl [<acl>]
 show backend
   Dump the list of backends available in the running process
 
+show cli level
+  Display the CLI level of the current CLI session. The result could be
+  'admin', 'operator' or 'user'. See also the 'operator' and 'user' commands.
+
+  Example :
+
+    $ socat /tmp/sock1 readline
+    prompt
+    > operator
+    > show cli level
+    operator
+    > user
+    > show cli level
+    user
+    > operator
+    Permission denied
+
+operator
+  Decrease the CLI level of the current CLI session to operator. It can't be
+  increase. See also "show cli level"
+
+user
+  Decrease the CLI level of the current CLI session to user. It can't be
+  increase. See also "show cli level"
+
 show cli sockets
   List CLI sockets. The output format is composed of 3 fields separated by
   spaces. The first field is the socket address, it can be a unix socket, a

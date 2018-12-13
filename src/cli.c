@@ -1269,6 +1269,46 @@ static int cli_parse_set_severity_output(char **args, char *payload, struct appc
 	return 1;
 }
 
+
+/* show the level of the current CLI session */
+static int cli_parse_show_lvl(char **args, char *payload, struct appctx *appctx, void *private)
+{
+
+	appctx->ctx.cli.severity = LOG_INFO;
+	if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
+		appctx->ctx.cli.msg = "admin\n";
+	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
+		appctx->ctx.cli.msg = "operator\n";
+	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
+		appctx->ctx.cli.msg = "user\n";
+	else
+		appctx->ctx.cli.msg = "unknown\n";
+
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+
+}
+
+/* parse and set the CLI level dynamically */
+static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!strcmp(args[0], "operator")) {
+		if (!cli_has_level(appctx, ACCESS_LVL_OPER)) {
+			return 1;
+		}
+		appctx->cli_level &= ~ACCESS_LVL_MASK;
+		appctx->cli_level |= ACCESS_LVL_OPER;
+
+	} else if (!strcmp(args[0], "user")) {
+		if (!cli_has_level(appctx, ACCESS_LVL_USER)) {
+			return 1;
+		}
+		appctx->cli_level &= ~ACCESS_LVL_MASK;
+		appctx->cli_level |= ACCESS_LVL_USER;
+	}
+	return 1;
+}
+
 int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	return 0;
@@ -2528,9 +2568,12 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
 	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
+	{ { "show", "cli", "level", NULL },    "show cli level   : display the level of the current CLI session", cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "show", "fd", NULL }, "show fd [num] : dump list of file descriptors in use", cli_parse_show_fd, cli_io_handler_show_fd, NULL },
 	{ { "show", "activity", NULL }, "show activity : show per-thread activity stats (for support/developers)", cli_parse_default, cli_io_handler_show_activity, NULL },
 	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "operator", NULL },  "operator       : lower the level of the current CLI session to operator", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
+	{ { "user", NULL },      "user           : lower the level of the current CLI session to user", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
 	{{},}
 }};
