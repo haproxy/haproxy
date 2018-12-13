@@ -1,0 +1,95 @@
+varnishtest "Check: smptchk option"
+feature ignore_unknown_macro
+
+barrier b cond 3
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded, reason: Layer7 check passed, code: 248, check duration: [[:digit:]]+ms, status: 1/1 UP."
+    barrier b sync
+    recv
+    expect ~ "Health check for server be1/srv1 failed, reason: Layer7 timeout, check duration: [[:digit:]]+ms, status: 0/1 DOWN"
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded, reason: Layer7 check passed, code: 200, info: \"OK\", check duration: [[:digit:]]+ms, status: 1/1 UP."
+    barrier b sync
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 failed, reason: Layer7 timeout, check duration: [[:digit:]]+ms, status: 0/1 DOWN"
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 failed, reason: Layer4 connection problem, info: \"General socket error \\(Network is unreachable\\)\", check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 failed, reason: Layer4 connection problem, info: \"Connection refused\", check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+server s1 {
+    recv 16
+    send "2"
+    send "4"
+    send "8"
+    send "\r\n\r\n"
+} -start
+
+server s2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+        option log-health-checks
+        default-server downinter 1s rise 1 fall 1
+
+    backend be1
+        option smtpchk
+        log ${S1_addr}:${S1_port} daemon
+        server srv1 ${s1_addr}:${s1_port} check
+
+    backend be2
+        mode tcp
+        log ${S2_addr}:${S2_port} daemon
+        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        server srv2  ${s2_addr}:${s2_port} check
+
+    backend be3
+        log ${S3_addr}:${S3_port} daemon
+        server srv3 255.255.255.255:11111 check
+
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        server srv4 localhost:11111 check
+} -start
+
+haproxy h1 -cli {
+    barrier b sync
+    send "show servers state"
+    expect ~ .*
+}
+
+server s1 -wait
+server s2 -wait
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait
+syslog S4 -wait
+
+
