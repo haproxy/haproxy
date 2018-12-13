@@ -3484,7 +3484,8 @@ void http_end_txn_clean_session(struct stream *s)
 	 * We then can call si_release_endpoint() to destroy the conn_stream
 	 */
 	if (((s->txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(&s->si[1]))
+	    !si_conn_ready(&s->si[1]) ||
+	    (srv_conn && srv_conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
 		srv_conn = NULL;
 	else if (!srv_conn->owner) {
 		srv_conn->owner = s->sess;
