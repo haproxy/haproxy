@@ -1933,16 +1933,9 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		return -1;
 	}
 
-	/* last line of the payload */
-	if ((s->pcli_flags & PCLI_F_PAYLOAD) && (reql == 1)) {
-		s->pcli_flags &= ~PCLI_F_PAYLOAD;
-		return reql;
-	}
-
-	payload = strstr(p, PAYLOAD_PATTERN);
-	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
-		/* if the payload pattern is at the end */
-		s->pcli_flags |= PCLI_F_PAYLOAD;
+	if (s->pcli_flags & PCLI_F_PAYLOAD) {
+		if (reql == 1) /* last line of the payload */
+			s->pcli_flags &= ~PCLI_F_PAYLOAD;
 		return reql;
 	}
 
@@ -1986,10 +1979,17 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	/* End of words are ending by \0, we need to replace the \0s by spaces
 1	   before forwarding them */
 	p = str;
-	while (p < end) {
+	while (p < end-1) {
 		if (*p == '\0')
 			*p = ' ';
 		p++;
+	}
+
+	payload = strstr(str, PAYLOAD_PATTERN);
+	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
+		/* if the payload pattern is at the end */
+		s->pcli_flags |= PCLI_F_PAYLOAD;
+		ret = reql;
 	}
 
 	*(end-1) = '\n';
