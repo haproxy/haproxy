@@ -394,6 +394,8 @@ enum stat_field {
 	ST_F_WREW,
 	ST_F_CONNECT,
 	ST_F_REUSE,
+	ST_F_CACHE_LOOKUPS,
+	ST_F_CACHE_HITS,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS

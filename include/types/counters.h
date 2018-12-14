@@ -56,6 +56,8 @@ struct fe_counters {
 			long long comp_rsp;     /* number of compressed responses */
 			unsigned int rps_max;   /* maximum of new HTTP requests second observed */
 			long long rsp[6];       /* http response codes */
+			long long cache_lookups;/* cache lookups */
+			long long cache_hits;   /* cache hits */
 		} http;
 	} p;                                    /* protocol-specific stats */
 };
@@ -105,6 +107,8 @@ struct be_counters {
 			long long comp_rsp;     /* number of compressed responses */
 			unsigned int rps_max;   /* maximum of new HTTP requests second observed */
 			long long rsp[6];       /* http response codes */
+			long long cache_lookups;/* cache lookups */
+			long long cache_hits;   /* cache hits */
 		} http;
 	} p;                                    /* protocol-specific stats */
 };

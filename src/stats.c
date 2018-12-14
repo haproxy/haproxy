@@ -230,6 +230,8 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_WREW]           = "wrew",
 	[ST_F_CONNECT]        = "connect",
 	[ST_F_REUSE]          = "reuse",
+	[ST_F_CACHE_LOOKUPS]  = "cache_lookups",
+	[ST_F_CACHE_HITS]     = "cache_hits",
 };
 
 /* one line of info */
@@ -724,6 +726,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
+			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "",
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
@@ -737,6 +741,10 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
 			              U2H(stats[ST_F_INTERCEPTED].u.u64),
+			              U2H(stats[ST_F_CACHE_LOOKUPS].u.u64),
+			              U2H(stats[ST_F_CACHE_HITS].u.u64),
+			              stats[ST_F_CACHE_LOOKUPS].u.u64 ?
+			              (int)(100 * stats[ST_F_CACHE_HITS].u.u64 / stats[ST_F_CACHE_LOOKUPS].u.u64) : 0,
 			              U2H(stats[ST_F_WREW].u.u64));
 		}
 
@@ -1198,6 +1206,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
+			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
+			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
 			              "",
@@ -1215,6 +1225,10 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
+			              U2H(stats[ST_F_CACHE_LOOKUPS].u.u64),
+			              U2H(stats[ST_F_CACHE_HITS].u.u64),
+			              stats[ST_F_CACHE_LOOKUPS].u.u64 ?
+			              (int)(100 * stats[ST_F_CACHE_HITS].u.u64 / stats[ST_F_CACHE_LOOKUPS].u.u64) : 0,
 			              U2H(stats[ST_F_WREW].u.u64));
 		}
 
@@ -1363,6 +1377,8 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
 		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
 		stats[ST_F_INTERCEPTED] = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
+		stats[ST_F_CACHE_LOOKUPS] = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
+		stats[ST_F_CACHE_HITS]    = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
 	}
 
 	/* requests : req_rate, req_rate_max, req_tot, */
@@ -1839,6 +1855,8 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
 		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
 		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
+		stats[ST_F_CACHE_LOOKUPS] = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
+		stats[ST_F_CACHE_HITS]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
 	}
 
 	stats[ST_F_CLI_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
