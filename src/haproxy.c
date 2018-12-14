@@ -540,7 +540,8 @@ static void mworker_proc_list_to_env()
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
+		if (child->pid > -1)
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
