@@ -44,6 +44,7 @@ struct cs_info;
 struct buffer;
 struct proxy;
 struct server;
+struct session;
 struct pipe;
 
 enum sub_event_type {
@@ -319,7 +320,7 @@ struct xprt_ops {
  * layer is not ready yet.
  */
 struct mux_ops {
-	int  (*init)(struct connection *conn, struct proxy *prx);  /* early initialization */
+	int  (*init)(struct connection *conn, struct proxy *prx, struct session *sess);  /* early initialization */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */
@@ -328,7 +329,7 @@ struct mux_ops {
 	void (*shutr)(struct conn_stream *cs, enum cs_shr_mode);     /* shutr function */
 	void (*shutw)(struct conn_stream *cs, enum cs_shw_mode);     /* shutw function */
 
-	struct conn_stream *(*attach)(struct connection *); /* Create and attach a conn_stream to an outgoing connection */
+	struct conn_stream *(*attach)(struct connection *, struct session *sess); /* Create and attach a conn_stream to an outgoing connection */
 	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */

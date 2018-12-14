@@ -175,6 +175,7 @@ enum h2_ss {
  */
 struct h2s {
 	struct conn_stream *cs;
+	struct session *sess;
 	struct h2c *h2c;
 	struct h1m h1m;         /* request or response parser state for H1 */
 	struct eb32_node by_id; /* place in h2c's streams_by_id */
@@ -245,7 +246,7 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2s_decode_headers(struct h2s *h2s);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs);
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -376,7 +377,7 @@ static int h2_max_streams(struct connection *conn)
  * connections from the fact that the context is still NULL. Returns < 0 on
  * error.
  */
-static int h2_init(struct connection *conn, struct proxy *prx)
+static int h2_init(struct connection *conn, struct proxy *prx, struct session *sess)
 {
 	struct h2c *h2c;
 	struct task *t = NULL;
@@ -457,7 +458,7 @@ static int h2_init(struct connection *conn, struct proxy *prx)
 		 */
 		struct h2s *h2s;
 
-		h2s = h2c_bck_stream_new(h2c, conn->mux_ctx);
+		h2s = h2c_bck_stream_new(h2c, conn->mux_ctx, sess);
 		if (!h2s)
 			goto fail_stream;
 	}
@@ -830,7 +831,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
  * and returns it, or NULL in case of memory allocation error or if the highest
  * possible stream ID was reached.
  */
-static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs)
+static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess)
 {
 	struct h2s *h2s = NULL;
 
@@ -843,6 +844,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs)
 		goto out;
 
 	h2s->cs = cs;
+	h2s->sess = sess;
 	cs->ctx = h2s;
 	h2c->nb_cs++;
 
@@ -2747,7 +2749,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *h2_attach(struct connection *conn)
+static struct conn_stream *h2_attach(struct connection *conn, struct session *sess)
 {
 	struct conn_stream *cs;
 	struct h2s *h2s;
@@ -2756,7 +2758,7 @@ static struct conn_stream *h2_attach(struct connection *conn)
 	cs = cs_new(conn);
 	if (!cs)
 		return NULL;
-	h2s = h2c_bck_stream_new(h2c, cs);
+	h2s = h2c_bck_stream_new(h2c, cs, sess);
 	if (!h2s) {
 		cs_free(cs);
 		return NULL;
@@ -2803,11 +2805,13 @@ static void h2_detach(struct conn_stream *cs)
 {
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c;
+	struct session *sess;
 
 	cs->ctx = NULL;
 	if (!h2s)
 		return;
 
+	sess = h2s->sess;
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
 	h2c->nb_cs--;
@@ -2840,16 +2844,11 @@ static void h2_detach(struct conn_stream *cs)
 
 	if (h2c->flags & H2_CF_IS_BACK &&
 	    (h2c->proxy->options2 & PR_O2_USE_HTX)) {
-		struct stream_interface *si;
-		struct stream *s;
-
-		si = cs->data;
-		s = si_strm(si);
 		if (!(h2c->conn->flags &
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 			if (!h2c->conn->owner) {
-				h2c->conn->owner = s->sess;
-				session_add_conn(s->sess, h2c->conn, s->target);
+				h2c->conn->owner = sess;
+				session_add_conn(sess, h2c->conn, h2c->conn->target);
 			}
 			/* Never ever allow to reuse a connection from a non-reuse backend */
 			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)

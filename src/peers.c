@@ -2000,7 +2000,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 
 	conn_prepare(conn, peer->proto, peer->xprt);
-	conn_install_mux(conn, &mux_pt_ops, cs, s->be);
+	conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL);
 	si_attach_cs(&s->si[1], cs);
 
 	s->do_log = NULL;

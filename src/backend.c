@@ -1074,7 +1074,7 @@ static int conn_complete_server(struct connection *conn)
 	cs = si_alloc_cs(&s->si[1], conn);
 	if (!cs)
 		goto fail;
-	if (conn_install_mux_be(conn, cs) < 0)
+	if (conn_install_mux_be(conn, cs, s->sess) < 0)
 		goto fail;
 	srv = objt_server(s->target);
 	if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
@@ -1275,7 +1275,7 @@ int connect_server(struct stream *s)
 				LIST_DEL(&srv_conn->list);
 				LIST_INIT(&srv_conn->list);
 			}
-			srv_cs = srv_conn->mux->attach(srv_conn);
+			srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
 			if (srv_cs)
 				si_attach_cs(&s->si[1], srv_cs);
 		}
@@ -1324,7 +1324,7 @@ int connect_server(struct stream *s)
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
 			}
-			if (conn_install_mux_be(srv_conn, srv_cs) < 0)
+			if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0)
 				return SF_ERR_INTERNAL;
 			/* If we're doing http-reuse always, and the connection
 			 * is an http2 connection, add it to the available list,

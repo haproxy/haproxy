@@ -92,6 +92,7 @@ struct h1s {
 	struct wait_event *recv_wait; /* Address of the wait_event the conn_stream associated is waiting on */
 	struct wait_event *send_wait; /* Address of the wait_event the conn_stream associated is waiting on */
 
+	struct session *sess;         /* Associated session */
 	struct h1m req;
 	struct h1m res;
 
@@ -239,7 +240,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 	return NULL;
 }
 
-static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs)
+static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
 {
 	struct h1s *h1s;
 
@@ -249,6 +250,8 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs)
 
 	h1s->h1c = h1c;
 	h1c->h1s = h1s;
+
+	h1s->sess = sess;
 
 	h1s->cs    = NULL;
 	h1s->flags = H1S_F_NONE;
@@ -291,7 +294,8 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs)
 		h1s->cs = cs;
 	}
 	else {
-		struct session *sess = h1c->conn->owner;
+		/* For frontend connections we should always have a session */
+		sess = h1c->conn->owner;
 
 		h1s->csinfo.create_date = sess->accept_date;
 		h1s->csinfo.tv_create   = sess->tv_accept;
@@ -345,7 +349,7 @@ static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
  * points to the existing conn_stream (for outgoing connections) or NULL (for
  * incoming ones). Returns < 0 on error.
  */
-static int h1_init(struct connection *conn, struct proxy *proxy)
+static int h1_init(struct connection *conn, struct proxy *proxy, struct session *sess)
 {
 	struct h1c *h1c;
 
@@ -372,7 +376,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy)
 		h1c->flags |= H1C_F_CS_WAIT_CONN;
 
 	/* Always Create a new H1S */
-	if (!h1s_create(h1c, conn->mux_ctx))
+	if (!h1s_create(h1c, conn->mux_ctx, sess))
 		goto fail;
 
 	conn->mux_ctx = h1c;
@@ -616,19 +620,19 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 {
 	struct h1c *h1c = h1s->h1c;
-	struct session *sess = h1c->conn->owner;
-	struct proxy *fe = sess->fe;
+	struct session *sess = h1s->sess;
 	struct proxy *be = h1c->px;
 	int flag =  H1S_F_WANT_KAL;
+	int fe_flags = sess ? sess->fe->options : 0;
 
 	/* Tunnel mode can only by set on the frontend */
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+	if ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
 		flag = H1S_F_WANT_TUN;
 
 	/* For the server connection: server-close == httpclose */
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+	if ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
 	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-	    (fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
+	    (fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
 	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
 		flag = H1S_F_WANT_CLO;
 
@@ -1789,7 +1793,7 @@ static int h1_process(struct h1c * h1c)
 		    conn_xprt_read0_pending(conn))
 			goto release;
 		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))) {
-			if (!h1s_create(h1c, NULL))
+			if (!h1s_create(h1c, NULL, NULL))
 				goto release;
 		}
 		else
@@ -1865,7 +1869,7 @@ static int h1_wake(struct connection *conn)
  * Attach a new stream to a connection
  * (Used for outgoing connections)
  */
-static struct conn_stream *h1_attach(struct connection *conn)
+static struct conn_stream *h1_attach(struct connection *conn, struct session *sess)
 {
 	struct h1c *h1c = conn->mux_ctx;
 	struct conn_stream *cs = NULL;
@@ -1878,7 +1882,7 @@ static struct conn_stream *h1_attach(struct connection *conn)
 	if (!cs)
 		goto end;
 
-	h1s = h1s_create(h1c, cs);
+	h1s = h1s_create(h1c, cs, sess);
 	if (h1s == NULL)
 		goto end;
 
@@ -1917,6 +1921,7 @@ static void h1_detach(struct conn_stream *cs)
 {
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
+	struct session *sess;
 	int has_keepalive;
 	int is_not_first;
 
@@ -1924,6 +1929,7 @@ static void h1_detach(struct conn_stream *cs)
 	if (!h1s)
 		return;
 
+	sess = h1s->sess;
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
@@ -1933,16 +1939,13 @@ static void h1_detach(struct conn_stream *cs)
 
 	if (conn_is_back(h1c->conn) && has_keepalive &&
 	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
-	        struct stream_interface *si = cs->data;
-		struct stream *s = si_strm(si);
-
 		/* Never ever allow to reuse a connection from a non-reuse backend */
 		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			h1c->conn->flags |= CO_FL_PRIVATE;
 
 		if (!(h1c->conn->owner)) {
-			h1c->conn->owner = s->sess;
-			session_add_conn(s->sess, h1c->conn, s->target);
+			h1c->conn->owner = sess;
+			session_add_conn(sess, h1c->conn, h1c->conn->target);
 		}
 		/* we're in keep-alive with an idle connection, monitor it if not already done */
 		if (LIST_ISEMPTY(&h1c->conn->list)) {

@@ -816,11 +816,11 @@ static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct tas
  * Returns < 0 on error.
  */
 static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux,
-                                   void *ctx, struct proxy *prx)
+                                   void *ctx, struct proxy *prx, struct session *sess)
 {
 	conn->mux = mux;
 	conn->mux_ctx = ctx;
-	return mux->init ? mux->init(conn, prx) : 0;
+	return mux->init ? mux->init(conn, prx, sess) : 0;
 }
 
 /* returns a human-readable error code for conn->err_code, or NULL if the code
@@ -1093,14 +1093,14 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 		if (!mux_ops)
 			return -1;
 	}
-	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend);
+	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend, conn->owner);
 }
 
 /* installs the best mux for outgoing connection <conn> using the upper context
  * <ctx>. If the mux protocol is forced, we use it to find the best mux. Returns
  * < 0 on error.
  */
-static inline int conn_install_mux_be(struct connection *conn, void *ctx)
+static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess)
 {
 	struct server *srv = objt_server(conn->target);
 	struct proxy  *prx = objt_proxy(conn->target);
@@ -1134,7 +1134,7 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx)
 		if (!mux_ops)
 			return -1;
 	}
-	return conn_install_mux(conn, mux_ops, ctx, prx);
+	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
 }
 
 #endif /* _PROTO_CONNECTION_H */
