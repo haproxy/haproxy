@@ -2444,8 +2444,6 @@ static int h2_recv(struct h2c *h2c)
 	}
 
 	do {
-		int aligned = 0;
-
 		b_realign_if_empty(buf);
 		if (!b_data(buf) && (h2c->proxy->options2 & PR_O2_USE_HTX)) {
 			/* HTX in use : try to pre-align the buffer like the
@@ -2457,9 +2455,7 @@ static int h2_recv(struct h2c *h2c)
 			 * have a few bytes there.
 			 */
 			max = buf_room_for_htx_data(buf) + 9;
-			buf->head = 0;
-			buf->data = sizeof(struct htx) - 9;
-			aligned = 1;
+			buf->head = sizeof(struct htx) - 9;
 		}
 		else
 			max = b_room(buf);
@@ -2468,11 +2464,6 @@ static int h2_recv(struct h2c *h2c)
 			ret = conn->xprt->rcv_buf(conn, buf, max, 0);
 		else
 			ret = 0;
-
-		if (aligned) {
-			buf->data -= sizeof(struct htx) - 9;
-			buf->head  = sizeof(struct htx) - 9;
-		}
 	} while (ret > 0);
 
 	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))

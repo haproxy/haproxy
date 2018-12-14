@@ -1664,7 +1664,6 @@ static int h1_recv(struct h1c *h1c)
 
 	max = buf_room_for_htx_data(&h1c->ibuf);
 	if (max) {
-		int aligned = 0;
 		h1c->flags &= ~H1C_F_IN_FULL;
 
 		b_realign_if_empty(&h1c->ibuf);
@@ -1672,14 +1671,9 @@ static int h1_recv(struct h1c *h1c)
 			/* try to pre-align the buffer like the rxbufs will be
 			 * to optimize memory copies.
 			 */
-			h1c->ibuf.data  = sizeof(struct htx);
-			aligned = 1;
-		}
-		ret = conn->xprt->rcv_buf(conn, &h1c->ibuf, max, 0);
-		if (aligned) {
-			h1c->ibuf.data -= sizeof(struct htx);
 			h1c->ibuf.head  = sizeof(struct htx);
 		}
+		ret = conn->xprt->rcv_buf(conn, &h1c->ibuf, max, 0);
 	}
 	if (ret > 0) {
 		rcvd = 1;
