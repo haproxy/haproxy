@@ -421,6 +421,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->fe_sps_lim = defproxy.fe_sps_lim;
 
 			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
+			curproxy->max_out_conns = defproxy.max_out_conns;
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -1326,6 +1327,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->server_state_file_name = strdup(curproxy->id);
 		else
 			curproxy->server_state_file_name = strdup(args[1]);
+	}
+	else if (!strcmp(args[0], "max-session-srv-conns")) {
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+		if (*(args[1]) == 0) {
+			ha_alert("parsine [%s:%d] : '%s' expects a number. Got no argument\n",
+			    file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curproxy->max_out_conns = atoi(args[1]);
 	}
 	else if (!strcmp(args[0], "capture")) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))

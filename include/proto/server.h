@@ -233,6 +233,27 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 	return ret;
 }
 
+static inline int srv_add_to_idle_list(struct server *srv, struct connection *conn)
+{
+	if (srv && srv->pool_purge_delay > 0 && (srv->max_idle_conns == -1 ||
+	    srv->max_idle_conns > srv->curr_idle_conns) &&
+	    !(conn->flags & CO_FL_PRIVATE) &&
+	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+	    conn->mux->avail_streams(conn) == conn->mux->max_streams(conn)) {
+		LIST_DEL(&conn->list);
+		LIST_ADDQ(&srv->idle_orphan_conns[tid], &conn->list);
+		srv->curr_idle_conns++;
+
+		conn->idle_time = now_ms;
+		if (!(task_in_wq(srv->idle_task[tid])) &&
+		    !(task_in_rq(srv->idle_task[tid])))
+			task_schedule(srv->idle_task[tid],
+			    tick_add(now_ms, srv->pool_purge_delay));
+		return 1;
+	}
+	return 0;
+}
+
 #endif /* _PROTO_SERVER_H */
 
 /*

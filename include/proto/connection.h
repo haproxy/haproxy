@@ -664,7 +664,11 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 static inline void conn_free(struct connection *conn)
 {
 	/* Remove ourself from the session's connections list, if any. */
-	LIST_DEL(&conn->session_list);
+	if (!LIST_ISEMPTY(&conn->session_list)) {
+		struct session *sess = conn->owner;
+		sess->resp_conns--;
+		LIST_DEL(&conn->session_list);
+	}
 	/* If we temporarily stored the connection as the stream_interface's
 	 * end point, remove it.
 	 */

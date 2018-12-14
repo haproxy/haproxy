@@ -1254,8 +1254,9 @@ int connect_server(struct stream *s)
 				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
 					LIST_DEL(&old_conn->session_list);
 					LIST_INIT(&old_conn->session_list);
-					session_add_conn(sess, old_conn, s->target);
 					old_conn->owner = sess;
+					session_add_conn(sess, old_conn, s->target);
+					session_check_idle_conn(sess, old_conn);
 				}
 			}
 
@@ -1283,6 +1284,7 @@ int connect_server(struct stream *s)
 	if (srv_conn && old_conn != srv_conn) {
 		srv_conn->owner = s->sess;
 		LIST_DEL(&srv_conn->session_list);
+		LIST_INIT(&srv_conn->session_list);
 		session_add_conn(s->sess, srv_conn, s->target);
 	}
 

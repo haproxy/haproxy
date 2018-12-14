@@ -3489,9 +3489,19 @@ void http_end_txn_clean_session(struct stream *s)
 		srv_conn = NULL;
 	else if (!srv_conn->owner) {
 		srv_conn->owner = s->sess;
+		/* Add it unconditionally to the session list, it'll be removed
+		 * later if needed by session_check_idle_conn(), once we'll
+		 * have released the endpoint and know if it no longer has
+		 * attached streams, and so an idling connection
+		 */
 		session_add_conn(s->sess, srv_conn, s->target);
 	}
 	si_release_endpoint(&s->si[1]);
+	if (srv_conn && srv_conn->owner == s->sess) {
+		if (session_check_idle_conn(s->sess, srv_conn) != 0)
+			srv_conn = NULL;
+	}
+
 
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;

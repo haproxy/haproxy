@@ -1947,6 +1947,19 @@ static void h1_detach(struct conn_stream *cs)
 			h1c->conn->owner = sess;
 			session_add_conn(sess, h1c->conn, h1c->conn->target);
 		}
+		if (h1c->conn->owner == sess) {
+			int ret = session_check_idle_conn(sess, h1c->conn);
+			if (ret == -1)
+				/* The connection got destroyed, let's leave */
+				return;
+			else if (ret == 1) {
+				/* The connection was added to the server list,
+				 * wake the task so we can subscribe to events
+				 */
+				tasklet_wakeup(h1c->wait_event.task);
+				return;
+			}
+		}
 		/* we're in keep-alive with an idle connection, monitor it if not already done */
 		if (LIST_ISEMPTY(&h1c->conn->list)) {
 			struct server *srv = objt_server(h1c->conn->target);

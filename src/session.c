@@ -64,6 +64,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 			sess->srv_list[i].target = NULL;
 			LIST_INIT(&sess->srv_list[i].list);
 		}
+		sess->resp_conns = 0;
 	}
 	return sess;
 }
@@ -86,30 +87,11 @@ void session_free(struct session *sess)
 		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[i].list, session_list) {
 			count++;
 			if (conn->mux) {
-				struct server *srv;
 
 				LIST_DEL(&conn->session_list);
 				LIST_INIT(&conn->session_list);
-				srv = objt_server(conn->target);
 				conn->owner = NULL;
-				if (srv && srv->pool_purge_delay > 0 &&
-				    (srv->max_idle_conns == -1 ||
-				     srv->max_idle_conns > srv->curr_idle_conns) &&
-				    !(conn->flags & CO_FL_PRIVATE) &&
-				    conn->mux->avail_streams(conn) ==
-				    conn->mux->max_streams(conn)) {
-					LIST_DEL(&conn->list);
-
-					LIST_ADDQ(&srv->idle_orphan_conns[tid],
-					    &conn->list);
-					srv->curr_idle_conns++;
-
-					conn->idle_time = now_ms;
-					if (!(task_in_wq(srv->idle_task[tid])) &&
-					    !(task_in_rq(srv->idle_task[tid])))
-						task_schedule(srv->idle_task[tid],
-						    tick_add(now_ms, srv->pool_purge_delay));
-				} else
+				if (!srv_add_to_idle_list(objt_server(conn->target), conn))
 					conn->mux->destroy(conn);
 			} else {
 				/* We have a connection, but not yet an associated mux.
