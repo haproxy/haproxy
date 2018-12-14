@@ -708,7 +708,7 @@ static void get_cur_unixsocket()
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
-static void mworker_reload()
+void mworker_reload()
 {
 	int next_argc = 0;
 	int j;

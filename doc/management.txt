@@ -2588,6 +2588,16 @@ Examples:
   $ echo '@1; show info; show stat; @2; show info; show stat' | socat /var/run/haproxy-master.sock -
   [...]
 
+You can also reload the HAProxy master process with the "reload" command which
+does the same as a `kill -USR2` on the master process, provided that the user
+has at least "operator" or "admin" privileges.
+
+Example:
+
+  $ echo "reload" | socat /var/run/haproxy-master.sock
+
+Note that a reload will close the connection to the master CLI.
+
 
 10. Tricks for easier configuration management
 ----------------------------------------------

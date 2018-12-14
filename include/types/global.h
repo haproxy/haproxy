@@ -247,6 +247,7 @@ void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
 
 void mworker_accept_wrapper(int fd);
+void mworker_reload();
 
 /* simplified way to declare static build options in a file */
 #define REGISTER_BUILD_OPTS(str) \

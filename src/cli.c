@@ -1318,6 +1318,17 @@ static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, 
 	return 1;
 }
 
+/* reload the master process */
+static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	mworker_reload();
+
+	return 1;
+}
+
 int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	return 0;
@@ -2619,6 +2630,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "operator", NULL },  "operator       : lower the level of the current CLI session to operator", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },      "user           : lower the level of the current CLI session to user", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
+	{ { "reload", NULL },    "reload         : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
 	{{},}
 }};
