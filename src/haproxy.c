@@ -904,6 +904,11 @@ static void mworker_loop()
 	relative_pid = 1;
 	pid_bit = 1;
 
+#ifdef USE_THREAD
+	tid_bit = 1;
+	all_threads_mask = 1;
+#endif
+
 	jobs++; /* this is the "master" job, we want to take care of the
 		signals even if there is no listener so the poll loop don't
 		leave */
