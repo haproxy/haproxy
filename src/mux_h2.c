@@ -4335,7 +4335,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		 * frame header there.
 		 */
 		h2c->mbuf.area = buf->area;
-		h2c->mbuf.head = sizeof(struct htx) - 9;
+		h2c->mbuf.head = sizeof(struct htx) + blk->addr - 9;
 		h2c->mbuf.data = fsize + 9;
 		outbuf.area    = b_head(&h2c->mbuf);
 

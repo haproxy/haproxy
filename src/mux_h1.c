@@ -1404,7 +1404,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	 * the HTX blocks.
 	 */
 	if (!b_data(&h1c->obuf)) {
-		h1c->obuf.head = sizeof(struct htx);
+		h1c->obuf.head = sizeof(struct htx) + blk->addr;
 
 		if (chn_htx->used == 1 &&
 		    blk && htx_get_blk_type(blk) == HTX_BLK_DATA &&
