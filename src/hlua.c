@@ -3180,7 +3180,12 @@ __LJMP static int hlua_channel_get_in_len(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "get_in_len"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	lua_pushinteger(L, ci_data(chn));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		struct htx *htx = htxbuf(&chn->buf);
+		lua_pushinteger(L, htx->data - co_data(chn));
+	}
+	else
+		lua_pushinteger(L, ci_data(chn));
 	return 1;
 }
 
@@ -3193,7 +3198,14 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "is_full"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	rem = b_room(&chn->buf);
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		struct htx *htx = htxbuf(&chn->buf);
+
+		rem = htx_free_data_space(htx);
+	}
+	else
+		rem = b_room(&chn->buf);
+
 	rem -= global.tune.maxrewrite; /* Rewrite reserved size */
 
 	lua_pushboolean(L, rem <= 0);
