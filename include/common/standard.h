@@ -57,7 +57,7 @@
 #define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
 
 /* number of itoa_str entries */
-#define NB_ITOA_STR	10
+#define NB_ITOA_STR	16
 
 /* maximum quoted string length (truncated above) */
 #define QSTR_SIZE 200
