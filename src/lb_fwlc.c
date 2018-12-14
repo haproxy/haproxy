@@ -43,14 +43,18 @@ static inline void fwlc_dequeue_srv(struct server *s)
 }
 
 /* Queue a server in its associated tree, assuming the weight is >0.
- * Servers are sorted by #conns/weight. To ensure maximum accuracy,
- * we use #conns*SRV_EWGHT_MAX/eweight as the sorting key.
+ * Servers are sorted by (#conns+1)/weight. To ensure maximum accuracy,
+ * we use (#conns+1)*SRV_EWGHT_MAX/eweight as the sorting key. The reason
+ * for using #conns+1 is to sort by weights in case the server is picked
+ * and not before it is picked. This provides a better load accuracy for
+ * low connection counts when weights differ and makes sure the round-robin
+ * applies between servers of highest weight first.
  *
  * The server's lock and the lbprm's lock must be held.
  */
 static inline void fwlc_queue_srv(struct server *s)
 {
-	s->lb_node.key = s->served * SRV_EWGHT_MAX / s->next_eweight;
+	s->lb_node.key = (s->served + 1) * SRV_EWGHT_MAX / s->next_eweight;
 	eb32_insert(s->lb_tree, &s->lb_node);
 }
 
