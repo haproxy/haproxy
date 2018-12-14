@@ -1077,7 +1077,7 @@ static int conn_complete_server(struct connection *conn)
 	if (conn_install_mux_be(conn, cs, s->sess) < 0)
 		goto fail;
 	srv = objt_server(s->target);
-	if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+	if (srv && ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 			    conn->mux->avail_streams(conn) > 0)
 				LIST_ADD(&srv->idle_conns[tid], &conn->list);
 
