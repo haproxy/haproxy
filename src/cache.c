@@ -1639,7 +1639,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 		struct flt_conf *fconf, char **err, void *private)
 {
 	struct flt_conf *f, *back;
-	struct cache_flt_conf *cconf;
+	struct cache_flt_conf *cconf = NULL;
 	char *name = NULL;
 	int pos = *cur_arg;
 
