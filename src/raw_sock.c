@@ -276,8 +276,6 @@ static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 		}
 	}
 
-	b_realign_if_empty(buf);
-
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,
 	 * in which case we accept to do it once again. A new attempt is made on

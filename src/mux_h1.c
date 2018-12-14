@@ -1667,6 +1667,7 @@ static int h1_recv(struct h1c *h1c)
 		int aligned = 0;
 		h1c->flags &= ~H1C_F_IN_FULL;
 
+		b_realign_if_empty(&h1c->ibuf);
 		if (!b_data(&h1c->ibuf)) {
 			/* try to pre-align the buffer like the rxbufs will be
 			 * to optimize memory copies.
