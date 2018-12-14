@@ -322,7 +322,7 @@ void process_runnable_tasks()
 	nb_tasks_cur = nb_tasks;
 	max_processed = global.tune.runqueue_depth;
 
-	if (likely(global.nbthread > 1)) {
+	if (likely(global_tasks_mask & tid_bit)) {
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 		if (!(active_tasks_mask & tid_bit)) {
 			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
