@@ -358,7 +358,7 @@ static int srv_parse_enabled(char **args, int *cur_arg,
 	return 0;
 }
 
-static int srv_parse_idle_timeout(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+static int srv_parse_pool_purge_delay(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	const char *res;
 	char *arg;
@@ -375,7 +375,7 @@ static int srv_parse_idle_timeout(char **args, int *cur_arg, struct proxy *curpr
 		    *res, args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	newsrv->idle_timeout = time;
+	newsrv->pool_purge_delay = time;
 
 	return 0;
 }
@@ -1234,7 +1234,6 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
-	{ "idle-timeout",        srv_parse_idle_timeout,        1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 0 */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
@@ -1245,6 +1244,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1 }, /* Set the max number of orphan idle connections, 0 means unlimited */
+	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
 	{ "proto",               srv_parse_proto,               1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
@@ -1679,7 +1679,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->tcp_ut = src->tcp_ut;
 #endif
 	srv->mux_proto = src->mux_proto;
-	srv->idle_timeout = src->idle_timeout;
+	srv->pool_purge_delay = src->pool_purge_delay;
 	srv->max_idle_conns = src->max_idle_conns;
 
 	if (srv_tmpl)
@@ -1724,7 +1724,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.server = srv;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
-	srv->idle_timeout = 1000;
+	srv->pool_purge_delay = 1000;
 	srv->max_idle_conns = -1;
 
 	return srv;
@@ -5317,17 +5317,21 @@ static struct task *cleanup_idle_connections(struct task *task, void *context, u
 {
 	struct server *srv = context;
 	struct connection *conn, *conn_back;
-	unsigned int next_wakeup = 0;
+	unsigned int to_destroy = srv->curr_idle_conns / 2 + (srv->curr_idle_conns & 1);
+	unsigned int i = 0;
+
+
 
 	list_for_each_entry_safe(conn, conn_back, &srv->idle_orphan_conns[tid], list) {
-		if (conn->idle_time + srv->idle_timeout > now_ms) {
-			next_wakeup = conn->idle_time + srv->idle_timeout;
+		if (i == to_destroy)
 			break;
-		}
 		conn->mux->destroy(conn);
+		i++;
 	}
-	if (next_wakeup > 0)
-		task_schedule(task, next_wakeup);
+	if (!LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
+		task_schedule(task, tick_add(now_ms, srv->pool_purge_delay));
+	else
+		task->expire = TICK_ETERNITY;
 	return task;
 }
 /*

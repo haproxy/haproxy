@@ -222,7 +222,7 @@ struct server {
 	struct list *idle_conns;		/* sharable idle connections attached or not to a stream interface */
 	struct list *safe_conns;		/* safe idle connections attached to stream interfaces, shared */
 	struct list *idle_orphan_conns;         /* Orphan connections idling */
-	unsigned int idle_timeout;              /* Time to keep an idling orphan connection alive */
+	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections */
 	struct task **idle_task;                /* task responsible for cleaning idle orphan connections */

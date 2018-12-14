@@ -92,7 +92,7 @@ void session_free(struct session *sess)
 				LIST_INIT(&conn->session_list);
 				srv = objt_server(conn->target);
 				conn->owner = NULL;
-				if (srv && srv->idle_timeout > 0 &&
+				if (srv && srv->pool_purge_delay > 0 &&
 				    (srv->max_idle_conns == -1 ||
 				     srv->max_idle_conns > srv->curr_idle_conns) &&
 				    !(conn->flags & CO_FL_PRIVATE) &&
@@ -108,7 +108,7 @@ void session_free(struct session *sess)
 					if (!(task_in_wq(srv->idle_task[tid])) &&
 					    !(task_in_rq(srv->idle_task[tid])))
 						task_schedule(srv->idle_task[tid],
-						    tick_add(now_ms, srv->idle_timeout));
+						    tick_add(now_ms, srv->pool_purge_delay));
 				} else
 					conn->mux->destroy(conn);
 			} else {

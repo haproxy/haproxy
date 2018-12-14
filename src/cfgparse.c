@@ -472,6 +472,7 @@ void init_default_instance()
 	defproxy.defsrv.minconn = 0;
 	defproxy.defsrv.maxconn = 0;
 	defproxy.defsrv.max_idle_conns = -1;
+	defproxy.defsrv.pool_purge_delay = 1000;
 	defproxy.defsrv.slowstart = 0;
 	defproxy.defsrv.onerror = DEF_HANA_ONERR;
 	defproxy.defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
