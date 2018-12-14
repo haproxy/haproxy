@@ -454,6 +454,7 @@ void init_default_instance()
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.redispatch_after = 0;
 	defproxy.lbprm.chash.balance_factor = 0;
+	defproxy.options = PR_O_REUSE_SAFE;
 
 	defproxy.defsrv.check.inter = DEF_CHKINTR;
 	defproxy.defsrv.check.fastinter = 0;
@@ -3205,24 +3206,6 @@ out_uri_auth_compat:
 
 			if ((curproxy->mode != PR_MODE_HTTP) && (curproxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)
 				curproxy->options &= ~PR_O_REUSE_MASK;
-
-			if ((curproxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) {
-				if ((curproxy->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_CLI ||
-				    (curproxy->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_CIP ||
-				    (newsrv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_CLI ||
-				    (newsrv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_CIP) {
-					ha_warning("config : %s '%s' : connections to server '%s' use the client's IP address as the source while http-reuse is enabled and allows the same connection to be shared between multiple clients. It is strongly advised to disable 'usesrc' and to use the 'forwardfor' option instead.\n",
-						   proxy_type_str(curproxy), curproxy->id, newsrv->id);
-					err_code |= ERR_WARN;
-				}
-
-
-				if (newsrv->pp_opts & (SRV_PP_V1|SRV_PP_V2)) {
-					ha_warning("config : %s '%s' : connections to server '%s' will have a PROXY protocol header announcing the first client's IP address while http-reuse is enabled and allows the same connection to be shared between multiple clients. It is strongly advised to disable 'send-proxy' and to use the 'forwardfor' option instead.\n",
-						   proxy_type_str(curproxy), curproxy->id, newsrv->id);
-					err_code |= ERR_WARN;
-				}
-			}
 
 			newsrv = newsrv->next;
 		}

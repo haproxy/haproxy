@@ -4928,32 +4928,31 @@ http-reuse { never | safe | aggressive | always }
                                yes    |    no    |   yes  |   yes
 
   By default, a connection established between haproxy and the backend server
-  belongs to the session that initiated it. The downside is that between the
-  response and the next request, the connection remains idle and is not used.
-  In many cases for performance reasons it is desirable to make it possible to
-  reuse these idle connections to serve other requests from different sessions.
-  This directive allows to tune this behavior.
+  which is considered safe for reuse is moved back to the server's idle
+  connections pool so that any other request can make use of it. This is the
+  "safe" strategy below.
 
   The argument indicates the desired connection reuse strategy :
 
-    - "never"  : idle connections are never shared between sessions. This is
-                 the default choice. It may be enforced to cancel a different
-                 strategy inherited from a defaults section or for
-                 troubleshooting. For example, if an old bogus application
-                 considers that multiple requests over the same connection come
-                 from the same client and it is not possible to fix the
-                 application, it may be desirable to disable connection sharing
-                 in a single backend. An example of such an application could
-                 be an old haproxy using cookie insertion in tunnel mode and
-                 not checking any request past the first one.
+    - "never"  : idle connections are never shared between sessions. This mode
+                 may be enforced to cancel a different strategy inherited from
+                 a defaults section or for troubleshooting. For example, if an
+                 old bogus application considers that multiple requests over
+                 the same connection come from the same client and it is not
+                 possible to fix the application, it may be desirable to
+                 disable connection sharing in a single backend. An example of
+                 such an application could be an old haproxy using cookie
+                 insertion in tunnel mode and not checking any request past the
+                 first one.
 
-    - "safe"   : this is the recommended strategy. The first request of a
-                 session is always sent over its own connection, and only
-                 subsequent requests may be dispatched over other existing
-                 connections. This ensures that in case the server closes the
-                 connection when the request is being sent, the browser can
-                 decide to silently retry it. Since it is exactly equivalent to
-                 regular keep-alive, there should be no side effects.
+    - "safe"   : this is the default and the recommended strategy. The first
+                 request of a session is always sent over its own connection,
+                 and only subsequent requests may be dispatched over other
+                 existing connections. This ensures that in case the server
+                 closes the connection when the request is being sent, the
+                 browser can decide to silently retry it. Since it is exactly
+                 equivalent to regular keep-alive, there should be no side
+                 effects.
 
     - "aggressive" : this mode may be useful in webservices environments where
                  all servers are not necessarily known and where it would be
