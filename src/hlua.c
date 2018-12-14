@@ -5240,10 +5240,6 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 	if (!htxn->s->txn)
 		return 1;
 
-	/* Check if a valid response is parsed */
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 1;
-
 	if (IS_HTX_STRM(htxn->s)) {
 		/* HTX version */
 		struct htx *htx = htxbuf(&msg->chn->buf);
@@ -5422,10 +5418,6 @@ __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
 	const char *value = MAY_LJMP(luaL_checkstring(L, 4));
 	struct my_regex re;
 
-	/* Check if a valid response is parsed */
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 0;
-
 	if (!regex_comp(reg, &re, 1, 1, NULL))
 		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
 
@@ -5482,10 +5474,6 @@ __LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, 
 	size_t len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
-	/* Check if a valid response is parsed */
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 0;
-
 	if (IS_HTX_STRM(htxn->s)) {
 		/* HTX version */
 		struct htx *htx = htxbuf(&msg->chn->buf);
@@ -5537,10 +5525,6 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, 
 	size_t value_len;
 	const char *value = MAY_LJMP(luaL_checklstring(L, 3, &value_len));
 	char *p;
-
-	/* Check if a valid message is parsed */
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 0;
 
 	if (IS_HTX_STRM(htxn->s)) {
 		/* HTX version */
@@ -5621,12 +5605,6 @@ static int hlua_http_req_set_meth(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	/* Check if a valid request is parsed */
-	if (unlikely(htxn->s->txn->req.msg_state < HTTP_MSG_BODY)) {
-		lua_pushboolean(L, 0);
-		return 1;
-	}
-
 	lua_pushboolean(L, http_replace_req_line(0, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
@@ -5638,12 +5616,6 @@ static int hlua_http_req_set_path(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	/* Check if a valid request is parsed */
-	if (unlikely(htxn->s->txn->req.msg_state < HTTP_MSG_BODY)) {
-		lua_pushboolean(L, 0);
-		return 1;
-	}
-
 	lua_pushboolean(L, http_replace_req_line(1, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
@@ -5654,12 +5626,6 @@ static int hlua_http_req_set_query(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-
-	/* Check if a valid request is parsed */
-	if (unlikely(htxn->s->txn->req.msg_state < HTTP_MSG_BODY)) {
-		lua_pushboolean(L, 0);
-		return 1;
-	}
 
 	/* Check length. */
 	if (name_len > trash.size - 1) {
@@ -5685,12 +5651,6 @@ static int hlua_http_req_set_uri(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	/* Check if a valid request is parsed */
-	if (unlikely(htxn->s->txn->req.msg_state < HTTP_MSG_BODY)) {
-		lua_pushboolean(L, 0);
-		return 1;
-	}
-
 	lua_pushboolean(L, http_replace_req_line(3, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
@@ -5701,10 +5661,6 @@ static int hlua_http_res_set_status(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	unsigned int code = MAY_LJMP(luaL_checkinteger(L, 2));
 	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
-
-	/* Check if a valid response is parsed */
-	if (unlikely(htxn->s->txn->rsp.msg_state < HTTP_MSG_BODY))
-		return 0;
 
 	http_set_status(code, reason, htxn->s);
 	return 0;
@@ -7501,13 +7457,6 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua) &&
 	    !(ctx->ctx.hlua_apphttp.flags & APPLET_DONE)) {
-
-		/* Wait for full HTTP analysys. */
-		if (unlikely(strm->txn->req.msg_state < HTTP_MSG_BODY)) {
-			si_cant_get(si);
-			return;
-		}
-
 		/* Store the max amount of bytes that we can read. */
 		ctx->ctx.hlua_apphttp.left_bytes = strm->txn->req.body_len;
 
