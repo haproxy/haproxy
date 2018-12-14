@@ -1,0 +1,58 @@
+varnishtest "HTTP cookie basic test"
+feature ignore_unknown_macro
+
+# This script tests "cookie <name> insert indirect" directive.
+# The client sends a wrong "SRVID=s2" cookie.
+# haproxy removes it.
+# The server replies with "SRVID=S1" after having checked that
+# no cookies were sent by haproxy.
+# haproxy replies "SRVID=server-one" to the client.
+# We log the HTTP request to a syslog server and check their "--II"
+# (invalid, insert) flags.
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
+    recv info
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1 be1/srv1 .* --II .* \"GET / HTTP/1\\.1\""
+} -start
+
+server s1 {
+	rxreq
+	expect req.http.cookie == <undef>
+    txresp -hdr "Cookie: SRVID=S1"
+} -start
+
+haproxy h1 -conf {
+	global
+        log ${S1_addr}:${S1_port} len 2048 local0 debug err
+
+    defaults
+        mode http
+		option httplog
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+        log global
+
+    backend be1
+        cookie SRVID insert indirect
+        server srv1 ${s1_addr}:${s1_port} cookie server-one
+
+    frontend fe1
+		option httplog
+        bind "fd@${fe1}"
+        use_backend be1
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "Cookie: SRVID=s2"
+    rxresp
+    expect resp.http.Set-Cookie ~ "^SRVID=server-one;.*"
+} -start
+
+
+client c1 -wait
+syslog S1 -wait
