@@ -39,6 +39,7 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <openssl/bn.h>
 #include <openssl/crypto.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -58,6 +59,17 @@
 
 #if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 #include <openssl/async.h>
+#endif
+
+#ifndef OPENSSL_VERSION
+#define OPENSSL_VERSION         SSLEAY_VERSION
+#define OpenSSL_version(x)      SSLeay_version(x)
+#define OpenSSL_version_num     SSLeay
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || (LIBRESSL_VERSION_NUMBER < 0x20700000L)
+#define X509_getm_notBefore     X509_get_notBefore
+#define X509_getm_notAfter      X509_get_notAfter
 #endif
 
 #include <import/lru.h>
@@ -220,7 +232,7 @@ static struct {
 	.capture_cipherlist = 0,
 };
 
-#ifdef USE_THREAD
+#if defined(USE_THREAD) && ((OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
 
 static HA_RWLOCK_T *ssl_rwlocks;
 
@@ -1735,8 +1747,8 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), HA_ATOMIC_ADD(&ssl_ctx_serial, 1));
 
 	/* Set duration for the certificate */
-	if (!X509_gmtime_adj(X509_get_notBefore(newcrt), (long)-60*60*24) ||
-	    !X509_gmtime_adj(X509_get_notAfter(newcrt),(long)60*60*24*365))
+	if (!X509_gmtime_adj(X509_getm_notBefore(newcrt), (long)-60*60*24) ||
+	    !X509_gmtime_adj(X509_getm_notAfter(newcrt),(long)60*60*24*365))
 		goto mkcert_error;
 
 	/* set public key in the certificate */
@@ -6418,7 +6430,7 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (ssl_sock_get_time(X509_get_notAfter(crt), smp_trash) <= 0)
+	if (ssl_sock_get_time(X509_getm_notAfter(crt), smp_trash) <= 0)
 		goto out;
 
 	smp->data.u.str = *smp_trash;
@@ -6518,7 +6530,7 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (ssl_sock_get_time(X509_get_notBefore(crt), smp_trash) <= 0)
+	if (ssl_sock_get_time(X509_getm_notBefore(crt), smp_trash) <= 0)
 		goto out;
 
 	smp->data.u.str = *smp_trash;
@@ -9272,10 +9284,12 @@ static void __ssl_sock_init(void)
 #endif
 
 	xprt_register(XPRT_SSL, &ssl_sock);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 	SSL_library_init();
+#endif
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);
-#ifdef USE_THREAD
+#if defined(USE_THREAD) && ((OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
 	ssl_locking_init();
 #endif
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
@@ -9318,8 +9332,8 @@ static void ssl_register_build_options()
 #else /* OPENSSL_IS_BORINGSSL */
 	        OPENSSL_VERSION_TEXT
 		"\nRunning on OpenSSL version : %s%s",
-	       SSLeay_version(SSLEAY_VERSION),
-	       ((OPENSSL_VERSION_NUMBER ^ SSLeay()) >> 8) ? " (VERSIONS DIFFER!)" : "");
+	       OpenSSL_version(OPENSSL_VERSION),
+	       ((OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
 #endif
 	memprintf(&ptr, "%s\nOpenSSL library supports TLS extensions : "
 #if OPENSSL_VERSION_NUMBER < 0x00907000L
@@ -9398,12 +9412,14 @@ static void __ssl_sock_deinit(void)
 	}
 #endif
 
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER)
         ERR_remove_state(0);
         ERR_free_strings();
 
         EVP_cleanup();
+#endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+#if ((OPENSSL_VERSION_NUMBER >= 0x00907000L) && (OPENSSL_VERSION_NUMBER < 0x10100000L)) || defined(LIBRESSL_VERSION_NUMBER)
         CRYPTO_cleanup_all_ex_data();
 #endif
 }
