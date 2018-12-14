@@ -83,6 +83,8 @@ struct be_counters {
 	long long denied_req;                   /* blocked requests because of security concerns */
 	long long denied_resp;                  /* blocked responses because of security concerns */
 
+	long long connect;                      /* number of connection establishment attempts */
+	long long reuse;                        /* number of connection reuses */
 	long long failed_conns;                 /* failed connect() attempts (BE only) */
 	long long failed_resp;                  /* failed responses (BE only) */
 	long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */

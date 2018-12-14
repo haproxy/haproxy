@@ -1376,6 +1376,14 @@ int connect_server(struct stream *s)
 	if (s->be->options & PR_O_TCP_NOLING)
 		s->si[1].flags |= SI_FL_NOLINGER;
 
+	if (s->flags & SF_SRV_REUSED) {
+		HA_ATOMIC_ADD(&s->be->be_counters.reuse, 1);
+		HA_ATOMIC_ADD(&srv->counters.reuse, 1);
+	} else {
+		HA_ATOMIC_ADD(&s->be->be_counters.connect, 1);
+		HA_ATOMIC_ADD(&srv->counters.connect, 1);
+	}
+
 	err = si_connect(&s->si[1], srv_conn);
 
 #ifdef USE_OPENSSL

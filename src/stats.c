@@ -228,6 +228,8 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_DCON]           = "dcon",
 	[ST_F_DSES]           = "dses",
 	[ST_F_WREW]           = "wrew",
+	[ST_F_CONNECT]        = "connect",
+	[ST_F_REUSE]          = "reuse",
 };
 
 /* one line of info */
@@ -960,6 +962,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			tot += stats[ST_F_HRSP_5XX].u.u64;
 
 			chunk_appendf(out,
+			              "<tr><th>New connections:</th><td>%s</td></tr>"
+			              "<tr><th>Reused connections:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Cum. HTTP responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
@@ -969,6 +973,10 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "",
+			              U2H(stats[ST_F_CONNECT].u.u64),
+			              U2H(stats[ST_F_REUSE].u.u64),
+			              (stats[ST_F_CONNECT].u.u64 + stats[ST_F_REUSE].u.u64) ?
+			              (int)(100 * stats[ST_F_REUSE].u.u64 / (stats[ST_F_CONNECT].u.u64 + stats[ST_F_REUSE].u.u64)) : 0,
 			              U2H(tot),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_1XX].u.u64 / tot) : 0,
 			              U2H(stats[ST_F_HRSP_2XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_2XX].u.u64 / tot) : 0,
@@ -1180,6 +1188,8 @@ static int stats_dump_fields_html(struct buffer *out,
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (strcmp(field_str(stats, ST_F_MODE), "http") == 0) {
 			chunk_appendf(out,
+			              "<tr><th>New connections:</th><td>%s</td></tr>"
+			              "<tr><th>Reused connections:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
 			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
@@ -1191,6 +1201,10 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 				      "<tr><th colspan=3>Avg over last 1024 success. conn.</th></tr>"
 			              "",
+			              U2H(stats[ST_F_CONNECT].u.u64),
+			              U2H(stats[ST_F_REUSE].u.u64),
+			              (stats[ST_F_CONNECT].u.u64 + stats[ST_F_REUSE].u.u64) ?
+			              (int)(100 * stats[ST_F_REUSE].u.u64 / (stats[ST_F_CONNECT].u.u64 + stats[ST_F_REUSE].u.u64)) : 0,
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64),
 			              U2H(stats[ST_F_HRSP_2XX].u.u64),
@@ -1596,6 +1610,8 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
+	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, sv->counters.connect);
+	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, sv->counters.reuse);
 
 	/* status */
 	fld_status = chunk_newstr(out);
@@ -1789,6 +1805,8 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, px->be_counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
+	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, px->be_counters.connect);
+	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, px->be_counters.reuse);
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);

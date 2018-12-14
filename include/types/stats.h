@@ -392,6 +392,8 @@ enum stat_field {
 	ST_F_DCON,
 	ST_F_DSES,
 	ST_F_WREW,
+	ST_F_CONNECT,
+	ST_F_REUSE,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
