@@ -15,12 +15,14 @@
 
 #include <common/initcall.h>
 #include <common/net_helper.h>
+#include <common/htx.h>
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/sample.h>
+#include <proto/proto_http.h>
 
 
 /************************************************************************/
@@ -53,7 +55,12 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ci_data(chn);
+	if (IS_HTX_SMP(smp)) {
+		struct htx *htx = htxbuf(&chn->buf);
+		smp->data.u.sint = htx->data - co_data(chn);
+	}
+	else
+		smp->data.u.sint = ci_data(chn);
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
