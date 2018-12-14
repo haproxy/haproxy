@@ -1214,8 +1214,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_HRSP_3XX].u.u64),
 			              U2H(stats[ST_F_HRSP_4XX].u.u64),
 			              U2H(stats[ST_F_HRSP_5XX].u.u64),
-			              U2H(stats[ST_F_WREW].u.u64),
-			              U2H(stats[ST_F_HRSP_OTHER].u.u64));
+			              U2H(stats[ST_F_HRSP_OTHER].u.u64),
+			              U2H(stats[ST_F_WREW].u.u64));
 		}
 
 		chunk_appendf(out, "<tr><th>- Queue time:</th><td>%s</td><td>ms</td></tr>",   U2H(stats[ST_F_QTIME].u.u32));
