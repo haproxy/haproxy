@@ -475,7 +475,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			*(int *)0 = 0;
+			*(volatile int *)0 = 0;
 #endif
 
 #ifndef DEBUG_UAF /* normal pool behaviour */
