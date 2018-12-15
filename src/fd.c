@@ -503,8 +503,15 @@ static void deinit_pollers_per_thread()
 {
 	free(fd_updt);
 	fd_updt = NULL;
-	close(poller_rd_pipe);
-	close(poller_wr_pipe[tid]);
+
+	/* rd and wr are init at the same place, but only rd is init to -1, so
+	  we rely to rd to close.   */
+	if (poller_rd_pipe > -1) {
+		close(poller_rd_pipe);
+		poller_rd_pipe = -1;
+		close(poller_wr_pipe[tid]);
+		poller_wr_pipe[tid] = -1;
+	}
 }
 
 /*
