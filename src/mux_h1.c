@@ -1917,6 +1917,8 @@ static void h1_detach(struct conn_stream *cs)
 {
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
+	int has_keepalive;
+	int is_not_first;
 
 	cs->ctx = NULL;
 	if (!h1s)
@@ -1925,7 +1927,11 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
-	if (conn_is_back(h1c->conn) && (h1s->flags & H1S_F_WANT_KAL) &&
+	has_keepalive = h1s->flags & H1S_F_WANT_KAL;
+	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
+	h1s_destroy(h1s);
+
+	if (conn_is_back(h1c->conn) && has_keepalive &&
 	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 	        struct stream_interface *si = cs->data;
 		struct stream *s = si_strm(si);
@@ -1945,15 +1951,13 @@ static void h1_detach(struct conn_stream *cs)
 			if (srv) {
 				if (h1c->conn->flags & CO_FL_PRIVATE)
 					LIST_ADD(&srv->priv_conns[tid], &h1c->conn->list);
-				else if (h1s->flags & H1S_F_NOT_FIRST)
+				else if (is_not_first)
 					LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
 				else
 					LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
 			}
 		}
 	}
-
-	h1s_destroy(h1s);
 
 	/* We don't want to close right now unless the connection is in error */
 	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW)) ||
