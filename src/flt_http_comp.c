@@ -59,6 +59,9 @@ static int select_compression_request_header(struct comp_state *st,
 static int select_compression_response_header(struct comp_state *st,
 					      struct stream *s,
 					      struct http_msg *msg);
+static int set_compression_response_header(struct comp_state *st,
+					   struct stream *s,
+					   struct http_msg *msg);
 
 static int htx_compression_buffer_init(struct htx *htx, struct buffer *out);
 static int htx_compression_buffer_add_data(struct comp_state *st, const char *data, size_t len,
@@ -161,6 +164,8 @@ comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 		/* Response headers have already been checked in
 		 * comp_http_post_analyze callback. */
 		if (st->comp_algo) {
+			if (!set_compression_response_header(st, s, msg))
+				goto end;
 			register_data_filter(s, msg->chn, filter);
 			if (!IS_HTX_STRM(s))
 				st->hdrs_len = s->txn->rsp.sov;
@@ -456,6 +461,102 @@ comp_http_end(struct stream *s, struct filter *filter,
 	return 1;
 }
 /***********************************************************************/
+static int
+http_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
+{
+	struct http_txn *txn = s->txn;
+
+	/*
+	 * Add Content-Encoding header when it's not identity encoding.
+         * RFC 2616 : Identity encoding: This content-coding is used only in the
+	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
+	 * header.
+	 */
+	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
+		trash.data = 18;
+		memcpy(trash.area, "Content-Encoding: ", trash.data);
+		memcpy(trash.area + trash.data, st->comp_algo->ua_name,
+		       st->comp_algo->ua_name_len);
+		trash.data += st->comp_algo->ua_name_len;
+		trash.area[trash.data] = '\0';
+		if (http_header_add_tail2(msg, &txn->hdr_idx, trash.area, trash.data) < 0)
+			goto error;
+	}
+
+	/* remove Content-Length header */
+	if (msg->flags & HTTP_MSGF_CNT_LEN) {
+		struct hdr_ctx ctx;
+
+		ctx.idx = 0;
+		while (http_find_header2("Content-Length", 14, ci_head(&s->res), &txn->hdr_idx, &ctx))
+			http_remove_header2(msg, &txn->hdr_idx, &ctx);
+	}
+
+	/* add Transfer-Encoding header */
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
+		if (http_header_add_tail2(msg, &txn->hdr_idx, "Transfer-Encoding: chunked", 26) < 0)
+			goto error;
+	}
+
+
+	return 1;
+
+  error:
+	st->comp_algo->end(&st->comp_ctx);
+	st->comp_algo = NULL;
+	return 0;
+}
+
+static int
+htx_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
+{
+	struct htx *htx = htxbuf(&msg->chn->buf);
+
+	/*
+	 * Add Content-Encoding header when it's not identity encoding.
+	 * RFC 2616 : Identity encoding: This content-coding is used only in the
+	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
+	 * header.
+	 */
+	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
+		struct ist v = ist2(st->comp_algo->ua_name, st->comp_algo->ua_name_len);
+
+		if (!http_add_header(htx, ist("Content-Encoding"), v))
+			goto error;
+	}
+
+	/* remove Content-Length header */
+	if (msg->flags & HTTP_MSGF_CNT_LEN) {
+		struct http_hdr_ctx ctx;
+
+		ctx.blk = NULL;
+		while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
+			http_remove_header(htx, &ctx);
+	}
+
+	/* add "Transfer-Encoding: chunked" header */
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
+		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+			goto error;
+	}
+
+	return 1;
+
+  error:
+	st->comp_algo->end(&st->comp_ctx);
+	st->comp_algo = NULL;
+	return 0;
+}
+
+static int
+set_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
+{
+	if (IS_HTX_STRM(s))
+		return htx_set_comp_reshdr(st, s, msg);
+	else
+		return http_set_comp_reshdr(st, s, msg);
+}
+
 /*
  * Selects a compression algorithm depending on the client request.
  */
@@ -780,32 +881,6 @@ http_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg
 	/* initialize compression */
 	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;
-
-	/* remove Content-Length header */
-	ctx.idx = 0;
-	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, ci_head(c), &txn->hdr_idx, &ctx))
-		http_remove_header2(msg, &txn->hdr_idx, &ctx);
-
-	/* add Transfer-Encoding header */
-	if (!(msg->flags & HTTP_MSGF_TE_CHNK))
-		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, "Transfer-Encoding: chunked", 26);
-
-	/*
-	 * Add Content-Encoding header when it's not identity encoding.
-         * RFC 2616 : Identity encoding: This content-coding is used only in the
-	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
-	 * header.
-	 */
-	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
-		trash.data = 18;
-		memcpy(trash.area, "Content-Encoding: ", trash.data);
-		memcpy(trash.area + trash.data, st->comp_algo->ua_name,
-		       st->comp_algo->ua_name_len);
-		trash.data += st->comp_algo->ua_name_len;
-		trash.area[trash.data] = '\0';
-		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.area,
-				      trash.data);
-	}
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
 
@@ -898,34 +973,6 @@ htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg 
 	/* initialize compression */
 	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;
-
-	/*
-	 * Add Content-Encoding header when it's not identity encoding.
-         * RFC 2616 : Identity encoding: This content-coding is used only in the
-	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
-	 * header.
-	 */
-	if (st->comp_algo->cfg_name_len != 8 || memcmp(st->comp_algo->cfg_name, "identity", 8) != 0) {
-		struct ist v = ist2(st->comp_algo->ua_name, st->comp_algo->ua_name_len);
-
-		if (!http_add_header(htx, ist("Content-Encoding"), v))
-			goto deinit_comp_ctx;
-	}
-
-	/* remove Content-Length header */
-	if (msg->flags & HTTP_MSGF_CNT_LEN) {
-		ctx.blk = NULL;
-
-		while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
-			http_remove_header(htx, &ctx);
-	}
-
-	/* add "Transfer-Encoding: chunked" header */
-	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
-		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
-			goto deinit_comp_ctx;
-	}
-
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
 
@@ -1304,6 +1351,8 @@ int
 check_implicit_http_comp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
+	int explicit = 0;
+	int comp = 0;
 	int err = 0;
 
 	if (proxy->comp == NULL)
@@ -1311,14 +1360,31 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
 		list_for_each_entry(fconf, &proxy->filter_configs, list) {
 			if (fconf->id == http_comp_flt_id)
-				goto end;
+				comp = 1;
+			else if (fconf->id == cache_store_flt_id) {
+				if (comp) {
+					ha_alert("config: %s '%s': unable to enable the compression filter "
+						 "before any cache filter.\n",
+						 proxy_type_str(proxy), proxy->id);
+					err++;
+					goto end;
+				}
+			}
+			else
+				explicit = 1;
 		}
-		ha_alert("config: %s '%s': require an explicit filter declaration to use HTTP compression\n",
-			 proxy_type_str(proxy), proxy->id);
+	}
+	if (comp)
+		goto end;
+	else if (explicit) {
+		ha_alert("config: %s '%s': require an explicit filter declaration to use "
+			 "HTTP compression\n", proxy_type_str(proxy), proxy->id);
 		err++;
 		goto end;
 	}
 
+	/* Implicit declaration of the compression filter is always the last
+	 * one */
 	fconf = calloc(1, sizeof(*fconf));
 	if (!fconf) {
 		ha_alert("config: %s '%s': out of memory\n",

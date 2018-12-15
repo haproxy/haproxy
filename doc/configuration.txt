@@ -17716,12 +17716,14 @@ filter compression
 
 The HTTP compression has been moved in a filter in HAProxy 1.7. "compression"
 keyword must still be used to enable and configure the HTTP compression. And
-when no other filter is used, it is enough. But it is mandatory to explicitly
-use a filter line to enable the HTTP compression when two or more filters are
-used for the same listener/frontend/backend. This is important to know the
-filters evaluation order.
+when no other filter is used, it is enough. When used with the cache enabled,
+it is also enough. In this case, the compression is always done after the
+response is stored in the cache. But it is mandatory to explicitly use a filter
+line to enable the HTTP compression when at least one filter other than the
+cache is used for the same listener/frontend/backend. This is important to know
+the filters evaluation order.
 
-See also : "compression"
+See also : "compression" and section 9.4 about the cache filter.
 
 
 9.3. Stream Processing Offload Engine (SPOE)
@@ -17767,12 +17769,14 @@ filter cache <name>
 The cache uses a filter to store cacheable responses. The HTTP rules
 "cache-store" and "cache-use" must be used to define how and when to use a
 cache. By default the correpsonding filter is implicitly defined. And when no
-other filter than cache is used, it is enough. But it is mandatory to
-explicitly use a filter line to use a cache when two or more filters are used
-for the same listener/frontend/backend. This is important to know the filters
-evaluation order.
+other filters than cache or compression are used, it is enough. In such case,
+the compression filter is always evaluated after the cache filter. But it is
+mandatory to explicitly use a filter line to use a cache when at least one
+filter other than the compression is used for the same
+listener/frontend/backend. This is important to know the filters evaluation
+order.
 
-See also : section 10 about cache.
+See also : section 9.2 about the compression filter and section 10 about cache.
 
 10. Cache
 ---------

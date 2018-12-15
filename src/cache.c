@@ -43,9 +43,7 @@
 					* messages (legacy implementation) */
 #define CACHE_F_HTX         0x00000002 /* The cache is used to store HTX messages */
 
-#define CACHE_FLT_F_IGNORE_CNT_ENC 0x00000001 /* Ignore 'Content-Encoding' header when response is cached
-					       * if compression is already started */
-#define CACHE_FLT_F_IMPLICIT_DECL  0x00000002 /* The cache filtre was implicitly declared (ie without
+#define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
 
 const char *cache_store_flt_id = "cache store filter";
@@ -161,7 +159,7 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	struct cache_flt_conf *cconf = fconf->conf;
 	struct flt_conf *f;
 	struct cache *cache;
-	int ignore = 0;
+	int comp = 0;
 
 	/* resolve the cache name to a ptr in the filter config */
 	list_for_each_entry(cache, &caches, list) {
@@ -186,36 +184,36 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	 * points on the cache filter configuration. */
 
 	/* Check all filters for proxy <px> to know if the compression is
-	 * enabled and if it is before or after the cache. When the compression
-	 * is before the cache, nothing special is done. The response is stored
-	 * compressed in the cache. When the compression is after the cache, the
-	 * 'Content-encoding' header must be ignored because the response will
-	 * be stored uncompressed. The compression will be done on the cached
-	 * response too. Also check if the cache filter must be explicitly
-	 * declaired or not. */
+	 * enabled and if it is after the cache. When the compression is before
+	 * the cache, an error is returned. Also check if the cache filter must
+	 * be explicitly declaired or not. */
 	list_for_each_entry(f, &px->filter_configs, list) {
 		if (f == fconf) {
-			ignore = 1;
-			continue;
+			/* The compression filter must be evaluated after the cache. */
+			if (comp) {
+				ha_alert("config: %s '%s': unable to enable the compression filter before "
+					 "the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
+				return 1;
+			}
 		}
-
-		if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
-			ha_alert("config: %s '%s': require an explicit filter declaration "
-				 "to use the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
-			return 1;
-		}
-
-		if (f->id == http_comp_flt_id) {
+		else if (f->id == http_comp_flt_id) {
 			if (!(px->options2 & PR_O2_USE_HTX)) {
 				ha_alert("config: %s '%s' : compression and cache filters cannot be "
 					 "both enabled on non HTX proxy.\n",
 					 proxy_type_str(px), px->id);
 				return 1;
 			}
-			if (ignore)
-				cconf->flags |= CACHE_FLT_F_IGNORE_CNT_ENC;
-			break;
+			comp = 1;
 		}
+		else if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
+			/* Implicit declaration is only allowed with the
+			 * compression. For other filters, an implicit
+			 * declaration is required. */
+			ha_alert("config: %s '%s': require an explicit filter declaration "
+				 "to use the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
+			return 1;
+		}
+
 	}
 	return 0;
 }
@@ -674,21 +672,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			uint32_t sz = htx_get_blksz(blk);
-
-			/* Check if we need to skip 'Content-encoding' header or not */
-			if ((msg->flags & HTTP_MSGF_COMPRESSING) && /* Compression in progress */
-			    (cconf->flags & CACHE_FLT_F_IGNORE_CNT_ENC) &&  /* Compression before the cache */
-			    (type == HTX_BLK_HDR)) {
-				struct ist n = htx_get_blk_name(htx, blk);
-				struct ist v = htx_get_blk_value(htx, blk);
-
-				if (isteq(n, ist("content-encoding")))
-					continue;
-				if (!(msg->flags & HTTP_MSGF_TE_CHNK) &&
-				    isteq(n, ist("transfer-encoding")) &&
-				    isteqi(v, ist("chunked")))
-				    continue;
-			}
 
 			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
 			if (type == HTX_BLK_EOH)
