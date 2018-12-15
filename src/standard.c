@@ -900,6 +900,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 9;
 
 		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
+		((struct sockaddr_in *)&ss)->sin_port = 0;
 
 		if (!*str2 || *endptr) {
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
@@ -914,6 +915,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 		str2 += 3;
 		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
+		((struct sockaddr_in *)&ss)->sin_port = 0;
 
 		if (!*str2 || *endptr) {
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
