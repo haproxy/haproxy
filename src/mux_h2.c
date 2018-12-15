@@ -796,6 +796,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	if (!cs)
 		goto out_close;
 
+	cs->flags |= CS_FL_NOT_FIRST;
 	h2s->cs = cs;
 	cs->ctx = h2s;
 	h2c->nb_cs++;
