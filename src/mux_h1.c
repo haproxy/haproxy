@@ -1367,7 +1367,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	if (!count)
 		goto end;
+
 	chn_htx = htx_from_buf(buf);
+	if (htx_is_empty(chn_htx))
+		goto end;
 
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
 		h1c->flags |= H1C_F_OUT_ALLOC;
@@ -1383,6 +1386,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		errflag = H1S_F_REQ_ERROR;
 	}
 
+	/* the htx is non-empty thus has at least one block */
 	blk = htx_get_head_blk(chn_htx);
 
 	tmp = get_trash_chunk();
@@ -1407,7 +1411,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		h1c->obuf.head = sizeof(struct htx) + blk->addr;
 
 		if (chn_htx->used == 1 &&
-		    blk && htx_get_blk_type(blk) == HTX_BLK_DATA &&
+		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 		    htx_get_blk_value(chn_htx, blk).len == count) {
 			void *old_area = h1c->obuf.area;
 
