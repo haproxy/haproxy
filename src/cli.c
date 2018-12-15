@@ -1718,7 +1718,8 @@ void pcli_write_prompt(struct stream *s)
 		chunk_appendf(msg, "+ ");
 	} else {
 		if (s->pcli_next_pid == 0)
-			chunk_appendf(msg, "master> ");
+			chunk_appendf(msg, "master%s> ",
+			              (global.mode & MODE_MWORKER_WAIT) ? "[ReloadFailed]" : "");
 		else
 			chunk_appendf(msg, "%d> ", s->pcli_next_pid);
 	}

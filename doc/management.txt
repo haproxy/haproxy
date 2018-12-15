@@ -2538,6 +2538,13 @@ In this example, the master has been reloaded 5 times but one of the old
 worker is still running and survived 3 reloads. You could access the CLI of
 this worker to understand what's going on.
 
+When the prompt is enabled (via the "prompt" command), the context the CLI is
+working on is displayed in the prompt. The master is identified by the "master"
+string, and other processes are identified with their PID. In case the last
+reload failed, the master prompt will be changed to "master[ReloadFailed]>" so
+that it becomes visible that the process is still running on the previous
+configuration and that the new configuration is not operational.
+
 The master CLI uses a special prefix notation to access the multiple
 processes. This notation is easily identifiable as it begins by a @.
 
