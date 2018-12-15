@@ -962,7 +962,7 @@ static void htx_cache_io_handler(struct appctx *appctx)
 	}
 
 	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
-		appctx->st0 = HTTP_CACHE_END;
+		appctx->st0 = HTX_CACHE_END;
 
 	if (appctx->st0 == HTX_CACHE_INIT) {
 		appctx->ctx.cache.next = block_ptr(cache_ptr);
