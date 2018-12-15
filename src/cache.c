@@ -961,7 +961,7 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		goto out;
 	}
 
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (res->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTW_NOW))
 		appctx->st0 = HTX_CACHE_END;
 
 	if (appctx->st0 == HTX_CACHE_INIT) {
@@ -1190,7 +1190,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		goto out;
 	}
 
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
 		appctx->st0 = HTTP_CACHE_END;
 
 	/* buffer are aligned there, should be fine */
