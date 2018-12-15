@@ -250,7 +250,7 @@ THREAD_LOCAL char *logline_rfc5424 = NULL;
 
 /* A global buffer used to store all startup alerts/warnings. It will then be
  * retrieve on the CLI. */
-static THREAD_LOCAL char *startup_logs = NULL;
+static char *startup_logs = NULL;
 
 struct logformat_var_args {
 	char *name;
