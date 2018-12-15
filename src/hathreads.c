@@ -113,6 +113,12 @@ static void __hathreads_init(void)
 #endif
 }
 
+REGISTER_BUILD_OPTS("Built with multi-threading support.");
+
+#else
+
+REGISTER_BUILD_OPTS("Built without multi-threading support (USE_THREAD not set).");
+
 #endif // USE_THREAD
 
 
@@ -148,5 +154,3 @@ int parse_nbthread(const char *arg, char **err)
 #endif
 	return nbthread;
 }
-
-REGISTER_BUILD_OPTS("Built with multi-threading support.");
