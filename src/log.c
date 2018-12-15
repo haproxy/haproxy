@@ -1355,8 +1355,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	nblogger = 0;
 	list_for_each_entry(tmp, logsrvs, list) {
 		const struct logsrv *logsrv = tmp;
-		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
-			&logfdunix : &logfdinet;
+		int *plogfd;
 		char *pid_sep1 = "", *pid_sep2 = "";
 		char logheader_short[3];
 		int sent;
@@ -1375,15 +1374,24 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 		if (level > logsrv->level)
 			continue;
 
+		if (logsrv->addr.ss_family == AF_UNSPEC) {
+			/* the socket's address is a file descriptor */
+			plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
+			if (unlikely(!((struct sockaddr_in *)&logsrv->addr)->sin_port)) {
+				/* FD not yet initialized to non-blocking mode */
+				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
+				((struct sockaddr_in *)&logsrv->addr)->sin_port = 1;
+			}
+		}
+		else if (logsrv->addr.ss_family == AF_UNIX)
+			plogfd = &logfdunix;
+		else
+			plogfd = &logfdinet;
+
 		if (unlikely(*plogfd < 0)) {
 			/* socket not successfully initialized yet */
-			if (logsrv->addr.ss_family == AF_UNSPEC) {
-				/* the socket's address is a file descriptor */
-				*plogfd = ((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
-				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
-			}
-			else if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
-			                           (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+			if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
+			                      (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
 				static char once;
 
 				if (!once) {
