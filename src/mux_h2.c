@@ -3016,7 +3016,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 		h2_do_shutr(h2s);
 
 	if (h2s->st == H2_SS_CLOSED &&
-	    !((h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))))
+	    !((h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))) && !h2s->cs)
 		h2s_destroy(h2s);
 	return NULL;
 }
