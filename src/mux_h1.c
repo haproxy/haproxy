@@ -1278,6 +1278,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	if (count > max)
 		count = max;
 
+	if (!count)
+		goto end;
+
 	if (!conn_is_back(h1c->conn)) {
 		h1m = &h1s->req;
 		errflag = H1S_F_REQ_ERROR;
