@@ -177,7 +177,7 @@ int hpack_encode_header(struct buffer *out, const struct ist n,
 	}
 
  make_literal:
-	if (likely(n.len < 127 && len + 1 + n.len <= size)) {
+	if (likely(n.len < 127 && len + 2 + n.len <= size)) {
 		out->area[len++] = 0x00;      /* literal without indexing -- new name */
 		out->area[len++] = n.len;     /* single-byte length encoding */
 		ist2bin(out->area + len, n);
