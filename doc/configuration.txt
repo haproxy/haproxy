@@ -11425,9 +11425,9 @@ addr <ipv4|ipv6>
 agent-check
   Enable an auxiliary agent check which is run independently of a regular
   health check. An agent health check is performed by making a TCP connection
-  to the port set by the "agent-port" parameter and reading an ASCII string.
-  The string is made of a series of words delimited by spaces, tabs or commas
-  in any order, optionally terminated by '\r' and/or '\n', each consisting of :
+  to the port set by the "agent-port" parameter and reading an ASCII string
+  terminated by the first '\r' or '\n' met. The string is made of a series of
+  words delimited by spaces, tabs or commas in any order, each consisting of :
 
   - An ASCII representation of a positive integer percentage, e.g. "75%".
     Values in this format will set the weight proportional to the initial
