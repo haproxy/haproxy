@@ -188,8 +188,8 @@ sed -e "s/^Version: .*/Version: $NEW/" < examples/haproxy.spec >examples/haproxy
 sed -ne '0,/^%changelog/d;p' < examples/haproxy.spec >>examples/haproxy.spec-
 mv examples/haproxy.spec- examples/haproxy.spec
 
-# updating branch and date in README and all modified doc files except the outdated architecture.txt
-for file in README doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --name-only v${OLD}.. -- doc); do
+# updating branch and date in all modified doc files except the outdated architecture.txt
+for file in doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --name-only v${OLD}.. -- doc); do
 	if [ ! -e "$file" ]; then continue; fi
 	if [ "$file" = doc/architecture.txt ]; then continue; fi
 	echo "Updating $file ..."
@@ -208,7 +208,7 @@ sed -e "s:^\(#define\s*PRODUCT_BRANCH\s*\)\"[^\"]*\":\1\"$BRANCH\":" \
 
 if [ -n "$INTERACTIVE" ]; then
 	vi CHANGELOG VERSION VERDATE examples/haproxy*.spec \
-	   src/haproxy.c README doc/configuration.txt \
+	   src/haproxy.c doc/configuration.txt \
 	   $(git diff --name-only v${OLD}.. -- doc)
 fi
 

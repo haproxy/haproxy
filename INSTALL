@@ -1,0 +1,535 @@
+Installation instructions for HAProxy
+=====================================
+
+This is a development version, so it is expected to break from time to time,
+to add and remove features without prior notification and it should not be used
+in production. If you are not used to build from sources or if you are not used
+to follow updates then it is recommended that instead you use the packages
+provided by your software vendor or Linux distribution. Most of them are taking
+this task seriously and are doing a good job at backporting important fixes. If
+for any reason you'd prefer to use a different version than the one packaged
+for your system, you want to be certain to have all the fixes or to get some
+commercial support, other choices are available at http://www.haproxy.com/.
+
+
+Areas covered in this document
+==============================
+
+1) Quick build & install
+2) Basic principles
+3) Build environment
+4) Dependencies
+5) Advanced build options
+6) How to install HAProxy
+
+
+1) Quick build & install
+========================
+
+If you've already built HAProxy and are just looking for a quick reminder, here
+are a few build examples :
+
+  - recent Linux system with all options, make and install :
+    $ make clean
+    $ make -j 4 TARGET=linux2628 USE_NS=1 USE_TFO=1 \
+                USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1 USE_SYSTEMD=1
+    $ sudo make install
+
+  - FreeBSD and OpenBSD, build with all options :
+    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1
+
+  - embedded Linux, build using a cross-compiler :
+    $ make -j 4 TARGET=linux2628 USE_NS=1 USE_OPENSSL=1 USE_SLZ=1 USE_PCRE=1 \
+                CC=/opt/cross/gcc730-arm/bin/gcc
+
+  - Build with static PCRE on Solaris / UltraSPARC :
+    $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE=1
+
+For more advanced build options or if a command above reports an error, please
+read the following sections.
+
+
+2) Basic principles
+===================
+
+HAProxy uses a single GNU Makefile which supports options on the command line,
+so that there is no need to hack a "configure" file to work on your system. The
+makefile totally supports parallel build using "make -j <jobs>" where <jobs>
+matches the number of usable processors, which on some platforms is returned by
+the "nproc" utility. The explanations below may occasionally refer to some
+options, usually in the form "name=value", which have to be passed to the
+command line. This means that the option has to be passed after the "make"
+command. For example :
+
+  $ make -j $(nproc) TARGET=generic USE_GZIP=1
+
+One required option is TARGET, it must be set to a target platform name, which
+provides a number of presets. The list of known platforms is displayed when no
+target is specified. It is not strictly required to use the exact target, you
+can use a relatively similar one and adjust specific variables by hand.
+
+Most configuration variables are in fact booleans. Some options are detected and
+enabled by default if available on the target platform. This is the case for all
+those named "USE_<feature>". These booleans are enabled by "USE_<feature>=1"
+and are disabled by "USE_<feature>=" (with no value). The last occurrence on the
+command line overrides any previous one. Example :
+
+  $ make TARGET=generic USE_THREAD=
+
+In case of error or missing TARGET, a help screen is displayed. It is also
+possible to display a list of all known options using "make help".
+
+
+3) Build environment
+====================
+
+HAProxy requires a working GCC or Clang toolchain and GNU make :
+
+  - GNU make >= 3.80. Note that neither Solaris nor OpenBSD's make work with
+    the GNU Makefile. If you get many syntax errors when running "make", you
+    may want to retry with "gmake" which is the name commonly used for GNU make
+    on BSD systems.
+
+  - GCC >= 3.4 (up to 8.1 tested). Older versions can be made to work with a
+    few minor adaptations if really needed. Newer versions may sometimes break
+    due to compiler regressions or behaviour changes. The version shipped with
+    your operating system is very likely to work with no trouble. Clang >= 3.0
+    is also known to work as an alternative solution. Recent versions may emit
+    a bit more warnings that are worth reporting.
+
+  - GNU ld (binutils package), with no particular version. Other linkers might
+    work but were not tested.
+
+On debian or Ubuntu systems and their derivatives, you may get all these tools
+at once by issuing the two following commands :
+
+  $ sudo apt-get update
+  $ sudo apt-get install build-essential
+
+On Fedora, CentOS, RHEL and derivatives, you may get the equivalent packages
+with the following command :
+
+  $ sudo yum groupinstall "Development Tools"
+
+Please refer to your operating system's documentation for other systems.
+
+It is also possible to build HAProxy for another system or platform using a
+cross-compiler but in this case you probably already have installed these
+tools.
+
+Building HAProxy may require between 10 and 40 MB of free space in the
+directory where the sources have been extracted, depending on the debugging
+options involved.
+
+
+4) Dependencies
+===============
+
+HAProxy in its basic form does not depend on anything beyond a working libc.
+However a number of options are enabled by default, or are highly recommended,
+and these options will typically involve some external components or libraries,
+depending on the targetted platform.
+
+Optional dependencies may be split into several categories :
+
+  - memory allocation
+  - regular expressions
+  - multi-threading
+  - password encryption
+  - cryptography
+  - compression
+  - lua
+  - device detection
+  - miscellaneous
+
+
+4.1) Memory allocation
+----------------------
+By default, HAProxy uses the standard malloc() call provided by the libc. It
+may be built to use dlmalloc instead. In this case, "USE_DLMALLOC=1" needs to
+be appended to the build options, and "DLMALLOC_SRC" needs to point to the
+absolute path to "dlmalloc.c". Doing this is not safe when using threads.
+HAProxy may also be built to use jemalloc, which is fast and thread-safe.
+In order to use it, please add "-ljemalloc" to the ADDLIB variable. You may
+possibly also need to append "-lpthread" and/or "-ldl" depending on the
+operating system.
+
+
+4.2) Regular expressions
+------------------------
+HAProxy may make use regular expressions (regex) to match certain patterns. The
+regex engine is provided by default in the libc. On some operating systems, it
+might happen that the original regex library provided by the libc is too slow,
+too limited or even bogus. For example, on older Solaris versions up to 8, the
+default regex used not to properly extract group references, without reporting
+compilation errors. Also, some early versions of the GNU libc used to include a
+regex engine which could be slow or even crash on certain patterns.
+
+If you plan on importing a particularly heavy configuration involving a lot of
+regex, you may benefit from using some alternative regex implementations sur as
+PCRE. HAProxy natively supports PCRE and PCRE2, both in standard and JIT
+flavors (Just In Time). The following options are available depending on the
+library version provided on your system :
+
+  - "USE_PCRE=1"         : enable PCRE version 1, dynamic linking
+  - "USE_STATIC_PCRE=1"  : enable PCRE version 1, static linking
+  - "USE_PCRE_JIT=1"     : enable PCRE version 1 in JIT mode
+  - "USE_PCRE2=1"        : enable PCRE version 2, dynamic linking
+  - "USE_STATIC_PCRE2=1" : enable PCRE version 2, static linking
+  - "USE_PCRE2_JIT=1"    : enable PCRE version 2 in JIT mode
+
+Both of these libraries may be downloaded from https://www.pcre.org/.
+
+By default, the include and library paths are figured from the "pcre-config"
+and "pcre2-config" utilities. If these ones are not installed or inaccurate
+(for example when cross-compiling), it is possible to force the path to include
+files using "PCRE_INC" and "PCRE2_INC" respectively, and the path to library
+files using "PCRE_LIB" and "PCRE2_LIB" respectively. For example :
+
+  $ make TARGET=generic \
+    USE_PCRE2_JIT=1 PCRE2_INC=/opt/cross/include PCRE2_LIB=/opt/cross/lib
+
+
+4.3) Multi-threading
+--------------------
+On some systems for which positive feedback was reported, multi-threading will
+be enabled by default. When multi-threading is used, the libpthread library
+(POSIX threading) will be used. If the target system doesn't contain such a
+library, it is possible to forcefully disable multi-threading by adding
+"USE_THREAD=" on the command line.
+
+
+4.4) Password encryption
+------------------------
+Many systems provide password encryption functions used for authentication. On
+some systems these functions are part of the libc. On others, they're part of a
+separate library called "libcrypt". The default targets are pre-configured
+based on which system needs the library. It is possible to forcefully disable
+the linkage against libcrypt by adding "USE_LIBCRYPT=" on the command line, or
+to forcefully enable it using "USE_LIBCRYPT=1".
+
+
+4.5) Cryptography
+-----------------
+For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
+supports the OpenSSL library, and is known to build ant work with branches
+0.9.8, 1.0.0, 1.0.1, 1.0.2, 1.1.0 and 1.1.1. OpenSSL follows a long-term
+support cycle similar to HAProxy's, and each of the branches above receives its
+own fixes, without forcing you to upgrade to another branch. There is no excuse
+for staying vulnerable by not applying a fix available for your version. There
+is always a small risk of regression when jumping from one branch to another
+one, especially when it's very new, so it's preferable to observe for a while
+if you use a different version than your system's defaults.
+
+Two OpenSSL derivatives called LibreSSL and BoringSSL are reported to work as
+well. While there are some efforts from the community to ensure they work well,
+OpenSSL remains the primary target and this means that in case of conflicting
+choices, OpenSSL support will be favored over other options.
+
+In order to enable SSL/TLS support, simply pass "USE_OPENSSL=1" on the command
+line and the default library present on your system will be used :
+
+  $ make TARGET=generic USE_OPENSSL=1
+
+If you want to use a different version from the one provided by your system
+(which is not recommended due to the risk of missing security fixes), it is
+possible to indicate the path to the SSL include files using SSL_INC, and the
+SSL library files using SSL_LIB. Example :
+
+  $ make TARGET=generic \
+    USE_OPENSSL=1 SSL_INC=/opt/ssl-1.1.1/include SSL_LIB=/opt/ssl-1.1.1/lib
+
+In order to link OpenSSL statically against HAProxy, first download OpenSSL
+from https://www.openssl.org/ then build it with the "no-shared" keyword and
+install it to a local directory, so your system is not affected :
+
+  $ export STATICLIBSSL=/tmp/staticlibssl
+  $ ./config --prefix=$STATICLIBSSL no-shared
+  $ make && make install_sw
+
+Then when building haproxy, pass that path via SSL_INC and SSL_LIB :
+
+  $ make TARGET=generic \
+    USE_OPENSSL=1 SSL_INC=$STATICLIBSSL/include SSL_LIB=$STATICLIBSSL/lib
+
+When building with OpenSSL on some systems, you may also need to enable support
+for the "libz" library, which is visible if the linker complains about function
+"deflateInit()" not being found. In this case, simply append "ADDLIB=-lz" to
+the command line.
+
+It is worth mentioning that asynchronous cryptography engines are supported on
+OpenSSL 1.1.0 and above. Such engines are used to access hardware cryptography
+acceleration that might be present on your system.
+
+
+4.6) Compression
+----------------
+HAProxy can compress HTTP responses before delivering them to clients, in order
+to save network bandwidth. Two compression options are available. The first one
+involves the widely known zlib library, which is very likely installed on your
+system. In order to use zlib, simply pass "USE_ZLIB=1" to the command line. If
+the library is not installed in your default system's path, it is possible to
+specify the path to the include files using ZLIB_INC, and the path to the
+library files using ZLIB_LIB :
+
+  $ make TARGET=generic \
+    USE_ZLIB=1 ZLIB_INC=/opt/zlib-1.2.11/include ZLIB_LIB=/opt/zlib-1.2.11/lib
+
+However, zlib maintains an in-memory context for each compressed stream, which
+is not always welcome when dealing with large sites. An alternative solution is
+to use libslz instead, which doesn't consume memory, which is much faster, but
+compresses slightly less efficiently. For this, please use "USE_SLZ=1", and
+optionally make "SLZ_INC" and "SLZ_LIB" point to the library's include and
+library paths, respectively.
+
+Zlib is commonly found on most systems, otherwise updates can be retrieved from
+http://www.zlib.net/. It is easy and fast to build, and new versions sometimes
+provide better performance so it might be worth using an up-to-date one. Libslz
+can be downloaded http://libslz.org/ and is even easier to build.
+
+
+4.7) Lua
+--------
+Lua is an embedded programming langage supported by HAProxy to provide more
+advanced scripting capabilities. Only versions 5.3 and above are supported.
+In order to enable Lua support, please specify "USE_LUA=1" on the command line.
+Some systems provide this library under various names to avoid conflicts with
+previous versions. By default, HAProxy looks for "lua5.3", "lua53", "lua". If
+your system uses a different naming, you may need to set the library name in
+the "LUA_LIB_NAME" variable.
+
+If Lua is not provided on your system, it can be very simply built locally. It
+can be downloaded from https://www.lua.org/, extracted and built, for example :
+
+  $ cd /opt/lua-5.3.5
+  $ make linux
+
+The path to the include files and library files may be set using "LUA_INC" and
+"LUA_LIB" respectively. For example :
+
+  $ make TARGET=generic \
+    USE_LUA=1 LUA_INC=/opt/lua-5.3.5/src LUA_LIB=/opt/lua-5.3.5/src
+
+
+4.8) Device detection
+---------------------
+HAProxy supports several device detection modules relying on third party
+products. Some of them may provide free code, others free libs, others free
+evaluation licenses. Please read about their respective details in the
+following files :
+
+    doc/DeviceAtlas-device-detection.txt   for DeviceAtlas
+    doc/51Degrees-device-detection.txt     for 51Degrees
+    doc/WURFL-device-detection.txt         for Scientiamobile WURFL
+
+
+4.9) Miscellaneous
+------------------
+Some systems have specificities. Usually these specificities are known and/or
+detected and properly set for you. If you need to adjust the behaviour, here
+are the extra libraries that may be referenced at build time :
+
+  - USE_RT=1      build with librt, which is sometimes needed on some systems
+                  when using threads. It is set by default on Linux platforms,
+                  and may be disabled using "USE_RT=" if your system doesn't
+                  have one.
+
+  - USE_DL=1      build with libdl, which is usually needed for Lua and OpenSSL
+                  on Linux. It is automatically detected and may be disabled
+                  using "USE_DL=", though it should never harm.
+
+  - USE_SYSTEMD=1 enables support for the sdnotify features of systemd,
+                  allowing better integration with systemd on Linux systems
+                  which come with it. It is never enabled by default so there
+                  is no need to disable it.
+
+
+5) How to build HAProxy
+=======================
+
+This section assumes that you have already read section 2 (basic principles)
+and section 3 (build environment). It often refers to section 4 (dependencies).
+
+To build haproxy, you have to choose your target OS amongst the following ones
+and assign it to the TARGET variable :
+
+  - linux22     for Linux 2.2
+  - linux24     for Linux 2.4 and above (default)
+  - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
+  - linux26     for Linux 2.6 and above
+  - linux2628   for Linux 2.6.28, 3.x, and above (enables splice and tproxy)
+  - solaris     for Solaris 8 or 10 (others untested)
+  - freebsd     for FreeBSD 5 to 12 (others untested)
+  - netbsd      for NetBSD
+  - osx         for Mac OS/X
+  - openbsd     for OpenBSD 5.7 and above
+  - aix51       for AIX 5.1
+  - aix52       for AIX 5.2
+  - cygwin      for Cygwin
+  - haiku       for Haiku
+  - generic     for any other OS or version.
+  - custom      to manually adjust every setting
+
+You may also choose your CPU to benefit from some optimizations. This is
+particularly important on UltraSparc machines. For this, you can assign
+one of the following choices to the CPU variable :
+
+  - i686 for intel PentiumPro, Pentium 2 and above, AMD Athlon (32 bits)
+  - i586 for intel Pentium, AMD K6, VIA C3.
+  - ultrasparc : Sun UltraSparc I/II/III/IV processor
+  - native : use the build machine's specific processor optimizations. Use with
+    extreme care, and never in virtualized environments (known to break).
+  - generic : any other processor or no CPU-specific optimization. (default)
+
+Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
+for your platform. A second variable named SMALL_OPTS also supports passing a
+number of defines and compiler options usually for small systems. For better
+clarity it's recommended to pass the options which result in a smaller binary
+(like memory limits or -Os) into this variable.
+
+If you are building for a different system than the one you're building on,
+this is called "cross-compiling". HAProxy supports cross-compilation pretty
+well and tries to ease it by letting you adjust paths to all libraries (please
+read section 4 on dependencies for more details). When cross-compiling, you
+just need to pass the path to your compiler in the "CC" variable, and the path
+to the linker in the "LD" variable. Most of the time, setting the CC variable
+is enough since LD points to it by default.
+
+By default the build process runs in quiet mode and hide the details of the
+commands that are executed. This allows to more easily catch build warnings
+and see what is happening. However it is not convenient at all to observe what
+flags are passed to the compiler nor what compiler is involved. Simply append
+"V=1" to the "make" command line to switch to verbose mode and display the
+details again. It is recommended to use this option when cross-compiling to
+verify that the paths are correct and that /usr/include is never invovled.
+
+You may want to build specific target binaries which do not match your native
+compiler's target. This is particularly true on 64-bit systems when you want
+to build a 32-bit binary. Use the ARCH variable for this purpose. Right now
+it only knows about a few x86 variants (i386,i486,i586,i686,x86_64), two
+generic ones (32,64) and sets -m32/-m64 as well as -march=<arch> accordingly.
+This variable is only used to set ARCH_FLAGS to preset values, so if you know
+the arch-specific flags that your system needs, you may prefer to set
+ARCH_FLAGS instead. Note that these flags are passed both to the compiler and
+to the linker. For example, in order to build a 32-bit binary on an x86_64
+Linux system with SSL support without support for compression but when OpenSSL
+requires ZLIB anyway :
+
+    $ make TARGET=linux2628 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
+
+Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
+is not present in all libcs and does not work in all of them either. Support in
+glibc was broken before 2.3. Some embedded libs may not properly work either,
+thus, support is disabled by default, meaning that some host names which only
+resolve as IPv6 addresses will not resolve and configs might emit an error
+during parsing. If you know that your OS libc has reliable support for
+getaddrinfo(), you can add USE_GETADDRINFO=1 on the make command line to enable
+it. This is the recommended option for most Linux distro packagers since it's
+working fine on all recent mainstream distros. It is automatically enabled on
+Solaris 8 and above, as it's known to work.
+
+If your system supports PCRE (Perl Compatible Regular Expressions), then you
+really should build with libpcre which is between 2 and 10 times faster than
+other libc implementations. Regex are used for header processing (deletion,
+rewriting, allow, deny). Please see section 4 about dependencies to figure
+how to build with PCRE support.
+
+It is possible to add native support for SSL, by passing "USE_OPENSSL=1" on the
+make command line. The libssl and libcrypto will automatically be linked with
+HAProxy. Some systems also require libz, so if the build fails due to missing
+symbols such as deflateInit(), then try again with "ADDLIB=-lz". Please check
+section 4 about dependencies for more information on how to build with OpenSSL.
+
+HAProxy can compress HTTP responses to save bandwidth. Please see section 4
+about dependencies to see the available libraries and associated options.
+
+By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
+not wise to disable it on uncommon systems, because it's often the only way to
+get a usable core when you need one. Otherwise, you can set DEBUG to '-s' to
+strip the binary.
+
+If the ERR variable is set to any non-empty value, then -Werror will be added
+to the compiler so that any build warning will trigger an error. This is the
+recommended way to build when developing, and it is expected that contributed
+patches were tested with ERR=1.
+
+The SSL stack supports session cache synchronization between all running
+processes. This involves some atomic operations and synchronization operations
+which come in multiple flavors depending on the system and architecture :
+
+  Atomic operations :
+    - internal assembler versions for x86/x86_64 architectures
+
+    - gcc builtins for other architectures. Some architectures might not
+      be fully supported or might require a more recent version of gcc.
+      If your architecture is not supported, you willy have to either use
+      pthread if supported, or to disable the shared cache.
+
+    - pthread (posix threads). Pthreads are very common but inter-process
+      support is not that common, and some older operating systems did not
+      report an error when enabling multi-process mode, so they used to
+      silently fail, possibly causing crashes. Linux's implementation is
+      fine. OpenBSD doesn't support them and doesn't build. FreeBSD 9 builds
+      and reports an error at runtime, while certain older versions might
+      silently fail. Pthreads are enabled using USE_PTHREAD_PSHARED=1.
+
+  Synchronization operations :
+    - internal spinlock : this mode is OS-independent, light but will not
+      scale well to many processes. However, accesses to the session cache
+      are rare enough that this mode could certainly always be used. This
+      is the default mode.
+
+    - Futexes, which are Linux-specific highly scalable light weight mutexes
+      implemented in user-space with some limited assistance from the kernel.
+      This is the default on Linux 2.6 and above and is enabled by passing
+      USE_FUTEX=1
+
+    - pthread (posix threads). See above.
+
+If none of these mechanisms is supported by your platform, you may need to
+build with USE_PRIVATE_CACHE=1 to totally disable SSL cache sharing. Then it
+is better not to run SSL on multiple processes. Note that you don't need these
+features if you only intend to use multi-threading and never multi-process.
+
+If you need to pass other defines, includes, libraries, etc... then please
+check the Makefile to see which ones will be available in your case, and
+use/override the USE_* variables from the Makefile.
+
+AIX 5.3 is known to work with the generic target. However, for the binary to
+also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
+otherwise __fd_select() will be used while not being present in the libc, but
+this is easily addressed using the "aix52" target. If you get build errors
+because of strange symbols or section mismatches, simply remove -g from
+DEBUG_CFLAGS.
+
+You can easily define your own target with the GNU Makefile. Unknown targets
+are processed with no default option except USE_POLL=default. So you can very
+well use that property to define your own set of options. USE_POLL can even be
+disabled by setting USE_POLL="". For example :
+
+  $ gmake TARGET=tiny USE_POLL="" TARGET_CFLAGS=-fomit-frame-pointer
+
+If you need to pass some defines to the preprocessor or compiler, you may pass
+them all in the DEFINE variable. Example:
+
+  $ make TARGET=generic DEFINE="-DDEBUG_DONT_SHARE_POOLS -DDEBUG_MEMORY_POOLS"
+
+The ADDINC variable may be used to add some extra include paths; this is
+sometimes needed when cross-compiling. Similarly the ADDLIB variable may be
+used to specifify extra paths to library files. Example :
+
+  $ make TARGET=generic ADDINC=-I/opt/cross/include ADDLIB=-L/opt/cross/lib64
+
+
+6) How to install HAProxy
+=========================
+
+To install haproxy, you can either copy the single resulting binary to the
+place you want, or run :
+
+    $ sudo make install
+
+If you're packaging it for another system, you can specify its root directory
+in the usual DESTDIR variable.
+
+-- end
