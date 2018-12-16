@@ -1,6 +1,154 @@
 ChangeLog :
 ===========
 
+2018/12/16 : 1.9-dev11
+    - BUG/MEDIUM: connection: Don't use the provided conn_stream if it was tried.
+    - REGTEST/MINOR: remove double body specification for server txresp
+    - BUG/MEDIUM: connections: Remove error flags when retrying.
+    - REGTEST/MINOR: skip seamless-reload test with abns socket on freebsd
+    - REGTEST/MINOR: remove health-check that can make the test fail
+    - DOC: clarify that check-sni needs an argument.
+    - DOC: refer to check-sni in the documentation of sni
+    - BUG/MEDIUM: mux-h2: fix encoding of non-GET/POST methods
+    - BUG/MINOR: mux-h1: Fix conn_mode processing for headerless outgoing messages
+    - BUG/MEDIUM: mux-h1: Add a BUSY mode to not loop on pipelinned requests
+    - BUG/MEDIUM: mux-h1: Don't loop on the headers parsing if the read0 was received
+    - BUG/MEDIUM: htx: Always do a defrag if a block value is replace by a bigger one
+    - BUG/MEDIUM: mux-h2: Don't forget to set the CS_FL_EOS flag with htx.
+    - BUG/MINOR: hpack: fix off-by-one in header name encoding length calculation
+    - CLEANUP: hpack: no need to include chunk.h, only include buf.h
+    - MINOR: hpack: simplify the len to bytes conversion
+    - MINOR: hpack: use ist2bin() to copy header names in hpack_encode_header()
+    - MINOR: hpack: optimize header encoding for short names
+    - CONTRIB: hpack: add a compressed stream generator for the encoder
+    - MEDIUM: hpack: make it possible to encode any static header name
+    - MINOR: hpack: move the length computation and encoding functions to .h
+    - MINOR: hpack: provide a function to encode a short indexed header
+    - MINOR: hpack: provide a function to encode a long indexed header
+    - MINOR: hpack: provide new functions to encode the ":status" header
+    - MEDIUM: mux-h2: make use of standard HPACK encoding functions for the status
+    - MINOR: hpack: provide a function to encode an HTTP method
+    - MEDIUM: mux-h2: make use of hpack_encode_method() to encode the method
+    - MINOR: hpack: provide a function to encode an HTTP scheme
+    - MEDIUM: mux-h2: make use of hpack_encode_scheme() to encode the scheme
+    - MINOR: hpack: provide a function to encode an HTTP path
+    - MEDIUM: mux-h2: make use of hpack_encode_path() to encode the path
+    - REGTEST: add the HTTP rules test involving HTX processing
+    - REORG: connection: centralize the conn_set_{tos,mark,quickack} functions
+    - MEDIUM: cli: rework the CLI proxy parser
+    - MINOR: cli: parse prompt command in the CLI proxy
+    - MINOR: cli: implements 'quit' in the CLI proxy
+    - BUG/MINOR: cli: wait for payload data even without prompt
+    - MEDIUM: cli: handle payload in CLI proxy
+    - MINOR: cli: use pcli_flags for prompt activation
+    - MINOR: compression: Rename the function check_legacy_http_comp_flt()
+    - MINOR: cache/htx: Don't use the same cache on HTX and legacy HTTP proxies
+    - MINOR: cache: Register the cache as a data filter only if response is cacheable
+    - MEDIUM: cache/htx: Add the HTX support into the cache
+    - MINOR: cache: Improve and simplify the cache configuration check
+    - MINOR: filters: Export the name of known filters
+    - MEDIUM: cache/compression: Add a way to safely combined compression and cache
+    - MEDIUM: cache: Require an explicit filter declaration if other filters are used
+    - REORG: htx: merge types+proto into common/htx.h
+    - REORG: http: create http_msg.c to place there some legacy HTTP parts
+    - REORG: h1: move legacy http functions to http_msg.c
+    - REORG: h1: move the h1_state definition to proto_http
+    - CLEANUP: h1: remove some occurrences of unneeded h1.h inclusions
+    - REORG: h1: merge types+proto into common/h1.h
+    - CLEANUP: stream: remove SF_TUNNEL, SF_INITIALIZED, SF_CONN_TAR
+    - MEDIUM: mux-h1: implement true zero-copy of DATA blocks
+    - MINOR: config: round up global.tune.bufsize to the next multiple of 2 void*
+    - BUG/MINOR: mux-h2: refrain from muxing during the preface
+    - BUG/MINOR: mux-h2: advertise a larger connection window size
+    - DOC: master CLI documentation in management.txt
+    - MINOR: mux-h2: avoid copying large blocks into full buffers
+    - MEDIUM: mux-h2: implement true zero-copy send of large HTX DATA blocks
+    - MINOR: mux-h2: force reads to be HTX-aligned in HTX mode
+    - MINOR: cli: change 'show proc' output of old processes
+    - BUG/MEDIUM: mux-h1: Fix the zero-copy on output for chunked messages
+    - BUG: dns: Prevent stack-exhaustion via recursion loop in dns_read_name
+    - BUG: dns: Prevent out-of-bounds read in dns_read_name()
+    - BUG: dns: Prevent out-of-bounds read in dns_validate_dns_response()
+    - BUG: dns: Fix out-of-bounds read via signedness error in dns_validate_dns_response()
+    - BUG: dns: Fix off-by-one write in dns_validate_dns_response()
+    - REGTEST: the cache regtest requires haproxy 1.9
+    - MEDIUM: cli: store CLI level in the appctx
+    - MEDIUM: cli: show and change CLI permissions
+    - CLEANUP: cli: use dedicated define instead of appctx ones
+    - MEDIUM: cli: handle CLI level from the master CLI
+    - BUG/MEDIUM: cli: handle correctly prefix and payload
+    - BUILD: Makefile: Implements the help target
+    - REGTESTS: adjust the http-rules regtest to support window updates
+    - BUG/MEDIUM: connections: Remove CS_FL_EOS | CS_FL_REOS on retry.
+    - BUG/MEDIUM: stream_interface: Don't report read0 if we were not connected.
+    - BUG/MEDIUM: connection: Just make sure we closed the fd on connection failure.
+    - MEDIUM: mux: Add an optional "reset" method.
+    - BUG/MEDIUM: mux-h1: Fix loop if server closes its connection with unparsed data
+    - MINOR: mux-h1: Add helper functions to wake a stream from recv or send
+    - BUG/MEDIUM: mux-h1: Wake the stream for send once the connection is established
+    - BUG/MEDIUM: connections: Don't attempt to reuse an unusable connection.
+    - MEDIUM: htx: Try to take a connection over if it has no owner.
+    - REGTEST: Reg testing improvements.
+    - REGTEST: Add a first test for health-checks.
+    - REGTEST: Reg test for "check" health-check option.
+    - REGTEST: level 1 health-check test 2.
+    - REGTEST: Add miscellaneous reg tests for health-checks.
+    - REGTEST: add a few HTTP messaging tests
+    - MINOR: lb: make the leastconn algorithm more accurate
+    - REGTEST: fix missing space in checks/s00001
+    - REGTEST: http-messaging: add "option http-buffer-request" for H2 tests
+    - BUG/MEDIUM: cache: fix random crash on filter parser's error path
+    - MINOR: connection: realign empty buffers in muxes, not transport layers
+    - MINOR: mux_h1/h2: simplify the zero-copy Rx alignment
+    - MINOR: backend: count the number of connect and reuse per server and per backend
+    - BUG/MINOR: stats: fix inversion of failed header rewrites and other statuses
+    - MINOR: tools: increase the number of ITOA strings to 16
+    - MINOR: cache: report the number of cache lookups and cache hits
+    - MEDIUM: tasks: check the global task mask instead of the thread number
+    - MINOR: mworker: set all_threads_mask and pid_bit to 1
+    - BUG/MINOR: proto_htx: Fix htx_res_set_status to also set the reason
+    - BUG/MINOR: stats: Parse post data for HTX streams
+    - MINOR: payload/htx: Adapt smp_fetch_len to be HTX aware
+    - MINOR: http_fecth: Implement body_len and body_size sample fetches for the HTX
+    - MAJOR: lua: Forbid calls to Channel functions for LUA scripts in HTTP proxies
+    - MEDIUM: lua/htx: Adapt functions of the HTTP to be compatible with HTX
+    - MINOR: lua/htx: Adapt the functions get_in_length and is_full to be HTX aware
+    - MAJOR: lua/htx: Adapt HTTP applets to support HTX messages
+    - MINOR: lua: Remove useless check on the messages state in HTTP functions
+    - BUG/MEDIUM: htx: When performing zero-copy, start from the right offset.
+    - BUG/MINOR: mworker: don't use unitialized mworker_proc struct
+    - MINOR: mworker/cli: indicate in the master prompt when a reload failed
+    - MINOR: cli: implements 'reload' on master CLI
+    - BUG/MEDIUM: log: Don't call sample_fetch_as_type if we don't have a stream.
+    - BUG/MEDIUM: mux-h1: make sure we always have at least one HTX block to send
+    - BUG/MAJOR: backend: only update server's counters when the server exists
+    - MINOR: tools: preset the port of fd-based "sockets" to zero
+    - BUG/MINOR: log: fix logging to both FD and IP
+    - REGTEST: Add a reg test for HTTP cookies.
+    - BUILD: ssl: Fix compilation without deprecated OpenSSL 1.1 APIs
+    - BUILD: thread: properly report multi-thread support
+    - BUG/MINOR: logs: leave startup-logs global and not per-thread
+    - BUG/MEDIUM: threads: don't close the thread waker pipe if not init
+    - BUG/MAJOR: compression/cache: Make it really works with these both filters
+    - BUG/MEDIUM: h2: Don't forget to destroy the h2s after deferred shut.
+    - MEDIUM: proxy: Set http-reuse safe as default.
+    - MEDIUM: servers: Add a command to limit the number of idling connections.
+    - MEDIUM: servers: Replace idle-timeout with pool-purge-delay.
+    - MEDIUM: mux: Destroy the stream before trying to add the conn to the idle list.
+    - MEDIUM: mux: provide the session to the init() and attach() method.
+    - MEDIUM: sessions: Don't keep an infinite number of idling connections.
+    - MEDIUM: servers: Be more agressive when adding H2 connection to idle lists.
+    - MEDIUM: mux_h2: Always set CS_FL_NOT_FIRST for new conn_streams.
+    - BUG/MEDIUM: htx/cache: use the correct class of error codes on abort
+    - BUG/MINOR: cache: also consider CF_SHUTR to abort delivery
+    - MINOR: pools: Cast to volatile int * instead of int *.
+    - MINOR: debug: make the ABORT_NOW macro use a volatile int
+    - BUG/MEDIUM: h2: Don't destroy the h2s if it still has a cs attached.
+    - BUG/MEDIUM: mux-h1: don't try to process an empty input buffer
+    - DOC: clarify the agent-check status line syntax
+    - BUG/MAJOR: hpack: fix length check for short names encoding
+    - DOC: split the README into README + INSTALL
+
 2018/12/08 : 1.9-dev10
     - MINOR: htx: Rename functions htx_*_to_str() to be H1 specific
     - BUG/MINOR: htx: Force HTTP/1.1 on H1 formatting when version is 1.1 or above
