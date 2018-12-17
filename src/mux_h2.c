@@ -1739,7 +1739,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s_close(h2s);
 
 	if (h2s->cs) {
-		h2s->cs->flags |= CS_FL_REOS | CS_FL_ERROR;
+		h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
 		if (h2s->recv_wait) {
 			struct wait_event *sw = h2s->recv_wait;
 
@@ -4595,6 +4595,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (htx_is_empty(h2s_htx)) {
 			if (cs->flags & CS_FL_REOS)
 				cs->flags |= CS_FL_EOS;
+			if (cs->flags & CS_FL_ERR_PENDING)
+				cs->flags |= CS_FL_ERROR;
 			goto end;
 		}
 
@@ -4618,6 +4620,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (cs->flags & CS_FL_REOS)
 			cs->flags |= CS_FL_EOS;
+		if (cs->flags & CS_FL_ERR_PENDING)
+			cs->flags |= CS_FL_ERROR;
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
 			offer_buffers(NULL, tasks_run_queue);
