@@ -209,7 +209,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	if (cs->flags & CS_FL_SHR)
 		return;
-	cs->flags &= ~CS_FL_RCV_MORE;
+	cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
 	if (cs->flags & CS_FL_SHW)
@@ -246,19 +246,19 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 	size_t ret;
 
 	if (!count) {
-		cs->flags |= CS_FL_RCV_MORE;
+		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		return 0;
 	}
 	b_realign_if_empty(buf);
 	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count, flags);
 	if (conn_xprt_read0_pending(cs->conn)) {
 		if (ret == 0)
-			cs->flags &= ~CS_FL_RCV_MORE;
+			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		cs->flags |= CS_FL_EOS;
 	}
 	if (cs->conn->flags & CO_FL_ERROR) {
 		if (ret == 0)
-			cs->flags &= ~CS_FL_RCV_MORE;
+			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		cs->flags |= CS_FL_ERROR;
 	}
 	return ret;
