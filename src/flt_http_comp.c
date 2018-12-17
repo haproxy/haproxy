@@ -1074,10 +1074,10 @@ http_compression_buffer_add_data(struct comp_state *st, struct buffer *in,
 	block2 = data_process_len - block1;
 
 	/* compressors return < 0 upon error or the amount of bytes read */
-	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_head(in) + in_out, block1, out);
+	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_peek(in, in_out), block1, out);
 	if (consumed_data != block1 || !block2)
 		goto end;
-	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_peek(in, 0), block2, out);
+	consumed_data = st->comp_algo->add_data(st->comp_ctx, b_orig(in), block2, out);
 	if (consumed_data < 0)
 		goto end;
 	consumed_data += block1;
