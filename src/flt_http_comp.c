@@ -51,7 +51,6 @@ DECLARE_STATIC_POOL(pool_head_comp_state, "comp_state", sizeof(struct comp_state
 
 static THREAD_LOCAL struct buffer tmpbuf;
 static THREAD_LOCAL struct buffer zbuf;
-static THREAD_LOCAL unsigned int buf_output;
 
 static int select_compression_request_header(struct comp_state *st,
 					     struct stream *s,
@@ -68,14 +67,14 @@ static int htx_compression_buffer_add_data(struct comp_state *st, const char *da
 					    struct buffer *out);
 static int htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end);
 
-static int http_compression_buffer_init(struct channel *inc, struct buffer *out, unsigned int *out_len);
+static int http_compression_buffer_init(struct channel *inc, struct buffer *out);
 static int http_compression_buffer_add_data(struct comp_state *st,
 					    struct buffer *in,
 					    int in_out,
 					    struct buffer *out, int sz);
 static int http_compression_buffer_end(struct comp_state *st, struct stream *s,
 				       struct channel *chn, struct buffer *out,
-				       unsigned int *out_len, int end);
+				       int end);
 
 /***********************************************************************/
 static int
@@ -312,7 +311,7 @@ comp_http_data(struct stream *s, struct filter *filter, struct http_msg *msg)
 
 		b_reset(&tmpbuf);
 		c_adv(chn, fwd);
-		ret = http_compression_buffer_init(chn, &zbuf, &buf_output);
+		ret = http_compression_buffer_init(chn, &zbuf);
 		c_rew(chn, fwd);
 		if (ret < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
@@ -363,7 +362,7 @@ comp_http_chunk_trailers(struct stream *s, struct filter *filter,
 
 			b_reset(&tmpbuf);
 			c_adv(chn, fwd);
-			http_compression_buffer_init(chn, &zbuf, &buf_output);
+			http_compression_buffer_init(chn, &zbuf);
 			c_rew(chn, fwd);
 			st->initialized = 1;
 		}
@@ -428,7 +427,7 @@ comp_http_forward_data(struct stream *s, struct filter *filter,
 
 	st->consumed = len - st->hdrs_len - st->tlrs_len;
 	c_adv(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
-	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, &buf_output, msg->msg_state >= HTTP_MSG_TRAILERS);
+	ret = http_compression_buffer_end(st, s, msg->chn, &zbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 	c_rew(msg->chn, flt_rsp_fwd(filter) + st->hdrs_len);
 	if (ret < 0)
 		return ret;
@@ -1015,7 +1014,7 @@ http_emit_chunk_size(char *end, unsigned int chksz)
  * Init HTTP compression
  */
 static int
-http_compression_buffer_init(struct channel *inc, struct buffer *out, unsigned int *out_len)
+http_compression_buffer_init(struct channel *inc, struct buffer *out)
 {
 	/* output stream requires at least 10 bytes for the gzip header, plus
 	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
@@ -1030,8 +1029,7 @@ http_compression_buffer_init(struct channel *inc, struct buffer *out, unsigned i
 	 * cancel the operation later, it's cheap.
 	 */
 	b_reset(out);
-	*out_len = co_data(inc);
-	out->head += *out_len + 10;
+	out->head += co_data(inc) + 10;
 	return 0;
 }
 
@@ -1100,12 +1098,11 @@ htx_compression_buffer_add_data(struct comp_state *st, const char *data, size_t 
 static int
 http_compression_buffer_end(struct comp_state *st, struct stream *s,
 			    struct channel *chn, struct buffer *out,
-			    unsigned int *buf_out, int end)
+			    int end)
 {
 	struct buffer tmp_buf;
 	char *tail;
 	int   to_forward, left;
-	unsigned int tmp_out;
 
 #if defined(USE_SLZ) || defined(USE_ZLIB)
 	int ret;
@@ -1150,12 +1147,12 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	 */
 	left = http_emit_chunk_size(b_head(out), b_data(out));
 	b_add(out, left);
-	out->head -= *buf_out + (left);
+	out->head -= co_data(chn) + (left);
 	/* Copy previous data from chn into out */
 	if (co_data(chn) > 0) {
 		left = b_contig_data(&chn->buf, 0);
-		if (left > *buf_out)
-			left = *buf_out;
+		if (left > co_data(chn))
+			left = co_data(chn);
 
 		memcpy(b_head(out), co_head(chn), left);
 		b_add(out, left);
@@ -1189,7 +1186,7 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 	}
 
 	b_add(out, tail - b_tail(out));
-	to_forward = b_data(out) - *buf_out;
+	to_forward = b_data(out) - co_data(chn);
 
 	/* update input rate */
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
@@ -1212,16 +1209,12 @@ http_compression_buffer_end(struct comp_state *st, struct stream *s,
 			b_add(out, b_data(&chn->buf) - left);
 		}
 	}
+	c_rew(chn, st->consumed);
+
 	/* swap the buffers */
 	tmp_buf = chn->buf;
 	chn->buf = *out;
 	*out = tmp_buf;
-
-	tmp_out = chn->output;
-	chn->output = *buf_out;
-	*buf_out = tmp_out;
-
-
 
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_out, to_forward);
