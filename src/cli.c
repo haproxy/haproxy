@@ -865,11 +865,17 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	int fd = appctx->ctx.cli.i0;
+	int ret = 1;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
-		return 1;
+		goto end;
 
 	chunk_reset(&trash);
+
+	/* isolate the threads once per round. We're limited to a buffer worth
+	 * of output anyway, it cannot last very long.
+	 */
+	thread_isolate();
 
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
@@ -883,14 +889,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		void *ctx = NULL;
 		uint32_t conn_flags = 0;
 
-		thread_isolate();
-
 		fdt = fdtab[fd];
 
-		if (!fdt.owner) {
-			thread_release();
+		if (!fdt.owner)
 			goto skip; // closed
-		}
 
 		if (fdt.iocb == conn_fd_handler) {
 			conn_flags = ((struct connection *)fdt.owner)->flags;
@@ -956,24 +958,26 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			              li->bind_conf->frontend->id);
 		}
 
-		thread_release();
-
 		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
-			return 0;
+			appctx->ctx.cli.i0 = fd;
+			ret = 0;
+			break;
 		}
 	skip:
 		if (appctx->st2 == STAT_ST_END)
 			break;
 
 		fd++;
-		appctx->ctx.cli.i0 = fd;
 	}
 
+ end:
 	/* dump complete */
-	return 1;
+
+	thread_release();
+	return ret;
 }
 
 /* This function dumps some activity counters used by developers and support to
