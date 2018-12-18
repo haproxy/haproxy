@@ -827,7 +827,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end = sess->fe;
 	union error_snapshot_ctx ctx;
 
-	if (h1s->cs->data)
+	if (h1s->cs->data && !(h1m->flags & H1_MF_RESP))
 		other_end = si_strm(h1s->cs->data)->be;
 
 	/* http-specific part now */
