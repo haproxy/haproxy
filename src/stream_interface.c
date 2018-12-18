@@ -1116,6 +1116,9 @@ int si_cs_recv(struct conn_stream *cs)
 			return 1; // We want to make sure si_cs_wake() is called, so that process_strema is woken up, on failure
 	}
 
+	/* prepare to detect if the mux needs more room */
+	cs->flags &= ~CS_FL_WANT_ROOM;
+
 	if ((ic->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !co_data(ic) &&
 	    global.tune.idle_timer &&
 	    (unsigned short)(now_ms - ic->last_read) >= global.tune.idle_timer) {
