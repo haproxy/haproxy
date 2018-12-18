@@ -369,7 +369,8 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  $VARNISHTEST_PROGRAM $varnishtestparams $verbose $jobcount -l -k -t 10 $testlist
+  cmd="$VARNISHTEST_PROGRAM -l -k -t 10 $verbose $jobcount $varnishtestparams $testlist"
+  eval $cmd
   _vtresult=$?
 else
   echo "No tests found that meet the required criteria"
