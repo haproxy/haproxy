@@ -2583,7 +2583,7 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 		ret = h2_send(h2c);
 	if (!(h2c->wait_event.wait_reason & SUB_CAN_RECV))
 		ret |= h2_recv(h2c);
-	if (ret)
+	if (ret || b_data(&h2c->dbuf))
 		h2_process(h2c);
 	return NULL;
 }
