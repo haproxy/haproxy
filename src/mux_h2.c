@@ -4844,7 +4844,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 static void h2_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct h2c *h2c = conn->mux_ctx;
-	struct h2s *h2s;
+	struct h2s *h2s = NULL;
 	struct eb32_node *node;
 	int fctl_cnt = 0;
 	int send_cnt = 0;
@@ -4869,12 +4869,28 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 		node = eb32_next(node);
 	}
 
-	chunk_appendf(msg, " st0=%d err=%d maxid=%d lastid=%d flg=0x%08x nbst=%u nbcs=%u"
-		      " fctl_cnt=%d send_cnt=%d tree_cnt=%d orph_cnt=%d dbuf=%u/%u mbuf=%u/%u",
+	chunk_appendf(msg, " h2c.st0=%d .err=%d .maxid=%d .lastid=%d .flg=0x%04x"
+		      " .nbst=%u .nbcs=%u .fctl_cnt=%d .send_cnt=%d .tree_cnt=%d"
+		      " .orph_cnt=%d .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u .msi=%d .mbuf=%u@%p+%u/%u",
 		      h2c->st0, h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
 		      h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
-		      (unsigned int)b_data(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
-		      (unsigned int)b_data(&h2c->mbuf), (unsigned int)b_size(&h2c->mbuf));
+		      h2c->wait_event.wait_reason, h2c->dsi,
+		      (unsigned int)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
+		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
+		      h2c->msi,
+		      (unsigned int)b_data(&h2c->mbuf), b_orig(&h2c->mbuf),
+		      (unsigned int)b_head_ofs(&h2c->mbuf), (unsigned int)b_size(&h2c->mbuf));
+
+	if (h2s) {
+		chunk_appendf(msg, " last_h2s=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
+			      h2s, h2s->id, h2s->flags,
+			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
+			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
+			      h2s->cs);
+		if (h2s->cs)
+			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
+				      h2s->cs->flags, h2s->cs->data);
+	}
 }
 
 /*******************************************************/
