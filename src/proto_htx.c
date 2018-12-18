@@ -816,7 +816,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * This should only be performed in the backend.
 	 */
 	if (s->be->cookie_name || sess->fe->capture_name)
-		manage_client_side_cookies(s, req);
+		htx_manage_client_side_cookies(s, req);
 
 	/* add unique-id if "header-unique-id" is specified */
 
