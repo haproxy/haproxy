@@ -4631,7 +4631,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (ret && h2c->dsi == h2s->id) {
 		/* demux is blocking on this stream's buffer */
 		h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (!(h2c->wait_event.wait_reason & SUB_CAN_RECV)) {
+		if (b_data(&h2c->dbuf) || !(h2c->wait_event.wait_reason & SUB_CAN_RECV)) {
 			if (h2_recv_allowed(h2c))
 				tasklet_wakeup(h2c->wait_event.task);
 		}
