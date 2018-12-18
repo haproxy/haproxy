@@ -537,29 +537,32 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		uint32_t fs; // free space
 		uint32_t bs; // block size
 		uint32_t vl; // value len
+		uint32_t tl; // total length
 		struct htx_blk *blk;
 
 		blk = htx_add_header(htx, ist("cookie"), list[ck].v);
 		if (!blk)
 			goto fail;
 
+		tl = list[ck].v.len;
 		fs = htx_free_data_space(htx);
 		bs = htx_get_blksz(blk);
 
 		/* for each extra cookie, we'll extend the cookie's value and
 		 * insert "; " before the new value.
 		 */
-		for ( ; (ck = list[ck].n.len) >= 0 ; ) {
+		fs += tl; // first one is already counted
+		for (; (ck = list[ck].n.len) >= 0 ; ) {
 			vl = list[ck].v.len;
-			if (vl + 2 > fs)
+			tl += vl + 2;
+			if (tl > fs)
 				goto fail;
 
-			htx_set_blk_value_len(blk, bs + 2 + vl);
+			htx_set_blk_value_len(blk, tl);
 			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
 			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
 			memcpy(htx_get_blk_ptr(htx, blk) + bs + 2, list[ck].v.ptr, vl);
 			bs += vl + 2;
-			fs -= vl + 2;
 		}
 
 	}
