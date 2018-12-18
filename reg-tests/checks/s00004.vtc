@@ -1,0 +1,99 @@
+varnishtest "Health-check test over TLS/SSL"
+feature ignore_unknown_macro
+
+
+# This script tests health-checks for a TLS/SSL backend with "option httpchk"
+# and "check-ssl" option enabled attached to h2 haproxy process. This haproxy
+# h2 process is chained to h1 other one.
+#
+server s1 {
+    rxreq
+    expect req.method == OPTIONS
+    expect req.url == *
+    expect req.proto == HTTP/1.1
+    txresp
+} -start
+
+server s2 {
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy fe1 started."
+    recv info
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 200 [[:digit:]]+ - - ---- .* \"OPTIONS \\* HTTP/1.1\""
+    recv info
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 504 [[:digit:]]+ - - sH-- .* \"OPTIONS \\* HTTP/1.1\""
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        mode http
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+
+    backend be1
+        server srv1 ${s1_addr}:${s1_port}
+
+    backend be2
+        server srv2 ${s2_addr}:${s2_port}
+
+    frontend fe1
+        option httplog
+        log ${S1_addr}:${S1_port} len 2048 local0 debug err
+        bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+        use_backend be1
+
+    frontend fe2
+        option tcplog
+        bind "fd@${fe2}" ssl crt ${testdir}/common.pem
+        use_backend be2
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be2 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be2/srv1 succeeded, reason: Layer7 check passed, code: 200, info: \"OK\", check duration: [[:digit:]]+ms, status: 1/1 UP."
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be2/srv1 failed, reason: Layer7 wrong status, code: 504, info: \"Gateway Time-out\", check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be4 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be4/srv2 succeeded, reason: Layer6 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+haproxy h2 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+        default-server downinter 1s rise 1 fall 1
+
+    backend be2
+        option log-health-checks
+        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        log ${S2_addr}:${S2_port} daemon
+        server srv1 ${h1_fe1_addr}:${h1_fe1_port} ssl crt ${testdir}/common.pem verify none check
+
+    backend be4
+        option log-health-checks
+        log ${S4_addr}:${S4_port} daemon
+        server srv2 ${h1_fe2_addr}:${h1_fe2_port} ssl crt ${testdir}/common.pem verify none check-ssl check
+} -start
+
+syslog S1 -wait
+
+syslog S2 -wait
+syslog S4 -wait
+
