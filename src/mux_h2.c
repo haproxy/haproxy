@@ -4860,6 +4860,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 	list_for_each_entry(h2s, &h2c->send_list, list)
 		send_cnt++;
 
+	h2s = NULL;
 	node = eb32_first(&h2c->streams_by_id);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
