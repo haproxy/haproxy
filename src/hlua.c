@@ -4233,6 +4233,7 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 	htx = htx_from_buf(&req->buf);
 	count = co_data(req);
 	blk = htx_get_head_blk(htx);
+
 	while (count && !stop && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
@@ -7544,6 +7545,8 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	}
 
 	if (ctx->ctx.hlua_apphttp.flags & APPLET_DONE) {
+		if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT))
+			goto error;
 
 		/* We must send the final chunk. */
 		if (ctx->ctx.hlua_apphttp.flags & APPLET_CHUNKED &&
