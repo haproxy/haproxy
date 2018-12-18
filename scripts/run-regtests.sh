@@ -1,6 +1,7 @@
 #!/bin/sh
 
-if [ "$1" = "--help" ]; then
+_help()
+{
   cat << EOF
 ### run-regtests.sh ###
   Running run-regtests.sh --help shows this information about how to use it
@@ -44,8 +45,8 @@ if [ "$1" = "--help" ]; then
     export HAPROXY_PROGRAM=/usr/local/sbin/haproxy
     export VARNISHTEST_PROGRAM=/usr/local/bin/varnishtest
 EOF
-  return
-fi
+  exit 0
+}
 
 add_range_to_test_list()
 {
@@ -206,9 +207,6 @@ _findtests() {
 }
 
 _process() {
-  jobcount=""
-  verbose="-q"
-
   while [ ${#} -gt 0 ]; do
     if _startswith "$1" "-"; then
       case "${1}" in
@@ -227,32 +225,38 @@ _process() {
           LEVEL="$2"
           shift
           ;;
+        --help)
+          _help
+          ;;
         *)
           echo "Unknown parameter : $1"
-          return 1
+          exit 1
           ;;
       esac
     else
-      _findtests "$1"
-      pathwasset=1
+      REGTESTS="${REGTESTS} $1"
     fi
     shift 1
   done
-  if [ -z $pathwasset ]; then
-    # no path was given, find all tests under current path
-    _findtests ./
-  fi
 }
 
 _version() {
   echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\012", $1,$2,$3,$4); }';
 }
 
-echo ""
-echo "########################## Preparing to run tests ##########################"
 
 HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
 VARNISHTEST_PROGRAM="${VARNISHTEST_PROGRAM:-varnishtest}"
+REGTESTS=""
+
+jobcount=""
+verbose="-q"
+testlist=""
+
+_process "$@";
+
+echo ""
+echo "########################## Preparing to run tests ##########################"
 
 preparefailed=
 if ! [ -x "$(command -v $HAPROXY_PROGRAM)" ]; then
@@ -350,11 +354,13 @@ echo "Target : $TARGET"
 echo "Options : $OPTIONS"
 
 echo "########################## Gathering tests to run ##########################"
-
-testlist=""
-pathwasset=
-
-_process "$@";
+if [ -z "$REGTESTS" ]; then
+  _findtests ./
+else
+  for t in $REGTESTS; do
+    _findtests $t
+  done
+fi
 
 echo "########################## Starting varnishtest ##########################"
 echo "Testing with haproxy version: $HAPROXY_VERSION"
