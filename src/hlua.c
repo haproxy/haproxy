@@ -4240,6 +4240,11 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 		uint32_t vlen;
 		char *nl;
 
+		if (type == HTX_BLK_EOM) {
+			stop = 1;
+			break;
+		}
+
 		vlen = sz;
 		if (vlen > count) {
 			if (type != HTX_BLK_DATA)
@@ -4408,6 +4413,11 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
 		uint32_t vlen;
+
+		if (type == HTX_BLK_EOM) {
+			len = 0;
+			break;
+		}
 
 		vlen = sz;
 		if (len > 0 && vlen > len)
