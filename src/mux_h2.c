@@ -2100,7 +2100,9 @@ static void h2_process_demux(struct h2c *h2c)
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
 		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
 
-		if (tmp_h2s != h2s && h2s && h2s->cs && b_data(&h2s->rxbuf)) {
+		if (tmp_h2s != h2s && h2s && h2s->cs &&
+		    (b_data(&h2s->rxbuf) ||
+		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS)))) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			if (h2s->recv_wait) {
@@ -2338,13 +2340,15 @@ static void h2_process_demux(struct h2c *h2c)
 
  fail:
 	/* we can go here on missing data, blocked response or error */
-	if (h2s && h2s->cs && b_data(&h2s->rxbuf)) {
+	if (h2s && h2s->cs &&
+	    (b_data(&h2s->rxbuf) ||
+	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS)))) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		if (h2s->recv_wait) {
-				h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
-				tasklet_wakeup(h2s->recv_wait->task);
-				h2s->recv_wait = NULL;
+			h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			tasklet_wakeup(h2s->recv_wait->task);
+			h2s->recv_wait = NULL;
 		}
 	}
 
