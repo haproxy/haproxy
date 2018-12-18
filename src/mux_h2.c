@@ -1241,7 +1241,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 	struct h2s *h2s;
 
 	if (h2c->st0 >= H2_CS_ERROR || h2c->conn->flags & CO_FL_ERROR)
-		flags |= CS_FL_ERROR;
+		flags |= CS_FL_ERR_PENDING;
 
 	if (conn_xprt_read0_pending(h2c->conn))
 		flags |= CS_FL_REOS;
@@ -1260,6 +1260,9 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		}
 
 		h2s->cs->flags |= flags;
+		if ((flags & CS_FL_ERR_PENDING) && (h2s->cs->flags & CS_FL_EOS))
+			h2s->cs->flags |= CS_FL_ERROR;
+
 		if (h2s->recv_wait) {
 			struct wait_event *sw = h2s->recv_wait;
 			sw->wait_reason &= ~SUB_CAN_RECV;
@@ -1268,7 +1271,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		} else if (h2s->cs->data_cb->wake != NULL)
 			h2s->cs->data_cb->wake(h2s->cs);
 
-		if (flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
+		if (flags & CS_FL_ERR_PENDING && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
 		else if (flags & CS_FL_REOS && h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
