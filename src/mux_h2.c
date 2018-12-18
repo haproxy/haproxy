@@ -1739,7 +1739,11 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s_close(h2s);
 
 	if (h2s->cs) {
-		h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
+		if (h2s->cs->flags & CS_FL_EOS)
+			h2s->cs->flags |= CS_FL_ERROR;
+		else
+			h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
+
 		if (h2s->recv_wait) {
 			struct wait_event *sw = h2s->recv_wait;
 
