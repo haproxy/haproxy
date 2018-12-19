@@ -615,8 +615,10 @@ int si_cs_send(struct conn_stream *cs)
 	if (si->wait_event.events & SUB_RETRY_SEND)
 		return 0;
 
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+		si->flags |= SI_FL_ERR;
 		return 1;
+	}
 
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH || oc->flags & CF_SHUTW)
@@ -634,8 +636,10 @@ int si_cs_send(struct conn_stream *cs)
 			oc->pipe = NULL;
 		}
 
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+			si->flags |= SI_FL_ERR;
 			return 1;
+		}
 
 		if (oc->pipe)
 			goto end;
@@ -689,8 +693,10 @@ int si_cs_send(struct conn_stream *cs)
 			 */
 		}
 
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+		if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+			si->flags |= SI_FL_ERR;
 			return 1;
+		}
 	}
 
  end:
@@ -838,7 +844,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	    (si_b->state == SI_ST_EST || si_b->state == SI_ST_CON) &&
 	    !(req->flags & CF_SHUTW) && /* Write not closed */
 	    !channel_is_empty(req) &&
-	    !(cs->flags & CS_FL_ERROR) &&
+	    !(cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) &&
 	    !(cs->conn->flags & CO_FL_ERROR)) {
 		if (si_cs_send(cs))
 			si_rx_room_rdy(si_f);
@@ -1023,7 +1029,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
-	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
