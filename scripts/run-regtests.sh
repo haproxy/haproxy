@@ -22,6 +22,9 @@ _help()
     --debug to show test logs on standard ouput (implies --v)
       run-regtests.sh --debug
 
+    --keep-logs to keep all log directories (by default kept if test fails)
+      run-regtests.sh --keep-logs
+
     --varnishtestparams <ARGS>, passes custom ARGS to varnishtest
       run-regtests.sh --varnishtestparams "-n 10"
 
@@ -259,6 +262,9 @@ _process() {
           verbose=""
           debug="-v"
           ;;
+        --keep-logs)
+          keep_logs="-L"
+          ;;
         --LEVEL)
           LEVEL="$2"
           shift
@@ -295,6 +301,7 @@ REGTESTS=""
 jobcount=""
 verbose="-q"
 debug=""
+keep_logs="-l"
 testlist=""
 
 _process "$@";
@@ -412,27 +419,32 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VARNISHTEST_PROGRAM -l -k -t 10 $verbose $debug $jobcount $varnishtestparams $testlist"
+  cmd="$VARNISHTEST_PROGRAM -k -t 10 $keep_logs $verbose $debug $jobcount $varnishtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else
   echo "No tests found that meet the required criteria"
 fi
-if [ $_vtresult != 0 ]
-then
-  echo "########################## Gathering failed results ##########################"
+
+
+if [ $_vtresult -eq 0 ]; then
+  # all tests were succesfull, removing tempdir (the last part.)
+  # ignore errors is the directory is not empty or if it does not exist
+   rmdir "$TESTDIR" 2>/dev/null
+fi
+
+if [ -d "${TESTDIR}" ]; then
+  echo "########################## Gathering results ##########################"
   export TESTDIR
   find "$TESTDIR" -type d -name "vtc.*" -exec sh -c 'for i; do
     if [ ! -e "$i/LOG" ] ; then continue; fi
+
     cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
 $(echo "###### $(cat "$i/INFO") ######")
 $(echo "## test results in: \"$i\"")
 $(grep -- ---- "$i/LOG")
 EOF
   done' sh {} +
-  exit 1
-else
-  # all tests were succesfull, removing tempdir (the last part.)
-  rmdir "$TESTDIR"
 fi
-exit 0
+
+exit $_vtresult
