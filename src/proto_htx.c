@@ -548,7 +548,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	 */
 	if (htx_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
-		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
+		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target)))) {
 			txn->status = 500;
 			s->logs.tv_request = now;
 			htx_reply_and_close(s, txn->status, htx_error_message(s));

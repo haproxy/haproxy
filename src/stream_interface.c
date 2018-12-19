@@ -38,22 +38,29 @@
 
 #include <types/pipe.h>
 
-/* socket functions used when running a stream interface as a task */
+/* functions used by default on a detached stream-interface */
 static void stream_int_shutr(struct stream_interface *si);
 static void stream_int_shutw(struct stream_interface *si);
 static void stream_int_chk_rcv(struct stream_interface *si);
 static void stream_int_chk_snd(struct stream_interface *si);
+
+/* functions used on a conn_stream-based stream-interface */
 static void stream_int_shutr_conn(struct stream_interface *si);
 static void stream_int_shutw_conn(struct stream_interface *si);
 static void stream_int_chk_rcv_conn(struct stream_interface *si);
 static void stream_int_chk_snd_conn(struct stream_interface *si);
+
+/* functions used on an applet-based stream-interface */
 static void stream_int_shutr_applet(struct stream_interface *si);
 static void stream_int_shutw_applet(struct stream_interface *si);
 static void stream_int_chk_rcv_applet(struct stream_interface *si);
 static void stream_int_chk_snd_applet(struct stream_interface *si);
-int si_cs_recv(struct conn_stream *cs);
-static int si_cs_process(struct conn_stream *cs);
-int si_cs_send(struct conn_stream *cs);
+
+/* last read notification */
+static void stream_int_read0(struct stream_interface *si);
+
+/* post-IO notification callback */
+static void stream_int_notify(struct stream_interface *si);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -79,6 +86,15 @@ struct si_ops si_applet_ops = {
 	.shutw   = stream_int_shutw_applet,
 };
 
+
+/* Functions used to communicate with a conn_stream. The first two may be used
+ * directly, the last one is mostly a wake callback.
+ */
+int si_cs_recv(struct conn_stream *cs);
+int si_cs_send(struct conn_stream *cs);
+static int si_cs_process(struct conn_stream *cs);
+
+
 struct data_cb si_conn_cb = {
 	.wake    = si_cs_process,
 	.name    = "STRM",
@@ -91,7 +107,7 @@ struct data_cb si_conn_cb = {
  * be used for any purpose. It returns 1 if the timeout fired, otherwise
  * zero.
  */
-int stream_int_check_timeouts(struct stream_interface *si)
+int si_check_timeouts(struct stream_interface *si)
 {
 	if (tick_is_expired(si->exp, now_ms)) {
 		si->flags |= SI_FL_EXP;
@@ -101,7 +117,7 @@ int stream_int_check_timeouts(struct stream_interface *si)
 }
 
 /* to be called only when in SI_ST_DIS with SI_FL_ERR */
-void stream_int_report_error(struct stream_interface *si)
+void si_report_error(struct stream_interface *si)
 {
 	if (!si->err_type)
 		si->err_type = SI_ET_DATA_ERR;
@@ -119,7 +135,7 @@ void stream_int_report_error(struct stream_interface *si)
  * not need to be empty before this, and its contents will not be overwritten.
  * The primary goal of this function is to return error messages to a client.
  */
-void stream_int_retnclose(struct stream_interface *si,
+void si_retnclose(struct stream_interface *si,
 			  const struct buffer *msg)
 {
 	struct channel *ic = si_ic(si);
@@ -286,7 +302,7 @@ static void stream_int_chk_snd(struct stream_interface *si)
  * It also pre-initializes the applet's context and returns it (or NULL in case
  * it could not be allocated).
  */
-struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app)
+struct appctx *si_register_handler(struct stream_interface *si, struct applet *app)
 {
 	struct appctx *appctx;
 
@@ -405,17 +421,17 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 }
 
 
-/* This function is the equivalent to stream_int_update() except that it's
+/* This function is the equivalent to si_update() except that it's
  * designed to be called from outside the stream handlers, typically the lower
  * layers (applets, connections) after I/O completion. After updating the stream
  * interface and timeouts, it will try to forward what can be forwarded, then to
  * wake the associated task up if an important event requires special handling.
  * It may update SI_FL_WAIT_DATA and/or SI_FL_RXBLK_ROOM, that the callers are
  * encouraged to watch to take appropriate action.
- * It should not be called from within the stream itself, stream_int_update()
+ * It should not be called from within the stream itself, si_update()
  * is designed for this.
  */
-void stream_int_notify(struct stream_interface *si)
+static void stream_int_notify(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
@@ -716,7 +732,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
  * performance). It must not be called from outside of the stream handler,
  * as what it does will be used to compute the stream task's expiration.
  */
-void stream_int_update(struct stream_interface *si)
+void si_update(struct stream_interface *si)
 {
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
@@ -830,10 +846,10 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 
 	/* let's recompute both sides states */
 	if (si_f->state == SI_ST_EST)
-		stream_int_update(si_f);
+		si_update(si_f);
 
 	if (si_b->state == SI_ST_EST)
-		stream_int_update(si_b);
+		si_update(si_b);
 
 	/* stream ints are processed outside of process_stream() and must be
 	 * handled at the latest moment.
@@ -1349,7 +1365,7 @@ int si_cs_recv(struct conn_stream *cs)
 		ic->flags |= CF_READ_NULL;
 		if (ic->flags & CF_AUTO_CLOSE)
 			channel_shutw_now(ic);
-		stream_sock_read0(si);
+		stream_int_read0(si);
 	}
 	return 1;
 }
@@ -1359,7 +1375,7 @@ int si_cs_recv(struct conn_stream *cs)
  * It updates the stream interface. If the stream interface has SI_FL_NOHALF,
  * the close is also forwarded to the write side as an abort.
  */
-void stream_sock_read0(struct stream_interface *si)
+static void stream_int_read0(struct stream_interface *si)
 {
 	struct conn_stream *cs = __objt_cs(si->end);
 	struct channel *ic = si_ic(si);

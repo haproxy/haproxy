@@ -33,25 +33,20 @@
 #include <proto/connection.h>
 
 
-/* main event functions used to move data between sockets and buffers */
-int stream_int_check_timeouts(struct stream_interface *si);
-void stream_int_report_error(struct stream_interface *si);
-void stream_int_retnclose(struct stream_interface *si,
-			  const struct buffer *msg);
-int conn_si_send_proxy(struct connection *conn, unsigned int flag);
-void stream_sock_read0(struct stream_interface *si);
-
 extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
 extern struct si_ops si_applet_ops;
 extern struct data_cb si_conn_cb;
 
-struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app);
+/* main event functions used to move data between sockets and buffers */
+int si_check_timeouts(struct stream_interface *si);
+void si_report_error(struct stream_interface *si);
+void si_retnclose(struct stream_interface *si, const struct buffer *msg);
+int conn_si_send_proxy(struct connection *conn, unsigned int flag);
+struct appctx *si_register_handler(struct stream_interface *si, struct applet *app);
 void si_applet_wake_cb(struct stream_interface *si);
-void stream_int_update(struct stream_interface *si);
-void stream_int_notify(struct stream_interface *si);
+void si_update(struct stream_interface *si);
 int si_cs_recv(struct conn_stream *cs);
-int si_cs_send(struct conn_stream *cs);
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state);
 void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b);
 

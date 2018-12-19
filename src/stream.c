@@ -1127,7 +1127,7 @@ static void sess_prepare_conn_req(struct stream *s)
 		struct appctx *appctx = objt_appctx(si->end);
 
 		if (!appctx || appctx->applet != __objt_applet(s->target))
-			appctx = stream_int_register_handler(si, objt_applet(s->target));
+			appctx = si_register_handler(si, objt_applet(s->target));
 
 		if (!appctx) {
 			/* No more memory, let's immediately abort. Force the
@@ -1199,7 +1199,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	if (flags & ACT_FLAG_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
-		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target))))
+		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target))))
 			return ACT_RET_ERR;
 
 		/* Initialise the context. */
@@ -1733,8 +1733,8 @@ redo:
 	 * stream interfaces when their timeouts have expired.
 	 */
 	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
-		stream_int_check_timeouts(si_f);
-		stream_int_check_timeouts(si_b);
+		si_check_timeouts(si_f);
+		si_check_timeouts(si_b);
 
 		/* check channel timeouts, and close the corresponding stream interfaces
 		 * for future reads or writes. Note: this will also concern upper layers
@@ -1811,7 +1811,7 @@ redo:
 		if (si_f->state == SI_ST_EST || si_f->state == SI_ST_DIS) {
 			si_shutr(si_f);
 			si_shutw(si_f);
-			stream_int_report_error(si_f);
+			si_report_error(si_f);
 			if (!(req->analysers) && !(res->analysers)) {
 				HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
@@ -1829,7 +1829,7 @@ redo:
 		if (si_b->state == SI_ST_EST || si_b->state == SI_ST_DIS) {
 			si_shutr(si_b);
 			si_shutw(si_b);
-			stream_int_report_error(si_b);
+			si_report_error(si_b);
 			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (srv)
 				HA_ATOMIC_ADD(&srv->counters.failed_resp, 1);

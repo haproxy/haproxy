@@ -140,7 +140,7 @@ http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 	FLT_STRM_CB(s, flt_http_reply(s, status, msg));
-	stream_int_retnclose(&s->si[0], msg);
+	si_retnclose(&s->si[0], msg);
 }
 
 /* Parse the URI from the given transaction (which is assumed to be in request
@@ -2577,7 +2577,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 */
 	if (stats_check_uri(&s->si[1], txn, px)) {
 		s->target = &http_stats_applet.obj_type;
-		if (unlikely(!stream_int_register_handler(&s->si[1], objt_applet(s->target)))) {
+		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target)))) {
 			txn->status = 500;
 			s->logs.tv_request = now;
 			http_reply_and_close(s, txn->status, http_error_message(s));
