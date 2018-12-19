@@ -4865,6 +4865,18 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			tasklet_wakeup(h2s->h2c->wait_event.task);
 
 	}
+	/* If we're waiting for flow control, and we got a shutr on the
+	 * connection, we will never be unlocked, so add an error on
+	 * the conn_stream.
+	 */
+	if (conn_xprt_read0_pending(h2s->h2c->conn) &&
+	    !b_data(&h2s->h2c->dbuf) &&
+	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
+		if (cs->flags & CS_FL_EOS)
+			cs->flags |= CS_FL_ERROR;
+		else
+			cs->flags |= CS_FL_ERR_PENDING;
+	}
 	return total;
 }
 
