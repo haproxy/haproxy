@@ -598,6 +598,32 @@ static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 	}
 }
 
+/* attempt to notify the data layer of recv availability */
+static void __maybe_unused h2s_notify_recv(struct h2s *h2s)
+{
+	struct wait_event *sw;
+
+	if (h2s->recv_wait) {
+		sw = h2s->recv_wait;
+		sw->events &= ~SUB_RETRY_RECV;
+		tasklet_wakeup(sw->task);
+		h2s->recv_wait = NULL;
+	}
+}
+
+/* attempt to notify the data layer of send availability */
+static void __maybe_unused h2s_notify_send(struct h2s *h2s)
+{
+	struct wait_event *sw;
+
+	if (h2s->send_wait) {
+		sw = h2s->send_wait;
+		sw->events &= ~SUB_RETRY_SEND;
+		tasklet_wakeup(sw->task);
+		h2s->send_wait = NULL;
+	}
+}
+
 /* writes the 24-bit frame size <len> at address <frame> */
 static inline __maybe_unused void h2_set_frame_size(void *frame, uint32_t len)
 {
@@ -2110,11 +2136,7 @@ static void h2_process_demux(struct h2c *h2c)
 		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS)))) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
-			if (h2s->recv_wait) {
-				h2s->recv_wait->events &= ~SUB_RETRY_RECV;
-				tasklet_wakeup(h2s->recv_wait->task);
-				h2s->recv_wait = NULL;
-			}
+			h2s_notify_recv(h2s);
 		}
 		h2s = tmp_h2s;
 
@@ -2350,11 +2372,7 @@ static void h2_process_demux(struct h2c *h2c)
 	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS)))) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
-		if (h2s->recv_wait) {
-			h2s->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(h2s->recv_wait->task);
-			h2s->recv_wait = NULL;
-		}
+		h2s_notify_recv(h2s);
 	}
 
 	if (h2_recv_allowed(h2c))
@@ -2649,13 +2667,8 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if ((h2s->cs->flags & CS_FL_WAIT_FOR_HS) &&
-			    h2s->recv_wait) {
-				struct wait_event *sw = h2s->recv_wait;
-				sw->events &= ~SUB_RETRY_RECV;
-				tasklet_wakeup(sw->task);
-				h2s->recv_wait = NULL;
-			}
+			if (h2s->cs->flags & CS_FL_WAIT_FOR_HS)
+				h2s_notify_recv(h2s);
 			node = eb32_next(node);
 		}
 	}
