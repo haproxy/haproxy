@@ -19,6 +19,9 @@ _help()
     --v, to run verbose
       run-regtests.sh --v, disables the default varnishtest 'quiet' parameter
 
+    --debug to show test logs on standard ouput (implies --v)
+      run-regtests.sh --debug
+
     --varnishtestparams <ARGS>, passes custom ARGS to varnishtest
       run-regtests.sh --varnishtestparams "-n 10"
 
@@ -252,6 +255,10 @@ _process() {
         --v)
           verbose=""
           ;;
+        --debug)
+          verbose=""
+          debug="-v"
+          ;;
         --LEVEL)
           LEVEL="$2"
           shift
@@ -287,6 +294,7 @@ REGTESTS=""
 
 jobcount=""
 verbose="-q"
+debug=""
 testlist=""
 
 _process "$@";
@@ -404,7 +412,7 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VARNISHTEST_PROGRAM -l -k -t 10 $verbose $jobcount $varnishtestparams $testlist"
+  cmd="$VARNISHTEST_PROGRAM -l -k -t 10 $verbose $debug $jobcount $varnishtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else
