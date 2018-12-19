@@ -1,6 +1,53 @@
 ChangeLog :
 ===========
 
+2018/12/19 : 1.9.0
+    - BUG/MEDIUM: compression: Use the right buffer pointers to compress input data
+    - BUG/MINOR: mux_pt: Set CS_FL_WANT_ROOM when count is zero in rcv_buf() callback
+    - BUG/MEDIUM: connection: Add a new CS_FL_ERR_PENDING flag to conn_streams.
+    - CONTRIB: debug: teach the "flags" utility about new conn_stream flags
+    - BUG/MEDIUM: stream-int: always clear CS_FL_WANT_ROOM before receiving
+    - BUG/MEDIUM: mux-h2: also restart demuxing when data are pending in demux
+    - BUG/MEDIUM: mux-h2: restart demuxing as soon as demux data are available
+    - BUG/MEDIUM: h2: fix aggregated cookie length computation in HTX mode
+    - MINOR: mux-h2: report more h2c, last h2s and cs information on "show fd"
+    - CONTRIB: debug: report stream-int's flag SI_FL_CLEAN_ABRT
+    - MINOR: cli/stream: add the conn_stream in "show sess" output
+    - BUG/MINOR: mux-h2: don't report a fantom h2s in "show fd"
+    - BUG/MINOR: cli/fd: don't isolate the thread for each individual fd
+    - MINOR: objtype: report a few missing types in names and base pointers
+    - BUG/MEDIUM: mux-h2: make sure to report synchronous errors after EOS
+    - BUG/MEDIUM: mux-h2: report asynchronous errors in h2_wake_some_streams()
+    - BUG/MEDIUM: mux-h2: make sure the demux also wakes streams up on errors
+    - BUG/MINOR: mux-h1: report the correct frontend in error captures
+    - BUG/MEDIUM: stream-int: also wake the stream up on end of transfer
+    - MEDIUM: h2: properly check and deduplicate the content-length header in HTX
+    - BUG/MEDIUM: stream: Forward the right amount of data before infinite forwarding
+    - BUG/MINOR: proto_htx: Call the HTX version of the function managing client cookies
+    - BUG/MEDIUM: lua/htx: Handle EOM in receive/get_line calls in HTTP applets
+    - BUG/MINOR: lua: Return an error if a legacy HTTP applet doesn't send anything
+    - MINOR: compression: Remove the thread_local variable buf_output
+    - CLEANUP: connection: rename subscription events values and event field
+    - CLEANUP: connection: rename conn->mux_ctx to conn->ctx
+    - MINOR: connection: remove an unwelcome dependency on struct stream
+    - CLEANUP: stream-int: consistently call the si/stream_int functions
+    - BUG/MEDIUM: h1: Don't shutw/shutr the connection if we have keepalive.
+    - BUG/MEDIUM: H2: Make sure htx is set even on empty frames.
+    - BUG/MEDIUM: mux-h2: pass CS_FL_ERR_PENDING to h2_wake_some_streams()
+    - MEDIUM: stream-int: always consider all CS errors on the send side
+    - BUG/MEDIUM: h2: Make sure we don't set CS_FL_ERROR if there's still data.
+    - CLEANUP: mux-h2: implement h2s_notify_{send,recv} to report events to subscribers
+    - MINOR: mux-h2: add a new function h2s_alert() to call the data layer
+    - BUG/MEDIUM: mux-h2: make use of h2s_alert() to report aborts
+    - MINOR: connection: add cs_set_error() to set the error bits
+    - CLEANUP: mux-h2: make use of cs_set_error()
+    - BUG/MINOR: mux-h2: make sure we check the conn_stream in early data
+    - BUG/MEDIUM: h2: Don't wait for flow control if the connection had a shutr.
+    - MINOR: cli/show_fd: report that a connection is back or not
+    - SCRIPTS: add the slack channel URL to the announce script
+    - CLEANUP: remove my name and address from the copyright banner
+    - DOC: mention in the readme that 1.9 is a stable version now
+
 2018/12/16 : 1.9-dev11
     - BUG/MEDIUM: connection: Don't use the provided conn_stream if it was tried.
     - REGTEST/MINOR: remove double body specification for server txresp
