@@ -204,7 +204,7 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 
 static int h1_avail_streams(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 
 	return h1c->h1s ? 0 : 1;
 }
@@ -345,7 +345,7 @@ static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
 }
 
 /*
- * Initialize the mux once it's attached. It is expected that conn->mux_ctx
+ * Initialize the mux once it's attached. It is expected that conn->ctx
  * points to the existing conn_stream (for outgoing connections) or NULL (for
  * incoming ones). Returns < 0 on error.
  */
@@ -376,10 +376,10 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		h1c->flags |= H1C_F_CS_WAIT_CONN;
 
 	/* Always Create a new H1S */
-	if (!h1s_create(h1c, conn->mux_ctx, sess))
+	if (!h1s_create(h1c, conn->ctx, sess))
 		goto fail;
 
-	conn->mux_ctx = h1c;
+	conn->ctx = h1c;
 
 	/* Try to read, if nothing is available yet we'll just subscribe */
 	if (h1_recv(h1c))
@@ -402,7 +402,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
  */
 static void h1_release(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 
 	LIST_DEL(&conn->list);
 
@@ -428,7 +428,7 @@ static void h1_release(struct connection *conn)
 	}
 
 	conn->mux = NULL;
-	conn->mux_ctx = NULL;
+	conn->ctx = NULL;
 
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
@@ -1780,7 +1780,7 @@ static int h1_process(struct h1c * h1c)
 	struct connection *conn = h1c->conn;
 	struct h1s *h1s = h1c->h1s;
 
-	if (!conn->mux_ctx)
+	if (!conn->ctx)
 		return -1;
 
 	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
@@ -1843,7 +1843,7 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 
 static void h1_reset(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 
 	/* Reset the flags, and let the mux know we're waiting for a connection */
 	h1c->flags = H1C_F_CS_WAIT_CONN;
@@ -1851,7 +1851,7 @@ static void h1_reset(struct connection *conn)
 
 static int h1_wake(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 	int ret;
 
 	h1_send(h1c);
@@ -1874,7 +1874,7 @@ static int h1_wake(struct connection *conn)
  */
 static struct conn_stream *h1_attach(struct connection *conn, struct session *sess)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 	struct conn_stream *cs = NULL;
 	struct h1s *h1s;
 
@@ -1900,7 +1900,7 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
  */
 static const struct conn_stream *h1_get_first_cs(const struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
 
 	if (h1s)
@@ -1911,7 +1911,7 @@ static const struct conn_stream *h1_get_first_cs(const struct connection *conn)
 
 static void h1_destroy(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 
 	if (!h1c->h1s)
 		h1_release(conn);
@@ -2031,7 +2031,7 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 static void h1_shutw_conn(struct connection *conn)
 {
-	struct h1c *h1c = conn->mux_ctx;
+	struct h1c *h1c = conn->ctx;
 
 	if (conn_xprt_ready(conn) && conn->xprt->shutw)
 		conn->xprt->shutw(conn, 1);

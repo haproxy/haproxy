@@ -520,7 +520,7 @@ static inline void conn_prepare(struct connection *conn, const struct protocol *
 	conn->mux  = NULL;
 	conn->xprt_st = 0;
 	conn->xprt_ctx = NULL;
-	conn->mux_ctx = NULL;
+	conn->ctx = NULL;
 }
 
 /*
@@ -545,7 +545,7 @@ static inline void conn_init(struct connection *conn)
 	conn->tmp_early_data = -1;
 	conn->sent_early_data = 0;
 	conn->mux = NULL;
-	conn->mux_ctx = NULL;
+	conn->ctx = NULL;
 	conn->owner = NULL;
 	conn->send_proxy_ofs = 0;
 	conn->handle.fd = DEAD_FD_MAGIC;
@@ -672,8 +672,8 @@ static inline void conn_free(struct connection *conn)
 	/* If we temporarily stored the connection as the stream_interface's
 	 * end point, remove it.
 	 */
-	if (conn->mux_ctx != NULL && conn->mux == NULL) {
-		struct stream *s = conn->mux_ctx;
+	if (conn->ctx != NULL && conn->mux == NULL) {
+		struct stream *s = conn->ctx;
 
 		if (objt_conn(s->si[1].end) == conn)
 			s->si[1].end = NULL;
@@ -823,7 +823,7 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
                                    void *ctx, struct proxy *prx, struct session *sess)
 {
 	conn->mux = mux;
-	conn->mux_ctx = ctx;
+	conn->ctx = ctx;
 	return mux->init ? mux->init(conn, prx, sess) : 0;
 }
 

@@ -355,7 +355,7 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 
 static int h2_avail_streams(struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 
 	/* XXX Should use the negociated max concurrent stream nb instead of the conf value */
 	return (h2_settings_max_concurrent_streams - h2c->nb_streams);
@@ -386,7 +386,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	if (!h2c)
 		goto fail_no_h2c;
 
-	if (conn->mux_ctx) {
+	if (conn->ctx) {
 		h2c->flags = H2_CF_IS_BACK;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
 		if (tick_isset(prx->timeout.serverfin))
@@ -454,16 +454,16 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		/* FIXME: this is temporary, for outgoing connections we need
 		 * to immediately allocate a stream until the code is modified
 		 * so that the caller calls ->attach(). For now the outgoing cs
-		 * is stored as conn->mux_ctx by the caller.
+		 * is stored as conn->ctx by the caller.
 		 */
 		struct h2s *h2s;
 
-		h2s = h2c_bck_stream_new(h2c, conn->mux_ctx, sess);
+		h2s = h2c_bck_stream_new(h2c, conn->ctx, sess);
 		if (!h2s)
 			goto fail_stream;
 	}
 
-	conn->mux_ctx = h2c;
+	conn->ctx = h2c;
 
 	/* prepare to read something */
 	tasklet_wakeup(h2c->wait_event.task);
@@ -514,7 +514,7 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
  */
 static void h2_release(struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 
 	LIST_DEL(&conn->list);
 
@@ -543,7 +543,7 @@ static void h2_release(struct connection *conn)
 	}
 
 	conn->mux = NULL;
-	conn->mux_ctx = NULL;
+	conn->ctx = NULL;
 
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
@@ -2694,7 +2694,7 @@ static int h2_process(struct h2c *h2c)
 
 static int h2_wake(struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 
 	return (h2_process(h2c));
 }
@@ -2765,7 +2765,7 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
 {
 	struct conn_stream *cs;
 	struct h2s *h2s;
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 
 	cs = cs_new(conn);
 	if (!cs)
@@ -2785,7 +2785,7 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
  */
 static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s;
 	struct eb32_node *node;
 
@@ -2804,7 +2804,7 @@ static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
  */
 static void h2_destroy(struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 
 	if (eb_is_empty(&h2c->streams_by_id))
 		h2_release(h2c->conn);
@@ -4854,7 +4854,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 /* for debugging with CLI's "show fd" command */
 static void h2_show_fd(struct buffer *msg, struct connection *conn)
 {
-	struct h2c *h2c = conn->mux_ctx;
+	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s = NULL;
 	struct eb32_node *node;
 	int fctl_cnt = 0;

@@ -33,7 +33,7 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 	conn_full_close(conn);
 	tasklet_free(ctx->wait_event.task);
 	conn->mux = NULL;
-	conn->mux_ctx = NULL;
+	conn->ctx = NULL;
 	if (conn->destroy_cb)
 		conn->destroy_cb(conn);
 	/* We don't bother unsubscribing here, as we're about to destroy
@@ -58,14 +58,14 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 	return NULL;
 }
 
-/* Initialize the mux once it's attached. It is expected that conn->mux_ctx
+/* Initialize the mux once it's attached. It is expected that conn->ctx
  * points to the existing conn_stream (for outgoing connections) or NULL (for
  * incoming ones, in which case one will be allocated and a new stream will be
  * instanciated). Returns < 0 on error.
  */
 static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess)
 {
-	struct conn_stream *cs = conn->mux_ctx;
+	struct conn_stream *cs = conn->ctx;
 	struct mux_pt_ctx *ctx = pool_alloc(pool_head_pt_ctx);
 
 	if (!ctx)
@@ -88,7 +88,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 			goto fail_free;
 
 	}
-	conn->mux_ctx = ctx;
+	conn->ctx = ctx;
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
 	return 0;
@@ -108,7 +108,7 @@ fail_free_ctx:
  */
 static int mux_pt_wake(struct connection *conn)
 {
-	struct mux_pt_ctx *ctx = conn->mux_ctx;
+	struct mux_pt_ctx *ctx = conn->ctx;
 	struct conn_stream *cs = ctx->cs;
 	int ret = 0;
 
@@ -141,7 +141,7 @@ static int mux_pt_wake(struct connection *conn)
 static struct conn_stream *mux_pt_attach(struct connection *conn, struct session *sess)
 {
 	struct conn_stream *cs;
-	struct mux_pt_ctx *ctx = conn->mux_ctx;
+	struct mux_pt_ctx *ctx = conn->ctx;
 
 	conn->xprt->unsubscribe(conn, SUB_RETRY_RECV, &ctx->wait_event);
 	cs = cs_new(conn);
@@ -160,7 +160,7 @@ fail:
  */
 static const struct conn_stream *mux_pt_get_first_cs(const struct connection *conn)
 {
-	struct mux_pt_ctx *ctx = conn->mux_ctx;
+	struct mux_pt_ctx *ctx = conn->ctx;
 	struct conn_stream *cs = ctx->cs;
 
 	return cs;
@@ -169,7 +169,7 @@ static const struct conn_stream *mux_pt_get_first_cs(const struct connection *co
 /* Destroy the mux and the associated connection, if no longer used */
 static void mux_pt_destroy_meth(struct connection *conn)
 {
-	struct mux_pt_ctx *ctx = conn->mux_ctx;
+	struct mux_pt_ctx *ctx = conn->ctx;
 
 	if (!(ctx->cs))
 		mux_pt_destroy(ctx);
@@ -181,7 +181,7 @@ static void mux_pt_destroy_meth(struct connection *conn)
 static void mux_pt_detach(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
-	struct mux_pt_ctx *ctx = cs->conn->mux_ctx;
+	struct mux_pt_ctx *ctx = cs->conn->ctx;
 
 	/* Subscribe, to know if we got disconnected */
 	if (conn->owner != NULL &&
@@ -195,7 +195,7 @@ static void mux_pt_detach(struct conn_stream *cs)
 
 static int mux_pt_avail_streams(struct connection *conn)
 {
-	struct mux_pt_ctx *ctx = conn->mux_ctx;
+	struct mux_pt_ctx *ctx = conn->ctx;
 
 	return (ctx->cs == NULL ? 1 : 0);
 }

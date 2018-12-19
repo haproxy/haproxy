@@ -1057,7 +1057,7 @@ static void assign_tproxy_address(struct stream *s)
 static int conn_complete_server(struct connection *conn)
 {
 	struct conn_stream *cs = NULL;
-	struct stream *s = conn->mux_ctx;
+	struct stream *s = conn->ctx;
 	struct server *srv;
 
 	task_wakeup(s->task, TASK_WOKEN_IO);
@@ -1338,7 +1338,7 @@ int connect_server(struct stream *s)
 		}
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		else {
-			srv_conn->mux_ctx = s;
+			srv_conn->ctx = s;
 			/* Store the connection into the stream interface,
 			 * while we still don't have a mux, so that if the
 			 * stream is destroyed before the connection is
