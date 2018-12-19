@@ -31,6 +31,8 @@
 
 
 varnishtest "Basic LUA test h00000"
+#REQUIRE_OPTIONS=LUA
+
 feature ignore_unknown_macro
 
 server s1 -repeat 2 {

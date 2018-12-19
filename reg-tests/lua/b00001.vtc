@@ -20,6 +20,7 @@
 # the LUA sleep time.
 
 varnishtest "LUA bug"
+#REQUIRE_OPTIONS=LUA
 
 feature ignore_unknown_macro
 

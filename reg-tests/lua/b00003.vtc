@@ -14,6 +14,7 @@
 # connectio closed by the client may stop the applet.
 
 varnishtest "possible CLOSE-WAIT with '\n' headers"
+#REQUIRE_OPTIONS=LUA
 
 feature ignore_unknown_macro
 

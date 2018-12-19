@@ -1,4 +1,6 @@
 varnishtest "Lua: txn:get_priv() scope"
+#REQUIRE_OPTIONS=LUA
+
 feature ignore_unknown_macro
 
 haproxy h1 -conf {
