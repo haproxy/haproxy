@@ -22,6 +22,9 @@ _help()
     --varnishtestparams <ARGS>, passes custom ARGS to varnishtest
       run-regtests.sh --varnishtestparams "-n 10"
 
+    --clean to cleanup previous reg-tests log directories and exit
+      run-regtests.sh --clean
+
   Including text below into a .vtc file will check for its requirements
   related to haproxy's target and compilation options
     # Below targets are not capable of completing this test succesfully
@@ -206,6 +209,34 @@ _findtests() {
   done
 }
 
+_cleanup()
+{
+  DIRS=$(find "${TESTDIR}" -maxdepth 1 -type d -name "haregtests-*" -exec basename {} \; 2>/dev/null)
+  if [ -z "${DIRS}" ]; then
+    echo "No reg-tests log directory found"
+  else
+    echo "Cleanup following reg-tests log directories:"
+    for d in ${DIRS}; do
+      echo  "    o ${TESTDIR}/$d"
+    done
+    read -p "Continue (y/n)?" reply
+    case "$reply" in
+      y|Y)
+        for d in ${DIRS}; do
+          rm -r "${TESTDIR}/$d"
+        done
+        echo "done"
+        exit 0
+        ;;
+       *)
+        echo "aborted"
+        exit 1
+        ;;
+    esac
+  fi
+}
+
+
 _process() {
   while [ ${#} -gt 0 ]; do
     if _startswith "$1" "-"; then
@@ -224,6 +255,10 @@ _process() {
         --LEVEL)
           LEVEL="$2"
           shift
+          ;;
+        --clean)
+          _cleanup
+          exit 0
           ;;
         --help)
           _help
@@ -247,6 +282,7 @@ _version() {
 
 HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
 VARNISHTEST_PROGRAM="${VARNISHTEST_PROGRAM:-varnishtest}"
+TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
 
 jobcount=""
@@ -280,9 +316,8 @@ echo "Testing with haproxy version: $HAPROXY_VERSION"
 
 TESTRUNDATETIME="$(date '+%Y-%m-%d_%H-%M-%S')"
 
-TESTDIR="${TMPDIR:-/tmp}"
 mkdir -p "$TESTDIR" || exit 1
-TESTDIR=$(mktemp -d "$TESTDIR/$TESTRUNDATETIME.XXXXXX") || exit 1
+TESTDIR=$(mktemp -d "$TESTDIR/haregtests-$TESTRUNDATETIME.XXXXXX") || exit 1
 
 export TMPDIR="$TESTDIR"
 export HAPROXY_PROGRAM="$HAPROXY_PROGRAM"
