@@ -520,7 +520,8 @@ void stream_int_notify(struct stream_interface *si)
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
 	    ((oc->flags & CF_WRITE_ACTIVITY) &&
 	     ((oc->flags & CF_SHUTW) ||
-	      ((oc->flags & CF_WAKE_WRITE) &&
+	      (((oc->flags & CF_WAKE_WRITE) ||
+		!(oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW|CF_SHUTW))) &&
 	       (sio->state != SI_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
