@@ -501,6 +501,15 @@ static inline void cs_close(struct conn_stream *cs)
 	cs->flags = CS_FL_NONE;
 }
 
+/* sets CS_FL_ERROR or CS_FL_ERR_PENDING on the cs */
+static inline void cs_set_error(struct conn_stream *cs)
+{
+	if (cs->flags & CS_FL_EOS)
+		cs->flags |= CS_FL_ERROR;
+	else
+		cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
+}
+
 /* detect sock->data read0 transition */
 static inline int conn_xprt_read0_pending(struct connection *c)
 {
