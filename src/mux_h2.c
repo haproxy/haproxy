@@ -1313,13 +1313,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		if ((flags & CS_FL_ERR_PENDING) && (h2s->cs->flags & CS_FL_EOS))
 			h2s->cs->flags |= CS_FL_ERROR;
 
-		if (h2s->recv_wait) {
-			struct wait_event *sw = h2s->recv_wait;
-			sw->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(sw->task);
-			h2s->recv_wait = NULL;
-		} else if (h2s->cs->data_cb->wake != NULL)
-			h2s->cs->data_cb->wake(h2s->cs);
+		h2s_alert(h2s);
 
 		if (flags & CS_FL_ERR_PENDING && h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -1797,13 +1791,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		else
 			h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
 
-		if (h2s->recv_wait) {
-			struct wait_event *sw = h2s->recv_wait;
-
-			sw->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(sw->task);
-			h2s->recv_wait = NULL;
-		}
+		h2s_alert(h2s);
 	}
 
 	h2s->flags |= H2_SF_RST_RCVD;
