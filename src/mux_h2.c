@@ -1668,7 +1668,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 
 	last = h2_get_n32(&h2c->dbuf, 0);
 	h2c->errcode = h2_get_n32(&h2c->dbuf, 4);
-	h2_wake_some_streams(h2c, last, CS_FL_ERROR);
+	h2_wake_some_streams(h2c, last, CS_FL_ERR_PENDING);
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
 	return 1;
