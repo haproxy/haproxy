@@ -173,8 +173,11 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		if (appctx->applet->release && si->state < SI_ST_DIS)
 			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
-	} else if ((conn = objt_conn(si->end)))
+	} else if ((conn = objt_conn(si->end))) {
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
 		conn_free(conn);
+	}
 	si_detach_endpoint(si);
 }
 
