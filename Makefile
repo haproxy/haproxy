@@ -1092,9 +1092,15 @@ opts:
 	@echo 'OPTIONS_OBJS="$(strip $(OPTIONS_OBJS))"'
 	@echo 'OBJS="$(strip $(OBJS))"'
 
+ifeq (reg-tests, $(firstword $(MAKECMDGOALS)))
+  REGTEST_ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
+  $(eval $(REGTEST_ARGS):;@true)
+endif
+
 # Target to run the regression testing script files.
 reg-tests:
-	./scripts/run-regtests.sh --LEVEL "$$LEVEL" $(REG_TEST_FILES)
+	@./scripts/run-regtests.sh --LEVEL "$$LEVEL" $(REGTEST_ARGS) $(REG_TEST_FILES)
+.PHONY: $(REGTEST_ARGS)
 
 reg-tests-help:
 	@echo
