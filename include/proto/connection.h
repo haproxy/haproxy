@@ -669,15 +669,14 @@ static inline void conn_free(struct connection *conn)
 		sess->resp_conns--;
 		LIST_DEL(&conn->session_list);
 	}
-	/* If we temporarily stored the connection as the stream_interface's
-	 * end point, remove it.
-	 */
-	if (conn->ctx != NULL && conn->mux == NULL) {
-		struct stream *s = conn->ctx;
 
-		if (objt_conn(s->si[1].end) == conn)
-			s->si[1].end = NULL;
-	}
+	/* By convention we always place a NULL where the ctx points to if the
+	 * mux is null. It may have been used to store the connection as a
+	 * stream_interface's end point for example.
+	 */
+	if (conn->ctx != NULL && conn->mux == NULL)
+		*(void **)conn->ctx = NULL;
+
 	/* The connection is currently in the server's idle list, so tell it
 	 * there's one less connection available in that list.
 	 */

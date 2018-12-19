@@ -1052,12 +1052,13 @@ static void assign_tproxy_address(struct stream *s)
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 /*
  * Pick the right mux once the connection is established, we should now have
- * an alpn if available, so we are now able to choose.
+ * an alpn if available, so we are now able to choose. In this specific case
+ * the connection's context is &si[i].end.
  */
 static int conn_complete_server(struct connection *conn)
 {
 	struct conn_stream *cs = NULL;
-	struct stream *s = conn->ctx;
+	struct stream *s = container_of(conn->ctx, struct stream, si[1].end);
 	struct server *srv;
 
 	task_wakeup(s->task, TASK_WOKEN_IO);
@@ -1066,8 +1067,6 @@ static int conn_complete_server(struct connection *conn)
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
 		conn->flags |= CO_FL_CONNECTED;
 
-	if (!s)
-		goto fail;
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
 	si_detach_endpoint(&s->si[1]);
@@ -1338,7 +1337,7 @@ int connect_server(struct stream *s)
 		}
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		else {
-			srv_conn->ctx = s;
+			srv_conn->ctx = &s->si[1].end;
 			/* Store the connection into the stream interface,
 			 * while we still don't have a mux, so that if the
 			 * stream is destroyed before the connection is
