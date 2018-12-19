@@ -1994,7 +1994,8 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (!h1s)
 		return;
 
-	if ((h1s->flags & H1S_F_WANT_KAL) && !(cs->flags & (CS_FL_REOS|CS_FL_EOS)))
+	if ((h1s->flags & H1S_F_WANT_KAL) &&
+	    !(cs->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
 		return;
 
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
@@ -2018,7 +2019,8 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	h1c = h1s->h1c;
 
 	if ((h1s->flags & H1S_F_WANT_KAL) &&
-	    !(cs->flags & (CS_FL_REOS|CS_FL_EOS)) &&
+	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) &&
+
 	    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
 		return;
 
