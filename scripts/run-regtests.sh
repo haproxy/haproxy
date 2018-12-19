@@ -31,6 +31,13 @@ _help()
     --clean to cleanup previous reg-tests log directories and exit
       run-regtests.sh --clean
 
+    --use-htx to use the HTX in tests
+      run-regtests.sh --use-htx, unsets the macro \${no-htx}
+      In .vtc files, in HAProxy configuration, you should use the following line
+      to "templatize" your tests:
+
+          \${no-htx} option http-use-htx
+
   Including text below into a .vtc file will check for its requirements
   related to haproxy's target and compilation options
     # Below targets are not capable of completing this test succesfully
@@ -269,6 +276,9 @@ _process() {
           LEVEL="$2"
           shift
           ;;
+        --use-htx)
+          no_htx=""
+          ;;
         --clean)
           _cleanup
           exit 0
@@ -302,6 +312,7 @@ jobcount=""
 verbose="-q"
 debug=""
 keep_logs="-l"
+no_htx="#"
 testlist=""
 
 _process "$@";
@@ -404,6 +415,17 @@ echo "Target : $TARGET"
 echo "Options : $OPTIONS"
 
 echo "########################## Gathering tests to run ##########################"
+# if 'use-htx' option is set, but HAProxy version is lower to 1.9, disable it
+if [ -z "$no_htx" ]; then
+  if [ $(_version "$HAPROXY_VERSION") -lt $(_version "1.9") ]; then
+    echo ""
+    echo "WARNING : Unset HTX for haproxy (version: $HAPROXY_VERSION)"
+    echo "    REASON: this test requires at least version: 1.9"
+    echo ""
+    no_htx="#"
+  fi
+fi
+
 if [ -z "$REGTESTS" ]; then
   _findtests ./
 else
@@ -419,7 +441,7 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VARNISHTEST_PROGRAM -k -t 10 $keep_logs $verbose $debug $jobcount $varnishtestparams $testlist"
+  cmd="$VARNISHTEST_PROGRAM -k -t 10 -Dno-htx=${no_htx} $keep_logs $verbose $debug $jobcount $varnishtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else
