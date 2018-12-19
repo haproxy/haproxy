@@ -112,7 +112,7 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		if (conn->send_wait != NULL) {
-			conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
+			conn->send_wait->events &= ~SUB_RETRY_SEND;
 			tasklet_wakeup(conn->send_wait->task);
 			conn->send_wait = NULL;
 		} else
@@ -132,7 +132,7 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		if (conn->recv_wait) {
-			conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			conn->recv_wait->events &= ~SUB_RETRY_RECV;
 			tasklet_wakeup(conn->recv_wait->task);
 			conn->recv_wait = NULL;
 		} else
@@ -320,19 +320,19 @@ int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 {
 	struct wait_event *sw;
 
-	if (event_type & SUB_CAN_RECV) {
+	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (sw->wait_reason & SUB_CAN_RECV) {
+		if (sw->events & SUB_RETRY_RECV) {
 			conn->recv_wait = NULL;
-			sw->wait_reason &= ~SUB_CAN_RECV;
+			sw->events &= ~SUB_RETRY_RECV;
 		}
 		__conn_xprt_stop_recv(conn);
 	}
-	if (event_type & SUB_CAN_SEND) {
+	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (sw->wait_reason & SUB_CAN_SEND) {
+		if (sw->events & SUB_RETRY_SEND) {
 			conn->send_wait = NULL;
-			sw->wait_reason &= ~SUB_CAN_SEND;
+			sw->events &= ~SUB_RETRY_SEND;
 		}
 		__conn_xprt_stop_send(conn);
 	}
@@ -344,22 +344,22 @@ int conn_subscribe(struct connection *conn, int event_type, void *param)
 {
 	struct wait_event *sw;
 
-	if (event_type & SUB_CAN_RECV) {
+	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (!(sw->wait_reason & SUB_CAN_RECV)) {
-			sw->wait_reason |= SUB_CAN_RECV;
+		if (!(sw->events & SUB_RETRY_RECV)) {
+			sw->events |= SUB_RETRY_RECV;
 			conn->recv_wait = sw;
 		}
-		event_type &= ~SUB_CAN_RECV;
+		event_type &= ~SUB_RETRY_RECV;
 		__conn_xprt_want_recv(conn);
 	}
-	if (event_type & SUB_CAN_SEND) {
+	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (!(sw->wait_reason & SUB_CAN_SEND)) {
-			sw->wait_reason |= SUB_CAN_SEND;
+		if (!(sw->events & SUB_RETRY_SEND)) {
+			sw->events |= SUB_RETRY_SEND;
 			conn->send_wait = sw;
 		}
-		event_type &= ~SUB_CAN_SEND;
+		event_type &= ~SUB_RETRY_SEND;
 		__conn_xprt_want_send(conn);
 	}
 	if (event_type != 0)

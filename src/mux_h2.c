@@ -416,7 +416,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		goto fail;
 	h2c->wait_event.task->process = h2_io_cb;
 	h2c->wait_event.task->context = h2c;
-	h2c->wait_event.wait_reason = 0;
+	h2c->wait_event.events = 0;
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
 	if (!h2c->ddht)
@@ -535,8 +535,8 @@ static void h2_release(struct connection *conn)
 		}
 		if (h2c->wait_event.task)
 			tasklet_free(h2c->wait_event.task);
-		if (h2c->wait_event.wait_reason != 0)
-			conn->xprt->unsubscribe(conn, h2c->wait_event.wait_reason,
+		if (h2c->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, h2c->wait_event.events,
 			    &h2c->wait_event);
 
 		pool_free(pool_head_h2c, h2c);
@@ -703,9 +703,9 @@ static void h2s_destroy(struct h2s *h2s)
 		offer_buffers(NULL, tasks_run_queue);
 	}
 	if (h2s->send_wait != NULL)
-		h2s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		h2s->send_wait->events &= ~SUB_RETRY_SEND;
 	if (h2s->recv_wait != NULL)
-		h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		h2s->recv_wait->events &= ~SUB_RETRY_RECV;
 	/* There's no need to explicitly call unsubscribe here, the only
 	 * reference left would be in the h2c send_list/fctl_list, and if
 	 * we're in it, we're getting out anyway
@@ -740,7 +740,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->wait_event.task->process = h2_deferred_shut;
 	h2s->wait_event.task->context = h2s;
 	h2s->wait_event.handle = NULL;
-	h2s->wait_event.wait_reason = 0;
+	h2s->wait_event.events = 0;
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
 	h2s->cs        = NULL;
@@ -1265,7 +1265,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 
 		if (h2s->recv_wait) {
 			struct wait_event *sw = h2s->recv_wait;
-			sw->wait_reason &= ~SUB_CAN_RECV;
+			sw->events &= ~SUB_RETRY_RECV;
 			tasklet_wakeup(sw->task);
 			h2s->recv_wait = NULL;
 		} else if (h2s->cs->data_cb->wake != NULL)
@@ -1750,7 +1750,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		if (h2s->recv_wait) {
 			struct wait_event *sw = h2s->recv_wait;
 
-			sw->wait_reason &= ~SUB_CAN_RECV;
+			sw->events &= ~SUB_RETRY_RECV;
 			tasklet_wakeup(sw->task);
 			h2s->recv_wait = NULL;
 		}
@@ -2106,7 +2106,7 @@ static void h2_process_demux(struct h2c *h2c)
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			if (h2s->recv_wait) {
-				h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+				h2s->recv_wait->events &= ~SUB_RETRY_RECV;
 				tasklet_wakeup(h2s->recv_wait->task);
 				h2s->recv_wait = NULL;
 			}
@@ -2346,7 +2346,7 @@ static void h2_process_demux(struct h2c *h2c)
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		if (h2s->recv_wait) {
-			h2s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			h2s->recv_wait->events &= ~SUB_RETRY_RECV;
 			tasklet_wakeup(h2s->recv_wait->task);
 			h2s->recv_wait = NULL;
 		}
@@ -2397,8 +2397,8 @@ static int h2_process_mux(struct h2c *h2c)
 			break;
 
 		h2s->flags &= ~H2_SF_BLK_ANY;
-		h2s->send_wait->wait_reason &= ~SUB_CAN_SEND;
-		h2s->send_wait->wait_reason |= SUB_CALL_UNSUBSCRIBE;
+		h2s->send_wait->events &= ~SUB_RETRY_SEND;
+		h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 		tasklet_wakeup(h2s->send_wait->task);
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
@@ -2410,8 +2410,8 @@ static int h2_process_mux(struct h2c *h2c)
 			break;
 
 		h2s->flags &= ~H2_SF_BLK_ANY;
-		h2s->send_wait->wait_reason &= ~SUB_CAN_SEND;
-		h2s->send_wait->wait_reason |= SUB_CALL_UNSUBSCRIBE;
+		h2s->send_wait->events &= ~SUB_RETRY_SEND;
+		h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 		tasklet_wakeup(h2s->send_wait->task);
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
@@ -2445,7 +2445,7 @@ static int h2_recv(struct h2c *h2c)
 	int max;
 	size_t ret;
 
-	if (h2c->wait_event.wait_reason & SUB_CAN_RECV)
+	if (h2c->wait_event.events & SUB_RETRY_RECV)
 		return (b_data(&h2c->dbuf));
 
 	if (!h2_recv_allowed(h2c))
@@ -2481,7 +2481,7 @@ static int h2_recv(struct h2c *h2c)
 	} while (ret > 0);
 
 	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))
-		conn->xprt->subscribe(conn, SUB_CAN_RECV, &h2c->wait_event);
+		conn->xprt->subscribe(conn, SUB_RETRY_RECV, &h2c->wait_event);
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -2571,8 +2571,8 @@ static int h2_send(struct h2c *h2c)
 			LIST_DEL(&h2s->list);
 			LIST_INIT(&h2s->list);
 			LIST_ADDQ(&h2c->sending_list, &h2s->list);
-			h2s->send_wait->wait_reason &= ~SUB_CAN_SEND;
-			h2s->send_wait->wait_reason |= SUB_CALL_UNSUBSCRIBE;
+			h2s->send_wait->events &= ~SUB_RETRY_SEND;
+			h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 			tasklet_wakeup(h2s->send_wait->task);
 		}
 	}
@@ -2580,8 +2580,8 @@ static int h2_send(struct h2c *h2c)
 	if (!b_data(&h2c->mbuf))
 		return sent;
 schedule:
-	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
-		conn->xprt->subscribe(conn, SUB_CAN_SEND, &h2c->wait_event);
+	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
+		conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h2c->wait_event);
 	return sent;
 }
 
@@ -2590,9 +2590,9 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	struct h2c *h2c = ctx;
 	int ret = 0;
 
-	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		ret = h2_send(h2c);
-	if (!(h2c->wait_event.wait_reason & SUB_CAN_RECV))
+	if (!(h2c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h2_recv(h2c);
 	if (ret || b_data(&h2c->dbuf))
 		h2_process(h2c);
@@ -2647,7 +2647,7 @@ static int h2_process(struct h2c *h2c)
 			if ((h2s->cs->flags & CS_FL_WAIT_FOR_HS) &&
 			    h2s->recv_wait) {
 				struct wait_event *sw = h2s->recv_wait;
-				sw->wait_reason &= ~SUB_CAN_RECV;
+				sw->events &= ~SUB_RETRY_RECV;
 				tasklet_wakeup(sw->task);
 				h2s->recv_wait = NULL;
 			}
@@ -2932,14 +2932,14 @@ static void h2_do_shutr(struct h2s *h2s)
 	    h2c_send_goaway_error(h2c, h2s) <= 0)
 		return;
 
-	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
 	h2s_close(h2s);
 
 	return;
 add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
-		sw->wait_reason |= SUB_CAN_SEND;
+		sw->events |= SUB_RETRY_SEND;
 		if (h2s->flags & H2_SF_BLK_MFCTL) {
 			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
 			h2s->send_wait = sw;
@@ -2990,13 +2990,13 @@ static void h2_do_shutw(struct h2s *h2s)
 		h2s_close(h2s);
 	}
 
-	if (!(h2c->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
 	return;
 
  add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
-		sw->wait_reason |= SUB_CAN_SEND;
+		sw->events |= SUB_RETRY_SEND;
 		if (h2s->flags & H2_SF_BLK_MFCTL) {
 			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
 			h2s->send_wait = sw;
@@ -3016,7 +3016,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 	long reason = (long)h2s->wait_event.handle;
 
 	if (h2s->send_wait) {
-		h2s->send_wait->wait_reason &= ~SUB_CALL_UNSUBSCRIBE;
+		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
 		h2s->send_wait = NULL;
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
@@ -4526,19 +4526,19 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
 
-	if (event_type & SUB_CAN_RECV) {
+	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (!(sw->wait_reason & SUB_CAN_RECV)) {
-			sw->wait_reason |= SUB_CAN_RECV;
+		if (!(sw->events & SUB_RETRY_RECV)) {
+			sw->events |= SUB_RETRY_RECV;
 			sw->handle = h2s;
 			h2s->recv_wait = sw;
 		}
-		event_type &= ~SUB_CAN_RECV;
+		event_type &= ~SUB_RETRY_RECV;
 	}
-	if (event_type & SUB_CAN_SEND) {
+	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (!(sw->wait_reason & SUB_CAN_SEND)) {
-			sw->wait_reason |= SUB_CAN_SEND;
+		if (!(sw->events & SUB_RETRY_SEND)) {
+			sw->events |= SUB_RETRY_SEND;
 			sw->handle = h2s;
 			h2s->send_wait = sw;
 			if (!(h2s->flags & H2_SF_BLK_SFCTL)) {
@@ -4548,7 +4548,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 					LIST_ADDQ(&h2c->send_list, &h2s->list);
 			}
 		}
-		event_type &= ~SUB_CAN_SEND;
+		event_type &= ~SUB_RETRY_SEND;
 	}
 	if (event_type != 0)
 		return -1;
@@ -4562,26 +4562,26 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 	struct wait_event *sw;
 	struct h2s *h2s = cs->ctx;
 
-	if (event_type & SUB_CAN_RECV) {
+	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
 		if (h2s->recv_wait == sw) {
-			sw->wait_reason &= ~SUB_CAN_RECV;
+			sw->events &= ~SUB_RETRY_RECV;
 			h2s->recv_wait = NULL;
 		}
 	}
-	if (event_type & SUB_CAN_SEND) {
+	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
 		if (h2s->send_wait == sw) {
 			LIST_DEL(&h2s->list);
 			LIST_INIT(&h2s->list);
-			sw->wait_reason &= ~SUB_CAN_SEND;
+			sw->events &= ~SUB_RETRY_SEND;
 			h2s->send_wait = NULL;
 		}
 	}
 	if (event_type & SUB_CALL_UNSUBSCRIBE) {
 		sw = param;
 		if (h2s->send_wait == sw) {
-			sw->wait_reason &= ~SUB_CALL_UNSUBSCRIBE;
+			sw->events &= ~SUB_CALL_UNSUBSCRIBE;
 			h2s->send_wait = NULL;
 		}
 	}
@@ -4642,7 +4642,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (ret && h2c->dsi == h2s->id) {
 		/* demux is blocking on this stream's buffer */
 		h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (b_data(&h2c->dbuf) || !(h2c->wait_event.wait_reason & SUB_CAN_RECV)) {
+		if (b_data(&h2c->dbuf) || !(h2c->wait_event.events & SUB_RETRY_RECV)) {
 			if (h2_recv_allowed(h2c))
 				tasklet_wakeup(h2c->wait_event.task);
 		}
@@ -4662,8 +4662,8 @@ static void h2_stop_senders(struct h2c *h2c)
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
 		task_remove_from_task_list((struct task *)h2s->send_wait->task);
-		h2s->send_wait->wait_reason |= SUB_CAN_SEND;
-		h2s->send_wait->wait_reason &= ~SUB_CALL_UNSUBSCRIBE;
+		h2s->send_wait->events |= SUB_RETRY_SEND;
+		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
 		LIST_ADD(&h2c->send_list, &h2s->list);
 	}
 }
@@ -4682,7 +4682,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	int32_t idx;
 
 	if (h2s->send_wait) {
-		h2s->send_wait->wait_reason &= ~SUB_CALL_UNSUBSCRIBE;
+		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
 		h2s->send_wait = NULL;
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
@@ -4844,7 +4844,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		total = orig_count;
 
 	if (total > 0) {
-		if (!(h2s->h2c->wait_event.wait_reason & SUB_CAN_SEND))
+		if (!(h2s->h2c->wait_event.events & SUB_RETRY_SEND))
 			tasklet_wakeup(h2s->h2c->wait_event.task);
 
 	}
@@ -4886,7 +4886,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 		      " .orph_cnt=%d .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u .msi=%d .mbuf=%u@%p+%u/%u",
 		      h2c->st0, h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
 		      h2c->nb_streams, h2c->nb_cs, fctl_cnt, send_cnt, tree_cnt, orph_cnt,
-		      h2c->wait_event.wait_reason, h2c->dsi,
+		      h2c->wait_event.events, h2c->dsi,
 		      (unsigned int)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
 		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
 		      h2c->msi,

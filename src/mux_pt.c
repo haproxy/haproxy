@@ -52,7 +52,7 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
 		mux_pt_destroy(ctx);
 	else
-		ctx->conn->xprt->subscribe(ctx->conn, SUB_CAN_RECV,
+		ctx->conn->xprt->subscribe(ctx->conn, SUB_RETRY_RECV,
 		    &ctx->wait_event);
 
 	return NULL;
@@ -76,7 +76,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 		goto fail_free_ctx;
 	ctx->wait_event.task->context = ctx;
 	ctx->wait_event.task->process = mux_pt_io_cb;
-	ctx->wait_event.wait_reason = 0;
+	ctx->wait_event.events = 0;
 	ctx->conn = conn;
 
 	if (!cs) {
@@ -143,7 +143,7 @@ static struct conn_stream *mux_pt_attach(struct connection *conn, struct session
 	struct conn_stream *cs;
 	struct mux_pt_ctx *ctx = conn->mux_ctx;
 
-	conn->xprt->unsubscribe(conn, SUB_CAN_RECV, &ctx->wait_event);
+	conn->xprt->unsubscribe(conn, SUB_RETRY_RECV, &ctx->wait_event);
 	cs = cs_new(conn);
 	if (!cs)
 		goto fail;
@@ -187,7 +187,7 @@ static void mux_pt_detach(struct conn_stream *cs)
 	if (conn->owner != NULL &&
 	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 		ctx->cs = NULL;
-		conn->xprt->subscribe(conn, SUB_CAN_RECV, &ctx->wait_event);
+		conn->xprt->subscribe(conn, SUB_RETRY_RECV, &ctx->wait_event);
 	} else
 		/* There's no session attached to that connection, destroy it */
 		mux_pt_destroy(ctx);

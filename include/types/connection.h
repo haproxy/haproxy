@@ -47,16 +47,19 @@ struct server;
 struct session;
 struct pipe;
 
+/* Note: subscribing to these events is only valid after the caller has really
+ * attempted to perform the operation, and failed to proceed or complete.
+ */
 enum sub_event_type {
-	SUB_CAN_SEND        = 0x00000001,  /* Schedule the tasklet when we can send more */
-	SUB_CAN_RECV        = 0x00000002,  /* Schedule the tasklet when we can recv more */
-	SUB_CALL_UNSUBSCRIBE = 0x00000004, /* The mux wants its unsubscribe() method to be called before destruction of the underlying object */
+	SUB_RETRY_RECV       = 0x00000001,  /* Schedule the tasklet when we can attempt to recv again */
+	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
+	SUB_CALL_UNSUBSCRIBE = 0x00000004,  /* The mux wants its unsubscribe() method to be called before destruction of the underlying object */
 };
 
 struct wait_event {
 	struct tasklet *task;
 	void *handle;           /* To be used by the callee */
-	int wait_reason;
+	int events;             /* set of enum sub_event_type above */
 };
 
 /* A connection handle is how we differentiate two connections on the lower

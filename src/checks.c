@@ -712,9 +712,9 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
 
-	if (!(check->wait_list.wait_reason & SUB_CAN_SEND))
+	if (!(check->wait_list.events & SUB_RETRY_SEND))
 		wake_srv_chk(cs);
-	if (!(check->wait_list.wait_reason & SUB_CAN_RECV)) {
+	if (!(check->wait_list.events & SUB_RETRY_RECV)) {
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 		__event_srv_chk_r(cs);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
@@ -739,7 +739,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
+		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 		goto out;
 	}
 
@@ -773,7 +773,7 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 			goto out_wakeup;
 		}
 		if (b_data(&check->bo)) {
-			conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
+			conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 			goto out;
 		}
 	}
@@ -824,7 +824,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
+		cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 		goto out;
 	}
 
@@ -1380,7 +1380,7 @@ out:
 	return;
 
  wait_more_data:
-	cs->conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
+	cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
         goto out;
 }
 
@@ -1403,7 +1403,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = tcpcheck_main(check);
 		cs = check->cs;
 		conn = cs->conn;
-	} else if (!(check->wait_list.wait_reason & SUB_CAN_SEND))
+	} else if (!(check->wait_list.events & SUB_RETRY_SEND))
 		__event_srv_chk_w(cs);
 
 	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
@@ -1576,7 +1576,7 @@ static int connect_conn_chk(struct task *t)
 		return SF_ERR_RESOURCE;
 	conn = cs->conn;
 	/* Maybe there were an older connection we were waiting on */
-	check->wait_list.wait_reason = 0;
+	check->wait_list.events = 0;
 
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
@@ -2693,7 +2693,7 @@ static int tcpcheck_main(struct check *check)
 				break;
 			}
 			if (b_data(&check->bo)) {
-				cs->conn->mux->subscribe(cs, SUB_CAN_SEND, &check->wait_list);
+				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 				goto out;
 			}
 		}
@@ -2755,7 +2755,7 @@ static int tcpcheck_main(struct check *check)
 			check->cs = cs;
 			conn = cs->conn;
 			/* Maybe there were an older connection we were waiting on */
-			check->wait_list.wait_reason = 0;
+			check->wait_list.events = 0;
 			conn->target = &s->obj_type;
 
 			/* no client address */
@@ -2919,7 +2919,7 @@ static int tcpcheck_main(struct check *check)
 					}
 				}
 				else {
-					conn->mux->subscribe(cs, SUB_CAN_RECV, &check->wait_list);
+					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 					break;
 				}
 			}
@@ -3112,7 +3112,7 @@ const char *init_check(struct check *check, int type)
 	check->wait_list.task = tasklet_new();
 	if (!check->wait_list.task)
 		return "out of memroy while allocating check tasklet";
-	check->wait_list.wait_reason = 0;
+	check->wait_list.events = 0;
 	check->wait_list.task->process = event_srv_chk_io;
 	check->wait_list.task->context = check;
 	return NULL;

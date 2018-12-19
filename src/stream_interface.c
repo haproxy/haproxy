@@ -545,7 +545,7 @@ static int si_cs_process(struct conn_stream *cs)
 	struct channel *oc = si_oc(si);
 
 	/* If we have data to send, try it now */
-	if (!channel_is_empty(oc) && !(si->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!channel_is_empty(oc) && !(si->wait_event.events & SUB_RETRY_SEND))
 		si_cs_send(cs);
 
 	/* First step, report to the stream-int what was detected at the
@@ -596,7 +596,7 @@ int si_cs_send(struct conn_stream *cs)
 	int did_send = 0;
 
 	/* We're already waiting to be able to send, give up */
-	if (si->wait_event.wait_reason & SUB_CAN_SEND)
+	if (si->wait_event.events & SUB_RETRY_SEND)
 		return 0;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
@@ -680,7 +680,7 @@ int si_cs_send(struct conn_stream *cs)
  end:
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (!channel_is_empty(oc))
-		conn->mux->subscribe(cs, SUB_CAN_SEND, &si->wait_event);
+		conn->mux->subscribe(cs, SUB_RETRY_SEND, &si->wait_event);
 	return did_send;
 }
 
@@ -698,9 +698,9 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
 	if (!cs)
 		return NULL;
 
-	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && !channel_is_empty(si_oc(si)))
+	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		ret = si_cs_send(cs);
-	if (!(si->wait_event.wait_reason & SUB_CAN_RECV))
+	if (!(si->wait_event.events & SUB_RETRY_RECV))
 		ret |= si_cs_recv(cs);
 	if (ret != 0)
 		si_cs_process(cs);
@@ -1004,7 +1004,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (!(si->wait_event.wait_reason & SUB_CAN_SEND) && !channel_is_empty(si_oc(si)))
+	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		si_cs_send(cs);
 
 	if (cs->flags & CS_FL_ERROR || cs->conn->flags & CO_FL_ERROR) {
@@ -1093,7 +1093,7 @@ int si_cs_recv(struct conn_stream *cs)
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
-	if (si->wait_event.wait_reason & SUB_CAN_RECV)
+	if (si->wait_event.events & SUB_RETRY_RECV)
 		return 0;
 
 	/* maybe we were called immediately after an asynchronous shutr */
@@ -1335,7 +1335,7 @@ int si_cs_recv(struct conn_stream *cs)
 
 	/* Subscribe to receive events if we're blocking on I/O */
 	if (!si_rx_blocked(si)) {
-		conn->mux->subscribe(cs, SUB_CAN_RECV, &si->wait_event);
+		conn->mux->subscribe(cs, SUB_RETRY_RECV, &si->wait_event);
 		si_rx_endp_done(si);
 	} else {
 		si_rx_endp_more(si);

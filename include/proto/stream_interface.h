@@ -130,7 +130,7 @@ static inline int si_reset(struct stream_interface *si)
 		return -1;
 	si->wait_event.task->process    = si_cs_io_cb;
 	si->wait_event.task->context = si;
-	si->wait_event.wait_reason = 0;
+	si->wait_event.events = 0;
 	return 0;
 }
 
@@ -169,8 +169,8 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		return;
 
 	if ((cs = objt_cs(si->end))) {
-		if (si->wait_event.wait_reason != 0)
-			cs->conn->mux->unsubscribe(cs, si->wait_event.wait_reason,
+		if (si->wait_event.events != 0)
+			cs->conn->mux->unsubscribe(cs, si->wait_event.events,
 			    &si->wait_event);
 		cs_destroy(cs);
 	}
@@ -461,7 +461,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 	if (!cs)
 		return 0; // only conn_streams are supported
 
-	if (si->wait_event.wait_reason & SUB_CAN_RECV)
+	if (si->wait_event.events & SUB_RETRY_RECV)
 		return 0; // already subscribed
 
 	if (!si_rx_endp_ready(si) || si_rx_blocked(si))

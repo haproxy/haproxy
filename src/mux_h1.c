@@ -321,9 +321,9 @@ static void h1s_destroy(struct h1s *h1s)
 		h1c->h1s = NULL;
 
 		if (h1s->recv_wait != NULL)
-			h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+			h1s->recv_wait->events &= ~SUB_RETRY_RECV;
 		if (h1s->send_wait != NULL)
-			h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+			h1s->send_wait->events &= ~SUB_RETRY_SEND;
 
 		h1c->flags &= ~H1C_F_IN_BUSY;
 		h1c->flags |= H1C_F_WAIT_NEXT_REQ;
@@ -370,7 +370,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		goto fail;
 	h1c->wait_event.task->process = h1_io_cb;
 	h1c->wait_event.task->context = h1c;
-	h1c->wait_event.wait_reason   = 0;
+	h1c->wait_event.events   = 0;
 
 	if (!(conn->flags & CO_FL_CONNECTED))
 		h1c->flags |= H1C_F_CS_WAIT_CONN;
@@ -421,8 +421,8 @@ static void h1_release(struct connection *conn)
 			tasklet_free(h1c->wait_event.task);
 
 		h1s_destroy(h1c->h1s);
-		if (h1c->wait_event.wait_reason != 0)
-			conn->xprt->unsubscribe(conn, h1c->wait_event.wait_reason,
+		if (h1c->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, h1c->wait_event.events,
 			    &h1c->wait_event);
 		pool_free(pool_head_h1c, h1c);
 	}
@@ -1624,7 +1624,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 static void h1_wake_stream_for_recv(struct h1s *h1s)
 {
 	if (h1s && h1s->recv_wait) {
-		h1s->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		h1s->recv_wait->events &= ~SUB_RETRY_RECV;
 		tasklet_wakeup(h1s->recv_wait->task);
 		h1s->recv_wait = NULL;
 	}
@@ -1632,7 +1632,7 @@ static void h1_wake_stream_for_recv(struct h1s *h1s)
 static void h1_wake_stream_for_send(struct h1s *h1s)
 {
 	if (h1s && h1s->send_wait) {
-		h1s->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		h1s->send_wait->events &= ~SUB_RETRY_SEND;
 		tasklet_wakeup(h1s->send_wait->task);
 		h1s->send_wait = NULL;
 	}
@@ -1648,7 +1648,7 @@ static int h1_recv(struct h1c *h1c)
 	size_t ret = 0, max;
 	int rcvd = 0;
 
-	if (h1c->wait_event.wait_reason & SUB_CAN_RECV)
+	if (h1c->wait_event.events & SUB_RETRY_RECV)
 		return (b_data(&h1c->ibuf));
 
 	if (!h1_recv_allowed(h1c)) {
@@ -1700,7 +1700,7 @@ static int h1_recv(struct h1c *h1c)
 		goto end;
 	}
 
-	conn->xprt->subscribe(conn, SUB_CAN_RECV, &h1c->wait_event);
+	conn->xprt->subscribe(conn, SUB_RETRY_RECV, &h1c->wait_event);
 
   end:
 	if (ret > 0 || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn))
@@ -1730,8 +1730,8 @@ static int h1_send(struct h1c *h1c)
 		return 0;
 
 	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
-		if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
-			conn->xprt->subscribe(conn, SUB_CAN_SEND, &h1c->wait_event);
+		if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+			conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h1c->wait_event);
 		return 0;
 	}
 
@@ -1764,8 +1764,8 @@ static int h1_send(struct h1c *h1c)
 		if (h1c->flags & H1C_F_CS_SHUTW_NOW)
 			h1_shutw_conn(conn);
 	}
-	else if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
-		conn->xprt->subscribe(conn, SUB_CAN_SEND, &h1c->wait_event);
+	else if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+		conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h1c->wait_event);
 
 	return sent;
 }
@@ -1832,9 +1832,9 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 	struct h1c *h1c = ctx;
 	int ret = 0;
 
-	if (!(h1c->wait_event.wait_reason & SUB_CAN_SEND))
+	if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 		ret = h1_send(h1c);
-	if (!(h1c->wait_event.wait_reason & SUB_CAN_RECV))
+	if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h1_recv(h1c);
 	if (ret || !h1c->h1s)
 		h1_process(h1c);
@@ -2052,17 +2052,17 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 	if (!h1s)
 		return 0;
 
-	if (event_type & SUB_CAN_RECV) {
+	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
 		if (h1s->recv_wait == sw) {
-			sw->wait_reason &= ~SUB_CAN_RECV;
+			sw->events &= ~SUB_RETRY_RECV;
 			h1s->recv_wait = NULL;
 		}
 	}
-	if (event_type & SUB_CAN_SEND) {
+	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
 		if (h1s->send_wait == sw) {
-			sw->wait_reason &= ~SUB_CAN_SEND;
+			sw->events &= ~SUB_RETRY_SEND;
 			h1s->send_wait = NULL;
 		}
 	}
@@ -2079,18 +2079,18 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 		return -1;
 
 	switch (event_type) {
-		case SUB_CAN_RECV:
+		case SUB_RETRY_RECV:
 			sw = param;
-			if (!(sw->wait_reason & SUB_CAN_RECV)) {
-				sw->wait_reason |= SUB_CAN_RECV;
+			if (!(sw->events & SUB_RETRY_RECV)) {
+				sw->events |= SUB_RETRY_RECV;
 				sw->handle = h1s;
 				h1s->recv_wait = sw;
 			}
 			return 0;
-		case SUB_CAN_SEND:
+		case SUB_RETRY_SEND:
 			sw = param;
-			if (!(sw->wait_reason & SUB_CAN_SEND)) {
-				sw->wait_reason |= SUB_CAN_SEND;
+			if (!(sw->events & SUB_RETRY_SEND)) {
+				sw->events |= SUB_RETRY_SEND;
 				sw->handle = h1s;
 				h1s->send_wait = sw;
 			}
@@ -2115,7 +2115,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		h1s->flags |= H1S_F_BUF_FLUSH;
 	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
 		h1s->flags &= ~H1S_F_SPLICED_DATA;
-		if (!(h1c->wait_event.wait_reason & SUB_CAN_RECV))
+		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 			tasklet_wakeup(h1c->wait_event.task);
 	}
 	return ret;
@@ -2187,8 +2187,8 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	ret = cs->conn->xprt->snd_pipe(cs->conn, pipe);
   end:
 	if (pipe->data) {
-		if (!(h1s->h1c->wait_event.wait_reason & SUB_CAN_SEND))
-			cs->conn->xprt->subscribe(cs->conn, SUB_CAN_SEND, &h1s->h1c->wait_event);
+		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND))
+			cs->conn->xprt->subscribe(cs->conn, SUB_RETRY_SEND, &h1s->h1c->wait_event);
 	}
 	return ret;
 }

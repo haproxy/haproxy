@@ -650,11 +650,11 @@ static inline const struct conn_stream *cs_get_first(const struct connection *co
 static inline void conn_force_unsubscribe(struct connection *conn)
 {
 	if (conn->recv_wait) {
-		conn->recv_wait->wait_reason &= ~SUB_CAN_RECV;
+		conn->recv_wait->events &= ~SUB_RETRY_RECV;
 		conn->recv_wait = NULL;
 	}
 	if (conn->send_wait) {
-		conn->send_wait->wait_reason &= ~SUB_CAN_SEND;
+		conn->send_wait->events &= ~SUB_RETRY_SEND;
 		conn->send_wait = NULL;
 	}
 
