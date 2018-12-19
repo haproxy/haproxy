@@ -22,6 +22,7 @@ haproxy h1 -W -conf {
 
   defaults
     mode http
+    ${no-htx} option http-use-htx
     log global
     option httplog
     timeout connect         15ms

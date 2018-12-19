@@ -1,4 +1,4 @@
-varnishtest "HTTP request tests: H1 to H1, legacy mode"
+varnishtest "HTTP request tests: H1 to H1 (HTX mode supported only for HAProxy >= 1.9)"
 #REQUIRE_VERSION=1.6
 
 # Run it with HAPROXY_PROGRAM=$PWD/haproxy varnishtest -l -k -t 1 "$1"
@@ -30,7 +30,7 @@ server s1 {
 haproxy h1 -conf {
     defaults
 	mode http
-	#option http-use-htx
+	${no-htx} option http-use-htx
 	timeout connect 1s
 	timeout client  1s
 	timeout server  1s

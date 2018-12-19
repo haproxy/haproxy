@@ -16,7 +16,7 @@ syslog Slog_1 -repeat 8 -level info {
     recv
     expect ~ "Connect from .* to ${h1_ssl_addr}:${h1_ssl_port}"
     recv
-    expect ~ "ssl-offload-http/http .* \"POST /[1-8] HTTP/1\\.1\""
+    expect ~ "ssl-offload-http/http .* \"POST /[1-8] HTTP/(2\\.0|1\\.1)\""
 } -start
 
 haproxy h1 -conf {
@@ -29,6 +29,7 @@ haproxy h1 -conf {
 
     defaults
         mode http
+        ${no-htx} option http-use-htx
         timeout client 1s
         timeout server 1s
         timeout connect 1s
