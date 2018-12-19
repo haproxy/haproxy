@@ -589,13 +589,8 @@ static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 	if (h2s->id && h2s->st < H2_SS_ERROR) {
 		h2s->errcode = err;
 		h2s->st = H2_SS_ERROR;
-		if (h2s->cs) {
-			if (h2s->cs->flags & CS_FL_EOS)
-				h2s->cs->flags |= CS_FL_ERROR;
-			else {
-				h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
-			}
-		}
+		if (h2s->cs)
+			cs_set_error(h2s->cs);
 	}
 }
 
@@ -1786,11 +1781,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	h2s_close(h2s);
 
 	if (h2s->cs) {
-		if (h2s->cs->flags & CS_FL_EOS)
-			h2s->cs->flags |= CS_FL_ERROR;
-		else
-			h2s->cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
-
+		cs_set_error(h2s->cs);
 		h2s_alert(h2s);
 	}
 
@@ -4820,11 +4811,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 		}
 		else {
-			if (cs->flags & CS_FL_EOS)
-				cs->flags |= CS_FL_ERROR;
-			else
-				cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
-
+			cs_set_error(cs);
 			break;
 		}
 
@@ -4849,11 +4836,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	/* RST are sent similarly to frame acks */
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
-		if (cs->flags & CS_FL_EOS)
-			cs->flags |= CS_FL_ERROR;
-		else
-			cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
-
+		cs_set_error(cs);
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s_close(h2s);
 	}
