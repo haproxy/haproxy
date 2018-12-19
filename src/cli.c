@@ -888,6 +888,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		const struct mux_ops *mux = NULL;
 		void *ctx = NULL;
 		uint32_t conn_flags = 0;
+		int is_back = 0;
 
 		fdt = fdtab[fd];
 
@@ -901,6 +902,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = objt_listener(((struct connection *)fdt.owner)->target);
 			sv = objt_server(((struct connection *)fdt.owner)->target);
 			px = objt_proxy(((struct connection *)fdt.owner)->target);
+			is_back = conn_is_back((struct connection *)fdt.owner);
 		}
 		else if (fdt.iocb == listener_accept)
 			li = fdt.owner;
@@ -936,7 +938,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     "unknown");
 
 		if (fdt.iocb == conn_fd_handler) {
-			chunk_appendf(&trash, " cflg=0x%08x", conn_flags);
+			chunk_appendf(&trash, " back=%d cflg=0x%08x", is_back, conn_flags);
 			if (px)
 				chunk_appendf(&trash, " px=%s", px->id);
 			else if (sv)
