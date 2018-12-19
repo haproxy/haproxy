@@ -155,6 +155,7 @@ fi
 (echo "Please find the usual URLs below :"
  echo "   Site index       : http://www.haproxy.org/"
  echo "   Discourse        : http://discourse.haproxy.org/"
+ echo "   Slack channel    : https://slack.haproxy.org/"
  echo "   Sources          : http://www.haproxy.org/download/${BRANCH}/src/"
  echo "   Git repository   : http://git.haproxy.org/git/${gitdir}/"
  echo "   Git Web browsing : http://git.haproxy.org/?p=${gitdir}"
