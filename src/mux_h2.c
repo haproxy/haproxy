@@ -247,6 +247,7 @@ static int h2s_decode_headers(struct h2s *h2s);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
+static void h2s_alert(struct h2s *h2s);
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -622,6 +623,24 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 		tasklet_wakeup(sw->task);
 		h2s->send_wait = NULL;
 	}
+}
+
+/* alerts the data layer, trying to wake it up by all means, following
+ * this sequence :
+ *   - if the h2s' data layer is subscribed to recv, then it's woken up for recv
+ *   - if its subscribed to send, then it's woken up for send
+ *   - if it was subscribed to neither, its ->wake() callback is called
+ * It is safe to call this function with a closed stream which doesn't have a
+ * conn_stream anymore.
+ */
+static void __maybe_unused h2s_alert(struct h2s *h2s)
+{
+	if (h2s->recv_wait || h2s->send_wait) {
+		h2s_notify_recv(h2s);
+		h2s_notify_send(h2s);
+	}
+	else if (h2s->cs && h2s->cs->data_cb->wake != NULL)
+		h2s->cs->data_cb->wake(h2s->cs);
 }
 
 /* writes the 24-bit frame size <len> at address <frame> */
