@@ -3260,6 +3260,8 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 
 try_again:
 	flen = h2c->dfl - h2c->dpl;
+	if (h2c->proxy->options2 & PR_O2_USE_HTX)
+		htx = htx_from_buf(csbuf);
 	if (!flen)
 		goto end_transfer;
 
@@ -3270,7 +3272,6 @@ try_again:
 	}
 
 	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
-		htx = htx_from_buf(csbuf);
 		block1 = htx_free_data_space(htx);
 		if (!block1) {
 			h2c->flags |= H2_CF_DEM_SFULL;
