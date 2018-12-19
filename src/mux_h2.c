@@ -2665,7 +2665,7 @@ static int h2_process(struct h2c *h2c)
 
 		while (node) {
 			h2s = container_of(node, struct h2s, by_id);
-			if (h2s->cs->flags & CS_FL_WAIT_FOR_HS)
+			if (h2s->cs && h2s->cs->flags & CS_FL_WAIT_FOR_HS)
 				h2s_notify_recv(h2s);
 			node = eb32_next(node);
 		}
