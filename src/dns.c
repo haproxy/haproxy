@@ -417,7 +417,7 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 			if (depth++ > 100)
 				goto err;
 
-			n = dns_read_name(buffer, bufend, buffer + reader[1],
+			n = dns_read_name(buffer, bufend, buffer + (*reader & 0x3f)*256 + reader[1],
 					  dest, dest_len - nb_bytes, offset, depth);
 			if (n == 0)
 				goto err;
