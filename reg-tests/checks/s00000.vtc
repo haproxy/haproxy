@@ -2,6 +2,7 @@ varnishtest "Health-check test"
 feature ignore_unknown_macro
 
 #REQUIRE_VERSION=1.8
+#EXCLUDE_TARGETS=freebsd
 
 # This script test health-checks for four backends with one server by backend.
 # A syslog server is attached to each backend to check the syslog messages

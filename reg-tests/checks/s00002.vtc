@@ -2,6 +2,7 @@ varnishtest "Health-checks"
 feature ignore_unknown_macro
 
 #REQUIRE_VERSION=1.8
+#EXCLUDE_TARGETS=freebsd
 
 # This script start 40 servers named s0 up to s39.
 # For 0 <= i <= 19:
