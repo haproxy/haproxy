@@ -810,7 +810,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		/* Move forward 2 bytes for data len */
 		reader += 2;
 
-		if (reader + dns_answer_record->data_len >= bufend) {
+		if (reader + dns_answer_record->data_len > bufend) {
 			pool_free(dns_answer_item_pool, dns_answer_record);
 			return DNS_RESP_INVALID;
 		}
