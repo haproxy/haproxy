@@ -18,7 +18,7 @@ feature ignore_unknown_macro
 
 haproxy h1 -W -conf {
   global
-    stats socket ${tmpdir}/h1/stats level admin expose-fd listeners
+    stats socket "${tmpdir}/h1/stats" level admin expose-fd listeners
 
   defaults
     mode http
@@ -39,7 +39,7 @@ haproxy h1 -W -conf {
 } -start
 
 shell {
-  kill -USR2 $(cat ${tmpdir}/h1/pid)
+  kill -USR2 $(cat "${tmpdir}/h1/pid")
 }
 
 client c1 -connect ${h1_testme_sock} {
