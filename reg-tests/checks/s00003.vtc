@@ -27,7 +27,7 @@ syslog S3 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 failed, reason: Layer4 connection problem, info: \"General socket error \\(Network is unreachable\\)\", check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 failed, reason: Layer4 .* check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
