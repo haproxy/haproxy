@@ -1,0 +1,379 @@
+varnishtest "Basic compression test"
+
+#REQUIRE_VERSION=1.9
+#REQUIRE_OPTION=ZLIB|SLZ
+
+feature ignore_unknown_macro
+
+server s1 {
+        # client c1 - request 1
+        rxreq
+        expect req.url == "/c1.1"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c1 - request 2
+        rxreq
+        expect req.url == "/c1.2"
+        expect req.http.user-agent == "Mozilla/4"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c1 - request 3
+        rxreq
+        expect req.url == "/c1.3"
+        expect req.proto == "HTTP/1.0"
+        expect req.http.accept-encoding == "gzip"
+        txresp -bodylen 100
+
+        # client c1 - request 4
+        rxreq
+        expect req.url == "/c1.4"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -proto "HTTP/1.0" \
+          -hdr "Connection: keep-alive" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c1 - request 5
+        rxreq
+        expect req.url == "/c1.5"
+        expect req.method == "HEAD"
+        expect req.http.accept-encoding == "gzip"
+        txresp -nolen \
+          -hdr "Content-Length: 100" \
+          -hdr "Content-Type: text/plain" \
+
+        # client c1 - request 6
+        rxreq
+        expect req.url == "/c1.6"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -status 400 \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c1 - request 7
+        rxreq
+        expect req.url == "/c1.7"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Content-Encoding: something" \
+          -body "FOO"
+
+        # client c1 - request 8
+        rxreq
+        expect req.url == "/c1.8"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Cache-Control: no-transform" \
+          -bodylen 100
+
+        # client c1 - request 9
+        rxreq
+        expect req.url == "/c1.9"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/css" \
+          -bodylen 100
+
+        # client c1 - request 10
+        rxreq
+        expect req.url == "/c1.10"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: multipart/mixed; boundary=\"aaa\"" \
+          -bodylen 100
+
+        # Close the connection with HAProxy and wait for a new one
+        # (C1 has finished and C2 will start)
+        accept
+
+        # client c2 - request 1
+        rxreq
+        expect req.url == "/c2.1"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c2 - request 2
+        rxreq
+        expect req.url == "/c2.2"
+        expect req.http.accept-encoding == "gzip"
+        txresp  -nolen \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Transfer-Encoding: chunked"
+        chunkedlen 1
+        chunkedlen 1
+        chunkedlen 2
+        chunkedlen 3
+        chunkedlen 5
+        chunkedlen 8
+        chunkedlen 13
+        chunkedlen 21
+        chunkedlen 34
+        chunkedlen 55
+        chunkedlen 89
+        chunkedlen 144
+        chunkedlen 233
+        chunkedlen 0
+
+        # Close the connection with HAProxy and wait for a new one
+        # (C2 has finished and C3 will start)
+        accept
+
+        # client c3 - request 1
+        rxreq
+        expect req.url == "/c3.1"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 50000
+
+        # client c3 - request 2
+        rxreq
+        expect req.url == "/c3.2"
+        expect req.http.accept-encoding == "<undef>"
+        txresp  -nolen \
+          -hdr "Content-Type: text/plain" \
+          -hdr "Transfer-Encoding: chunked"
+        chunkedlen 1000
+        chunkedlen 1000
+        chunkedlen 1000
+        chunkedlen 1000
+        chunkedlen 1000
+        chunkedlen 5000
+        chunkedlen 10000
+        chunkedlen 30000
+        chunkedlen 0
+
+        # Close the connection with HAProxy and wait for a new one
+        # (C3 has finished and C4 will start)
+        accept
+
+        # client c4 - request 1
+        rxreq
+        expect req.url == "/c4.1"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        # client c4 - request 2
+        rxreq
+        expect req.url == "/c4.2"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+} -start
+
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        default_backend be-gzip
+
+    frontend fe-identity
+        bind "fd@${fe_identity}"
+        default_backend be-identity
+
+    frontend fe-gzip-deflate
+        bind "fd@${fe_gzip_deflate}"
+        default_backend be-gzip-defalte
+
+    backend be-gzip
+        compression algo gzip
+        compression type text/html text/plain
+        server www ${s1_addr}:${s1_port}
+
+    backend be-identity
+        compression algo identity
+        server www ${s1_addr}:${s1_port}
+
+    backend be-gzip-defalte
+        compression algo gzip deflate
+	compression offload
+        server www ${s1_addr}:${s1_port}
+
+} -start
+
+# No compression expected because not supported by the client or because
+# something in the request or response headers forbids it.
+client c1 -connect ${h1_fe_gzip_sock} {
+        # 1. no "Accept-Encoding header"
+        txreq -url "/c1.1"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 100
+
+        # 2. Buggy User-Agent
+        txreq  -url "/c1.2" \
+          -hdr "Accept-Encoding: gzip" \
+          -hdr "User-Agent: Mozilla/4"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 100
+
+        # 3. HTTP/1.0 request
+        txreq  -url "/c1.3" \
+          -proto "HTTP/1.0" \
+          -hdr "Accept-Encoding: gzip" \
+          -hdr "Connection: keep-alive"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 100
+
+        # 4. HTTP/1.0 response
+        txreq  -url "/c1.4" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.proto == "HTTP/1.0"
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 100
+
+        # 5. HEAD method
+        txreq -req "HEAD" -url "/c1.5" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp -no_obj
+        expect resp.status == 200
+        expect resp.http.content-length == "100"
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+
+        # 6. Response status code != 20[0-3]
+        txreq -url "/c1.6" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 400
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 100
+
+        # 7. Response alerady compressed by the server (with "Accept-Encoding")
+        txreq -url "/c1.7" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "something"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.bodylen == 3
+        expect resp.body == "FOO"
+
+        # 8. Response with "Cache-Control: no-transform"
+        txreq -url "/c1.8" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.http.cache-control == "no-transform"
+        expect resp.bodylen == 100
+
+        # 9. Response with uncompressable content-type
+        txreq -url "/c1.9" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.http.content-type == "text/css"
+        expect resp.bodylen == 100
+
+        # 10. Response with uncompressable content-type
+        txreq -url "/c1.10" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "<undef>"
+        expect resp.http.content-type == "multipart/mixed; boundary=\"aaa\""
+        expect resp.bodylen == 100
+} -run
+
+# GZIP Compression expected (small body)
+client c2 -connect ${h1_fe_gzip_sock} {
+        # 1. response from the server with a small body with a C-L
+        txreq -url "/c2.1" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.transfer-encoding == "chunked"
+        gunzip
+        expect resp.bodylen == 100
+
+        # 2. response from the server with a small chunked body
+        txreq -url "/c2.2" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.transfer-encoding == "chunked"
+        gunzip
+        expect resp.bodylen == 609
+} -run
+
+# Identity compression expect (Huge body)
+# Identity is used because of a limitation of vtest (the uncompressed body size
+# must be lower than 10 times of the compressed one)
+client c3 -connect ${h1_fe_identity_sock} {
+        # 1. response from the server with a huge body with a C-L
+        txreq -url "/c3.1"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "chunked"
+        expect resp.bodylen == 50000
+
+        # 2. response from the server with a huge chunked body
+        txreq -url "/c3.2"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.transfer-encoding == "chunked"
+        expect resp.bodylen == 50000
+} -run
+
+
+# Compression expected with priority
+client c4 -connect ${h1_fe_gzip_deflate_sock} {
+        # 1. response from the server with a small body with a C-L
+        txreq -url "/c4.1" \
+          -hdr "Accept-Encoding: *;q=0, gzip;q=0.750, deflate;q=0.500"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.transfer-encoding == "chunked"
+
+        # 2. response from the server with a small body with a C-L
+        txreq -url "/c4.2" \
+          -hdr "Accept-Encoding: *;q=0, gzip;q=0.500, deflate;q=0.750"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "deflate"
+        expect resp.http.transfer-encoding == "chunked"
+} -run
