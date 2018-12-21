@@ -48,7 +48,7 @@ _help()
     # Below option is required to complete this test succesfully
     #REQUIRE_OPTION=OPENSSL, this test needs OPENSSL compiled in.
 
-    #REQUIRE_OPTIONS=ZLIB,OPENSSL,LUA
+    #REQUIRE_OPTIONS=ZLIB|SLZ,OPENSSL,LUA
 
     # To define a range of versions that a test can run with:
     #REQUIRE_VERSION=0.0
@@ -156,8 +156,18 @@ _findtests() {
     skiptest=
     require_version="$(sed -ne 's/^#REQUIRE_VERSION=//p' "$i")"
     require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"
-    require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i")"
-    exclude_targets=",$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i"),"
+    require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i" | sed  -e 's/,/ /g')"
+    exclude_targets="$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i" | sed  -e 's/,/ /g')"
+
+    requiredoption="$(sed -ne 's/^#REQUIRE_OPTION=//p' "$i" | sed  -e 's/,.*//')"
+    if [ -n "$requiredoption" ]; then
+      require_options="$require_options $requiredoption"
+    fi
+
+    excludedtarget="$(sed -ne 's/^#EXCLUDE_TARGET=//p' "$i" | sed  -e 's/,.*//')"
+    if [ -n "$excludedtarget" ]; then
+      exclude_targets="$exclude_targets $excludedtarget"
+    fi
 
     if [ -n "$require_version" ]; then
       if [ $(_version "$HAPROXY_VERSION") -lt $(_version "$require_version") ]; then
@@ -174,46 +184,26 @@ _findtests() {
       fi
     fi
 
-    if [ -n "$( echo "$exclude_targets" | grep ",$TARGET," )" ]; then
-      echo "  Skip $i because exclude_targets"
-      echo "    REASON: exclude_targets '$exclude_targets' contains '$TARGET'"
-      skiptest=1
-    fi
+    for excludedtarget in $exclude_targets; do
+      if [ "$excludedtarget" = "$TARGET" ]; then
+        echo "  Skip $i because haproxy is compiled for the excluded target $TARGET"
+        skiptest=1
+      fi
+    done
 
-    #echo "REQUIRE_OPTIONS : $require_options"
-    for requiredoption in $(echo $require_options | tr "," "\012" ); do
-      if [ -z "$( echo "$OPTIONS" | grep "USE_$requiredoption=1" )" ]
-      then
-        echo "  Skip $i because option $requiredoption not found"
-        echo -n "    REASON: "
-        echo -n "$required" | sed -e 's/.*,//' -e 's/^[[:space:]]//'
-        echo
+    for requiredoption in $require_options; do
+      alternatives=$(echo "$requiredoption" | sed -e 's/|/ /g')
+      found=
+      for alt in $alternatives; do
+        if [ -n "$( echo "$OPTIONS" | grep "USE_$alt=1" )" ]; then
+          found=1;
+	fi
+      done
+      if [ -z $found ]; then
+        echo "  Skip $i because haproxy is not compiled with the required option $requiredoption"
         skiptest=1
       fi
     done
-    for required in "$(grep "#REQUIRE_OPTION=" "$i")";
-    do
-      if [ -z "$required" ]
-      then
-        continue
-      fi
-      requiredoption=$(echo "$required" | sed -e 's/.*=//' -e 's/,.*//')
-      if [ -z "$( echo "$OPTIONS" | grep "USE_$requiredoption=1" )" ]
-      then
-        echo "  Skip $i because option $requiredoption not found"
-        echo -n "    REASON: "
-        echo "$required" | sed -e 's/.*,//' -e 's/^[[:space:]]//'
-        skiptest=1
-      fi
-    done
-    testtarget=$(grep "#EXCLUDE_TARGET=" "$i")
-    if [ "$( echo "$testtarget" | grep "#EXCLUDE_TARGET=$TARGET," )" ]
-    then
-      echo "  Skip $i because: TARGET = $TARGET"
-      echo -n "    REASON: "
-      echo "$testtarget" | sed -e 's/.*,//' -e 's/^[[:space:]]//'
-      skiptest=1
-    fi
 
     if [ -z $skiptest ]; then
       echo "  Add test: $i"
