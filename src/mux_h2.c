@@ -284,6 +284,17 @@ static inline int h2_recv_allowed(const struct h2c *h2c)
 	return 0;
 }
 
+/* restarts reading on the connection if it was not enabled */
+static inline void h2c_restart_reading(const struct h2c *h2c)
+{
+	if (!h2_recv_allowed(h2c))
+		return;
+	if (h2c->wait_event.events & SUB_RETRY_RECV)
+		return;
+	tasklet_wakeup(h2c->wait_event.task);
+}
+
+
 /* returns true if the connection has too many conn_streams attached */
 static inline int h2_has_too_many_cs(const struct h2c *h2c)
 {
@@ -302,8 +313,7 @@ static int h2_buf_available(void *target)
 
 	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc_margin(&h2c->dbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
-		if (h2_recv_allowed(h2c))
-			tasklet_wakeup(h2c->wait_event.task);
+		h2c_restart_reading(h2c);
 		return 1;
 	}
 
@@ -312,8 +322,7 @@ static int h2_buf_available(void *target)
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
 			h2c->flags &= ~H2_CF_DEM_MROOM;
-			if (h2_recv_allowed(h2c))
-				tasklet_wakeup(h2c->wait_event.task);
+			h2c_restart_reading(h2c);
 		}
 		return 1;
 	}
@@ -322,8 +331,7 @@ static int h2_buf_available(void *target)
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s->cs &&
 	    b_alloc_margin(&h2s->rxbuf, 0)) {
 		h2c->flags &= ~H2_CF_DEM_SALLOC;
-		if (h2_recv_allowed(h2c))
-			tasklet_wakeup(h2c->wait_event.task);
+		h2c_restart_reading(h2c);
 		return 1;
 	}
 
@@ -467,7 +475,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	conn->ctx = h2c;
 
 	/* prepare to read something */
-	tasklet_wakeup(h2c->wait_event.task);
+	h2c_restart_reading(h2c);
 	return 0;
   fail_stream:
 	hpack_dht_free(h2c->ddht);
@@ -2375,8 +2383,7 @@ static void h2_process_demux(struct h2c *h2c)
 		h2s_notify_recv(h2s);
 	}
 
-	if (h2_recv_allowed(h2c))
-		tasklet_wakeup(h2c->wait_event.task);
+	h2c_restart_reading(h2c);
 }
 
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
@@ -2848,8 +2855,7 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2c->flags & H2_CF_DEM_TOOMANY &&
 	    !h2_has_too_many_cs(h2c)) {
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
-		if (h2_recv_allowed(h2c))
-			tasklet_wakeup(h2c->wait_event.task);
+		h2c_restart_reading(h2c);
 	}
 
 	/* this stream may be blocked waiting for some data to leave (possibly
@@ -2867,7 +2873,7 @@ static void h2_detach(struct conn_stream *cs)
 		 */
 		h2c->flags &= ~H2_CF_DEM_BLOCK_ANY;
 		h2c->flags &= ~H2_CF_MUX_BLOCK_ANY;
-		tasklet_wakeup(h2c->wait_event.task);
+		h2c_restart_reading(h2c);
 	}
 
 	h2s_destroy(h2s);
@@ -4663,10 +4669,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (ret && h2c->dsi == h2s->id) {
 		/* demux is blocking on this stream's buffer */
 		h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (b_data(&h2c->dbuf) || !(h2c->wait_event.events & SUB_RETRY_RECV)) {
-			if (h2_recv_allowed(h2c))
-				tasklet_wakeup(h2c->wait_event.task);
-		}
+		if (b_data(&h2c->dbuf) || !(h2c->wait_event.events & SUB_RETRY_RECV))
+			h2c_restart_reading(h2c);
 	}
 end:
 	return ret;
