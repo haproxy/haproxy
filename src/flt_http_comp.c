@@ -914,7 +914,7 @@ htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg 
 	    (txn->status != 203))
 		goto fail;
 
-	if (msg->flags & HTTP_MSGF_BODYLESS)
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) || msg->flags & HTTP_MSGF_BODYLESS)
 		goto fail;
 
 	/* content is already compressed */
