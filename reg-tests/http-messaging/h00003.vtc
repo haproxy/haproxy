@@ -1,0 +1,78 @@
+varnishtest "A test for http-request-buffer option"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.6
+
+# This test checks HTTP request buffering feature.
+# We run one server s1 which can serve only one client (no -repeat argument here).
+# c1 client uses a malformed request which is not transferred to s1 server
+# thanks to "http-buffer-request". If this was the case, c2 client
+# could not connect to s1 server and this would lead to make this test fail.
+
+server s1 {
+	rxreq
+	expect req.bodylen == 257
+	txresp
+} -start
+
+syslog S -level info {
+	recv
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 fe1/<NOSRV> .* 408 .* - - cD-- .* .* \"GET /this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url-this-is-a-long-url HTTP/1\\.1\""
+	recv
+	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"GET / HTTP/1\\.1\""
+} -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		${no-htx} option http-use-htx
+		timeout client  100ms
+		timeout server  1s
+		timeout connect 1s
+
+	backend be1
+		server srv1 ${s1_addr}:${s1_port}
+
+	frontend fe1
+		option httplog
+		option http-buffer-request
+		log ${S_addr}:${S_port} local0 debug err
+		bind "fd@${fe1}"
+		use_backend be1
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	send "GET"
+	send " "
+	send "/this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send "-this-is-a-long-url"
+	send " HTT"
+	send "P/1.1"
+	send "\r"
+	send "\n"
+	send "Content-Length: 209\r\n\r\n"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	send "abcdefghijklmnopqrstuvwxyz"
+	rxresp
+	expect resp.status == 408
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	txreq -bodylen 257
+	rxresp
+	expect resp.status == 200
+} -run
+
+syslog S -wait
+
