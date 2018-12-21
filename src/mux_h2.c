@@ -2105,7 +2105,10 @@ static void h2_process_demux(struct h2c *h2c)
 				goto fail;
 			}
 
-			/* that's OK, switch to FRAME_P to process it */
+			/* that's OK, switch to FRAME_P to process it. This is
+			 * a SETTINGS frame whose header has already been
+			 * deleted above.
+			 */
 			h2c->dfl = hdr.len;
 			h2c->dsi = hdr.sid;
 			h2c->dft = hdr.ft;
@@ -2124,6 +2127,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (h2c->st0 == H2_CS_FRAME_H) {
 			struct h2_fh hdr;
+			unsigned int padlen = 0;
 
 			if (!h2_peek_frame_hdr(&h2c->dbuf, &hdr))
 				break;
@@ -2138,13 +2142,48 @@ static void h2_process_demux(struct h2c *h2c)
 				break;
 			}
 
+			if (h2_ft_bit(hdr.ft) & H2_FT_PADDED_MASK && hdr.ff & H2_F_PADDED) {
+				/* If the frame is padded (HEADERS, PUSH_PROMISE or DATA),
+				 * we read the pad length and drop it from the remaining
+				 * payload (one byte + the 9 remaining ones = 10 total
+				 * removed), so we have a frame payload starting after the
+				 * pad len. Flow controlled frames (DATA) also count the
+				 * padlen in the flow control, so it must be adjusted.
+				 */
+				if (hdr.len < 1) {
+					h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+					sess_log(h2c->conn->owner);
+					goto fail;
+				}
+				hdr.len--;
+
+				if (b_data(&h2c->dbuf) < 10)
+					break; // missing padlen
+
+				padlen = *(uint8_t *)b_peek(&h2c->dbuf, 9);
+
+				if (padlen > hdr.len) {
+					/* RFC7540#6.1 : pad length = length of
+					 * frame payload or greater => error.
+					 */
+					h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+					sess_log(h2c->conn->owner);
+					goto fail;
+				}
+
+				if (h2_ft_bit(hdr.ft) & H2_FT_FC_MASK) {
+					h2c->rcvd_c++;
+					h2c->rcvd_s++;
+				}
+				b_del(&h2c->dbuf, 1);
+			}
+			h2_skip_frame_hdr(&h2c->dbuf);
 			h2c->dfl = hdr.len;
 			h2c->dsi = hdr.sid;
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
-			h2c->dpl = 0;
+			h2c->dpl = padlen;
 			h2c->st0 = H2_CS_FRAME_P;
-			h2_skip_frame_hdr(&h2c->dbuf);
 		}
 
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
@@ -3099,7 +3138,7 @@ static int h2s_decode_headers(struct h2s *h2s)
 	unsigned int msgf;
 	struct buffer *csbuf;
 	struct htx *htx = NULL;
-	int flen = h2c->dfl;
+	int flen = h2c->dfl - h2c->dpl;
 	int outlen = 0;
 	int wrap;
 	int try = 0;
@@ -3124,20 +3163,6 @@ static int h2s_decode_headers(struct h2s *h2s)
 		memcpy(copy->area, b_head(&h2c->dbuf), wrap);
 		memcpy(copy->area + wrap, b_orig(&h2c->dbuf), h2c->dfl - wrap);
 		hdrs = (uint8_t *) copy->area;
-	}
-
-	/* The padlen is the first byte before data, and the padding appears
-	 * after data. padlen+data+padding are included in flen.
-	 */
-	if (h2c->dff & H2_F_HEADERS_PADDED) {
-		h2c->dpl = *hdrs;
-		if (h2c->dpl >= flen) {
-			/* RFC7540#6.2 : pad length = length of frame payload or greater */
-			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			goto fail;
-		}
-		flen -= h2c->dpl + 1;
-		hdrs += 1; // skip Pad Length
 	}
 
 	/* Skip StreamDep and weight for now (we don't support PRIORITY) */
@@ -3265,27 +3290,6 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	struct buffer *csbuf;
 
 	h2c->flags &= ~H2_CF_DEM_SFULL;
-
-	/* The padlen is the first byte before data, and the padding appears
-	 * after data. padlen+data+padding are included in flen.
-	 */
-	if (h2c->dff & H2_F_DATA_PADDED) {
-		if (b_data(&h2c->dbuf) < 1)
-			return 0;
-
-		h2c->dpl = *(uint8_t *)b_head(&h2c->dbuf);
-		if (h2c->dpl >= h2c->dfl) {
-			/* RFC7540#6.1 : pad length = length of frame payload or greater */
-			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			return 0;
-		}
-
-		/* skip the padlen byte */
-		b_del(&h2c->dbuf, 1);
-		h2c->dfl--;
-		h2c->rcvd_c++; h2c->rcvd_s++;
-		h2c->dff &= ~H2_F_DATA_PADDED;
-	}
 
 	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
 	if (!csbuf) {
