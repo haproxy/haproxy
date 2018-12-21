@@ -2196,6 +2196,37 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 }
 #endif
 
+/* for debugging with CLI's "show fd" command */
+static void h1_show_fd(struct buffer *msg, struct connection *conn)
+{
+	struct h1c *h1c = conn->ctx;
+	struct h1s *h1s = h1c->h1s;
+
+	chunk_appendf(msg, " h1c.flg=0x%x .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u",
+		      h1c->flags,
+		      (unsigned int)b_data(&h1c->ibuf), b_orig(&h1c->ibuf),
+		      (unsigned int)b_head_ofs(&h1c->ibuf), (unsigned int)b_size(&h1c->ibuf),
+		       (unsigned int)b_data(&h1c->obuf), b_orig(&h1c->obuf),
+		      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf));
+
+	if (h1s) {
+		char *method;
+
+		if (h1s->meth < HTTP_METH_OTHER)
+			method = http_known_methods[h1s->meth].ptr;
+		else
+			method = "UNKNOWN";
+		chunk_appendf(msg, " h1s=%p h1s.flg=0x%x .req.state=%s .res.state=%s"
+		    " .meth=%s status=%d",
+			      h1s, h1s->flags,
+			      h1m_state_str(h1s->req.state),
+			      h1m_state_str(h1s->res.state), method, h1s->status);
+		if (h1s->cs)
+			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
+				      h1s->cs->flags, h1s->cs->data);
+	}
+}
+
 /****************************************/
 /* MUX initialization and instanciation */
 /****************************************/
@@ -2221,6 +2252,7 @@ const struct mux_ops mux_h1_ops = {
 	.unsubscribe = h1_unsubscribe,
 	.shutr       = h1_shutr,
 	.shutw       = h1_shutw,
+	.show_fd     = h1_show_fd,
 	.reset       = h1_reset,
 	.flags       = MX_FL_NONE,
 	.name        = "h1",
