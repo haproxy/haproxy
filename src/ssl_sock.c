@@ -7966,34 +7966,42 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 #endif
 }
 
-/* parse the "alpn" bind keyword */
+/* parse the "alpn" or the "check-alpn" server keyword */
 static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	char *p1, *p2;
+	char **alpn_str;
+	int *alpn_len;
 
+	if (*args[*cur_arg] == 'c') {
+		alpn_str = &newsrv->check.alpn_str;
+		alpn_len = &newsrv->check.alpn_len;
+	} else {
+		alpn_str = &newsrv->ssl_ctx.alpn_str;
+		alpn_len = &newsrv->ssl_ctx.alpn_len;
+
+	}
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : missing the comma-delimited ALPN protocol suite", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	free(newsrv->ssl_ctx.alpn_str);
+	free(*alpn_str);
 
 	/* the ALPN string is built as a suite of (<len> <name>)*,
 	 * so we reuse each comma to store the next <len> and need
 	 * one more for the end of the string.
 	 */
-	newsrv->ssl_ctx.alpn_len = strlen(args[*cur_arg + 1]) + 1;
-	newsrv->ssl_ctx.alpn_str = calloc(1, newsrv->ssl_ctx.alpn_len + 1);
-	memcpy(newsrv->ssl_ctx.alpn_str + 1, args[*cur_arg + 1],
-	    newsrv->ssl_ctx.alpn_len);
+	*alpn_len = strlen(args[*cur_arg + 1]) + 1;
+	*alpn_str = calloc(1, *alpn_len + 1);
+	memcpy(*alpn_str + 1, args[*cur_arg + 1], *alpn_len);
 
 	/* replace commas with the name length */
-	p1 = newsrv->ssl_ctx.alpn_str;
+	p1 = *alpn_str;
 	p2 = p1 + 1;
 	while (1) {
-		p2 = memchr(p1 + 1, ',', newsrv->ssl_ctx.alpn_str +
-		    newsrv->ssl_ctx.alpn_len - (p1 + 1));
+		p2 = memchr(p1 + 1, ',', *alpn_str + *alpn_len - (p1 + 1));
 		if (!p2)
 			p2 = p1 + 1 + strlen(p1 + 1);
 
@@ -9132,6 +9140,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1 }, /* Allow using early data on this server */
 	{ "alpn",                    srv_parse_alpn,               1, 1 }, /* Set ALPN supported protocols */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1 }, /* set CAfile to process verify server cert */
+	{ "check-alpn",              srv_parse_alpn,               1, 1 }, /* Set ALPN used for checks */
 	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1 }, /* select the cipher suite */

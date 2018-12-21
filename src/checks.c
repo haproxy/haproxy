@@ -1621,6 +1621,9 @@ static int connect_conn_chk(struct task *t)
 #ifdef USE_OPENSSL
 	if (s->check.sni)
 		ssl_sock_set_servername(conn, s->check.sni);
+	if (s->check.alpn_str)
+		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
+		    s->check.alpn_len);
 #endif
 	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;

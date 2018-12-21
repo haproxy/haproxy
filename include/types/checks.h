@@ -186,6 +186,8 @@ struct check {
 	struct sockaddr_storage addr;   	/* the address to check */
 	struct wait_event wait_list;            /* Waiting for I/O events */
 	char *sni;				/* Server name */
+	char *alpn_str;                         /* ALPN to use for checks */
+	int alpn_len;                           /* ALPN string length */
 };
 
 struct check_status {

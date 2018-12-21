@@ -11569,6 +11569,11 @@ check-send-proxy
   "check-send-proxy" option needs to be used to force the use of the
   protocol. See also the "send-proxy" option for more information.
 
+check-alpn <protocols>
+  Defines which protocols to advertise with ALPN. The protocol list consists in
+  a comma-delimited list of protocol names, for instance: "http/1.1,http/1.0"
+  (without quotes). If it is not set, the server ALPN is used.
+
 check-sni <sni>
   This option allows you to specify the SNI to be used when doing health checks
   over SSL. It is only possible to use a string to set <sni>. If you want to
