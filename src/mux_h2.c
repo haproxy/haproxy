@@ -2361,15 +2361,14 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		case H2_FT_CONTINUATION:
-			/* we currently don't support CONTINUATION frames since
-			 * we have nowhere to store the partial HEADERS frame.
-			 * Let's abort the stream on an INTERNAL_ERROR here.
+			/* RFC7540#6.10: CONTINUATION may only be preceeded by
+			 * a HEADERS/PUSH_PROMISE/CONTINUATION frame. These
+			 * frames' parsers consume all following CONTINUATION
+			 * frames so this one is out of sequence.
 			 */
-			if (h2c->st0 == H2_CS_FRAME_P) {
-				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-				h2c->st0 = H2_CS_FRAME_E;
-			}
-			break;
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			sess_log(h2c->conn->owner);
+			goto fail;
 
 		case H2_FT_HEADERS:
 			if (h2c->st0 == H2_CS_FRAME_P) {
@@ -3152,8 +3151,46 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
  * HTX request or response depending on the connection's side. Returns the
- * number of bytes emitted if > 0, or 0 if it couldn't proceed. Connection
- * errors in h2c->errcode.
+ * number of bytes emitted if > 0, or 0 if it couldn't proceed. May report
+ * connection errors in h2c->errcode if the frame is non-decodable and not
+ * recoverable.
+ *
+ * The function may fold CONTINUATION frames into the initial HEADERS frame
+ * by removing padding and next frame header, then moving the CONTINUATION
+ * frame's payload and adjusting h2c->dfl to match the new aggregated frame,
+ * leaving a hole between the main frame and the beginning of the next one.
+ * The possibly remaining incomplete or next frame at the end may be moved
+ * if the aggregated frame is not deleted, in order to fill the hole. Wrapped
+ * HEADERS frames are unwrapped into a temporary buffer before decoding.
+ *
+ * A buffer at the beginning of processing may look like this :
+ *
+ *  ,---.---------.-----.--------------.--------------.------.---.
+ *  |///| HEADERS | PAD | CONTINUATION | CONTINUATION | DATA |///|
+ *  `---^---------^-----^--------------^--------------^------^---'
+ *  |   |         <----->                                    |   |
+ * area |           dpl                                      |  wrap
+ *      |<-------------->                                    |
+ *      |       dfl                                          |
+ *      |<-------------------------------------------------->|
+ *    head                    data
+ *
+ * Padding is automatically overwritten when folding, participating to the
+ * hole size after dfl :
+ *
+ *  ,---.------------------------.-----.--------------.------.---.
+ *  |///| HEADERS : CONTINUATION |/////| CONTINUATION | DATA |///|
+ *  `---^------------------------^-----^--------------^------^---'
+ *  |   |                        <----->                     |   |
+ * area |                          hole                      |  wrap
+ *      |<----------------------->                           |
+ *      |           dfl                                      |
+ *      |<-------------------------------------------------->|
+ *    head                    data
+ *
+ * Please note that the HEADERS frame is always deprived from its PADLEN byte
+ * however it may start with the 5 stream-dep+weight bytes in case of PRIORITY
+ * bit.
  */
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags)
 {
@@ -3163,13 +3200,73 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 	struct buffer *copy = NULL;
 	unsigned int msgf;
 	struct htx *htx = NULL;
-	int flen = h2c->dfl - h2c->dpl;
+	int flen; // header frame len
+	int hole = 0;
 	int outlen = 0;
 	int wrap;
 	int try = 0;
 
-	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
-		return 0; // incomplete input frame
+next_frame:
+	if (b_data(&h2c->dbuf) - hole < h2c->dfl)
+		goto leave; // incomplete input frame
+
+	/* No END_HEADERS means there's one or more CONTINUATION frames. In
+	 * this case, we'll try to paste it immediately after the initial
+	 * HEADERS frame payload and kill any possible padding. The initial
+	 * frame's length will be increased to represent the concatenation
+	 * of the two frames. The next frame is read from position <tlen>
+	 * and written at position <flen> (minus padding if some is present).
+	 */
+	if (unlikely(!(h2c->dff & H2_F_HEADERS_END_HEADERS))) {
+		struct h2_fh hdr;
+		int clen; // CONTINUATION frame's payload length
+
+		if (!h2_peek_frame_hdr(&h2c->dbuf, h2c->dfl + hole, &hdr)) {
+			/* no more data, the buffer may be full, either due to
+			 * too large a frame or because of too large a hole that
+			 * we're going to compact at the end.
+			 */
+			goto leave;
+		}
+
+		if (hdr.ft != H2_FT_CONTINUATION) {
+			/* RFC7540#6.10: frame of unexpected type */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			goto fail;
+		}
+
+		if (hdr.sid != h2c->dsi) {
+			/* RFC7540#6.10: frame of different stream */
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			goto fail;
+		}
+
+		if ((unsigned)hdr.len > (unsigned)global.tune.bufsize) {
+			/* RFC7540#4.2: invalid frame length */
+			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+			goto fail;
+		}
+
+		/* detect when we must stop aggragating frames */
+		h2c->dff |= hdr.ff & H2_F_HEADERS_END_HEADERS;
+
+		/* Take as much as we can of the CONTINUATION frame's payload */
+		clen = b_data(&h2c->dbuf) - (h2c->dfl + hole + 9);
+		if (clen > hdr.len)
+			clen = hdr.len;
+
+		/* Move the frame's payload over the padding, hole and frame
+		 * header. At least one of hole or dpl is null (see diagrams
+		 * above). The hole moves after the new aggragated frame.
+		 */
+		b_move(&h2c->dbuf, b_peek_ofs(&h2c->dbuf, h2c->dfl + hole + 9), clen, -(h2c->dpl + hole + 9));
+		h2c->dfl += clen - h2c->dpl;
+		hole     += h2c->dpl + 9;
+		h2c->dpl  = 0;
+		goto next_frame;
+	}
+
+	flen = h2c->dfl - h2c->dpl;
 
 	/* if the input buffer wraps, take a temporary copy of it (rare) */
 	wrap = b_wrap(&h2c->dbuf) - b_head(&h2c->dbuf);
@@ -3194,15 +3291,6 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 
 		hdrs += 5; // stream dep = 4, weight = 1
 		flen -= 5;
-	}
-
-	/* FIXME: lack of END_HEADERS means there's a continuation frame, we
-	 * don't support this for now and can't even decompress so we have to
-	 * break the connection.
-	 */
-	if (!(h2c->dff & H2_F_HEADERS_END_HEADERS)) {
-		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-		goto fail;
 	}
 
 	if (!h2_get_buf(h2c, rxbuf)) {
@@ -3262,8 +3350,9 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 			*flags |= H2_SF_DATA_CHNK;
 	}
 
-	/* now consume the input data */
-	b_del(&h2c->dbuf, h2c->dfl);
+	/* now consume the input data (length of possibly aggregated frames) */
+	b_del(&h2c->dbuf, h2c->dfl + hole);
+	hole = 0;
 	h2c->st0 = H2_CS_FRAME_H;
 	b_add(rxbuf, outlen);
 
@@ -3271,6 +3360,22 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 		htx_add_endof(htx, HTX_BLK_EOM);
 
  leave:
+	/* If there is a hole left and it's not a t the end, we are forced to
+	 * move the remaining data over it.
+	 */
+	if (hole) {
+		if (b_data(&h2c->dbuf) > h2c->dfl + hole)
+			b_move(&h2c->dbuf, b_peek_ofs(&h2c->dbuf, h2c->dfl + hole),
+			       b_data(&h2c->dbuf) - (h2c->dfl + hole), -hole);
+		b_sub(&h2c->dbuf, hole);
+	}
+
+	if (b_full(&h2c->dbuf) && h2c->dfl > b_data(&h2c->dbuf)) {
+		/* too large frames */
+		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+		goto fail;
+	}
+
 	if (htx)
 		htx_to_buf(htx, rxbuf);
 	free_trash_chunk(copy);
