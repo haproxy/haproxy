@@ -1,6 +1,38 @@
 ChangeLog :
 ===========
 
+2018/12/22 : 2.0-dev0
+    - BUG/MAJOR: connections: Close the connection before freeing it.
+    - REGTEST: Require the option LUA to run lua tests
+    - REGTEST: script: Process script arguments before everything else
+    - REGTEST: script: Evaluate the varnishtest command to allow quoted parameters
+    - REGTEST: script: Add the option --clean to remove previous log direcotries
+    - REGTEST: script: Add the option --debug to show logs on standard ouput
+    - REGTEST: script: Add the option --keep-logs to keep all log directories
+    - REGTEST: script: Add the option --use-htx to enable the HTX in regtests
+    - REGTEST: script: Print only errors in the results report
+    - REGTEST: Add option to use HTX prefixed by the macro 'no-htx'
+    - REGTEST: Make reg-tests target support argument.
+    - REGTEST: Fix a typo about barrier type.
+    - REGTEST: Be less Linux specific with a syslog regex.
+    - REGTEST: Missing enclosing quotes for ${tmpdir} macro.
+    - REGTEST: Exclude freebsd target for some reg tests.
+    - BUG/MEDIUM: h2: Don't forget to quit the sending_list if SUB_CALL_UNSUBSCRIBE.
+    - BUG/MEDIUM: mux-h2: Don't forget to quit the send list on error reports
+    - BUG/MEDIUM: dns: Don't prevent reading the last byte of the payload in dns_validate_response()
+    - BUG/MEDIUM: dns: overflowed dns name start position causing invalid dns error
+    - BUG/MINOR: compression/htx: Don't compress responses with unknown body length
+    - BUG/MINOR: compression/htx: Don't add the last block of data if it is empty
+    - MEDIUM: mux_h1: Implement h1_show_fd.
+    - REGTEST: script: Add support of alternatives in requited options list
+    - REGTEST: Add a basic test for the compression
+    - BUG/MEDIUM: mux-h2: don't needlessly wake up the demux on short frames
+    - REGTEST: A basic test for "http-buffer-request"
+    - BUG/MEDIUM: server: Also copy "check-sni" for server templates.
+    - MINOR: ssl: Add ssl_sock_set_alpn().
+    - MEDIUM: checks: Add check-alpn.
+    - wip
+
 2018/12/19 : 1.9.0
     - BUG/MEDIUM: compression: Use the right buffer pointers to compress input data
     - BUG/MINOR: mux_pt: Set CS_FL_WANT_ROOM when count is zero in rcv_buf() callback
