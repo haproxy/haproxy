@@ -564,6 +564,63 @@ static inline size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count
 	return ret;
 }
 
+/* Moves <len> bytes from absolute position <src> of buffer <b> by <shift>
+ * bytes, while supporting wrapping of both the source and the destination.
+ * The position is relative to the buffer's origin and may overlap with the
+ * target position. The <shift>'s absolute value must be strictly lower than
+ * the buffer's size. The main purpose is to aggregate data block during
+ * parsing while removing unused delimiters. The buffer's length is not
+ * modified, and the caller must take care of size adjustments and holes by
+ * itself.
+ */
+static inline void b_move(const struct buffer *b, size_t src, size_t len, ssize_t shift)
+{
+	char  *orig = b_orig(b);
+	size_t size = b_size(b);
+	size_t dst  = src + size + shift;
+	size_t cnt;
+
+	if (dst >= size)
+		dst -= size;
+
+	if (shift < 0) {
+		/* copy from left to right */
+		for (; (cnt = len); len -= cnt) {
+			if (cnt > size - src)
+				cnt = size - src;
+			if (cnt > size - dst)
+				cnt = size - dst;
+
+			memmove(orig + dst, orig + src, cnt);
+			dst += cnt;
+			src += cnt;
+			if (dst >= size)
+				dst -= size;
+			if (src >= size)
+				src -= size;
+		}
+	}
+	else if (shift > 0) {
+		/* copy from right to left */
+		for (; (cnt = len); len -= cnt) {
+			size_t src_end = src + len;
+			size_t dst_end = dst + len;
+
+			if (dst_end > size)
+				dst_end -= size;
+			if (src_end > size)
+				src_end -= size;
+
+			if (cnt > dst_end)
+				cnt = dst_end;
+			if (cnt > src_end)
+				cnt = src_end;
+
+			memmove(orig + dst_end - cnt, orig + src_end - cnt, cnt);
+		}
+	}
+}
+
 /* b_rep_blk() : writes the block <blk> at position <pos> which must be in
  * buffer <b>, and moves the part between <end> and the buffer's tail just
  * after the end of the copy of <blk>. This effectively replaces the part

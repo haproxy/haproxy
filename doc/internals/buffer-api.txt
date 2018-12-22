@@ -443,6 +443,11 @@ b_putblk()          | buffer *buf      | tries to append block <blk> at the end
                     |                  | available. It returns the number of
                     |                  | bytes really copied
 --------------------+------------------+---------------------------------------
+b_move()            | buffer *buf      | moves block (src,len) left or right
+                    | size_t src       | by <shift> bytes, supporting wrapping
+                    | size_t len       | and overlapping.
+                    | size_t shift     |
+--------------------+------------------+---------------------------------------
 b_rep_blk()         | buffer *buf      | writes the block <blk> at position
                     | char *pos        | <pos> which must be in buffer <b>, and
                     | char *end        | moves the part between <end> and the
