@@ -697,10 +697,10 @@ static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
 }
 
 
-/* Peeks an H2 frame header from buffer <b> into descriptor <h>. The algorithm
- * is not obvious. It turns out that H2 headers are neither aligned nor do they
- * use regular sizes. And to add to the trouble, the buffer may wrap so each
- * byte read must be checked. The header is formed like this :
+/* Peeks an H2 frame header from offset <o> of buffer <b> into descriptor <h>.
+ * The algorithm is not obvious. It turns out that H2 headers are neither
+ * aligned nor do they use regular sizes. And to add to the trouble, the buffer
+ * may wrap so each byte read must be checked. The header is formed like this :
  *
  *       b0         b1       b2     b3   b4         b5..b8
  *  +----------+---------+--------+----+----+----------------------+
@@ -714,15 +714,15 @@ static inline __maybe_unused uint64_t h2_get_n64(const struct buffer *b, int o)
  * Returns zero if some bytes are missing, otherwise non-zero on success. The
  * buffer is assumed not to contain any output data.
  */
-static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, struct h2_fh *h)
+static __maybe_unused int h2_peek_frame_hdr(const struct buffer *b, int o, struct h2_fh *h)
 {
 	uint64_t w;
 
-	if (b_data(b) < 9)
+	if (b_data(b) < o + 9)
 		return 0;
 
-	w = h2_get_n64(b, 1);
-	h->len = *(uint8_t*)b_head(b) << 16;
+	w = h2_get_n64(b, o + 1);
+	h->len = *(uint8_t*)b_peek(b, o) << 16;
 	h->sid = w & 0x7FFFFFFF; /* RFC7540#4.1: R bit must be ignored */
 	h->ff = w >> 32;
 	h->ft = w >> 40;
@@ -743,7 +743,7 @@ static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh
 {
 	int ret;
 
-	ret = h2_peek_frame_hdr(b, h);
+	ret = h2_peek_frame_hdr(b, 0, h);
 	if (ret > 0)
 		h2_skip_frame_hdr(b);
 	return ret;
@@ -2156,7 +2156,7 @@ static void h2_process_demux(struct h2c *h2c)
 			struct h2_fh hdr;
 			unsigned int padlen = 0;
 
-			if (!h2_peek_frame_hdr(&h2c->dbuf, &hdr))
+			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr))
 				break;
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
