@@ -1176,9 +1176,8 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 /* Try to send an RST_STREAM frame on the connection for the stream being
  * demuxed using h2c->dsi for the stream ID. It will use h2s->errcode as the
- * error code unless the stream's state already is IDLE or CLOSED in which
- * case STREAM_CLOSED will be used, and will update h2s->st to H2_SS_CLOSED if
- * it was not yet.
+ * error code, even if the stream is one of the dummy ones, and will update
+ * h2s->st to H2_SS_CLOSED if it was not yet.
  *
  * Returns > 0 on success or zero if nothing was done. In case of lack of room
  * to write the message, it blocks the demuxer and subscribes it to future
@@ -1215,7 +1214,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	memcpy(str, "\x00\x00\x04\x03\x00", 5);
 
 	write_n32(str + 5, h2c->dsi);
-	write_n32(str + 9, h2s->id ? h2s->errcode : H2_ERR_STREAM_CLOSED);
+	write_n32(str + 9, h2s->errcode);
 	ret = b_istput(res, ist2(str, 13));
 
 	if (unlikely(ret <= 0)) {
