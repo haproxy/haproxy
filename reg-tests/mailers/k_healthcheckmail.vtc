@@ -1,0 +1,75 @@
+varnishtest "Lua: txn:get_priv() scope"
+#REQUIRE_OPTIONS=LUA
+#REQUIRE_VERSION=1.6
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/k_healthcheckmail.lua
+defaults
+    frontend femail
+        mode tcp
+        bind "fd@${femail}"
+        tcp-request content use-service lua.mailservice
+
+    frontend luahttpservice
+        mode http
+        bind "fd@${luahttpservice}"
+        http-request use-service lua.luahttpservice
+
+    frontend fe1
+        mode http
+        bind "fd@${fe1}"
+        default_backend b1
+
+        http-response lua.bug
+
+    backend b1
+        mode http
+        option httpchk /svr_healthcheck
+        option log-health-checks
+
+        email-alert mailers mymailers
+        email-alert level info
+        email-alert from from@domain.tld
+        email-alert to to@domain.tld
+
+        server broken 127.0.0.1:65535 check
+        server srv_lua ${h1_luahttpservice_addr}:${h1_luahttpservice_port} check inter 500
+        server srv1 ${s1_addr}:${s1_port} check inter 500
+
+    mailers mymailers
+#      timeout mail 20s
+#      timeout mail 200ms
+      mailer smtp1 ${h1_femail_addr}:${h1_femail_port}
+
+} -start
+
+# configure port for lua to call feluaservice
+client c1 -connect ${h1_luahttpservice_sock} {
+    timeout 2
+    txreq -url "/setport" -hdr "vtcport1: ${h1_femail_port}"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "OK"
+} -run
+
+delay 2
+server s2 -repeat 5 -start
+delay 5
+
+client c2 -connect ${h1_luahttpservice_sock} {
+    timeout 2
+    txreq -url "/checkMailCounters"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "MailCounters"
+    expect resp.http.mailsreceived == 16
+    expect resp.http.mailconnectionsmade == 16
+} -run
