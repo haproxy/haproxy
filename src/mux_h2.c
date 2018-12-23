@@ -1824,9 +1824,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	int error;
 
 	if (!h2c->dfl) {
-		error = H2_ERR_PROTOCOL_ERROR; // empty headers frame!
+		/* RFC7540#4.2 */
+		error = H2_ERR_FRAME_SIZE_ERROR; // empty headers frame!
 		sess_log(h2c->conn->owner);
-		goto strm_err;
+		goto conn_err;
 	}
 
 	if (!b_size(&h2c->dbuf))
@@ -1914,9 +1915,10 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	int error;
 
 	if (!h2c->dfl) {
-		error = H2_ERR_PROTOCOL_ERROR; // empty headers frame!
+		/* RFC7540#4.2 */
+		error = H2_ERR_FRAME_SIZE_ERROR; // empty headers frame!
 		sess_log(h2c->conn->owner);
-		goto strm_err;
+		goto conn_err;
 	}
 
 	if (!b_size(&h2c->dbuf))
@@ -3103,9 +3105,9 @@ static int h2s_decode_headers(struct h2s *h2s)
 	int try = 0;
 
 	if (!h2c->dfl) {
-		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR); // empty headers frame!
-		h2c->st0 = H2_CS_FRAME_E;
-		return 0;
+		/* RFC7540#4.2 */
+		h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR); // empty headers frame!
+		goto fail;
 	}
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
