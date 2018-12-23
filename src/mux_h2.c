@@ -299,7 +299,7 @@ static inline void h2c_restart_reading(const struct h2c *h2c)
 /* returns true if the connection has too many conn_streams attached */
 static inline int h2_has_too_many_cs(const struct h2c *h2c)
 {
-	return h2c->nb_cs >= h2_settings_max_concurrent_streams;
+	return h2c->nb_cs > h2_settings_max_concurrent_streams;
 }
 
 /* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
