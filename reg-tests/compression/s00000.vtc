@@ -1,0 +1,60 @@
+# Checks that compression doesnt cause corruption..
+
+varnishtest "Compression validation"
+#REQUIRE_VERSION=1.6
+#REQUIRE_OPTIONS=ZLIB|SLZ,LUA
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+global
+#	log stdout format short daemon
+	lua-load		${testdir}/s00000.lua
+
+defaults
+	mode			http
+	log			global
+	${no-htx} option http-use-htx
+	option			httplog
+
+frontend main-https
+	bind			"fd@${fe1}" ssl crt ${testdir}/common.pem
+	compression algo gzip
+	compression type text/html text/plain application/json application/javascript
+	compression offload
+	use_backend TestBack  if  TRUE
+
+backend TestBack
+	server	LocalSrv ${h1_fe2_addr}:${h1_fe2_port}
+
+listen fileloader
+	mode http
+	bind "fd@${fe2}"
+	http-request use-service lua.fileloader-http01
+} -start
+
+shell {
+    HOST=${h1_fe1_addr}
+    if [ "${h1_fe1_addr}" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+
+    md5=$(which md5 || which md5sum)
+
+    if [ -z $md5 ] ; then
+        echo "MD5 checksum utility not found"
+        exit 1
+    fi
+
+    expectchecksum="4d9c62aa5370b8d5f84f17ec2e78f483"
+
+    for opt in "" "--limit-rate 300K" "--limit-rate 500K" ; do
+        checksum=$(curl --max-time 15 --compressed -k "https://$HOST:${h1_fe1_port}" $opt | $md5 | cut -d ' ' -f1)
+        if [ "$checksum" != "$expectchecksum" ] ; then
+              echo "Expecting checksum $expectchecksum"
+              echo "Received checksum: $checksum"
+              exit 1;
+        fi
+    done
+
+} -run
