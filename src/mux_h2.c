@@ -1879,8 +1879,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	 */
 	h2s = h2c_frt_stream_new(h2c, h2c->dsi);
 	if (!h2s) {
-		error = H2_ERR_INTERNAL_ERROR;
-		goto conn_err;
+		h2s = (struct h2s*)h2_refused_stream;
+		goto send_rst;
 	}
 
 	h2s->st = H2_SS_OPEN;
@@ -1921,6 +1921,15 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
  out:
 	h2_release_buf(h2c, &rxbuf);
 	return NULL;
+
+ send_rst:
+	/* make the demux send an RST for the current stream. We may only
+	 * do this if we're certain that the HEADERS frame was properly
+	 * decompressed so that the HPACK decoder is still kept up to date.
+	 */
+	h2_release_buf(h2c, &rxbuf);
+	h2c->st0 = H2_CS_FRAME_E;
+	return h2s;
 }
 
 /* processes a HEADERS frame. Returns h2s on success or NULL on missing data.
