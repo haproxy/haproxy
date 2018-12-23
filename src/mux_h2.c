@@ -244,7 +244,7 @@ static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
-static int h2s_decode_headers(struct h2s *h2s);
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
@@ -1821,6 +1821,8 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
  */
 static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
+	struct buffer rxbuf = BUF_NULL;
+	uint32_t flags = 0;
 	int error;
 
 	if (!h2c->dfl) {
@@ -1855,6 +1857,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
+	if (!h2c_decode_headers(h2c, &rxbuf, &flags))
+		goto out;
+
+	if (h2c->st0 >= H2_CS_ERROR)
+		goto out;
+
 	/* Note: we don't emit any other logs below because ff we return
 	 * positively from h2c_frt_stream_new(), the stream will report the error,
 	 * and if we return in error, h2c_frt_stream_new() will emit the error.
@@ -1866,18 +1874,16 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	h2s->st = H2_SS_OPEN;
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
-		h2s->st = H2_SS_HREM;
+	h2s->rxbuf = rxbuf;
+	h2s->flags |= flags;
+
+	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
-		/* note: cs cannot be null for now (just created above) */
+
+	if (h2s->flags & H2_SF_ES_RCVD) {
+		h2s->st = H2_SS_HREM;
 		h2s->cs->flags |= CS_FL_REOS;
 	}
-
-	if (!h2s_decode_headers(h2s))
-		return NULL;
-
-	if (h2c->st0 >= H2_CS_ERROR)
-		return NULL;
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
@@ -1893,7 +1899,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
  conn_err:
 	h2c_error(h2c, error);
-	return NULL;
+	goto out;
 
  strm_err:
 	if (h2s) {
@@ -1902,6 +1908,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 	else
 		h2c_error(h2c, error);
+ out:
+	h2_release_buf(h2c, &rxbuf);
 	return NULL;
 }
 
@@ -1935,7 +1943,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->cs->flags |= CS_FL_REOS;
 	}
 
-	if (!h2s_decode_headers(h2s))
+	if (!h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags))
 		return NULL;
 
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -3125,18 +3133,16 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
  * HTX request or response depending on the connection's side. Returns the
- * number of bytes emitted if > 0, or 0 if it couldn't proceed. Stream errors
- * are reported in h2s->errcode and connection errors in h2c->errcode.
+ * number of bytes emitted if > 0, or 0 if it couldn't proceed. Connection
+ * errors in h2c->errcode.
  */
-static int h2s_decode_headers(struct h2s *h2s)
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags)
 {
-	struct h2c *h2c = h2s->h2c;
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
 	struct buffer *tmp = get_trash_chunk();
 	struct http_hdr list[MAX_HTTP_HDR * 2];
 	struct buffer *copy = NULL;
 	unsigned int msgf;
-	struct buffer *csbuf;
 	struct htx *htx = NULL;
 	int flen = h2c->dfl - h2c->dpl;
 	int outlen = 0;
@@ -3161,7 +3167,7 @@ static int h2s_decode_headers(struct h2s *h2s)
 
 	/* Skip StreamDep and weight for now (we don't support PRIORITY) */
 	if (h2c->dff & H2_F_HEADERS_PRIORITY) {
-		if (read_n32(hdrs) == h2s->id) {
+		if (read_n32(hdrs) == h2c->dsi) {
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			goto fail;
@@ -3180,8 +3186,7 @@ static int h2s_decode_headers(struct h2s *h2s)
 		goto fail;
 	}
 
-	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
-	if (!csbuf) {
+	if (!h2_get_buf(h2c, rxbuf)) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		goto fail;
 	}
@@ -3193,15 +3198,15 @@ static int h2s_decode_headers(struct h2s *h2s)
 	 */
 
 	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
-		htx = htx_from_buf(&h2s->rxbuf);
+		htx = htx_from_buf(rxbuf);
 		if (!htx_is_empty(htx))
 			goto fail;
 	} else {
-		if (b_data(csbuf))
+		if (b_data(rxbuf))
 			goto fail;
 
-		csbuf->head = 0;
-		try = b_size(csbuf);
+		rxbuf->head = 0;
+		try = b_size(rxbuf);
 	}
 
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
@@ -3222,7 +3227,7 @@ static int h2s_decode_headers(struct h2s *h2s)
 			outlen = h2_make_htx_request(list, htx, &msgf);
 	} else {
 		/* HTTP/1 mode */
-		outlen = h2_make_h1_request(list, b_tail(csbuf), try, &msgf);
+		outlen = h2_make_h1_request(list, b_tail(rxbuf), try, &msgf);
 	}
 
 	if (outlen < 0) {
@@ -3233,26 +3238,22 @@ static int h2s_decode_headers(struct h2s *h2s)
 	if (msgf & H2_MSGF_BODY) {
 		/* a payload is present */
 		if (msgf & H2_MSGF_BODY_CL)
-			h2s->flags |= H2_SF_DATA_CLEN;
+			*flags |= H2_SF_DATA_CLEN;
 		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
-			h2s->flags |= H2_SF_DATA_CHNK;
+			*flags |= H2_SF_DATA_CHNK;
 	}
 
 	/* now consume the input data */
 	b_del(&h2c->dbuf, h2c->dfl);
 	h2c->st0 = H2_CS_FRAME_H;
-	b_add(csbuf, outlen);
+	b_add(rxbuf, outlen);
 
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
-		h2s->flags |= H2_SF_ES_RCVD;
-		h2s->cs->flags |= CS_FL_REOS;
-		if (htx)
-			htx_add_endof(htx, HTX_BLK_EOM);
-	}
+	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
+		htx_add_endof(htx, HTX_BLK_EOM);
 
  leave:
 	if (htx)
-		htx_to_buf(htx, &h2s->rxbuf);
+		htx_to_buf(htx, rxbuf);
 	free_trash_chunk(copy);
 	return outlen;
  fail:
