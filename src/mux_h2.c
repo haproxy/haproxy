@@ -61,6 +61,7 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_GOAWAY_FAILED     0x00002000  // a GOAWAY frame failed to be sent
 #define H2_CF_WAIT_FOR_HS       0x00004000  // We did check that at least a stream was waiting for handshake
 #define H2_CF_IS_BACK           0x00008000  // this is an outgoing connection
+#define H2_CF_WINDOW_OPENED     0x00010000 // demux increased window already advertised
 
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
@@ -436,7 +437,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->conn = conn;
 	h2c->max_id = -1;
 	h2c->errcode = H2_ERR_NO_ERROR;
-	h2c->rcvd_c = H2_INITIAL_WINDOW_INCREMENT;
+	h2c->rcvd_c = 0;
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
 	h2c->nb_cs = 0;
@@ -1541,6 +1542,14 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 
 	if (h2c->rcvd_c <= 0)
 		return 1;
+
+	if (!(h2c->flags & H2_CF_WINDOW_OPENED)) {
+		/* increase the advertised connection window to 2G on
+		 * first update.
+		 */
+		h2c->flags |= H2_CF_WINDOW_OPENED;
+		h2c->rcvd_c += H2_INITIAL_WINDOW_INCREMENT;
+	}
 
 	/* send WU for the connection */
 	ret = h2c_send_window_update(h2c, 0, h2c->rcvd_c);
