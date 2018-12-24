@@ -3705,9 +3705,6 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	b_add(&h2c->mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
-	/* for now we don't implemented CONTINUATION, so we wait for a
-	 * body or directly end in TRL2.
-	 */
 	if (es_now) {
 		// trim any possibly pending data (eg: inconsistent content-length)
 		ret += max;
@@ -4164,9 +4161,6 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	b_add(&h2c->mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
-	/* for now we don't implemented CONTINUATION, so we wait for a
-	 * body or directly end in TRL2.
-	 */
 	if (es_now) {
 		h2s->flags |= H2_SF_ES_SENT;
 		if (h2s->st == H2_SS_OPEN)
@@ -4380,9 +4374,6 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
 
-	/* for now we don't implemented CONTINUATION, so we wait for a
-	 * body or directly end in TRL2.
-	 */
 	if (es_now) {
 		// trim any possibly pending data (eg: inconsistent content-length)
 		h2s->flags |= H2_SF_ES_SENT;
