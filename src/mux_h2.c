@@ -3143,12 +3143,6 @@ static int h2s_decode_headers(struct h2s *h2s)
 	int wrap;
 	int try = 0;
 
-	if (!h2c->dfl) {
-		/* RFC7540#4.2 */
-		h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR); // empty headers frame!
-		goto fail;
-	}
-
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return 0; // incomplete input frame
 
