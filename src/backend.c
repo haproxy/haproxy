@@ -1151,7 +1151,7 @@ int connect_server(struct stream *s)
 			srv_conn = NULL;
 			for (i = 0; i < MAX_SRV_LIST; i++) {
 				if (!LIST_ISEMPTY(&s->sess->srv_list[i].list)) {
-					srv_conn = LIST_ELEM(&s->sess->srv_list[i].list,
+					srv_conn = LIST_ELEM(s->sess->srv_list[i].list.n,
 					    struct connection *, session_list);
 					break;
 				}
