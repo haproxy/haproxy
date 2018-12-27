@@ -1948,7 +1948,16 @@ static void h1_detach(struct conn_stream *cs)
 
 		if (!(h1c->conn->owner)) {
 			h1c->conn->owner = sess;
-			session_add_conn(sess, h1c->conn, h1c->conn->target);
+			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
+				h1c->conn->owner = NULL;
+				if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn))
+					/* The server doesn't want it, let's kill the connection right away */
+					h1c->conn->mux->destroy(h1c->conn);
+				else
+					tasklet_wakeup(h1c->wait_event.task);
+				return;
+
+			}
 		}
 		if (h1c->conn->owner == sess) {
 			int ret = session_check_idle_conn(sess, h1c->conn);

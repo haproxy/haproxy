@@ -29,6 +29,7 @@
 #include <types/listener.h>
 #include <proto/fd.h>
 #include <proto/obj_type.h>
+#include <proto/session.h>
 #include <proto/task.h>
 
 extern struct pool_head *pool_head_connection;
@@ -676,7 +677,7 @@ static inline void conn_free(struct connection *conn)
 	if (!LIST_ISEMPTY(&conn->session_list)) {
 		struct session *sess = conn->owner;
 		sess->resp_conns--;
-		LIST_DEL(&conn->session_list);
+		session_unown_conn(sess, conn);
 	}
 
 	/* By convention we always place a NULL where the ctx points to if the

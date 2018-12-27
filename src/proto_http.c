@@ -3494,7 +3494,17 @@ void http_end_txn_clean_session(struct stream *s)
 		 * have released the endpoint and know if it no longer has
 		 * attached streams, and so an idling connection
 		 */
-		session_add_conn(s->sess, srv_conn, s->target);
+		if (!session_add_conn(s->sess, srv_conn, s->target)) {
+			srv_conn->owner = NULL;
+			/* Try to add the connection to the server idle list.
+			 * If it fails, as the connection no longer has an
+			 * owner, it will be destroy later by
+			 * si_release_endpoint(), anyway
+			 */
+			srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn);
+			srv_conn = NULL;
+
+		}
 	}
 	si_release_endpoint(&s->si[1]);
 	if (srv_conn && srv_conn->owner == s->sess) {

@@ -562,7 +562,6 @@ int assign_server(struct stream *s)
 	struct server *conn_slot;
 	struct server *srv = NULL, *prev_srv;
 	int err;
-	int i;
 
 	DPRINTF(stderr,"assign_server : s=%p\n",s);
 
@@ -590,8 +589,9 @@ int assign_server(struct stream *s)
 	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
 	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
 	     (s->be->options & PR_O_PREF_LAST))) {
-		for (i = 0; i < MAX_SRV_LIST; i++) {
-			struct server *tmpsrv = objt_server(s->sess->srv_list[i].target);
+		struct sess_srv_list *srv_list;
+		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
+			struct server *tmpsrv = objt_server(srv_list->target);
 
 			if (tmpsrv && tmpsrv->proxy == s->be &&
 			    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
@@ -599,7 +599,7 @@ int assign_server(struct stream *s)
 			      server_has_room(tmpsrv) || (
 			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
 			    srv_currently_usable(tmpsrv)) {
-				list_for_each_entry(conn, &s->sess->srv_list[i].list, session_list) {
+				list_for_each_entry(conn, &srv_list->conn_list, session_list) {
 					if (conn->flags & CO_FL_CONNECTED) {
 
 						srv = tmpsrv;
@@ -1119,7 +1119,6 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int reuse_orphan = 0;
 	int err;
-	int i;
 
 
 	/* Some, such as http_proxy and the LUA, create their connection and
@@ -1135,9 +1134,10 @@ int connect_server(struct stream *s)
 			reuse = 1;
 		}
 	} else {
-		for (i = 0; i < MAX_SRV_LIST; i++) {
-			if (s->sess->srv_list[i].target == s->target) {
-				list_for_each_entry(srv_conn, &s->sess->srv_list[i].list,
+		struct sess_srv_list *srv_list;
+		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
+			if (srv_list->target == s->target) {
+				list_for_each_entry(srv_conn, &srv_list->conn_list,
 				    session_list) {
 					if (conn_xprt_ready(srv_conn) &&
 					    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
@@ -1145,17 +1145,19 @@ int connect_server(struct stream *s)
 						break;
 					}
 				}
+				break;
 			}
 		}
 		if (reuse == 0) {
 			srv_conn = NULL;
-			for (i = 0; i < MAX_SRV_LIST; i++) {
-				if (!LIST_ISEMPTY(&s->sess->srv_list[i].list)) {
-					srv_conn = LIST_ELEM(s->sess->srv_list[i].list.n,
-					    struct connection *, session_list);
-					break;
-				}
+			if (!LIST_ISEMPTY(&s->sess->srv_list)) {
+				srv_list = LIST_ELEM(s->sess->srv_list.n,
+					struct sess_srv_list *, srv_list);
+				if (!LIST_ISEMPTY(&srv_list->conn_list))
+					srv_conn = LIST_ELEM(srv_list->conn_list.n,
+						struct connection *, session_list);
 			}
+
 		}
 	}
 	old_conn = srv_conn;
@@ -1252,11 +1254,13 @@ int connect_server(struct stream *s)
 				    old_conn->mux != NULL &&
 				    (old_conn->mux->avail_streams(old_conn) > 0) &&
 				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
-					LIST_DEL(&old_conn->session_list);
-					LIST_INIT(&old_conn->session_list);
+					session_unown_conn(s->sess, old_conn);
 					old_conn->owner = sess;
-					session_add_conn(sess, old_conn, s->target);
-					session_check_idle_conn(sess, old_conn);
+					if (!session_add_conn(sess, old_conn, s->target)) {
+						old_conn->owner = NULL;
+						old_conn->mux->destroy(old_conn);
+					} else
+						session_check_idle_conn(sess, old_conn);
 				}
 			}
 
@@ -1284,10 +1288,20 @@ int connect_server(struct stream *s)
 		}
 	}
 	if (srv_conn && old_conn != srv_conn) {
+		if (srv_conn->owner)
+			session_unown_conn(srv_conn->owner, srv_conn);
 		srv_conn->owner = s->sess;
-		LIST_DEL(&srv_conn->session_list);
-		LIST_INIT(&srv_conn->session_list);
-		session_add_conn(s->sess, srv_conn, s->target);
+		if (!session_add_conn(s->sess, srv_conn, s->target)) {
+			/* If we failed to attach the connection, detach the
+			 * conn_stream, possibly destroying the connection */
+			cs_destroy(srv_cs);
+			srv_conn->owner = NULL;
+			if (!srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
+			/* The server doesn't want it, let's kill the connection right away */
+				srv_conn->mux->destroy(srv_conn);
+			srv_conn = NULL;
+
+		}
 	}
 
 	if (!srv_conn)

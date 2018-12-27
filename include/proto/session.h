@@ -35,6 +35,8 @@
 #include <proto/server.h>
 
 extern struct pool_head *pool_head_session;
+extern struct pool_head *pool_head_sess_srv_list;
+
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin);
 void session_free(struct session *sess);
 int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr);
@@ -73,46 +75,46 @@ static inline void session_store_counters(struct session *sess)
 	}
 }
 
-static inline void session_add_conn(struct session *sess, struct connection *conn, void *target)
+/* Remove the connection from the session list, and destroy the srv_list if it's now empty */
+static inline void session_unown_conn(struct session *sess, struct connection *conn)
 {
-	int avail = -1;
-	int i;
-
-	sess->resp_conns++;
-	for (i = 0; i < MAX_SRV_LIST; i++) {
-		if (sess->srv_list[i].target == target) {
-			avail = i;
+	struct sess_srv_list *srv_list = NULL;
+	LIST_DEL(&conn->session_list);
+	LIST_INIT(&conn->session_list);
+	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
+		if (srv_list->target == conn->target) {
+			if (LIST_ISEMPTY(&srv_list->conn_list)) {
+				LIST_DEL(&srv_list->srv_list);
+				pool_free(pool_head_sess_srv_list, srv_list);
+			}
 			break;
 		}
-		if (LIST_ISEMPTY(&sess->srv_list[i].list) && avail == -1)
-			avail = i;
 	}
-	if (avail == -1) {
-		struct connection *conn, *conn_back;
-		int count = 0;
-		/* We have no slot free, let's free the one with the fewer connections */
-		for (i = 0; i < MAX_SRV_LIST; i++) {
-			int count_list = 0;
-			list_for_each_entry(conn, &sess->srv_list[i].list, session_list)
-			    count_list++;
-			if (count == 0 || count_list < count) {
-				count = count_list;
-				avail = i;
-			}
-		}
-		/* Now unown all the connections */
-		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[avail].list, session_list) {
-			sess->resp_conns--;
-			conn->owner = NULL;
-			LIST_DEL(&conn->session_list);
-			LIST_INIT(&conn->session_list);
-			if (conn->mux)
-				conn->mux->destroy(conn);
-		}
+}
 
+static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
+{
+	struct sess_srv_list *srv_list = NULL;
+	int found = 0;
+
+	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
+		if (srv_list->target == target) {
+			found = 1;
+			break;
+		}
 	}
-	sess->srv_list[avail].target = target;
-	LIST_ADDQ(&sess->srv_list[avail].list, &conn->session_list);
+	if (!found) {
+		/* The session has no connection for the server, create a new entry */
+		srv_list = pool_alloc(pool_head_sess_srv_list);
+		if (!srv_list)
+			return 0;
+		srv_list->target = target;
+		LIST_INIT(&srv_list->conn_list);
+		LIST_ADDQ(&sess->srv_list, &srv_list->srv_list);
+	}
+	sess->resp_conns++;
+	LIST_ADDQ(&srv_list->conn_list, &conn->session_list);
+	return 1;
 }
 
 /* Returns 0 if the session can keep the idle conn, -1 if it was destroyed, or 1 if it was added to the server list */
@@ -120,8 +122,7 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 {
 	if (sess->resp_conns > sess->fe->max_out_conns) {
 		/* We can't keep the connection, let's try to add it to the server idle list */
-		LIST_DEL(&conn->session_list);
-		LIST_INIT(&conn->session_list);
+		session_unown_conn(sess, conn);
 		conn->owner = NULL;
 		sess->resp_conns--;
 		if (!srv_add_to_idle_list(objt_server(conn->target), conn)) {

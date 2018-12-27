@@ -2960,7 +2960,15 @@ static void h2_detach(struct conn_stream *cs)
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 			if (!h2c->conn->owner) {
 				h2c->conn->owner = sess;
-				session_add_conn(sess, h2c->conn, h2c->conn->target);
+				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
+					h2c->conn->owner = NULL;
+					if (eb_is_empty(&h2c->streams_by_id)) {
+						if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn))
+							/* The server doesn't want it, let's kill the connection right away */
+							h2c->conn->mux->destroy(h2c->conn);
+						return;
+					}
+				}
 			}
 			if (eb_is_empty(&h2c->streams_by_id)) {
 				if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0)

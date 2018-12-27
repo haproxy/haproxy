@@ -29,6 +29,8 @@
 #include <proto/vars.h>
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
+DECLARE_POOL(pool_head_sess_srv_list, "session server list",
+		sizeof(struct sess_srv_list));
 
 static int conn_complete_session(struct connection *conn);
 static struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state);
@@ -41,7 +43,6 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin)
 {
 	struct session *sess;
-	int i;
 
 	sess = pool_alloc(pool_head_session);
 	if (sess) {
@@ -60,10 +61,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 			proxy_inc_fe_conn_ctr(li, fe);
 		HA_ATOMIC_ADD(&totalconn, 1);
 		HA_ATOMIC_ADD(&jobs, 1);
-		for (i = 0; i < MAX_SRV_LIST; i++) {
-			sess->srv_list[i].target = NULL;
-			LIST_INIT(&sess->srv_list[i].list);
-		}
+		LIST_INIT(&sess->srv_list);
 		sess->resp_conns = 0;
 	}
 	return sess;
@@ -72,7 +70,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 void session_free(struct session *sess)
 {
 	struct connection *conn, *conn_back;
-	int i;
+	struct sess_srv_list *srv_list, *srv_list_back;
 
 	HA_ATOMIC_SUB(&sess->fe->feconn, 1);
 	if (sess->listener)
@@ -82,10 +80,8 @@ void session_free(struct session *sess)
 	conn = objt_conn(sess->origin);
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn);
-	for (i = 0; i < MAX_SRV_LIST; i++) {
-		int count = 0;
-		list_for_each_entry_safe(conn, conn_back, &sess->srv_list[i].list, session_list) {
-			count++;
+	list_for_each_entry_safe(srv_list, srv_list_back, &sess->srv_list, srv_list) {
+		list_for_each_entry_safe(conn, conn_back, &srv_list->conn_list, session_list) {
 			if (conn->mux) {
 
 				LIST_DEL(&conn->session_list);
@@ -102,6 +98,7 @@ void session_free(struct session *sess)
 				conn_free(conn);
 			}
 		}
+		pool_free(pool_head_sess_srv_list, srv_list);
 	}
 	pool_free(pool_head_session, sess);
 	HA_ATOMIC_SUB(&jobs, 1);

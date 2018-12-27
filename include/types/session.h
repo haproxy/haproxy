@@ -39,7 +39,8 @@
 
 struct sess_srv_list {
 	void *target;
-	struct list list;
+	struct list conn_list; /* Head of the connections list */
+	struct list srv_list; /* Next element of the server list */
 };
 
 #define MAX_SRV_LIST	5
@@ -55,7 +56,7 @@ struct session {
 	struct task *task;              /* handshake timeout processing */
 	long t_handshake;               /* handshake duration, -1 = not completed */
 	int resp_conns;                 /* Number of connections we're currently responsible for */
-	struct sess_srv_list srv_list[MAX_SRV_LIST]; /* List of servers and the connections the session is currently responsible for */
+	struct list srv_list;           /* List of servers and the connections the session is currently responsible for */
 };
 
 #endif /* _TYPES_SESSION_H */
