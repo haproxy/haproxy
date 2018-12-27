@@ -1089,6 +1089,8 @@ fail:
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
 	conn_free(conn);
+	/* Let process_stream know it went wrong */
+	s->si[1].flags |= SI_FL_ERR;
 	return -1;
 }
 #endif
