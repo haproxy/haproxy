@@ -2970,7 +2970,7 @@ static void h2_detach(struct conn_stream *cs)
 			/* Never ever allow to reuse a connection from a non-reuse backend */
 			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 				h2c->conn->flags |= CO_FL_PRIVATE;
-			if (LIST_ISEMPTY(&h2c->conn->list)) {
+			if (LIST_ISEMPTY(&h2c->conn->list) && h2c->nb_streams < h2_settings_max_concurrent_streams) {
 				struct server *srv = objt_server(h2c->conn->target);
 
 				if (srv) {
