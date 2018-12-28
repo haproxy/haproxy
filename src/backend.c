@@ -1278,6 +1278,8 @@ int connect_server(struct stream *s)
 			srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
 			if (srv_cs)
 				si_attach_cs(&s->si[1], srv_cs);
+			else
+				srv_conn = NULL;
 		}
 	}
 	if (srv_conn && old_conn != srv_conn) {
