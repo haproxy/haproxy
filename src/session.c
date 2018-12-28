@@ -62,7 +62,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		HA_ATOMIC_ADD(&totalconn, 1);
 		HA_ATOMIC_ADD(&jobs, 1);
 		LIST_INIT(&sess->srv_list);
-		sess->resp_conns = 0;
+		sess->idle_conns = 0;
 	}
 	return sess;
 }

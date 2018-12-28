@@ -1240,6 +1240,13 @@ int connect_server(struct stream *s)
 		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
 		if (LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
 			task_unlink_wq(srv->idle_task[tid]);
+	} else if (reuse) {
+		if (srv_conn->flags & CO_FL_SESS_IDLE) {
+			struct session *sess = srv_conn->owner;
+
+			srv_conn->flags &= ~CO_FL_SESS_IDLE;
+			sess->idle_conns--;
+		}
 	}
 
 	/* We're about to use another connection, let the mux know we're
@@ -1251,6 +1258,8 @@ int connect_server(struct stream *s)
 		if (sess) {
 			if (old_conn && !(old_conn->flags & CO_FL_PRIVATE) &&
 			    old_conn->mux != NULL) {
+				if (old_conn->flags & CO_FL_SESS_IDLE)
+					s->sess->idle_conns--;
 				session_unown_conn(s->sess, old_conn);
 				old_conn->owner = sess;
 				if (!session_add_conn(sess, old_conn, s->target)) {

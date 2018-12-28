@@ -112,7 +112,6 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		LIST_INIT(&srv_list->conn_list);
 		LIST_ADDQ(&sess->srv_list, &srv_list->srv_list);
 	}
-	sess->resp_conns++;
 	LIST_ADDQ(&srv_list->conn_list, &conn->session_list);
 	return 1;
 }
@@ -120,17 +119,19 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 /* Returns 0 if the session can keep the idle conn, -1 if it was destroyed, or 1 if it was added to the server list */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
-	if (sess->resp_conns > sess->fe->max_out_conns) {
+	if (sess->idle_conns > sess->fe->max_out_conns) {
 		/* We can't keep the connection, let's try to add it to the server idle list */
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
-		sess->resp_conns--;
 		if (!srv_add_to_idle_list(objt_server(conn->target), conn)) {
 			/* The server doesn't want it, let's kill the connection right away */
 			conn->mux->destroy(conn);
 			return -1;
 		}
 		return 1;
+	} else {
+		conn->flags |= CO_FL_SESS_IDLE;
+		sess->idle_conns++;
 	}
 	return 0;
 }

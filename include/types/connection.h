@@ -196,6 +196,8 @@ enum {
 	/* This flag is used to know that a PROXY protocol header was sent by the client */
 	CO_FL_RCVD_PROXY    = 0x20000000,
 
+	/* The connection is unused by its owner */
+	CO_FL_SESS_IDLE     = 0x40000000,
 	/* unused : 0x40000000 */
 
 	/* This last flag indicates that the transport layer is used (for instance
