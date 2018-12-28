@@ -1245,27 +1245,20 @@ int connect_server(struct stream *s)
 	/* We're about to use another connection, let the mux know we're
 	 * done with this one
 	 */
-	if (old_conn != srv_conn || !reuse) {
+	if (old_conn != srv_conn && old_conn && reuse && !reuse_orphan) {
+		struct session *sess = srv_conn->owner;
 
-		if (srv_conn && reuse) {
-			struct session *sess = srv_conn->owner;
-
-			if (sess) {
-				if (old_conn &&
-				    !(old_conn->flags & CO_FL_PRIVATE) &&
-				    old_conn->mux != NULL &&
-				    (old_conn->mux->avail_streams(old_conn) > 0) &&
-				    (srv_conn->mux->avail_streams(srv_conn) == 1)) {
-					session_unown_conn(s->sess, old_conn);
-					old_conn->owner = sess;
-					if (!session_add_conn(sess, old_conn, s->target)) {
-						old_conn->owner = NULL;
-						old_conn->mux->destroy(old_conn);
-					} else
-						session_check_idle_conn(sess, old_conn);
-				}
+		if (sess) {
+			if (old_conn && !(old_conn->flags & CO_FL_PRIVATE) &&
+			    old_conn->mux != NULL) {
+				session_unown_conn(s->sess, old_conn);
+				old_conn->owner = sess;
+				if (!session_add_conn(sess, old_conn, s->target)) {
+					old_conn->owner = NULL;
+					old_conn->mux->destroy(old_conn);
+				} else
+					session_check_idle_conn(sess, old_conn);
 			}
-
 		}
 	}
 
