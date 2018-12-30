@@ -15465,6 +15465,22 @@ rdp_cookie_cnt([name]) : integer (deprecated)
   ACL derivatives :
     req_rdp_cookie_cnt([<name>]) : integer match
 
+req.ssl_alpn : string
+  Returns a string containing the values of the Application-Layer Protocol
+  Negotiation (ALPN) TLS extension (RFC7301), sent by the client within the SSL
+  ClientHello message. Note that this only applies to raw contents found in the
+  request buffer and not to the contents deciphered via an SSL data layer, so
+  this will not work with "bind" lines having the "ssl" option. This is useful
+  in ACL to make a routing decision based upon the ALPN preferences of a TLS
+  client, like in the example below.
+
+  Examples :
+     # Wait for a client hello for at most 5 seconds
+     tcp-request inspect-delay 5s
+     tcp-request content accept if { req_ssl_hello_type 1 }
+     use_backend bk_acme if { req_ssl.alpn acme-tls/1 }
+     default_backend bk_default
+
 req.ssl_ec_ext : boolean
   Returns a boolean identifying if client sent the Supported Elliptic Curves
   Extension as defined in RFC4492, section 5.1. within the SSL ClientHello
