@@ -173,6 +173,8 @@ enum h2_ss {
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
 #define H2_SF_OUTGOING_DATA     0x00002000  // set whenever we've seen outgoing data
 
+#define H2_SF_HEADERS_RCVD      0x00004000  // a HEADERS frame was received for this stream
+
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
  */
@@ -3201,6 +3203,12 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * Please note that the HEADERS frame is always deprived from its PADLEN byte
  * however it may start with the 5 stream-dep+weight bytes in case of PRIORITY
  * bit.
+ *
+ * The <flags> field must point to either the stream's flags or to a copy of it
+ * so that the function can update the following flags :
+ *   - H2_SF_DATA_CLEN when content-length is seen
+ *   - H2_SF_DATA_CHNK when chunking should be used for the H1 conversion
+ *   - H2_SF_HEADERS_RCVD once the frame is successfully decoded
  */
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags)
 {
@@ -3375,6 +3383,9 @@ next_frame:
 		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
 			*flags |= H2_SF_DATA_CHNK;
 	}
+
+	/* indicate that a HEADERS frame was received for this stream */
+	*flags |= H2_SF_HEADERS_RCVD;
 
 	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
