@@ -245,10 +245,8 @@ static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk
 	if (htx) {
 		if (!htx_add_data(htx, ist2(chk->area, chk->data)))
 			return 0;
-		chn->total += chk->data;
+		channel_add_input(chn, chk->data);
 		chk->data = 0;
-		/* notify that some data was read from the SI into the buffer */
-		chn->flags |= CF_READ_PARTIAL;
 	}
 	else  {
 		if (ci_putchk(chn, chk) == -1)
