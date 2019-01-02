@@ -172,19 +172,7 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 		memcpy(c_orig(chn), blk + max, len - max);
 
 	b_add(&chn->buf, len);
-	chn->total += len;
-	if (chn->to_forward) {
-		unsigned long fwd = len;
-		if (chn->to_forward != CHN_INFINITE_FORWARD) {
-			if (fwd > chn->to_forward)
-				fwd = chn->to_forward;
-			chn->to_forward -= fwd;
-		}
-		c_adv(chn, fwd);
-	}
-
-	/* notify that some data was read from the SI into the buffer */
-	chn->flags |= CF_READ_PARTIAL;
+	channel_add_input(chn, len);
 	return len;
 }
 

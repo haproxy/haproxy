@@ -361,6 +361,25 @@ static inline void channel_forward_forever(struct channel *chn)
 	chn->to_forward = CHN_INFINITE_FORWARD;
 }
 
+/* <len> bytes of input data was added into the channel <chn>. This functions
+ * must be called to update the channel state. It also handles the fast
+ * forwarding. */
+static inline void channel_add_input(struct channel *chn, unsigned int len)
+{
+	if (chn->to_forward) {
+		unsigned long fwd = len;
+		if (chn->to_forward != CHN_INFINITE_FORWARD) {
+			if (fwd > chn->to_forward)
+				fwd = chn->to_forward;
+			chn->to_forward -= fwd;
+		}
+		c_adv(chn, fwd);
+	}
+	/* notify that some data was read */
+	chn->total += len;
+	chn->flags |= CF_READ_PARTIAL;
+}
+
 static inline unsigned long long channel_htx_forward(struct channel *chn, struct htx *htx, unsigned long long bytes)
 {
 	unsigned long long ret;
@@ -378,7 +397,6 @@ static inline void channel_htx_forward_forever(struct channel *chn, struct htx *
 	channel_forward_forever(chn);
 	b_set_data(&chn->buf, b_size(&chn->buf));
 }
-
 /*********************************************************************/
 /* These functions are used to compute various channel content sizes */
 /*********************************************************************/
