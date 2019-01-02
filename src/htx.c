@@ -26,12 +26,14 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	struct buffer *chunk = get_trash_chunk();
 	struct htx *tmp = htxbuf(chunk);
 	struct htx_blk *newblk, *oldblk;
-	uint32_t new, old;
+	uint32_t new, old, blkpos;
 	uint32_t addr, blksz;
 	int32_t sl_off = -1;
 
 	if (!htx->used)
 		return NULL;
+
+	blkpos = -1;
 
 	new  = 0;
 	addr = 0;
@@ -54,13 +56,14 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		if (htx->sl_off == oldblk->addr)
 			sl_off = addr;
 
+		/* if <blk> is defined, set its new position */
+		if (blk != NULL && blk == oldblk)
+			blkpos = new;
+
 		memcpy((void *)tmp->blocks + addr, htx_get_blk_ptr(htx, oldblk), blksz);
 		new++;
 		addr += blksz;
 
-		/* if <blk> is defined, set its new location */
-		if (blk != NULL && blk == oldblk)
-			blk = newblk;
 	} while (new < htx->used);
 
 	htx->sl_off = sl_off;
@@ -68,7 +71,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	htx->front = htx->tail = new - 1;
 	memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
-	return blk;
+	return ((blkpos == -1) ? NULL : htx_get_blk(htx, blkpos));
 }
 
 /* Reserves a new block in the HTTP message <htx> with a content of <blksz>
