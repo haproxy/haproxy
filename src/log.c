@@ -1378,8 +1378,11 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 			/* the socket's address is a file descriptor */
 			plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
 			if (unlikely(!((struct sockaddr_in *)&logsrv->addr)->sin_port)) {
-				/* FD not yet initialized to non-blocking mode */
-				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
+				/* FD not yet initialized to non-blocking mode.
+				 * DON'T DO IT ON A TERMINAL!
+				 */
+				if (!isatty(*plogfd))
+					fcntl(*plogfd, F_SETFL, O_NONBLOCK);
 				((struct sockaddr_in *)&logsrv->addr)->sin_port = 1;
 			}
 		}
