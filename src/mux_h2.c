@@ -1867,7 +1867,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
-	if (!h2c_decode_headers(h2c, &rxbuf, &flags))
+	if (h2c_decode_headers(h2c, &rxbuf, &flags) <= 0)
 		goto out;
 
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -1954,7 +1954,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	if (!h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags))
+	if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags) <= 0)
 		return NULL;
 
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -3155,10 +3155,11 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 }
 
 /* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
- * HTX request or response depending on the connection's side. Returns the
- * number of bytes emitted if > 0, or 0 if it couldn't proceed. May report
- * connection errors in h2c->errcode if the frame is non-decodable and not
- * recoverable.
+ * HTX request or response depending on the connection's side. Returns a
+ * positive value on success, a negative value on failure, or 0 if it couldn't
+ * proceed. May report connection errors in h2c->errcode if the frame is
+ * non-decodable and the connection unrecoverable. In absence of connection
+ * error when a failure is reported, the caller must assume a stream error.
  *
  * The function may fold CONTINUATION frames into the initial HEADERS frame
  * by removing padding and next frame header, then moving the CONTINUATION
@@ -3207,7 +3208,8 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 	struct htx *htx = NULL;
 	int flen; // header frame len
 	int hole = 0;
-	int outlen = 0;
+	int ret = 0;
+	int outlen;
 	int wrap;
 	int try = 0;
 
@@ -3300,7 +3302,7 @@ next_frame:
 
 	if (!h2_get_buf(h2c, rxbuf)) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
-		goto fail;
+		goto leave;
 	}
 
 	/* we can't retry a failed decompression operation so we must be very
@@ -3313,12 +3315,12 @@ next_frame:
 		htx = htx_from_buf(rxbuf);
 		if (!htx_is_empty(htx)) {
 			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
+			goto leave;
 		}
 	} else {
 		if (b_data(rxbuf)) {
 			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
+			goto leave;
 		}
 
 		rxbuf->head = 0;
@@ -3369,8 +3371,11 @@ next_frame:
 	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
 		htx_add_endof(htx, HTX_BLK_EOM);
 
+	/* success */
+	ret = 1;
+
  leave:
-	/* If there is a hole left and it's not a t the end, we are forced to
+	/* If there is a hole left and it's not at the end, we are forced to
 	 * move the remaining data over it.
 	 */
 	if (hole) {
@@ -3383,15 +3388,16 @@ next_frame:
 	if (b_full(&h2c->dbuf) && h2c->dfl > b_data(&h2c->dbuf)) {
 		/* too large frames */
 		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-		goto fail;
+		ret = -1;
 	}
 
 	if (htx)
 		htx_to_buf(htx, rxbuf);
 	free_trash_chunk(copy);
-	return outlen;
+	return ret;
+
  fail:
-	outlen = 0;
+	ret = -1;
 	goto leave;
 }
 
