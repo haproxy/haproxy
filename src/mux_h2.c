@@ -1859,9 +1859,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	if (h2c->flags & H2_CF_DEM_TOOMANY)
-		return 0; // too many cs still present
-
 	/* now either the frame is complete or the buffer is complete */
 	if (h2s->st != H2_SS_IDLE) {
 		/* FIXME: stream already exists, this is only allowed for
@@ -1877,6 +1874,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		sess_log(h2c->conn->owner);
 		goto conn_err;
 	}
+	else if (h2c->flags & H2_CF_DEM_TOOMANY)
+		goto out; // IDLE but too many cs still present
 
 	error = h2c_decode_headers(h2c, &rxbuf, &flags);
 
