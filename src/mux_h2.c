@@ -1863,9 +1863,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	/* now either the frame is complete or the buffer is complete */
 	if (h2s->st != H2_SS_IDLE) {
-		/* FIXME: stream already exists, this is only allowed for
-		 * trailers (not supported for now).
-		 */
+		/* The stream exists/existed, this must be a trailers frame */
+		if (h2s->st != H2_SS_CLOSED) {
+			if (!h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags))
+				goto out;
+			goto done;
+		}
 		error = H2_ERR_PROTOCOL_ERROR;
 		sess_log(h2c->conn->owner);
 		goto conn_err;
@@ -1910,6 +1913,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->rxbuf = rxbuf;
 	h2s->flags |= flags;
 
+ done:
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
 
@@ -3209,6 +3213,10 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  *   - H2_SF_DATA_CLEN when content-length is seen
  *   - H2_SF_DATA_CHNK when chunking should be used for the H1 conversion
  *   - H2_SF_HEADERS_RCVD once the frame is successfully decoded
+ *
+ * The H2_SF_HEADERS_RCVD flag is also looked at in the <flags> field prior to
+ * decoding, in order to detect if we're dealing with a headers or a trailers
+ * block (the trailers block appears after H2_SF_HEADERS_RCVD was seen).
  */
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags)
 {
@@ -3358,6 +3366,10 @@ next_frame:
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
 
+	if (*flags & H2_SF_HEADERS_RCVD)
+		goto trailers;
+
+	/* This is the first HEADERS frame so it's a headers block */
 	if (htx) {
 		/* HTX mode */
 		if (h2c->flags & H2_CF_IS_BACK)
@@ -3384,12 +3396,24 @@ next_frame:
 			*flags |= H2_SF_DATA_CHNK;
 	}
 
+ done:
 	/* indicate that a HEADERS frame was received for this stream */
 	*flags |= H2_SF_HEADERS_RCVD;
 
-	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
-			goto fail;
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		/* Mark the end of message, either using EOM in HTX or with the
+		 * trailing CRLF after the end of trailers. Note that DATA_CHNK
+		 * is not set during headers with END_STREAM.
+		 */
+		if (htx) {
+			if (!htx_add_endof(htx, HTX_BLK_EOM))
+				goto fail;
+		}
+		else if (*flags & H2_SF_DATA_CHNK) {
+			if (!b_putblk(rxbuf, "\r\n", 2))
+				goto fail;
+		}
+	}
 
 	/* success */
 	ret = 1;
@@ -3419,6 +3443,36 @@ next_frame:
  fail:
 	ret = -1;
 	goto leave;
+
+ trailers:
+	/* This is the last HEADERS frame hence a trailer */
+
+	if (!(h2c->dff & H2_F_HEADERS_END_STREAM)) {
+		/* It's a trailer but it's missing ES flag */
+		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		goto fail;
+	}
+
+	/* Trailers terminate a DATA sequence. In HTX we have to emit an EOD
+	 * block, and when using chunks we must send the 0 CRLF marker. For
+	 * other modes, the trailers are silently dropped.
+	 */
+	if (htx) {
+		if (!htx_add_endof(htx, HTX_BLK_EOD))
+			goto fail;
+		/* FIXME: emit the decoded trailers here. EOM will be sent
+		 * when leaving.
+		 */
+	}
+	else if (*flags & H2_SF_DATA_CHNK) {
+		/* Legacy mode with chunked encoding : we must finalize the
+		 * data block message emit the trailing CRLF */
+		if (!b_putblk(rxbuf, "0\r\n", 3))
+			goto fail;
+		/* FIXME: emit the decoded trailers here */
+	}
+
+	goto done;
 }
 
 /* Transfer the payload of a DATA frame to the HTTP/1 side. When content-length
