@@ -994,12 +994,13 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		unsigned int len = cache_ptr->hdrs_len + cache_ptr->data_len - appctx->ctx.cache.sent;
 
 		ret = htx_cache_dump_data(appctx, res_htx, HTX_BLK_DATA, len);
-		if (!ret) {
+		total += ret;
+		res_htx->extra = (len - ret);
+		if (ret < len) {
 			si_rx_room_blk(si);
 			goto out;
 		}
 
-		total += ret;
 		if (cache_ptr->hdrs_len + cache_ptr->data_len == appctx->ctx.cache.sent) {
 			if (first->len > sizeof(*cache_ptr) + appctx->ctx.cache.sent) {
 				/* Headers and all data have been sent
@@ -1026,7 +1027,7 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		unsigned int len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
 
 		ret = htx_cache_dump_data(appctx, res_htx, HTX_BLK_TLR, len);
-		if (!ret) {
+		if (ret < len) {
 			si_rx_room_blk(si);
 			goto out;
 		}
@@ -1067,10 +1068,8 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		}
 	}
   out:
-	if (total) {
-		res->total += total;
-		res->flags |= CF_READ_PARTIAL;
-	}
+	if (total)
+		channel_add_input(res, total);
 
 	/* we have left the request in the buffer for the case where we
 	 * process a POST, and this automatically re-enables activity on
@@ -1196,7 +1195,6 @@ static void http_cache_io_handler(struct appctx *appctx)
 	/* buffer are aligned there, should be fine */
 	if (appctx->st0 == HTTP_CACHE_HEADER || appctx->st0 == HTTP_CACHE_INIT) {
 		int len = first->len - *sent - sizeof(struct cache_entry);
-
 		if (len > 0) {
 			int ret;
 
@@ -1208,6 +1206,10 @@ static void http_cache_io_handler(struct appctx *appctx)
 			if (appctx->st0 == HTTP_CACHE_INIT && *sent > cache_ptr->eoh &&
 				cache_channel_append_age_header(cache_ptr, res))
 				appctx->st0 = HTTP_CACHE_HEADER;
+			else if (ret == len) {
+				*sent = 0;
+				appctx->st0 = HTTP_CACHE_FWD;
+			}
 		}
 		else {
 			*sent = 0;
