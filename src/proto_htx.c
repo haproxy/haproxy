@@ -5068,13 +5068,6 @@ static void htx_end_request(struct stream *s)
 		return;
 
 	if (txn->req.msg_state == HTTP_MSG_DONE) {
-		if (txn->rsp.msg_state < HTTP_MSG_DONE) {
-			/* The server has not finished to respond, so we
-			 * don't want to move in order not to upset it.
-			 */
-			return;
-		}
-
 		/* No need to read anymore, the request was completely parsed.
 		 * We can shut the read side unless we want to abort_on_close,
 		 * or we have a POST request. The issue with POST requests is
@@ -5098,6 +5091,13 @@ static void htx_end_request(struct stream *s)
 		 * send pending data.
 		 */
 		chn->flags |= CF_NEVER_WAIT;
+
+		if (txn->rsp.msg_state < HTTP_MSG_DONE) {
+			/* The server has not finished to respond, so we
+			 * don't want to move in order not to upset it.
+			 */
+			return;
+		}
 
 		/* When we get here, it means that both the request and the
 		 * response have finished receiving. Depending on the connection
