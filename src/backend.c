@@ -165,7 +165,7 @@ void update_backend_weight(struct proxy *px)
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned.
  */
-static struct server *get_server_sh(struct proxy *px, const char *addr, int len)
+static struct server *get_server_sh(struct proxy *px, const char *addr, int len, const struct server *avoid)
 {
 	unsigned int h, l;
 
@@ -186,7 +186,7 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len)
 		h = full_hash(h);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-		return chash_get_server_hash(px, h);
+		return chash_get_server_hash(px, h, avoid);
 	else
 		return map_get_server_hash(px, h);
 }
@@ -203,7 +203,7 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len)
  * algorithm out of a tens because it gave him the best results.
  *
  */
-static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
+static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	int c;
@@ -239,7 +239,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-		return chash_get_server_hash(px, hash);
+		return chash_get_server_hash(px, hash, avoid);
 	else
 		return map_get_server_hash(px, hash);
 }
@@ -253,7 +253,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
  */
-static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
+static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	const char *start, *end;
@@ -296,7 +296,7 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 					hash = full_hash(hash);
 
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-					return chash_get_server_hash(px, hash);
+					return chash_get_server_hash(px, hash, avoid);
 				else
 					return map_get_server_hash(px, hash);
 			}
@@ -315,7 +315,7 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 /*
  * this does the same as the previous server_ph, but check the body contents
  */
-static struct server *get_server_ph_post(struct stream *s)
+static struct server *get_server_ph_post(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct http_txn *txn  = s->txn;
@@ -370,7 +370,7 @@ static struct server *get_server_ph_post(struct stream *s)
 					hash = full_hash(hash);
 
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-					return chash_get_server_hash(px, hash);
+					return chash_get_server_hash(px, hash, avoid);
 				else
 					return map_get_server_hash(px, hash);
 			}
@@ -396,7 +396,7 @@ static struct server *get_server_ph_post(struct stream *s)
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
  */
-static struct server *get_server_hh(struct stream *s)
+static struct server *get_server_hh(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct http_txn *txn  = s->txn;
@@ -466,13 +466,13 @@ static struct server *get_server_hh(struct stream *s)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-		return chash_get_server_hash(px, hash);
+		return chash_get_server_hash(px, hash, avoid);
 	else
 		return map_get_server_hash(px, hash);
 }
 
 /* RDP Cookie HASH.  */
-static struct server *get_server_rch(struct stream *s)
+static struct server *get_server_rch(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct proxy    *px   = s->be;
@@ -511,13 +511,13 @@ static struct server *get_server_rch(struct stream *s)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
-		return chash_get_server_hash(px, hash);
+		return chash_get_server_hash(px, hash, avoid);
 	else
 		return map_get_server_hash(px, hash);
 }
 
 /* random value  */
-static struct server *get_server_rnd(struct stream *s)
+static struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
 	struct proxy  *px = s->be;
@@ -528,7 +528,7 @@ static struct server *get_server_rnd(struct stream *s)
 
 	/* ensure all 32 bits are covered as long as RAND_MAX >= 65535 */
 	hash = ((uint64_t)random() * ((uint64_t)RAND_MAX + 1)) ^ random();
-	return chash_get_server_hash(px, hash);
+	return chash_get_server_hash(px, hash, avoid);
 }
 
 /*
@@ -639,7 +639,7 @@ int assign_server(struct stream *s)
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
 				if ((s->be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM)
-					srv = get_server_rnd(s);
+					srv = get_server_rnd(s, prev_srv);
 				else if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
 					srv = chash_get_next_server(s->be, prev_srv);
 				else
@@ -658,12 +658,12 @@ int assign_server(struct stream *s)
 				if (conn && conn->addr.from.ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
-							    4);
+							    4, prev_srv);
 				}
 				else if (conn && conn->addr.from.ss_family == AF_INET6) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr,
-							    16);
+							    16, prev_srv);
 				}
 				else {
 					/* unknown IP family */
@@ -678,7 +678,7 @@ int assign_server(struct stream *s)
 					break;
 				srv = get_server_uh(s->be,
 						    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
-						    s->txn->req.sl.rq.u_l);
+						    s->txn->req.sl.rq.u_l, prev_srv);
 				break;
 
 			case BE_LB_HASH_PRM:
@@ -688,22 +688,22 @@ int assign_server(struct stream *s)
 
 				srv = get_server_ph(s->be,
 						    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
-						    s->txn->req.sl.rq.u_l);
+						    s->txn->req.sl.rq.u_l, prev_srv);
 
 				if (!srv && s->txn->meth == HTTP_METH_POST)
-					srv = get_server_ph_post(s);
+					srv = get_server_ph_post(s, prev_srv);
 				break;
 
 			case BE_LB_HASH_HDR:
 				/* Header Parameter hashing */
 				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
 					break;
-				srv = get_server_hh(s);
+				srv = get_server_hh(s, prev_srv);
 				break;
 
 			case BE_LB_HASH_RDP:
 				/* RDP Cookie hashing */
-				srv = get_server_rch(s);
+				srv = get_server_rch(s, prev_srv);
 				break;
 
 			default:

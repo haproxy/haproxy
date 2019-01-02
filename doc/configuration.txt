@@ -6764,8 +6764,8 @@ no option redispatch
   definitely stick to it because they cannot flush the cookie, so they will not
   be able to access the service anymore.
 
-  Specifying "option redispatch" will allow the proxy to break their
-  persistence and redistribute them to a working server.
+  Specifying "option redispatch" will allow the proxy to break cookie or
+  consistent hash based persistence and redistribute them to a working server.
 
   It also allows to retry connections to another server in case of multiple
   connection failures. Of course, it requires having "retries" set to a nonzero

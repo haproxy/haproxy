@@ -313,9 +313,10 @@ int chash_server_is_eligible(struct server *s)
  * the closest distance from the value of <hash>. Doing so ensures that even
  * with a well imbalanced hash, if some servers are close to each other, they
  * will still both receive traffic. If any server is found, it will be returned.
+ * It will also skip server <avoid> if the hash result ends on this one.
  * If no valid server is found, NULL is returned.
  */
-struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
+struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const struct server *avoid)
 {
 	struct eb32_node *next, *prev;
 	struct server *nsrv, *psrv;
@@ -367,7 +368,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	}
 
 	loop = 0;
-	while (p->lbprm.chash.balance_factor && !chash_server_is_eligible(nsrv)) {
+	while (nsrv == avoid || (p->lbprm.chash.balance_factor && !chash_server_is_eligible(nsrv))) {
 		next = eb32_next(next);
 		if (!next) {
 			next = eb32_first(root);
