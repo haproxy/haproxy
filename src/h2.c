@@ -320,6 +320,77 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int
 	return -1;
 }
 
+/* Takes an H2 headers list <list> terminated by a name being <NULL,0> and
+ * emits the equivalent HTTP/1.1 trailers block not including the empty line.
+ * The output contents are emitted in <out> for a max of <osize> bytes, and the
+ * amount of bytes emitted is returned. In case of error, a negative error code
+ * is returned. The caller must have verified that the message in the buffer is
+ * compatible with receipt of trailers.
+ *
+ * The headers list <list> must be composed of :
+ *   - n.name != NULL, n.len  > 0 : literal header name
+ *   - n.name == NULL, n.len  > 0 : indexed pseudo header name number <n.len>
+ *                                  among H2_PHDR_IDX_* (illegal here)
+ *   - n.name ignored, n.len == 0 : end of list
+ *   - in all cases except the end of list, v.name and v.len must designate a
+ *     valid value.
+ */
+int h2_make_h1_trailers(struct http_hdr *list, char *out, int osize)
+{
+	char *out_end = out + osize;
+	uint32_t idx;
+	int i;
+
+	for (idx = 0; list[idx].n.len != 0; idx++) {
+		if (!list[idx].n.ptr) {
+			/* This is an indexed pseudo-header (RFC7540#8.1.2.1) */
+			goto fail;
+		}
+
+		/* RFC7540#8.1.2: upper case not allowed in header field names */
+		for (i = 0; i < list[idx].n.len; i++)
+			if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A')
+				goto fail;
+
+		if (h2_str_to_phdr(list[idx].n) != 0) {
+			/* This is a pseudo-header (RFC7540#8.1.2.1) */
+			goto fail;
+		}
+
+		/* these ones are forbidden in trailers (RFC7540#8.1.2.2) */
+		if (isteq(list[idx].n, ist("host")) ||
+		    isteq(list[idx].n, ist("content-length")) ||
+		    isteq(list[idx].n, ist("connection")) ||
+		    isteq(list[idx].n, ist("proxy-connection")) ||
+		    isteq(list[idx].n, ist("keep-alive")) ||
+		    isteq(list[idx].n, ist("upgrade")) ||
+		    isteq(list[idx].n, ist("te")) ||
+		    isteq(list[idx].n, ist("transfer-encoding")))
+			goto fail;
+
+		if (out + list[idx].n.len + 2 + list[idx].v.len + 2 > out_end) {
+			/* too large */
+			goto fail;
+		}
+
+		/* copy "name: value" */
+		memcpy(out, list[idx].n.ptr, list[idx].n.len);
+		out += list[idx].n.len;
+		*(out++) = ':';
+		*(out++) = ' ';
+
+		memcpy(out, list[idx].v.ptr, list[idx].v.len);
+		out += list[idx].v.len;
+		*(out++) = '\r';
+		*(out++) = '\n';
+	}
+
+	return out + osize - out_end;
+
+ fail:
+	return -1;
+}
+
 /* Parse the Content-Length header field of an HTTP/2 request. The function
  * checks all possible occurrences of a comma-delimited value, and verifies
  * if any of them doesn't match a previous value. It returns <0 if a value
