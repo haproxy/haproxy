@@ -3332,7 +3332,7 @@ next_frame:
 	}
 
 	/* OK now we have our header list in <list> */
-	msgf = (h2c->dff & H2_F_DATA_END_STREAM) ? 0 : H2_MSGF_BODY;
+	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
 
 	if (htx) {
 		/* HTX mode */
