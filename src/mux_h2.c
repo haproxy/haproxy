@@ -29,8 +29,9 @@
 #include <eb32tree.h>
 
 
-/* dummy streams returned for closed, refused, idle and states */
+/* dummy streams returned for closed, error, refused, idle and states */
 static const struct h2s *h2_closed_stream;
+static const struct h2s *h2_error_stream;
 static const struct h2s *h2_refused_stream;
 static const struct h2s *h2_idle_stream;
 
@@ -227,6 +228,16 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 	.st        = H2_SS_CLOSED,
 	.errcode   = H2_ERR_STREAM_CLOSED,
 	.flags     = H2_SF_RST_RCVD,
+	.id        = 0,
+};
+
+/* a dmumy closed stream returning a PROTOCOL_ERROR error */
+static const struct h2s *h2_error_stream = &(const struct h2s){
+	.cs        = NULL,
+	.h2c       = NULL,
+	.st        = H2_SS_CLOSED,
+	.errcode   = H2_ERR_PROTOCOL_ERROR,
+	.flags     = 0,
 	.id        = 0,
 };
 
