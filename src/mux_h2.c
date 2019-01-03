@@ -3344,6 +3344,8 @@ next_frame:
 	} else {
 		/* HTTP/1 mode */
 		outlen = h2_make_h1_request(list, b_tail(rxbuf), try, &msgf);
+		if (outlen > 0)
+			b_add(rxbuf, outlen);
 	}
 
 	if (outlen < 0) {
@@ -3363,7 +3365,6 @@ next_frame:
 	b_del(&h2c->dbuf, h2c->dfl + hole);
 	hole = 0;
 	h2c->st0 = H2_CS_FRAME_H;
-	b_add(rxbuf, outlen);
 
 	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
 		htx_add_endof(htx, HTX_BLK_EOM);
