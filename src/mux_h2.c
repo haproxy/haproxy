@@ -1927,13 +1927,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2c_error(h2c, error);
 	goto out;
 
- strm_err:
-	if (h2s) {
-		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_E;
-	}
-	else
-		h2c_error(h2c, error);
  out:
 	h2_release_buf(h2c, &rxbuf);
 	return NULL;
@@ -2002,15 +1995,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
  conn_err:
 	h2c_error(h2c, error);
-	return NULL;
-
- strm_err:
-	if (h2s) {
-		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_E;
-	}
-	else
-		h2c_error(h2c, error);
 	return NULL;
 }
 
