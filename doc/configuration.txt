@@ -15472,13 +15472,13 @@ req.ssl_alpn : string
   request buffer and not to the contents deciphered via an SSL data layer, so
   this will not work with "bind" lines having the "ssl" option. This is useful
   in ACL to make a routing decision based upon the ALPN preferences of a TLS
-  client, like in the example below.
+  client, like in the example below. See also "ssl_fc_alpn".
 
   Examples :
      # Wait for a client hello for at most 5 seconds
      tcp-request inspect-delay 5s
      tcp-request content accept if { req_ssl_hello_type 1 }
-     use_backend bk_acme if { req_ssl.alpn acme-tls/1 }
+     use_backend bk_acme if { req.ssl_alpn acme-tls/1 }
      default_backend bk_default
 
 req.ssl_ec_ext : boolean
