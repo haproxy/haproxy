@@ -1954,9 +1954,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	if (h2c->flags & H2_CF_DEM_TOOMANY)
-		return 0; // too many cs still present
-
 	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
 		h2s->flags |= H2_SF_ES_RCVD;
 		h2s->cs->flags |= CS_FL_REOS;
