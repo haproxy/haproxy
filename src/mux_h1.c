@@ -64,8 +64,10 @@
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 #define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
 #define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
-#define H1S_F_HAVE_EOD       0x00000400 /* Set during input/output process to know the last empty chunk was processed */
-#define H1S_F_HAVE_TLR       0x00000800 /* Set during input/output process to know the trailers were processed */
+#define H1S_F_HAVE_I_EOD     0x00000400 /* Set during input process to know the last empty chunk was processed */
+#define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
+#define H1S_F_HAVE_O_EOD     0x00001000 /* Set during output process to know the last empty chunk was processed */
+#define H1S_F_HAVE_O_TLR     0x00002000 /* Set during output process to know the trailers were processed */
 
 /* H1 connection descriptor */
 struct h1c {
@@ -1105,7 +1107,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (!chksz) {
 					if (!htx_add_endof(htx, HTX_BLK_EOD))
 						goto end;
-					h1s->flags |= H1S_F_HAVE_EOD;
+					h1s->flags |= H1S_F_HAVE_I_EOD;
 					h1m->state = H1_MSG_TRAILERS;
 				}
 				else
@@ -1144,7 +1146,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			if (h1m->state == H1_MSG_TRAILERS) {
 				/* Trailers were alread parsed, only the EOM
 				 * need to be added */
-				if (h1s->flags & H1S_F_HAVE_TLR)
+				if (h1s->flags & H1S_F_HAVE_I_TLR)
 					goto skip_tlr_parsing;
 
 				ret = h1_measure_trailers(buf, *ofs, *ofs + max);
@@ -1165,7 +1167,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 
 				if (!htx_add_trailer(htx, ist2(b_peek(buf, *ofs), ret)))
 					goto end;
-				h1s->flags |= H1S_F_HAVE_TLR;
+				h1s->flags |= H1S_F_HAVE_I_TLR;
 				max -= ret;
 				*ofs += ret;
 				total += ret;
@@ -1548,34 +1550,34 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			case HTX_BLK_EOD:
 				if (!chunk_memcat(tmp, "0\r\n", 3))
 					goto copy;
-				h1s->flags |= H1S_F_HAVE_EOD;
+				h1s->flags |= H1S_F_HAVE_O_EOD;
 				h1m->state = H1_MSG_TRAILERS;
 				break;
 
 			case HTX_BLK_TLR:
-				if (!(h1s->flags & H1S_F_HAVE_EOD)) {
+				if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
 					if (!chunk_memcat(tmp, "0\r\n", 3))
 						goto copy;
-					h1s->flags |= H1S_F_HAVE_EOD;
+					h1s->flags |= H1S_F_HAVE_O_EOD;
 				}
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
 				if (!htx_trailer_to_h1(v, tmp))
 					goto copy;
-				h1s->flags |= H1S_F_HAVE_TLR;
+				h1s->flags |= H1S_F_HAVE_O_TLR;
 				break;
 
 			case HTX_BLK_EOM:
 				if ((h1m->flags & H1_MF_CHNK)) {
-					if (!(h1s->flags & H1S_F_HAVE_EOD)) {
+					if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
 						if (!chunk_memcat(tmp, "0\r\n", 3))
 							goto copy;
-						h1s->flags |= H1S_F_HAVE_EOD;
+						h1s->flags |= H1S_F_HAVE_O_EOD;
 					}
-					if (!(h1s->flags & H1S_F_HAVE_TLR)) {
+					if (!(h1s->flags & H1S_F_HAVE_O_TLR)) {
 						if (!chunk_memcat(tmp, "\r\n", 2))
 							goto copy;
-						h1s->flags |= H1S_F_HAVE_TLR;
+						h1s->flags |= H1S_F_HAVE_O_TLR;
 					}
 				}
 				h1m->state = H1_MSG_DONE;
