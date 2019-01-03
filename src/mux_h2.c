@@ -3400,7 +3400,8 @@ next_frame:
 	}
 
 	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
-		htx_add_endof(htx, HTX_BLK_EOM);
+		if (!htx_add_endof(htx, HTX_BLK_EOM))
+			goto fail;
 
 	/* success */
 	ret = 1;
