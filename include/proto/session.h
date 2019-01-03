@@ -62,7 +62,8 @@ static inline void session_store_counters(struct session *sess)
 		if (ptr) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-			stktable_data_cast(ptr, conn_cur)--;
+			if (stktable_data_cast(ptr, conn_cur) > 0)
+				stktable_data_cast(ptr, conn_cur)--;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
