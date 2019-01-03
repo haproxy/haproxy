@@ -185,6 +185,7 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value);
 
 struct htx_blk *htx_add_header(struct htx *htx, const struct ist name, const struct ist value);
+struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
 struct htx_blk *htx_add_pseudo_header(struct htx *htx,  enum htx_phdr_type phdr, const struct ist value);
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);

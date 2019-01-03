@@ -661,6 +661,22 @@ struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 	return blk;
 }
 
+/* Adds an HTX block of type <type> in <htx>, of size <blksz>. It returns the
+ * new block on success. Otherwise, it returns NULL. The caller is responsible
+ * for filling the block itself.
+ */
+struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
+{
+	struct htx_blk *blk;
+
+	blk = htx_add_blk(htx, type, blksz);
+	if (!blk)
+		return NULL;
+
+	blk->info += blksz;
+	return blk;
+}
+
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs)
 {
 	int i;
