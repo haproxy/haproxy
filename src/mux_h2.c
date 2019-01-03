@@ -3460,9 +3460,8 @@ next_frame:
 	if (htx) {
 		if (!htx_add_endof(htx, HTX_BLK_EOD))
 			goto fail;
-		/* FIXME: emit the decoded trailers here. EOM will be sent
-		 * when leaving.
-		 */
+		if (h2_make_htx_trailers(list, htx) <= 0)
+			goto fail;
 	}
 	else if (*flags & H2_SF_DATA_CHNK) {
 		/* Legacy mode with chunked encoding : we must finalize the
