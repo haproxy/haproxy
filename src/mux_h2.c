@@ -1954,11 +1954,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
-		h2s->flags |= H2_SF_ES_RCVD;
-		h2s->cs->flags |= CS_FL_REOS;
-	}
-
 	if (!h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags))
 		return NULL;
 
@@ -1968,6 +1963,11 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
 		h2c->st0 = H2_CS_FRAME_E;
+	}
+
+	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+		h2s->flags |= H2_SF_ES_RCVD;
+		h2s->cs->flags |= CS_FL_REOS;
 	}
 
 	if (h2s->cs->flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
