@@ -1878,11 +1878,22 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
-	if (h2c_decode_headers(h2c, &rxbuf, &flags) <= 0)
-		goto out;
+	error = h2c_decode_headers(h2c, &rxbuf, &flags);
 
+	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
 		goto out;
+
+	if (error <= 0) {
+		if (error == 0)
+			goto out; // missing data
+
+		/* Failed to decode this stream (e.g. too large request)
+		 * but the HPACK decompressor is still synchronized.
+		 */
+		h2s = (struct h2s*)h2_error_stream;
+		goto send_rst;
+	}
 
 	/* Note: we don't emit any other logs below because ff we return
 	 * positively from h2c_frt_stream_new(), the stream will report the error,
@@ -1965,15 +1976,20 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags) <= 0)
-		return NULL;
+	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags);
 
+	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
 		return NULL;
 
-	if (h2s->st >= H2_SS_ERROR) {
+	if (error <= 0) {
+		if (error == 0)
+			return NULL; // missing data
+
 		/* stream error : send RST_STREAM */
+		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR);
 		h2c->st0 = H2_CS_FRAME_E;
+		return NULL;
 	}
 
 	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
@@ -3338,12 +3354,21 @@ next_frame:
 		try = b_size(rxbuf);
 	}
 
+	/* past this point we cannot roll back in case of error */
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
 	if (outlen < 0) {
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
 		goto fail;
 	}
+
+	/* The PACK decompressor was updated, let's update the input buffer and
+	 * the parser's state to commit these changes and allow us to later
+	 * fail solely on the stream if needed.
+	 */
+	b_del(&h2c->dbuf, h2c->dfl + hole);
+	h2c->dfl = hole = 0;
+	h2c->st0 = H2_CS_FRAME_H;
 
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
@@ -3362,7 +3387,7 @@ next_frame:
 	}
 
 	if (outlen < 0) {
-		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
+		/* too large headers? this is a stream error only */
 		goto fail;
 	}
 
@@ -3373,11 +3398,6 @@ next_frame:
 		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
 			*flags |= H2_SF_DATA_CHNK;
 	}
-
-	/* now consume the input data (length of possibly aggregated frames) */
-	b_del(&h2c->dbuf, h2c->dfl + hole);
-	hole = 0;
-	h2c->st0 = H2_CS_FRAME_H;
 
 	if (htx && h2c->dff & H2_F_HEADERS_END_STREAM)
 		htx_add_endof(htx, HTX_BLK_EOM);
