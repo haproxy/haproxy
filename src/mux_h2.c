@@ -3314,11 +3314,15 @@ next_frame:
 
 	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
 		htx = htx_from_buf(rxbuf);
-		if (!htx_is_empty(htx))
+		if (!htx_is_empty(htx)) {
+			h2c->flags |= H2_CF_DEM_SFULL;
 			goto fail;
+		}
 	} else {
-		if (b_data(rxbuf))
+		if (b_data(rxbuf)) {
+			h2c->flags |= H2_CF_DEM_SFULL;
 			goto fail;
+		}
 
 		rxbuf->head = 0;
 		try = b_size(rxbuf);
