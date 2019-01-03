@@ -3469,7 +3469,12 @@ next_frame:
 		 * data block message emit the trailing CRLF */
 		if (!b_putblk(rxbuf, "0\r\n", 3))
 			goto fail;
-		/* FIXME: emit the decoded trailers here */
+
+		outlen = h2_make_h1_trailers(list, b_tail(rxbuf), try);
+		if (outlen > 0)
+			b_add(rxbuf, outlen);
+		else
+			goto fail;
 	}
 
 	goto done;
