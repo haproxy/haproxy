@@ -1533,6 +1533,14 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 							goto copy;
 					}
 				}
+
+				if ((h1m->flags & (H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) == H1_MF_XFER_LEN) {
+					/* chunking needed but header not seen */
+					if (!chunk_memcat(tmp, "transfer-encoding: chunked\r\n", 28))
+						goto copy;
+					h1m->flags |= H1_MF_CHNK;
+				}
+
 				h1m->state = H1_MSG_LAST_LF;
 				if (!chunk_memcat(tmp, "\r\n", 2))
 					goto copy;
