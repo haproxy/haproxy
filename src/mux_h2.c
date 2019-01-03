@@ -1917,15 +1917,9 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->cs->flags |= CS_FL_REOS;
 	}
 
-	if (h2s->st >= H2_SS_ERROR) {
-		/* stream error : send RST_STREAM */
-		h2c->st0 = H2_CS_FRAME_E;
-	}
-	else {
-		/* update the max stream ID if the request is being processed */
-		if (h2s->id > h2c->max_id)
-			h2c->max_id = h2s->id;
-	}
+	/* update the max stream ID if the request is being processed */
+	if (h2s->id > h2c->max_id)
+		h2c->max_id = h2s->id;
 
 	return h2s;
 
