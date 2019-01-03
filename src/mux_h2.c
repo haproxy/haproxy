@@ -301,7 +301,7 @@ static inline void h2c_restart_reading(const struct h2c *h2c)
 {
 	if (!h2_recv_allowed(h2c))
 		return;
-	if (h2c->wait_event.events & SUB_RETRY_RECV)
+	if (!b_data(&h2c->dbuf) && (h2c->wait_event.events & SUB_RETRY_RECV))
 		return;
 	tasklet_wakeup(h2c->wait_event.task);
 }
@@ -4802,8 +4802,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (ret && h2c->dsi == h2s->id) {
 		/* demux is blocking on this stream's buffer */
 		h2c->flags &= ~H2_CF_DEM_SFULL;
-		if (b_data(&h2c->dbuf) || !(h2c->wait_event.events & SUB_RETRY_RECV))
-			h2c_restart_reading(h2c);
+		h2c_restart_reading(h2c);
 	}
 end:
 	return ret;
