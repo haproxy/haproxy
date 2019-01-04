@@ -4563,8 +4563,16 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		count--;
 		goto end;
 	}
-
-	if (type != HTX_BLK_DATA && type != HTX_BLK_EOM)
+	else if (type == HTX_BLK_EOM) {
+		if (h2s->flags & H2_SF_ES_SENT) {
+			/* ES already sent */
+			htx_remove_blk(htx, blk);
+			total++; // EOM counts as one byte
+			count--;
+			goto end;
+		}
+	}
+	else if (type != HTX_BLK_DATA)
 		goto end;
 
 	/* Perform some optimizations to reduce the number of buffer copies.
