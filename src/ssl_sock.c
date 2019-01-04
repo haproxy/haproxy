@@ -153,6 +153,14 @@ enum {
 	SSL_SOCK_VERIFY_NONE     = 3,
 };
 
+/* issuer chain store with hash of Subject Key Identifier
+   certificate/issuer matching is verify with X509_check_issued
+*/
+struct issuer_chain {
+	struct eb64_node node;
+	STACK_OF(X509) *chain;
+	char *path;
+};
 
 int sslconns = 0;
 int totalsslconns = 0;
@@ -162,6 +170,9 @@ int nb_engines = 0;
 static struct {
 	char *crt_base;             /* base directory path for certificates */
 	char *ca_base;              /* base directory path for CAs and CRLs */
+	char *issuers_chain_path;   /* from "issuers-chain-path" */
+	struct eb_root cert_issuer_tree; /* issuers tree from "issuers-chain-path" */
+
 	int  async;                 /* whether we use ssl async mode */
 
 	char *listen_default_ciphers;
@@ -183,6 +194,7 @@ static struct {
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 } global_ssl = {
+	.cert_issuer_tree = EB_ROOT,
 #ifdef LISTEN_DEFAULT_CIPHERS
 	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
 #endif
@@ -3361,7 +3373,25 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 			goto end;
 		}
 	}
-
+	/* Find Certificate Chain in global */
+	if (chain == NULL) {
+		AUTHORITY_KEYID *akid;
+		akid = X509_get_ext_d2i(cert, NID_authority_key_identifier, NULL, NULL);
+		if (akid) {
+			struct issuer_chain *issuer;
+			struct eb64_node *node;
+			u64 hk;
+			hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
+			for (node = eb64_lookup(&global_ssl.cert_issuer_tree, hk); node; node = eb64_next(node)) {
+				issuer = container_of(node, typeof(*issuer), node);
+				if (X509_check_issued(sk_X509_value(issuer->chain, 0), cert) == X509_V_OK) {
+					chain = X509_chain_up_ref(issuer->chain);
+					break;
+				}
+			}
+			AUTHORITY_KEYID_free(akid);
+		}
+	}
 	/* no chain */
 	if (chain == NULL) {
 		chain = sk_X509_new_null();
@@ -9681,6 +9711,165 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* "issuers-chain-path" load chain certificate in global */
+static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
+{
+	X509 *ca;
+	X509_NAME *name = NULL;
+	ASN1_OCTET_STRING *skid = NULL;
+	STACK_OF(X509) *chain = NULL;
+	struct issuer_chain *issuer;
+	struct eb64_node *node;
+	char *path;
+	u64 key;
+	int ret = 0;
+
+	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+		if (chain == NULL) {
+			chain = sk_X509_new_null();
+			skid = X509_get_ext_d2i(ca, NID_subject_key_identifier, NULL, NULL);
+			name = X509_get_subject_name(ca);
+		}
+		if (!sk_X509_push(chain, ca)) {
+			X509_free(ca);
+			goto end;
+		}
+	}
+	if (!chain) {
+		memprintf(err, "unable to load issuers-chain %s : pem certificate not found.\n", fp);
+		goto end;
+	}
+	if (!skid) {
+		memprintf(err, "unable to load issuers-chain %s : SubjectKeyIdentifier not found.\n", fp);
+		goto end;
+	}
+	if (!name) {
+		memprintf(err, "unable to load issuers-chain %s : SubjectName not found.\n", fp);
+		goto end;
+	}
+	key = XXH64(ASN1_STRING_get0_data(skid), ASN1_STRING_length(skid), 0);
+	for (node = eb64_lookup(&global_ssl.cert_issuer_tree, key); node; node = eb64_next(node)) {
+		issuer = container_of(node, typeof(*issuer), node);
+		if (!X509_NAME_cmp(name, X509_get_subject_name(sk_X509_value(issuer->chain, 0)))) {
+			memprintf(err, "duplicate issuers-chain %s: %s already in store\n", fp, issuer->path);
+			goto end;
+		}
+	}
+	issuer = calloc(1, sizeof *issuer);
+	path = strdup(fp);
+	if (!issuer || !path) {
+		free(issuer);
+		free(path);
+		goto end;
+	}
+	issuer->node.key = key;
+	issuer->path = path;
+	issuer->chain = chain;
+	chain = NULL;
+	eb64_insert(&global_ssl.cert_issuer_tree, &issuer->node);
+	ret = 1;
+ end:
+	if (skid)
+		ASN1_OCTET_STRING_free(skid);
+	if (chain)
+		sk_X509_pop_free(chain, X509_free);
+	return ret;
+}
+
+static void ssl_free_global_issuers(void)
+{
+	struct eb64_node *node, *back;
+	struct issuer_chain *issuer;
+
+	node = eb64_first(&global_ssl.cert_issuer_tree);
+	while (node) {
+		issuer = container_of(node, typeof(*issuer), node);
+		back = eb64_next(node);
+		eb64_delete(node);
+		free(issuer->path);
+		sk_X509_pop_free(issuer->chain, X509_free);
+		free(issuer);
+		node = back;
+	}
+}
+
+static int ssl_load_global_issuers_from_path(char **args, int section_type, struct proxy *curpx,
+					      struct proxy *defpx, const char *file, int line,
+					      char **err)
+{
+	char *path;
+	struct dirent **de_list;
+	int i, n;
+	struct stat buf;
+	char *end;
+	char fp[MAXPATHLEN+1];
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	path = args[1];
+	if (*path == 0 || stat(path, &buf)) {
+		memprintf(err, "%sglobal statement '%s' expects a directory path as an argument.\n",
+			  err && *err ? *err : "", args[0]);
+		return -1;
+	}
+	if (S_ISDIR(buf.st_mode) == 0) {
+		memprintf(err, "%sglobal statement '%s': %s is not a directory.\n",
+			  err && *err ? *err : "", args[0], path);
+		return -1;
+	}
+
+	/* strip trailing slashes, including first one */
+	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
+		*end = 0;
+	/* path already parsed? */
+	if (global_ssl.issuers_chain_path && strcmp(global_ssl.issuers_chain_path, path) == 0)
+		return 0;
+	/* overwrite old issuers_chain_path */
+	free(global_ssl.issuers_chain_path);
+	global_ssl.issuers_chain_path = strdup(path);
+	ssl_free_global_issuers();
+
+	n = scandir(path, &de_list, 0, alphasort);
+	if (n < 0) {
+		memprintf(err, "%sglobal statement '%s': unable to scan directory '%s' : %s.\n",
+			  err && *err ? *err : "", args[0], path, strerror(errno));
+		return -1;
+	}
+	for (i = 0; i < n; i++) {
+		struct dirent *de = de_list[i];
+		BIO *in = NULL;
+		char *warn = NULL;
+
+		snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
+		free(de);
+		if (stat(fp, &buf) != 0) {
+			ha_warning("unable to stat certificate from file '%s' : %s.\n", fp, strerror(errno));
+			goto next;
+		}
+		if (!S_ISREG(buf.st_mode))
+			goto next;
+
+		in = BIO_new(BIO_s_file());
+		if (in == NULL)
+			goto next;
+		if (BIO_read_filename(in, fp) <= 0)
+			goto next;
+		ssl_load_global_issuer_from_BIO(in, fp, &warn);
+		if (warn) {
+			ha_warning(warn);
+			free(warn);
+			warn = NULL;
+		}
+	next:
+		if (in)
+			BIO_free(in);
+	}
+	free(de_list);
+
+	return 0;
+}
+
 /* parse the "ssl-mode-async" keyword in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -11466,6 +11655,7 @@ INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ca-base",  ssl_parse_global_ca_crt_base },
 	{ CFG_GLOBAL, "crt-base", ssl_parse_global_ca_crt_base },
+	{ CFG_GLOBAL, "issuers-chain-path", ssl_load_global_issuers_from_path },
 	{ CFG_GLOBAL, "maxsslconn", ssl_parse_global_int },
 	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
 	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
@@ -11627,6 +11817,8 @@ static void __ssl_sock_init(void)
 
 	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
 	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
+
+	hap_register_post_deinit(ssl_free_global_issuers);
 
 #ifndef OPENSSL_NO_DH
 	ssl_dh_ptr_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);

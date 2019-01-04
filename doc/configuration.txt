@@ -601,6 +601,7 @@ The following keywords are supported in the "global" section :
    - h1-case-adjust-file
    - insecure-fork-wanted
    - insecure-setuid-wanted
+   - issuers-chain-path
    - log
    - log-tag
    - log-send-hostname
@@ -948,6 +949,19 @@ insecure-setuid-wanted
   the "ping" command), then it is possible to disable this protection by
   explicitly adding this directive in the global section. If enabled, it is
   possible to turn it back off by prefixing it with the "no" keyword.
+
+issuers-chain-path <dir>
+  Assigns a directory to load certificate chain for issuer completion. All
+  files must be in PEM format. For certificates loaded with "crt" or "crt-list",
+  if certificate chain is not included in PEM (also commonly known as
+  intermediate certificate), haproxy will complete chain if the issuer of the
+  certificate corresponds to the first certificate of the chain loaded with
+  "issuers-chain-path".
+  A "crt" file with PrivateKey+Certificate+IntermediateCA2+IntermediateCA1
+  could be replaced with PrivateKey+Certificate. HAProxy will complete the
+  chain if a file with IntermediateCA2+IntermediateCA1 is present in
+  "issuers-chain-path" directory. All other certificates with the same issuer
+  will share the chain in memory.
 
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     <facility> [max level [min level]]
@@ -11309,7 +11323,8 @@ crt <cert>
   associated private keys. This file can be built by concatenating multiple
   PEM files into one (e.g. cat cert.pem key.pem > combined.pem). If your CA
   requires an intermediate certificate, this can also be concatenated into this
-  file.
+  file. Intermediate certificate can also be shared in a directory via
+  "issuers-chain-path" directive.
 
   If the OpenSSL used supports Diffie-Hellman, parameters present in this file
   are loaded.
