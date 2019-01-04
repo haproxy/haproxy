@@ -66,5 +66,9 @@
 #error "Must define CONFIG_HAPROXY_DATE"
 #endif
 
+extern const char *haproxy_version;
+extern const char *haproxy_date;
+extern const char *stats_version_string;
+
 #endif /* _COMMON_VERSION_H */
 

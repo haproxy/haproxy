@@ -947,7 +947,7 @@ OBJS = src/proto_http.o src/cfgparse-listen.o src/proto_htx.o src/stream.o    \
        src/http.o src/hpack-dec.o src/action.o src/proto_udp.o src/http_acl.o \
        src/xxhash.o src/hpack-enc.o src/h2.o src/freq_ctr.o src/lru.o         \
        src/protocol.o src/arg.o src/hpack-huff.o src/hdr_idx.o src/base64.o   \
-       src/hash.o src/mailers.o src/activity.o src/http_msg.o
+       src/hash.o src/mailers.o src/activity.o src/http_msg.o src/version.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
@@ -983,6 +983,9 @@ objsize: haproxy
 
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<
+
+# rebuild it every time
+.PHONY: src/version.c
 
 src/trace.o: src/trace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<

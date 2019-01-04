@@ -370,7 +370,7 @@ void hap_register_per_thread_deinit(void (*fct)())
 
 static void display_version()
 {
-	printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE" - https://haproxy.org/\n");
+	printf("HA-Proxy version %s %s - https://haproxy.org/\n", haproxy_version, haproxy_date);
 }
 
 static void display_build_opts()

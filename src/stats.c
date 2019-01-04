@@ -2386,7 +2386,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (uri->flags & ST_HIDEVER) ? "" : (STATS_VERSION_STRING),
+	              (uri->flags & ST_HIDEVER) ? "" : (stats_version_string),
 	              pid, (uri->flags & ST_SHNODE) ? " on " : "",
 		      (uri->flags & ST_SHNODE) ? (uri->node ? uri->node : global.node) : "",
 	              (uri->flags & ST_SHDESC) ? ": " : "",
@@ -3558,8 +3558,8 @@ int stats_fill_info(struct field *info, int len)
 	memset(info, 0, sizeof(*info) * len);
 
 	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
-	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_VERSION);
-	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, HAPROXY_DATE);
+	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
 
 	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
 	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
