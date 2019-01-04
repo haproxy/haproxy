@@ -272,10 +272,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		state = H1_MSG_HDR_FIRST;
 		h1m->next = 0;
 	}
-	else if (h1m->state == H1_MSG_RQBEFORE || h1m->state == H1_MSG_RPBEFORE)
+	else {
 		state = h1m->state;
-	else
-		restarting = 1;
+		if (h1m->state != H1_MSG_RQBEFORE && h1m->state != H1_MSG_RPBEFORE)
+			restarting = 1;
+	}
 
 	ptr   = start + h1m->next;
 	end   = stop;
