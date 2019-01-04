@@ -1027,12 +1027,12 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		unsigned int len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
 
 		ret = htx_cache_dump_data(appctx, res_htx, HTX_BLK_TLR, len);
+		total += ret;
 		if (ret < len) {
 			si_rx_room_blk(si);
 			goto out;
 		}
 
-		total += ret;
 		if (first->len == sizeof(*cache_ptr) + appctx->ctx.cache.sent)
 			appctx->st0 = HTX_CACHE_EOM;
 	}
