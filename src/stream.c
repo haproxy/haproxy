@@ -2959,7 +2959,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state), !LIST_ISEMPTY(&strm->buffer_wait.list));
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s, et=0x%03x)\n",
+			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s et=0x%03x sub=%d)\n",
 			     &strm->si[0],
 			     si_state_str(strm->si[0].state),
 			     strm->si[0].flags,
@@ -2969,10 +2969,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			             tick_is_expired(strm->si[0].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->si[0].exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->si[0].err_type);
+			      strm->si[0].err_type, strm->si[0].wait_event.events);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p exp=%s, et=0x%03x)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p exp=%s et=0x%03x sub=%d)\n",
 			     &strm->si[1],
 			     si_state_str(strm->si[1].state),
 			     strm->si[1].flags,
@@ -2982,7 +2982,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			             tick_is_expired(strm->si[1].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->si[1].exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-			     strm->si[1].err_type);
+			     strm->si[1].err_type, strm->si[1].wait_event.events);
 
 		if ((cs = objt_cs(strm->si[0].end)) != NULL) {
 			conn = cs->conn;
