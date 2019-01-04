@@ -229,7 +229,9 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist value)
  * checked. In case of an unparsable response message, a negative value will be
  * returned with h1m->err_pos and h1m->err_state matching the location and
  * state where the error was met. Leading blank likes are tolerated but not
- * recommended.
+ * recommended. If flag H1_MF_HDRS_ONLY is set in h1m->flags, only headers are
+ * parsed and the start line is skipped. It is not required to set h1m->state
+ * nor h1m->next in this case.
  *
  * This function returns :
  *    -1 in case of error. In this case, h1m->err_state is filled (if h1m is
@@ -266,12 +268,17 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	sl.st.status = 0;
 	skip_update = restarting = 0;
 
+	if (h1m->flags & H1_MF_HDRS_ONLY) {
+		state = H1_MSG_HDR_FIRST;
+		h1m->next = 0;
+	}
+	else if (h1m->state == H1_MSG_RQBEFORE || h1m->state == H1_MSG_RPBEFORE)
+		state = h1m->state;
+	else
+		restarting = 1;
+
 	ptr   = start + h1m->next;
 	end   = stop;
-	state = h1m->state;
-
-	if (state != H1_MSG_RQBEFORE && state != H1_MSG_RPBEFORE)
-		restarting = 1;
 
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;

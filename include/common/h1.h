@@ -92,6 +92,7 @@ enum h1m_state {
 #define H1_MF_XFER_LEN          0x00000100 // message xfer size can be determined
 #define H1_MF_XFER_ENC          0x00000200 // transfer-encoding is present
 #define H1_MF_NO_PHDR           0x00000400 // don't add pseudo-headers in the header list
+#define H1_MF_HDRS_ONLY         0x00000800 // parse headers only
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
