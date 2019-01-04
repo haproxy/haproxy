@@ -414,8 +414,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		task_queue(t);
 
 	/* Try to read, if nothing is available yet we'll just subscribe */
-	if (h1_recv(h1c))
-		h1_process(h1c);
+	tasklet_wakeup(h1c->wait_event.task);
 
 	/* mux->wake will be called soon to complete the operation */
 	return 0;
