@@ -2314,8 +2314,8 @@ static void h1_show_fd(struct buffer *msg, struct connection *conn)
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
 
-	chunk_appendf(msg, " h1c.flg=0x%x .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u",
-		      h1c->flags,
+	chunk_appendf(msg, " h1c.flg=0x%x .sub=%d .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u",
+		      h1c->flags,  h1c->wait_event.events,
 		      (unsigned int)b_data(&h1c->ibuf), b_orig(&h1c->ibuf),
 		      (unsigned int)b_head_ofs(&h1c->ibuf), (unsigned int)b_size(&h1c->ibuf),
 		       (unsigned int)b_data(&h1c->obuf), b_orig(&h1c->obuf),
