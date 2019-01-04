@@ -1120,6 +1120,7 @@ int connect_server(struct stream *s)
 	struct server *srv;
 	int reuse = 0;
 	int reuse_orphan = 0;
+	int init_mux = 0;
 	int err;
 
 
@@ -1346,15 +1347,7 @@ int connect_server(struct stream *s)
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
 			}
-			if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0)
-				return SF_ERR_INTERNAL;
-			/* If we're doing http-reuse always, and the connection
-			 * is an http2 connection, add it to the available list,
-			 * so that others can use it right away.
-			 */
-			if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-			    srv_conn->mux->avail_streams(srv_conn) > 0)
-				LIST_ADD(&srv->idle_conns[tid], &srv_conn->list);
+			init_mux = 1;
 		}
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		else {
@@ -1411,6 +1404,23 @@ int connect_server(struct stream *s)
 	}
 
 	err = si_connect(&s->si[1], srv_conn);
+	/* We have to defer the mux initialization until after si_connect()
+	 * has been called, as we need the xprt to have been properly
+	 * initialized, or any attempt to recv during the mux init may
+	 * fail, and flag the connection as CO_FL_ERROR.
+	 */
+	if (init_mux) {
+		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0)
+			return SF_ERR_INTERNAL;
+		/* If we're doing http-reuse always, and the connection
+		 * is an http2 connection, add it to the available list,
+		 * so that others can use it right away.
+		 */
+		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+		    srv_conn->mux->avail_streams(srv_conn) > 0)
+			LIST_ADD(&srv->idle_conns[tid], &srv_conn->list);
+	}
+
 
 #ifdef USE_OPENSSL
 	if (!reuse && cli_conn && srv &&
