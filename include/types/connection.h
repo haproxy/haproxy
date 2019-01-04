@@ -198,7 +198,6 @@ enum {
 
 	/* The connection is unused by its owner */
 	CO_FL_SESS_IDLE     = 0x40000000,
-	/* unused : 0x40000000 */
 
 	/* This last flag indicates that the transport layer is used (for instance
 	 * by logs) and must not be cleared yet. The last call to conn_xprt_close()
