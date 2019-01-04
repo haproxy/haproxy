@@ -3087,6 +3087,16 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		             strm->txn ? strm->txn->req.next : 0, (unsigned int)ci_data(&strm->req),
 			     (unsigned int)strm->req.buf.size);
 
+		if (IS_HTX_STRM(strm)) {
+			struct htx *htx = htxbuf(&strm->req.buf);
+
+			chunk_appendf(&trash,
+				      "      htx=%p size=%u data=%u used=%u wrap=%s extra=%llu\n",
+				      htx, htx->size, htx->data, htx->used,
+				      (!htx->used || htx->tail+1 == htx->wrap) ? "NO" : "YES",
+				      (unsigned long long)htx->extra);
+		}
+
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 			     "      an_exp=%s",
@@ -3115,6 +3125,16 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		             (unsigned int)ci_head_ofs(&strm->res),
 		             strm->txn ? strm->txn->rsp.next : 0, (unsigned int)ci_data(&strm->res),
 			     (unsigned int)strm->res.buf.size);
+
+		if (IS_HTX_STRM(strm)) {
+			struct htx *htx = htxbuf(&strm->res.buf);
+
+			chunk_appendf(&trash,
+				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+				      htx, htx->flags, htx->size, htx->data, htx->used,
+				      (!htx->used || htx->tail+1 == htx->wrap) ? "NO" : "YES",
+				      (unsigned long long)htx->extra);
+		}
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
