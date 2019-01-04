@@ -4109,7 +4109,7 @@ http-request auth [realm <realm>] [ { if | unless } <condition> ]
         acl auth_ok http_auth_group(L1) G1
         http-request auth unless auth_ok
 
-http-request cache-use [ { if | unless } <condition> ]
+http-request cache-use <name> [ { if | unless } <condition> ]
 
   See section 10.2 about cache setup.
 
@@ -4658,7 +4658,7 @@ http-response allow [ { if | unless } <condition> ]
   This stops the evaluation of the rules and lets the response pass the check.
   No further "http-response" rules are evaluated for the current section.
 
-http-response cache-store [ { if | unless } <condition> ]
+http-response cache-store <name> [ { if | unless } <condition> ]
 
   See section 10.2 about cache setup.
 
@@ -17884,13 +17884,13 @@ max-age <seconds>
 10.2.2. Proxy section
 ---------------------
 
-http-request cache-use <name>
+http-request cache-use <name> [ { if | unless } <condition> ]
   Try to deliver a cached object from the cache <name>. This directive is also
   mandatory to store the cache as it calculates the cache hash. If you want to
   use a condition for both storage and delivering that's a good idea to put it
   after this one.
 
-http-response cache-store <name>
+http-response cache-store <name> [ { if | unless } <condition> ]
   Store an http-response within the cache. The storage of the response headers
   is done at this step, which means you can use others http-response actions
   to modify headers before or after the storage of the response. This action
