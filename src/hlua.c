@@ -884,16 +884,27 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  * initialisation fails (example: out of memory error), the lua function
  * throws an error (longjmp).
  *
+ * In some case (at least one), this function can be called from safe
+ * environement, so we must not initialise it. While the support of
+ * threads appear, the safe environment set a lock to ensure only one
+ * Lua execution at a time. If we initialize safe environment in another
+ * safe environmenet, we have a dead lock.
+ *
+ * set "already_safe" true if the context is initialized form safe
+ * Lua fonction.
+ *
  * This function manipulates two Lua stacks: the main and the thread. Only
  * the main stack can fail. The thread is not manipulated. This function
  * MUST NOT manipulate the created thread stack state, because it is not
  * proctected against errors thrown by the thread stack.
  */
-int hlua_ctx_init(struct hlua *lua, struct task *task)
+int hlua_ctx_init(struct hlua *lua, struct task *task, int already_safe)
 {
-	if (!SET_SAFE_LJMP(gL.T)) {
-		lua->Tref = LUA_REFNIL;
-		return 0;
+	if (!already_safe) {
+		if (!SET_SAFE_LJMP(gL.T)) {
+			lua->Tref = LUA_REFNIL;
+			return 0;
+		}
 	}
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
@@ -901,13 +912,15 @@ int hlua_ctx_init(struct hlua *lua, struct task *task)
 	lua->T = lua_newthread(gL.T);
 	if (!lua->T) {
 		lua->Tref = LUA_REFNIL;
-		RESET_SAFE_LJMP(gL.T);
+		if (!already_safe)
+			RESET_SAFE_LJMP(gL.T);
 		return 0;
 	}
 	hlua_sethlua(lua);
 	lua->Tref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
 	lua->task = task;
-	RESET_SAFE_LJMP(gL.T);
+	if (!already_safe)
+		RESET_SAFE_LJMP(gL.T);
 	return 1;
 }
 
@@ -6331,7 +6344,7 @@ static int hlua_register_task(lua_State *L)
 	task->context = hlua;
 	task->process = hlua_process_task;
 
-	if (!hlua_ctx_init(hlua, task))
+	if (!hlua_ctx_init(hlua, task, 1))
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	/* Restore the function in the stack. */
@@ -6368,7 +6381,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, stream->task)) {
+		if (!hlua_ctx_init(stream->hlua, stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6500,7 +6513,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, stream->task)) {
+		if (!hlua_ctx_init(stream->hlua, stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6777,7 +6790,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			         rule->arg.hlua_rule->fcn.name);
 			return ACT_RET_CONT;
 		}
-		if (!hlua_ctx_init(s->hlua, s->task)) {
+		if (!hlua_ctx_init(s->hlua, s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			return ACT_RET_CONT;
@@ -6971,7 +6984,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, task)) {
+	if (!hlua_ctx_init(hlua, task, 0)) {
 		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
 		return 0;
@@ -7178,7 +7191,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, task)) {
+	if (!hlua_ctx_init(hlua, task, 0)) {
 		SEND_ERR(px, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn.name);
 		return 0;
@@ -7932,7 +7945,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	appctx->ctx.hlua_cli.task->process = hlua_applet_wakeup;
 
 	/* Initialises the Lua context */
-	if (!hlua_ctx_init(hlua, appctx->ctx.hlua_cli.task)) {
+	if (!hlua_ctx_init(hlua, appctx->ctx.hlua_cli.task, 0)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
 		goto error;
 	}
