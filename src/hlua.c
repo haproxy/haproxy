@@ -7641,11 +7641,11 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 
 	/* Expect some arguments */
 	for (i = 0; i < fcn->nargs; i++) {
-		if (*args[i+1] == '\0') {
+		if (*args[*cur_arg] == '\0') {
 			memprintf(err, "expect %d arguments", fcn->nargs);
 			return ACT_RET_PRS_ERR;
 		}
-		rule->arg.hlua_rule->args[i] = strdup(args[i + 1]);
+		rule->arg.hlua_rule->args[i] = strdup(args[*cur_arg]);
 		if (!rule->arg.hlua_rule->args[i]) {
 			memprintf(err, "out of memory error");
 			return ACT_RET_PRS_ERR;
