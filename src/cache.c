@@ -234,6 +234,9 @@ cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct ch
 		st->hdrs_len    = 0;
 		st->first_block = NULL;
 		filter->ctx     = st;
+
+		/* Register post-analyzer on AN_RES_WAIT_HTTP */
+		filter->post_analyzers |= AN_RES_WAIT_HTTP;
 	}
 
 	return 1;
@@ -268,6 +271,31 @@ cache_store_chn_end_analyze(struct stream *s, struct filter *filter, struct chan
 	return 1;
 }
 
+static int
+cache_store_post_analyze(struct stream *s, struct filter *filter, struct channel *chn,
+			 unsigned an_bit)
+{
+	struct http_txn *txn = s->txn;
+	struct http_msg *msg = &txn->rsp;
+	struct cache_st *st = filter->ctx;
+
+	if (an_bit != AN_RES_WAIT_HTTP)
+		goto end;
+
+	/* Here we need to check if any compression filter precedes the cache
+	 * filter. This is only possible when the compression is configured in
+	 * the frontend while the cache filter is configured on the
+	 * backend. This case cannot be detected during HAProxy startup. So in
+	 * such cases, the cache is disabled.
+	 */
+	if (st && (msg->flags & HTTP_MSGF_COMPRESSING)) {
+		pool_free(pool_head_cache_st, st);
+		filter->ctx = NULL;
+	}
+
+  end:
+	return 1;
+}
 
 static int
 cache_store_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
@@ -616,7 +644,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct shared_block *first = NULL;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
-	struct cache_entry *object;
+	struct cache_st *cache_ctx = NULL;
+	struct cache_entry *object, *old;
 
 	/* Don't cache if the response came from a cache */
 	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
@@ -635,6 +664,19 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* cache only 200 status code */
 	if (txn->status != 200)
 		goto out;
+
+	/* Find the corresponding filter instance for the current stream */
+	list_for_each_entry(filter, &s->strm_flt.filters, list) {
+		if (FLT_ID(filter) == cache_store_flt_id  && FLT_CONF(filter) == cconf) {
+			/* No filter ctx, don't cache anything */
+			if (!filter->ctx)
+				goto out;
+			cache_ctx = filter->ctx;
+			break;
+		}
+	}
+
+	/* from there, cache_ctx is always defined */
 
 	if (IS_HTX_STRM(s)) {
 		struct htx *htx = htxbuf(&s->res.buf);
@@ -755,33 +797,26 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* register the buffer in the filter ctx for filling it with data*/
-	list_for_each_entry(filter, &s->strm_flt.filters, list) {
-		if (FLT_ID(filter) == cache_store_flt_id  && FLT_CONF(filter) == cconf) {
-			if (filter->ctx) {
-				struct cache_st *cache_ctx = filter->ctx;
-				struct cache_entry *old;
+	if (cache_ctx) {
+		cache_ctx->first_block = first;
 
-				cache_ctx->first_block = first;
+		object->eb.key = (*(unsigned int *)&txn->cache_hash);
+		memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
+		/* Insert the node later on caching success */
 
-				object->eb.key = (*(unsigned int *)&txn->cache_hash);
-				memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
-				/* Insert the node later on caching success */
+		shctx_lock(shctx);
 
-				shctx_lock(shctx);
-
-				old = entry_exist(cconf->c.cache, txn->cache_hash);
-				if (old) {
-					eb32_delete(&old->eb);
-					old->eb.key = 0;
-				}
-				shctx_unlock(shctx);
-
-				/* store latest value and expiration time */
-				object->latest_validation = now.tv_sec;
-				object->expire = now.tv_sec + http_calc_maxage(s, cconf->c.cache);
-			}
-			return ACT_RET_CONT;
+		old = entry_exist(cconf->c.cache, txn->cache_hash);
+		if (old) {
+			eb32_delete(&old->eb);
+			old->eb.key = 0;
 		}
+		shctx_unlock(shctx);
+
+		/* store latest value and expiration time */
+		object->latest_validation = now.tv_sec;
+		object->expire = now.tv_sec + http_calc_maxage(s, cconf->c.cache);
+		return ACT_RET_CONT;
 	}
 
 out:
@@ -1617,6 +1652,7 @@ struct flt_ops cache_ops = {
 	/* Handle channels activity */
 	.channel_start_analyze = cache_store_chn_start_analyze,
 	.channel_end_analyze = cache_store_chn_end_analyze,
+	.channel_post_analyze = cache_store_post_analyze,
 
 	/* Filter HTTP requests and responses */
 	.http_headers        = cache_store_http_headers,
