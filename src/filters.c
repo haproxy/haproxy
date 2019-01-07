@@ -332,11 +332,11 @@ flt_check(struct proxy *proxy)
 	struct flt_conf *fconf;
 	int err = 0;
 
+	err += check_implicit_http_comp_flt(proxy);
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
 		if (fconf->ops->check)
 			err += fconf->ops->check(proxy, fconf);
 	}
-	err += check_implicit_http_comp_flt(proxy);
 	return err;
 }
 
