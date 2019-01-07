@@ -808,6 +808,10 @@ http_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg
 	if (st->comp_algo == NULL)
 		goto fail;
 
+	/* compression already in progress */
+	if (msg->flags & HTTP_MSGF_COMPRESSING)
+		goto fail;
+
 	/* HTTP < 1.1 should not be compressed */
 	if (!(msg->flags & HTTP_MSGF_VER_11) || !(txn->req.flags & HTTP_MSGF_VER_11))
 		goto fail;
@@ -900,6 +904,10 @@ htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg 
 
 	/* no common compression algorithm was found in request header */
 	if (st->comp_algo == NULL)
+		goto fail;
+
+	/* compression already in progress */
+	if (msg->flags & HTTP_MSGF_COMPRESSING)
 		goto fail;
 
 	/* HTTP < 1.1 should not be compressed */
@@ -1391,7 +1399,6 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	fconf->conf = NULL;
 	fconf->ops  = &comp_ops;
 	LIST_ADDQ(&proxy->filter_configs, &fconf->list);
-
  end:
 	return err;
 }
