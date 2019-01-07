@@ -473,6 +473,39 @@ static inline int channel_may_recv(const struct channel *chn)
 	return rem < 0 || (unsigned int)rem < chn->to_forward;
 }
 
+/* HTX version of channel_may_recv(). Returns non-zero if the channel can still
+ * receive data. */
+static inline int channel_htx_may_recv(const struct channel *chn, const struct htx *htx)
+{
+	uint32_t rem;
+
+	if (!htx->size)
+		return 1;
+
+	if (!channel_may_send(chn))
+		return 0; /* don't touch reserve until we can send */
+
+	rem = htx_free_data_space(htx);
+	if (!rem)
+		return 0; /* htx already full */
+
+	if (rem > global.tune.maxrewrite)
+		return 1; /* reserve not yet reached */
+
+	/* Now we know there's some room left in the reserve and we may
+	 * forward. As long as i-to_fwd < size-maxrw, we may still
+	 * receive. This is equivalent to i+maxrw-size < to_fwd,
+	 * which is logical since i+maxrw-size is what overlaps with
+	 * the reserve, and we want to ensure they're covered by scheduled
+	 * forwards.
+	 */
+	rem += co_data(chn);
+	if (rem > global.tune.maxrewrite)
+		return 1;
+
+	return (global.tune.maxrewrite - rem < chn->to_forward);
+}
+
 /* Returns true if the channel's input is already closed */
 static inline int channel_input_closed(struct channel *chn)
 {
@@ -671,6 +704,42 @@ static inline int channel_recv_limit(const struct channel *chn)
 	return chn->buf.size - reserve;
 }
 
+/* HTX version of channel_recv_limit(). Return the max number of bytes the HTX
+ * buffer can contain so that once all the pending bytes are forwarded, the
+ * buffer still has global.tune.maxrewrite bytes free.
+ */
+static inline int channel_htx_recv_limit(const struct channel *chn, const struct htx *htx)
+{
+	unsigned int transit;
+	int reserve;
+
+	/* return zeor if not allocated */
+	if (!htx->size)
+		return 0;
+
+	/* return max_data_space - maxrewrite if we can't send */
+	reserve = global.tune.maxrewrite;
+	if (unlikely(!channel_may_send(chn)))
+		goto end;
+
+	/* We need to check what remains of the reserve after o and to_forward
+	 * have been transmitted, but they can overflow together and they can
+	 * cause an integer underflow in the comparison since both are unsigned
+	 * while maxrewrite is signed.
+	 * The code below has been verified for being a valid check for this :
+	 *   - if (o + to_forward) overflow => return max_data_space  [ large enough ]
+	 *   - if o + to_forward >= maxrw   => return max_data_space  [ large enough ]
+	 *   - otherwise return max_data_space - (maxrw - (o + to_forward))
+	 */
+	transit = co_data(chn) + chn->to_forward;
+	reserve -= transit;
+	if (transit < chn->to_forward ||                 // addition overflow
+	    transit >= (unsigned)global.tune.maxrewrite) // enough transit data
+		return htx_max_data_space(htx);
+ end:
+	return (htx_max_data_space(htx) - reserve);
+}
+
 /* Returns non-zero if the channel's INPUT buffer's is considered full, which
  * means that it holds at least as much INPUT data as (size - reserve). This
  * also means that data that are scheduled for output are considered as potential
@@ -688,6 +757,19 @@ static inline int channel_full(const struct channel *c, unsigned int reserve)
 	return (ci_data(c) + reserve >= c_size(c));
 }
 
+/* HTX version of channel_full(). Instead of checking if INPUT data exceeds
+ * (size - reserve), this function checks if the free space for data in <htx>
+ * and the data scheduled for output are lower to the reserve. In such case, the
+ * channel is considered as full.
+ */
+static inline int channel_htx_full(const struct channel *c, const struct htx *htx,
+				   unsigned int reserve)
+{
+	if (!htx->size)
+		return 0;
+	return (htx_free_data_space(htx) + co_data(c) <= reserve);
+}
+
 
 /* Returns the amount of space available at the input of the buffer, taking the
  * reserved space into account if ->to_forward indicates that an end of transfer
@@ -699,6 +781,17 @@ static inline int channel_recv_max(const struct channel *chn)
 	int ret;
 
 	ret = channel_recv_limit(chn) - b_data(&chn->buf);
+	if (ret < 0)
+		ret = 0;
+	return ret;
+}
+
+/* HTX version of channel_recv_max(). */
+static inline int channel_htx_recv_max(const struct channel *chn, const struct htx *htx)
+{
+	int ret;
+
+	ret = channel_htx_recv_limit(chn, htx) - htx->data;
 	if (ret < 0)
 		ret = 0;
 	return ret;
