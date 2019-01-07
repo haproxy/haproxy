@@ -243,6 +243,8 @@ static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 {
 	if (htx) {
+		if (chk->data >= channel_htx_recv_max(chn, htx))
+			return 0;
 		if (!htx_add_data(htx, ist2(chk->area, chk->data)))
 			return 0;
 		channel_add_input(chn, chk->data);
