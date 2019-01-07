@@ -2951,9 +2951,13 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if (strm->txn)
 			chunk_appendf(&trash,
-			     "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n",
+			      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n"
+			      "      req.f=0x%02x blen=%llu chnk=%llu next=%u\n"
+			      "      rsp.f=0x%02x blen=%llu chnk=%llu next=%u\n",
 			      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
-			      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state));
+			      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
+			      strm->txn->req.flags, strm->txn->req.body_len, strm->txn->req.chunk_len, strm->txn->req.next,
+			      strm->txn->rsp.flags, strm->txn->rsp.body_len, strm->txn->rsp.chunk_len, strm->txn->rsp.next);
 
 		chunk_appendf(&trash,
 			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s et=0x%03x sub=%d)\n",
