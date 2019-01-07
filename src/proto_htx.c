@@ -665,7 +665,7 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 	 * If unset, then set it to zero because we really want it to
 	 * eventually expire. We build the tarpit as an analyser.
 	 */
-	channel_erase(&s->req);
+	channel_htx_erase(&s->req, htx);
 
 	/* wipe the request out so that we can drop the connection early
 	 * if the client closes first.
@@ -2534,7 +2534,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	channel_auto_read(req);
 	channel_abort(req);
 	channel_auto_close(req);
-	channel_erase(req);
+	channel_htx_erase(req, htxbuf(&req->buf));
 
 	res->wex = tick_add_ifset(now_ms, res->wto);
 	channel_auto_read(res);
@@ -2554,7 +2554,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
   fail:
 	/* If an error occurred, remove the incomplete HTTP response from the
 	 * buffer */
-	channel_truncate(res);
+	channel_htx_truncate(res, htxbuf(&res->buf));
 	free_trash_chunk(chunk);
 	return 0;
 }
@@ -2614,7 +2614,7 @@ static int htx_reply_103_early_hints(struct channel *res)
 		/* If an error occurred during an Early-hint rule,
 		 * remove the incomplete HTTP 103 response from the
 		 * buffer */
-		channel_truncate(res);
+		channel_htx_truncate(res, htx);
 		return -1;
 	}
 
@@ -2660,7 +2660,7 @@ static int htx_add_early_hint_header(struct stream *s, int early_hints, const st
   fail:
 	/* If an error occurred during an Early-hint rule, remove the incomplete
 	 * HTTP 103 response from the buffer */
-	channel_truncate(res);
+	channel_htx_truncate(res, htx);
 	free_trash_chunk(value);
 	return -1;
 }
@@ -5024,7 +5024,7 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	channel_auto_read(req);
 	channel_abort(req);
 	channel_auto_close(req);
-	channel_erase(req);
+	channel_htx_erase(req, htxbuf(&req->buf));
 	channel_auto_read(res);
 	channel_auto_close(res);
 
@@ -5041,7 +5041,7 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
   fail:
 	/* If an error occurred, remove the incomplete HTTP response from the
 	 * buffer */
-	channel_truncate(res);
+	channel_htx_truncate(res, htx);
 }
 
 /* This function terminates the request because it was completly analyzed or
@@ -5060,7 +5060,7 @@ static void htx_end_request(struct stream *s)
 	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
 		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
 		channel_abort(chn);
-		channel_truncate(chn);
+		channel_htx_truncate(chn, htxbuf(&chn->buf));
 		goto end;
 	}
 
@@ -5194,7 +5194,7 @@ static void htx_end_response(struct stream *s)
 
 	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
 		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
-		channel_truncate(&s->req);
+		channel_htx_truncate(&s->req, htxbuf(&s->req.buf));
 		channel_abort(&s->req);
 		goto end;
 	}
@@ -5266,7 +5266,7 @@ static void htx_end_response(struct stream *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	  http_msg_closed:
 		/* drop any pending data */
-		channel_truncate(&s->req);
+		channel_htx_truncate(&s->req, htxbuf(&s->req.buf));
 		channel_abort(&s->req);
 		goto end;
 	}
@@ -5293,7 +5293,7 @@ void htx_server_error(struct stream *s, struct stream_interface *si, int err,
 	channel_auto_read(si_oc(si));
 	channel_abort(si_oc(si));
 	channel_auto_close(si_oc(si));
-	channel_erase(si_oc(si));
+	channel_htx_erase(si_oc(si), htxbuf(&(si_oc(si))->buf));
 	channel_auto_close(si_ic(si));
 	channel_auto_read(si_ic(si));
 
@@ -5321,8 +5321,8 @@ void htx_reply_and_close(struct stream *s, short status, struct buffer *msg)
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
 	channel_auto_close(&s->req);
-	channel_erase(&s->req);
-	channel_truncate(&s->res);
+	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
+	channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
 
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 
@@ -5389,7 +5389,7 @@ static int htx_reply_100_continue(struct stream *s)
   fail:
 	/* If an error occurred, remove the incomplete HTTP response from the
 	 * buffer */
-	channel_truncate(res);
+	channel_htx_truncate(res, htx);
 	return -1;
 }
 
@@ -5451,7 +5451,7 @@ static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
 	channel_auto_close(&s->req);
-	channel_erase(&s->req);
+	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
 
 	res->wex = tick_add_ifset(now_ms, res->wto);
 	channel_auto_read(res);
@@ -5462,7 +5462,7 @@ static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
   fail:
 	/* If an error occurred, remove the incomplete HTTP response from the
 	 * buffer */
-	channel_truncate(res);
+	channel_htx_truncate(res, htx);
 	return -1;
 }
 
