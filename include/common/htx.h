@@ -633,6 +633,15 @@ static inline uint32_t htx_free_space(const struct htx *htx)
 	return (htx->size - htx_used_space(htx));
 }
 
+/* Returns the maximum space usable for data in <htx>. This is in fact the
+ * maximum sice for a uniq block to fill the HTX message. */
+static inline uint32_t htx_max_data_space(const struct htx *htx)
+{
+	if (!htx->size)
+		return 0;
+	return (htx->size - sizeof(htx->blocks[0]));
+}
+
 /* Returns the maximum size available to store some data in <htx> if a new block
  * is reserved.
  */
