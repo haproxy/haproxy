@@ -900,7 +900,7 @@ static size_t htx_cache_dump_data(struct appctx *appctx, struct htx *htx,
 	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct shared_block *shblk  = appctx->ctx.cache.next;
-	uint32_t max = htx_free_data_space(htx);
+	uint32_t max = channel_htx_recv_max(si_ic(appctx->owner), htx);
 	unsigned int offset;
 	size_t total = 0;
 
