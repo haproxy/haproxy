@@ -3087,8 +3087,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			struct htx *htx = htxbuf(&strm->req.buf);
 
 			chunk_appendf(&trash,
-				      "      htx=%p size=%u data=%u used=%u wrap=%s extra=%llu\n",
-				      htx, htx->size, htx->data, htx->used,
+				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
+				      htx, htx->flags, htx->size, htx->data, htx->used,
 				      (!htx->used || htx->tail+1 == htx->wrap) ? "NO" : "YES",
 				      (unsigned long long)htx->extra);
 		}
