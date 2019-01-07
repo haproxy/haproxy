@@ -548,6 +548,12 @@ static inline void channel_erase(struct channel *chn)
 	b_reset(&chn->buf);
 }
 
+static inline void channel_htx_erase(struct channel *chn, struct htx *htx)
+{
+	htx_reset(htx);
+	channel_erase(chn);
+}
+
 /* marks the channel as "shutdown" ASAP for reads */
 static inline void channel_shutr_now(struct channel *chn)
 {
@@ -875,6 +881,17 @@ static inline void channel_truncate(struct channel *chn)
 		return;
 
 	chn->buf.data = co_data(chn);
+}
+
+static inline void channel_htx_truncate(struct channel *chn, struct htx *htx)
+{
+	if (!co_data(chn))
+		return channel_htx_erase(chn, htx);
+
+	chn->to_forward = 0;
+	if (htx->data == co_data(chn))
+		return;
+	htx_truncate(htx, co_data(chn));
 }
 
 /* This function realigns a possibly wrapping channel buffer so that the input
