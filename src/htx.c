@@ -287,6 +287,26 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	return blk;
 }
 
+/* Truncate all blocks after the one containing the offset <offset>. This last
+ * one is truncated too.
+ */
+void htx_truncate(struct htx *htx, uint32_t offset)
+{
+	struct htx_blk *blk;
+	struct htx_ret htxret;
+
+	htxret = htx_find_blk(htx, offset);
+	blk = htxret.blk;
+	if (blk && htxret.ret) {
+		uint32_t sz = htx_get_blksz(blk);
+
+		htx_set_blk_value_len(blk, sz - htxret.ret);
+		blk = htx_get_next_blk(htx, blk);
+	}
+	while (blk)
+		blk = htx_remove_blk(htx, blk);
+}
+
 /* Tries to append data to the last inserted block, if the type matches and if
  * there is enough non-wrapping space. Only DATA and TRAILERS content can be
  * appended. If the append fails, a new block is inserted. If an error occurred,

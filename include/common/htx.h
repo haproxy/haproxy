@@ -170,6 +170,7 @@ extern struct htx htx_empty;
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk);
 struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk);
+void htx_truncate(struct htx *htx, uint32_t offset);
 
 struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 				      const struct ist old, const struct ist new);
