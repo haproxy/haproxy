@@ -1129,7 +1129,7 @@ reg-tests-help:
 	@echo "    LEVEL 2 scripts are slow scripts (prefixed with 's' letter)."
 	@echo "    LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter)."
 	@echo "    LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter)."
-	@echo "    LEVEL 5 scripts are broken scripts, typically used to fastly disable broken scripts (prefixed with 'k' letter)."
+	@echo "    LEVEL 5 scripts are scripts triggering known broken behaviors for which there is still no fix (prefixed with 'k' letter)."
 	@echo "    LEVEL 6 scripts are experimental, typically used to develop new scripts (prefixed with 'e' lettre)."
 
 .PHONY: reg-tests reg-tests-help
