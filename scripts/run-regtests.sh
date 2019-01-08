@@ -454,7 +454,7 @@ if [ -d "${TESTDIR}" ]; then
     cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
 $(echo "###### $(cat "$i/INFO") ######")
 $(echo "## test results in: \"$i\"")
-$(grep -- ^---- "$i/LOG")
+$(grep -E -- "^(----|\*    diag)" "$i/LOG")
 EOF
   done' sh {} +
 fi
