@@ -10768,7 +10768,10 @@ accept-proxy
 
 allow-0rtt
   Allow receiving early data when using TLSv1.3. This is disabled by default,
-  due to security considerations.
+  due to security considerations. Because it is vulnerable to replay attacks,
+  you should only allow if for requests that are safe to replay, ie requests
+  that are idempotent. You can use the "wait-for-handshake" action for any
+  request that wouldn't be safe with early data.
 
 alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol
