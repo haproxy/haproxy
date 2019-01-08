@@ -2114,8 +2114,8 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
-	if (cs->flags & CS_FL_SHW) {
-		h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTW;
+	if (cs->conn->flags & CO_FL_SOCK_WR_SH) {
+		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTW;
 		conn_full_close(cs->conn);
 	}
 }
