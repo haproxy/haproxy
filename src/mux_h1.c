@@ -44,7 +44,7 @@
 
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
-#define H1C_F_CS_SHUTW       0x00004000 /* connection is already shut down */
+#define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down for read and writes */
 #define H1C_F_CS_WAIT_CONN   0x00008000 /* waiting for the connection establishment */
 
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
@@ -113,7 +113,7 @@ static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);
 static int h1_process(struct h1c *h1c);
 static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
-static void h1_shutw_conn(struct connection *conn);
+static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static struct task *h1_timeout_task(struct task *t, void *context, unsigned short state);
 
 /*****************************************************/
@@ -139,7 +139,7 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
-	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW)))
+	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)))
 		return 0;
 
 	if (h1c->conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(h1c->conn))
@@ -1814,7 +1814,7 @@ static int h1_send(struct h1c *h1c)
 		h1_release_buf(h1c, &h1c->obuf);
 		h1_sync_messages(h1c);
 		if (h1c->flags & H1C_F_CS_SHUTW_NOW)
-			h1_shutw_conn(conn);
+			h1_shutw_conn(conn, CS_SHW_NORMAL);
 	}
 	else if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 		conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h1c->wait_event);
@@ -1847,7 +1847,7 @@ static int h1_process(struct h1c * h1c)
 		    conn->flags & CO_FL_ERROR     ||
 		    conn_xprt_read0_pending(conn))
 			goto release;
-		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))) {
+		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))) {
 			if (!h1s_create(h1c, NULL, NULL))
 				goto release;
 		}
@@ -1875,7 +1875,7 @@ static int h1_process(struct h1c * h1c)
 	if (h1c->task) {
 		h1c->task->expire = TICK_ETERNITY;
 		if (b_data(&h1c->obuf)) {
-			h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))
+			h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))
 							      ? h1c->shut_timeout
 							      : h1c->timeout));
 			task_queue(h1c->task);
@@ -2080,7 +2080,7 @@ static void h1_detach(struct conn_stream *cs)
 	}
 
 	/* We don't want to close right now unless the connection is in error */
-	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW)) ||
+	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)) ||
 	    (h1c->conn->flags & CO_FL_ERROR) || !h1c->conn->owner)
 		h1_release(h1c->conn);
 	else {
@@ -2088,7 +2088,7 @@ static void h1_detach(struct conn_stream *cs)
 		if (h1c->task) {
 			h1c->task->expire = TICK_ETERNITY;
 			if (b_data(&h1c->obuf)) {
-				h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTW))
+				h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))
 								      ? h1c->shut_timeout
 								      : h1c->timeout));
 				task_queue(h1c->task);
@@ -2114,10 +2114,8 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
-	if (cs->conn->flags & CO_FL_SOCK_WR_SH) {
-		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTW;
-		conn_full_close(cs->conn);
-	}
+	if ((cs->conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
+		h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 }
 
 static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -2139,21 +2137,17 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	if ((cs->flags & CS_FL_SHW) || b_data(&h1c->obuf))
 		return;
 
-	h1_shutw_conn(cs->conn);
+	h1_shutw_conn(cs->conn, mode);
 }
 
-static void h1_shutw_conn(struct connection *conn)
+static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 {
 	struct h1c *h1c = conn->ctx;
 
-	if (conn_xprt_ready(conn) && conn->xprt->shutw)
-		conn->xprt->shutw(conn, 1);
-	if (!(conn->flags & CO_FL_SOCK_RD_SH))
-		conn_sock_shutw(conn, 1);
-	else {
-		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTW;
-		conn_full_close(conn);
-	}
+	conn_xprt_shutw(conn);
+	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
+	if ((conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
+		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 }
 
 /* Called from the upper layer, to unsubscribe to events */
