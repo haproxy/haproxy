@@ -1,0 +1,92 @@
+varnishtest "Tests for 'capture (request|response) header"
+feature ignore_unknown_macro
+
+# This script checks that the last occurrences of "fooresp" and "fooreq" header
+# are correctly captured and added to the logs.
+# Note that varnishtest does not support more than MAX_HDR header.
+
+syslog S -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h_pid}\\]: .* .* fe be/srv .* 200 17641 - - ---- .* .* {HPhx8n59qjjNBLjP} {htb56qDdCcbRVTfS} \"GET / HTTP/1\\.1\""
+} -start
+
+server s {
+    rxreq
+    txresp -hdr "fooresp: HnFDGJ6KvhSG5QjX" -hdr "fooresp: 8dp7vBMQjTMkVwtG" \
+           -hdr "fooresp: NTpxWmvsNKGxvH6K" -hdr "fooresp: sPKNNJ5VRBDz9qXP" \
+           -hdr "fooresp: HnFDGJ6KvhSG5QjX" -hdr "fooresp: 8dp7vBMQjTMkVwtG" \
+           -hdr "fooresp: VSNnccbGkvfM9JK9" -hdr "fooresp: 9D5cjwtK3LCxmg4F" \
+           -hdr "fooresp: dsbxGqlBPRWGP3vX" -hdr "fooresp: xf6VK6GXlgdj5mwc" \
+           -hdr "fooresp: 8jzM3clRKtdL2WWb" -hdr "fooresp: v7ZHrTPjDR6lm6Bg" \
+           -hdr "fooresp: FQT6th9whMqQ7Z6C" -hdr "fooresp: KM22HH6lRBw6SHQT" \
+           -hdr "fooresp: PmRHphHXmTV9kZNS" -hdr "fooresp: CkGRbTJrD5nSVpFk" \
+           -hdr "fooresp: KQ9mzmMHpmmZ2SXP" -hdr "fooresp: W5FqfFDN6dqBxjK7" \
+           -hdr "fooresp: bvcxNPK4gpnTvn3z" -hdr "fooresp: BSXRLSWMsgQN54cC" \
+           -hdr "fooresp: ZX9ttTnlbXtJK55d" -hdr "fooresp: KH9StjMHF73NqzL8" \
+           -hdr "fooresp: W2q2m6MvMLcnXsX7" -hdr "fooresp: wtrjnJgFzHDvMg5r" \
+           -hdr "fooresp: Vpk2c2DsbWf2Gtwh" -hdr "fooresp: sCcW2qpRhFHHRDpH" \
+           -hdr "fooresp: P4mltXtvxLsnPcNS" -hdr "fooresp: TXgdSKNMmsJ8x9zq" \
+           -hdr "fooresp: n5t8pdZgnGFXZDd3" -hdr "fooresp: pD84GCtkWZqWbCM9" \
+           -hdr "fooresp: wx2FPxsGqSRjNVws" -hdr "fooresp: TXmtBCqPTVGFc3NK" \
+           -hdr "fooresp: 4DrFTLxpcPk2n3Zv" -hdr "fooresp: vrcFr9MWpqJWhK4h" \
+           -hdr "fooresp: HMsCHMZnHT3q8qD2" -hdr "fooresp: HsCXQGTxDpsMf4z6" \
+           -hdr "fooresp: 9rb2vjvvd2SzCQVT" -hdr "fooresp: qn5C2fZTWHVp7NkC" \
+           -hdr "fooresp: ZVd5ltcngZFHXfvr" -hdr "fooresp: j6BZVdV8fkz5tgjR" \
+           -hdr "fooresp: 6qfVwfHqdfntQjmP" -hdr "fooresp: RRr9nTnwjG6d2x7X" \
+           -hdr "fooresp: RJXtWtdJRTss6JgZ" -hdr "fooresp: zzHZWm6bqXDN9k47" \
+           -hdr "fooresp: htb56qDdCcbRVTfS" \
+           -bodylen 16384
+} -start
+
+haproxy h -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout client 1s
+        timeout server 1s
+        timeout connect 1s
+
+    backend be
+        server srv ${s_addr}:${s_port}
+
+    frontend fe
+        option httplog
+        log ${S_addr}:${S_port} local0 debug err
+        capture request header fooreq len 25
+        capture response header fooresp len 25
+
+        bind "fd@${fe}"
+        use_backend be
+} -start
+
+client c1 -connect ${h_fe_sock} {
+     txreq -hdr "fooreq: c8Ck8sx8qfXk5pSS" -hdr "fooreq: TGNXbG2DF3TmLWK3" \
+           -hdr "fooreq: mBxq9Cgr8GN6hkt6" -hdr "fooreq: MHZ6VBCPgs564KfR" \
+           -hdr "fooreq: BCCwX2kL9BSMCqvt" -hdr "fooreq: 8rXw87xVTphpRQb7" \
+           -hdr "fooreq: gJ3Tp9kXQlqLC8Qp" -hdr "fooreq: dFnLs6wpMl2M5N7c" \
+           -hdr "fooreq: r3f9WgQ8Brqw37Kj" -hdr "fooreq: dbJzSSdCqV3ZVtXK" \
+           -hdr "fooreq: 5HxHd6g4n2Rj2CNG" -hdr "fooreq: HNqQSNfkt6q4zK26" \
+           -hdr "fooreq: rzqNcfskPR7vW4jG" -hdr "fooreq: 9c7txWhsdrwmkR6d" \
+           -hdr "fooreq: 3v8Nztg9l9vLSKJm" -hdr "fooreq: lh4WDxMX577h4z3l" \
+           -hdr "fooreq: mFtHj5SKDvfcGzfq" -hdr "fooreq: PZ5B5wRM9D7GLm7W" \
+           -hdr "fooreq: fFpN4zCkLTxzp5Dz" -hdr "fooreq: J5XMdfCCHmmwkr2f" \
+           -hdr "fooreq: KqssZ3SkZnZJF8mz" -hdr "fooreq: HrGgsnBnslKN7Msz" \
+           -hdr "fooreq: d8TQltZ39xFZBNx2" -hdr "fooreq: mwDt2k2tvqM8x5kQ" \
+           -hdr "fooreq: 7Qh6tM7s7z3P8XCl" -hdr "fooreq: S3mTVbbPhJbLR7n2" \
+           -hdr "fooreq: zr7hMDvrrwfvpmTT" -hdr "fooreq: lV9TnZX2CtSnr4k8" \
+           -hdr "fooreq: bMdJx8pVDG2nWFNg" -hdr "fooreq: FkGvB2cBwNrB3cm4" \
+           -hdr "fooreq: 5ckNn3m6m8r2CXLF" -hdr "fooreq: sk4pJGTSZ5HMPJP5" \
+           -hdr "fooreq: HgVgQ73zhLwX6Wzq" -hdr "fooreq: T5k2QbFKvCVJlz4c" \
+           -hdr "fooreq: SKcNPw8CXGKhtxNP" -hdr "fooreq: n9fFrcR2kRQJrCpZ" \
+           -hdr "fooreq: hrJ2MXCdcSCDhQ6n" -hdr "fooreq: 9xsWQ8srzLDvG9F4" \
+           -hdr "fooreq: GNcP9NBTFJkg4hbk" -hdr "fooreq: Vg8B8MNwz4T7q5Tj" \
+           -hdr "fooreq: XXns3qPCzZmt9j4G" -hdr "fooreq: hD7TnP43bcPHm5g2" \
+           -hdr "fooreq: wZbxVq7MwmfBSqb5" -hdr "fooreq: HPhx8n59qjjNBLjP" \
+           -bodylen 16384
+      rxresp
+      expect resp.status == 200
+} -start
+
+server s -wait
+syslog S -wait
+
