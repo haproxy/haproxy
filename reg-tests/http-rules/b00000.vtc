@@ -1,0 +1,77 @@
+#commit 271022150d7961b9aa39dbfd88e0c6a4bc48c3ee
+#    BUG/MINOR: map: fix map_regm with backref
+#
+#    Due to a cascade of get_trash_chunk calls the sample is
+#    corrupted when we want to read it.
+#
+#    The fix consist to use a temporary chunk to copy the sample
+#    value and use it.
+
+varnishtest "map_regm get_trash_chunk test"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.6
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
+    recv info
+    # not expecting ${h1_pid} with master-worker
+    expect ~ "[^:\\[ ]\\[[[:digit:]]+\\]: .* fe1 be1/s1 [[:digit:]]+/[[:digit:]]+/[[:digit:]]+/[[:digit:]]+/[[:digit:]]+ 200 [[:digit:]]+ - - ---- .* \"GET / HTTP/(1|2)(\\.1)?\""
+} -start
+
+server s1 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.x-mapped-from-header == example_AND_org
+   expect req.http.x-mapped-from-var == example_AND_org
+   txresp
+
+   rxreq
+   expect req.method == "GET"
+   expect req.http.x-mapped-from-header == www.example_AND_org
+   expect req.http.x-mapped-from-var == www.example_AND_org
+   txresp
+} -start
+
+haproxy h1 -conf {
+  global
+    log ${S1_addr}:${S1_port} local0 debug err
+
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  frontend fe1
+    bind "fd@${fe1}"
+    # Remove port from Host header
+    http-request replace-value Host '(.*):.*' '\1'
+    # Store host header in variable
+    http-request set-var(txn.host) req.hdr(Host)
+    # This works correctly
+    http-request set-header X-Mapped-From-Header %[req.hdr(Host),map_regm(${testdir}/b00000.map,"unknown")]
+    # This breaks before commit 271022150d7961b9aa39dbfd88e0c6a4bc48c3ee
+    http-request set-header X-Mapped-From-Var %[var(txn.host),map_regm(${testdir}/b00000.map,"unknown")]
+
+    default_backend be1
+
+    backend be1
+    server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "Host: example.org:8443"
+    rxresp
+    expect resp.status == 200
+
+    txreq -hdr "Host: www.example.org"
+    rxresp
+    expect resp.status == 200
+} -run
+
