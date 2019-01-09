@@ -1,0 +1,220 @@
+varnishtest "Minimal tests for 1.9 converters: ipmask,concat,strcmp,field,word"
+feature ignore_unknown_macro
+
+# concat,strcmp,ipmask(ipv6mask) need 1.9
+#REQUIRE_VERSION=1.9
+
+# ipmask tests server
+server s1 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.srciphdr == "192.168.1.101"
+   expect req.http.srcmask1 == "192.168.1.0"
+   expect req.http.srcmask2 == "192.168.0.0"
+   expect req.http.srcmask3 == "192.0.0.0"
+
+   expect req.http.test1mask128 == "2001:db8::1"
+   expect req.http.test2mask64 == "2001:db8::"
+   expect req.http.test2mask128 == "2001:db8::bad:c0f:ffff"
+   expect req.http.test2mask120 == "2001:db8::bad:c0f:ff00"
+   expect req.http.test2maskff00 == "2001:db8::bad:c0f:ff00"
+   expect req.http.test2maskfee0 == "2001:db8::bad:c0f:fee0"
+
+   expect req.http.test3mask64 == "2001:db8:c001:c01a::"
+   expect req.http.test3mask64v2 == "2001:db8:c001:c01a::"
+   expect req.http.test3mask64v3 == "2001:db8:c001:c01a::"
+   expect req.http.test3maskff == "2001:db8:c001:c01a:0:ffff:10:0"
+   expect req.http.test3maskv2 == "2001:db8:c001:c01a:c001:c001::"
+
+   expect req.http.test4mask32 == "192.168.1.101"
+
+   expect req.http.test5mask24 == "192.168.1.0"
+   expect req.http.test6mask24 == "192.168.1.0"
+   expect req.http.test6mask25 == "192.168.1.128"
+   txresp
+} -start
+
+# concat,strcmp,field,word tests server
+server s2 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.fieldconcat == "f1_f2_f3__f5"
+   expect req.http.fieldconcat2 == "f1_f2_f3__f5"
+   expect req.http.fieldconcat3 == "f1_f2_f3__f5"
+   expect req.http.fieldstrcmp == "0"
+
+   # field tests
+   expect req.http.fieldtest1 == "f5"
+   expect req.http.fieldtest2 == "f2_f3__f5"
+   expect req.http.fieldtest3 == "f2_f3"
+   expect req.http.fieldtest4 == "f2_f3_"
+   expect req.http.fieldtest5 == "f1_f2_f3"
+   expect req.http.okfieldtest == "ok"
+   expect req.http.qsfieldtest == "IT_IS"
+   expect req.http.qsfieldconcat == "IT_IS_ok"
+   expect req.http.fieldtest1strcmp == "0"
+
+   # word tests
+   expect req.http.wordtest1 == "f5"
+   expect req.http.wordtest2 == "f2_f3__f5"
+   expect req.http.wordtest3 == "f3__f5"
+   expect req.http.wordtest4 == "f1_f2_f3"
+   expect req.http.wordtest5 == "f1_f2"
+   expect req.http.okwordtest == "OK"
+   expect req.http.qswordtest == "Yes_It"
+   expect req.http.qswordregmtest == "It_Yes"
+   expect req.http.wordtest1strcmp == "0"
+   txresp
+} -start
+
+
+# ipmask tests with accept-proxy bind
+haproxy h1 -conf {
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  frontend fe1
+    # accept-proxy so test client can send src ip
+    bind "fd@${fe1}" accept-proxy
+
+    # ipmask tests w/src
+    http-request set-header Srciphdr %[src]
+    http-request set-header Srcmask1 %[src,ipmask(24)] # 192.168.1.0
+    http-request set-header Srcmask2 %[src,ipmask(16)] # 192.168.0.0
+    http-request set-header Srcmask3 %[src,ipmask(8)] # 192.0.0.0
+
+    # ipmask tests from headers
+    http-request set-header Test1mask128 %[req.hdr_ip(Addr1),ipmask(24,128)]
+
+    http-request set-header Test2mask64 %[req.hdr_ip(Addr2),ipmask(24,64)]
+    http-request set-header Test2mask128 %[req.hdr_ip(Addr2),ipmask(24,128)]
+    http-request set-header Test2mask120 %[req.hdr_ip(Addr2),ipmask(24,120)]
+    http-request set-header Test2maskff00 %[req.hdr_ip(Addr2),ipmask(24,ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00)]
+    http-request set-header Test2maskfee0 %[req.hdr_ip(Addr2),ipmask(24,ffff:ffff:ffff:ffff:ffff:ffff:ffff:fee0)]
+
+    http-request set-header Test3mask64 %[req.hdr_ip(Addr3),ipmask(24,64)]
+    http-request set-header Test3mask64v2 %[req.hdr_ip(Addr3),ipmask(24,ffff:ffff:ffff:ffff:0:0:0:0)]
+    http-request set-header Test3mask64v3 %[req.hdr_ip(Addr3),ipmask(24,ffff:ffff:ffff:ffff::)]
+    http-request set-header Test3maskff %[req.hdr_ip(Addr3),ipmask(24,ffff:ffff:ffff:ffff:0:ffff:ffff:0)]
+    http-request set-header Test3maskv2 %[req.hdr_ip(Addr3),ipmask(24,ffff:ffff:ffff:ffff:c001:c001:0000:0000)]
+
+    # ipv4 mask applied to ipv4 mapped address
+    http-request set-header Test4mask32 %[req.hdr_ip(Addr4),ipmask(32,64)]
+
+    http-request set-header Test5mask24 %[req.hdr_ip(Addr5),ipmask(24)]
+
+    http-request set-header Test6mask24 %[req.hdr_ip(Addr6),ipmask(24)]
+    http-request set-header Test6mask25 %[req.hdr_ip(Addr6),ipmask(25)]
+
+    # track addr/mask in stick table
+    http-request track-sc0 src,ipmask(24) table be1
+    http-request track-sc1 hdr_ip(Addr4),ipmask(32) table be1
+    http-request track-sc2 hdr_ip(Addr3),ipmask(24,64) table be1
+
+    default_backend be1
+
+  backend be1
+    stick-table type ipv6 size 20 expire 360s store gpc0,conn_cnt
+    server s1 ${s1_addr}:${s1_port}
+} -start
+
+# concat,strcmp,word,field haproxy
+haproxy h2 -conf {
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  frontend fe2
+    bind "fd@${fe2}"
+
+    # concat f1_f2 + _ + f3__f5 tests
+    http-request set-var(sess.field1) hdr(Field1)
+    http-request set-var(sess.field2) hdr(Field2)
+    http-request set-var(sess.fieldhdr) hdr(Fieldhdr)
+    http-request set-var(sess.fieldconcat) hdr(Field1),concat(_,sess.field2,)
+    http-request set-header Fieldconcat2 %[var(sess.field1),concat(_,sess.field2,)]
+    http-request set-header Fieldconcat3 %[hdr(Field1),concat(_,sess.field2,)]
+    http-request set-header Fieldconcat %[var(sess.fieldconcat)]
+    http-request set-header Fieldstrcmp %[hdr(Fieldhdr),strcmp(sess.fieldconcat)]
+    http-request deny unless { hdr(Fieldhdr),strcmp(sess.fieldconcat) eq 0 }
+
+    # field tests
+    http-request set-header Fieldtest1 %[hdr(Fieldhdr),field(5,_)] #f5
+    http-request set-var(sess.fieldtest1var) hdr(Fieldtest1)
+    http-request set-var(sess.okfield) path,lower,field(4,/,1) #ok
+    http-request set-header Okfieldtest %[var(sess.okfield)] #ok
+    http-request set-var(sess.qsfield) url_param(qs),upper,field(2,_,2) #IT_IS
+    http-request set-header Qsfieldtest %[var(sess.qsfield)] #IT_IS
+    http-request set-header Qsfieldconcat %[var(sess.qsfield),concat(_,sess.okfield,)] #IT_IS_ok
+    http-request set-header Fieldtest2 %[var(sess.fieldhdr),field(2,_,0)] #f2_f3__f5
+    http-request set-header Fieldtest3 %[var(sess.fieldconcat),field(2,_,2)] #f2_f3
+    http-request set-header Fieldtest4 %[hdr(Fieldconcat2),field(-2,_,3)] #f2_f3_
+    http-request set-header Fieldtest5 %[hdr(Fieldconcat3),field(-3,_,0)] #f1_f2_f3
+    http-request set-header Fieldtest1strcmp %[str(f5),strcmp(sess.fieldtest1var)]
+    http-request deny unless { str(f5),strcmp(sess.fieldtest1var) eq 0 }
+    http-request deny unless { str(ok),strcmp(sess.okfield) eq 0 }
+    http-request deny unless { str(IT_IS),strcmp(sess.qsfield) eq 0 }
+
+    # word tests
+    http-request set-header Wordtest1 %[hdr(Fieldhdr),word(4,_)] #f5
+    http-request set-var(sess.wordtest1var) hdr(Wordtest1)
+    http-request set-var(sess.okword) path,upper,word(3,/,1) #OK
+    http-request set-header Okwordtest %[var(sess.okword)] #OK
+    http-request set-var(sess.qsword) url_param(qs),word(1,_,2) #Yes_It
+    http-request set-header Qswordtest %[var(sess.qsword)] #Yes_It
+    http-request set-header Qswordregmtest %[var(sess.qsword),map_regm(${testdir}/h00002.map)] #It_Yes
+    http-request set-header Wordtest2 %[var(sess.fieldhdr),word(2,_,0)] #f2_f3__f5
+    http-request set-header Wordtest3 %[var(sess.fieldconcat),word(3,_,2)] #f3__f5
+    http-request set-header Wordtest4 %[hdr(Fieldconcat2),word(-2,_,3)] #f1_f2_f3
+    http-request set-header Wordtest5 %[hdr(Fieldconcat3),word(-3,_,0)] #f1_f2
+    http-request set-header Wordtest1strcmp %[str(f5),strcmp(sess.wordtest1var)]
+    http-request deny unless { str(f5),strcmp(sess.wordtest1var) eq 0 }
+    http-request deny unless { str(OK),strcmp(sess.okword) eq 0 }
+    http-request deny unless { str(Yes_It),strcmp(sess.qsword) eq 0 }
+
+    default_backend be2
+
+    backend be2
+    server s2 ${s2_addr}:${s2_port}
+} -start
+
+# ipmask tests
+client c1 -connect ${h1_fe1_sock} -proxy2 "192.168.1.101:1234 127.0.0.1:2345" {
+    txreq -hdr "Addr1: 2001:db8::1" \
+        -hdr "Addr2: 2001:db8::bad:c0f:ffff" \
+        -hdr "Addr3: 2001:db8:c001:c01a:ffff:ffff:10:ffff" \
+        -hdr "Addr4: ::FFFF:192.168.1.101" \
+        -hdr "Addr5: 192.168.1.2" \
+        -hdr "Addr6: 192.168.1.255"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# cli show be1 stick table
+haproxy h1 -cli {
+    send "show table be1"
+    expect ~ "^# table: be1, type: ipv6, size:20, used:3\\n0x[a-f0-9]+: key=::ffff:192\\.168\\.1\\.0 use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n0x[a-f0-9]+: key=::ffff:192\\.168\\.1\\.101 use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n0x[a-f0-9]+: key=2001:db8:c001:c01a:: use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n"
+}
+
+# concat,strcmp,word,field tests
+client c2 -connect ${h2_fe2_sock} {
+    txreq -req GET \
+        -url /is/this/Ok/or/not?qs=Yes_It_Is \
+        -hdr "Fieldhdr: f1_f2_f3__f5" \
+        -hdr "Field1: f1_f2" \
+        -hdr "Field2: f3__f5"
+    rxresp
+    expect resp.status == 200
+} -run
+
