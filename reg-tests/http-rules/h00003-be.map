@@ -1,0 +1,4 @@
+# These entries are used for use_backend rules
+test1.example.com	test1_be
+test1.example.invalid	test1_be
+test2.example.com	test2_be

@@ -1,0 +1,174 @@
+varnishtest "haproxy host header: map / redirect tests"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.6
+
+server s1 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.host == "test1.example.com"
+   txresp -body "test1 ok"
+} -start
+
+server s2 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.host == "test2.example.com"
+   txresp -body "test2 ok"
+} -start
+
+server s3 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.host == "test3.example.com"
+   txresp -body "test3 ok"
+} -start
+
+server s4 {
+   rxreq
+   expect req.method == "GET"
+   expect req.http.host == "test1.example.invalid"
+   txresp -body "test1 after del map ok"
+} -start
+
+haproxy h1 -conf {
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  frontend fe1
+    bind "fd@${fe1}"
+
+    # redirect Host: example.org / subdomain.example.org
+    http-request redirect prefix %[req.hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map)] code 301 if { hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) -m found }
+
+    # set var and redirect in be1
+    http-request set-var(txn.testvar) req.hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) if { hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) -m found }
+
+    # use map to select backend (no default map value)
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map)] if { hdr_dom(Host) -i test1.example.com || hdr_dom(Host) -i test2.example.com }
+
+    # use map to select backend with default value(test3_be)
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map,test3_be)] if { hdr_dom(Host) -m end -i example.com }
+
+    # use map(after del map test1.example.com) default value(test4_be)
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map,test4_be)] if { hdr_dom(Host) -m end -i example.invalid }
+
+    default_backend be1
+
+    backend be1
+    http-request redirect prefix %[var(txn.testvar)] code 301 if { var(txn.testvar) -m found }
+    http-request deny
+
+    backend test1_be
+    server s1 ${s1_addr}:${s1_port}
+
+    backend test2_be
+    server s2 ${s2_addr}:${s2_port}
+
+    backend test3_be
+    server s3 ${s3_addr}:${s3_port}
+
+    backend test4_be
+    server s4 ${s4_addr}:${s4_port}
+} -start
+
+# Check map redirects
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "Host: example.org:8443"
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location ~ "https://www.example.org"
+
+    txreq -hdr "Host: subdomain.example.org"
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location ~ "https://www.subdomain.example.org"
+
+    # redirect on Testvar header
+    txreq -hdr "Testvar: subdomain.example.org"
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location ~ "https://www.subdomain.example.org"
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+    txreq -hdr "Host: www.subdomain.example.org"
+    rxresp
+    expect resp.status == 403
+    # Closes connection
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+    txreq -hdr "Testvar: www.subdomain.example.org"
+    rxresp
+    expect resp.status == 403
+    # Closes connection
+} -run
+
+client c4 -connect ${h1_fe1_sock} {
+    txreq -hdr "Host: :8443example.org"
+    rxresp
+    expect resp.status == 403
+    # Closes connection
+} -run
+
+# Check map backend selection
+client c5 -connect ${h1_fe1_sock} {
+    txreq -hdr "Host: test1.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "test1 ok"
+
+    txreq -hdr "Host: test2.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "test2 ok"
+
+    txreq -hdr "Host: test3.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "test3 ok"
+} -run
+
+# cli show maps
+haproxy h1 -cli {
+    send "show map ${testdir}/h00003.map"
+    expect ~ "^0x[a-f0-9]+ example\\.org https://www\\.example\\.org\\n0x[a-f0-9]+ subdomain\\.example\\.org https://www\\.subdomain\\.example\\.org\\n$"
+
+    send "show map ${testdir}/h00003-be.map"
+    expect ~ "^0x[a-f0-9]+ test1\\.example\\.com test1_be\\n0x[a-f0-9]+ test1\\.example\\.invalid test1_be\\n0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"
+}
+
+haproxy h1 -cli {
+    # clear map ${testdir}/h00003.map
+    send "clear map ${testdir}/h00003.map"
+    expect ~ "^\\n"
+
+    send "show map ${testdir}/h00003.map"
+    expect ~ "^\\n"
+
+    # del map ${testdir}/h00003-be.map test1.example.{com,invalid}
+    send "del map ${testdir}/h00003-be.map test1.example.com"
+    expect ~ "^\\n"
+
+    send "del map ${testdir}/h00003-be.map test1.example.invalid"
+    expect ~ "^\\n"
+
+    send "show map ${testdir}/h00003-be.map"
+    expect ~ "^0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"
+}
+
+# Check map backend after del map
+client c6 -connect ${h1_fe1_sock} {
+    # test1.example.invalid should go to test4_be after del map
+    txreq -hdr "Host: test1.example.invalid"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "test1 after del map ok"
+} -run
