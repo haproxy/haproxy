@@ -4622,14 +4622,9 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
 
-	max = htx_free_space(htx);
-        if (channel_recv_limit(res) < b_size(&res->buf)) {
-                if (max < global.tune.maxrewrite) {
-			si_rx_room_blk(si);
-			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_htx_send_yield, TICK_ETERNITY, 0));
-		}
-                max -= global.tune.maxrewrite;
-        }
+	max = channel_htx_recv_max(res, htx);
+	if (!max)
+		goto snd_yield;
 
 	data = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
@@ -4638,8 +4633,9 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 		max = len - l;
 
 	/* Copy data. */
-	htx_add_data(htx, ist2(data + l, max));
-	res->total += l;
+	if (!htx_add_data(htx, ist2(data + l, max)))
+		goto snd_yield;
+	res->total += max;
 	res->flags |= CF_READ_PARTIAL;
 	htx_to_buf(htx, &res->buf);
 
@@ -4652,6 +4648,7 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
+	  snd_yield:
 		si_rx_room_blk(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_htx_send_yield, TICK_ETERNITY, 0));
 	}
