@@ -1936,7 +1936,7 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 		px->srv_act++;
 	srv_lb_commit_status(srv);
 
-	if (!srv->tmpl_info.prefix && srv->max_idle_conns != 0) {
+	if (srv->max_idle_conns != 0) {
 			int i;
 
 			srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
