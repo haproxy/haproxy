@@ -2998,6 +2998,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 		sighandler_registered = 1;
 	}
 
+	fconf->flags |= FLT_CFG_FL_HTX;
 	return 0;
 }
 
