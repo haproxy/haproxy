@@ -8,7 +8,7 @@ Varnish cache application. varnishtest is a very useful program which has been
 developed to test Varnish cache application. varnishtest has been modified in
 collaboration with Varnish cache conceptor Poul-Henning Kamp to support HAProxy in
 addition to Varnish cache.
-
+See also: doc/regression-testing.txt
 
 * varnishtest compilation *
 
@@ -35,7 +35,7 @@ addition to Varnish cache.
   You must set HAPROXY_PROGRAM environment variable to give the location
   of the HAProxy program to test to varnishtest:
 
-    $ HAPROXY_PROGRAM=<my haproxy program> varnishtest ...
+    $ HAPROXY_PROGRAM=<my haproxy program> varnishtest [-Dno-htx=] ...
 
   The HAProxy VTC files found in HAProxy sources may be run with the reg-tests
   Makefile target. You must set the VARNISHTEST_PROGRAM environment variable to
