@@ -2337,7 +2337,7 @@ static void h1_show_fd(struct buffer *msg, struct connection *conn)
 /****************************************/
 
 /* The mux operations */
-const struct mux_ops mux_h1_ops = {
+static const struct mux_ops mux_h1_ops = {
 	.init        = h1_init,
 	.wake        = h1_wake,
 	.attach      = h1_attach,
