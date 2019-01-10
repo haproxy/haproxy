@@ -7820,15 +7820,36 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	}
 
 	keys_ref = malloc(sizeof(*keys_ref));
+	if (!keys_ref) {
+		if (err)
+			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(struct tls_sess_key));
+	if (!keys_ref->tlskeys) {
+		free(keys_ref);
+		if (err)
+			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	if ((f = fopen(args[cur_arg + 1], "r")) == NULL) {
+		free(keys_ref->tlskeys);
+		free(keys_ref);
 		if (err)
 			memprintf(err, "'%s' : unable to load ssl tickets keys file", args[cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	keys_ref->filename = strdup(args[cur_arg + 1]);
+	if (!keys_ref->filename) {
+		free(keys_ref->tlskeys);
+		free(keys_ref);
+		if (err)
+			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int len = strlen(thisline);
@@ -7840,6 +7861,9 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 			thisline[--len] = 0;
 
 		if (base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(struct tls_sess_key)) != sizeof(struct tls_sess_key)) {
+			free(keys_ref->filename);
+			free(keys_ref->tlskeys);
+			free(keys_ref);
 			if (err)
 				memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
 			fclose(f);
@@ -7849,6 +7873,9 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	}
 
 	if (i < TLS_TICKETS_NO) {
+		free(keys_ref->filename);
+		free(keys_ref->tlskeys);
+		free(keys_ref);
 		if (err)
 			memprintf(err, "'%s' : please supply at least %d keys in the tls-tickets-file", args[cur_arg+1], TLS_TICKETS_NO);
 		fclose(f);
