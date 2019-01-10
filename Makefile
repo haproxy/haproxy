@@ -489,6 +489,9 @@ OPTIONS_CFLAGS  =
 OPTIONS_LDFLAGS =
 OPTIONS_OBJS    =
 
+#### Extra objects to be built and integrated (used only for development)
+EXTRA_OBJS =
+
 # This variable collects all USE_* values except those set to "implicit". This
 # is used to report a list of all flags which were used to build this version.
 # Do not assign anything to it.
@@ -958,6 +961,9 @@ ifneq ($(TRACE),)
 OBJS += src/trace.o
 endif
 
+ifneq ($(EXTRA_OBJS),)
+OBJS += $(EXTRA_OBJS)
+endif
 
 # Not used right now
 LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
