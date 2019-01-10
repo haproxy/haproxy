@@ -49,10 +49,22 @@ struct tls_version_filter {
 
 extern struct list tlskeys_reference;
 
-struct tls_sess_key {
+struct tls_sess_key_128 {
 	unsigned char name[16];
 	unsigned char aes_key[16];
 	unsigned char hmac_key[16];
+} __attribute__((packed));
+
+struct tls_sess_key_256 {
+	unsigned char name[16];
+	unsigned char aes_key[32];
+	unsigned char hmac_key[32];
+} __attribute__((packed));
+
+union tls_sess_key{
+	unsigned char name[16];
+	struct tls_sess_key_256 key_128;
+	struct tls_sess_key_256 key_256;
 } __attribute__((packed));
 
 struct tls_keys_ref {
@@ -60,8 +72,9 @@ struct tls_keys_ref {
 	char *filename;
 	int unique_id; /* Each pattern reference have unique id. */
 	int refcount;  /* number of users of this tls_keys_ref. */
-	struct tls_sess_key *tlskeys;
+	union tls_sess_key *tlskeys;
 	int tls_ticket_enc_index;
+	int key_size_bits;
 	__decl_hathreads(HA_RWLOCK_T lock); /* lock used to protect the ref */
 };
 

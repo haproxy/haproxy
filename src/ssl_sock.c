@@ -849,7 +849,7 @@ end:
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, HMAC_CTX *hctx, int enc)
 {
 	struct tls_keys_ref *ref;
-	struct tls_sess_key *keys;
+	union tls_sess_key *keys;
 	struct connection *conn;
 	int head;
 	int i;
@@ -868,11 +868,22 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 		if(!RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH))
 			goto end;
 
-		if(!EVP_EncryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[head].aes_key, iv))
-			goto end;
+		if (ref->key_size_bits == 128) {
 
-		HMAC_Init_ex(hctx, keys[head].hmac_key, 16, HASH_FUNCT(), NULL);
-		ret = 1;
+			if(!EVP_EncryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[head].key_128.aes_key, iv))
+				goto end;
+
+			HMAC_Init_ex(hctx, keys[head].key_128.hmac_key, 16, HASH_FUNCT(), NULL);
+			ret = 1;
+		}
+		else if (ref->key_size_bits == 256 ) {
+
+			if(!EVP_EncryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[head].key_256.aes_key, iv))
+				goto end;
+
+			HMAC_Init_ex(hctx, keys[head].key_256.hmac_key, 32, HASH_FUNCT(), NULL);
+			ret = 1;
+		}
 	} else {
 		for (i = 0; i < TLS_TICKETS_NO; i++) {
 			if (!memcmp(key_name, keys[(head + i) % TLS_TICKETS_NO].name, 16))
@@ -882,13 +893,22 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 		goto end;
 
 	  found:
-		HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].hmac_key, 16, HASH_FUNCT(), NULL);
-		if(!EVP_DecryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].aes_key, iv))
-			goto end;
-
-		/* 2 for key renewal, 1 if current key is still valid */
-		ret = i ? 2 : 1;
+		if (ref->key_size_bits == 128) {
+			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_128.hmac_key, 16, HASH_FUNCT(), NULL);
+			if(!EVP_DecryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_128.aes_key, iv))
+				goto end;
+			/* 2 for key renewal, 1 if current key is still valid */
+			ret = i ? 2 : 1;
+		}
+		else if (ref->key_size_bits == 256) {
+			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_256.hmac_key, 32, HASH_FUNCT(), NULL);
+			if(!EVP_DecryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_256.aes_key, iv))
+				goto end;
+			/* 2 for key renewal, 1 if current key is still valid */
+			ret = i ? 2 : 1;
+		}
 	}
+
   end:
 	HA_RWLOCK_RDUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 	return ret;
@@ -914,14 +934,31 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id)
         return NULL;
 }
 
-void ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
+/* Update the key into ref: if keysize doesnt
+ * match existing ones, this function returns -1
+ * else it returns 0 on success.
+ */
+int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
 				struct buffer *tlskey)
 {
+	if (ref->key_size_bits == 128) {
+		if (tlskey->data != sizeof(struct tls_sess_key_128))
+			       return -1;
+	}
+	else if (ref->key_size_bits == 256) {
+		if (tlskey->data != sizeof(struct tls_sess_key_256))
+			       return -1;
+	}
+	else
+		return -1;
+
 	HA_RWLOCK_WRLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 	memcpy((char *) (ref->tlskeys + ((ref->tls_ticket_enc_index + 2) % TLS_TICKETS_NO)),
 	       tlskey->area, tlskey->data);
 	ref->tls_ticket_enc_index = (ref->tls_ticket_enc_index + 1) % TLS_TICKETS_NO;
 	HA_RWLOCK_WRUNLOCK(TLSKEYS_REF_LOCK, &ref->lock);
+
+	return 0;
 }
 
 int ssl_sock_update_tlskey(char *filename, struct buffer *tlskey, char **err)
@@ -932,7 +969,11 @@ int ssl_sock_update_tlskey(char *filename, struct buffer *tlskey, char **err)
 		memprintf(err, "Unable to locate the referenced filename: %s", filename);
 		return 1;
 	}
-	ssl_sock_update_tlskey_ref(ref, tlskey);
+	if (ssl_sock_update_tlskey_ref(ref, tlskey) < 0) {
+		memprintf(err, "Invalid key size");
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -7826,7 +7867,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(struct tls_sess_key));
+	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(union tls_sess_key));
 	if (!keys_ref->tlskeys) {
 		free(keys_ref);
 		if (err)
@@ -7851,8 +7892,11 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	keys_ref->key_size_bits = 0;
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int len = strlen(thisline);
+		int dec_size;
+
 		/* Strip newline characters from the end */
 		if(thisline[len - 1] == '\n')
 			thisline[--len] = 0;
@@ -7860,12 +7904,30 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		if(thisline[len - 1] == '\r')
 			thisline[--len] = 0;
 
-		if (base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(struct tls_sess_key)) != sizeof(struct tls_sess_key)) {
+		dec_size = base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(union tls_sess_key));
+		if (dec_size < 0) {
 			free(keys_ref->filename);
 			free(keys_ref->tlskeys);
 			free(keys_ref);
 			if (err)
 				memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
+			fclose(f);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		else if (!keys_ref->key_size_bits && (dec_size == sizeof(struct tls_sess_key_128))) {
+			keys_ref->key_size_bits = 128;
+		}
+		else if (!keys_ref->key_size_bits && (dec_size == sizeof(struct tls_sess_key_256))) {
+			keys_ref->key_size_bits = 256;
+		}
+		else if (((dec_size != sizeof(struct tls_sess_key_128)) && (dec_size != sizeof(struct tls_sess_key_256)))
+			 || ((dec_size == sizeof(struct tls_sess_key_128) && (keys_ref->key_size_bits != 128)))
+			 || ((dec_size == sizeof(struct tls_sess_key_256) && (keys_ref->key_size_bits != 256)))) {
+			free(keys_ref->filename);
+			free(keys_ref->tlskeys);
+			free(keys_ref);
+			if (err)
+				memprintf(err, "'%s' : wrong sized key on line %d", args[cur_arg+1], i + 1);
 			fclose(f);
 			return ERR_ALERT | ERR_FATAL;
 		}
@@ -8814,11 +8876,24 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 
 					chunk_reset(t2);
 					/* should never fail here because we dump only a key in the t2 buffer */
-					t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
-					                   sizeof(struct tls_sess_key),
-					                   t2->area, t2->size);
-					chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
-						      t2->area);
+					if (ref->key_size_bits == 128) {
+						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
+						                   sizeof(struct tls_sess_key_128),
+						                   t2->area, t2->size);
+						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
+							      t2->area);
+					}
+					else if (ref->key_size_bits == 256) {
+						t2->data = a2base64((char *)(ref->tlskeys + (head + 2 + appctx->ctx.cli.i1) % TLS_TICKETS_NO),
+						                   sizeof(struct tls_sess_key_256),
+						                   t2->area, t2->size);
+						chunk_appendf(&trash, "%d.%d %s\n", ref->unique_id, appctx->ctx.cli.i1,
+							      t2->area);
+					}
+					else {
+						/* This case should never happen */
+						chunk_appendf(&trash, "%d.%d <unknown>\n", ref->unique_id, appctx->ctx.cli.i1);
+					}
 
 					if (ci_putchk(si_ic(si), &trash) == -1) {
 						/* let's try again later from this stream. We add ourselves into
@@ -8906,14 +8981,20 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 	}
 
 	ret = base64dec(args[4], strlen(args[4]), trash.area, trash.size);
-	if (ret != sizeof(struct tls_sess_key)) {
+	if (ret < 0) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
+
 	trash.data = ret;
-	ssl_sock_update_tlskey_ref(ref, &trash);
+	if (ssl_sock_update_tlskey_ref(ref, &trash) < 0) {
+		appctx->ctx.cli.severity = LOG_ERR;
+		appctx->ctx.cli.msg = "'set ssl tls-key' received a key of wrong size.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return 1;
+	}
 	appctx->ctx.cli.severity = LOG_INFO;
 	appctx->ctx.cli.msg = "TLS ticket key updated!\n";
 	appctx->st0 = CLI_ST_PRINT;

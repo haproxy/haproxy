@@ -1761,7 +1761,7 @@ set ssl tls-key <id> <tlskey>
   ultimate key, while the penultimate one is used for encryption (others just
   decrypt). The oldest TLS key present is overwritten. <id> is either a numeric
   #<id> or <file> returned by "show tls-keys". <tlskey> is a base64 encoded 48
-  bit TLS ticket key (ex. openssl rand -base64 48).
+  or 80 bits TLS ticket key (ex. openssl rand 80 | openssl base64 -A).
 
 set table <table> key <key> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,
