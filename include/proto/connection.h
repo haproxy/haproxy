@@ -832,9 +832,16 @@ static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct tas
 static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux,
                                    void *ctx, struct proxy *prx, struct session *sess)
 {
+	int ret;
+
 	conn->mux = mux;
 	conn->ctx = ctx;
-	return mux->init ? mux->init(conn, prx, sess) : 0;
+	ret = mux->init ? mux->init(conn, prx, sess) : 0;
+	if (ret < 0) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
+	}
+	return ret;
 }
 
 /* returns a human-readable error code for conn->err_code, or NULL if the code
