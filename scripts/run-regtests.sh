@@ -13,11 +13,11 @@ _help()
     run-regtests.sh ./tests1 ./tests2
 
   Parameters:
-    --j <NUM>, To run varnishtest with multiple jobs / threads for a faster overall result
+    --j <NUM>, To run vtest with multiple jobs / threads for a faster overall result
       run-regtests.sh ./fasttest --j 16
 
     --v, to run verbose
-      run-regtests.sh --v, disables the default varnishtest 'quiet' parameter
+      run-regtests.sh --v, disables the default vtest 'quiet' parameter
 
     --debug to show test logs on standard ouput (implies --v)
       run-regtests.sh --debug
@@ -25,8 +25,8 @@ _help()
     --keep-logs to keep all log directories (by default kept if test fails)
       run-regtests.sh --keep-logs
 
-    --varnishtestparams <ARGS>, passes custom ARGS to varnishtest
-      run-regtests.sh --varnishtestparams "-n 10"
+    --vtestparams <ARGS>, passes custom ARGS to vtest
+      run-regtests.sh --vtestparams "-n 10"
 
     --clean to cleanup previous reg-tests log directories and exit
       run-regtests.sh --clean
@@ -54,12 +54,12 @@ _help()
     #REQUIRE_VERSION=0.0
     #REQUIRE_VERSION_BELOW=99.9
 
-  Configure environment variables to set the haproxy and varnishtest binaries to use
+  Configure environment variables to set the haproxy and vtest binaries to use
     setenv HAPROXY_PROGRAM /usr/local/sbin/haproxy
-    setenv VARNISHTEST_PROGRAM /usr/local/bin/varnishtest
+    setenv VTEST_PROGRAM /usr/local/bin/vtest
   or
     export HAPROXY_PROGRAM=/usr/local/sbin/haproxy
-    export VARNISHTEST_PROGRAM=/usr/local/bin/varnishtest
+    export VTEST_PROGRAM=/usr/local/bin/vtest
 EOF
   exit 0
 }
@@ -248,8 +248,8 @@ _process() {
           jobcount="$2"
           shift
           ;;
-        --varnishtestparams)
-          varnishtestparams="$2"
+        --vtestparams)
+          vtestparams="$2"
           shift
           ;;
         --v)
@@ -294,7 +294,7 @@ _version() {
 
 
 HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
-VARNISHTEST_PROGRAM="${VARNISHTEST_PROGRAM:-varnishtest}"
+VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
 TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
 
@@ -315,8 +315,8 @@ if ! [ -x "$(command -v $HAPROXY_PROGRAM)" ]; then
   echo "haproxy not found in path, please specify HAPROXY_PROGRAM environment variable"
   preparefailed=1
 fi
-if ! [ -x "$(command -v $VARNISHTEST_PROGRAM)" ]; then
-  echo "varnishtest not found in path, please specify VARNISHTEST_PROGRAM environment variable"
+if ! [ -x "$(command -v $VTEST_PROGRAM)" ]; then
+  echo "vtest not found in path, please specify VTEST_PROGRAM environment variable"
   preparefailed=1
 fi
 if [ $preparefailed ]; then
@@ -424,14 +424,14 @@ else
   done
 fi
 
-echo "########################## Starting varnishtest ##########################"
+echo "########################## Starting vtest ##########################"
 echo "Testing with haproxy version: $HAPROXY_VERSION"
 _vtresult=0
 if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VARNISHTEST_PROGRAM -k -t 10 -Dno-htx=${no_htx} $keep_logs $verbose $debug $jobcount $varnishtestparams $testlist"
+  cmd="$VTEST_PROGRAM -k -t 10 -Dno-htx=${no_htx} $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else

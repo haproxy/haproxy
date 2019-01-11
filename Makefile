@@ -101,7 +101,7 @@
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
 #
-#   VARNISHTEST_PROGRAM : location of the varnishtest program to run reg-tests.
+#   VTEST_PROGRAM : location of the vtest program to run reg-tests.
 
 # verbosity: pass V=1 for verbose shell invocation
 V = 0
@@ -1113,10 +1113,10 @@ reg-tests:
 
 reg-tests-help:
 	@echo
-	@echo "To launch the reg tests for haproxy, first export to your environment VARNISHTEST_PROGRAM variable to point to your varnishtest program:"
-	@echo "    $$ export VARNISHTEST_PROGRAM=/opt/local/bin/varnishtest"
+	@echo "To launch the reg tests for haproxy, first export to your environment VTEST_PROGRAM variable to point to your vtest program:"
+	@echo "    $$ export VTEST_PROGRAM=/opt/local/bin/vtest"
 	@echo "or"
-	@echo "    $$ setenv VARNISHTEST_PROGRAM /opt/local/bin/varnishtest"
+	@echo "    $$ setenv VTEST_PROGRAM /opt/local/bin/vtest"
 	@echo
 	@echo "The same thing may be done to set your haproxy program with HAPROXY_PROGRAM but with ./haproxy as default value."
 	@echo
@@ -1124,7 +1124,7 @@ reg-tests-help:
 	@echo "    $$ make reg-tests"
 	@echo
 	@echo "You can also set the programs to be used on the command line:"
-	@echo "    $$ VARNISHTEST_PROGRAM=<...> HAPROXY_PROGRAM=<...> make reg-tests"
+	@echo "    $$ VTEST_PROGRAM=<...> HAPROXY_PROGRAM=<...> make reg-tests"
 	@echo
 	@echo "To run tests with specific levels:"
 	@echo "    $$ LEVEL=1,3,4   make reg-tests  #list of levels"
