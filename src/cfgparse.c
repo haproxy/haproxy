@@ -491,6 +491,10 @@ static int init_peers_frontend(const char *file, int linenum,
 {
 	struct proxy *p;
 
+	if (peers->peers_fe)
+		/* Nothing to do */
+		return 0;
+
 	p = calloc(1, sizeof *p);
 	if (!p) {
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -658,8 +662,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		/* Current is local peer, it define a frontend */
 		newpeer->local = 1;
 
-		if (!curpeers->peers_fe &&
-		    init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
+		if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
