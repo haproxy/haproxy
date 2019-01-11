@@ -1,74 +1,82 @@
-               +---------------------------------------------+
-               | HAProxy regression testing with varnishtest |
-               +---------------------------------------------+
+               +---------------------------------------+
+               | HAProxy regression testing with vtest |
+               +---------------------------------------+
 
 
 The information found in this file are a short starting guide to help you to
 write VTC (Varnish Test Case) scripts (or VTC files) for haproxy regression testing.
 Such VTC files are currently used to test Varnish cache application developed by
 Poul-Henning Kamp. A very big thanks you to him for having helped you to add
-our haproxy C modules to varnishtest tool.
+our haproxy C modules to vtest tool. Note that vtest was formally developed for
+varnish cache reg testing and was named varnishtest. vtest is an haproxy specific
+version of varnishtest program which reuses the non varnish cache specific code.
 
 A lot of general information about how to write VTC files may be found in 'man/vtc.7'
-manual. It is *highly* recommended to read this manual before asking. This
-documentation only deals with the varnishtest support for haproxy.
+manual of varnish cache sources directory or directly on the web here:
+
+    https://varnish-cache.org/docs/trunk/reference/vtc.html
+
+It is *highly* recommended to read this manual before asking to haproxy ML. This
+documentation only deals with the vtest support for haproxy.
 
 
-varnishtest installation
+vtest installation
 ------------------------
 
-To use varnishtest you will have to download and compile the recent Varnish cache
-sources found at https://github.com/varnishcache/varnish-cache.
+To use vtest you will have to download and compile the recent vtest
+sources found at https://github.com/vtest/VTest.
 
-To compile Varnish cache :
+To compile vtest:
 
-    $ ./autogen.sh
-    $ ./configure
-    $ make
+    $ cd VTest
+    $ make vtest
 
-The varnishtest sources may be found in 'bin/varnishtest' directory.
-'bin/varnishtest/tests' is plenty of VTC files for Varnish cache. After having
-compiled these sources, the varnishtest executable location is
-'bin/varnishtest/varnishtest'.
+Note that varnishtest may be also compiled but not without the varnish cache
+sources already compiled:
 
-varnishtest is able to search for the haproxy executable file it is supposed to
-launch in the PATH environment variable. To force the executable to be used by
-varnishtest, the HAPROXY_PROGRAM environment variable for varnishtest may be
-typically set as follows:
+    $ VARNISH_SRC=<...> make varnishtest
 
-     $ HAPROXY_PROGRAM=~/srcs/haproxy/haproxy varnishtest ...
+After having compiled these sources, the vtest executable location is at the
+root of the vtest sources directory.
 
 
-varnistest exectution
+vtest exectution
 ---------------------
 
-varnishtest program comes with interesting options. The most interesting are:
+vtest is able to search for the haproxy executable file it is supposed to
+launch thanks to the PATH environment variable. To force the executable to be used by
+vtest, the HAPROXY_PROGRAM environment variable for vtest may be
+typically set as follows:
+
+     $ HAPROXY_PROGRAM=~/srcs/haproxy/haproxy vtest ...
+
+vtest program comes with interesting options. The most interesting are:
 
     -t  Timeout in seconds to abort the test if some launched program
-    -v  By default, varnishtest does not dump the outputs of processus it launched
+    -v  By default, vtest does not dump the outputs of processus it launched
         when the test passes. With this option the outputs are dumped even
         when the test passes.
     -L  to always keep the temporary VTC directories.
     -l  to keep the temporary VTC directories only when the test fails.
 
-About haproxy when launched by varnishtest, -d option is enabled by default.
+About haproxy, when launched by vtest, -d option is enabled by default.
 
 
 How to write VTC files
 ----------------------
 
-A VTC file must start with a "varnishtest" command line followed by a descriptive
-line enclosed by double quotes. This is not specific to the VTC files for haproxy.
+A VTC file must start with a "varnishtest" or "vtest" command line followed by a
+descriptive line enclosed by double quotes. This is not specific to the VTC files
+for haproxy.
 
 The VTC files for haproxy must also contain a "feature ignore_unknown_macro" line
 if any macro is used for haproxy in this file. This is due to the fact that
-varnishtest parser code for haproxy commands generates macros the varnishtest
-parser code for varnish has no knowledge of. This line prevents varnishtest from
-failing in such cases. Since bbc34e2 varnish commit, as a "cli" macro is
-automatically generated, this "feature ignore_unknown_macro" is mandatory
-for each VTC file for haproxy.
+vtest parser code for haproxy commands generates macros the vtest
+parser code for varnish cache has no knowledge of. This line prevents vtest from
+failing in such cases. As a "cli" macro automatically generated, this
+"feature ignore_unknown_macro" is mandatory for each VTC file for haproxy.
 
-To make varnishtest capable of testing haproxy, two new VTC commands have been
+To make vtest capable of testing haproxy, two new VTC commands have been
 implemented: "haproxy" and "syslog". "haproxy" is used to start haproxy processus.
 "syslog" is used to start syslog servers (at this time, only used by haproxy).
 
@@ -99,7 +107,7 @@ the configuration file is temporarily written.
 A 'stats.sock' UNIX socket is also created in this directory. There is no need
 to declare such stats sockets in the -conf {...} section. The name of the parent
 directory of the haproxy instances working directories is stored in 'tmpdir'. In
-fact this is the working directory of the current varnishtest processus.
+fact this is the working directory of the current vtest processus.
 
 There also exists 'testdir' macro which is the parent directory of the VTC file.
 It may be useful to use other files located in the same directory than the current
