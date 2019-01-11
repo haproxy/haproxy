@@ -647,49 +647,49 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			/* We are done. */
 			goto out;
 
-			/* Current is local peer, it define a frontend */
-			newpeer->local = 1;
-			cfg_peers->local = newpeer;
+		/* Current is local peer, it define a frontend */
+		newpeer->local = 1;
+		cfg_peers->local = newpeer;
 
-			if (!curpeers->peers_fe) {
-				if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
-					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_ABORT;
-					goto out;
-				}
-
-				bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
-
-				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
-					if (errmsg && *errmsg) {
-						indent_msg(&errmsg, 2);
-						ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
-					}
-					else
-						ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
-							 file, linenum, args[0], args[1], args[2]);
-					err_code |= ERR_FATAL;
-					goto out;
-				}
-
-				list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-					l->maxaccept = 1;
-					l->maxconn = curpeers->peers_fe->maxconn;
-					l->backlog = curpeers->peers_fe->backlog;
-					l->accept = session_accept_fd;
-					l->analysers |=  curpeers->peers_fe->fe_req_ana;
-					l->default_target = curpeers->peers_fe->default_target;
-					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
-					global.maxsock += l->maxconn;
-				}
+		if (!curpeers->peers_fe) {
+			if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
 			}
-			else {
-				ha_alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
-					 file, linenum, args[0], args[1],
-					 curpeers->peers_fe->conf.file, curpeers->peers_fe->conf.line);
+
+			bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
+
+			if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
+				if (errmsg && *errmsg) {
+					indent_msg(&errmsg, 2);
+					ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+				}
+				else
+					ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
+						 file, linenum, args[0], args[1], args[2]);
 				err_code |= ERR_FATAL;
 				goto out;
 			}
+
+			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+				l->maxaccept = 1;
+				l->maxconn = curpeers->peers_fe->maxconn;
+				l->backlog = curpeers->peers_fe->backlog;
+				l->accept = session_accept_fd;
+				l->analysers |=  curpeers->peers_fe->fe_req_ana;
+				l->default_target = curpeers->peers_fe->default_target;
+				l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
+				global.maxsock += l->maxconn;
+			}
+		}
+		else {
+			ha_alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
+				 file, linenum, args[0], args[1],
+				 curpeers->peers_fe->conf.file, curpeers->peers_fe->conf.line);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
 	} /* neither "peer" nor "peers" */
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
 		curpeers->state = PR_STSTOPPED;
