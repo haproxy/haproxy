@@ -1928,15 +1928,34 @@ peers <peersect>
   Creates a new peer list with name <peersect>. It is an independent section,
   which is referenced by one or more stick-tables.
 
+bind [<address>]:<port_range> [, ...] [param*]
+  Defines the binding parameters of the local peer of this "peers" section.
+  Such lines are not supported with "peer" line in the same "peers" section.
+
 disabled
   Disables a peers section. It disables both listening and any synchronization
   related to this section. This is provided to disable synchronization of stick
   tables without having to comment out all "peers" references.
 
+default-bind [param*]
+  Defines the binding parameters for the local peer, excepted its address.
+
+default-server [param*]
+  Change default options for a server in a "peers" section.
+
+  Arguments:
+    <param*>  is a list of parameters for this server. The "default-server"
+              keyword accepts an important number of options and has a complete
+              section dedicated to it. Please refer to section 5 for more
+              details.
+
+
+  See also: "server" and section 5 about server options
+
 enable
   This re-enables a disabled peers section which was previously disabled.
 
-peer <peername> <ip>:<port>
+peer <peername> <ip>:<port> [param*]
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced
   using "-L" command line option), haproxy will listen for incoming remote peer
@@ -1955,7 +1974,20 @@ peer <peername> <ip>:<port>
   You may want to reference some environment variables in the address
   parameter, see section 2.3 about environment variables.
 
+  Note: "peer" keyword may transparently be replaced by "server" keyword (see
+  "server" keyword explanation below).
+
+server <peername> [<ip>:<port>] [param*]
+  As previously mentionned, "peer" keyword may be replaced by "server" keyword
+  with a support for all "server" parameters found in 5.2 paragraph.
+  If the underlying peer is local, <ip>:<port> parameters must not be present.
+  These parameters must  be provided on a "bind" line (see "bind" keyword
+  of this "peers" section).
+  Some of these parameters are irrelevant for "peers" sections.
+
+
   Example:
+    # The old way.
     peers mypeers
         peer haproxy1 192.168.0.1:1024
         peer haproxy2 192.168.0.2:1024
@@ -1970,6 +2002,12 @@ peer <peername> <ip>:<port>
         server srv1 192.168.0.30:80
         server srv2 192.168.0.31:80
 
+   Example:
+     peers mypeers
+         bind 127.0.0.11:10001 ssl crt mycerts/pem
+         default-server ssl verify none
+         server hostA  127.0.0.10:10000
+         server hostB  #local peer
 
 3.6. Mailers
 ------------
