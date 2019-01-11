@@ -2078,7 +2078,7 @@ static int server_template_init(struct server *srv, struct proxy *px)
 	return i - srv->tmpl_info.nb_low;
 }
 
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
+int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
@@ -2106,7 +2106,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			err_code |= ERR_WARN;
 
 		/* There is no mandatory first arguments for default server. */
-		if (srv) {
+		if (srv && parse_addr) {
 			if (!*args[2]) {
 				/* 'server' line number of argument check. */
 				ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -2186,6 +2186,9 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
+			if (!parse_addr)
+				goto skip_addr;
+
 			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
 			if (!sk) {
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
@@ -2242,10 +2245,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
+			cur_arg++;
+ skip_addr:
 			/* Copy default server settings to new server settings. */
 			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
 			HA_SPIN_INIT(&newsrv->lock);
-			cur_arg++;
 		} else {
 			newsrv = &curproxy->defsrv;
 			cur_arg = 1;
