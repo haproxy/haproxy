@@ -482,6 +482,31 @@ void init_default_instance()
 	defproxy.load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
 }
 
+/* Allocate and initialize the frontend of a "peers" section found in
+ * file <file> at line <linenum> with <id> as ID.
+ * Return 0 if succeeded, -1 if not.
+ */
+static int init_peers_frontend(const char *file, int linenum,
+                               const char *id, struct peers *peers)
+{
+	struct proxy *p;
+
+	p = calloc(1, sizeof *p);
+	if (!p) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	}
+
+	init_new_proxy(p);
+	p->parent = peers;
+	p->id = strdup(id);
+	p->conf.args.file = p->conf.file = strdup(file);
+	p->conf.args.line = p->conf.line = linenum;
+	peers_setup_frontend(p);
+	peers->peers_fe = p;
+
+	return 0;
+}
 
 /*
  * Parse a line in a <listen>, <frontend> or <backend> section.
@@ -624,18 +649,11 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			cfg_peers->local = newpeer;
 
 			if (!curpeers->peers_fe) {
-				if ((curpeers->peers_fe  = calloc(1, sizeof(struct proxy))) == NULL) {
+				if (init_peers_frontend(file, linenum, args[1], curpeers) != 0) {
 					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 					err_code |= ERR_ALERT | ERR_ABORT;
 					goto out;
 				}
-
-				init_new_proxy(curpeers->peers_fe);
-				curpeers->peers_fe->parent = curpeers;
-				curpeers->peers_fe->id = strdup(args[1]);
-				curpeers->peers_fe->conf.args.file = curpeers->peers_fe->conf.file = strdup(file);
-				curpeers->peers_fe->conf.args.line = curpeers->peers_fe->conf.line = linenum;
-				peers_setup_frontend(curpeers->peers_fe);
 
 				bind_conf = bind_conf_alloc(curpeers->peers_fe, file, linenum, args[2], xprt_get(XPRT_RAW));
 
