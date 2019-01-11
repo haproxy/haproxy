@@ -236,6 +236,11 @@ static void set_server_check_status(struct check *check, short status, const cha
 	if (check->result == CHK_RES_NEUTRAL)
 		return;
 
+	/* If the check was really just sending a mail, it won't have an
+	 * associated server, so we're done now.
+	 */
+	if (!s)
+	    return;
 	report = 0;
 
 	switch (check->result) {
@@ -681,7 +686,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		 * might be due to a server IP change.
 		 * Let's trigger a DNS resolution if none are currently running.
 		 */
-		dns_trigger_resolution(check->server->dns_requester);
+		if (check->server)
+			dns_trigger_resolution(check->server->dns_requester);
 
 	}
 	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
@@ -711,13 +717,20 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
 {
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
+	struct email_alertq *q = container_of(check, typeof(*q), check);
 
 	if (!(check->wait_list.events & SUB_RETRY_SEND))
 		wake_srv_chk(cs);
 	if (!(check->wait_list.events & SUB_RETRY_RECV)) {
-		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+		if (check->server)
+			HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+		else
+			HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 		__event_srv_chk_r(cs);
-		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+		if (check->server)
+			HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+		else
+			HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	}
 	return NULL;
 }
@@ -1394,9 +1407,13 @@ static int wake_srv_chk(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct check *check = cs->data;
+	struct email_alertq *q = container_of(check, typeof(*q), check);
 	int ret = 0;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	if (check->server)
+		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	else
+		HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
 	/* we may have to make progress on the TCP checks */
 	if (check->type == PR_O2_TCPCHK_CHK) {
@@ -1433,7 +1450,10 @@ static int wake_srv_chk(struct conn_stream *cs)
 		ret = -1;
 	}
 
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	if (check->server)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	else
+		HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
 	/* if a connection got replaced, we must absolutely prevent the connection
 	 * handler from touching its fd, and perform the FD polling updates ourselves
@@ -2131,7 +2151,8 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
+	if (check->server)
+		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */
@@ -2257,34 +2278,39 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			conn = NULL;
 		}
 
-		if (check->result == CHK_RES_FAILED) {
-			/* a failure or timeout detected */
-			check_notify_failure(check);
-		}
-		else if (check->result == CHK_RES_CONDPASS) {
-			/* check is OK but asks for stopping mode */
-			check_notify_stopping(check);
-		}
-		else if (check->result == CHK_RES_PASSED) {
-			/* a success was detected */
-			check_notify_success(check);
+		if (check->server) {
+			if (check->result == CHK_RES_FAILED) {
+				/* a failure or timeout detected */
+				check_notify_failure(check);
+			}
+			else if (check->result == CHK_RES_CONDPASS) {
+				/* check is OK but asks for stopping mode */
+				check_notify_stopping(check);
+			}
+			else if (check->result == CHK_RES_PASSED) {
+				/* a success was detected */
+				check_notify_success(check);
+			}
 		}
 		task_set_affinity(t, MAX_THREADS_MASK);
 		check->state &= ~CHK_ST_INPROGRESS;
 
-		rv = 0;
-		if (global.spread_checks > 0) {
-			rv = srv_getinter(check) * global.spread_checks / 100;
-			rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+		if (check->server) {
+			rv = 0;
+			if (global.spread_checks > 0) {
+				rv = srv_getinter(check) * global.spread_checks / 100;
+				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+			}
+			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 		}
-		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 	}
 
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
  out_unlock:
-	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+	if (check->server)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 	return t;
 }
 
@@ -2760,7 +2786,7 @@ static int tcpcheck_main(struct check *check)
 			conn = cs->conn;
 			/* Maybe there were an older connection we were waiting on */
 			check->wait_list.events = 0;
-			conn->target = &s->obj_type;
+			conn->target = s ? &s->obj_type : &proxy->obj_type;
 
 			/* no client address */
 			clear_addr(&conn->addr.from);
@@ -3173,9 +3199,8 @@ static struct task *process_email_alert(struct task *t, void *context, unsigned 
 			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
 			LIST_DEL(&alert->list);
 			t->expire             = now_ms;
-			check->server         = alert->srv;
 			check->tcpcheck_rules = &alert->tcpcheck_rules;
-			check->status         = HCHK_STATUS_UNKNOWN; // the UNKNOWN status is used to exit set_server_check_status(.) early
+			check->status         = HCHK_STATUS_INI;
 			check->state         |= CHK_ST_ENABLED;
 		}
 
@@ -3230,7 +3255,6 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		check->xprt = mailer->xprt;
 		check->addr = mailer->addr;
 		check->port = get_host_port(&mailer->addr);
-		//check->server = s;
 
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
 			memprintf(err, "out of memory while allocating mailer alerts task");
