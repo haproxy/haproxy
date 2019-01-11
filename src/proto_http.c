@@ -7222,6 +7222,7 @@ void http_init_txn(struct stream *s)
 		      ? (TX_NOT_FIRST|TX_WAIT_NEXT_RQ)
 		      : 0);
 	txn->status = -1;
+	*(unsigned int *)txn->cache_hash = 0;
 
 	txn->cookie_first_date = 0;
 	txn->cookie_last_date = 0;
