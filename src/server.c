@@ -1721,6 +1721,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->check.status = HCHK_STATUS_INI;
 	srv->check.server = srv;
+	srv->check.proxy = proxy;
 	srv->check.tcpcheck_rules = &proxy->tcpcheck_rules;
 
 	srv->agent.status = HCHK_STATUS_INI;

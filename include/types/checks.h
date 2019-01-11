@@ -180,6 +180,7 @@ struct check {
 	int send_string_len;			/* length of agent command string */
 	char *send_string;			/* optionally send a string when connecting to the agent */
 	struct server *server;			/* back-pointer to server */
+	struct proxy *proxy;                    /* proxy to be used */
 	char **argv;				/* the arguments to use if running a process-based check */
 	char **envp;				/* the environment to use if running a process-based check */
 	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */

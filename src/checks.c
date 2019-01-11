@@ -2124,7 +2124,7 @@ static struct task *process_chk_proc(struct task *t, void *context, unsigned sho
 static struct task *process_chk_conn(struct task *t, void *context, unsigned short state)
 {
 	struct check *check = context;
-	struct server *s = check->server;
+	struct proxy *proxy = check->proxy;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	int rv;
@@ -2142,7 +2142,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		 * is disabled.
 		 */
 		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
-		    s->proxy->state == PR_STSTOPPED)
+		    proxy->state == PR_STSTOPPED)
 			goto reschedule;
 
 		/* we'll initiate a new check */
@@ -2167,8 +2167,8 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			 */
 			t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 
-			if (s->proxy->timeout.check && s->proxy->timeout.connect) {
-				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
+			if (proxy->timeout.check && proxy->timeout.connect) {
+				int t_con = tick_add(now_ms, proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
 
@@ -2213,10 +2213,10 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		while (tick_is_expired(t->expire, now_ms)) {
 			int t_con;
 
-			t_con = tick_add(t->expire, s->proxy->timeout.connect);
+			t_con = tick_add(t->expire, proxy->timeout.connect);
 			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
 
-			if (s->proxy->timeout.check)
+			if (proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
 	}
@@ -2609,6 +2609,7 @@ static int tcpcheck_main(struct check *check)
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	struct server *s = check->server;
+	struct proxy *proxy = check->proxy;
 	struct task *t = check->task;
 	struct list *head = check->tcpcheck_rules;
 	int retcode = 0;
@@ -2647,10 +2648,10 @@ static int tcpcheck_main(struct check *check)
 		while (tick_is_expired(t->expire, now_ms)) {
 			int t_con;
 
-			t_con = tick_add(t->expire, s->proxy->timeout.connect);
+			t_con = tick_add(t->expire, proxy->timeout.connect);
 			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
 
-			if (s->proxy->timeout.check)
+			if (proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
 		goto out;
@@ -2669,8 +2670,8 @@ static int tcpcheck_main(struct check *check)
 		b_reset(&check->bi);
 		check->current_step = next;
 		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
-		if (s->proxy->timeout.check)
-			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+		if (proxy->timeout.check)
+			t->expire = tick_add_ifset(now_ms, proxy->timeout.check);
 	}
 
 	while (1) {
@@ -2790,7 +2791,7 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			conn_prepare(conn, proto, xprt);
-			conn_install_mux(conn, &mux_pt_ops, cs, s->proxy, NULL);
+			conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL);
 			cs_attach(cs, check, &check_conn_cb);
 
 			ret = SF_ERR_INTERNAL;
@@ -2822,8 +2823,8 @@ static int tcpcheck_main(struct check *check)
 				 */
 				t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 
-				if (s->proxy->timeout.check && s->proxy->timeout.connect) {
-					int t_con = tick_add(now_ms, s->proxy->timeout.connect);
+				if (proxy->timeout.check && proxy->timeout.connect) {
+					int t_con = tick_add(now_ms, proxy->timeout.connect);
 					t->expire = tick_first(t->expire, t_con);
 				}
 				break;
@@ -3062,10 +3063,10 @@ static int tcpcheck_main(struct check *check)
 		while (tick_is_expired(t->expire, now_ms)) {
 			int t_con;
 
-			t_con = tick_add(t->expire, s->proxy->timeout.connect);
+			t_con = tick_add(t->expire, proxy->timeout.connect);
 			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
 
-			if (s->proxy->timeout.check)
+			if (proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
 		goto out;
@@ -3219,6 +3220,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		HA_SPIN_INIT(&q->lock);
 		check->inter = mls->timeout.mail;
 		check->rise = DEF_AGENT_RISETIME;
+		check->proxy = p;
 		check->fall = DEF_AGENT_FALLTIME;
 		if ((err_str = init_check(check, PR_O2_TCPCHK_CHK))) {
 			memprintf(err, "%s", err_str);
