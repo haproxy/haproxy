@@ -1,0 +1,83 @@
+varnishtest "Webgui stats page check filtering with scope and changing server state"
+#REQUIRE_VERSION=1.6
+
+feature ignore_unknown_macro
+
+server s1 {
+} -start
+
+haproxy h1 -conf {
+  global
+    stats socket /tmp/haproxy.socket level admin
+
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+
+  frontend fe1
+    bind "fd@${fe1}"
+    stats enable
+    stats refresh 5s
+    stats uri /
+    stats admin if TRUE
+
+  backend b1
+    server srv1 ${s1_addr}:${s1_port}
+    server srv2 ${s1_addr}:${s1_port}
+    server srv3 ${s1_addr}:${s1_port}
+
+  backend b2
+    server srv1 ${s1_addr}:${s1_port}
+    server srv2 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "/;csv;"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+    txreq -url "/?;csv;scope=b1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+    send "show stat"
+    expect ~ .*
+} 
+
+client c3 -connect ${h1_fe1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+
+    txreq -url "/?;csv;scope=b1"
+    rxresp
+    expect resp.status == 200
+    expect resp.body ~ ".*\nb1,BACKEND.*"
+    expect resp.body !~ ".*\nb2,BACKEND.*"
+
+    txreq -req "POST" -url "/?scope=b2" -body "s=srv1&s=srv2&s=srv3&action=maint&b=%233"
+    rxresp
+    expect resp.status == 303
+
+    txreq -req "POST" -url "/" -body "s=srv2&action=drain&b=%233"
+    rxresp
+    expect resp.status == 303
+
+    txreq -req "POST" -url "/" -body "s=srv1&action=maint&b=%234"
+    rxresp
+    expect resp.status == 303
+
+    txreq -url "/?;csv;scope=fe1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+    send "show stat"
+    expect ~ "\nb1,srv1.*MAINT.*\nb1,srv2.*DRAIN.*\nb1,srv3.*MAINT.*\nb1,BACKEND.*DOWN.*\nb2,srv1.*MAINT.*\nb2,srv2.*no check.*\nb2,BACKEND.*UP"
+} -wait
