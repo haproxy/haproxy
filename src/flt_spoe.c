@@ -450,7 +450,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	if (agent != NULL && (agent->flags & SPOE_FL_RCV_FRAGMENTATION)) {
 		if (chk->data) chk->area[chk->data++] = ',';
 		memcpy(chk->area+chk->data, "fragmentation", 13);
-		chk->data += 5;
+		chk->data += 13;
 	}
 	if (spoe_encode_buffer(chk->area, chk->data, &p, end) == -1)
 		goto too_big;
