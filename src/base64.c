@@ -83,7 +83,9 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 	if (ilen % 4)
 		return -1;
 
-	if (olen < ilen / 4 * 3)
+	if (olen < ((ilen / 4 * 3)
+	            - (in[ilen-1] == '=' ? 1 : 0)
+	            - (in[ilen-2] == '=' ? 1 : 0)))
 		return -2;
 
 	while (ilen) {
