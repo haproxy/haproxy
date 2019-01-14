@@ -290,7 +290,7 @@ int chash_server_is_eligible(struct server *s)
 	/* The total number of slots to allocate is the total number of outstanding requests
 	 * (including the one we're about to make) times the load-balance-factor, rounded up.
 	 */
-	unsigned tot_slots = ((s->proxy->served + 1) * s->proxy->lbprm.chash.balance_factor + 99) / 100;
+	unsigned tot_slots = ((s->proxy->served + 1) * s->proxy->lbprm.hash_balance_factor + 99) / 100;
 	unsigned slots_per_weight = tot_slots / s->proxy->lbprm.tot_weight;
 	unsigned remainder = tot_slots % s->proxy->lbprm.tot_weight;
 
@@ -368,7 +368,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	}
 
 	loop = 0;
-	while (nsrv == avoid || (p->lbprm.chash.balance_factor && !chash_server_is_eligible(nsrv))) {
+	while (nsrv == avoid || (p->lbprm.hash_balance_factor && !chash_server_is_eligible(nsrv))) {
 		next = eb32_next(next);
 		if (!next) {
 			next = eb32_first(root);

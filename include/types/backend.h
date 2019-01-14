@@ -144,6 +144,7 @@ struct lbprm {
 	int tot_used;			/* total number of servers used for LB */
 	int wmult;			/* ratio between user weight and effective weight */
 	int wdiv;			/* ratio between effective weight and user weight */
+	int hash_balance_factor;	/* load balancing factor * 100, 0 if disabled */
 	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
 	int   arg_opt1;			/* extra option 1 for the LB algo (algo-specific) */

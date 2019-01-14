@@ -426,7 +426,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (curproxy->cap & PR_CAP_BE) {
 			curproxy->lbprm.algo = defproxy.lbprm.algo;
-			curproxy->lbprm.chash.balance_factor = defproxy.lbprm.chash.balance_factor;
+			curproxy->lbprm.hash_balance_factor = defproxy.lbprm.hash_balance_factor;
 			curproxy->fullconn = defproxy.fullconn;
 			curproxy->conn_retries = defproxy.conn_retries;
 			curproxy->redispatch_after = defproxy.redispatch_after;
@@ -3654,8 +3654,8 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		curproxy->lbprm.chash.balance_factor = atol(args[1]);
-		if (curproxy->lbprm.chash.balance_factor != 0 && curproxy->lbprm.chash.balance_factor <= 100) {
+		curproxy->lbprm.hash_balance_factor = atol(args[1]);
+		if (curproxy->lbprm.hash_balance_factor != 0 && curproxy->lbprm.hash_balance_factor <= 100) {
 			ha_alert("parsing [%s:%d] : '%s' must be 0 or greater than 100.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

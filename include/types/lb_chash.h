@@ -30,7 +30,6 @@ struct lb_chash {
 	struct eb_root act;	/* weighted chash entries of active servers */
 	struct eb_root bck;	/* weighted chash entries of backup servers */
 	struct eb32_node *last;	/* last node found in case of round robin (or NULL) */
-	int balance_factor;	/* load balancing factor * 100, 0 if disabled */
 };
 
 #endif /* _TYPES_LB_CHASH_H */

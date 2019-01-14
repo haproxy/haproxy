@@ -453,7 +453,6 @@ void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.redispatch_after = 0;
-	defproxy.lbprm.chash.balance_factor = 0;
 	defproxy.options = PR_O_REUSE_SAFE;
 	defproxy.max_out_conns = MAX_SRV_LIST;
 
