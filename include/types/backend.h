@@ -138,6 +138,13 @@
 
 /* LB parameters for all algorithms */
 struct lbprm {
+	union { /* LB parameters depending on the algo type */
+		struct lb_map map;
+		struct lb_fwrr fwrr;
+		struct lb_fwlc fwlc;
+		struct lb_chash chash;
+		struct lb_fas fas;
+	};
 	int algo;			/* load balancing algorithm and variants: BE_LB_* */
 	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
 	int tot_weight;			/* total effective weight of servers participating to LB */
@@ -151,11 +158,6 @@ struct lbprm {
 	int   arg_opt2;			/* extra option 2 for the LB algo (algo-specific) */
 	int   arg_opt3;			/* extra option 3 for the LB algo (algo-specific) */
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
-	struct lb_map map;		/* LB parameters for map-based algorithms */
-	struct lb_fwrr fwrr;
-	struct lb_fwlc fwlc;
-	struct lb_chash chash;
-	struct lb_fas fas;
 	__decl_hathreads(HA_SPINLOCK_T lock);
 
 	/* Call backs for some actions. Any of them may be NULL (thus should be ignored). */
