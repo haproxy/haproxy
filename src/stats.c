@@ -55,6 +55,7 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
+#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>
@@ -255,6 +256,23 @@ static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk
 			return 0;
 	}
 	return 1;
+}
+
+static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interface *si)
+{
+	const char *p;
+
+	if (IS_HTX_STRM(si_strm(si))) {
+		struct channel *req = si_oc(si);
+		struct htx *htx = htxbuf(&req->buf);
+		struct ist uri = htx_sl_req_uri(http_find_stline(htx));
+
+		p = uri.ptr;
+	}
+	else
+		p = co_head(si_oc(si));
+
+	return p + appctx->ctx.stats.scope_str;
 }
 
 /*
@@ -1912,8 +1930,10 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 		scope_txt[0] = 0;
 		if (appctx->ctx.stats.scope_len) {
+			const char *scope_ptr = stats_scope_ptr(appctx, si);
+
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
 			scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 		}
 
@@ -2075,9 +2095,12 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 		/* if the user has requested a limited output and the proxy
 		 * name does not match, skip it.
 		 */
-		if (appctx->ctx.stats.scope_len &&
-		    strnistr(px->id, strlen(px->id), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
-			return 1;
+		if (appctx->ctx.stats.scope_len) {
+			const char *scope_ptr = stats_scope_ptr(appctx, si);
+
+			if (strnistr(px->id, strlen(px->id), scope_ptr, appctx->ctx.stats.scope_len) == NULL)
+				return 1;
+		}
 
 		if ((appctx->ctx.stats.flags & STAT_BOUND) &&
 		    (appctx->ctx.stats.iid != -1) &&
@@ -2347,6 +2370,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	struct appctx *appctx = __objt_appctx(si->end);
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+	const char *scope_ptr = stats_scope_ptr(appctx, si);
 
 	/* WARNING! this has to fit the first packet too.
 	 * We are around 3.5 kB, add adding entries will
@@ -2405,7 +2429,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              );
 
 	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-	memcpy(scope_txt, co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+	memcpy(scope_txt, scope_ptr, appctx->ctx.stats.scope_len);
 	scope_txt[appctx->ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
@@ -2417,7 +2441,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -2719,7 +2743,13 @@ static int stats_process_http_post(struct stream_interface *si)
 		struct htx_blk *blk;
 		size_t count = co_data(&s->req);
 
-		/* Remove the headers */
+		/* we need more data */
+		if (htx->extra || htx->data > count) {
+			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+			return 0;
+		}
+
+		/* Skip the headers */
 		blk = htx_get_head_blk(htx);
 		while (count && blk) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
@@ -2731,23 +2761,16 @@ static int stats_process_http_post(struct stream_interface *si)
 			}
 
 			count -= sz;
-			co_set_data(&s->req, co_data(&s->req) - sz);
-			blk = htx_remove_blk(htx, blk);
+			blk = htx_get_next_blk(htx, blk);
 
 			if (type == HTX_BLK_EOH)
 				break;
 		}
 
 		/* too large request */
-		if (htx->data + htx->extra > b_size(temp)) {
+		if (count > b_size(temp)) {
 			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
 			goto out;
-		}
-
-		/* we need more data */
-		if (htx->extra || htx->data > count) {
-			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
-			return 0;
 		}
 
 		while (count && blk) {
@@ -2766,8 +2789,7 @@ static int stats_process_http_post(struct stream_interface *si)
 			}
 
 			count -= sz;
-			co_set_data(&s->req, co_data(&s->req) - sz);
-			blk = htx_remove_blk(htx, blk);
+			blk = htx_get_next_blk(htx, blk);
 		}
 	}
 	else {
@@ -3135,8 +3157,10 @@ static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
 	/* scope_txt = search pattern + search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
+		const char *scope_ptr = stats_scope_ptr(appctx, si);
+
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), co_head(si_oc(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), scope_ptr, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 

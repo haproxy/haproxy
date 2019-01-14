@@ -4887,8 +4887,8 @@ static int htx_handle_stats(struct stream *s, struct channel *req)
 
 			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
 			h2 = h;
-			appctx->ctx.stats.scope_str = h2 - s->txn->uri;
-			while (h <= end) {
+			appctx->ctx.stats.scope_str = h2 - HTX_SL_REQ_UPTR(sl);
+			while (h < end) {
 				if (*h == ';' || *h == '&' || *h == ' ')
 					break;
 				itx++;
