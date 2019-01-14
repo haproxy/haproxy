@@ -401,7 +401,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	unsigned int hash = 0;
 	struct http_txn *txn  = s->txn;
 	struct proxy    *px   = s->be;
-	unsigned int     plen = px->hh_len;
+	unsigned int     plen = px->lbprm.arg_len;
 	unsigned long    len;
 	struct hdr_ctx   ctx;
 	const char      *p;
@@ -414,7 +414,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, c_ptr(&s->req, -http_hdr_rewind(&txn->req)), &txn->hdr_idx, &ctx);
+	http_find_header2(px->lbprm.arg_str, plen, c_ptr(&s->req, -http_hdr_rewind(&txn->req)), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -424,7 +424,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	/* Found a the hh_name in the headers.
+	/* Found the param_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
 	len = ctx.vlen;
@@ -490,7 +490,7 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 	rewind = co_data(&s->req);
 	c_rew(&s->req, rewind);
 
-	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
+	ret = fetch_rdp_cookie_name(s, &smp, px->lbprm.arg_str, px->lbprm.arg_len);
 	len = smp.data.u.str.data;
 
 	c_adv(&s->req, rewind);
@@ -502,7 +502,7 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	/* Found a the hh_name in the headers.
+	/* Found the param_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
 	hash = gen_hash(px, smp.data.u.str.area, len);
@@ -1799,9 +1799,9 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_HH;
 
-		free(curproxy->hh_name);
-		curproxy->hh_len  = end - beg;
-		curproxy->hh_name = my_strndup(beg, end - beg);
+		free(curproxy->lbprm.arg_str);
+		curproxy->lbprm.arg_len = end - beg;
+		curproxy->lbprm.arg_str = my_strndup(beg, end - beg);
 		curproxy->hh_match_domain = 0;
 
 		if (*args[1]) {
@@ -1827,14 +1827,14 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				return -1;
 			}
 
-			free(curproxy->hh_name);
-			curproxy->hh_name = my_strndup(beg, end - beg);
-			curproxy->hh_len  = end - beg;
+			free(curproxy->lbprm.arg_str);
+			curproxy->lbprm.arg_str = my_strndup(beg, end - beg);
+			curproxy->lbprm.arg_len = end - beg;
 		}
 		else if ( *(args[0] + 10 ) == '\0' ) { /* default cookie name 'mstshash' */
-			free(curproxy->hh_name);
-			curproxy->hh_name = strdup("mstshash");
-			curproxy->hh_len  = strlen(curproxy->hh_name);
+			free(curproxy->lbprm.arg_str);
+			curproxy->lbprm.arg_str = strdup("mstshash");
+			curproxy->lbprm.arg_len = strlen(curproxy->lbprm.arg_str);
 		}
 		else { /* syntax */
 			memprintf(err, "rdp-cookie : missing cookie name.");

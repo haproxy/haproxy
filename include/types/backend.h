@@ -144,7 +144,7 @@ struct lbprm {
 	int tot_used;			/* total number of servers used for LB */
 	int wmult;			/* ratio between user weight and effective weight */
 	int wdiv;			/* ratio between effective weight and user weight */
-	char *arg_str;			/* name of the URL parameter used for hashing */
+	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 	struct lb_map map;		/* LB parameters for map-based algorithms */

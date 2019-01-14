@@ -474,9 +474,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->uri_len_limit   = defproxy.uri_len_limit;
 			curproxy->uri_dirs_depth1 = defproxy.uri_dirs_depth1;
 
-			if (defproxy.hh_name)
-				curproxy->hh_name = strdup(defproxy.hh_name);
-			curproxy->hh_len  = defproxy.hh_len;
 			curproxy->hh_match_domain  = defproxy.hh_match_domain;
 
 			if (defproxy.conn_src.iface_name)
@@ -622,7 +619,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.dyncookie_key);
 		free(defproxy.cookie_domain);
 		free(defproxy.lbprm.arg_str);
-		free(defproxy.hh_name);
 		free(defproxy.capture_name);
 		free(defproxy.monitor_uri);
 		free(defproxy.defbe.name);
