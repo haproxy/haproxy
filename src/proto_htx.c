@@ -938,7 +938,8 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * that parameter. This will be done in another analyser.
 	 */
 	if (!(s->flags & (SF_ASSIGNED|SF_DIRECT)) &&
-	    s->txn->meth == HTTP_METH_POST && s->be->url_param_name != NULL) {
+	    s->txn->meth == HTTP_METH_POST &&
+	    (s->be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_PH) {
 		channel_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
