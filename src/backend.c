@@ -1734,6 +1734,8 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
 
 		curproxy->uri_whole = 0;
+		curproxy->uri_len_limit = 0;
+		curproxy->uri_dirs_depth1 = 0;
 
 		while (*args[arg]) {
 			if (!strcmp(args[arg], "len")) {
