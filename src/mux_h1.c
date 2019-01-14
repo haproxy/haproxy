@@ -1844,7 +1844,7 @@ static int h1_process(struct h1c * h1c)
 
 	if (!h1s) {
 		if (h1c->flags & H1C_F_CS_ERROR   ||
-		    conn->flags & CO_FL_ERROR     ||
+		    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH) ||
 		    conn_xprt_read0_pending(conn))
 			goto release;
 		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))) {
@@ -1861,7 +1861,7 @@ static int h1_process(struct h1c * h1c)
 
 	if (!b_data(&h1c->ibuf) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
 	    (conn_xprt_read0_pending(conn) || h1c->flags & H1C_F_CS_ERROR ||
-	    conn->flags & CO_FL_ERROR)) {
+	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		int flags = 0;
 
 		if (h1c->flags & H1C_F_CS_ERROR || conn->flags & CO_FL_ERROR)
