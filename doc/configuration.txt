@@ -2541,15 +2541,33 @@ balance url_param <param> [check_post]
                   changing a server's weight on the fly will have no effect,
                   but this can be changed using "hash-type".
 
-      random      A random number will be used as the key for the consistent
+      random
+      random(<draws>)
+                  A random number will be used as the key for the consistent
                   hashing function. This means that the servers' weights are
                   respected, dynamic weight changes immediately take effect, as
                   well as new server additions. Random load balancing can be
                   useful with large farms or when servers are frequently added
-                  or removed. The hash-balance-factor directive can be used to
-                  further improve fairness of the load balancing, especially
-                  in situations where servers show highly variable response
-                  times.
+                  or removed as it may avoid the hammering effect that could
+                  result from roundrobin or leastconn in this situation. The
+                  hash-balance-factor directive can be used to further improve
+                  fairness of the load balancing, especially in situations
+                  where servers show highly variable response times. When an
+                  argument <draws> is present, it must be an integer value one
+                  or greater, indicating the number of draws before selecting
+                  the least loaded of these servers. It was indeed demonstrated
+                  that picking the least loaded of two servers is enough to
+                  significantly improve the fairness of the algorithm, by
+                  always avoiding to pick the most loaded server within a farm
+                  and getting rid of any bias that could be induced by the
+                  unfair distribution of the consistent list. Higher values N
+                  will take away N-1 of the highest loaded servers at the
+                  expense of performance. With very high values, the algorithm
+                  will converge towards the leastconn's result but much slower.
+                  The default value is 2, which generally shows very good
+                  distribution and performance. This algorithm is also known as
+                  the Power of Two Random Choices and is described here :
+                  http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf
 
       rdp-cookie
       rdp-cookie(<name>)

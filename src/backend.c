@@ -524,14 +524,31 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 {
 	unsigned int hash = 0;
 	struct proxy  *px = s->be;
+	struct server *prev, *curr;
+	int draws = px->lbprm.arg_opt1; // number of draws
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	/* ensure all 32 bits are covered as long as RAND_MAX >= 65535 */
-	hash = ((uint64_t)random() * ((uint64_t)RAND_MAX + 1)) ^ random();
-	return chash_get_server_hash(px, hash, avoid);
+	curr = NULL;
+	do {
+		prev = curr;
+		/* ensure all 32 bits are covered as long as RAND_MAX >= 65535 */
+		hash = ((uint64_t)random() * ((uint64_t)RAND_MAX + 1)) ^ random();
+		curr = chash_get_server_hash(px, hash, avoid);
+		if (!curr)
+			break;
+
+		/* compare the new server to the previous best choice and pick
+		 * the one with the least currently served requests.
+		 */
+		if (prev && prev != curr &&
+		    curr->served * prev->cur_eweight > prev->served * curr->cur_eweight)
+			curr = prev;
+	} while (--draws > 0);
+
+	return curr;
 }
 
 /*
@@ -1722,9 +1739,31 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LC;
 	}
-	else if (!strcmp(args[0], "random")) {
+	else if (!strncmp(args[0], "random", 6)) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
+		curproxy->lbprm.arg_opt1 = 2;
+
+		if (*(args[0] + 6) == '(' && *(args[0] + 7) != ')') { /* number of draws */
+			const char *beg;
+			char *end;
+
+			beg = args[0] + 7;
+			curproxy->lbprm.arg_opt1 = strtol(beg, &end, 0);
+
+			if (*end != ')') {
+				if (!*end)
+					memprintf(err, "random : missing closing parenthesis.");
+				else
+					memprintf(err, "random : unexpected character '%c' after argument.", *end);
+				return -1;
+			}
+
+			if (curproxy->lbprm.arg_opt1 < 1) {
+				memprintf(err, "random : number of draws must be at least 1.");
+				return -1;
+			}
+		}
 	}
 	else if (!strcmp(args[0], "source")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
