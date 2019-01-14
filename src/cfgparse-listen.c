@@ -475,10 +475,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->lbprm.arg_opt2 = defproxy.lbprm.arg_opt2;
 			curproxy->lbprm.arg_opt3 = defproxy.lbprm.arg_opt3;
 
-			curproxy->uri_whole       = defproxy.uri_whole;
-			curproxy->uri_len_limit   = defproxy.uri_len_limit;
-			curproxy->uri_dirs_depth1 = defproxy.uri_dirs_depth1;
-
 			if (defproxy.conn_src.iface_name)
 				curproxy->conn_src.iface_name = strdup(defproxy.conn_src.iface_name);
 			curproxy->conn_src.iface_len = defproxy.conn_src.iface_len;

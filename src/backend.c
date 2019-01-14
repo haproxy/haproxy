@@ -197,7 +197,9 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len,
  * ends at the question mark. Depending on the number of active/backup servers,
  * it will either look for active servers, or for backup servers.
  * If any server is found, it will be returned. If no valid server is found,
- * NULL is returned.
+ * NULL is returned. The lbprm.arg_opt{1,2,3} values correspond respectively to
+ * the "whole" optional argument (boolean), the "len" argument (numeric) and
+ * the "depth" argument (numeric).
  *
  * This code was contributed by Guillaume Dallaire, who also selected this hash
  * algorithm out of a tens because it gave him the best results.
@@ -217,18 +219,18 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	if (px->uri_len_limit)
-		uri_len = MIN(uri_len, px->uri_len_limit);
+	if (px->lbprm.arg_opt2) // "len"
+		uri_len = MIN(uri_len, px->lbprm.arg_opt2);
 
 	start = end = uri;
 	while (uri_len--) {
 		c = *end;
 		if (c == '/') {
 			slashes++;
-			if (slashes == px->uri_dirs_depth1) /* depth+1 */
+			if (slashes == px->lbprm.arg_opt3) /* depth+1 */
 				break;
 		}
-		else if (c == '?' && !px->uri_whole)
+		else if (c == '?' && !px->lbprm.arg_opt1) // "whole"
 			break;
 		end++;
 	}
@@ -1733,10 +1735,9 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
-
-		curproxy->uri_whole = 0;
-		curproxy->uri_len_limit = 0;
-		curproxy->uri_dirs_depth1 = 0;
+		curproxy->lbprm.arg_opt1 = 0; // "whole"
+		curproxy->lbprm.arg_opt2 = 0; // "len"
+		curproxy->lbprm.arg_opt3 = 0; // "depth"
 
 		while (*args[arg]) {
 			if (!strcmp(args[arg], "len")) {
@@ -1744,7 +1745,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
 					return -1;
 				}
-				curproxy->uri_len_limit = atoi(args[arg+1]);
+				curproxy->lbprm.arg_opt2 = atoi(args[arg+1]);
 				arg += 2;
 			}
 			else if (!strcmp(args[arg], "depth")) {
@@ -1755,11 +1756,11 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				/* hint: we store the position of the ending '/' (depth+1) so
 				 * that we avoid a comparison while computing the hash.
 				 */
-				curproxy->uri_dirs_depth1 = atoi(args[arg+1]) + 1;
+				curproxy->lbprm.arg_opt3 = atoi(args[arg+1]) + 1;
 				arg += 2;
 			}
 			else if (!strcmp(args[arg], "whole")) {
-				curproxy->uri_whole = 1;
+				curproxy->lbprm.arg_opt1 = 1;
 				arg += 1;
 			}
 			else {
