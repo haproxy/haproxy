@@ -146,6 +146,9 @@ struct lbprm {
 	int wdiv;			/* ratio between effective weight and user weight */
 	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
+	int   arg_opt1;			/* extra option 1 for the LB algo (algo-specific) */
+	int   arg_opt2;			/* extra option 2 for the LB algo (algo-specific) */
+	int   arg_opt3;			/* extra option 3 for the LB algo (algo-specific) */
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 	struct lb_map map;		/* LB parameters for map-based algorithms */
 	struct lb_fwrr fwrr;
