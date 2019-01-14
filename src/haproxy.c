@@ -2246,7 +2246,7 @@ void deinit(void)
 		free(p->check_req);
 		free(p->cookie_name);
 		free(p->cookie_domain);
-		free(p->url_param_name);
+		free(p->lbprm.arg_str);
 		free(p->capture_name);
 		free(p->monitor_uri);
 		free(p->rdp_cookie_name);

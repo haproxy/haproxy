@@ -320,8 +320,6 @@ struct proxy {
 	unsigned int cookie_maxlife;		/* max life time for this cookie */
 	char *rdp_cookie_name;			/* name of the RDP cookie to look for */
 	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
-	char *url_param_name;			/* name of the URL parameter used for hashing */
-	int  url_param_len;			/* strlen(url_param_name), computed only once */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
 	int  uri_dirs_depth1;			/* directories+1 (slashes) limit for uri balancing algorithm */
 	int  uri_whole;				/* if != 0, calculates the hash from the whole uri. Still honors the len_limit and dirs_depth1 */

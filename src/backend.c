@@ -271,13 +271,13 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 	p++;
 
 	uri_len -= (p - uri);
-	plen = px->url_param_len;
+	plen = px->lbprm.arg_len;
 	params = p;
 
 	while (uri_len > plen) {
 		/* Look for the parameter name followed by an equal symbol */
 		if (params[plen] == '=') {
-			if (memcmp(params, px->url_param_name, plen) == 0) {
+			if (memcmp(params, px->lbprm.arg_str, plen) == 0) {
 				/* OK, we have the parameter here at <params>, and
 				 * the value after the equal sign, at <p>
 				 * skip the equal symbol
@@ -322,7 +322,7 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 	struct channel  *req  = &s->req;
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
-	unsigned int     plen = px->url_param_len;
+	unsigned int     plen = px->lbprm.arg_len;
 	unsigned long    len  = http_body_bytes(msg);
 	const char      *params = c_ptr(req, -http_data_rewind(msg));
 	const char      *p    = params;
@@ -340,7 +340,7 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 	while (len > plen) {
 		/* Look for the parameter name followed by an equal symbol */
 		if (params[plen] == '=') {
-			if (memcmp(params, px->url_param_name, plen) == 0) {
+			if (memcmp(params, px->lbprm.arg_str, plen) == 0) {
 				/* OK, we have the parameter here at <params>, and
 				 * the value after the equal sign, at <p>
 				 * skip the equal symbol
@@ -1775,9 +1775,9 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_PH;
 
-		free(curproxy->url_param_name);
-		curproxy->url_param_name = strdup(args[1]);
-		curproxy->url_param_len  = strlen(args[1]);
+		free(curproxy->lbprm.arg_str);
+		curproxy->lbprm.arg_str = strdup(args[1]);
+		curproxy->lbprm.arg_len = strlen(args[1]);
 		if (*args[2]) {
 			if (strcmp(args[2], "check_post")) {
 				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);

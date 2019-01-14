@@ -467,9 +467,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				 curproxy->rdp_cookie_name = strdup(defproxy.rdp_cookie_name);
 			curproxy->rdp_cookie_len = defproxy.rdp_cookie_len;
 
-			if (defproxy.url_param_name)
-				curproxy->url_param_name = strdup(defproxy.url_param_name);
-			curproxy->url_param_len   = defproxy.url_param_len;
+			if (defproxy.lbprm.arg_str)
+				curproxy->lbprm.arg_str = strdup(defproxy.lbprm.arg_str);
+			curproxy->lbprm.arg_len  = defproxy.lbprm.arg_len;
 			curproxy->uri_whole       = defproxy.uri_whole;
 			curproxy->uri_len_limit   = defproxy.uri_len_limit;
 			curproxy->uri_dirs_depth1 = defproxy.uri_dirs_depth1;
@@ -621,7 +621,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.rdp_cookie_name);
 		free(defproxy.dyncookie_key);
 		free(defproxy.cookie_domain);
-		free(defproxy.url_param_name);
+		free(defproxy.lbprm.arg_str);
 		free(defproxy.hh_name);
 		free(defproxy.capture_name);
 		free(defproxy.monitor_uri);
