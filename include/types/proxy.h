@@ -323,7 +323,6 @@ struct proxy {
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
 	int  uri_dirs_depth1;			/* directories+1 (slashes) limit for uri balancing algorithm */
 	int  uri_whole;				/* if != 0, calculates the hash from the whole uri. Still honors the len_limit and dirs_depth1 */
-	int  hh_match_domain;			/* toggle use of special match function */
 	char *capture_name;			/* beginning of the name of the cookie to capture */
 	int  capture_namelen;			/* length of the cookie name to match */
 	int  capture_len;			/* length of the string to be captured */

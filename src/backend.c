@@ -394,7 +394,8 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
  * performance by avoiding bounces between servers in contexts where sessions
  * are shared but cookies are not usable. If the parameter is not found, NULL
  * is returned. If any server is found, it will be returned. If no valid server
- * is found, NULL is returned.
+ * is found, NULL is returned. When lbprm.arg_opt1 is set, the hash will only
+ * apply to the middle part of a domain name ("use_domain_only" option).
  */
 static struct server *get_server_hh(struct stream *s, const struct server *avoid)
 {
@@ -429,7 +430,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	 */
 	len = ctx.vlen;
 	p = (char *)ctx.line + ctx.val;
-	if (!px->hh_match_domain) {
+	if (!px->lbprm.arg_opt1) {
 		hash = gen_hash(px, p, len);
 	} else {
 		int dohash = 0;
@@ -1802,14 +1803,14 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		free(curproxy->lbprm.arg_str);
 		curproxy->lbprm.arg_len = end - beg;
 		curproxy->lbprm.arg_str = my_strndup(beg, end - beg);
-		curproxy->hh_match_domain = 0;
+		curproxy->lbprm.arg_opt1 = 0;
 
 		if (*args[1]) {
 			if (strcmp(args[1], "use_domain_only")) {
 				memprintf(err, "%s only accepts 'use_domain_only' modifier (got '%s').", args[0], args[1]);
 				return -1;
 			}
-			curproxy->hh_match_domain = 1;
+			curproxy->lbprm.arg_opt1 = 1;
 		}
 	}
 	else if (!strncmp(args[0], "rdp-cookie", 10)) {
