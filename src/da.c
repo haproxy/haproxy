@@ -309,7 +309,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	hidx = &smp->strm->txn->hdr_idx;
 	hmsg = &smp->strm->txn->req;
 
-	while (http_find_next_header(hmsg->chn->buf->p, hidx, &hctx) == 1 &&
+	while (http_find_next_header(ci_head(hmsg->chn), hidx, &hctx) == 1 &&
 	        nbh < DA_MAX_HEADERS) {
 		char *pval;
 		size_t vlen;
@@ -331,7 +331,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 				atlas);
 		} else if (strcmp(hbuf, "Cookie") == 0) {
 			char *p, *eval;
-			int pl;
+			size_t pl;
 
 			eval = pval + hctx.vlen;
 			/**
