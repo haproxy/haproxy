@@ -14396,7 +14396,7 @@ table may be specified with the "sc*" form, in which case the currently
 tracked key will be looked up into this alternate table instead of the table
 currently being tracked.
 
-bc_http_major: integer
+bc_http_major : integer
   Returns the backend connection's HTTP major version encoding, which may be 1
   for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire
   encoding and not the version present in the request header.
