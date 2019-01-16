@@ -233,7 +233,13 @@ static void _51d_set_headers(struct sample *smp, fiftyoneDegreesWorkset *ws)
 		ctx.idx = 0;
 		if (http_find_full_header2((global_51degrees.header_names + i)->area,
 					   (global_51degrees.header_names + i)->data,
-					   msg->chn->buf->p, idx, &ctx) == 1) {
+#ifndef BUF_NULL
+		                           msg->chn->buf->p,
+#else
+		                           ci_head(msg->chn),
+#endif
+		                           idx,
+		                           &ctx) == 1) {
 			ws->importantHeaders[ws->importantHeadersCount].header = ws->dataSet->httpHeaders + i;
 			ws->importantHeaders[ws->importantHeadersCount].headerValue = ctx.line + ctx.val;
 			ws->importantHeaders[ws->importantHeadersCount].headerValueLength = ctx.vlen;
@@ -260,7 +266,14 @@ static void _51d_set_device_offsets(struct sample *smp)
 		ctx.idx = 0;
 		if (http_find_full_header2((global_51degrees.header_names + index)->area,
 					   (global_51degrees.header_names + index)->data,
-					   msg->chn->buf->p, idx, &ctx) == 1) {
+#ifndef BUF_NULL
+		                           msg->chn->buf->p,
+#else
+		                           ci_head(msg->chn),
+#endif
+		                           idx,
+		                           &ctx) == 1) {
+
 			(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global_51degrees.header_offsets + index);
 			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, ctx.line + ctx.val);
 			offsets->size++;
