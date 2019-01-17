@@ -528,6 +528,7 @@ int init_pollers()
 
 	if ((polled_mask = calloc(global.maxsock, sizeof(unsigned long))) == NULL)
 		goto fail_polledmask;
+
 	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
 		goto fail_info;
 
@@ -557,15 +558,13 @@ int init_pollers()
 			return 1;
 		}
 	} while (!bp || bp->pref == 0);
-	return 0;
 
- fail_cache:
 	free(fdinfo);
  fail_info:
-	free(fdtab);
- fail_tab:
 	free(polled_mask);
  fail_polledmask:
+	free(fdtab);
+ fail_tab:
 	return 0;
 }
 
