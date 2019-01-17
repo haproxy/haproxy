@@ -5723,6 +5723,8 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 			goto out_error;
 		}
 		if (ret > 0) {
+			/* A send succeeded, so we can consier ourself connected */
+			conn->flags |= CO_FL_CONNECTED;
 			conn->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
 			count -= ret;
 			done += ret;

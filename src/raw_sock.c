@@ -396,6 +396,8 @@ static size_t raw_sock_from_buf(struct connection *conn, const struct buffer *bu
 			count -= ret;
 			done += ret;
 
+			/* A send succeeded, so we can consier ourself connected */
+			conn->flags |= CO_FL_CONNECTED;
 			/* if the system buffer is full, don't insist */
 			if (ret < try)
 				break;
