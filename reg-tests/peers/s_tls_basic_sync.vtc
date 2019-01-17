@@ -1,0 +1,150 @@
+vtest "Basic test for peers protocol over SSL/TLS"
+feature ignore_unknown_macro
+
+haproxy h1 -arg "-L A" -conf {
+    defaults
+        timeout client  1s
+        timeout connect 1s
+        timeout server  1s
+
+    backend stkt
+        stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
+
+    peers peers
+        default-server ssl crt ${testdir}/common.pem verify none
+        bind "fd@${A}" ssl crt ${testdir}/common.pem
+        server A
+        server B ${h2_B_addr}:${h2_B_port}
+        server C ${h3_C_addr}:${h3_C_port}
+        server D ${h4_D_addr}:${h4_D_port}
+
+    frontend fe
+        bind "fd@${fe}"
+        tcp-request content track-sc0 url table stkt
+        tcp-request content sc-inc-gpc0(0)
+}
+
+haproxy h2 -arg "-L B" -conf {
+    defaults
+        timeout client  1s
+        timeout connect 1s
+        timeout server  1s
+
+    backend stkt
+        stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
+
+    peers peers
+        default-server ssl crt ${testdir}/common.pem verify none
+        bind "fd@${B}" ssl crt ${testdir}/common.pem
+        server A ${h1_A_addr}:${h1_A_port}
+        server B
+        server C ${h3_C_addr}:${h3_C_port}
+        server D ${h4_D_addr}:${h4_D_port}
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request track-sc0 url table stkt
+        http-request sc-inc-gpc0(0)
+}
+
+haproxy h3 -arg "-L C" -conf {
+    defaults
+        timeout client  1s
+        timeout connect 1s
+        timeout server  1s
+
+    backend stkt
+        stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
+
+    peers peers
+        default-server ssl crt ${testdir}/common.pem verify none
+        bind "fd@${C}" ssl crt ${testdir}/common.pem
+        server A ${h1_A_addr}:${h1_A_port}
+        server B ${h2_B_addr}:${h2_B_port}
+        server C
+        server D ${h4_D_addr}:${h4_D_port}
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request track-sc0 url table stkt
+        http-request sc-inc-gpc0(0)
+}
+
+haproxy h4 -arg "-L D" -conf {
+    defaults
+        timeout client  1s
+        timeout connect 1s
+        timeout server  1s
+
+    backend stkt
+        stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
+
+    peers peers
+        bind "fd@${D}"
+        server A ${h1_A_addr}:${h1_A_port}
+        server B ${h2_B_addr}:${h2_B_port}
+        server C ${h3_C_addr}:${h3_C_port}
+        server D
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request track-sc0 url table stkt
+        http-request sc-inc-gpc0(0)
+}
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "c1_client"
+    expect_close
+} -start
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "c2_client"
+    expect_close
+} -start
+
+client c3 -connect ${h1_fe_sock} {
+    txreq -url "c3_client"
+    expect_close
+} -start
+
+client c4 -connect ${h1_fe_sock} {
+    txreq -url "c4_client"
+    expect_close
+} -start
+
+haproxy h1 -start
+delay 0.2
+haproxy h2 -start
+delay 0.2
+haproxy h3 -start
+delay 0.2
+haproxy h4 -start
+delay 0.2
+
+client c1 -wait
+client c2 -wait
+client c3 -wait
+client c4 -wait
+
+delay 2
+
+haproxy h1 -cli {
+    send "show table stkt"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+}
+
+haproxy h2 -cli {
+    send "show table stkt"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+}
+
+haproxy h3 -cli {
+    send "show table stkt"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:4(\n0x[0-9a-f]*: key=c[1-4]_client use=0 exp=0 server_id=0 gpc0=1 conn_rate\\(50000\\)=1 conn_cur=0){4}"
+}
+
+haproxy h4 -cli {
+    send "show table stkt"
+    expect ~ "# table: stkt, type: string, size:1048[0-9]{4}, used:0\n"
+}
+
