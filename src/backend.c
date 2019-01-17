@@ -1021,7 +1021,12 @@ static void assign_tproxy_address(struct stream *s)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
 	struct connection *cli_conn;
-	struct connection *srv_conn = cs_conn(objt_cs(s->si[1].end));
+	struct connection *srv_conn;
+
+	if (objt_cs(s->si[1].end))
+		srv_conn = cs_conn(__objt_cs(s->si[1].end));
+	else
+		srv_conn = objt_conn(s->si[1].end);
 
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
