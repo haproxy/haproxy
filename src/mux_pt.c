@@ -28,7 +28,6 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
 	struct connection *conn = ctx->conn;
 
-	LIST_DEL(&conn->list);
 	conn_stop_tracking(conn);
 	conn_full_close(conn);
 	tasklet_free(ctx->wait_event.task);

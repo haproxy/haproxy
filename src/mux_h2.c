@@ -600,8 +600,6 @@ static void h2_release(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 
-	LIST_DEL(&conn->list);
-
 	if (h2c) {
 		hpack_dht_free(h2c->ddht);
 

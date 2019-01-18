@@ -443,8 +443,6 @@ static void h1_release(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 
-	LIST_DEL(&conn->list);
-
 	if (h1c) {
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
