@@ -163,5 +163,149 @@ struct cond_wordlist {
 	     &item->member != (list_head);                                \
 	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
 
+#include <common/hathreads.h>
+#define LLIST_BUSY ((struct list *)1)
+
+/*
+ * Locked version of list manipulation macros.
+ * It is OK to use those concurrently from multiple threads, as long as the
+ * list is only used with the locked variants. The only "unlocked" macro you
+ * can use with a locked list is LIST_INIT.
+ */
+#define LIST_ADD_LOCKED(lh, el)                                            \
+	do {                                                               \
+		while (1) {                                                \
+			struct list *n;                                    \
+			struct list *p;                                    \
+			n = HA_ATOMIC_XCHG(&(lh)->n, LLIST_BUSY);          \
+			if (n == LLIST_BUSY)                               \
+			        continue;                                  \
+			__ha_barrier_store();                              \
+			p = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);             \
+			if (p == LLIST_BUSY) {                             \
+				(lh)->n = n;                               \
+				__ha_barrier_store();                      \
+				continue;                                  \
+			}                                                  \
+			(el)->n = n;                                       \
+			(el)->p = p;                                       \
+			n->p = (el);                                       \
+			__ha_barrier_store();                              \
+			p->n = (el);                                       \
+			__ha_barrier_store();                              \
+			break;                                             \
+		}                                                          \
+	} while (0)
+
+#define LIST_ADDQ_LOCKED(lh, el)                                           \
+	do {                                                               \
+		while (1) {                                                \
+			struct list *n;                                    \
+			struct list *p;                                    \
+			p = HA_ATOMIC_XCHG(&(lh)->p, LLIST_BUSY);          \
+			if (p == LLIST_BUSY)                               \
+			        continue;                                  \
+			__ha_barrier_store();                              \
+			n = HA_ATOMIC_XCHG(&p->n, LLIST_BUSY);             \
+			if (n == LLIST_BUSY) {                             \
+				(lh)->n = p;                               \
+				__ha_barrier_store();                      \
+				continue;                                  \
+			}                                                  \
+			(el)->n = n;                                       \
+			(el)->p = p;                                       \
+			n->p = (el);                                       \
+			__ha_barrier_store();                              \
+			p->n = (el);                                       \
+			__ha_barrier_store();                              \
+			break;                                             \
+		}                                                          \
+	} while (0)
+
+#define LIST_DEL_LOCKED(el)                                                \
+	do {                                                               \
+		while (1) {                                                \
+			struct list *n, *n2;                               \
+			struct list *p, *p2;                               \
+			n = HA_ATOMIC_XCHG(&(el)->n, LLIST_BUSY);          \
+			if (n == LLIST_BUSY)                               \
+			        continue;                                  \
+			p = HA_ATOMIC_XCHG(&(el)->p, LLIST_BUSY);          \
+			if (p == LLIST_BUSY) {                             \
+				(el)->n = n;                               \
+				__ha_barrier_store();                      \
+				continue;                                  \
+			}                                                  \
+			if (p != (el)) {                                   \
+			        p2 = HA_ATOMIC_XCHG(&p->n, LLIST_BUSY);    \
+			        if (p2 == LLIST_BUSY) {                    \
+			                (el)->p = p;                       \
+					(el)->n = n;                       \
+					__ha_barrier_store();              \
+					continue;                          \
+				}                                          \
+			}                                                  \
+			if (n != (el)) {                                   \
+			        n2 = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);    \
+				if (n2 == LLIST_BUSY) {                    \
+					p2->n = (el);                      \
+					(el)->p = p;                       \
+					(el)->n = n;                       \
+					__ha_barrier_store();              \
+					continue;                          \
+				}                                          \
+			}                                                  \
+			n->p = p;                                          \
+			p->n = n;                                          \
+			__ha_barrier_store();                              \
+			break;                                             \
+		}                                                          \
+	} while (0)
+
+
+/* Remove the first element from the list, and return it */
+#define LIST_POP_LOCKED(lh, pt, el)                                        \
+	({                                                                 \
+		 void *_ret;                                               \
+		 while (1) {                                               \
+			 struct list *n, *n2;                              \
+			 struct list *p, *p2;                              \
+			 n = HA_ATOMIC_XCHG(&(lh)->n, LLIST_BUSY);         \
+			 if (n == LLIST_BUSY)                              \
+			         continue;                                 \
+			 if (n == (lh)) {                                  \
+				 (lh)->n = lh;                             \
+				 _ret = NULL;                              \
+				 break;                                    \
+			 }                                                 \
+			 p = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);            \
+			 if (p == LLIST_BUSY) {                            \
+				 (lh)->n = n;                              \
+				 __ha_barrier_store();                     \
+				 continue;                                 \
+			 }                                                 \
+			 n2 = HA_ATOMIC_XCHG(&n->n, LLIST_BUSY);           \
+			 if (n2 == LLIST_BUSY) {                           \
+				 n->p = p;                                 \
+				 (lh)->n = n;                              \
+				 __ha_barrier_store();                     \
+				 continue;                                 \
+			 }                                                 \
+			 p2 = HA_ATOMIC_XCHG(&n2->p, LLIST_BUSY);          \
+			 if (p2 == LLIST_BUSY) {                           \
+				 n->n = n2;                                \
+				 n->p = p;                                 \
+				 (lh)->n = n;                              \
+				 __ha_barrier_store();                     \
+				 continue;                                 \
+			 }                                                 \
+			 (lh)->n = n2;                                     \
+			 (n2)->p = (lh);                                   \
+			 __ha_barrier_store();                             \
+			 _ret = LIST_ELEM(n, pt, el);                      \
+			 break;                                            \
+		 }                                                         \
+		 (_ret);                                                   \
+	 })
 
 #endif /* _COMMON_MINI_CLIST_H */
