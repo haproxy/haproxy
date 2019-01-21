@@ -1064,11 +1064,16 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			      struct buffer *buf, size_t *ofs, size_t max,
-			      struct buffer *htxbuf)
+			      struct buffer *htxbuf, size_t reserve)
 {
-	uint32_t data_space = htx_free_data_space(htx);
+	uint32_t data_space;
 	size_t total = 0;
 	int ret = 0;
+
+	data_space = htx_free_data_space(htx);
+	if (data_space <= reserve)
+		goto end;
+	data_space -= reserve;
 
 	if (h1m->flags & H1_MF_XFER_LEN) {
 		if (h1m->flags & H1_MF_CLEN) {
@@ -1175,6 +1180,10 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				}
 				if (!h1m->curr_len) {
 					h1m->state = H1_MSG_CHUNK_CRLF;
+					data_space = htx_free_data_space(htx);
+					if (data_space <= reserve)
+						goto end;
+					data_space -= reserve;
 					goto new_chunk;
 				}
 				goto end;
@@ -1303,22 +1312,14 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	struct htx *htx;
 	size_t total = 0;
 	size_t ret = 0;
-	size_t count, max;
+	size_t count, rsv;
 	int errflag;
 
 	htx = htx_from_buf(buf);
 	count = b_data(&h1c->ibuf);
-	max = htx_free_space(htx);
-	if (flags & CO_RFL_KEEP_RSV) {
-		if (max < global.tune.maxrewrite)
-			goto end;
-		max -= global.tune.maxrewrite;
-	}
-	if (count > max)
-		count = max;
-
 	if (!count)
 		goto end;
+	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
 
 	if (!conn_is_back(h1c->conn)) {
 		h1m = &h1s->req;
@@ -1336,7 +1337,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 				break;
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf, rsv);
 			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
@@ -1346,7 +1347,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf, rsv);
 			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
