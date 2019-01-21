@@ -180,6 +180,15 @@ struct stream {
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
 	struct hlua *hlua;                      /* lua runtime context */
+
+	/* Context */
+	struct {
+		struct dns_requester *dns_requester; /* owner of the resolution */
+		char *hostname_dn;              /* hostname being resolve, in domain name format */
+		int hostname_dn_len;            /* size of hostname_dn */
+		/* 4 unused bytes here */
+		struct act_rule *parent;        /* rule which requested this resolution */
+	} dns_ctx;                              /* context information for DNS resolution */
 };
 
 #endif /* _TYPES_STREAM_H */

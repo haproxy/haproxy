@@ -24,6 +24,9 @@
 
 #include <types/action.h>
 
+int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver);
+int act_resolution_error_cb(struct dns_requester *requester, int error_code);
+
 static inline struct action_kw *action_lookup(struct list *keywords, const char *kw)
 {
 	struct action_kw_list *kw_list;

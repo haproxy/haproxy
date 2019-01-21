@@ -39,6 +39,7 @@
 #include <proto/checks.h>
 #include <proto/cli.h>
 #include <proto/connection.h>
+#include <proto/dns.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
@@ -151,6 +152,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->logs.bytes_in = s->logs.bytes_out = 0;
 	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_pos = 0; /* we will get this number soon */
+	s->obj_type = OBJ_TYPE_STREAM;
 
 	csinfo = si_get_cs_info(cs);
 	if (csinfo) {
@@ -416,6 +418,15 @@ static void stream_free(struct stream *s)
 		pool_free(pool_head_hdr_idx, s->txn->hdr_idx.v);
 		pool_free(pool_head_http_txn, s->txn);
 		s->txn = NULL;
+	}
+
+	if (s->dns_ctx.dns_requester) {
+		free(s->dns_ctx.hostname_dn); s->dns_ctx.hostname_dn = NULL;
+		s->dns_ctx.hostname_dn_len = 0;
+		dns_unlink_resolution(s->dns_ctx.dns_requester);
+
+		pool_free(dns_requester_pool, s->dns_ctx.dns_requester);
+		s->dns_ctx.dns_requester = NULL;
 	}
 
 	flt_stream_stop(s);

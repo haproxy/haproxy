@@ -16,8 +16,10 @@
 #include <common/standard.h>
 
 #include <proto/action.h>
+#include <proto/obj_type.h>
 #include <proto/proxy.h>
 #include <proto/stick_table.h>
+#include <proto/task.h>
 
 
 /* Find and check the target table used by an action ACT_ACTION_TRK_*. This
@@ -65,5 +67,37 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 		 */
 	}
 	return 1;
+}
+
+int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver)
+{
+	struct stream *stream;
+
+	if (requester->resolution == NULL)
+		return 0;
+
+	stream = objt_stream(requester->owner);
+	if (stream == NULL)
+		return 0;
+
+	task_wakeup(stream->task, TASK_WOKEN_MSG);
+
+	return 0;
+}
+
+int act_resolution_error_cb(struct dns_requester *requester, int error_code)
+{
+	struct stream *stream;
+
+	if (requester->resolution == NULL)
+		return 0;
+
+	stream = objt_stream(requester->owner);
+	if (stream == NULL)
+		return 0;
+
+	task_wakeup(stream->task, TASK_WOKEN_MSG);
+
+	return 0;
 }
 

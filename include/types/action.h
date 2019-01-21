@@ -108,6 +108,13 @@ struct act_rule {
 	struct applet applet;                  /* used for the applet registration. */
 	union {
 		struct {
+			struct sample_expr *expr;
+			char *varname;
+			char *resolvers_id;
+			struct dns_resolvers *resolvers;
+			struct dns_options dns_opts;
+		} dns;                        /* dns resolution */
+		struct {
 			char *realm;
 		} auth;                        /* arg used by "auth" */
 		struct {

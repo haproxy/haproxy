@@ -4267,6 +4267,60 @@ http-request deny [deny_status <status>] [ { if | unless } <condition> ]
   those that can be overridden by the "errorfile" directive.
   No further "http-request" rules are evaluated.
 
+http-request do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr> :
+
+  This action performs a DNS resolution of the output of <expr> and stores
+  the result in the variable <var>. It uses the DNS resolvers section
+  pointed by <resolvers>.
+  It is possible to choose a resolution preference using the optional
+  arguments 'ipv4' or 'ipv6'.
+  When performing the DNS resolution, the client side connection is on
+  pause waiting till the end of the resolution.
+  If an IP address can be found, it is stored into <var>. If any kind of
+  error occurs, then <var> is not set.
+  One can use this action to discover a server IP address at run time and
+  based on information found in the request (IE a Host header).
+  If this action is used to find the server's IP address (using the
+  "set-dst" action), then the server IP address in the backend must be set
+  to 0.0.0.0.
+
+  Example:
+    resolvers mydns
+      nameserver local 127.0.0.53:53
+      nameserver google 8.8.8.8:53
+      timeout retry   1s
+      hold valid 10s
+      hold nx 3s
+      hold other 3s
+      hold obsolete 0s
+      accepted_payload_size 8192
+
+    frontend fe
+      bind 10.42.0.1:80
+      http-request do-resolve(txn.myip,mydns,ipv4) hdr(Host),lower
+      http-request capture var(txn.myip) len 40
+
+      # return 503 when the variable is not set,
+      # which mean DNS resolution error
+      use_backend b_503 unless { var(txn.myip) -m found }
+
+      default_backend be
+
+    backend b_503
+      # dummy backend used to return 503.
+      # one can use the errorfile directive to send a nice
+      # 503 error page to end users
+
+    backend be
+      # rule to prevent HAProxy from reconnecting to services
+      # on the local network (forged DNS name used to scan the network)
+      http-request deny if { var(txn.myip) -m ip 127.0.0.0/8 10.0.0.0/8 }
+      http-request set-dst var(txn.myip)
+      server clear 0.0.0.0:0
+
+  NOTE: Don't forget to set the "protection" rules to ensure HAProxy won't
+        be used to scan the network or worst won't loop over itself...
+
 http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
 
   This is used to build an HTTP 103 Early Hints response prior to any other one.
@@ -9804,6 +9858,7 @@ tcp-request content <action> [{if | unless} <condition>]
 
   Several types of actions are supported :
     - accept : the request is accepted
+    - do-resolve: perform a DNS resolution
     - reject : the request is rejected and the connection is closed
     - capture : the specified sample expression is captured
     - set-priority-class <expr> | set-priority-offset <expr>
@@ -9820,6 +9875,8 @@ tcp-request content <action> [{if | unless} <condition>]
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
+  For "do-resolve" action, please check the "http-request do-resolve"
+  configuration section.
 
   While there is nothing mandatory about it, it is recommended to use the
   track-sc0 in "tcp-request connection" rules, track-sc1 for "tcp-request

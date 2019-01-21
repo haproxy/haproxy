@@ -22,9 +22,11 @@
 #ifndef _PROTO_DNS_H
 #define _PROTO_DNS_H
 
+#include <types/action.h>
 #include <types/dns.h>
 
 extern struct list dns_resolvers;
+extern unsigned int dns_failed_resolutions;
 
 struct dns_resolvers *find_resolvers_by_id(const char *id);
 struct dns_srvrq *find_srvrq_by_name(const char *name, struct proxy *px);
@@ -43,6 +45,8 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 int dns_link_resolution(void *requester, int requester_type, int requester_locked);
 void dns_unlink_resolution(struct dns_requester *requester);
 void dns_trigger_resolution(struct dns_requester *requester);
+enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err);
+int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err);
 
 
 #endif // _PROTO_DNS_H

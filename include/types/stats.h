@@ -312,6 +312,7 @@ enum info_field {
 	INF_CONNECTED_PEERS,
 	INF_DROPPED_LOGS,
 	INF_BUSY_POLLING,
+	INF_FAILED_RESOLUTIONS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS
