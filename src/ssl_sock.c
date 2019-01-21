@@ -1468,6 +1468,10 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 	BIO *write_bio;
 	(void)ret; /* shut gcc stupid warning */
 
+#ifndef SSL_OP_NO_RENEGOTIATION
+	/* Please note that BoringSSL defines this macro to zero so don't
+	 * change this to #if and do not assign a default value to this macro!
+	 */
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
 		if ((conn->flags & (CO_FL_CONNECTED | CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_CONNECTED) {
@@ -1475,6 +1479,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 			conn->err_code = CO_ER_SSL_RENEG;
 		}
 	}
+#endif
 
 	if ((where & SSL_CB_ACCEPT_LOOP) == SSL_CB_ACCEPT_LOOP) {
 		if (!(conn->xprt_st & SSL_SOCK_ST_FL_16K_WBFSIZE)) {
@@ -3895,6 +3900,11 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		options |= SSL_OP_NO_TICKET;
 	if (bind_conf->ssl_options & BC_SSL_O_PREF_CLIE_CIPH)
 		options &= ~SSL_OP_CIPHER_SERVER_PREFERENCE;
+
+#ifdef SSL_OP_NO_RENEGOTIATION
+	options |= SSL_OP_NO_RENEGOTIATION;
+#endif
+
 	SSL_CTX_set_options(ctx, options);
 
 #if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
