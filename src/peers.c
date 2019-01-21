@@ -562,6 +562,36 @@ static int peer_get_version(const char *str,
 }
 
 /*
+ * Parse a line terminated by an optional '\r' character, followed by a mandatory
+ * '\n' character.
+ * Returns 1 if succeeded or 0 if a '\n' character could not be found, and -1 if
+ * a line could not be read because the communication channel is closed.
+ */
+static inline int peer_getline(struct appctx  *appctx)
+{
+	int n;
+	struct stream_interface *si = appctx->owner;
+
+	n = co_getline(si_oc(si), trash.area, trash.size);
+	if (!n)
+		return 0;
+
+	if (n < 0 || trash.area[n - 1] != '\n') {
+		appctx->st0 = PEER_SESS_ST_END;
+		return -1;
+	}
+
+	if (n > 1 && (trash.area[n - 2] == '\r'))
+		trash.area[n - 2] = 0;
+	else
+		trash.area[n - 1] = 0;
+
+	co_skip(si_oc(si), n);
+
+	return n;
+}
+
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -592,24 +622,13 @@ switchstate:
 				/* fall through */
 			case PEER_SESS_ST_GETVERSION:
 				prev_state = appctx->st0;
-				reql = co_getline(si_oc(si), trash.area,
-						  trash.size);
-				if (reql <= 0) { /* closed or EOL not found */
-					if (reql == 0)
-						goto out;
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				if (trash.area[reql-1] != '\n') {
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				else if (reql > 1 && (trash.area[reql-2] == '\r'))
-					trash.area[reql-2] = 0;
-				else
-					trash.area[reql-1] = 0;
 
-				co_skip(si_oc(si), reql);
+				reql = peer_getline(appctx);
+				if (!reql)
+					goto out;
+
+				if (reql < 0)
+					goto switchstate;
 
 				/* test protocol */
 				if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.area, proto_len + 1) != 0) {
@@ -628,24 +647,13 @@ switchstate:
 				/* fall through */
 			case PEER_SESS_ST_GETHOST:
 				prev_state = appctx->st0;
-				reql = co_getline(si_oc(si), trash.area,
-						  trash.size);
-				if (reql <= 0) { /* closed or EOL not found */
-					if (reql == 0)
-						goto out;
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				if (trash.area[reql-1] != '\n') {
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				else if (reql > 1 && (trash.area[reql-2] == '\r'))
-					trash.area[reql-2] = 0;
-				else
-					trash.area[reql-1] = 0;
 
-				co_skip(si_oc(si), reql);
+				reql = peer_getline(appctx);
+				if (!reql)
+					goto out;
+
+				if (reql < 0)
+					goto switchstate;
 
 				/* test hostname match */
 				if (strcmp(localpeer, trash.area) != 0) {
@@ -660,25 +668,13 @@ switchstate:
 				char *p;
 
 				prev_state = appctx->st0;
-				reql = co_getline(si_oc(si), trash.area,
-						  trash.size);
-				if (reql <= 0) { /* closed or EOL not found */
-					if (reql == 0)
-						goto out;
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				if (trash.area[reql-1] != '\n') {
-					/* Incomplete line, we quit */
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				else if (reql > 1 && (trash.area[reql-2] == '\r'))
-					trash.area[reql-2] = 0;
-				else
-					trash.area[reql-1] = 0;
 
-				co_skip(si_oc(si), reql);
+				reql = peer_getline(appctx);
+				if (!reql)
+					goto out;
+
+				if (reql < 0)
+					goto switchstate;
 
 				/* parse line "<peer name> <pid> <relative_pid>" */
 				p = strchr(trash.area, ' ');
@@ -852,25 +848,12 @@ switchstate:
 				if (si_ic(si)->flags & CF_WRITE_PARTIAL)
 					curpeer->statuscode = PEER_SESS_SC_CONNECTEDCODE;
 
-				reql = co_getline(si_oc(si), trash.area,
-						  trash.size);
-				if (reql <= 0) { /* closed or EOL not found */
-					if (reql == 0)
-						goto out;
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				if (trash.area[reql-1] != '\n') {
-					/* Incomplete line, we quit */
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-				else if (reql > 1 && (trash.area[reql-2] == '\r'))
-					trash.area[reql-2] = 0;
-				else
-					trash.area[reql-1] = 0;
+				reql = peer_getline(appctx);
+				if (!reql)
+					goto out;
 
-				co_skip(si_oc(si), reql);
+				if (reql < 0)
+					goto switchstate;
 
 				/* Register status code */
 				curpeer->statuscode = atoi(trash.area);
