@@ -126,9 +126,12 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
 		/*
-		 * First catch invalid request
+		 * First catch invalid request because of a parsing error or
+		 * because only part of headers have been transfered.
+		 * Multiplexers have the responsibility to emit all headers at
+		 * once.
 		 */
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
+		if ((htx->flags & HTX_FL_PARSING_ERROR) || htx_is_not_empty(htx) || (s->si[0].flags & SI_FL_RXBLK_ROOM)) {
 			stream_inc_http_req_ctr(s);
 			stream_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -1086,7 +1089,7 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 	 * been received or if the buffer is full.
 	 */
 	if (htx_get_tail_type(htx) >= HTX_BLK_EOD ||
-	    htx_used_space(htx) + global.tune.maxrewrite >= htx->size)
+	    channel_htx_full(req, htx, global.tune.maxrewrite))
 		goto http_end;
 
  missing_data:
@@ -1457,9 +1460,14 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	if (unlikely(co_data(rep) || htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
 		/*
-		 * First catch invalid response
+		 * First catch invalid response because of a parsing error or
+		 * because only part of headers have been transfered.
+		 * Multiplexers have the responsibility to emit all headers at
+		 * once. We must be sure to have forwarded all outgoing data
+		 * first.
 		 */
-		if (htx->flags & HTX_FL_PARSING_ERROR)
+		if (!co_data(rep) &&
+		    ((htx->flags & HTX_FL_PARSING_ERROR) || htx_is_not_empty(htx) || (s->si[1].flags & SI_FL_RXBLK_ROOM)))
 			goto return_bad_res;
 
 		/* 1: have we encountered a read error ? */
