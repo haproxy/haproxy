@@ -1726,6 +1726,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->agent.status = HCHK_STATUS_INI;
 	srv->agent.server = srv;
+	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
 	srv->pool_purge_delay = 1000;
