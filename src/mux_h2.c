@@ -5051,7 +5051,12 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		}
 
 		buf_htx = htx_from_buf(buf);
-		count = htx_free_space(buf_htx);
+		count = htx_free_data_space(buf_htx);
+		if (flags & CO_RFL_KEEP_RSV) {
+			if (count <= global.tune.maxrewrite)
+				goto end;
+			count -= global.tune.maxrewrite;
+		}
 
 		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
