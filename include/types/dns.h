@@ -34,6 +34,8 @@
 #include <types/server.h>
 #include <types/task.h>
 
+extern struct pool_head *dns_requester_pool;
+
 /*DNS maximum values */
 /*
  * Maximum issued from RFC:

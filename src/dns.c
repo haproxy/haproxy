@@ -51,6 +51,7 @@ static THREAD_LOCAL int64_t dns_query_id_seed = 0; /* random seed */
 
 DECLARE_STATIC_POOL(dns_answer_item_pool, "dns_answer_item", sizeof(struct dns_answer_item));
 DECLARE_STATIC_POOL(dns_resolution_pool,  "dns_resolution",  sizeof(struct dns_resolution));
+DECLARE_POOL(dns_requester_pool,  "dns_requester",  sizeof(struct dns_requester));
 
 static unsigned int resolution_uuid = 1;
 
@@ -1384,7 +1385,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 		if (!requester_locked)
 			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		if (srv->dns_requester == NULL) {
-			if ((req = calloc(1, sizeof(*req))) == NULL) {
+			if ((req = pool_alloc(dns_requester_pool)) == NULL) {
 				if (!requester_locked)
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				goto err;
@@ -1399,7 +1400,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 	}
 	else if (srvrq) {
 		if (srvrq->dns_requester == NULL) {
-			if ((req = calloc(1, sizeof(*req))) == NULL)
+			if ((req = pool_alloc(dns_requester_pool)) == NULL)
 				goto err;
 			req->owner           = &srvrq->obj_type;
 			srvrq->dns_requester = req;
@@ -1826,7 +1827,7 @@ static void dns_deinit(void)
 		list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
 			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
 				LIST_DEL(&req->list);
-				free(req);
+				pool_free(dns_requester_pool, req);
 			}
 			dns_free_resolution(res);
 		}
@@ -1834,7 +1835,7 @@ static void dns_deinit(void)
 		list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
 			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
 				LIST_DEL(&req->list);
-				free(req);
+				pool_free(dns_requester_pool, req);
 			}
 			dns_free_resolution(res);
 		}
