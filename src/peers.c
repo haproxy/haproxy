@@ -233,12 +233,12 @@ uint64_t intdecode(char **str, char *end)
 			shift += 7;
 		} while (*(msg++) >= 128);
 	}
-        *str = (char *)msg;
-        return i;
+	*str = (char *)msg;
+	return i;
 
-  fail:
-        *str = NULL;
-        return 0;
+ fail:
+	*str = NULL;
+	return 0;
 }
 
 /* Set the stick-table UPDATE message type byte at <msg_type> address,
@@ -259,7 +259,6 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
 		else
 			*msg_type = PEER_MSG_STKT_INCUPDATE;
 	}
-
 }
 /*
  * This prepare the data update message on the stick session <ts>, <st> is the considered
@@ -771,22 +770,22 @@ switchstate:
 				curpeer->flags &= PEER_LEARN_RESET;
 
 				/* if current peer is local */
-                                if (curpeer->local) {
-                                        /* if current host need resyncfrom local and no process assined  */
-                                        if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
-                                            !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-                                                /* assign local peer for a lesson, consider lesson already requested */
-                                                curpeer->flags |= PEER_F_LEARN_ASSIGN;
-                                                curpeers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-                                        }
+				if (curpeer->local) {
+					/* if current host need resyncfrom local and no process assined  */
+					if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
+					    !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
+						/* assign local peer for a lesson, consider lesson already requested */
+						curpeer->flags |= PEER_F_LEARN_ASSIGN;
+						curpeers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+					}
 
-                                }
-                                else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-                                         !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-                                        /* assign peer for a lesson  */
-                                        curpeer->flags |= PEER_F_LEARN_ASSIGN;
-                                        curpeers->flags |= PEERS_F_RESYNC_ASSIGN;
-                                }
+				}
+				else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+				         !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
+					/* assign peer for a lesson  */
+					curpeer->flags |= PEER_F_LEARN_ASSIGN;
+					curpeers->flags |= PEERS_F_RESYNC_ASSIGN;
+				}
 
 
 				/* switch to waiting message state */
@@ -870,25 +869,25 @@ switchstate:
 					}
 
 					/* Init confirm counter */
-                                        curpeer->confirm = 0;
+					curpeer->confirm = 0;
 
-                                        /* reset teaching and learning flags to 0 */
-                                        curpeer->flags &= PEER_TEACH_RESET;
-                                        curpeer->flags &= PEER_LEARN_RESET;
+					/* reset teaching and learning flags to 0 */
+					curpeer->flags &= PEER_TEACH_RESET;
+					curpeer->flags &= PEER_LEARN_RESET;
 
-                                        /* If current peer is local */
-                                        if (curpeer->local) {
-                                                /* flag to start to teach lesson */
-                                                curpeer->flags |= PEER_F_TEACH_PROCESS;
+					/* If current peer is local */
+					if (curpeer->local) {
+						/* flag to start to teach lesson */
+						curpeer->flags |= PEER_F_TEACH_PROCESS;
 
-                                        }
-                                        else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-                                                    !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-                                                /* If peer is remote and resync from remote is needed,
-                                                   and no peer currently assigned */
+					}
+					else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+					         !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
+						/* If peer is remote and resync from remote is needed,
+						   and no peer currently assigned */
 
-                                                /* assign peer for a lesson */
-                                                curpeer->flags |= PEER_F_LEARN_ASSIGN;
+						/* assign peer for a lesson */
+						curpeer->flags |= PEER_F_LEARN_ASSIGN;
 						curpeers->flags |= PEERS_F_RESYNC_ASSIGN;
 					}
 
@@ -1008,11 +1007,8 @@ switchstate:
 
 						/* flag to start to teach lesson */
 						curpeer->flags |= PEER_F_TEACH_PROCESS;
-
-
 					}
 					else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
-
 						if (curpeer->flags & PEER_F_LEARN_ASSIGN) {
 							curpeer->flags &= ~PEER_F_LEARN_ASSIGN;
 							curpeers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
@@ -1021,7 +1017,6 @@ switchstate:
 						curpeer->confirm++;
 					}
 					else if (msg_head[1] == PEER_MSG_CTRL_RESYNCPARTIAL) {
-
 						if (curpeer->flags & PEER_F_LEARN_ASSIGN) {
 							curpeer->flags &= ~PEER_F_LEARN_ASSIGN;
 							curpeers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
@@ -1408,29 +1403,28 @@ incomplete:
 
 
 				/* Need to request a resync */
-                                if ((curpeer->flags & PEER_F_LEARN_ASSIGN) &&
-                                        (curpeers->flags & PEERS_F_RESYNC_ASSIGN) &&
-                                        !(curpeers->flags & PEERS_F_RESYNC_PROCESS)) {
+				if ((curpeer->flags & PEER_F_LEARN_ASSIGN) &&
+				    (curpeers->flags & PEERS_F_RESYNC_ASSIGN) &&
+				    !(curpeers->flags & PEERS_F_RESYNC_PROCESS)) {
 					unsigned char msg[2];
 
-                                        /* Current peer was elected to request a resync */
+					/* Current peer was elected to request a resync */
 					msg[0] = PEER_MSG_CLASS_CONTROL;
 					msg[1] = PEER_MSG_CTRL_RESYNCREQ;
 
 					/* message to buffer */
 					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
-                                        if (repl <= 0) {
-                                                /* no more write possible */
-                                                if (repl == -1)
-                                                        goto full;
-                                                appctx->st0 = PEER_SESS_ST_END;
-                                                goto switchstate;
-                                        }
-                                        curpeers->flags |= PEERS_F_RESYNC_PROCESS;
-                                }
+					if (repl <= 0) {
+						/* no more write possible */
+						if (repl == -1)
+							goto full;
+						appctx->st0 = PEER_SESS_ST_END;
+						goto switchstate;
+					}
+					curpeers->flags |= PEERS_F_RESYNC_PROCESS;
+				}
 
 				/* Nothing to read, now we start to write */
-
 				if (curpeer->tables) {
 					struct shared_table *st;
 					struct shared_table *last_local_table;
@@ -1776,7 +1770,7 @@ incomplete:
 				if ((curpeer->flags & PEER_F_TEACH_PROCESS) && !(curpeer->flags & PEER_F_TEACH_FINISHED)) {
 					unsigned char msg[2];
 
-                                        /* Current peer was elected to request a resync */
+					/* Current peer was elected to request a resync */
 					msg[0] = PEER_MSG_CLASS_CONTROL;
 					msg[1] = ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED) ? PEER_MSG_CTRL_RESYNCFINISHED : PEER_MSG_CTRL_RESYNCPARTIAL;
 					/* process final lesson message */
