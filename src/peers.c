@@ -591,6 +591,64 @@ static inline int peer_getline(struct appctx  *appctx)
 }
 
 /*
+ * Send a message after having called <peer_prepare_msg> to build it.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_msg(struct shared_table *st, struct appctx *appctx,
+                                int (*peer_prepare_msg)(struct shared_table *, char *, size_t))
+{
+	int ret, msglen;
+	struct stream_interface *si = appctx->owner;
+
+	msglen = peer_prepare_msg(st, trash.area, trash.size);
+	if (!msglen) {
+		/* internal error: message does not fit in trash */
+		appctx->st0 = PEER_SESS_ST_END;
+		return 0;
+	}
+
+	/* message to buffer */
+	ret = ci_putblk(si_ic(si), trash.area, msglen);
+	if (ret <= 0) {
+		if (ret == -1) {
+			/* No more write possible */
+			si_rx_room_blk(si);
+			return -1;
+		}
+		appctx->st0 = PEER_SESS_ST_END;
+	}
+
+	return ret;
+}
+
+/*
+ * Send a stick-table switch message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_switchmsg(struct shared_table *st, struct appctx *appctx)
+{
+	return peer_send_msg(st, appctx, peer_prepare_switchmsg);
+}
+
+/*
+ * Send a stick-table update acknowledgement message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_ackmsg(struct shared_table *st, struct appctx *appctx)
+{
+	return peer_send_msg(st, appctx, peer_prepare_ackmsg);
+}
+
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -1440,27 +1498,10 @@ incomplete:
 
 						/* It remains some updates to ack */
 						if (st->last_get != st->last_acked) {
-							int msglen;
-
-							msglen = peer_prepare_ackmsg(st,
-										     trash.area,
-										     trash.size);
-							if (!msglen) {
-								/* internal error: message does not fit in trash */
-								appctx->st0 = PEER_SESS_ST_END;
-								goto switchstate;
-							}
-
-							/* message to buffer */
-							repl = ci_putblk(si_ic(si),
-									 trash.area,
-									 msglen);
+							repl = peer_send_ackmsg(st, appctx);
 							if (repl <= 0) {
-								/* no more write possible */
-								if (repl == -1) {
-									goto full;
-								}
-								appctx->st0 = PEER_SESS_ST_END;
+								if (repl == -1)
+									goto out;
 								goto switchstate;
 							}
 							st->last_acked = st->last_get;
@@ -1474,29 +1515,11 @@ incomplete:
 								int new_pushed;
 
 								if (st != curpeer->last_local_table) {
-									int msglen;
-
-									msglen = peer_prepare_switchmsg(st,
-													trash.area,
-													trash.size);
-									if (!msglen) {
-										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										/* internal error: message does not fit in trash */
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
-
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
+									repl = peer_send_switchmsg(st, appctx);
 									if (repl <= 0) {
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										/* no more write possible */
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
 									curpeer->last_local_table = st;
@@ -1576,29 +1599,13 @@ incomplete:
 								int new_pushed;
 
 								if (st != curpeer->last_local_table) {
-									int msglen;
-
-									msglen = peer_prepare_switchmsg(st,
-													trash.area,
-													trash.size);
-									if (!msglen) {
-										/* internal error: message does not fit in trash */
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
-
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
+									repl = peer_send_switchmsg(st, appctx);
 									if (repl <= 0) {
-										/* no more write possible */
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
+
 									curpeer->last_local_table = st;
 								}
 
@@ -1670,29 +1677,13 @@ incomplete:
 								int new_pushed;
 
 								if (st != curpeer->last_local_table) {
-									int msglen;
-
-									msglen = peer_prepare_switchmsg(st,
-													trash.area,
-													trash.size);
-									if (!msglen) {
-										/* internal error: message does not fit in trash */
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
-
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
+									repl = peer_send_switchmsg(st, appctx);
 									if (repl <= 0) {
-										/* no more write possible */
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
+
 									curpeer->last_local_table = st;
 								}
 
