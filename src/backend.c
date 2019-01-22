@@ -1307,9 +1307,12 @@ int connect_server(struct stream *s)
 		    (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) ||
 		    (((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 		     s->txn && (s->txn->flags & TX_NOT_FIRST)))) {
-			srv_conn = LIST_ELEM(srv->idle_orphan_conns[tid].n,
+			srv_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[tid],
 			    struct connection *, list);
-			reuse_orphan = 1;
+			if (srv_conn) {
+				LIST_INIT(&srv_conn->list);
+				reuse_orphan = 1;
+			}
 		}
 
 		/* If we've picked a connection from the pool, we now have to
@@ -1341,7 +1344,6 @@ int connect_server(struct stream *s)
 	 * list and add it back to the idle list.
 	 */
 	if (reuse && reuse_orphan) {
-		LIST_DEL(&srv_conn->list);
 		srv_conn->idle_time = 0;
 		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		srv->curr_idle_thr[tid]--;

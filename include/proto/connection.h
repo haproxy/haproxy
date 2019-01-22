@@ -698,7 +698,7 @@ static inline void conn_free(struct connection *conn)
 	}
 
 	conn_force_unsubscribe(conn);
-	LIST_DEL(&conn->list);
+	LIST_DEL_LOCKED(&conn->list);
 	LIST_INIT(&conn->list);
 	pool_free(pool_head_connection, conn);
 }
