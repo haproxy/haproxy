@@ -267,7 +267,8 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, unsigned int updateid, char *msg, size_t size, int use_identifier, int use_timed)
+static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
+                                  unsigned int updateid, int use_identifier, int use_timed)
 {
 	uint32_t netinteger;
 	unsigned short datalen;
@@ -379,7 +380,8 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, u
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t size)
+static int peer_prepare_switchmsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
+                                  unsigned int param1, int param2, int param3)
 {
 	int len;
 	unsigned short datalen;
@@ -461,7 +463,8 @@ static int peer_prepare_switchmsg(struct shared_table *st, char *msg, size_t siz
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_ackmsg(struct shared_table *st, char *msg, size_t size)
+static int peer_prepare_ackmsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
+                               unsigned int param1, int param2, int param3)
 {
 	unsigned short datalen;
 	char *cursor, *datamsg;
@@ -598,12 +601,15 @@ static inline int peer_getline(struct appctx  *appctx)
  * returned value equal to PEER_SESS_ST_END.
  */
 static inline int peer_send_msg(struct shared_table *st, struct appctx *appctx,
-                                int (*peer_prepare_msg)(struct shared_table *, char *, size_t))
+                                int (*peer_prepare_msg)(struct stksess *, struct shared_table *,
+                                                        char *, size_t,
+                                                        unsigned int, int, int),
+                                struct stksess *ts, unsigned int param1, int param2, int param3)
 {
 	int ret, msglen;
 	struct stream_interface *si = appctx->owner;
 
-	msglen = peer_prepare_msg(st, trash.area, trash.size);
+	msglen = peer_prepare_msg(ts, st, trash.area, trash.size, param1, param2, param3);
 	if (!msglen) {
 		/* internal error: message does not fit in trash */
 		appctx->st0 = PEER_SESS_ST_END;
@@ -633,7 +639,7 @@ static inline int peer_send_msg(struct shared_table *st, struct appctx *appctx,
  */
 static inline int peer_send_switchmsg(struct shared_table *st, struct appctx *appctx)
 {
-	return peer_send_msg(st, appctx, peer_prepare_switchmsg);
+	return peer_send_msg(st, appctx, peer_prepare_switchmsg, NULL, -1, -1, -1);
 }
 
 /*
@@ -645,7 +651,20 @@ static inline int peer_send_switchmsg(struct shared_table *st, struct appctx *ap
  */
 static inline int peer_send_ackmsg(struct shared_table *st, struct appctx *appctx)
 {
-	return peer_send_msg(st, appctx, peer_prepare_ackmsg);
+	return peer_send_msg(st, appctx, peer_prepare_ackmsg, NULL, -1, -1, -1);
+}
+
+/*
+ * Send a stick-table update message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *appctx, struct stksess *ts,
+                                      unsigned int updateid, int use_identifier, int use_timed)
+{
+	return peer_send_msg(st, appctx, peer_prepare_updatemsg, ts, updateid, use_identifier, use_timed);
 }
 
 /*
@@ -1528,7 +1547,6 @@ incomplete:
 								/* We force new pushed to 1 to force identifier in update message */
 								new_pushed = 1;
 								while (1) {
-									uint32_t msglen;
 									struct stksess *ts;
 									unsigned updateid;
 
@@ -1552,33 +1570,14 @@ incomplete:
 									ts->ref_cnt++;
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
-									msglen = peer_prepare_updatemsg(ts, st, updateid,
-													trash.area,
-													trash.size,
-													new_pushed,
-													0);
-									if (!msglen) {
-										/* internal error: message does not fit in trash */
-										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
-										ts->ref_cnt--;
-										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
-
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
+									repl = peer_send_updatemsg(st, appctx, ts,
+									                           updateid, new_pushed, 0);
 									if (repl <= 0) {
-										/* no more write possible */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
 
@@ -1605,7 +1604,6 @@ incomplete:
 											goto out;
 										goto switchstate;
 									}
-
 									curpeer->last_local_table = st;
 								}
 
@@ -1613,7 +1611,6 @@ incomplete:
 								new_pushed = 1;
 								HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
-									uint32_t msglen;
 									struct stksess *ts;
 									int use_timed;
 									unsigned updateid;
@@ -1634,35 +1631,17 @@ incomplete:
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, updateid,
-													trash.area,
-													trash.size,
-													new_pushed,
-													use_timed);
-									if (!msglen) {
-										/* internal error: message does not fit in trash */
+									repl = peer_send_updatemsg(st, appctx, ts,
+									                           updateid, new_pushed, use_timed);
+									if (repl <= 0) {
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
 
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
-									if (repl <= 0) {
-										/* no more write possible */
-										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
-										ts->ref_cnt--;
-										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
 									HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 									ts->ref_cnt--;
 									st->last_pushed = updateid;
@@ -1683,7 +1662,6 @@ incomplete:
 											goto out;
 										goto switchstate;
 									}
-
 									curpeer->last_local_table = st;
 								}
 
@@ -1691,7 +1669,6 @@ incomplete:
 								new_pushed = 1;
 								HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 								while (1) {
-									uint32_t msglen;
 									struct stksess *ts;
 									int use_timed;
 									unsigned updateid;
@@ -1711,33 +1688,14 @@ incomplete:
 									HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 
 									use_timed = !(curpeer->flags & PEER_F_DWNGRD);
-									msglen = peer_prepare_updatemsg(ts, st, updateid,
-													trash.area,
-													trash.size,
-													new_pushed,
-													use_timed);
-									if (!msglen) {
-										/* internal error: message does not fit in trash */
-										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
-										ts->ref_cnt--;
-										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										appctx->st0 = PEER_SESS_ST_END;
-										goto switchstate;
-									}
-
-									/* message to buffer */
-									repl = ci_putblk(si_ic(si),
-											 trash.area,
-											 msglen);
+									repl = peer_send_updatemsg(st, appctx, ts,
+									                           updateid, new_pushed, use_timed);
 									if (repl <= 0) {
-										/* no more write possible */
 										HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 										ts->ref_cnt--;
 										HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
-										if (repl == -1) {
-											goto full;
-										}
-										appctx->st0 = PEER_SESS_ST_END;
+										if (repl == -1)
+											goto out;
 										goto switchstate;
 									}
 
