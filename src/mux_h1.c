@@ -1658,7 +1658,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	/* when the output buffer is empty, tmp shares the same area so that we
 	 * only have to update pointers and lengths.
 	 */
-	if (tmp->area == h1c->obuf.area)
+	if (tmp->area == h1c->obuf.area + h1c->obuf.head)
 		h1c->obuf.data = tmp->data;
 	else
 		b_putblk(&h1c->obuf, tmp->area, tmp->data);
