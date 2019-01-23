@@ -225,6 +225,7 @@ struct server {
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections */
+	int max_reuse;                          /* Max number of requests on a same connection */
 	struct task **idle_task;                /* task responsible for cleaning idle orphan connections */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 

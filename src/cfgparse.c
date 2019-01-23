@@ -471,6 +471,7 @@ void init_default_instance()
 	defproxy.defsrv.maxqueue = 0;
 	defproxy.defsrv.minconn = 0;
 	defproxy.defsrv.maxconn = 0;
+	defproxy.defsrv.max_reuse = -1;
 	defproxy.defsrv.max_idle_conns = -1;
 	defproxy.defsrv.pool_purge_delay = 1000;
 	defproxy.defsrv.slowstart = 0;

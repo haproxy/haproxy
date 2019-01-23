@@ -358,6 +358,20 @@ static int srv_parse_enabled(char **args, int *cur_arg,
 	return 0;
 }
 
+static int srv_parse_max_reuse(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->max_reuse = atoi(arg);
+
+	return 0;
+}
+
 static int srv_parse_pool_purge_delay(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	const char *res;
@@ -1239,6 +1253,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
+	{ "max-reuse",           srv_parse_max_reuse,           1,  1 }, /* Set the max number of requests on a connection, -1 means unlimited */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
@@ -1689,6 +1704,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->mux_proto = src->mux_proto;
 	srv->pool_purge_delay = src->pool_purge_delay;
 	srv->max_idle_conns = src->max_idle_conns;
+	srv->max_reuse = src->max_reuse;
 
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;
@@ -1736,6 +1752,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->pool_purge_delay = 1000;
 	srv->max_idle_conns = -1;
+	srv->max_reuse = -1;
 
 	return srv;
 
