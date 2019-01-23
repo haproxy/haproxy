@@ -14452,7 +14452,12 @@ dst : ip
   which is the address the client connected to. It can be useful when running
   in transparent mode. It is of type IP and works on both IPv4 and IPv6 tables.
   On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent, according to
-  RFC 4291.
+  RFC 4291. When the incoming connection passed through address translation or
+  redirection involving connection tracking, the original destination address
+  before the redirection will be reported. On Linux systems, the source and
+  destination may seldom appear reversed if the nf_conntrack_tcp_loose sysctl
+  is set, because a late response may reopen a timed out connection and switch
+  what is believed to be the source and the destination.
 
 dst_conn : integer
   Returns an integer value corresponding to the number of currently established
@@ -14799,7 +14804,13 @@ src : ip
   behind a proxy. However if the "accept-proxy" or "accept-netscaler-cip" bind
   directive is used, it can be the address of a client behind another
   PROXY-protocol compatible component for all rule sets except
-  "tcp-request connection" which sees the real address.
+  "tcp-request connection" which sees the real address. When the incoming
+  connection passed through address translation or redirection involving
+  connection tracking, the original destination address before the redirection
+  will be reported. On Linux systems, the source and destination may seldom
+  appear reversed if the nf_conntrack_tcp_loose sysctl is set, because a late
+  response may reopen a timed out connection and switch what is believed to be
+  the source and the destination.
 
   Example:
        # add an HTTP header in requests with the originating address' country
