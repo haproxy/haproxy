@@ -5141,9 +5141,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		int32_t id = h2c_get_next_sid(h2s->h2c);
 
 		if (id < 0) {
-			cs->ctx = NULL;
 			cs->flags |= CS_FL_ERROR;
-			h2s_destroy(h2s);
 			return 0;
 		}
 
