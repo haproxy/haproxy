@@ -1944,23 +1944,23 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 	srv_lb_commit_status(srv);
 
 	if (srv->max_idle_conns != 0) {
-			int i;
+		int i;
 
-			srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
-			if (!srv->idle_orphan_conns)
+		srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
+		if (!srv->idle_orphan_conns)
+			goto err;
+		srv->idle_task = calloc(global.nbthread, sizeof(*srv->idle_task));
+		if (!srv->idle_task)
+			goto err;
+		for (i = 0; i < global.nbthread; i++) {
+			LIST_INIT(&srv->idle_orphan_conns[i]);
+			srv->idle_task[i] = task_new(1 << i);
+			if (!srv->idle_task[i])
 				goto err;
-			srv->idle_task = calloc(global.nbthread, sizeof(*srv->idle_task));
-			if (!srv->idle_task)
-				goto err;
-			for (i = 0; i < global.nbthread; i++) {
-				LIST_INIT(&srv->idle_orphan_conns[i]);
-				srv->idle_task[i] = task_new(1 << i);
-				if (!srv->idle_task[i])
-					goto err;
-				srv->idle_task[i]->process = cleanup_idle_connections;
-				srv->idle_task[i]->context = srv;
-			}
+			srv->idle_task[i]->process = cleanup_idle_connections;
+			srv->idle_task[i]->context = srv;
 		}
+	}
 
 	return 0;
 err:
