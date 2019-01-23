@@ -119,7 +119,7 @@ struct h2c {
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_cs;       /* number of attached conn_streams */
 	unsigned int nb_reserved; /* number of reserved streams */
-	/* 32 bit hole here */
+	unsigned int stream_cnt;  /* total number of streams seen */
 	struct proxy *proxy; /* the proxy this connection was created for */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
@@ -410,6 +410,7 @@ static inline int h2_streams_left(const struct h2c *h2c)
 /* returns the number of concurrent streams available on the connection */
 static int h2_avail_streams(struct connection *conn)
 {
+	struct server *srv = objt_server(conn->target);
 	struct h2c *h2c = conn->ctx;
 	int ret1, ret2;
 
@@ -418,7 +419,12 @@ static int h2_avail_streams(struct connection *conn)
 
 	/* we must also consider the limit imposed by stream IDs */
 	ret2 = h2_streams_left(h2c);
-	return MIN(ret1, ret2);
+	ret1 = MIN(ret1, ret2);
+	if (ret1 && srv && srv->max_reuse >= 0) {
+		ret2 = h2c->stream_cnt <= srv->max_reuse ? srv->max_reuse - h2c->stream_cnt + 1: 0;
+		ret1 = MIN(ret1, ret2);
+	}
+	return ret1;
 }
 
 static int h2_max_streams(struct connection *conn)
@@ -492,10 +498,12 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->nb_streams = 0;
 	h2c->nb_cs = 0;
 	h2c->nb_reserved = 0;
+	h2c->stream_cnt = 0;
 
 	h2c->dbuf = BUF_NULL;
 	h2c->dsi = -1;
 	h2c->msi = -1;
+
 	h2c->last_sid = -1;
 
 	h2c->mbuf = BUF_NULL;
@@ -883,6 +891,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
+	h2c->stream_cnt++;
 
 	return h2s;
 
