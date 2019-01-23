@@ -1305,7 +1305,7 @@ int connect_server(struct stream *s)
 		 * only create a new one if we don't have one already.
 		 */
 		if (!srv_cs) {
-			if (srv_conn->mux->avail_streams(srv_conn) == 1) {
+			if (srv_conn->mux->avail_streams(srv_conn) <= 1) {
 				/* No more streams available, remove it from the list */
 				LIST_DEL(&srv_conn->list);
 				LIST_INIT(&srv_conn->list);
