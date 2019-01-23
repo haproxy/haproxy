@@ -1085,6 +1085,171 @@ static int peer_recv_updatemsg(struct appctx *appctx, struct peer *p, int updt, 
 }
 
 /*
+ * Function used to parse a stick-table update acknowledgement message after it
+ * has been received by <p> peer with <msg_cur> as address of the pointer to the position in the
+ * receipt buffer with <msg_end> being the position of the end of the stick-table message.
+ * Update <msg_curr> accordingly to the peer protocol specs if no peer protocol error
+ * was encountered.
+ * Return 1 if succeeded, 0 if not with the appctx state st0 set to PEER_SESS_ST_ERRPROTO.
+ */
+static inline int peer_treat_ackmsg(struct appctx *appctx, struct peer *p,
+                                    char **msg_cur, char *msg_end)
+{
+	/* ack message */
+	uint32_t table_id ;
+	uint32_t update;
+	struct shared_table *st;
+
+	table_id = intdecode(msg_cur, msg_end);
+	if (!*msg_cur || (*msg_cur + sizeof(update) > msg_end)) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	memcpy(&update, *msg_cur, sizeof(update));
+	update = ntohl(update);
+
+	for (st = p->tables; st; st = st->next) {
+		if (st->local_id == table_id) {
+			st->update = update;
+			break;
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * Function used to parse a stick-table switch message after it has been received
+ * by <p> peer with <msg_cur> as address of the pointer to the position in the
+ * receipt buffer with <msg_end> being the position of the end of the stick-table message.
+ * Update <msg_curr> accordingly to the peer protocol specs if no peer protocol error
+ * was encountered.
+ * Return 1 if succeeded, 0 if not with the appctx state st0 set to PEER_SESS_ST_ERRPROTO.
+ */
+static inline int peer_treat_switchmsg(struct appctx *appctx, struct peer *p,
+                                      char **msg_cur, char *msg_end)
+{
+	struct shared_table *st;
+	int table_id;
+
+	table_id = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	p->remote_table = NULL;
+	for (st = p->tables; st; st = st->next) {
+		if (st->remote_id == table_id) {
+			p->remote_table = st;
+			break;
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * Function used to parse a stick-table definition message after it has been received
+ * by <p> peer with <msg_cur> as address of the pointer to the position in the
+ * receipt buffer with <msg_end> being the position of the end of the stick-table message.
+ * Update <msg_curr> accordingly to the peer protocol specs if no peer protocol error
+ * was encountered.
+ * <totl> is the length of the stick-table update message computed upon receipt.
+ * Return 1 if succeeded, 0 if not with the appctx state st0 set to PEER_SESS_ST_ERRPROTO.
+ */
+static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
+                                      char **msg_cur, char *msg_end, int totl)
+{
+	struct stream_interface *si = appctx->owner;
+	int table_id_len;
+	struct shared_table *st;
+	int table_type;
+	int table_keylen;
+	int table_id;
+	uint64_t table_data;
+
+	table_id = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	table_id_len = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	p->remote_table = NULL;
+	if (!table_id_len || (*msg_cur + table_id_len) >= msg_end) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	for (st = p->tables; st; st = st->next) {
+		/* Reset IDs */
+		if (st->remote_id == table_id)
+			st->remote_id = 0;
+
+		if (!p->remote_table && (table_id_len == strlen(st->table->id)) &&
+		    (memcmp(st->table->id, *msg_cur, table_id_len) == 0))
+			p->remote_table = st;
+	}
+
+	if (!p->remote_table)
+		goto ignore_msg;
+
+	*msg_cur += table_id_len;
+	if (*msg_cur >= msg_end) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	table_type = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	table_keylen = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	table_data = intdecode(msg_cur, msg_end);
+	if (!*msg_cur) {
+		/* malformed message */
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return 0;
+	}
+
+	if (p->remote_table->table->type != table_type
+		|| p->remote_table->table->key_size != table_keylen) {
+		p->remote_table = NULL;
+		goto ignore_msg;
+	}
+
+	p->remote_table->remote_data = table_data;
+	p->remote_table->remote_id = table_id;
+	return 1;
+
+ ignore_msg:
+	co_skip(si_oc(si), totl);
+	return 0;
+}
+
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -1541,105 +1706,12 @@ switchstate:
 				}
 				else if (msg_head[0] == PEER_MSG_CLASS_STICKTABLE) {
 					if (msg_head[1] == PEER_MSG_STKT_DEFINE) {
-						int table_id_len;
-						struct shared_table *st;
-						int table_type;
-						int table_keylen;
-						int table_id;
-						uint64_t table_data;
-
-						table_id = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						table_id_len = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						curpeer->remote_table = NULL;
-						if (!table_id_len || (msg_cur + table_id_len) >= msg_end) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						for (st = curpeer->tables; st; st = st->next) {
-							/* Reset IDs */
-							if (st->remote_id == table_id)
-								st->remote_id = 0;
-
-							if (!curpeer->remote_table
-							    && (table_id_len == strlen(st->table->id))
-							    && (memcmp(st->table->id, msg_cur, table_id_len) == 0)) {
-								curpeer->remote_table = st;
-							}
-						}
-
-						if (!curpeer->remote_table) {
-							goto ignore_msg;
-						}
-
-						msg_cur += table_id_len;
-						if (msg_cur >= msg_end) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						table_type = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						table_keylen = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						table_data = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-
-						if (curpeer->remote_table->table->type != table_type
-						    || curpeer->remote_table->table->key_size != table_keylen) {
-							curpeer->remote_table = NULL;
-							goto ignore_msg;
-						}
-
-						curpeer->remote_table->remote_data = table_data;
-						curpeer->remote_table->remote_id = table_id;
+						if (!peer_treat_definemsg(appctx, curpeer, &msg_cur, msg_end, totl))
+						    goto switchstate;
 					}
 					else if (msg_head[1] == PEER_MSG_STKT_SWITCH) {
-						struct shared_table *st;
-						int table_id;
-
-						table_id = intdecode(&msg_cur, msg_end);
-						if (!msg_cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
+						if (!peer_treat_switchmsg(appctx, curpeer, &msg_cur, msg_end))
 							goto switchstate;
-						}
-						curpeer->remote_table = NULL;
-						for (st = curpeer->tables; st; st = st->next) {
-							if (st->remote_id == table_id) {
-								curpeer->remote_table = st;
-								break;
-							}
-						}
-
 					}
 					else if (msg_head[1] == PEER_MSG_STKT_UPDATE
 						 || msg_head[1] == PEER_MSG_STKT_INCUPDATE
@@ -1655,26 +1727,8 @@ switchstate:
 
 					}
 					else if (msg_head[1] == PEER_MSG_STKT_ACK) {
-						/* ack message */
-						uint32_t table_id ;
-						uint32_t update;
-						struct shared_table *st;
-
-						table_id = intdecode(&msg_cur, msg_end);
-						if (!msg_cur || (msg_cur + sizeof(update) > msg_end)) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
+						if (!peer_treat_ackmsg(appctx, curpeer, &msg_cur, msg_end))
 							goto switchstate;
-						}
-						memcpy(&update, msg_cur, sizeof(update));
-						update = ntohl(update);
-
-						for (st = curpeer->tables; st; st = st->next) {
-							if (st->local_id == table_id) {
-								st->update = update;
-								break;
-							}
-						}
 					}
 				}
 				else if (msg_head[0] == PEER_MSG_CLASS_RESERVED) {
