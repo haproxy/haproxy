@@ -118,6 +118,8 @@ struct h2c {
 	int shut_timeout;   /* idle timeout duration in ticks after GOAWAY was sent */
 	unsigned int nb_streams;  /* number of streams in the tree */
 	unsigned int nb_cs;       /* number of attached conn_streams */
+	unsigned int nb_reserved; /* number of reserved streams */
+	/* 32 bit hole here */
 	struct proxy *proxy; /* the proxy this connection was created for */
 	struct task *task;  /* timeout management task */
 	struct eb_root streams_by_id; /* all active streams by their ID */
@@ -387,12 +389,36 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 	}
 }
 
+/* returns the number of allocatable outgoing streams for the connection taking
+ * the last_sid and the reserved ones into account.
+ */
+static inline int h2_streams_left(const struct h2c *h2c)
+{
+	int ret;
+
+	/* consider the number of outgoing streams we're allowed to create before
+	 * reaching the last GOAWAY frame seen. max_id is the last assigned id,
+	 * nb_reserved is the number of streams which don't yet have an ID.
+	 */
+	ret = (h2c->last_sid >= 0) ? h2c->last_sid : 0x7FFFFFFF;
+	ret = (unsigned int)(ret - h2c->max_id) / 2 - h2c->nb_reserved - 1;
+	if (ret < 0)
+		ret = 0;
+	return ret;
+}
+
+/* returns the number of concurrent streams available on the connection */
 static int h2_avail_streams(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
+	int ret1, ret2;
 
 	/* XXX Should use the negociated max concurrent stream nb instead of the conf value */
-	return (h2_settings_max_concurrent_streams - h2c->nb_streams);
+	ret1 = h2_settings_max_concurrent_streams - h2c->nb_streams;
+
+	/* we must also consider the limit imposed by stream IDs */
+	ret2 = h2_streams_left(h2c);
+	return MIN(ret1, ret2);
 }
 
 static int h2_max_streams(struct connection *conn)
@@ -465,6 +491,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->rcvd_s = 0;
 	h2c->nb_streams = 0;
 	h2c->nb_cs = 0;
+	h2c->nb_reserved = 0;
 
 	h2c->dbuf = BUF_NULL;
 	h2c->dsi = -1;
@@ -771,8 +798,11 @@ static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh
  */
 static inline void h2s_close(struct h2s *h2s)
 {
-	if (h2s->st != H2_SS_CLOSED)
+	if (h2s->st != H2_SS_CLOSED) {
 		h2s->h2c->nb_streams--;
+		if (!h2s->id)
+			h2s->h2c->nb_reserved--;
+	}
 	h2s->st = H2_SS_CLOSED;
 }
 
@@ -847,6 +877,8 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->by_id.key = h2s->id = id;
 	if (id > 0)
 		h2c->max_id      = id;
+	else
+		h2c->nb_reserved++;
 
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
@@ -5156,6 +5188,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		eb32_delete(&h2s->by_id);
 		h2s->by_id.key = h2s->id = id;
 		h2s->h2c->max_id = id;
+		h2s->h2c->nb_reserved--;
 		eb32_insert(&h2s->h2c->streams_by_id, &h2s->by_id);
 	}
 
