@@ -2503,6 +2503,7 @@ redo:
 
 		if (si_f->state == SI_ST_DIS || si_f->state != si_f->prev_state ||
 		    si_b->state == SI_ST_DIS || si_b->state != si_b->prev_state ||
+		    ((si_f->flags | si_b->flags) & SI_FL_ERR) ||
 		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
 			goto redo;
 
