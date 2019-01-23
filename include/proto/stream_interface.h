@@ -491,10 +491,10 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		si->state = SI_ST_CON;
 	}
 	else {
-		/* reuse the existing connection */
-
-		/* the connection is established */
-		si->state = SI_ST_EST;
+		/* try to reuse the existing connection, it will be
+		 * confirmed once we can send on it.
+		 */
+		si->state = SI_ST_CON;
 	}
 
 	/* needs src ip/port for logging */
