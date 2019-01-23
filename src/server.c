@@ -389,7 +389,12 @@ static int srv_parse_pool_max_conn(char **args, int *cur_arg, struct proxy *curp
 		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+
 	newsrv->max_idle_conns = atoi(arg);
+	if ((int)newsrv->max_idle_conns < -1) {
+		memprintf(err, "'%s' must be >= -1", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	return 0;
 }
