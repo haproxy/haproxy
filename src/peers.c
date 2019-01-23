@@ -1250,6 +1250,92 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 }
 
 /*
+ * Receive a stick-table message.
+ * Returns 1 if there was no error, if not, returns 0 if not enough data were available,
+ * -1 if there was an error updating the appctx state st0 accordingly.
+ */
+static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t msg_head_sz,
+                                uint32_t *msg_len, int *totl)
+{
+	int reql;
+	struct stream_interface *si = appctx->owner;
+
+	reql = co_getblk(si_oc(si), msg_head, 2 * sizeof(char), *totl);
+	if (reql <= 0) /* closed or EOL not found */
+		goto incomplete;
+
+	*totl += reql;
+
+	if ((unsigned int)msg_head[1] < 128)
+		return 1;
+
+	/* Read and Decode message length */
+	reql = co_getblk(si_oc(si), &msg_head[2], sizeof(char), *totl);
+	if (reql <= 0) /* closed */
+		goto incomplete;
+
+	*totl += reql;
+
+	if ((unsigned int)msg_head[2] < 240) {
+		*msg_len = msg_head[2];
+	}
+	else {
+		int i;
+		char *cur;
+		char *end;
+
+		for (i = 3 ; i < msg_head_sz ; i++) {
+			reql = co_getblk(si_oc(si), &msg_head[i], sizeof(char), *totl);
+			if (reql <= 0) /* closed */
+				goto incomplete;
+
+			*totl += reql;
+
+			if (!(msg_head[i] & 0x80))
+				break;
+		}
+
+		if (i == msg_head_sz) {
+			/* malformed message */
+			appctx->st0 = PEER_SESS_ST_ERRPROTO;
+			return -1;
+		}
+		end = msg_head + msg_head_sz;
+		cur = &msg_head[2];
+		*msg_len = intdecode(&cur, end);
+		if (!cur) {
+			/* malformed message */
+			appctx->st0 = PEER_SESS_ST_ERRPROTO;
+			return -1;
+		}
+	}
+
+	/* Read message content */
+	if (*msg_len) {
+		if (*msg_len > trash.size) {
+			/* Status code is not success, abort */
+			appctx->st0 = PEER_SESS_ST_ERRSIZE;
+			return -1;
+		}
+
+		reql = co_getblk(si_oc(si), trash.area, *msg_len, *totl);
+		if (reql <= 0) /* closed */
+			goto incomplete;
+		*totl += reql;
+	}
+
+	return 1;
+
+ incomplete:
+	if (reql < 0) {
+		/* there was an error */
+		appctx->st0 = PEER_SESS_ST_END;
+		return -1;
+	}
+
+	return 0;
+}
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -1579,75 +1665,14 @@ switchstate:
 					}
 				}
 
-				reql = co_getblk(si_oc(si), (char *)msg_head, 2*sizeof(unsigned char), totl);
-				if (reql <= 0) /* closed or EOL not found */
+				reql = peer_recv_msg(appctx, (char *)msg_head, sizeof msg_head, &msg_len, &totl);
+				if (reql <= 0) {
+					if (reql == -1)
+						goto switchstate;
 					goto incomplete;
-
-				totl += reql;
-
-				if (msg_head[1] >= 128) {
-					/* Read and Decode message length */
-					reql = co_getblk(si_oc(si), (char *)&msg_head[2], sizeof(unsigned char), totl);
-					if (reql <= 0) /* closed */
-						goto incomplete;
-
-					totl += reql;
-
-					if (msg_head[2] < 240) {
-						msg_len = msg_head[2];
-					}
-					else {
-						int i;
-						char *cur;
-						char *end;
-
-						for (i = 3 ; i < sizeof(msg_head) ; i++) {
-							reql = co_getblk(si_oc(si), (char *)&msg_head[i], sizeof(char), totl);
-							if (reql <= 0) /* closed */
-								goto incomplete;
-
-							totl += reql;
-
-							if (!(msg_head[i] & 0x80))
-								break;
-						}
-
-						if (i == sizeof(msg_head)) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-
-						}
-						end = (char *)msg_head + sizeof(msg_head);
-						cur = (char *)&msg_head[2];
-						msg_len = intdecode(&cur, end);
-						if (!cur) {
-							/* malformed message */
-							appctx->st0 = PEER_SESS_ST_ERRPROTO;
-							goto switchstate;
-						}
-					}
-
-
-					/* Read message content */
-					if (msg_len) {
-						if (msg_len > trash.size) {
-							/* Status code is not success, abort */
-							appctx->st0 = PEER_SESS_ST_ERRSIZE;
-							goto switchstate;
-						}
-
-						reql = co_getblk(si_oc(si),
-								 trash.area,
-								 msg_len,
-								 totl);
-						if (reql <= 0) /* closed */
-							goto incomplete;
-						totl += reql;
-
-						msg_end += msg_len;
-					}
 				}
+
+				msg_end += msg_len;
 
 				if (msg_head[0] == PEER_MSG_CLASS_CONTROL) {
 					if (msg_head[1] == PEER_MSG_CTRL_RESYNCREQ) {
