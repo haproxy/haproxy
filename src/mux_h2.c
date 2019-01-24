@@ -547,7 +547,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 static inline int32_t h2c_get_next_sid(const struct h2c *h2c)
 {
 	int32_t id = (h2c->max_id + 1) | 1;
-	if (id & 0x80000000U)
+
+	if ((id & 0x80000000U) || (h2c->last_sid >= 0 && id > h2c->last_sid))
 		id = -1;
 	return id;
 }
@@ -952,6 +953,9 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 	struct h2s *h2s = NULL;
 
 	if (h2c->nb_streams >= h2_settings_max_concurrent_streams)
+		goto out;
+
+	if (h2_streams_left(h2c) < 1)
 		goto out;
 
 	/* Defer choosing the ID until we send the first message to create the stream */
