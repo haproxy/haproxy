@@ -130,7 +130,7 @@ static int h2_prepare_h1_reqline(uint32_t fields, struct ist *phdr, char **ptr, 
  * The Cookie header will be reassembled at the end, and for this, the <list>
  * will be used to create a linked list, so its contents may be destroyed.
  */
-int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf)
+int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf, unsigned long long *body_len)
 {
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	char *out_end = out + osize;
@@ -191,9 +191,14 @@ int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int
 		if (isteq(list[idx].n, ist("host")))
 			fields |= H2_PHDR_FND_HOST;
 
-		if ((*msgf & (H2_MSGF_BODY|H2_MSGF_BODY_TUNNEL|H2_MSGF_BODY_CL)) == H2_MSGF_BODY &&
-		    isteq(list[idx].n, ist("content-length")))
-			*msgf |= H2_MSGF_BODY_CL;
+		if (isteq(list[idx].n, ist("content-length"))) {
+			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
+			if (ret < 0)
+				goto fail;
+
+			if (ret == 0)
+				continue; // skip this duplicate
+		}
 
 		/* these ones are forbidden in requests (RFC7540#8.1.2.2) */
 		if (isteq(list[idx].n, ist("connection")) ||
@@ -556,7 +561,7 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
  * The Cookie header will be reassembled at the end, and for this, the <list>
  * will be used to create a linked list, so its contents may be destroyed.
  */
-int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf)
+int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len)
 {
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
@@ -567,7 +572,6 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	int i;
 	struct htx_sl *sl = NULL;
 	unsigned int sl_flags = 0;
-	unsigned long long body_len;
 
 	lck = ck = -1; // no cookie for now
 	fields = 0;
@@ -620,7 +624,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			fields |= H2_PHDR_FND_HOST;
 
 		if (isteq(list[idx].n, ist("content-length"))) {
-			ret = h2_parse_cont_len_header(msgf, &list[idx].v, &body_len);
+			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
 			if (ret < 0)
 				goto fail;
 
@@ -784,7 +788,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
  *   - in all cases except the end of list, v.name and v.len must designate a
  *     valid value.
  */
-int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf)
+int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len)
 {
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
@@ -794,7 +798,6 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	int i;
 	struct htx_sl *sl = NULL;
 	unsigned int sl_flags = 0;
-	unsigned long long body_len;
 
 	fields = 0;
 	for (idx = 0; list[idx].n.len != 0; idx++) {
@@ -843,7 +846,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		}
 
 		if (isteq(list[idx].n, ist("content-length"))) {
-			ret = h2_parse_cont_len_header(msgf, &list[idx].v, &body_len);
+			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
 			if (ret < 0)
 				goto fail;
 

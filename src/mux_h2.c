@@ -270,7 +270,7 @@ static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags);
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
@@ -1893,6 +1893,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer rxbuf = BUF_NULL;
+	unsigned long long body_len = 0;
 	uint32_t flags = 0;
 	int error;
 
@@ -1913,7 +1914,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_IDLE) {
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
-			if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags) <= 0)
+			if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len) <= 0)
 				goto out;
 			goto done;
 		}
@@ -1930,7 +1931,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	else if (h2c->flags & H2_CF_DEM_TOOMANY)
 		goto out; // IDLE but too many cs still present
 
-	error = h2c_decode_headers(h2c, &rxbuf, &flags);
+	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -2001,6 +2002,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
  */
 static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
+	unsigned long long body_len = 0;
 	int error;
 
 	if (!h2c->dfl) {
@@ -2016,7 +2018,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags);
+	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -3271,7 +3273,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * decoding, in order to detect if we're dealing with a headers or a trailers
  * block (the trailers block appears after H2_SF_HEADERS_RCVD was seen).
  */
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags)
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len)
 {
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
 	struct buffer *tmp = get_trash_chunk();
@@ -3431,12 +3433,12 @@ next_frame:
 	if (htx) {
 		/* HTX mode */
 		if (h2c->flags & H2_CF_IS_BACK)
-			outlen = h2_make_htx_response(list, htx, &msgf);
+			outlen = h2_make_htx_response(list, htx, &msgf, body_len);
 		else
-			outlen = h2_make_htx_request(list, htx, &msgf);
+			outlen = h2_make_htx_request(list, htx, &msgf, body_len);
 	} else {
 		/* HTTP/1 mode */
-		outlen = h2_make_h1_request(list, b_tail(rxbuf), try, &msgf);
+		outlen = h2_make_h1_request(list, b_tail(rxbuf), try, &msgf, body_len);
 		if (outlen > 0)
 			b_add(rxbuf, outlen);
 	}
