@@ -2125,27 +2125,20 @@ switchstate:
 				if (reql <= 0) {
 					if (reql == -1)
 						goto switchstate;
-					goto incomplete;
+					goto send_msgs;
 				}
 
 				msg_end += msg_len;
 				if (!peer_treat_awaited_msg(appctx, curpeer, msg_head, &msg_cur, msg_end, msg_len, totl))
 					goto switchstate;
-ignore_msg:
+
 				/* skip consumed message */
 				co_skip(si_oc(si), totl);
 				/* loop on that state to peek next message */
 				goto switchstate;
 
-incomplete:
-				/* we get here when a co_getblk() returns <= 0 in reql */
-
-				if (reql < 0) {
-					/* there was an error */
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-
+send_msgs:
+				/* we get here when a peer_recv_msg() returns 0 in reql */
 				repl = peer_send_msgs(appctx, curpeer);
 				if (repl <= 0) {
 					if (repl == -1)
