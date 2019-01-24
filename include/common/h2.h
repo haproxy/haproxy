@@ -96,9 +96,13 @@ enum {
 	H2_FT_WINDOW_UPDATE_BIT = 1U << H2_FT_WINDOW_UPDATE,
 	H2_FT_CONTINUATION_BIT  = 1U << H2_FT_CONTINUATION,
 	/* padded frames */
-	H2_FT_PADDED_MASK       = (1U << H2_FT_DATA) | (1U << H2_FT_HEADERS) | (1U << H2_FT_PUSH_PROMISE),
+	H2_FT_PADDED_MASK       = H2_FT_DATA_BIT | H2_FT_HEADERS_BIT | H2_FT_PUSH_PROMISE_BIT,
 	/* flow controlled frames */
-	H2_FT_FC_MASK           = (1U << H2_FT_DATA),
+	H2_FT_FC_MASK           = H2_FT_DATA_BIT,
+	/* header frames */
+	H2_FT_HDR_MASK          = H2_FT_HEADERS_BIT | H2_FT_PUSH_PROMISE_BIT | H2_FT_CONTINUATION_BIT,
+	/* frames allowed to arrive late on a stream */
+	H2_FT_LATE_MASK         = H2_FT_WINDOW_UPDATE_BIT | H2_FT_RST_STREAM_BIT | H2_FT_PRIORITY_BIT,
 };
 
 
