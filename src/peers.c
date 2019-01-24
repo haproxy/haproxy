@@ -115,6 +115,23 @@ enum {
 	PEER_MSG_ERR_SIZELIMIT,
 };
 
+/*
+ * Parameters used by functions to build peer protocol messages. */
+struct peer_prep_params {
+	struct {
+		struct stksess *stksess;
+		struct shared_table *shared_table;
+		unsigned int updateid;
+		int use_identifier;
+		int use_timed;
+	} updt;
+	struct {
+		struct shared_table *shared_table;
+	} swtch;
+	struct {
+		struct shared_table *shared_table;
+	} ack;
+};
 
 /*******************************/
 /* stick table sync mesg types */
@@ -267,14 +284,24 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
-                                  unsigned int updateid, int use_identifier, int use_timed)
+static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 {
 	uint32_t netinteger;
 	unsigned short datalen;
 	char *cursor, *datamsg;
 	unsigned int data_type;
 	void *data_ptr;
+	struct stksess *ts;
+	struct shared_table *st;
+	unsigned int updateid;
+	int use_identifier;
+	int use_timed;
+
+	ts = p->updt.stksess;
+	st = p->updt.shared_table;
+	updateid = p->updt.updateid;
+	use_identifier = p->updt.use_identifier;
+	use_timed = p->updt.use_timed;
 
 	cursor = datamsg = msg + 1 + 5;
 
@@ -380,8 +407,7 @@ static int peer_prepare_updatemsg(struct stksess *ts, struct shared_table *st, c
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_switchmsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
-                                  unsigned int param1, int param2, int param3)
+static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_params *params)
 {
 	int len;
 	unsigned short datalen;
@@ -389,7 +415,9 @@ static int peer_prepare_switchmsg(struct stksess *ts, struct shared_table *st, c
 	char *cursor, *datamsg, *chunkp, *chunkq;
 	uint64_t data = 0;
 	unsigned int data_type;
+	struct shared_table *st;
 
+	st = params->swtch.shared_table;
 	cursor = datamsg = msg + 2 + 5;
 
 	/* Encode data */
@@ -463,15 +491,16 @@ static int peer_prepare_switchmsg(struct stksess *ts, struct shared_table *st, c
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_ackmsg(struct stksess *ts, struct shared_table *st, char *msg, size_t size,
-                               unsigned int param1, int param2, int param3)
+static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *p)
 {
 	unsigned short datalen;
 	char *cursor, *datamsg;
 	uint32_t netinteger;
+	struct shared_table *st;
 
 	cursor = datamsg = msg + 2 + 5;
 
+	st = p->ack.shared_table;
 	intencode(st->remote_id, &cursor);
 	netinteger = htonl(st->last_get);
 	memcpy(cursor, &netinteger, sizeof(netinteger));
@@ -600,16 +629,14 @@ static inline int peer_getline(struct appctx  *appctx)
  * any other negative returned value must  be considered as an error with an appcxt st0
  * returned value equal to PEER_SESS_ST_END.
  */
-static inline int peer_send_msg(struct shared_table *st, struct appctx *appctx,
-                                int (*peer_prepare_msg)(struct stksess *, struct shared_table *,
-                                                        char *, size_t,
-                                                        unsigned int, int, int),
-                                struct stksess *ts, unsigned int param1, int param2, int param3)
+static inline int peer_send_msg(struct appctx *appctx,
+                                int (*peer_prepare_msg)(char *, size_t, struct peer_prep_params *),
+                                struct peer_prep_params *params)
 {
 	int ret, msglen;
 	struct stream_interface *si = appctx->owner;
 
-	msglen = peer_prepare_msg(ts, st, trash.area, trash.size, param1, param2, param3);
+	msglen = peer_prepare_msg(trash.area, trash.size, params);
 	if (!msglen) {
 		/* internal error: message does not fit in trash */
 		appctx->st0 = PEER_SESS_ST_END;
@@ -639,7 +666,11 @@ static inline int peer_send_msg(struct shared_table *st, struct appctx *appctx,
  */
 static inline int peer_send_switchmsg(struct shared_table *st, struct appctx *appctx)
 {
-	return peer_send_msg(st, appctx, peer_prepare_switchmsg, NULL, -1, -1, -1);
+	struct peer_prep_params p = {
+		.swtch.shared_table = st,
+	};
+
+	return peer_send_msg(appctx, peer_prepare_switchmsg, &p);
 }
 
 /*
@@ -651,7 +682,11 @@ static inline int peer_send_switchmsg(struct shared_table *st, struct appctx *ap
  */
 static inline int peer_send_ackmsg(struct shared_table *st, struct appctx *appctx)
 {
-	return peer_send_msg(st, appctx, peer_prepare_ackmsg, NULL, -1, -1, -1);
+	struct peer_prep_params p = {
+		.ack.shared_table = st,
+	};
+
+	return peer_send_msg(appctx, peer_prepare_ackmsg, &p);
 }
 
 /*
@@ -664,7 +699,15 @@ static inline int peer_send_ackmsg(struct shared_table *st, struct appctx *appct
 static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *appctx, struct stksess *ts,
                                       unsigned int updateid, int use_identifier, int use_timed)
 {
-	return peer_send_msg(st, appctx, peer_prepare_updatemsg, ts, updateid, use_identifier, use_timed);
+	struct peer_prep_params p = {
+		.updt.stksess = ts,
+		.updt.shared_table = st,
+		.updt.updateid = updateid,
+		.updt.use_identifier = use_identifier,
+		.updt.use_timed = use_timed,
+	};
+
+	return peer_send_msg(appctx, peer_prepare_updatemsg, &p);
 }
 
 
