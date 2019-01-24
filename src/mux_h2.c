@@ -2252,9 +2252,14 @@ static void h2_process_demux(struct h2c *h2c)
 		if (h2s->st == H2_SS_HREM && h2c->dft != H2_FT_WINDOW_UPDATE &&
 		    h2c->dft != H2_FT_RST_STREAM && h2c->dft != H2_FT_PRIORITY) {
 			/* RFC7540#5.1: any frame other than WU/PRIO/RST in
-			 * this state MUST be treated as a stream error
+			 * this state MUST be treated as a stream error.
+			 * 6.2, 6.6 and 6.10 further mandate that HEADERS/
+			 * PUSH_PROMISE/CONTINUATION cause connection errors.
 			 */
-			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+			if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK)
+				h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			else
+				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 			goto strm_err;
 		}
 
