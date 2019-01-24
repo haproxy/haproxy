@@ -1865,7 +1865,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_IDLE) {
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
-			if (!h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags))
+			if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags) <= 0)
 				goto out;
 			goto done;
 		}
