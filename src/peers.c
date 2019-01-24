@@ -119,6 +119,12 @@ enum {
  * Parameters used by functions to build peer protocol messages. */
 struct peer_prep_params {
 	struct {
+		struct peer *peer;
+	} hello;
+	struct {
+		unsigned int st1;
+	} error_status;
+	struct {
 		struct stksess *stksess;
 		struct shared_table *shared_table;
 		unsigned int updateid;
@@ -131,6 +137,12 @@ struct peer_prep_params {
 	struct {
 		struct shared_table *shared_table;
 	} ack;
+	struct {
+		unsigned char head[2];
+	} control;
+	struct {
+		unsigned char head[2];
+	} error;
 };
 
 /*******************************/
@@ -256,6 +268,61 @@ uint64_t intdecode(char **str, char *end)
  fail:
 	*str = NULL;
 	return 0;
+}
+
+/*
+ * Build a "hello" peer protocol message.
+ * Return the number of written bytes written to build this messages if succeeded,
+ * 0 if not.
+ */
+static int peer_prepare_hellomsg(char *msg, size_t size, struct peer_prep_params *p)
+{
+	int min_ver, ret;
+	struct peer *peer;
+
+	peer = p->hello.peer;
+	min_ver = (peer->flags & PEER_F_DWNGRD) ? PEER_DWNGRD_MINOR_VER : PEER_MINOR_VER;
+	/* Prepare headers */
+	ret = snprintf(msg, size, PEER_SESSION_PROTO_NAME " %u.%u\n%s\n%s %d %d\n",
+	              PEER_MAJOR_VER, min_ver, peer->id, localpeer, (int)getpid(), relative_pid);
+	if (ret >= size)
+		return 0;
+
+	return ret;
+}
+
+/*
+ * Build a "handshake succeeded" status message.
+ * Return the number of written bytes written to build this messages if succeeded,
+ * 0 if not.
+ */
+static int peer_prepare_status_successmsg(char *msg, size_t size, struct peer_prep_params *p)
+{
+	int ret;
+
+	ret = snprintf(msg, size, "%d\n", PEER_SESS_SC_SUCCESSCODE);
+	if (ret >= size)
+		return 0;
+
+	return ret;
+}
+
+/*
+ * Build an error status message.
+ * Return the number of written bytes written to build this messages if succeeded,
+ * 0 if not.
+ */
+static int peer_prepare_status_errormsg(char *msg, size_t size, struct peer_prep_params *p)
+{
+	int ret;
+	unsigned int st1;
+
+	st1 = p->error_status.st1;
+	ret = snprintf(msg, size, "%d\n", st1);
+	if (ret >= size)
+		return 0;
+
+	return ret;
 }
 
 /* Set the stick-table UPDATE message type byte at <msg_type> address,
@@ -658,6 +725,50 @@ static inline int peer_send_msg(struct appctx *appctx,
 }
 
 /*
+ * Send a hello message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_hellomsg(struct appctx *appctx, struct peer *peer)
+{
+	struct peer_prep_params p = {
+		.hello.peer = peer,
+	};
+
+	return peer_send_msg(appctx, peer_prepare_hellomsg, &p);
+}
+
+/*
+ * Send a success peer handshake status message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_status_successmsg(struct appctx *appctx)
+{
+	return peer_send_msg(appctx, peer_prepare_status_successmsg, NULL);
+}
+
+/*
+ * Send a peer handshake status error message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_status_errormsg(struct appctx *appctx)
+{
+	struct peer_prep_params p = {
+		.error_status.st1 = appctx->st1,
+	};
+
+	return peer_send_msg(appctx, peer_prepare_status_errormsg, &p);
+}
+
+/*
  * Send a stick-table switch message.
  * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
@@ -710,6 +821,120 @@ static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *ap
 	return peer_send_msg(appctx, peer_prepare_updatemsg, &p);
 }
 
+/*
+ * Build a peer protocol control class message.
+ * Returns the number of written bytes used to build the message if succeeded,
+ * 0 if not.
+ */
+static int peer_prepare_control_msg(char *msg, size_t size, struct peer_prep_params *p)
+{
+	if (size < sizeof p->control.head)
+		return 0;
+
+	msg[0] = p->control.head[0];
+	msg[1] = p->control.head[1];
+
+	return 2;
+}
+
+/*
+ * Send a stick-table synchronization request message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appctx st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_resync_reqmsg(struct appctx *appctx)
+{
+	struct peer_prep_params p = {
+		.control.head = { PEER_MSG_CLASS_CONTROL, PEER_MSG_CTRL_RESYNCREQ, },
+	};
+
+	return peer_send_msg(appctx, peer_prepare_control_msg, &p);
+}
+
+/*
+ * Send a stick-table synchronization confirmation message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appctx st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_resync_confirmsg(struct appctx *appctx)
+{
+	struct peer_prep_params p = {
+		.control.head = { PEER_MSG_CLASS_CONTROL, PEER_MSG_CTRL_RESYNCCONFIRM, },
+	};
+
+	return peer_send_msg(appctx, peer_prepare_control_msg, &p);
+}
+
+/*
+ * Send a stick-table synchronization finished message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appctx st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_resync_finishedmsg(struct appctx *appctx, struct peer *peer)
+{
+	struct peer_prep_params p = {
+		.control.head = { PEER_MSG_CLASS_CONTROL, },
+	};
+
+	p.control.head[1] = (peer->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED ?
+		PEER_MSG_CTRL_RESYNCFINISHED : PEER_MSG_CTRL_RESYNCPARTIAL;
+
+	return peer_send_msg(appctx, peer_prepare_control_msg, &p);
+}
+
+/*
+ * Build a peer protocol error class message.
+ * Returns the number of written bytes used to build the message if succeeded,
+ * 0 if not.
+ */
+static int peer_prepare_error_msg(char *msg, size_t size, struct peer_prep_params *p)
+{
+	if (size < sizeof p->error.head)
+		return 0;
+
+	msg[0] = p->error.head[0];
+	msg[1] = p->error.head[1];
+
+	return 2;
+}
+
+/*
+ * Send a "size limit reached" error message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appctx st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_error_size_limitmsg(struct appctx *appctx)
+{
+	struct peer_prep_params p = {
+		.error.head = { PEER_MSG_CLASS_ERROR, PEER_MSG_ERR_SIZELIMIT, },
+	};
+
+	return peer_send_msg(appctx, peer_prepare_error_msg, &p);
+}
+
+/*
+ * Send a "peer protocol" error message.
+ * Return 0 if the message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appctx st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static inline int peer_send_error_protomsg(struct appctx *appctx)
+{
+	struct peer_prep_params p = {
+		.error.head = { PEER_MSG_CLASS_ERROR, PEER_MSG_ERR_PROTOCOL, },
+	};
+
+	return peer_send_msg(appctx, peer_prepare_error_msg, &p);
+}
 
 /*
  * Function used to lookup for recent stick-table updates associated with
@@ -1394,8 +1619,10 @@ static void peer_io_handler(struct appctx *appctx)
 	int prev_state;
 
 	/* Check if the input buffer is available. */
-	if (si_ic(si)->buf.size == 0)
-		goto full;
+	if (si_ic(si)->buf.size == 0) {
+		si_rx_room_blk(si);
+		goto out;
+	}
 
 	while (1) {
 		prev_state = appctx->st0;
@@ -1527,14 +1754,11 @@ switchstate:
 						goto switchstate;
 					}
 				}
-				repl = snprintf(trash.area, trash.size,
-						"%d\n",
-						PEER_SESS_SC_SUCCESSCODE);
-				repl = ci_putblk(si_ic(si), trash.area, repl);
+
+				repl = peer_send_status_successmsg(appctx);
 				if (repl <= 0) {
 					if (repl == -1)
-						goto full;
-					appctx->st0 = PEER_SESS_ST_END;
+						goto out;
 					goto switchstate;
 				}
 
@@ -1592,26 +1816,10 @@ switchstate:
 					}
 				}
 
-				/* Send headers */
-				repl = snprintf(trash.area, trash.size,
-				                PEER_SESSION_PROTO_NAME " %u.%u\n%s\n%s %d %d\n",
-				                PEER_MAJOR_VER,
-				                (curpeer->flags & PEER_F_DWNGRD) ? PEER_DWNGRD_MINOR_VER : PEER_MINOR_VER,
-				                curpeer->id,
-				                localpeer,
-				                (int)getpid(),
-						relative_pid);
-
-				if (repl >= trash.size) {
-					appctx->st0 = PEER_SESS_ST_END;
-					goto switchstate;
-				}
-
-				repl = ci_putblk(si_ic(si), trash.area, repl);
+				repl = peer_send_hellomsg(appctx, curpeer);
 				if (repl <= 0) {
 					if (repl == -1)
-						goto full;
-					appctx->st0 = PEER_SESS_ST_END;
+						goto out;
 					goto switchstate;
 				}
 
@@ -1826,21 +2034,14 @@ incomplete:
 				if ((curpeer->flags & PEER_F_LEARN_ASSIGN) &&
 				    (curpeers->flags & PEERS_F_RESYNC_ASSIGN) &&
 				    !(curpeers->flags & PEERS_F_RESYNC_PROCESS)) {
-					unsigned char msg[2];
 
-					/* Current peer was elected to request a resync */
-					msg[0] = PEER_MSG_CLASS_CONTROL;
-					msg[1] = PEER_MSG_CTRL_RESYNCREQ;
-
-					/* message to buffer */
-					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = peer_send_resync_reqmsg(appctx);
 					if (repl <= 0) {
-						/* no more write possible */
 						if (repl == -1)
-							goto full;
-						appctx->st0 = PEER_SESS_ST_END;
+							goto out;
 						goto switchstate;
 					}
+
 					curpeers->flags |= PEERS_F_RESYNC_PROCESS;
 				}
 
@@ -1912,18 +2113,10 @@ incomplete:
 
 
 				if ((curpeer->flags & PEER_F_TEACH_PROCESS) && !(curpeer->flags & PEER_F_TEACH_FINISHED)) {
-					unsigned char msg[2];
-
-					/* Current peer was elected to request a resync */
-					msg[0] = PEER_MSG_CLASS_CONTROL;
-					msg[1] = ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FINISHED) ? PEER_MSG_CTRL_RESYNCFINISHED : PEER_MSG_CTRL_RESYNCPARTIAL;
-					/* process final lesson message */
-					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = peer_send_resync_finishedmsg(appctx, curpeer);
 					if (repl <= 0) {
-						/* no more write possible */
 						if (repl == -1)
-							goto full;
-						appctx->st0 = PEER_SESS_ST_END;
+							goto out;
 						goto switchstate;
 					}
 					/* flag finished message sent */
@@ -1932,19 +2125,10 @@ incomplete:
 
 				/* Confirm finished or partial messages */
 				while (curpeer->confirm) {
-					unsigned char msg[2];
-
-					/* There is a confirm messages to send */
-					msg[0] = PEER_MSG_CLASS_CONTROL;
-					msg[1] = PEER_MSG_CTRL_RESYNCCONFIRM;
-
-					/* message to buffer */
-					repl = ci_putblk(si_ic(si), (char *)msg, sizeof(msg));
+					repl = peer_send_resync_confirmsg(appctx);
 					if (repl <= 0) {
-						/* no more write possible */
 						if (repl == -1)
-							goto full;
-						appctx->st0 = PEER_SESS_ST_END;
+							goto out;
 						goto switchstate;
 					}
 					curpeer->confirm--;
@@ -1957,37 +2141,25 @@ incomplete:
 				if (prev_state == PEER_SESS_ST_WAITMSG)
 					HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
-				repl = snprintf(trash.area, trash.size,
-						"%d\n", appctx->st1);
-				if (ci_putblk(si_ic(si), trash.area, repl) == -1)
-					goto full;
+				if (peer_send_status_errormsg(appctx) == -1)
+					goto out;
 				appctx->st0 = PEER_SESS_ST_END;
 				goto switchstate;
 			case PEER_SESS_ST_ERRSIZE: {
-				unsigned char msg[2];
-
 				if (prev_state == PEER_SESS_ST_WAITMSG)
 					HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
-				msg[0] = PEER_MSG_CLASS_ERROR;
-				msg[1] = PEER_MSG_ERR_SIZELIMIT;
-
-				if (ci_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
-					goto full;
+				if (peer_send_error_size_limitmsg(appctx) == -1)
+					goto out;
 				appctx->st0 = PEER_SESS_ST_END;
 				goto switchstate;
 			}
 			case PEER_SESS_ST_ERRPROTO: {
-				unsigned char msg[2];
-
 				if (prev_state == PEER_SESS_ST_WAITMSG)
 					HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
-				msg[0] = PEER_MSG_CLASS_ERROR;
-				msg[1] = PEER_MSG_ERR_PROTOCOL;
-
-				if (ci_putblk(si_ic(si), (char *)msg, sizeof(msg)) == -1)
-					goto full;
+				if (peer_send_error_protomsg(appctx) == -1)
+					goto out;
 				appctx->st0 = PEER_SESS_ST_END;
 				prev_state = appctx->st0;
 				/* fall through */
@@ -2013,9 +2185,6 @@ out:
 	if (curpeer)
 		HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
 	return;
-full:
-	si_rx_room_blk(si);
-	goto out;
 }
 
 static struct applet peer_applet = {
