@@ -1297,26 +1297,40 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (!reuse) {
-		srv_conn = conn_new();
-		srv_cs = NULL;
-	} else {
+	if (reuse) {
 		/* We already created a cs earlier when using http_proxy, so
 		 * only create a new one if we don't have one already.
 		 */
 		if (!srv_cs) {
-			if (srv_conn->mux->avail_streams(srv_conn) <= 1) {
+			int avail = srv_conn->mux->avail_streams(srv_conn);
+
+			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
 				LIST_DEL(&srv_conn->list);
 				LIST_INIT(&srv_conn->list);
 			}
-			srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
-			if (srv_cs)
-				si_attach_cs(&s->si[1], srv_cs);
+
+			if (avail >= 1) {
+				srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
+				if (srv_cs)
+					si_attach_cs(&s->si[1], srv_cs);
+				else
+					srv_conn = NULL;
+			}
 			else
 				srv_conn = NULL;
 		}
+		/* otherwise srv_conn is left intact */
 	}
+	else
+		srv_conn = NULL;
+
+	/* no reuse or failed to reuse the connection above, pick a new one */
+	if (!srv_conn) {
+		srv_conn = conn_new();
+		srv_cs = NULL;
+	}
+
 	if (srv_conn && old_conn != srv_conn) {
 		if (srv_conn->owner)
 			session_unown_conn(srv_conn->owner, srv_conn);
