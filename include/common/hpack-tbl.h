@@ -127,6 +127,7 @@ enum {
 	HPACK_ERR_MISSING_AUTHORITY,  /* :authority is missing with CONNECT */
 	HPACK_ERR_SCHEME_NOT_ALLOWED, /* :scheme not allowed with CONNECT */
 	HPACK_ERR_PATH_NOT_ALLOWED,   /* :path not allowed with CONNECT */
+	HPACK_ERR_INVALID_ARGUMENT,   /* an invalid argument was passed */
 };
 
 /* static header table as in RFC7541 Appendix A. [0] unused. */

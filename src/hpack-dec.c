@@ -232,6 +232,12 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 				goto leave;
 			}
 			hpack_debug_printf(" new len=%u\n", idx);
+
+			if (idx > dht->size) {
+				hpack_debug_printf("##ERR@%d##\n", __LINE__);
+				ret = -HPACK_ERR_INVALID_ARGUMENT;
+				goto leave;
+			}
 			continue;
 		}
 		else if (!(*raw & (*raw - 0x10))) {
