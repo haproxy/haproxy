@@ -2092,8 +2092,6 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
-	printf("bl=%d dfl=%d dpl=%d\n", (int)h2s->body_len, (int)h2c->dfl, (int)h2c->dpl);
-
 	if (!h2_frt_transfer_data(h2s))
 		return 0;
 
