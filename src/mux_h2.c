@@ -192,6 +192,7 @@ struct h2s {
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
 	uint16_t status;     /* HTTP response status */
+	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 	struct wait_event wait_event; /* Wait list, when we're attempting to send a RST but we can't send */
 	struct wait_event *recv_wait; /* Address of the wait_event the conn_stream associated is waiting on */
@@ -871,6 +872,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
 	h2s->status    = 0;
+	h2s->body_len  = 0;
 	h2s->rxbuf     = BUF_NULL;
 
 	if (h2c->flags & H2_CF_IS_BACK) {
@@ -1961,6 +1963,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->st = H2_SS_OPEN;
 	h2s->rxbuf = rxbuf;
 	h2s->flags |= flags;
+	h2s->body_len = body_len;
 
  done:
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
@@ -2002,7 +2005,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
  */
 static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
-	unsigned long long body_len = 0;
 	int error;
 
 	if (!h2c->dfl) {
@@ -2018,7 +2020,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		return NULL; // incomplete frame
 
-	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len);
+	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -2084,6 +2086,14 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		goto strm_err;
 	}
 
+	if ((h2s->flags & H2_SF_DATA_CLEN) && h2c->dfl > h2s->body_len) {
+		/* RFC7540#8.1.2 */
+		error = H2_ERR_PROTOCOL_ERROR;
+		goto strm_err;
+	}
+
+	printf("bl=%d dfl=%d dpl=%d\n", (int)h2s->body_len, (int)h2c->dfl, (int)h2c->dpl);
+
 	if (!h2_frt_transfer_data(h2s))
 		return 0;
 
@@ -2109,12 +2119,17 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->st0 == H2_CS_FRAME_P)
 		return 0;
 
-
 	/* last frame */
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
 		h2s->st = H2_SS_HREM;
 		h2s->flags |= H2_SF_ES_RCVD;
 		h2s->cs->flags |= CS_FL_REOS;
+
+		if (h2s->flags & H2_SF_DATA_CLEN && h2s->body_len) {
+			/* RFC7540#8.1.2 */
+			error = H2_ERR_PROTOCOL_ERROR;
+			goto strm_err;
+		}
 	}
 
 	return 1;
@@ -3606,6 +3621,9 @@ try_again:
 		h2c->dfl    -= flen;
 		h2c->rcvd_c += flen;
 		h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
+
+		if (h2s->flags & H2_SF_DATA_CLEN)
+			h2s->body_len -= flen;
 		goto try_again;
 	}
 	else if (unlikely(b_space_wraps(csbuf))) {
@@ -3674,6 +3692,9 @@ try_again:
 	h2c->dfl    -= flen;
 	h2c->rcvd_c += flen;
 	h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
+
+	if (h2s->flags & H2_SF_DATA_CLEN)
+		h2s->body_len -= flen;
 
 	if (h2c->dfl > h2c->dpl) {
 		/* more data available, transfer stalled on stream full */
