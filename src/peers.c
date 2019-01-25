@@ -1917,6 +1917,87 @@ static inline int peer_getline_last(struct appctx *appctx, struct peer **curpeer
 }
 
 /*
+ * Init <peer> peer after having accepted it at peer protocol level.
+ */
+static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
+{
+	struct shared_table *st;
+
+	/* Register status code */
+	peer->statuscode = PEER_SESS_SC_SUCCESSCODE;
+
+	/* Awake main task */
+	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
+
+	/* Init confirm counter */
+	peer->confirm = 0;
+
+	/* Init cursors */
+	for (st = peer->tables; st ; st = st->next) {
+		st->last_get = st->last_acked = 0;
+		st->teaching_origin = st->last_pushed = st->update;
+	}
+
+	/* reset teaching and learning flags to 0 */
+	peer->flags &= PEER_TEACH_RESET;
+	peer->flags &= PEER_LEARN_RESET;
+
+	/* if current peer is local */
+	if (peer->local) {
+		/* if current host need resyncfrom local and no process assined  */
+		if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
+		    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+			/* assign local peer for a lesson, consider lesson already requested */
+			peer->flags |= PEER_F_LEARN_ASSIGN;
+			peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+		}
+
+	}
+	else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+	         !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+		/* assign peer for a lesson  */
+		peer->flags |= PEER_F_LEARN_ASSIGN;
+		peers->flags |= PEERS_F_RESYNC_ASSIGN;
+	}
+}
+
+/*
+ * Init <peer> peer after having connected it at peer protocol level.
+ */
+static inline void init_connected_peer(struct peer *peer, struct peers *peers)
+{
+	struct shared_table *st;
+
+	/* Init cursors */
+	for (st = peer->tables; st ; st = st->next) {
+		st->last_get = st->last_acked = 0;
+		st->teaching_origin = st->last_pushed = st->update;
+	}
+
+	/* Init confirm counter */
+	peer->confirm = 0;
+
+	/* reset teaching and learning flags to 0 */
+	peer->flags &= PEER_TEACH_RESET;
+	peer->flags &= PEER_LEARN_RESET;
+
+	/* If current peer is local */
+	if (peer->local) {
+		/* flag to start to teach lesson */
+		peer->flags |= PEER_F_TEACH_PROCESS;
+	}
+	else if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
+	         !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
+		/* If peer is remote and resync from remote is needed,
+		and no peer currently assigned */
+
+		/* assign peer for a lesson */
+		peer->flags |= PEER_F_LEARN_ASSIGN;
+		peers->flags |= PEERS_F_RESYNC_ASSIGN;
+	}
+}
+
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -2008,8 +2089,6 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESS_ST_SENDSUCCESS: {
-				struct shared_table *st;
-
 				prev_state = appctx->st0;
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
@@ -2027,43 +2106,7 @@ switchstate:
 					goto switchstate;
 				}
 
-				/* Register status code */
-				curpeer->statuscode = PEER_SESS_SC_SUCCESSCODE;
-
-				/* Awake main task */
-				task_wakeup(curpeers->sync_task, TASK_WOKEN_MSG);
-
-				/* Init confirm counter */
-				curpeer->confirm = 0;
-
-				/* Init cursors */
-				for (st = curpeer->tables; st ; st = st->next) {
-					st->last_get = st->last_acked = 0;
-					st->teaching_origin = st->last_pushed = st->update;
-				}
-
-				/* reset teaching and learning flags to 0 */
-				curpeer->flags &= PEER_TEACH_RESET;
-				curpeer->flags &= PEER_LEARN_RESET;
-
-				/* if current peer is local */
-				if (curpeer->local) {
-					/* if current host need resyncfrom local and no process assined  */
-					if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
-					    !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-						/* assign local peer for a lesson, consider lesson already requested */
-						curpeer->flags |= PEER_F_LEARN_ASSIGN;
-						curpeers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
-					}
-
-				}
-				else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-				         !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-					/* assign peer for a lesson  */
-					curpeer->flags |= PEER_F_LEARN_ASSIGN;
-					curpeers->flags |= PEERS_F_RESYNC_ASSIGN;
-				}
-
+				init_accepted_peer(curpeer, curpeers);
 
 				/* switch to waiting message state */
 				HA_ATOMIC_ADD(&connected_peers, 1);
@@ -2093,8 +2136,6 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESS_ST_GETSTATUS: {
-				struct shared_table *st;
-
 				prev_state = appctx->st0;
 				if (!curpeer) {
 					curpeer = appctx->ctx.peers.ptr;
@@ -2123,35 +2164,7 @@ switchstate:
 
 				/* If status code is success */
 				if (curpeer->statuscode == PEER_SESS_SC_SUCCESSCODE) {
-					/* Init cursors */
-					for (st = curpeer->tables; st ; st = st->next) {
-						st->last_get = st->last_acked = 0;
-						st->teaching_origin = st->last_pushed = st->update;
-					}
-
-					/* Init confirm counter */
-					curpeer->confirm = 0;
-
-					/* reset teaching and learning flags to 0 */
-					curpeer->flags &= PEER_TEACH_RESET;
-					curpeer->flags &= PEER_LEARN_RESET;
-
-					/* If current peer is local */
-					if (curpeer->local) {
-						/* flag to start to teach lesson */
-						curpeer->flags |= PEER_F_TEACH_PROCESS;
-
-					}
-					else if ((curpeers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMREMOTE &&
-					         !(curpeers->flags & PEERS_F_RESYNC_ASSIGN)) {
-						/* If peer is remote and resync from remote is needed,
-						   and no peer currently assigned */
-
-						/* assign peer for a lesson */
-						curpeer->flags |= PEER_F_LEARN_ASSIGN;
-						curpeers->flags |= PEERS_F_RESYNC_ASSIGN;
-					}
-
+					init_connected_peer(curpeer, curpeers);
 				}
 				else {
 					if (curpeer->statuscode == PEER_SESS_SC_ERRVERSION)
