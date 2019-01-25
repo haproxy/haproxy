@@ -199,6 +199,7 @@ enum {
 #define PEER_MINOR_VER        1
 #define PEER_DWNGRD_MINOR_VER 0
 
+size_t proto_len = strlen(PEER_SESSION_PROTO_NAME);
 struct peers *cfg_peers = NULL;
 static void peer_session_forceshutdown(struct appctx *appctx);
 
@@ -1809,6 +1810,113 @@ static inline int peer_send_msgs(struct appctx *appctx, struct peer *peer)
 }
 
 /*
+ * Read and parse a first line of a "hello" peer protocol message.
+ * Returns 0 if could not read a line, -1 if there was a read error or
+ * the line is malformed, 1 if succeeded.
+ */
+static inline int peer_getline_version(struct appctx *appctx,
+                                       unsigned int *maj_ver, unsigned int *min_ver)
+{
+	int reql;
+
+	reql = peer_getline(appctx);
+	if (!reql)
+		return 0;
+
+	if (reql < 0)
+		return -1;
+
+	/* test protocol */
+	if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.area, proto_len + 1) != 0) {
+		appctx->st0 = PEER_SESS_ST_EXIT;
+		appctx->st1 = PEER_SESS_SC_ERRPROTO;
+		return -1;
+	}
+	if (peer_get_version(trash.area + proto_len + 1, maj_ver, min_ver) == -1 ||
+		*maj_ver != PEER_MAJOR_VER || *min_ver > PEER_MINOR_VER) {
+		appctx->st0 = PEER_SESS_ST_EXIT;
+		appctx->st1 = PEER_SESS_SC_ERRVERSION;
+		return -1;
+	}
+
+	return 1;
+}
+
+/*
+ * Read and parse a second line of a "hello" peer protocol message.
+ * Returns 0 if could not read a line, -1 if there was a read error or
+ * the line is malformed, 1 if succeeded.
+ */
+static inline int peer_getline_host(struct appctx *appctx)
+{
+	int reql;
+
+	reql = peer_getline(appctx);
+	if (!reql)
+		return 0;
+
+	if (reql < 0)
+		return -1;
+
+	/* test hostname match */
+	if (strcmp(localpeer, trash.area) != 0) {
+		appctx->st0 = PEER_SESS_ST_EXIT;
+		appctx->st1 = PEER_SESS_SC_ERRHOST;
+		return -1;
+	}
+
+	return 1;
+}
+
+/*
+ * Read and parse a last line of a "hello" peer protocol message.
+ * Returns 0 if could not read a character, -1 if there was a read error or
+ * the line is malformed, 1 if succeeded.
+ * Set <curpeer> accordingly (the remote peer sending the "hello" message).
+ */
+static inline int peer_getline_last(struct appctx *appctx, struct peer **curpeer)
+{
+	char *p;
+	int reql;
+	struct peer *peer;
+	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
+	struct peers *peers = strm_fe(s)->parent;
+
+	reql = peer_getline(appctx);
+	if (!reql)
+		return 0;
+
+	if (reql < 0)
+		return -1;
+
+	/* parse line "<peer name> <pid> <relative_pid>" */
+	p = strchr(trash.area, ' ');
+	if (!p) {
+		appctx->st0 = PEER_SESS_ST_EXIT;
+		appctx->st1 = PEER_SESS_SC_ERRPROTO;
+		return -1;
+	}
+	*p = 0;
+
+	/* lookup known peer */
+	for (peer = peers->remote; peer; peer = peer->next) {
+		if (strcmp(peer->id, trash.area) == 0)
+			break;
+	}
+
+	/* if unknown peer */
+	if (!peer) {
+		appctx->st0 = PEER_SESS_ST_EXIT;
+		appctx->st1 = PEER_SESS_SC_ERRPEER;
+		return -1;
+	}
+	*curpeer = peer;
+
+	return 1;
+}
+
+/*
  * IO Handler to handle message exchance with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
@@ -1819,7 +1927,6 @@ static void peer_io_handler(struct appctx *appctx)
 	struct peer *curpeer = NULL;
 	int reql = 0;
 	int repl = 0;
-	size_t proto_len = strlen(PEER_SESSION_PROTO_NAME);
 	unsigned int maj_ver, min_ver;
 	int prev_state;
 
@@ -1841,24 +1948,10 @@ switchstate:
 				/* fall through */
 			case PEER_SESS_ST_GETVERSION:
 				prev_state = appctx->st0;
-
-				reql = peer_getline(appctx);
-				if (!reql)
-					goto out;
-
-				if (reql < 0)
-					goto switchstate;
-
-				/* test protocol */
-				if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.area, proto_len + 1) != 0) {
-					appctx->st0 = PEER_SESS_ST_EXIT;
-					appctx->st1 = PEER_SESS_SC_ERRPROTO;
-					goto switchstate;
-				}
-				if (peer_get_version(trash.area + proto_len + 1, &maj_ver, &min_ver) == -1 ||
-				    maj_ver != PEER_MAJOR_VER || min_ver > PEER_MINOR_VER) {
-					appctx->st0 = PEER_SESS_ST_EXIT;
-					appctx->st1 = PEER_SESS_SC_ERRVERSION;
+				reql = peer_getline_version(appctx, &maj_ver, &min_ver);
+				if (reql <= 0) {
+					if (!reql)
+						goto out;
 					goto switchstate;
 				}
 
@@ -1866,54 +1959,21 @@ switchstate:
 				/* fall through */
 			case PEER_SESS_ST_GETHOST:
 				prev_state = appctx->st0;
-
-				reql = peer_getline(appctx);
-				if (!reql)
-					goto out;
-
-				if (reql < 0)
-					goto switchstate;
-
-				/* test hostname match */
-				if (strcmp(localpeer, trash.area) != 0) {
-					appctx->st0 = PEER_SESS_ST_EXIT;
-					appctx->st1 = PEER_SESS_SC_ERRHOST;
+				reql = peer_getline_host(appctx);
+				if (reql <= 0) {
+					if (!reql)
+						goto out;
 					goto switchstate;
 				}
 
 				appctx->st0 = PEER_SESS_ST_GETPEER;
 				/* fall through */
 			case PEER_SESS_ST_GETPEER: {
-				char *p;
-
 				prev_state = appctx->st0;
-
-				reql = peer_getline(appctx);
-				if (!reql)
-					goto out;
-
-				if (reql < 0)
-					goto switchstate;
-
-				/* parse line "<peer name> <pid> <relative_pid>" */
-				p = strchr(trash.area, ' ');
-				if (!p) {
-					appctx->st0 = PEER_SESS_ST_EXIT;
-					appctx->st1 = PEER_SESS_SC_ERRPROTO;
-					goto switchstate;
-				}
-				*p = 0;
-
-				/* lookup known peer */
-				for (curpeer = curpeers->remote; curpeer; curpeer = curpeer->next) {
-					if (strcmp(curpeer->id, trash.area) == 0)
-						break;
-				}
-
-				/* if unknown peer */
-				if (!curpeer) {
-					appctx->st0 = PEER_SESS_ST_EXIT;
-					appctx->st1 = PEER_SESS_SC_ERRPEER;
+				reql = peer_getline_last(appctx, &curpeer);
+				if (reql <= 0) {
+					if (!reql)
+						goto out;
 					goto switchstate;
 				}
 
