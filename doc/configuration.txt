@@ -958,14 +958,14 @@ nbproc <number>
   mode. By default, only one process is created, which is the recommended mode
   of operation. For systems limited to small sets of file descriptors per
   process, it may be needed to fork multiple daemons. USING MULTIPLE PROCESSES
-  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon".
+  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon" and
+  "nbthread".
 
 nbthread <number>
   This setting is only available when support for threads was built in. It
   creates <number> threads for each created processes. It means if HAProxy is
   started in foreground, it only creates <number> threads for the first
-  process. FOR NOW, THREADS SUPPORT IN HAPROXY IS HIGHLY EXPERIMENTAL AND IT
-  MUST BE ENABLED WITH CAUTION AND AT YOUR OWN RISK. See also "nbproc".
+  process. See also "nbproc".
 
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile>. This option is equivalent to
