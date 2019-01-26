@@ -168,8 +168,11 @@ static inline unsigned long thread_isolated()
 #include <pthread.h>
 #include <import/plock.h>
 
+#ifndef MAX_THREADS
 #define MAX_THREADS LONGBITS
-#define MAX_THREADS_MASK ((unsigned long)-1)
+#endif
+
+#define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
 
 #define __decl_hathreads(decl) decl
 

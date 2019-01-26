@@ -108,12 +108,21 @@ void ha_rwlock_init(HA_RWLOCK_T *l)
 __attribute__((constructor))
 static void __hathreads_init(void)
 {
+	char *ptr = NULL;
+
+	if (MAX_THREADS < 1 || MAX_THREADS > LONGBITS) {
+		ha_alert("MAX_THREADS value must be between 1 and %d inclusive; "
+		         "HAProxy was built with value %d, please fix it and rebuild.\n",
+			 LONGBITS, MAX_THREADS);
+		exit(1);
+	}
+	memprintf(&ptr, "Built with multi-threading support (MAX_THREADS=%d).", MAX_THREADS);
+	hap_register_build_opts(ptr, 1);
+
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 	memset(lock_stats, 0, sizeof(lock_stats));
 #endif
 }
-
-REGISTER_BUILD_OPTS("Built with multi-threading support.");
 
 #else
 
