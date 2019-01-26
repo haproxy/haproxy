@@ -208,17 +208,23 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 	}
 }
 
-static int h1_avail_streams(struct connection *conn)
+/* returns the number of streams in use on a connection to figure if it's
+ * idle or not. We can't have an h1s without a CS so checking h1s is fine,
+ * as the caller will want to know if it was the last one after a detach().
+ */
+static int h1_used_streams(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 
-	return h1c->h1s ? 0 : 1;
+	return h1c->h1s ? 1 : 0;
 }
 
-static int h1_max_streams(struct connection *conn)
+/* returns the number of streams still available on a connection */
+static int h1_avail_streams(struct connection *conn)
 {
-	return 1;
+	return 1 - h1_used_streams(conn);
 }
+
 
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
@@ -2349,7 +2355,7 @@ static const struct mux_ops mux_h1_ops = {
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
-	.max_streams = h1_max_streams,
+	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
 #if defined(CONFIG_HAP_LINUX_SPLICE)

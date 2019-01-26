@@ -233,13 +233,16 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 	return ret;
 }
 
+/* This adds an idle connection to the server's list if the connection is
+ * reusable, not held by any owner anymore, but still has available streams.
+ */
 static inline int srv_add_to_idle_list(struct server *srv, struct connection *conn)
 {
-	if (srv && srv->pool_purge_delay > 0 && (srv->max_idle_conns == -1 ||
-	    srv->max_idle_conns > srv->curr_idle_conns) &&
+	if (srv && srv->pool_purge_delay > 0 &&
+	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
-	    conn->mux->avail_streams(conn) == conn->mux->max_streams(conn)) {
+	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
 		LIST_DEL(&conn->list);
 		LIST_ADDQ(&srv->idle_orphan_conns[tid], &conn->list);
 		srv->curr_idle_conns++;

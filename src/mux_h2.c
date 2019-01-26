@@ -408,6 +408,17 @@ static inline int h2_streams_left(const struct h2c *h2c)
 	return ret;
 }
 
+/* returns the number of streams in use on a connection to figure if it's
+ * idle or not. We check nb_cs and not nb_streams as the caller will want
+ * to know if it was the last one after a detach().
+ */
+static int h2_used_streams(struct connection *conn)
+{
+	struct h2c *h2c = conn->ctx;
+
+	return h2c->nb_cs;
+}
+
 /* returns the number of concurrent streams available on the connection */
 static int h2_avail_streams(struct connection *conn)
 {
@@ -432,12 +443,6 @@ static int h2_avail_streams(struct connection *conn)
 		ret1 = MIN(ret1, ret2);
 	}
 	return ret1;
-}
-
-static int h2_max_streams(struct connection *conn)
-{
-	/* XXX Should use the negociated max concurrent stream nb instead of the conf value */
-	return h2_settings_max_concurrent_streams;
 }
 
 
@@ -5444,7 +5449,7 @@ static const struct mux_ops h2_ops = {
 	.detach = h2_detach,
 	.destroy = h2_destroy,
 	.avail_streams = h2_avail_streams,
-	.max_streams = h2_max_streams,
+	.used_streams = h2_used_streams,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
 	.show_fd = h2_show_fd,
