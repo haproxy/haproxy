@@ -961,13 +961,13 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
 		*slash = 0;
 
-	if (parse_process_number(args[cur_arg + 1], &proc, NULL, err)) {
+	if (parse_process_number(args[cur_arg + 1], &proc, LONGBITS, NULL, err)) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if (slash) {
-		if (parse_process_number(slash+1, &thread, NULL, err)) {
+		if (parse_process_number(slash+1, &thread, MAX_THREADS, NULL, err)) {
 			memprintf(err, "'%s' : %s", args[cur_arg], *err);
 			return ERR_ALERT | ERR_FATAL;
 		}

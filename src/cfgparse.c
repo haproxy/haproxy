@@ -345,14 +345,14 @@ int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const
 }
 
 /* Parse a string representing a process number or a set of processes. It must
- * be "all", "odd", "even", a number between 1 and <LONGBITS> or a range with
+ * be "all", "odd", "even", a number between 1 and <max> or a range with
  * two such numbers delimited by a dash ('-'). On success, it returns
  * 0. otherwise it returns 1 with an error message in <err>.
  *
  * Note: this function can also be used to parse a thread number or a set of
  * threads.
  */
-int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, char **err)
+int parse_process_number(const char *arg, unsigned long *proc, int max, int *autoinc, char **err)
 {
 	if (autoinc) {
 		*autoinc = 0;
@@ -379,7 +379,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 
 		low = high = str2uic(arg);
 		if ((dash = strchr(arg, '-')) != NULL)
-			high = ((!*(dash+1)) ? LONGBITS : str2uic(dash + 1));
+			high = ((!*(dash+1)) ? max : str2uic(dash + 1));
 
 		if (high < low) {
 			unsigned int swap = low;
@@ -387,16 +387,17 @@ int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, cha
 			high = swap;
 		}
 
-		if (low < 1 || low > LONGBITS || high > LONGBITS) {
+		if (low < 1 || low > max || high > max) {
 			memprintf(err, "'%s' is not a valid number/range."
 				  " It supports numbers from 1 to %d.\n",
-				  arg, LONGBITS);
+				  arg, max);
 			return 1;
 		}
 
 		for (;low <= high; low++)
 			*proc |= 1UL << (low-1);
 	}
+	*proc &= ~0UL >> (LONGBITS - max);
 
 	return 0;
 }

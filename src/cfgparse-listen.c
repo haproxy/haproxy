@@ -922,7 +922,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				set = 0;
 				break;
 			}
-			if (parse_process_number(args[cur_arg], &set, NULL, &errmsg)) {
+			if (parse_process_number(args[cur_arg], &set, LONGBITS, NULL, &errmsg)) {
 				ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

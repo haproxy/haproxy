@@ -949,14 +949,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if ((slash = strchr(args[1], '/')) != NULL)
 			*slash = 0;
 
-		if (parse_process_number(args[1], &proc, &autoinc, &errmsg)) {
+		if (parse_process_number(args[1], &proc, LONGBITS, &autoinc, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
 		if (slash) {
-			if (parse_process_number(slash+1, &thread, NULL, &errmsg)) {
+			if (parse_process_number(slash+1, &thread, MAX_THREADS, NULL, &errmsg)) {
 				ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

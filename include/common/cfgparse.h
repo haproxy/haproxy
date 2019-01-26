@@ -115,7 +115,7 @@ int too_many_args_idx(int maxarg, int index, char **args, char **msg, int *err_c
 int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
-int parse_process_number(const char *arg, unsigned long *proc, int *autoinc, char **err);
+int parse_process_number(const char *arg, unsigned long *proc, int max, int *autoinc, char **err);
 unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err);
 void free_email_alert(struct proxy *p);
 
