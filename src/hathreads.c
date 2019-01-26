@@ -10,9 +10,14 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
+
+#ifdef USE_CPU_AFFINITY
+#include <sched.h>
+#endif
 
 #include <common/cfgparse.h>
 #include <common/hathreads.h>
@@ -28,6 +33,7 @@ volatile unsigned long threads_harmless_mask = 0;
 volatile unsigned long all_threads_mask  = 1; // nbthread 1 assumed by default
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
+int thread_cpus_enabled_at_boot          = 1;
 
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
@@ -105,6 +111,24 @@ void ha_rwlock_init(HA_RWLOCK_T *l)
 	HA_RWLOCK_INIT(l);
 }
 
+/* returns the number of CPUs the current process is enabled to run on */
+static int thread_cpus_enabled()
+{
+	int ret = 1;
+
+#ifdef USE_CPU_AFFINITY
+#if defined(__linux__) && defined(CPU_COUNT)
+	cpu_set_t mask;
+
+	if (sched_getaffinity(0, sizeof(mask), &mask) == 0)
+		ret = CPU_COUNT(&mask);
+#endif
+#endif
+	ret = MAX(ret, 1);
+	ret = MIN(ret, MAX_THREADS);
+	return ret;
+}
+
 __attribute__((constructor))
 static void __hathreads_init(void)
 {
@@ -116,7 +140,11 @@ static void __hathreads_init(void)
 			 LONGBITS, MAX_THREADS);
 		exit(1);
 	}
-	memprintf(&ptr, "Built with multi-threading support (MAX_THREADS=%d).", MAX_THREADS);
+
+	thread_cpus_enabled_at_boot = thread_cpus_enabled();
+
+	memprintf(&ptr, "Built with multi-threading support (MAX_THREADS=%d, default=%d).",
+		  MAX_THREADS, thread_cpus_enabled_at_boot);
 	hap_register_build_opts(ptr, 1);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)

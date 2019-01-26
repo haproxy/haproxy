@@ -136,7 +136,7 @@ volatile unsigned long sleeping_thread_mask; /* Threads that are about to sleep 
 struct global global = {
 	.hard_stop_after = TICK_ETERNITY,
 	.nbproc = 1,
-	.nbthread = 1,
+	.nbthread = 0,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 	.maxzlibmem = 0,

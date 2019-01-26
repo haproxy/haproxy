@@ -957,7 +957,8 @@ nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"
   mode. By default, only one process is created, which is the recommended mode
   of operation. For systems limited to small sets of file descriptors per
-  process, it may be needed to fork multiple daemons. USING MULTIPLE PROCESSES
+  process, it may be needed to fork multiple daemons. When set to a value
+  larger than 1, threads are automatically disabled. USING MULTIPLE PROCESSES
   IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon" and
   "nbthread".
 
@@ -968,7 +969,13 @@ nbthread <number>
   also involved a number of shortcomings related to the lack of synchronization
   between processes (health-checks, peers, stick-tables, stats, ...) which do
   not affect threads. As such, any modern configuration is strongly encouraged
-  to migrate away from "nbproc" to "nbthread". See also "nbproc".
+  to migrate away from "nbproc" to "nbthread". "nbthread" also works when
+  HAProxy is started in foreground. On some platforms supporting CPU affinity,
+  when nbproc is not used, the default "nbthread" value is automatically set to
+  the number of CPUs the process is bound to upon startup. This means that the
+  thread count can easily be adjusted from the calling process using commands
+  like "taskset" or "cpuset". Otherwise, this value defaults to 1. The default
+  value is reported in the output of "haproxy -vv". See also "nbproc".
 
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile>. This option is equivalent to

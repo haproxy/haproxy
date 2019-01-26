@@ -984,11 +984,14 @@ void ha_rwlock_init(HA_RWLOCK_T *l);
 
 #endif /* USE_THREAD */
 
+extern int thread_cpus_enabled_at_boot;
+
 static inline void __ha_compiler_barrier(void)
 {
 	__asm __volatile("" ::: "memory");
 }
 
 int parse_nbthread(const char *arg, char **err);
+int thread_get_default_count();
 
 #endif /* _COMMON_HATHREADS_H */

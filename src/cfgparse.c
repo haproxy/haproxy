@@ -2200,6 +2200,20 @@ int check_config_validity()
 	if (!global.tune.requri_len)
 		global.tune.requri_len = REQURI_LEN;
 
+	if (!global.nbthread) {
+		/* nbthread not set, thus automatic. In this case, and only if
+		 * running on a single process, we enable the same number of
+		 * threads as the number of CPUs the process is bound to. This
+		 * allows to easily control the number of threads using taskset.
+		 */
+		global.nbthread = 1;
+#if defined(USE_THREAD)
+		if (global.nbproc == 1)
+			global.nbthread = thread_cpus_enabled_at_boot;
+		all_threads_mask = nbits(global.nbthread);
+#endif
+	}
+
 	if (global.nbproc > 1 && global.nbthread > 1) {
 		ha_alert("config : cannot enable multiple processes if multiple threads are configured. Please use either nbproc or nbthread but not both.\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
