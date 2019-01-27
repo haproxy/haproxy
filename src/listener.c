@@ -545,6 +545,9 @@ void listener_accept(int fd)
 		if (unlikely(l->addr.ss_family == AF_CUST_SOCKPAIR)) {
 			if ((cfd = recv_fd_uxst(fd)) != -1)
 				fcntl(cfd, F_SETFL, O_NONBLOCK);
+			/* just like with UNIX sockets, only the family is filled */
+			addr.ss_family = AF_UNIX;
+			laddr = sizeof(addr.ss_family);
 		} else
 
 #ifdef USE_ACCEPT4
