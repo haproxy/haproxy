@@ -152,8 +152,11 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 	struct eb_root *root = &task_per_thread[tid].rqueue;
 #endif
 
-	state = HA_ATOMIC_OR(&t->state, f);
-	if (!(state & TASK_RUNNING))
+	f |= TASK_QUEUED;
+	state = t->state;
+	while (!HA_ATOMIC_CAS(&t->state, &state, state | f))
+		;
+	if (!(state & TASK_QUEUED))
 		__task_wakeup(t, root);
 }
 
