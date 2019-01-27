@@ -272,6 +272,32 @@ struct xfer_sock_list {
 	struct sockaddr_storage addr;
 };
 
+/* This is used to create the accept queue, optimized to be 64 bytes long. */
+struct accept_queue_entry {
+	struct listener *listener;          // 8 bytes
+	int fd __attribute__((aligned(8))); // 4 bytes
+	int addr_len;                       // 4 bytes
+
+	union {
+		sa_family_t family;         // 2 bytes
+		struct sockaddr_in in;      // 16 bytes
+		struct sockaddr_in6 in6;    // 28 bytes
+	} addr; // this is normally 28 bytes
+	/* 20-bytes hole here */
+	char pad0[0] __attribute((aligned(64)));
+};
+
+/* The per-thread accept queue ring, must be a power of two minus 1 */
+#define ACCEPT_QUEUE_SIZE ((1<<8) - 1)
+
+struct accept_queue_ring {
+	unsigned int head;
+	unsigned int tail;
+	struct task *task;  /* task of the thread owning this ring */
+	struct accept_queue_entry entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
+};
+
+
 #endif /* _TYPES_LISTENER_H */
 
 /*
