@@ -1154,14 +1154,25 @@ int connect_server(struct stream *s)
 	 * to use it.
 	 */
 	srv_cs = objt_cs(s->si[1].end);
-	if (srv_cs) {
-		old_conn = srv_conn = cs_conn(srv_cs);
-		if (old_conn && (!old_conn->target || old_conn->target == s->target)) {
-			old_conn->flags &= ~(CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
-			srv_cs->flags &= ~(CS_FL_ERROR | CS_FL_EOS | CS_FL_REOS);
+	if (!srv_cs)
+		srv_conn = objt_conn(s->si[1].end);
+	else
+		srv_conn = cs_conn(srv_cs);
+
+	if (srv_conn) {
+		if (!srv_conn->target || srv_conn->target == s->target) {
+			srv_conn->flags &= ~(CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
+			if (srv_cs)
+				srv_cs->flags &= ~(CS_FL_ERROR | CS_FL_EOS | CS_FL_REOS);
 			reuse = 1;
+			old_conn = srv_conn;
+		} else {
+			srv_conn = NULL;
+			si_release_endpoint(&s->si[1]);
 		}
-	} else {
+	}
+
+	if (!old_conn) {
 		struct sess_srv_list *srv_list;
 		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
 			if (srv_list->target == s->target) {
@@ -1301,7 +1312,7 @@ int connect_server(struct stream *s)
 		/* We already created a cs earlier when using http_proxy, so
 		 * only create a new one if we don't have one already.
 		 */
-		if (!srv_cs) {
+		if (!srv_cs && srv_conn->mux) {
 			int avail = srv_conn->mux->avail_streams(srv_conn);
 
 			if (avail <= 1) {
