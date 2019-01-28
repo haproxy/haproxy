@@ -415,6 +415,12 @@ static int h2_avail_streams(struct connection *conn)
 	struct h2c *h2c = conn->ctx;
 	int ret1, ret2;
 
+	/* RFC7540#6.8: Receivers of a GOAWAY frame MUST NOT open additional
+	 * streams on the connection.
+	 */
+	if (h2c->last_sid >= 0)
+		return 0;
+
 	/* XXX Should use the negociated max concurrent stream nb instead of the conf value */
 	ret1 = h2_settings_max_concurrent_streams - h2c->nb_streams;
 
