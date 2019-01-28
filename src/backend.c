@@ -1108,6 +1108,8 @@ static int conn_complete_server(struct connection *conn)
 	return 0;
 
 fail:
+	si_detach_endpoint(&s->si[1]);
+
 	if (cs)
 		cs_free(cs);
 	/* kill the connection now */
