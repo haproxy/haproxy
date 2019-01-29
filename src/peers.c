@@ -199,7 +199,7 @@ enum {
 #define PEER_MINOR_VER        1
 #define PEER_DWNGRD_MINOR_VER 0
 
-size_t proto_len = strlen(PEER_SESSION_PROTO_NAME);
+static size_t proto_len = sizeof(PEER_SESSION_PROTO_NAME) - 1;
 struct peers *cfg_peers = NULL;
 static void peer_session_forceshutdown(struct appctx *appctx);
 
