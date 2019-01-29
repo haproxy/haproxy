@@ -1356,7 +1356,7 @@ int connect_server(struct stream *s)
 			if (alloced_cs)
 				si_release_endpoint(&s->si[1]);
 			srv_conn->owner = NULL;
-			if (!srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
+			if (srv_conn->mux && !srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
 			/* The server doesn't want it, let's kill the connection right away */
 				srv_conn->mux->destroy(srv_conn);
 			srv_conn = NULL;
