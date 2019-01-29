@@ -1648,6 +1648,12 @@ tune.lua.service-timeout <timeout>
   counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
   not taken in account. The default timeout is 4s.
 
+tune.fail-alloc
+  If compiled with DEBUG_FAIL_ALLOC, gives the percentage of chances an
+  allocation attempt fails. Must be between 0 (no failure) and 100 (no
+  success). This is useful to debug and make sure memory failures are handled
+  gracefully.
+
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
   row before switching to other work. In single process mode, higher numbers
