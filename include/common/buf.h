@@ -42,8 +42,8 @@ struct buffer {
 
 /* A buffer may be in 3 different states :
  *   - unallocated : size == 0, area == 0  (b_is_null() is true)
- *   - waiting     : size == 0, area != 0
- *   - allocated   : size  > 0, area  > 0
+ *   - waiting     : size == 0, area != 0  (b_is_null() is true)
+ *   - allocated   : size  > 0, area  > 0  (b_is_null() is false)
  */
 
 /* initializers for certain buffer states. It is important that the NULL buffer
@@ -62,11 +62,12 @@ struct buffer {
 /***************************************************************************/
 
 /* b_is_null() : returns true if (and only if) the buffer is not yet allocated
- * and thus points to a NULL area.
+ * and thus has an empty size. Its pointer may then be anything, including NULL
+ * (unallocated) or an invalid pointer such as (char*)1 (allocation pending).
  */
 static inline int b_is_null(const struct buffer *buf)
 {
-	return buf->area == NULL;
+	return buf->size == 0;
 }
 
 /* b_orig() : returns the pointer to the origin of the storage, which is the
