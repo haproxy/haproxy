@@ -1465,8 +1465,10 @@ int connect_server(struct stream *s)
 	 * fail, and flag the connection as CO_FL_ERROR.
 	 */
 	if (init_mux) {
-		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0)
+		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0) {
+			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
+		}
 		/* If we're doing http-reuse always, and the connection
 		 * is an http2 connection, add it to the available list,
 		 * so that others can use it right away.
