@@ -3114,8 +3114,7 @@ compression offload
     * The response contains a "Content-Encoding" header, indicating that the
       response is already compressed (see compression offload)
 
-  Note: The compression does not rewrite Etag headers, and does not emit the
-        Warning header.
+  Note: The compression does not emit the Warning header.
 
   Examples :
         compression algo gzip

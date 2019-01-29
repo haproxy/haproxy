@@ -466,6 +466,7 @@ static int
 http_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct http_txn *txn = s->txn;
+	struct hdr_ctx ctx;
 
 	/*
 	 * Add Content-Encoding header when it's not identity encoding.
@@ -486,8 +487,6 @@ http_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *m
 
 	/* remove Content-Length header */
 	if (msg->flags & HTTP_MSGF_CNT_LEN) {
-		struct hdr_ctx ctx;
-
 		ctx.idx = 0;
 		while (http_find_header2("Content-Length", 14, ci_head(&s->res), &txn->hdr_idx, &ctx))
 			http_remove_header2(msg, &txn->hdr_idx, &ctx);
@@ -499,6 +498,22 @@ http_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *m
 			goto error;
 	}
 
+	ctx.idx = 0;
+	if (http_find_full_header2("ETag", 4, ci_head(&s->res), &txn->hdr_idx, &ctx)) {
+		if (ctx.line[ctx.val] == '"') {
+			/* This a strong ETag. Convert it to a weak one. */
+			trash.data = 8;
+			if (trash.data + ctx.vlen > trash.size)
+				goto error;
+			memcpy(trash.area, "ETag: W/", trash.data);
+			memcpy(trash.area + trash.data, ctx.line + ctx.val, ctx.vlen);
+			trash.data += ctx.vlen;
+			trash.area[trash.data] = '\0';
+			http_remove_header2(msg, &txn->hdr_idx, &ctx);
+			if (http_header_add_tail2(msg, &txn->hdr_idx, trash.area, trash.data) < 0)
+				goto error;
+		}
+	}
 
 	return 1;
 
@@ -512,6 +527,7 @@ static int
 htx_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
+	struct http_hdr_ctx ctx;
 
 	/*
 	 * Add Content-Encoding header when it's not identity encoding.
@@ -528,8 +544,6 @@ htx_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *ms
 
 	/* remove Content-Length header */
 	if (msg->flags & HTTP_MSGF_CNT_LEN) {
-		struct http_hdr_ctx ctx;
-
 		ctx.blk = NULL;
 		while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
 			http_remove_header(htx, &ctx);
@@ -539,6 +553,20 @@ htx_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *ms
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
 		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
 			goto error;
+	}
+
+	/* convert "ETag" header to a weak ETag */
+	ctx.blk = NULL;
+	if (http_find_header(htx, ist("ETag"), &ctx, 1)) {
+		if (ctx.value.ptr[0] == '"') {
+			/* This a strong ETag. Convert it to a weak one. */
+			struct ist v = ist2(trash.area, 0);
+			if (istcat(&v, ist("W/"), trash.size) == -1 || istcat(&v, ctx.value, trash.size) == -1)
+				goto error;
+
+			if (!http_replace_header_value(htx, &ctx, v))
+				goto error;
+		}
 	}
 
 	return 1;
@@ -843,6 +871,21 @@ http_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg
 			goto fail;
 	}
 
+	/* no compression when ETag is malformed */
+	ctx.idx = 0;
+	if (http_find_full_header2("ETag", 4, ci_head(c), &txn->hdr_idx, &ctx)) {
+		if (!(((ctx.vlen >= 4 && memcmp(ctx.line + ctx.val, "W/\"", 3) == 0) || /* Either a weak ETag */
+		       (ctx.vlen >= 2 && ctx.line[ctx.val] == '"')) &&                  /* or strong ETag */
+		      ctx.line[ctx.val + ctx.vlen - 1] == '"')) {
+			goto fail;
+		}
+	}
+	/* no compression when multiple ETags are present
+	 * Note: Do not reset ctx.idx!
+	 */
+	if (http_find_full_header2("ETag", 4, ci_head(c), &txn->hdr_idx, &ctx))
+		goto fail;
+
 	comp_type = NULL;
 
 	/* we don't want to compress multipart content-types, nor content-types that are
@@ -938,6 +981,21 @@ htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg 
 		if (word_match(ctx.value.ptr, ctx.value.len, "no-transform", 12))
 			goto fail;
 	}
+
+	/* no compression when ETag is malformed */
+	ctx.blk = NULL;
+	if (http_find_header(htx, ist("ETag"), &ctx, 1)) {
+		if (!(((ctx.value.len >= 4 && memcmp(ctx.value.ptr, "W/\"", 3) == 0) || /* Either a weak ETag */
+		       (ctx.value.len >= 2 && ctx.value.ptr[0] == '"')) &&              /* or strong ETag */
+		      ctx.value.ptr[ctx.value.len - 1] == '"')) {
+			goto fail;
+		}
+	}
+	/* no compression when multiple ETags are present
+	 * Note: Do not reset ctx.blk!
+	 */
+	if (http_find_header(htx, ist("ETag"), &ctx, 1))
+		goto fail;
 
 	comp_type = NULL;
 

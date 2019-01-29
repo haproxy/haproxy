@@ -1,0 +1,226 @@
+varnishtest "Compression converts strong ETags to weak ETags"
+
+#REQUIRE_VERSION=1.9
+#REQUIRE_OPTION=ZLIB|SLZ
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        expect req.url == "/strong"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"123\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/weak"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: W/\"456\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/weak-incorrect-quoting"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"W/789\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/empty-strong"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/empty-weak"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: W/\"\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid1"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"invalid" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid2"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: invalid\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid3"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: invalid" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid4"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: W/\"invalid" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid5"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: W/invalid\"" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/invalid6"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: W/invalid" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/multiple"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"one\"" \
+          -hdr "ETag: \"two\"" \
+          -bodylen 100
+} -start
+
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        default_backend be-gzip
+
+    backend be-gzip
+        compression algo gzip
+        compression type text/html text/plain
+        server www ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+        txreq -url "/strong" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"123\""
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/weak" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"456\""
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/weak-incorrect-quoting" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"W/789\""
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/empty-strong" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"\""
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/empty-weak" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"\""
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid1" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "\"invalid"
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid2" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "invalid\""
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid3" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "invalid"
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid4" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "W/\"invalid"
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid5" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "W/invalid\""
+        expect resp.bodylen == 100
+
+        txreq -url "/invalid6" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "W/invalid"
+        expect resp.bodylen == 100
+
+        txreq -url "/multiple" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.bodylen == 100
+} -run
