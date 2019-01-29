@@ -1396,25 +1396,16 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 	uint64_t table_data;
 
 	table_id = intdecode(msg_cur, msg_end);
-	if (!*msg_cur) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!*msg_cur)
+		goto malformed_exit;
 
 	table_id_len = intdecode(msg_cur, msg_end);
-	if (!*msg_cur) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!*msg_cur)
+		goto malformed_exit;
 
 	p->remote_table = NULL;
-	if (!table_id_len || (*msg_cur + table_id_len) >= msg_end) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!table_id_len || (*msg_cur + table_id_len) >= msg_end)
+		goto malformed_exit;
 
 	for (st = p->tables; st; st = st->next) {
 		/* Reset IDs */
@@ -1430,32 +1421,20 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 		goto ignore_msg;
 
 	*msg_cur += table_id_len;
-	if (*msg_cur >= msg_end) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (*msg_cur >= msg_end)
+		goto malformed_exit;
 
 	table_type = intdecode(msg_cur, msg_end);
-	if (!*msg_cur) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!*msg_cur)
+		goto malformed_exit;
 
 	table_keylen = intdecode(msg_cur, msg_end);
-	if (!*msg_cur) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!*msg_cur)
+		goto malformed_exit;
 
 	table_data = intdecode(msg_cur, msg_end);
-	if (!*msg_cur) {
-		/* malformed message */
-		appctx->st0 = PEER_SESS_ST_ERRPROTO;
-		return 0;
-	}
+	if (!*msg_cur)
+		goto malformed_exit;
 
 	if (p->remote_table->table->type != table_type
 		|| p->remote_table->table->key_size != table_keylen) {
@@ -1469,6 +1448,11 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 
  ignore_msg:
 	co_skip(si_oc(si), totl);
+	return 0;
+
+ malformed_exit:
+	/* malformed message */
+	appctx->st0 = PEER_SESS_ST_ERRPROTO;
 	return 0;
 }
 
