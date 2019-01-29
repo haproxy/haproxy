@@ -2237,7 +2237,6 @@ static void h2_process_demux(struct h2c *h2c)
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
 				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
-				h2c->st0 = H2_CS_ERROR;
 				if (!h2c->nb_streams) {
 					/* only log if no other stream can report the error */
 					sess_log(h2c->conn->owner);
@@ -2310,7 +2309,6 @@ static void h2_process_demux(struct h2c *h2c)
 			 * this state MUST be treated as a connection error
 			 */
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			h2c->st0 = H2_CS_ERROR;
 			if (!h2c->nb_streams) {
 				/* only log if no other stream can report the error */
 				sess_log(h2c->conn->owner);
