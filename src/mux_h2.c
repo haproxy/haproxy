@@ -2344,7 +2344,7 @@ static void h2_process_demux(struct h2c *h2c)
 		 * Some frames have to be silently ignored as well.
 		 */
 		if (h2s->st == H2_SS_CLOSED && h2c->dsi) {
-			if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
+			if (!(h2c->flags & H2_CF_IS_BACK) && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
 				/* #5.1.1: The identifier of a newly
 				 * established stream MUST be numerically
 				 * greater than all streams that the initiating
