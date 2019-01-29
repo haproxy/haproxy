@@ -2314,7 +2314,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 
 	conn_prepare(conn, peer->proto, peer_xprt(peer));
-	conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL);
+	if (conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL) < 0)
+		goto out_free_cs;
 	si_attach_cs(&s->si[1], cs);
 
 	s->do_log = NULL;
@@ -2328,6 +2329,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	return appctx;
 
 	/* Error unrolling */
+out_free_cs:
+	cs_free(cs);
  out_free_conn:
 	conn_free(conn);
  out_free_strm:
