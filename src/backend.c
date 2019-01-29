@@ -1148,6 +1148,7 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int reuse_orphan = 0;
 	int init_mux = 0;
+	int alloced_cs = 0;
 	int err;
 
 
@@ -1325,9 +1326,10 @@ int connect_server(struct stream *s)
 
 			if (avail >= 1) {
 				srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
-				if (srv_cs)
+				if (srv_cs) {
+					alloced_cs = 1;
 					si_attach_cs(&s->si[1], srv_cs);
-				else
+				} else
 					srv_conn = NULL;
 			}
 			else
@@ -1351,7 +1353,8 @@ int connect_server(struct stream *s)
 		if (!session_add_conn(s->sess, srv_conn, s->target)) {
 			/* If we failed to attach the connection, detach the
 			 * conn_stream, possibly destroying the connection */
-			cs_destroy(srv_cs);
+			if (alloced_cs)
+				si_release_endpoint(&s->si[1]);
 			srv_conn->owner = NULL;
 			if (!srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
 			/* The server doesn't want it, let's kill the connection right away */
