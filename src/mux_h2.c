@@ -2723,6 +2723,9 @@ static int h2_send(struct h2c *h2c)
 		while (((h2c->flags & (H2_CF_MUX_MFULL|H2_CF_MUX_MALLOC)) == 0) && !done)
 			done = h2_process_mux(h2c);
 
+		if (h2c->flags & H2_CF_MUX_MALLOC)
+			break;
+
 		if (conn->flags & CO_FL_ERROR)
 			break;
 
