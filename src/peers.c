@@ -1158,11 +1158,9 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	expire = MS_TO_TICKS(st->table->expire);
 
 	if (updt) {
-		if (msg_len < sizeof(update)) {
-			/* malformed message */
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (msg_len < sizeof(update))
+			goto malformed_exit;
+
 		memcpy(&update, *msg_cur, sizeof(update));
 		*msg_cur += sizeof(update);
 		st->last_get = htonl(update);
@@ -1174,10 +1172,9 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	if (exp) {
 		size_t expire_sz = sizeof expire;
 
-		if (*msg_cur + expire_sz > msg_end) {
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (*msg_cur + expire_sz > msg_end)
+			goto malformed_exit;
+
 		memcpy(&expire, *msg_cur, expire_sz);
 		*msg_cur += expire_sz;
 		expire = ntohl(expire);
@@ -1191,19 +1188,12 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		unsigned int to_read, to_store;
 
 		to_read = intdecode(msg_cur, msg_end);
-		if (!*msg_cur) {
-			/* malformed message */
-			stksess_free(st->table, newts);
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (!*msg_cur)
+			goto malformed_free_newts;
+
 		to_store = MIN(to_read, st->table->key_size - 1);
-		if (*msg_cur + to_store > msg_end) {
-			/* malformed message */
-			stksess_free(st->table, newts);
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (*msg_cur + to_store > msg_end)
+			goto malformed_free_newts;
 
 		memcpy(newts->key.key, *msg_cur, to_store);
 		newts->key.key[to_store] = 0;
@@ -1212,24 +1202,18 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	else if (st->table->type == SMP_T_SINT) {
 		unsigned int netinteger;
 
-		if (*msg_cur + sizeof(netinteger) > msg_end) {
-			/* malformed message */
-			stksess_free(st->table, newts);
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (*msg_cur + sizeof(netinteger) > msg_end)
+			goto malformed_free_newts;
+
 		memcpy(&netinteger, *msg_cur, sizeof(netinteger));
 		netinteger = ntohl(netinteger);
 		memcpy(newts->key.key, &netinteger, sizeof(netinteger));
 		*msg_cur += sizeof(netinteger);
 	}
 	else {
-		if (*msg_cur + st->table->key_size > msg_end) {
-			/* malformed message */
-			stksess_free(st->table, newts);
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return 0;
-		}
+		if (*msg_cur + st->table->key_size > msg_end)
+			goto malformed_free_newts;
+
 		memcpy(newts->key.key, *msg_cur, st->table->key_size);
 		*msg_cur += st->table->key_size;
 	}
@@ -1244,62 +1228,34 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
+		uint64_t decoded_int;
 
 		if (!((1 << data_type) & st->remote_data))
 			continue;
 
+		decoded_int = intdecode(msg_cur, msg_end);
+		if (!*msg_cur)
+			goto malformed_unlock;
+
 		switch (stktable_data_types[data_type].std_type) {
-		case STD_T_SINT: {
-			int data;
-
-			data = intdecode(msg_cur, msg_end);
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
-
+		case STD_T_SINT:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
 			if (data_ptr)
-				stktable_data_cast(data_ptr, std_t_sint) = data;
+				stktable_data_cast(data_ptr, std_t_sint) = decoded_int;
 			break;
-		}
-		case STD_T_UINT: {
-			unsigned int data;
 
-			data = intdecode(msg_cur, msg_end);
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
-
+		case STD_T_UINT:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
 			if (data_ptr)
-				stktable_data_cast(data_ptr, std_t_uint) = data;
+				stktable_data_cast(data_ptr, std_t_uint) = decoded_int;
 			break;
-		}
-		case STD_T_ULL: {
-			unsigned long long  data;
 
-			data = intdecode(msg_cur, msg_end);
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
-
+		case STD_T_ULL:
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
 			if (data_ptr)
-				stktable_data_cast(data_ptr, std_t_ull) = data;
+				stktable_data_cast(data_ptr, std_t_ull) = decoded_int;
 			break;
-		}
+
 		case STD_T_FRQP: {
 			struct freq_ctr_period data;
 
@@ -1308,30 +1264,14 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			so we don't need to update the update the freq_ctr_period
 			using its internal lock */
 
-			data.curr_tick = tick_add(now_ms, -intdecode(msg_cur, msg_end)) & ~0x1;
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
+			data.curr_tick = tick_add(now_ms, -decoded_int) & ~0x1;
 			data.curr_ctr = intdecode(msg_cur, msg_end);
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
+			if (!*msg_cur)
+				goto malformed_unlock;
+
 			data.prev_ctr = intdecode(msg_cur, msg_end);
-			if (!*msg_cur) {
-				/* malformed message */
-				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_remote(st->table, ts, 1);
-				appctx->st0 = PEER_SESS_ST_ERRPROTO;
-				return 0;
-			}
+			if (!*msg_cur)
+				goto malformed_unlock;
 
 			data_ptr = stktable_data_ptr(st->table, ts, data_type);
 			if (data_ptr)
@@ -1350,6 +1290,20 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
  ignore_msg:
 	/* skip consumed message */
 	co_skip(si_oc(si), totl);
+	return 0;
+
+ malformed_unlock:
+	/* malformed message */
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+	stktable_touch_remote(st->table, ts, 1);
+	appctx->st0 = PEER_SESS_ST_ERRPROTO;
+	return 0;
+
+ malformed_free_newts:
+	/* malformed message */
+	stksess_free(st->table, newts);
+ malformed_exit:
+	appctx->st0 = PEER_SESS_ST_ERRPROTO;
 	return 0;
 }
 
