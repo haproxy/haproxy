@@ -1576,7 +1576,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					}
 				}
 
-				if ((h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
+				if (h1s->status >= 200 && h1s->status != 204 && h1s->status != 304 &&
+				    h1s->meth != HTTP_METH_HEAD && !(h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) &&
+				    (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				    (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN)) {
 					/* chunking needed but header not seen */
 					if (!chunk_memcat(tmp, "transfer-encoding: chunked\r\n", 28))
