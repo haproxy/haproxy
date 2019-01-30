@@ -2170,6 +2170,8 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 static void h2_process_demux(struct h2c *h2c)
 {
 	struct h2s *h2s = NULL, *tmp_h2s;
+	struct h2_fh hdr;
+	unsigned int padlen = 0;
 
 	if (h2c->st0 >= H2_CS_ERROR)
 		return;
@@ -2192,8 +2194,6 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		if (h2c->st0 == H2_CS_SETTINGS1) {
-			struct h2_fh hdr;
-
 			/* ensure that what is pending is a valid SETTINGS frame
 			 * without an ACK.
 			 */
@@ -2226,12 +2226,8 @@ static void h2_process_demux(struct h2c *h2c)
 			 * a SETTINGS frame whose header has already been
 			 * deleted above.
 			 */
-			h2c->dfl = hdr.len;
-			h2c->dsi = hdr.sid;
-			h2c->dft = hdr.ft;
-			h2c->dff = hdr.ff;
-			h2c->dpl = 0;
-			h2c->st0 = H2_CS_FRAME_P;
+			padlen = 0;
+			goto new_frame;
 		}
 	}
 
@@ -2243,9 +2239,6 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		if (h2c->st0 == H2_CS_FRAME_H) {
-			struct h2_fh hdr;
-			unsigned int padlen = 0;
-
 			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr))
 				break;
 
@@ -2294,12 +2287,22 @@ static void h2_process_demux(struct h2c *h2c)
 				b_del(&h2c->dbuf, 1);
 			}
 			h2_skip_frame_hdr(&h2c->dbuf);
+
+		new_frame:
 			h2c->dfl = hdr.len;
 			h2c->dsi = hdr.sid;
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
 			h2c->dpl = padlen;
 			h2c->st0 = H2_CS_FRAME_P;
+
+			/* check for minimum basic frame format validity */
+			ret = h2_frame_check(h2c->dft, 1, h2c->dsi, h2c->dfl, global.tune.bufsize);
+			if (ret != H2_ERR_NO_ERROR) {
+				h2c_error(h2c, ret);
+				sess_log(h2c->conn->owner);
+				goto fail;
+			}
 		}
 
 		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
