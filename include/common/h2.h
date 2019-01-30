@@ -178,6 +178,25 @@ enum h2_err {
 #define H2_MSGF_BODY_CL        0x0002    // content-length is present
 #define H2_MSGF_BODY_TUNNEL    0x0004    // a tunnel is in use (CONNECT)
 
+#define H2_MAX_STREAM_ID       ((1U << 31) - 1)
+#define H2_MAX_FRAME_LEN       ((1U << 24) - 1)
+#define H2_DIR_REQ             1
+#define H2_DIR_RES             2
+#define H2_DIR_BOTH            3
+
+/* constraints imposed by the protocol on each frame type, in terms of stream
+ * ID values, frame sizes, and direction so that most connection-level checks
+ * can be centralized regardless of the frame's acceptance.
+ */
+struct h2_frame_definition {
+	int32_t dir;     /* 0=none, 1=request, 2=response, 3=both */
+	int32_t min_id;  /* minimum allowed stream ID */
+	int32_t max_id;  /* maximum allowed stream ID */
+	int32_t min_len; /* minimum frame length */
+	int32_t max_len; /* maximum frame length */
+};
+
+extern struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES];
 
 /* various protocol processing functions */
 
@@ -213,6 +232,41 @@ static inline const char *h2_ft_str(int type)
 	case H2_FT_WINDOW_UPDATE : return "WINDOW_UPDATE";
 	default                  : return "_UNKNOWN_";
 	}
+}
+
+/* Returns an error code if the frame is valid protocol-wise, otherwise 0. <ft>
+ * is the frame type (H2_FT_*), <dir> is the direction (1=req, 2=res), <id> is
+ * the stream ID from the frame header, <len> is the frame length from the
+ * header. The purpose is to be able to quickly return a PROTOCOL_ERROR or
+ * FRAME_SIZE_ERROR connection error even for situations where the frame will
+ * be ignored. <mfs> must be the max frame size currently in place for the
+ * protocol.
+ */
+static inline int h2_frame_check(enum h2_ft ft, int dir, int32_t id, int32_t len, int32_t mfs)
+{
+	struct h2_frame_definition *fd;
+
+	if (ft >= H2_FT_ENTRIES)
+		return H2_ERR_NO_ERROR; // ignore unhandled frame types
+
+	fd = &h2_frame_definition[ft];
+
+	if (!(dir & fd->dir))
+		return H2_ERR_PROTOCOL_ERROR;
+
+	if (id < fd->min_id || id > fd->max_id)
+		return H2_ERR_PROTOCOL_ERROR;
+
+	if (len < fd->min_len || len > fd->max_len)
+		return H2_ERR_FRAME_SIZE_ERROR;
+
+	if (len > mfs)
+		return H2_ERR_FRAME_SIZE_ERROR;
+
+	if (ft == H2_FT_SETTINGS && (len % 6) != 0)
+		return H2_ERR_FRAME_SIZE_ERROR; // RFC7540#6.5
+
+	return H2_ERR_NO_ERROR;
 }
 
 /* returns the pseudo-header <str> corresponds to among H2_PHDR_IDX_*, 0 if not a

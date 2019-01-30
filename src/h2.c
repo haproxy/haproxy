@@ -31,6 +31,18 @@
 #include <common/http-hdr.h>
 #include <common/ist.h>
 
+struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES] =	{
+	 [H2_FT_DATA         ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 0, .max_len = H2_MAX_FRAME_LEN, },
+	 [H2_FT_HEADERS      ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 1, .max_len = H2_MAX_FRAME_LEN, },
+	 [H2_FT_PRIORITY     ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 5, .max_len = 5,                },
+	 [H2_FT_RST_STREAM   ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 4, .max_len = 4,                },
+	 [H2_FT_SETTINGS     ] = { .dir = 3, .min_id = 0, .max_id = 0,                .min_len = 0, .max_len = H2_MAX_FRAME_LEN, },
+	 [H2_FT_PUSH_PROMISE ] = { .dir = 0, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 4, .max_len = H2_MAX_FRAME_LEN, },
+	 [H2_FT_PING         ] = { .dir = 3, .min_id = 0, .max_id = 0,                .min_len = 8, .max_len = 8,                },
+	 [H2_FT_GOAWAY       ] = { .dir = 3, .min_id = 0, .max_id = 0,                .min_len = 8, .max_len = H2_MAX_FRAME_LEN, },
+	 [H2_FT_WINDOW_UPDATE] = { .dir = 3, .min_id = 0, .max_id = H2_MAX_STREAM_ID, .min_len = 4, .max_len = 4,                },
+	 [H2_FT_CONTINUATION ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 0, .max_len = H2_MAX_FRAME_LEN, },
+};
 
 /* Prepare the request line into <*ptr> (stopping at <end>) from pseudo headers
  * stored in <phdr[]>. <fields> indicates what was found so far. This should be
