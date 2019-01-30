@@ -1980,7 +1980,10 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->flags |= H2_SF_ES_RCVD;
 
 	if (h2s->flags & H2_SF_ES_RCVD) {
-		h2s->st = H2_SS_HREM;
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HREM;
+		else
+			h2s_close(h2s);
 		h2s->cs->flags |= CS_FL_REOS;
 	}
 
@@ -2129,7 +2132,11 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 
 	/* last frame */
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		h2s->st = H2_SS_HREM;
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HREM;
+		else
+			h2s_close(h2s);
+
 		h2s->flags |= H2_SF_ES_RCVD;
 		h2s->cs->flags |= CS_FL_REOS;
 
