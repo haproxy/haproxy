@@ -2364,7 +2364,7 @@ static void h2_process_demux(struct h2c *h2c)
 				goto strm_err;
 			}
 
-			if (h2s->flags & H2_SF_RST_RCVD) {
+			if (h2s->flags & H2_SF_RST_RCVD && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
 				/* RFC7540#5.1:closed: an endpoint that
 				 * receives any frame other than PRIORITY after
 				 * receiving a RST_STREAM MUST treat that as a
@@ -2372,6 +2372,13 @@ static void h2_process_demux(struct h2c *h2c)
 				 *
 				 * Note that old streams fall into this category
 				 * and will lead to an RST being sent.
+				 *
+				 * However, we cannot generalize this to all frame types. Those
+				 * carrying compression state must still be processed before
+				 * being dropped or we'll desynchronize the decoder. This can
+				 * happen with request trailers received after sending an
+				 * RST_STREAM, or with header/trailers responses received after
+				 * sending RST_STREAM (aborted stream).
 				 */
 				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 				h2c->st0 = H2_CS_FRAME_E;
