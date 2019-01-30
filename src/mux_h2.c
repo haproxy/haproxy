@@ -2039,6 +2039,13 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2c->st0 >= H2_CS_ERROR)
 		return NULL;
 
+	if (h2s->st != H2_SS_OPEN && h2s->st != H2_SS_HLOC) {
+		/* RFC7540#5.1 */
+		h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		h2c->st0 = H2_CS_FRAME_E;
+		return NULL;
+	}
+
 	if (error <= 0) {
 		if (error == 0)
 			return NULL; // missing data
