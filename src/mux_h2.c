@@ -2388,7 +2388,7 @@ static void h2_process_demux(struct h2c *h2c)
 			 * over which it ignores frames and treat frames that
 			 * arrive after this time as being in error.
 			 */
-			if (!(h2s->flags & H2_SF_RST_SENT)) {
+			if (h2s->id && !(h2s->flags & H2_SF_RST_SENT)) {
 				/* RFC7540#5.1:closed: any frame other than
 				 * PRIO/WU/RST in this state MUST be treated as
 				 * a connection error
