@@ -1854,9 +1854,12 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				goto out;
 			goto done;
 		}
-		error = H2_ERR_PROTOCOL_ERROR;
-		sess_log(h2c->conn->owner);
-		goto conn_err;
+		/* the connection was already killed by an RST, let's consume
+		 * the data and send another RST.
+		 */
+		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
+		h2s = (struct h2s*)h2_error_stream;
+		goto send_rst;
 	}
 	else if (h2c->dsi <= h2c->max_id || !(h2c->dsi & 1)) {
 		/* RFC7540#5.1.1 stream id > prev ones, and must be odd here */
