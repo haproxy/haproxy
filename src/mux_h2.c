@@ -1440,7 +1440,8 @@ static void h2c_update_all_ws(struct h2c *h2c, int diff)
 
 /* processes a SETTINGS frame whose payload is <payload> for <plen> bytes, and
  * ACKs it if needed. Returns > 0 on success or zero on missing data. It may
- * return an error in h2c. Described in RFC7540#6.5.
+ * return an error in h2c. The caller must have already verified frame length
+ * and stream ID validity. Described in RFC7540#6.5.
  */
 static int h2c_handle_settings(struct h2c *h2c)
 {
@@ -1453,22 +1454,6 @@ static int h2c_handle_settings(struct h2c *h2c)
 			goto fail;
 		}
 		return 1;
-	}
-
-	if (h2c->dsi != 0) {
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto fail;
-	}
-
-	if (h2c->dfl % 6) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto fail;
-	}
-
-	/* that's the limit we can process */
-	if (h2c->dfl > global.tune.bufsize) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto fail;
 	}
 
 	/* process full frame only */
@@ -1560,16 +1545,11 @@ static int h2c_ack_settings(struct h2c *h2c)
 
 /* processes a PING frame and schedules an ACK if needed. The caller must pass
  * the pointer to the payload in <payload>. Returns > 0 on success or zero on
- * missing data. It may return an error in h2c.
+ * missing data. The caller must have already verified frame length
+ * and stream ID validity.
  */
 static int h2c_handle_ping(struct h2c *h2c)
 {
-	/* frame length must be exactly 8 */
-	if (h2c->dfl != 8) {
-		h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
-		return 0;
-	}
-
 	/* schedule a response */
 	if (!(h2c->dff & H2_F_PING_ACK))
 		h2c->st0 = H2_CS_FRAME_A;
@@ -1714,17 +1694,13 @@ static int h2c_ack_ping(struct h2c *h2c)
 
 /* processes a WINDOW_UPDATE frame whose payload is <payload> for <plen> bytes.
  * Returns > 0 on success or zero on missing data. It may return an error in
- * h2c or h2s. Described in RFC7540#6.9.
+ * h2c or h2s. The caller must have already verified frame length and stream ID
+ * validity. Described in RFC7540#6.9.
  */
 static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 {
 	int32_t inc;
 	int error;
-
-	if (h2c->dfl != 4) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto conn_err;
-	}
 
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
@@ -1785,23 +1761,13 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 }
 
 /* processes a GOAWAY frame, and signals all streams whose ID is greater than
- * the last ID. Returns > 0 on success or zero on missing data. It may return
- * an error in h2c. Described in RFC7540#6.8.
+ * the last ID. Returns > 0 on success or zero on missing data. The caller must
+ * have already verified frame length and stream ID validity. Described in
+ * RFC7540#6.8.
  */
 static int h2c_handle_goaway(struct h2c *h2c)
 {
-	int error;
 	int last;
-
-	if (h2c->dsi != 0) {
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
-	}
-
-	if (h2c->dfl < 8) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto conn_err;
-	}
 
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
@@ -1813,64 +1779,33 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
 	return 1;
-
- conn_err:
-	h2c_error(h2c, error);
-	return 0;
 }
 
 /* processes a PRIORITY frame, and either skips it or rejects if it is
- * invalid. Returns > 0 on success or zero on missing data. It may return
- * an error in h2c. Described in RFC7540#6.3.
+ * invalid. Returns > 0 on success or zero on missing data. It may return an
+ * error in h2c. The caller must have already verified frame length and stream
+ * ID validity. Described in RFC7540#6.3.
  */
 static int h2c_handle_priority(struct h2c *h2c)
 {
-	int error;
-
-	if (h2c->dsi == 0) {
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
-	}
-
-	if (h2c->dfl != 5) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto conn_err;
-	}
-
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
 		return 0;
 
 	if (h2_get_n32(&h2c->dbuf, 0) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
+		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		return 0;
 	}
 	return 1;
-
- conn_err:
-	h2c_error(h2c, error);
-	return 0;
 }
 
 /* processes an RST_STREAM frame, and sets the 32-bit error code on the stream.
- * Returns > 0 on success or zero on missing data. It may return an error in
- * h2c. Described in RFC7540#6.4.
+ * Returns > 0 on success or zero on missing data. The caller must have already
+ * verified frame length and stream ID validity. Described in RFC7540#6.4.
  */
 static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
-	int error;
-
-	if (h2c->dsi == 0) {
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
-	}
-
-	if (h2c->dfl != 4) {
-		error = H2_ERR_FRAME_SIZE_ERROR;
-		goto conn_err;
-	}
-
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
 		return 0;
@@ -1889,10 +1824,6 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	h2s->flags |= H2_SF_RST_RCVD;
 	return 1;
-
- conn_err:
-	h2c_error(h2c, error);
-	return 0;
 }
 
 /* processes a HEADERS frame. Returns h2s on success or NULL on missing data.
@@ -1908,13 +1839,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	unsigned long long body_len = 0;
 	uint32_t flags = 0;
 	int error;
-
-	if (!h2c->dfl) {
-		/* RFC7540#4.2 */
-		error = H2_ERR_FRAME_SIZE_ERROR; // empty headers frame!
-		sess_log(h2c->conn->owner);
-		goto conn_err;
-	}
 
 	if (!b_size(&h2c->dbuf))
 		return NULL; // empty buffer
@@ -2020,13 +1944,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
 
-	if (!h2c->dfl) {
-		/* RFC7540#4.2 */
-		error = H2_ERR_FRAME_SIZE_ERROR; // empty headers frame!
-		sess_log(h2c->conn->owner);
-		goto conn_err;
-	}
-
 	if (!b_size(&h2c->dbuf))
 		return NULL; // empty buffer
 
@@ -2069,10 +1986,6 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s_close(h2s);
 
 	return h2s;
-
- conn_err:
-	h2c_error(h2c, error);
-	return NULL;
 }
 
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
@@ -2093,12 +2006,6 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		return 0; // incomplete frame
 
 	/* now either the frame is complete or the buffer is complete */
-
-	if (!h2c->dsi) {
-		/* RFC7540#6.1 */
-		error = H2_ERR_PROTOCOL_ERROR;
-		goto conn_err;
-	}
 
 	if (h2s->st != H2_SS_OPEN && h2s->st != H2_SS_HLOC) {
 		/* RFC7540#6.1 */
@@ -2155,10 +2062,6 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	return 1;
-
- conn_err:
-	h2c_error(h2c, error);
-	return 0;
 
  strm_err:
 	h2s_error(h2s, error);
@@ -2507,15 +2410,6 @@ static void h2_process_demux(struct h2c *h2c)
 		case H2_FT_GOAWAY:
 			if (h2c->st0 == H2_CS_FRAME_P)
 				ret = h2c_handle_goaway(h2c);
-			break;
-
-		case H2_FT_PUSH_PROMISE:
-			/* not permitted here, RFC7540#5.1 */
-			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			if (!h2c->nb_streams) {
-				/* only log if no other stream can report the error */
-				sess_log(h2c->conn->owner);
-			}
 			break;
 
 			/* implement all extra frame types here */
