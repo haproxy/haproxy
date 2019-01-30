@@ -3100,9 +3100,7 @@ compression offload
     * the request does not advertise a supported compression algorithm in the
       "Accept-Encoding" header
     * the response message is not HTTP/1.1
-    * HTTP status code is not 200
-    * response header "Transfer-Encoding" contains "chunked" (Temporary
-      Workaround)
+    * HTTP status code is not one of 200, 201, 202, or 203
     * response contain neither a "Content-Length" header nor a
       "Transfer-Encoding" whose last value is "chunked"
     * response contains a "Content-Type" header whose first value starts with
@@ -3113,6 +3111,7 @@ compression offload
       and later
     * The response contains a "Content-Encoding" header, indicating that the
       response is already compressed (see compression offload)
+    * The response contains an invalid "ETag" header or multiple ETag headers
 
   Note: The compression does not emit the Warning header.
 
