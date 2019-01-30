@@ -2379,6 +2379,7 @@ void deinit(void)
 		}
 
 		deinit_tcp_rules(&p->tcp_req.inspect_rules);
+		deinit_tcp_rules(&p->tcp_rep.inspect_rules);
 		deinit_tcp_rules(&p->tcp_req.l4_rules);
 
 		deinit_stick_rules(&p->storersp_rules);
