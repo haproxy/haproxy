@@ -1426,6 +1426,14 @@ static void h2c_update_all_ws(struct h2c *h2c, int diff)
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		h2s->mws += diff;
+
+		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
+			h2s->flags &= ~H2_SF_BLK_SFCTL;
+			if (h2s->send_wait)
+				LIST_ADDQ(&h2c->send_list, &h2s->list);
+
+		}
+
 		node = eb32_next(node);
 	}
 }
