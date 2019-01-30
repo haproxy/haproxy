@@ -1771,12 +1771,8 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 
  strm_err:
-	if (h2s) {
-		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_E;
-	}
-	else
-		h2c_error(h2c, error);
+	h2s_error(h2s, error);
+	h2c->st0 = H2_CS_FRAME_E;
 	return 0;
 }
 
@@ -2143,12 +2139,8 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 
  strm_err:
-	if (h2s) {
-		h2s_error(h2s, error);
-		h2c->st0 = H2_CS_FRAME_E;
-	}
-	else
-		h2c_error(h2c, error);
+	h2s_error(h2s, error);
+	h2c->st0 = H2_CS_FRAME_E;
 	return 0;
 }
 
