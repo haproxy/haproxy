@@ -734,16 +734,20 @@ static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
 		b_set_data(buf, b_size(buf));
 }
 
-/* Returns 1 if the message is empty, otherwise it returns 0. */
+/* Returns 1 if the message is empty, otherwise it returns 0. Note that it is
+ * illegal to call this with htx == NULL.
+ */
 static inline int htx_is_empty(const struct htx *htx)
 {
-	return (!htx || !htx->used);
+	return !htx->used;
 }
 
-/* Returns 1 if the message is not empty, otherwise it returns 0. */
+/* Returns 1 if the message is not empty, otherwise it returns 0. Note that it
+ * is illegal to call this with htx == NULL.
+ */
 static inline int htx_is_not_empty(const struct htx *htx)
 {
-	return (htx && htx->used);
+	return htx->used;
 }
 
 /* For debugging purpose */
