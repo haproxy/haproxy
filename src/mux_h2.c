@@ -87,6 +87,7 @@ struct h2c {
 
 	/* 16 bit hole here */
 	uint32_t flags; /* connection flags: H2_CF_* */
+	uint32_t streams_limit; /* maximum number of concurrent streams the peer supports */
 	int32_t max_id; /* highest ID known on this connection, <0 before preface */
 	uint32_t rcvd_c; /* newly received data to ACK for the connection */
 	uint32_t rcvd_s; /* newly received data to ACK for the current stream (dsi) */
@@ -503,6 +504,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	/* Initialise the context. */
 	h2c->st0 = H2_CS_PREFACE;
 	h2c->conn = conn;
+	h2c->streams_limit = h2_settings_max_concurrent_streams;
 	h2c->max_id = -1;
 	h2c->errcode = H2_ERR_NO_ERROR;
 	h2c->rcvd_c = 0;
@@ -1493,6 +1495,14 @@ static int h2c_handle_settings(struct h2c *h2c)
 			if (arg < 0 || arg > 1) { // RFC7540#6.5.2
 				error = H2_ERR_PROTOCOL_ERROR;
 				goto fail;
+			}
+			break;
+		case H2_SETTINGS_MAX_CONCURRENT_STREAMS:
+			if (h2c->flags & H2_CF_IS_BACK) {
+				/* the limit is only for the backend; for the frontend it is our limit */
+				if ((unsigned int)arg > h2_settings_max_concurrent_streams)
+					arg = h2_settings_max_concurrent_streams;
+				h2c->streams_limit = arg;
 			}
 			break;
 		}
