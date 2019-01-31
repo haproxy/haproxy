@@ -87,6 +87,7 @@ void session_free(struct session *sess)
 				LIST_DEL(&conn->session_list);
 				LIST_INIT(&conn->session_list);
 				conn->owner = NULL;
+				conn->flags &= ~CO_FL_SESS_IDLE;
 				if (!srv_add_to_idle_list(objt_server(conn->target), conn))
 					conn->mux->destroy(conn);
 			} else {

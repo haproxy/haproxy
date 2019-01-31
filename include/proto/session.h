@@ -128,7 +128,8 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 			/* The server doesn't want it, let's kill the connection right away */
 			conn->mux->destroy(conn);
 			return -1;
-		}
+		} else
+			conn->flags &= ~CO_FL_SESS_IDLE;
 		return 1;
 	} else {
 		conn->flags |= CO_FL_SESS_IDLE;
