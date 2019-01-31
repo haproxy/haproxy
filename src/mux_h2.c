@@ -433,13 +433,13 @@ static int h2_avail_streams(struct connection *conn)
 	if (h2c->last_sid >= 0)
 		return 0;
 
-	/* XXX Should use the negociated max concurrent stream nb instead of the conf value */
-	ret1 = h2_settings_max_concurrent_streams - h2c->nb_streams;
+	/* note: may be negative if a SETTINGS frame changes the limit */
+	ret1 = h2c->streams_limit - h2c->nb_streams;
 
 	/* we must also consider the limit imposed by stream IDs */
 	ret2 = h2_streams_left(h2c);
 	ret1 = MIN(ret1, ret2);
-	if (ret1 && srv && srv->max_reuse >= 0) {
+	if (ret1 > 0 && srv && srv->max_reuse >= 0) {
 		ret2 = h2c->stream_cnt <= srv->max_reuse ? srv->max_reuse - h2c->stream_cnt + 1: 0;
 		ret1 = MIN(ret1, ret2);
 	}
@@ -976,7 +976,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 {
 	struct h2s *h2s = NULL;
 
-	if (h2c->nb_streams >= h2_settings_max_concurrent_streams)
+	if (h2c->nb_streams >= h2c->streams_limit)
 		goto out;
 
 	if (h2_streams_left(h2c) < 1)
@@ -2997,7 +2997,7 @@ static void h2_detach(struct conn_stream *cs)
 			/* Never ever allow to reuse a connection from a non-reuse backend */
 			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 				h2c->conn->flags |= CO_FL_PRIVATE;
-			if (LIST_ISEMPTY(&h2c->conn->list) && h2c->nb_streams < h2_settings_max_concurrent_streams) {
+			if (LIST_ISEMPTY(&h2c->conn->list) && h2c->nb_streams < h2c->streams_limit) {
 				struct server *srv = objt_server(h2c->conn->target);
 
 				if (srv) {
