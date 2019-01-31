@@ -323,8 +323,8 @@ static inline void h2c_restart_reading(const struct h2c *h2c)
 }
 
 
-/* returns true if the connection has too many conn_streams attached */
-static inline int h2_has_too_many_cs(const struct h2c *h2c)
+/* returns true if the front connection has too many conn_streams attached */
+static inline int h2_frt_has_too_many_cs(const struct h2c *h2c)
 {
 	return h2c->nb_cs > h2_settings_max_concurrent_streams;
 }
@@ -952,7 +952,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	sess->t_handshake = 0;
 
 	/* OK done, the stream lives its own life now */
-	if (h2_has_too_many_cs(h2c))
+	if (h2_frt_has_too_many_cs(h2c))
 		h2c->flags |= H2_CF_DEM_TOOMANY;
 	return h2s;
 
@@ -2936,8 +2936,9 @@ static void h2_detach(struct conn_stream *cs)
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
 	h2c->nb_cs--;
-	if (h2c->flags & H2_CF_DEM_TOOMANY &&
-	    !h2_has_too_many_cs(h2c)) {
+	if ((h2c->flags & (H2_CF_IS_BACK|H2_CF_DEM_TOOMANY)) == H2_CF_DEM_TOOMANY &&
+	    !h2_frt_has_too_many_cs(h2c)) {
+		/* frontend connection was blocking new streams creation */
 		h2c->flags &= ~H2_CF_DEM_TOOMANY;
 		h2c_restart_reading(h2c);
 	}
