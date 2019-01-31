@@ -690,7 +690,10 @@ static inline size_t buf_room_for_htx_data(const struct buffer *buf)
 
 
 /* Returns an HTX message using the buffer <buf>. Unlike htx_from_buf(), this
- * function does not update to the buffer. */
+ * function does not update to the buffer.
+ * Note that it always returns a valid pointer, either to an initialized buffer
+ * or to the empty buffer.
+ */
 static inline struct htx *htxbuf(const struct buffer *buf)
 {
 	struct htx *htx;
@@ -707,10 +710,10 @@ static inline struct htx *htxbuf(const struct buffer *buf)
 
 /* Returns an HTX message using the buffer <buf>. <buf> is updated to appear as
  * full. It is the caller responsibility to call htx_to_buf() when it finish to
- * manipulate the HTX message to update <buf> accordingly.
+ * manipulate the HTX message to update <buf> accordingly. The returned pointer
+ * is always valid.
  *
- * If the caller can call htxbuf() function to avoir any update of the
- * buffer.
+ * The caller can call htxbuf() function to avoid any update of the buffer.
  */
 static inline struct htx *htx_from_buf(struct buffer *buf)
 {
