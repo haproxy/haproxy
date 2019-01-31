@@ -3524,7 +3524,7 @@ try_again:
 			goto fail;
 	}
 
-	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
+	if (htx) {
 		block1 = htx_free_data_space(htx);
 		if (!block1) {
 			h2c->flags |= H2_CF_DEM_SFULL;
