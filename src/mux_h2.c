@@ -224,7 +224,7 @@ DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
-static int h2_settings_max_concurrent_streams =   100;
+static unsigned int h2_settings_max_concurrent_streams = 100;
 
 /* a dmumy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
@@ -5424,7 +5424,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 		return -1;
 
 	h2_settings_max_concurrent_streams = atoi(args[1]);
-	if (h2_settings_max_concurrent_streams < 0) {
+	if ((int)h2_settings_max_concurrent_streams < 0) {
 		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
 		return -1;
 	}
