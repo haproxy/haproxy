@@ -3028,19 +3028,20 @@ static void h2_do_shutr(struct h2s *h2s)
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
 		return;
 
-	/* if no outgoing data was seen on this stream, it means it was
-	 * closed with a "tcp-request content" rule that is normally
-	 * used to kill the connection ASAP (eg: limit abuse). In this
-	 * case we send a goaway to close the connection.
+	/* a connstream may require us to immediately kill the whole connection
+	 * for example because of a "tcp-request content reject" rule that is
+	 * normally used to limit abuse. In this case we schedule a goaway to
+	 * close the connection.
 	 */
+	if ((h2s->cs && h2s->cs->flags & CS_FL_KILL_CONN) &&
+	    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
+		h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
+	}
+
 	if (!(h2s->flags & H2_SF_RST_SENT) &&
 	    h2s_send_rst_stream(h2c, h2s) <= 0)
 		goto add_to_list;
-
-	if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
-	    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
-	    h2c_send_goaway_error(h2c, h2s) <= 0)
-		return;
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
@@ -3060,7 +3061,6 @@ add_to_list:
 	}
 	/* Let the handler know we want shutr */
 	sw->handle = (void *)((long)sw->handle | 1);
-
 }
 
 static void h2_do_shutw(struct h2s *h2s)
@@ -3083,18 +3083,19 @@ static void h2_do_shutw(struct h2s *h2s)
 		else
 			h2s->st = H2_SS_HLOC;
 	} else {
-		/* if no outgoing data was seen on this stream, it means it was
-		 * closed with a "tcp-request content" rule that is normally
-		 * used to kill the connection ASAP (eg: limit abuse). In this
-		 * case we send a goaway to close the connection.
+		/* a connstream may require us to immediately kill the whole connection
+		 * for example because of a "tcp-request content reject" rule that is
+		 * normally used to limit abuse. In this case we schedule a goaway to
+		 * close the connection.
 		 */
+		if ((h2s->cs && h2s->cs->flags & CS_FL_KILL_CONN) &&
+		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
+			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
+		}
+
 		if (!(h2s->flags & H2_SF_RST_SENT) &&
 		    h2s_send_rst_stream(h2c, h2s) <= 0)
-			goto add_to_list;
-
-		if (!(h2s->flags & H2_SF_OUTGOING_DATA) &&
-		    !(h2s->h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) &&
-		    h2c_send_goaway_error(h2c, h2s) <= 0)
 			goto add_to_list;
 
 		h2s_close(h2s);
@@ -3117,7 +3118,6 @@ static void h2_do_shutw(struct h2s *h2s)
 	}
        /* let the handler know we want to shutw */
        sw->handle = (void *)((long)(sw->handle) | 2);
-
 }
 
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
