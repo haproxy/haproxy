@@ -761,8 +761,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "peer") == 0 ||
 	         strcmp(args[0], "server") == 0) { /* peer or server definition */
-		int local_peer;
+		int local_peer, peer;
 
+		peer = *args[0] == 'p';
 		local_peer = !strcmp(args[1], localpeer);
 		/* The local peer may have already partially been parsed on a "bind" line. */
 		if (*args[0] == 'p') {
@@ -805,7 +806,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* This initializes curpeer->peers->peers_fe->srv. */
-		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, !local_peer);
+		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, peer || !local_peer);
 		if (!curpeers->peers_fe->srv)
 			goto out;
 
