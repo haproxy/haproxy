@@ -640,7 +640,8 @@ static int sess_update_st_con_tcp(struct stream *s)
 			 */
 			si->state    = SI_ST_EST;
 			si->err_type = SI_ET_DATA_ERR;
-			rep->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
+			req->flags |= CF_WRITE_ERROR;
+			rep->flags |= CF_READ_ERROR;
 			return 1;
 		}
 		si->exp   = TICK_ETERNITY;
