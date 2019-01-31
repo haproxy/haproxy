@@ -163,6 +163,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+				si_must_kill_conn(chn_prod(req));
 				channel_abort(req);
 				channel_abort(&s->res);
 				req->analysers = 0;
@@ -342,6 +343,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+				si_must_kill_conn(chn_prod(rep));
 				channel_abort(rep);
 				channel_abort(&s->req);
 				rep->analysers = 0;
@@ -359,6 +361,7 @@ resume_execution:
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+				si_must_kill_conn(chn_prod(rep));
 				si_shutr(chn_prod(rep));
 				si_shutw(chn_prod(rep));
 				break;

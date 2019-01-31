@@ -64,7 +64,7 @@ enum {
 	SI_FL_NONE       = 0x00000000,  /* nothing */
 	SI_FL_EXP        = 0x00000001,  /* timeout has expired */
 	SI_FL_ERR        = 0x00000002,  /* a non-recoverable error has occurred */
-	/* unused:         0x00000004 */
+	SI_FL_KILL_CONN  = 0x00000004,  /* next shutw must kill the whole conn, not just the stream */
 	SI_FL_WAIT_DATA  = 0x00000008,  /* stream-int waits for more outgoing data to send */
 	SI_FL_ISBACK     = 0x00000010,  /* 0 for front-side SI, 1 for back-side */
 	SI_FL_DONT_WAKE  = 0x00000020,  /* resync in progress, don't wake up */
