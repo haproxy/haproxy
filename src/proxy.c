@@ -1324,6 +1324,10 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 			     HA_ATOMIC_ADD(&be->beconn, 1));
 	proxy_inc_be_ctr(be);
 
+	/* HTX/legacy must match */
+	if ((s->sess->fe->options2 ^ be->options2) & PR_O2_USE_HTX)
+		return 0;
+
 	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)
