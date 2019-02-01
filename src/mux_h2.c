@@ -4425,20 +4425,27 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		goto full;
 	}
 
-	/* encode the scheme which is always "https" (or 0x86 for "http") */
-	if (!hpack_encode_scheme(&outbuf, ist("https"))) {
-		/* output full */
-		if (b_space_wraps(&h2c->mbuf))
-			goto realign_again;
-		goto full;
-	}
+	/* RFC7540 #8.3: the CONNECT method must have :
+	 *   - :authority set to the URI part (host:port)
+	 *   - :method set to CONNECT
+	 *   - :scheme and :path omitted
+	 */
+	if (sl->info.req.meth != HTTP_METH_CONNECT) {
+		/* encode the scheme which is always "https" (or 0x86 for "http") */
+		if (!hpack_encode_scheme(&outbuf, ist("https"))) {
+			/* output full */
+			if (b_space_wraps(&h2c->mbuf))
+				goto realign_again;
+			goto full;
+		}
 
-	/* encode the path, which necessarily is the second one */
-	if (!hpack_encode_path(&outbuf, path)) {
-		/* output full */
-		if (b_space_wraps(&h2c->mbuf))
-			goto realign_again;
-		goto full;
+		/* encode the path, which necessarily is the second one */
+		if (!hpack_encode_path(&outbuf, path)) {
+			/* output full */
+			if (b_space_wraps(&h2c->mbuf))
+				goto realign_again;
+			goto full;
+		}
 	}
 
 	/* encode all headers, stop at empty name */
