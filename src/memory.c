@@ -581,7 +581,7 @@ __decl_hathreads(static HA_SPINLOCK_T mem_fail_lock);
 
 int mem_should_fail(const struct pool_head *pool)
 {
-	int ret;
+	int ret = 0;
 	int n;
 
 	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
