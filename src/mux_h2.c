@@ -4333,7 +4333,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	struct htx_blk *blk_end;
 	struct buffer outbuf;
 	struct htx_sl *sl;
-	struct ist meth, path;
+	struct ist meth, path, auth;
 	enum htx_blk_type type;
 	int es_now = 0;
 	int ret = 0;
@@ -4446,12 +4446,36 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				goto realign_again;
 			goto full;
 		}
+
+		/* look for the Host header and place it in :authority */
+		auth = ist2(NULL, 0);
+		for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
+			if (isteq(list[hdr].n, ist("")))
+				break; // end
+
+			if (isteq(list[hdr].n, ist("host"))) {
+				auth = list[hdr].v;
+				break;
+			}
+		}
+	}
+	else {
+		/* for CONNECT, :authority is taken from the path */
+		auth = path;
+	}
+
+	if (auth.ptr && !hpack_encode_header(&outbuf, ist(":authority"), auth)) {
+		/* output full */
+		if (b_space_wraps(&h2c->mbuf))
+			goto realign_again;
+		goto full;
 	}
 
 	/* encode all headers, stop at empty name */
 	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
 		/* these ones do not exist in H2 and must be dropped. */
 		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("host")) ||
 		    isteq(list[hdr].n, ist("proxy-connection")) ||
 		    isteq(list[hdr].n, ist("keep-alive")) ||
 		    isteq(list[hdr].n, ist("upgrade")) ||
