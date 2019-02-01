@@ -1302,7 +1302,7 @@ int connect_server(struct stream *s)
 					s->sess->idle_conns--;
 				session_unown_conn(s->sess, old_conn);
 				old_conn->owner = sess;
-				if (!session_add_conn(sess, old_conn, s->target)) {
+				if (!session_add_conn(sess, old_conn, old_conn->target)) {
 					old_conn->owner = NULL;
 					old_conn->mux->destroy(old_conn);
 				} else
@@ -1343,6 +1343,7 @@ int connect_server(struct stream *s)
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		srv_conn = conn_new();
+		srv_conn->target = s->target;
 		srv_cs = NULL;
 	}
 
@@ -1350,7 +1351,7 @@ int connect_server(struct stream *s)
 		if (srv_conn->owner)
 			session_unown_conn(srv_conn->owner, srv_conn);
 		srv_conn->owner = s->sess;
-		if (!session_add_conn(s->sess, srv_conn, s->target)) {
+		if (!session_add_conn(s->sess, srv_conn, srv_conn->target)) {
 			/* If we failed to attach the connection, detach the
 			 * conn_stream, possibly destroying the connection */
 			if (alloced_cs)
@@ -1374,9 +1375,6 @@ int connect_server(struct stream *s)
 	}
 
 	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
-		/* the target was only on the stream, assign it to the SI now */
-		srv_conn->target = s->target;
-
 		/* set the correct protocol on the output stream interface */
 		if (srv)
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), srv->xprt);
