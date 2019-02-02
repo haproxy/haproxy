@@ -2288,9 +2288,9 @@ int check_config_validity()
 			/* detect and address thread affinity inconsistencies */
 			nbproc = 0;
 			if (bind_conf->bind_proc)
-				nbproc = my_ffsl(bind_conf->bind_proc);
+				nbproc = my_ffsl(bind_conf->bind_proc) - 1;
 
-			mask = bind_conf->bind_thread[nbproc - 1];
+			mask = bind_conf->bind_thread[nbproc];
 			if (mask && !(mask & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
