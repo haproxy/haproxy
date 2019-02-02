@@ -2200,6 +2200,12 @@ int check_config_validity()
 	if (!global.tune.requri_len)
 		global.tune.requri_len = REQURI_LEN;
 
+	if (global.nbproc > 1 && global.nbthread > 1) {
+		ha_alert("config : cannot enable multiple processes if multiple threads are configured. Please use either nbproc or nbthread but not both.\n");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
 	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
 
 	pool_head_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
