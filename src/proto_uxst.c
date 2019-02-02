@@ -340,8 +340,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->proto->accept,
-		  listener->bind_conf->bind_thread[relative_pid-1] ?
-		  listener->bind_conf->bind_thread[relative_pid-1] : MAX_THREADS_MASK);
+	          thread_mask(listener->bind_conf->bind_thread[relative_pid-1]));
 
 	return err;
 
