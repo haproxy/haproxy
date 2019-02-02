@@ -157,9 +157,7 @@ int parse_nbthread(const char *arg, char **err)
 		return 0;
 	}
 
-	/* we proceed like this to be sure never to overflow the left shift */
-	all_threads_mask = 1UL << (nbthread - 1);
-	all_threads_mask |= all_threads_mask - 1;
+	all_threads_mask = nbits(nbthread);
 #endif
 	return nbthread;
 }
