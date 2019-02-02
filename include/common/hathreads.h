@@ -26,9 +26,10 @@
 #include <common/initcall.h>
 
 /* Note about all_threads_mask :
- *    - with threads support disabled, this symbol is defined as zero (0UL).
- *    - with threads enabled, this variable is never zero, it contains the mask
- *      of enabled threads. Thus if only one thread is enabled, it equals 1.
+ *    - this variable is comprised between 1 and LONGBITS.
+ *    - with threads support disabled, this symbol is defined as constant 1UL.
+ *    - with threads enabled, it contains the mask of enabled threads. Thus if
+ *      only one thread is enabled, it equals 1.
  */
 
 #ifndef USE_THREAD
