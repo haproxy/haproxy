@@ -790,15 +790,15 @@ static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
 	return result;
 }
 
-/* Simple popcountl implementation. It returns the number of ones in a word */
+/* Simple popcountl implementation. It returns the number of ones in a word.
+ * Described here : https://graphics.stanford.edu/~seander/bithacks.html
+ */
 static inline unsigned int my_popcountl(unsigned long a)
 {
-	unsigned int cnt;
-	for (cnt = 0; a; a >>= 1) {
-		if (a & 1)
-			cnt++;
-	}
-	return cnt;
+	a = a - ((a >> 1) & ~0UL/3);
+	a = (a & ~0UL/15*3) + ((a >> 2) & ~0UL/15*3);
+	a = (a + (a >> 4)) & ~0UL/255*15;
+	return (unsigned long)(a * (~0UL/255)) >> (sizeof(unsigned long) - 1) * 8;
 }
 
 /* returns non-zero if <a> has at least 2 bits set */
