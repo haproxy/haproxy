@@ -153,7 +153,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->proto->accept,
-	          thread_mask(listener->bind_conf->bind_thread[relative_pid-1]));
+	          thread_mask(listener->bind_conf->bind_thread));
 
 	return err;
 

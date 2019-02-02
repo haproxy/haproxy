@@ -11323,7 +11323,7 @@ prefer-client-ciphers
   the client cipher list.
 
 process <process-set>[/<thread-set>]
-  This restricts the list of processes and/or threads on which this listener is
+  This restricts the list of processes or threads on which this listener is
   allowed to run. It does not enforce any process but eliminates those which do
   not match. If the frontend uses a "bind-process" setting, the intersection
   between the two is applied. If in the end the listener is not allowed to run
@@ -11331,9 +11331,11 @@ process <process-set>[/<thread-set>]
   run on the first process of the listener if a single process was specified,
   or on all of its processes if multiple processes were specified. If a thread
   set is specified, it limits the threads allowed to process incoming
-  connections for this listener, for the corresponding process set. For the
-  unlikely case where several ranges are needed, this directive may be
-  repeated. <process-set> and <thread-set> must use the format
+  connections for this listener, for the the process set. If multiple processes
+  and threads are configured, a warning is emitted, as it either results from a
+  configuration error or a misunderstanding of these models. For the unlikely
+  case where several ranges are needed, this directive may be repeated.
+  <process-set> and <thread-set> must use the format
 
       all | odd | even | number[-[number]]
 

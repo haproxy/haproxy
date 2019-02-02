@@ -2304,8 +2304,7 @@ int check_config_validity()
 #endif
 
 			/* detect and address thread affinity inconsistencies */
-			nbproc = my_ffsl(proc_mask(bind_conf->bind_proc)) - 1;
-			mask = thread_mask(bind_conf->bind_thread[nbproc]);
+			mask = thread_mask(bind_conf->bind_thread);
 			if (!(mask & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
@@ -2314,33 +2313,28 @@ int check_config_validity()
 					mask >>= global.nbthread;
 				}
 
-				for (nbproc = 0; nbproc < MAX_PROCS; nbproc++) {
-					if (!bind_conf->bind_proc || (bind_conf->bind_proc & (1UL << nbproc)))
-						bind_conf->bind_thread[nbproc] = new_mask;
-				}
+				bind_conf->bind_thread = new_mask;
 				ha_warning("Proxy '%s': the thread range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
 			}
 
 			/* detect process and nbproc affinity inconsistencies */
-			if (!bind_conf->bind_proc)
-				continue;
+			mask = proc_mask(bind_conf->bind_proc) & proc_mask(curproxy->bind_proc);
+			if (!(mask & all_proc_mask)) {
+				mask = proc_mask(curproxy->bind_proc) & all_proc_mask;
+				nbproc = my_popcountl(bind_conf->bind_proc);
+				bind_conf->bind_proc = proc_mask(bind_conf->bind_proc) & mask;
 
-			mask = proc_mask(curproxy->bind_proc) & all_proc_mask;
-			/* mask cannot be null here thanks to the previous checks */
-
-			nbproc = my_popcountl(bind_conf->bind_proc);
-			bind_conf->bind_proc &= mask;
-
-			if (!bind_conf->bind_proc && nbproc == 1) {
-				ha_warning("Proxy '%s': the process number specified on the 'process' directive of 'bind %s' at [%s:%d] refers to a process not covered by the proxy. This has been fixed by forcing it to run on the proxy's first process only.\n",
-					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-				bind_conf->bind_proc = mask & ~(mask - 1);
-			}
-			else if (!bind_conf->bind_proc && nbproc > 1) {
-				ha_warning("Proxy '%s': the process range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to processes not covered by the proxy. The directive was ignored so that all of the proxy's processes are used.\n",
-					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-				bind_conf->bind_proc = 0;
+				if (!bind_conf->bind_proc && nbproc == 1) {
+					ha_warning("Proxy '%s': the process number specified on the 'process' directive of 'bind %s' at [%s:%d] refers to a process not covered by the proxy. This has been fixed by forcing it to run on the proxy's first process only.\n",
+						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+					bind_conf->bind_proc = mask & ~(mask - 1);
+				}
+				else if (!bind_conf->bind_proc && nbproc > 1) {
+					ha_warning("Proxy '%s': the process range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to processes not covered by the proxy. The directive was ignored so that all of the proxy's processes are used.\n",
+						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+					bind_conf->bind_proc = 0;
+				}
 			}
 		}
 
