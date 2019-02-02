@@ -239,6 +239,18 @@ static inline int already_warned(unsigned int warning)
 	return 0;
 }
 
+/* returns a mask if set, otherwise all_proc_mask */
+static inline unsigned long proc_mask(unsigned long mask)
+{
+	return mask ? mask : all_proc_mask;
+}
+
+/* returns a mask if set, otherwise all_threads_mask */
+static inline unsigned long thread_mask(unsigned long mask)
+{
+	return mask ? mask : all_threads_mask;
+}
+
 void deinit(void);
 void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
