@@ -2286,10 +2286,7 @@ int check_config_validity()
 #endif
 
 			/* detect and address thread affinity inconsistencies */
-			nbproc = 0;
-			if (bind_conf->bind_proc)
-				nbproc = my_ffsl(bind_conf->bind_proc) - 1;
-
+			nbproc = my_ffsl(proc_mask(bind_conf->bind_proc)) - 1;
 			mask = bind_conf->bind_thread[nbproc];
 			if (mask && !(mask & all_threads_mask)) {
 				unsigned long new_mask = 0;
@@ -2311,9 +2308,7 @@ int check_config_validity()
 			if (!bind_conf->bind_proc)
 				continue;
 
-			mask = all_proc_mask;
-			if (curproxy->bind_proc)
-				mask &= curproxy->bind_proc;
+			mask = proc_mask(curproxy->bind_proc) & all_proc_mask;
 			/* mask cannot be null here thanks to the previous checks */
 
 			nbproc = my_popcountl(bind_conf->bind_proc);
@@ -3550,12 +3545,8 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = all_proc_mask;
-			if (global.stats_fe->bind_proc)
-				mask &= global.stats_fe->bind_proc;
-
-			if (bind_conf->bind_proc)
-				mask &= bind_conf->bind_proc;
+			mask  = proc_mask(global.stats_fe->bind_proc) && all_proc_mask;
+			mask &= proc_mask(bind_conf->bind_proc);
 
 			/* stop here if more than one process is used */
 			if (atleast2(mask))
@@ -3574,12 +3565,10 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : all_proc_mask;
+			mask = proc_mask(bind_conf->bind_proc);
 			curproxy->bind_proc |= mask;
 		}
-
-		if (!curproxy->bind_proc)
-			curproxy->bind_proc = all_proc_mask;
+		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
 	}
 
 	if (global.stats_fe) {
@@ -3589,8 +3578,7 @@ out_uri_auth_compat:
 			mask = bind_conf->bind_proc ? bind_conf->bind_proc : 0;
 			global.stats_fe->bind_proc |= mask;
 		}
-		if (!global.stats_fe->bind_proc)
-			global.stats_fe->bind_proc = all_proc_mask;
+		global.stats_fe->bind_proc = proc_mask(global.stats_fe->bind_proc);
 	}
 
 	/* propagate bindings from frontends to backends. Don't do it if there
@@ -3604,11 +3592,8 @@ out_uri_auth_compat:
 	}
 
 	/* Bind each unbound backend to all processes when not specified. */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->bind_proc)
-			continue;
-		curproxy->bind_proc = all_proc_mask;
-	}
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next)
+		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
 
 	/*******************************************************/
 	/* At this step, all proxies have a non-null bind_proc */

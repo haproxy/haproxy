@@ -63,8 +63,7 @@ static void enable_listener(struct listener *listener)
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_LISTEN) {
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-		    listener->bind_conf->bind_proc &&
-		    !(listener->bind_conf->bind_proc & pid_bit)) {
+		    !(proc_mask(listener->bind_conf->bind_proc) & pid_bit)) {
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
@@ -173,8 +172,7 @@ static int __resume_listener(struct listener *l)
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    l->bind_conf->bind_proc &&
-	    !(l->bind_conf->bind_proc & pid_bit))
+	    !(proc_mask(l->bind_conf->bind_proc) & pid_bit))
 		goto end;
 
 	if (l->state == LI_ASSIGNED) {

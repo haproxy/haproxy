@@ -1598,7 +1598,7 @@ static int dump_servers_state(struct stream_interface *si, struct buffer *buf)
 	char *srvrecord;
 
 	/* we don't want to report any state if the backend is not enabled on this process */
-	if (px->bind_proc && !(px->bind_proc & pid_bit))
+	if (!(proc_mask(px->bind_proc) & pid_bit))
 		return 1;
 
 	if (!appctx->ctx.cli.p1)
@@ -1719,7 +1719,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 			continue;
 
 		/* we don't want to list a backend which is bound to this process */
-		if (curproxy->bind_proc && !(curproxy->bind_proc & pid_bit))
+		if (!(proc_mask(curproxy->bind_proc) & pid_bit))
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
