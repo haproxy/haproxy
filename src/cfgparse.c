@@ -2246,7 +2246,7 @@ int check_config_validity()
 			 */
 			nbproc = my_popcountl(curproxy->bind_proc);
 
-			curproxy->bind_proc &= nbits(global.nbproc);
+			curproxy->bind_proc &= all_proc_mask;
 			if (!curproxy->bind_proc && nbproc == 1) {
 				ha_warning("Proxy '%s': the process specified on the 'bind-process' directive refers to a process number that is higher than global.nbproc. The proxy has been forced to run on process 1 only.\n", curproxy->id);
 				curproxy->bind_proc = 1;
@@ -2311,7 +2311,7 @@ int check_config_validity()
 			if (!bind_conf->bind_proc)
 				continue;
 
-			mask = nbits(global.nbproc);
+			mask = all_proc_mask;
 			if (curproxy->bind_proc)
 				mask &= curproxy->bind_proc;
 			/* mask cannot be null here thanks to the previous checks */
@@ -3550,7 +3550,7 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = nbits(global.nbproc);
+			mask = all_proc_mask;
 			if (global.stats_fe->bind_proc)
 				mask &= global.stats_fe->bind_proc;
 
@@ -3574,12 +3574,12 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : nbits(global.nbproc);
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : all_proc_mask;
 			curproxy->bind_proc |= mask;
 		}
 
 		if (!curproxy->bind_proc)
-			curproxy->bind_proc = nbits(global.nbproc);
+			curproxy->bind_proc = all_proc_mask;
 	}
 
 	if (global.stats_fe) {
@@ -3590,7 +3590,7 @@ out_uri_auth_compat:
 			global.stats_fe->bind_proc |= mask;
 		}
 		if (!global.stats_fe->bind_proc)
-			global.stats_fe->bind_proc = nbits(global.nbproc);
+			global.stats_fe->bind_proc = all_proc_mask;
 	}
 
 	/* propagate bindings from frontends to backends. Don't do it if there
@@ -3607,7 +3607,7 @@ out_uri_auth_compat:
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
 		if (curproxy->bind_proc)
 			continue;
-		curproxy->bind_proc = nbits(global.nbproc);
+		curproxy->bind_proc = all_proc_mask;
 	}
 
 	/*******************************************************/
@@ -3637,7 +3637,7 @@ out_uri_auth_compat:
 
 			nbproc = my_popcountl(curproxy->bind_proc &
 			                      (listener->bind_conf->bind_proc ? listener->bind_conf->bind_proc : curproxy->bind_proc) &
-			                      nbits(global.nbproc));
+			                      all_proc_mask);
 
 			if (!nbproc) /* no intersection between listener and frontend */
 				nbproc = 1;
@@ -3707,7 +3707,7 @@ out_uri_auth_compat:
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 
-		if (atleast2(curproxy->bind_proc & nbits(global.nbproc))) {
+		if (atleast2(curproxy->bind_proc & all_proc_mask)) {
 			if (curproxy->uri_auth) {
 				int count, maxproc = 0;
 

@@ -489,6 +489,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.nbproc = atol(args[1]);
+		all_proc_mask = nbits(global.nbproc);
 		if (global.nbproc < 1 || global.nbproc > LONGBITS) {
 			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
 				 file, linenum, args[0], LONGBITS, global.nbproc);
