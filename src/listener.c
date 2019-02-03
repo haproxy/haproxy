@@ -802,6 +802,33 @@ void bind_dump_kws(char **out)
 	}
 }
 
+/* recompute the bit counts per parity for the bind_thread value. This will be
+ * used to quickly map a thread number from 1 to #thread to a thread ID among
+ * the ones bound. This is the preparation phase of the bit rank counting algo
+ * described here: https://graphics.stanford.edu/~seander/bithacks.html
+ */
+void bind_recount_thread_bits(struct bind_conf *conf)
+{
+	unsigned long m;
+
+	m = thread_mask(conf->bind_thread);
+	conf->thr_count = my_popcountl(m);
+	mask_prep_rank_map(m, &conf->thr_2, &conf->thr_4, &conf->thr_8, &conf->thr_16);
+}
+
+/* Report the ID of thread <r> in bind_conf <conf> according to its thread_mask.
+ * <r> must be between 0 and LONGBITS-1. This makes use of the pre-computed
+ * bits resulting from bind_recount_thread_bits. See this function for more
+ * info.
+ */
+unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r)
+{
+	unsigned long m;
+
+	m = thread_mask(conf->bind_thread);
+	return mask_find_rank_bit_fast(r, m, conf->thr_2, conf->thr_4, conf->thr_8, conf->thr_16);
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
@@ -1012,6 +1039,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 
 	conf->bind_proc |= proc;
 	conf->bind_thread |= thread;
+	bind_recount_thread_bits(conf);
 	return 0;
 }
 

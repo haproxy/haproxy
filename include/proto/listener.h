@@ -127,6 +127,9 @@ struct bind_kw *bind_find_kw(const char *kw);
 /* Dumps all registered "bind" keywords to the <out> string pointer. */
 void bind_dump_kws(char **out);
 
+void bind_recount_thread_bits(struct bind_conf *conf);
+unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r);
+
 /* allocate an bind_conf struct for a bind line, and chain it to the frontend <fe>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.

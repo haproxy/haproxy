@@ -165,21 +165,23 @@ struct bind_conf {
 	struct xprt_ops *xprt;     /* transport-layer operations for all listeners */
 	int is_ssl;                /* SSL is required for these listeners */
 	int generate_certs;        /* 1 if generate-certificates option is set, else 0 */
+	int level;                 /* stats access level (ACCESS_LVL_*) */
+	int severity_output;       /* default severity output format in cli feedback messages */
+	struct list listeners;     /* list of listeners using this bind config */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
 	unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
+	unsigned long thr_2, thr_4, thr_8, thr_16; /* intermediate values for bind_thread counting */
+	unsigned int thr_count;    /* #threads bound */
+	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
+	struct list by_fe;         /* next binding for the same frontend, or NULL */
+	char *arg;                 /* argument passed to "bind" for better error reporting */
+	char *file;                /* file where the section appears */
+	int line;                  /* line where the section appears */
 	struct {                   /* UNIX socket permissions */
 		uid_t uid;         /* -1 to leave unchanged */
 		gid_t gid;         /* -1 to leave unchanged */
 		mode_t mode;       /* 0 to leave unchanged */
 	} ux;
-	int level;                 /* stats access level (ACCESS_LVL_*) */
-	int severity_output;       /* default severity output format in cli feedback messages */
-	struct list by_fe;         /* next binding for the same frontend, or NULL */
-	struct list listeners;     /* list of listeners using this bind config */
-	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
-	char *arg;                 /* argument passed to "bind" for better error reporting */
-	char *file;                /* file where the section appears */
-	int line;                  /* line where the section appears */
 };
 
 /* The listener will be directly referenced by the fdtab[] which holds its
