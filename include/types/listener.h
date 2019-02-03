@@ -191,7 +191,6 @@ struct listener {
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	short int nice;                 /* nice value to assign to the instanciated tasks */
 	int fd;				/* the listen socket */
-	char *name;			/* listener's name */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
 	struct fe_counters *counters;	/* statistics counters */
@@ -200,22 +199,26 @@ struct listener {
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
 	unsigned int maxaccept;         /* if set, max number of connections accepted at once */
-	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
+	/* cache line boundary */
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */
 	int tcp_ut;                     /* for TCP, user timeout */
+	/* 4 bytes hole */
 	char *interface;		/* interface name or NULL */
+	char *name;			/* listener's name */
 
 	__decl_hathreads(HA_SPINLOCK_T lock);
 
 	const struct netns_entry *netns; /* network namespace of the listener*/
 
+	/* cache line boundary */
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
+	struct list proto_list;         /* list in the protocol header */
 
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
