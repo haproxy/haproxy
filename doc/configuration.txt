@@ -1027,7 +1027,7 @@ setenv <name> <value>
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the default string describing the list of cipher algorithms ("cipher suite")
-  that are negotiated during the SSL/TLS handshake except for TLSv1.3 for all
+  that are negotiated during the SSL/TLS handshake up to TLSv1.2 for all
   "bind" lines which do not explicitly define theirs. The format of the string
   is defined in "man 1 ciphers" from OpenSSL man pages, and can be for instance
   a string such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes). For
@@ -1059,7 +1059,7 @@ ssl-default-bind-options [<option>]...
 ssl-default-server-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It
   sets the default string describing the list of cipher algorithms that are
-  negotiated during the SSL/TLS handshake except for TLSv1.3 with the server,
+  negotiated during the SSL/TLS handshake up to TLSv1.2 with the server,
   for all "server" lines which do not explicitly define theirs. The format of
   the string is defined in "man 1 ciphers". For TLSv1.3 cipher configuration,
   please check the "ssl-default-server-ciphersuites" keyword. Please check the
@@ -10893,7 +10893,7 @@ ca-sign-pass <passphrase>
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
-  negotiated during the SSL/TLS handshake except for TLSv1.3. The format of the
+  negotiated during the SSL/TLS handshake up to TLSv1.2. The format of the
   string is defined in "man 1 ciphers" from OpenSSL man pages, and can be for
   instance a string such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without
   quotes). Depending on the compatibility and security requirements, the list
