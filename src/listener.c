@@ -653,6 +653,7 @@ void listener_accept(int fd)
 		 */
 		next_conn = 0;
 
+		HA_ATOMIC_ADD(&l->thr_conn[tid], 1);
 		ret = l->accept(l, cfd, &addr);
 		if (unlikely(ret <= 0)) {
 			/* The connection was closed by stream_accept(). Either
@@ -723,6 +724,7 @@ void listener_release(struct listener *l)
 	if (!(l->options & LI_O_UNLIMITED))
 		HA_ATOMIC_SUB(&actconn, 1);
 	HA_ATOMIC_SUB(&l->nbconn, 1);
+	HA_ATOMIC_SUB(&l->thr_conn[tid], 1);
 	if (l->state == LI_FULL)
 		resume_listener(l);
 
