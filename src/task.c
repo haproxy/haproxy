@@ -107,7 +107,7 @@ redo:
 	if (((volatile unsigned short)(t->state)) & TASK_RUNNING) {
 		unsigned short state;
 		t->rq.node.leaf_p = NULL;
-		__ha_barrier_store();
+		__ha_barrier_full();
 
 		state = (volatile unsigned short)(t->state);
 		if (unlikely(state != 0 && !(state & TASK_RUNNING)))
