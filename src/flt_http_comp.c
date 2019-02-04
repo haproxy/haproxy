@@ -285,9 +285,15 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		flt_update_offsets(filter, msg->chn, to_forward - consumed);
 
 	if (st->comp_ctx && st->comp_ctx->cur_lvl > 0) {
+		update_freq_ctr(&global.comp_bps_in, consumed);
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_in, consumed);
+		HA_ATOMIC_ADD(&s->be->be_counters.comp_in, consumed);
 		update_freq_ctr(&global.comp_bps_out, to_forward);
 		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_out, to_forward);
 		HA_ATOMIC_ADD(&s->be->be_counters.comp_out, to_forward);
+	} else {
+		HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_byp, consumed);
+		HA_ATOMIC_ADD(&s->be->be_counters.comp_byp, consumed);
 	}
 	return to_forward;
 
