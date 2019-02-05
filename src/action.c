@@ -51,6 +51,11 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 			  trk_idx(rule->action));
 		return 0;
 	}
+	else if (px->bind_proc & ~target->bind_proc) {
+		memprintf(err, "stick-table '%s' referenced by 'track-sc%d' rule not present on all processes covered by proxy '%s'",
+			  target->id, trk_idx(rule->action), px->id);
+		return 0;
+	}
 	else {
 		free(rule->arg.trk_ctr.table.n);
 		rule->arg.trk_ctr.table.t = &target->table;
