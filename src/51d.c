@@ -541,8 +541,8 @@ void _51d_init_http_headers()
 	global_51degrees.header_offsets = malloc(global_51degrees.header_count * sizeof(int32_t));
 	for (index = 0; index < global_51degrees.header_count; index++) {
 		global_51degrees.header_offsets[index] = fiftyoneDegreesGetHttpHeaderNameOffset(ds, index);
-		global_51degrees.header_names->area = (char*)fiftyoneDegreesGetHttpHeaderNamePointer(ds, index);
-		global_51degrees.header_names->data = strlen(global_51degrees.header_names->area);
+		global_51degrees.header_names[index].area = (char*)fiftyoneDegreesGetHttpHeaderNamePointer(ds, index);
+		global_51degrees.header_names[index].data = strlen(global_51degrees.header_names[index].area);
 		global_51degrees.header_names[index].size = global_51degrees.header_names->data;
 	}
 }
