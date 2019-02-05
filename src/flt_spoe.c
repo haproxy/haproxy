@@ -3063,6 +3063,14 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		return 1;
 	}
 
+	if (px->bind_proc & ~target->bind_proc) {
+		ha_alert("Proxy %s : backend '%s' used by SPOE agent '%s' declared"
+			 " at %s:%d does not cover all of its processes.\n",
+			 px->id, target->id, conf->agent->id,
+			 conf->agent->conf.file, conf->agent->conf.line);
+		return 1;
+	}
+
 	free(conf->agent->b.name);
 	conf->agent->b.name = NULL;
 	conf->agent->b.be = target;
