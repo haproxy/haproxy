@@ -1267,7 +1267,8 @@ int smp_resolve_args(struct proxy *p)
 			if (p->bind_proc & ~px->bind_proc) {
 				ha_alert("parsing [%s:%d] : stick-table '%s' not present on all processes covered by proxy '%s'.\n",
 					 cur->file, cur->line, px->id, p->id);
-				return 0;
+				cfgerr++;
+				break;
 			}
 
 			free(arg->data.str.area);
