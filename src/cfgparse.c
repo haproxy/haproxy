@@ -3553,9 +3553,9 @@ out_uri_auth_compat:
 			newsrv->safe_conns = calloc(global.nbthread, sizeof(*newsrv->safe_conns));
 
 			if (!newsrv->priv_conns || !newsrv->idle_conns || !newsrv->safe_conns) {
-				free(srv->safe_conns); srv->safe_conns = NULL;
-				free(srv->idle_conns); srv->idle_conns = NULL;
-				free(srv->priv_conns); srv->priv_conns = NULL;
+				free(newsrv->safe_conns); newsrv->safe_conns = NULL;
+				free(newsrv->idle_conns); newsrv->idle_conns = NULL;
+				free(newsrv->priv_conns); newsrv->priv_conns = NULL;
 				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
 					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
 				cfgerr++;
@@ -3566,6 +3566,27 @@ out_uri_auth_compat:
 				LIST_INIT(&newsrv->priv_conns[i]);
 				LIST_INIT(&newsrv->idle_conns[i]);
 				LIST_INIT(&newsrv->safe_conns[i]);
+			}
+
+			if (newsrv->max_idle_conns != 0) {
+				newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
+				newsrv->idle_task         = calloc(global.nbthread, sizeof(*newsrv->idle_task));
+				if (!newsrv->idle_orphan_conns || !newsrv->idle_task)
+					goto err;
+				for (i = 0; i < global.nbthread; i++) {
+					LIST_INIT(&newsrv->idle_orphan_conns[i]);
+					newsrv->idle_task[i] = task_new(1 << i);
+					if (!newsrv->idle_task[i])
+						goto err;
+					newsrv->idle_task[i]->process = srv_cleanup_idle_connections;
+					newsrv->idle_task[i]->context = newsrv;
+				}
+				continue;
+			err:
+				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
+					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
+				cfgerr++;
+				continue;
 			}
 		}
 	}

@@ -50,7 +50,6 @@ static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
-static struct task *cleanup_idle_connections(struct task *task, void *ctx, unsigned short state);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -1938,25 +1937,6 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 		px->srv_act++;
 	srv_lb_commit_status(srv);
 
-	if (srv->max_idle_conns != 0) {
-		int i;
-
-		srv->idle_orphan_conns = calloc(global.nbthread, sizeof(*srv->idle_orphan_conns));
-		if (!srv->idle_orphan_conns)
-			goto err;
-		srv->idle_task = calloc(global.nbthread, sizeof(*srv->idle_task));
-		if (!srv->idle_task)
-			goto err;
-		for (i = 0; i < global.nbthread; i++) {
-			LIST_INIT(&srv->idle_orphan_conns[i]);
-			srv->idle_task[i] = task_new(1 << i);
-			if (!srv->idle_task[i])
-				goto err;
-			srv->idle_task[i]->process = cleanup_idle_connections;
-			srv->idle_task[i]->context = srv;
-		}
-	}
-
 	return 0;
 err:
 	return ERR_ALERT | ERR_FATAL;
@@ -2043,24 +2023,6 @@ static int server_template_init(struct server *srv, struct proxy *px)
 		/* Linked backwards first. This will be restablished after parsing. */
 		newsrv->next = px->srv;
 		px->srv = newsrv;
-		if (newsrv->max_idle_conns != 0) {
-			int i;
-
-			newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
-			if (!newsrv->idle_orphan_conns)
-				goto err;
-			newsrv->idle_task = calloc(global.nbthread, sizeof(*newsrv->idle_task));
-			if (!newsrv->idle_task)
-				goto err;
-			for (i = 0; i < global.nbthread; i++) {
-				LIST_INIT(&newsrv->idle_orphan_conns[i]);
-				newsrv->idle_task[i] = task_new(1 << i);
-				if (!newsrv->idle_task[i])
-					goto err;
-				newsrv->idle_task[i]->process = cleanup_idle_connections;
-				newsrv->idle_task[i]->context = newsrv;
-			}
-		}
 	}
 	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 
@@ -5343,7 +5305,7 @@ static void srv_update_status(struct server *s)
 	*s->adm_st_chg_cause = 0;
 }
 
-static struct task *cleanup_idle_connections(struct task *task, void *context, unsigned short state)
+struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsigned short state)
 {
 	struct server *srv = context;
 	struct connection *conn, *conn_back;
