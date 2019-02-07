@@ -825,10 +825,14 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NO_FRAME_SIZE;
 		return -1;
 	}
-	if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING))
-		flags &= ~SPOE_APPCTX_FL_PIPELINING;
-	if ((flags & SPOE_APPCTX_FL_ASYNC) && !(agent->flags & SPOE_FL_ASYNC))
-		flags &= ~SPOE_APPCTX_FL_ASYNC;
+	if (!agent)
+		flags &= ~(SPOE_APPCTX_FL_PIPELINING|SPOE_APPCTX_FL_ASYNC);
+	else {
+		if ((flags & SPOE_APPCTX_FL_PIPELINING) && !(agent->flags & SPOE_FL_PIPELINING))
+			flags &= ~SPOE_APPCTX_FL_PIPELINING;
+		if ((flags & SPOE_APPCTX_FL_ASYNC) && !(agent->flags & SPOE_FL_ASYNC))
+			flags &= ~SPOE_APPCTX_FL_ASYNC;
+	}
 
 	SPOE_APPCTX(appctx)->version        = (unsigned int)vsn;
 	SPOE_APPCTX(appctx)->max_frame_size = (unsigned int)max_frame_size;
