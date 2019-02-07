@@ -962,7 +962,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
 		*slash = 0;
 
-	if (parse_process_number(args[cur_arg + 1], &proc, LONGBITS, NULL, err)) {
+	if (parse_process_number(args[cur_arg + 1], &proc, MAX_PROCS, NULL, err)) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -977,7 +977,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 
 	conf->bind_proc |= proc;
 	if (thread) {
-		for (i = 0; i < LONGBITS; i++)
+		for (i = 0; i < MAX_PROCS; i++)
 			if (!proc || (proc & (1UL << i)))
 				conf->bind_thread[i] |= thread;
 	}

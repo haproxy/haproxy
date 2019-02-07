@@ -2296,7 +2296,7 @@ int check_config_validity()
 					mask >>= global.nbthread;
 				}
 
-				for (nbproc = 0; nbproc < LONGBITS; nbproc++) {
+				for (nbproc = 0; nbproc < MAX_PROCS; nbproc++) {
 					if (!bind_conf->bind_proc || (bind_conf->bind_proc & (1UL << nbproc)))
 						bind_conf->bind_thread[nbproc] = new_mask;
 				}

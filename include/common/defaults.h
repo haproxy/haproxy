@@ -22,6 +22,14 @@
 #ifndef _COMMON_DEFAULTS_H
 #define _COMMON_DEFAULTS_H
 
+/* MAX_PROCS defines the highest limit for the global "nbproc" value. It
+ * defaults to the number of bits in a long integer but may be lowered to save
+ * resources on embedded systems.
+ */
+#ifndef MAX_PROCS
+#define MAX_PROCS LONGBITS
+#endif
+
 /*
  * BUFSIZE defines the size of a read and write buffer. It is the maximum
  * amount of bytes which can be stored by the proxy for each stream. However,

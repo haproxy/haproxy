@@ -166,7 +166,7 @@ struct bind_conf {
 	int is_ssl;                /* SSL is required for these listeners */
 	int generate_certs;        /* 1 if generate-certificates option is set, else 0 */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
-	unsigned long bind_thread[LONGBITS]; /* bitmask of threads (per processes) allowed to use these listeners */
+	unsigned long bind_thread[MAX_PROCS]; /* bitmask of threads (per processes) allowed to use these listeners */
 	struct {                   /* UNIX socket permissions */
 		uid_t uid;         /* -1 to leave unchanged */
 		gid_t gid;         /* -1 to leave unchanged */

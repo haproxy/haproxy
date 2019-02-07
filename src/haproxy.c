@@ -2739,6 +2739,16 @@ int main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 
+	/* this can only safely be done here, though it's optimized away by
+	 * the compiler.
+	 */
+	if (MAX_PROCS < 1 || MAX_PROCS > LONGBITS) {
+		ha_alert("MAX_PROCS value must be between 1 and %d inclusive; "
+		         "HAProxy was built with value %d, please fix it and rebuild.\n",
+			 LONGBITS, MAX_PROCS);
+		exit(1);
+	}
+
 	/* process all initcalls in order of potential dependency */
 	RUN_INITCALLS(STG_PREPARE);
 	RUN_INITCALLS(STG_LOCK);
@@ -3059,7 +3069,7 @@ int main(int argc, char **argv)
 
 #ifdef USE_CPU_AFFINITY
 		if (proc < global.nbproc &&  /* child */
-		    proc < LONGBITS &&       /* only the first 32/64 processes may be pinned */
+		    proc < MAX_PROCS &&       /* only the first 32/64 processes may be pinned */
 		    global.cpu_map.proc[proc])    /* only do this if the process has a CPU map */
 #ifdef __FreeBSD__
 		{

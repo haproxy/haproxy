@@ -490,9 +490,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.nbproc = atol(args[1]);
 		all_proc_mask = nbits(global.nbproc);
-		if (global.nbproc < 1 || global.nbproc > LONGBITS) {
+		if (global.nbproc < 1 || global.nbproc > MAX_PROCS) {
 			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
-				 file, linenum, args[0], LONGBITS, global.nbproc);
+				 file, linenum, args[0], MAX_PROCS, global.nbproc);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -942,7 +942,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : %s expects a process number "
 				 " ('all', 'odd', 'even', a number from 1 to %d or a range), "
 				 " followed by a list of CPU ranges with numbers from 0 to %d.\n",
-				 file, linenum, args[0], LONGBITS, LONGBITS - 1);
+				 file, linenum, args[0], MAX_PROCS, LONGBITS - 1);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -950,7 +950,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if ((slash = strchr(args[1], '/')) != NULL)
 			*slash = 0;
 
-		if (parse_process_number(args[1], &proc, LONGBITS, &autoinc, &errmsg)) {
+		if (parse_process_number(args[1], &proc, MAX_PROCS, &autoinc, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -989,7 +989,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		for (i = n = 0; i < LONGBITS; i++) {
+		for (i = n = 0; i < MAX_PROCS; i++) {
 			/* No mapping for this process */
 			if (!(proc & (1UL << i)))
 				continue;
