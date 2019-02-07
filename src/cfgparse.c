@@ -369,16 +369,20 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 	else if (strcmp(arg, "even") == 0)
 		*proc |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
 	else {
-		char *dash;
+		const char *p, *dash = NULL;
 		unsigned int low, high;
 
-		if (!isdigit((int)*arg)) {
-			memprintf(err, "'%s' is not a valid number.\n", arg);
-			return -1;
+		for (p = arg; *p; p++) {
+			if (*p == '-' && !dash)
+				dash = p;
+			else if (!isdigit((int)*p)) {
+				memprintf(err, "'%s' is not a valid number/range.", arg);
+				return -1;
+			}
 		}
 
 		low = high = str2uic(arg);
-		if ((dash = strchr(arg, '-')) != NULL)
+		if (dash)
 			high = ((!*(dash+1)) ? max : str2uic(dash + 1));
 
 		if (high < low) {
