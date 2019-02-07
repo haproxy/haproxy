@@ -184,8 +184,10 @@ spoe_release_agent(struct spoe_agent *agent)
 		LIST_DEL(&grp->list);
 		spoe_release_group(grp);
 	}
-	for (i = 0; i < global.nbthread; ++i)
-		HA_SPIN_DESTROY(&agent->rt[i].lock);
+	if (agent->rt) {
+		for (i = 0; i < global.nbthread; ++i)
+			HA_SPIN_DESTROY(&agent->rt[i].lock);
+	}
 	free(agent->rt);
 	free(agent);
 }
