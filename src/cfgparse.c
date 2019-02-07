@@ -3543,6 +3543,31 @@ out_uri_auth_compat:
 			/* update the mux */
 			newsrv->mux_proto = mux_ent;
 		}
+
+		/* initialize idle conns lists */
+		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
+			int i;
+
+			newsrv->priv_conns = calloc(global.nbthread, sizeof(*newsrv->priv_conns));
+			newsrv->idle_conns = calloc(global.nbthread, sizeof(*newsrv->idle_conns));
+			newsrv->safe_conns = calloc(global.nbthread, sizeof(*newsrv->safe_conns));
+
+			if (!newsrv->priv_conns || !newsrv->idle_conns || !newsrv->safe_conns) {
+				free(srv->safe_conns); srv->safe_conns = NULL;
+				free(srv->idle_conns); srv->idle_conns = NULL;
+				free(srv->priv_conns); srv->priv_conns = NULL;
+				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
+					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
+				cfgerr++;
+				continue;
+			}
+
+			for (i = 0; i < global.nbthread; i++) {
+				LIST_INIT(&newsrv->priv_conns[i]);
+				LIST_INIT(&newsrv->idle_conns[i]);
+				LIST_INIT(&newsrv->safe_conns[i]);
+			}
+		}
 	}
 
 	/***********************************************************/

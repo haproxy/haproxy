@@ -1713,7 +1713,6 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
-	int i;
 
 	srv = calloc(1, sizeof *srv);
 	if (!srv)
@@ -1723,19 +1722,6 @@ struct server *new_server(struct proxy *proxy)
 	srv->proxy = proxy;
 	LIST_INIT(&srv->actconns);
 	srv->pendconns = EB_ROOT;
-
-	if ((srv->priv_conns = calloc(global.nbthread, sizeof(*srv->priv_conns))) == NULL)
-		goto free_srv;
-	if ((srv->idle_conns = calloc(global.nbthread, sizeof(*srv->idle_conns))) == NULL)
-		goto free_priv_conns;
-	if ((srv->safe_conns = calloc(global.nbthread, sizeof(*srv->safe_conns))) == NULL)
-		goto free_idle_conns;
-
-	for (i = 0; i < global.nbthread; i++) {
-		LIST_INIT(&srv->priv_conns[i]);
-		LIST_INIT(&srv->idle_conns[i]);
-		LIST_INIT(&srv->safe_conns[i]);
-	}
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -1755,14 +1741,6 @@ struct server *new_server(struct proxy *proxy)
 	srv->max_reuse = -1;
 
 	return srv;
-
-  free_idle_conns:
-	free(srv->idle_conns);
-  free_priv_conns:
-	free(srv->priv_conns);
-  free_srv:
-	free(srv);
-	return NULL;
 }
 
 /*
