@@ -3028,6 +3028,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 	struct flt_conf    *f;
 	struct spoe_config *conf = fconf->conf;
 	struct proxy       *target;
+	int i;
 
 	/* Check all SPOE filters for proxy <px> to be sure all SPOE agent names
 	 * are uniq */
@@ -3071,6 +3072,24 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 			 px->id, target->id, conf->agent->id,
 			 conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
+	}
+
+	/* finish per-thread agent initialization */
+	if (global.nbthread == 1)
+		conf->agent->flags |= SPOE_FL_ASYNC;
+
+	if ((curagent->rt = calloc(global.nbthread, sizeof(*curagent->rt))) == NULL) {
+		ha_alert("Proxy %s : out of memory initializing SPOE agent '%s' declared at %s:%d.\n",
+			 px->id, conf->agent->id, conf->agent->conf.file, conf->agent->conf.line);
+		return 1;
+	}
+	for (i = 0; i < global.nbthread; ++i) {
+		curagent->rt[i].frame_size   = curagent->max_frame_size;
+		curagent->rt[i].processing   = 0;
+		LIST_INIT(&curagent->rt[i].applets);
+		LIST_INIT(&curagent->rt[i].sending_queue);
+		LIST_INIT(&curagent->rt[i].waiting_queue);
+		HA_SPIN_INIT(&curagent->rt[i].lock);
 	}
 
 	free(conf->agent->b.name);
@@ -3348,8 +3367,6 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		curagent->var_t_process  = NULL;
 		curagent->var_t_total    = NULL;
 		curagent->flags          = (SPOE_FL_PIPELINING | SPOE_FL_SND_FRAGMENTATION);
-		if (global.nbthread == 1)
-			curagent->flags |= SPOE_FL_ASYNC;
 		curagent->cps_max        = 0;
 		curagent->eps_max        = 0;
 		curagent->max_frame_size = MAX_FRAME_SIZE;
@@ -3359,20 +3376,6 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			LIST_INIT(&curagent->events[i]);
 		LIST_INIT(&curagent->groups);
 		LIST_INIT(&curagent->messages);
-
-		if ((curagent->rt = calloc(global.nbthread, sizeof(*curagent->rt))) == NULL) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-		for (i = 0; i < global.nbthread; ++i) {
-			curagent->rt[i].frame_size   = curagent->max_frame_size;
-			curagent->rt[i].processing   = 0;
-			LIST_INIT(&curagent->rt[i].applets);
-			LIST_INIT(&curagent->rt[i].sending_queue);
-			LIST_INIT(&curagent->rt[i].waiting_queue);
-			HA_SPIN_INIT(&curagent->rt[i].lock);
-		}
 	}
 	else if (!strcmp(args[0], "use-backend")) {
 		if (!*args[1]) {
