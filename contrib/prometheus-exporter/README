@@ -1,0 +1,242 @@
+PROMEX: A Prometheus exporter for HAProxy
+-------------------------------------------
+
+Prometheus is a monitoring and alerting system. More and more people use it to
+monitor their environment (this is written February 2019). It collects metrics
+from monitored targets by scraping metrics HTTP endpoints on these targets. For
+HAProxy, The Prometheus team offically supports an exporter written in Go
+(https://github.com/prometheus/haproxy_exporter). But it requires an extra
+software to deploy and monitor. PROMEX, on its side, is a built-in Prometheus
+exporter for HAProxy. It was developed as a service and is directly available in
+HAProxy, like the stats applet.
+
+However, PROMEX is not built by default with HAProxy. It is provided as an extra
+component for everyone want to use it. So you need to explicity build HAProxy
+with the PROMEX service, using the Makefile variable "EXTRA_OBJS". For instance:
+
+    > make TARGET=linux2628 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
+
+if HAProxy provides the PROMEX service, the following build option will be
+reported by the command "haproxy -vv":
+
+    Built with the Prometheus exporter as a service
+
+To be used, it must be enabled in the configuration with an "http-request" rule
+and the corresponding HTTP proxy must enable the HTX support. For instance:
+
+    frontend test
+        mode http
+        ...
+        option http-use-htx
+        http-request use-service prometheus-exporter if { path /metrics }
+        ...
+
+
+This service has been developed as a third-party component because it could
+become obsolete, depending on how much time Prometheus will remain heavily
+used. This is said with no ulterior motive of course. Prometheus is a great
+software and I hope all the well for it. But we involve in a environment moving
+quickly and a solution may be obvious today could be deprecated the next
+year. And because PROMEX is not integrated by default into the HAProxy codebase,
+it will need some interest to be actively supported. All contribution of any
+kind are welcome.
+
+You must also be careful if you use with huge configurations. Unlike the stats
+applet, all metrics are not grouped by service (proxy, listener or server). With
+PROMEX, all lines for a given metric are provided as one single group. So
+instead of collecting all metrics for a proxy before moving to the next one, we
+must loop on all proxies for each metric. Same for the servers. Thus, it will
+spend much more ressources to produce the Prometheus metrics than the CSV export
+through the stats page. To give a comparison order, quick benchmarks shown that
+a PROMEX dump is 5x slower and 20x more verbose than a CSV export.
+
+Exported metrics
+------------------
+
+* Globals metrics
+
++------------------------------------------------+-------------------------------------------------------------------------------+
+|    Metric name                                 |    Description                                                                |
++------------------------------------------------+-------------------------------------------------------------------------------+
+| haproxy_process_nbthread                       | Configured number of threads.                                                 |
+| haproxy_process_nbproc                         | Configured number of processes.                                               |
+| haproxy_process_relative_process_id            | Relative process id, starting at 1.                                           |
+| haproxy_process_uptime_seconds                 | Uptime in seconds.                                                            |
+| haproxy_process_max_memory                     | Per-process memory limit (in MB); 0=unset.                                    |
+| haproxy_process_pool_allocated_total           | Total amount of memory allocated in pools (in MB).                            |
+| haproxy_process_pool_used_total                | Total amount of memory used in pools (in MB).                                 |
+| haproxy_process_pool_failures_total            | Total number of failed pool allocations.                                      |
+| haproxy_process_max_fds                        | Maximum number of open file descriptors; 0=unset.                             |
+| haproxy_process_max_sockets                    | Maximum numer of open sockets.                                                |
+| haproxy_process_max_connections                | Maximum number of concurrent connections.                                     |
+| haproxy_process_hard_max_connections           | Initial Maximum number of concurrent connections.                             |
+| haproxy_process_current_connections            | Number of active sessions.                                                    |
+| haproxy_process_connections_total              | Total number of terminated sessions.                                          |
+| haproxy_process_requests_total                 | Total number of requests (TCP or HTTP).                                       |
+| haproxy_process_max_ssl_connections            | Configured maximum number of concurrent SSL connections.                      |
+| haproxy_process_current_ssl_connections        | Number of opened SSL connections.                                             |
+| haproxy_process_ssl_connections_total          | Total number of opened SSL connections.                                       |
+| haproxy_process_max_pipes                      | Configured maximum number of pipes.                                           |
+| haproxy_process_pipes_used_total               | Number of pipes in used.                                                      |
+| haproxy_process_pipes_free_total               | Number of pipes unused.                                                       |
+| haproxy_process_current_connection_rate        | Current number of connections per second over last elapsed second.            |
+| haproxy_process_limit_connection_rate          | Configured maximum number of connections per second.                          |
+| haproxy_process_max_connection_rate            | Maximum observed number of connections per second.                            |
+| haproxy_process_current_session_rate           | Current number of sessions per second over last elapsed second.               |
+| haproxy_process_limit_session_rate             | Configured maximum number of sessions per second.                             |
+| haproxy_process_max_session_rate               | Maximum observed number of sessions per second.                               |
+| haproxy_process_current_ssl_rate               | Current number of SSL sessions per second over last elapsed second.           |
+| haproxy_process_limit_ssl_rate                 | Configured maximum number of SSL sessions per second.                         |
+| haproxy_process_max_ssl_rate                   | Maximum observed number of SSL sessions per second.                           |
+| haproxy_process_current_frontend_ssl_key_rate  | Current frontend SSL Key computation per second over last elapsed second.     |
+| haproxy_process_max_frontend_ssl_key_rate      | Maximum observed frontend SSL Key computation per second.                     |
+| haproxy_process_frontent_ssl_reuse             | SSL session reuse ratio (percent).                                            |
+| haproxy_process_current_backend_ssl_key_rate   | Current backend SSL Key computation per second over last elapsed second.      |
+| haproxy_process_max_backend_ssl_key_rate       | Maximum observed backend SSL Key computation per second.                      |
+| haproxy_process_ssl_cache_lookups              | Total number of SSL session cache lookups.                                    |
+| haproxy_process_ssl_cache_misses               | Total number of SSL session cache misses.                                     |
+| haproxy_process_http_comp_bytes_in_total       | Number of bytes per second over last elapsed second, before http compression. |
+| haproxy_process_http_comp_bytes_out_total      | Number of bytes per second over last elapsed second, after http compression.  |
+| haproxy_process_limit_http_comp                | Configured maximum input compression rate in bytes.                           |
+| haproxy_process_current_zlib_memory            | Current memory used for zlib in bytes.                                        |
+| haproxy_process_max_zlib_memory                | Configured maximum amount of memory for zlib in bytes.                        |
+| haproxy_process_current_tasks                  | Current number of tasks.                                                      |
+| haproxy_process_current_run_queue              | Current number of tasks in the run-queue.                                     |
+| haproxy_process_idle_time_percent              | Idle to total ratio over last sample (percent).                               |
+| haproxy_process_stopping                       | Non zero means stopping in progress.                                          |
+| haproxy_process_jobs                           | Current number of active jobs (listeners, sessions, open devices).            |
+| haproxy_process_unstoppable_jobs               | Current number of active jobs that can't be stopped during a soft stop.       |
+| haproxy_process_listeners                      | Current number of active listeners.                                           |
+| haproxy_process_active_peers                   | Current number of active peers.                                               |
+| haproxy_process_connected_peers                | Current number of connected peers.                                            |
+| haproxy_process_dropped_logs_total             | Total number of dropped logs.                                                 |
+| haproxy_process_busy_polling_enabled           | Non zero if the busy polling is enabled.                                      |
++------------------------------------------------+-------------------------------------------------------------------------------+
+
+* Frontend metrics
+
++-------------------------------------------------+------------------------------------------------------------------------------+
+|    Metric name                                  |    Description                                                               |
++-------------------------------------------------+------------------------------------------------------------------------------+
+| haproxy_frontend_status                         | Current status of the service.                                               |
+| haproxy_frontend_current_sessions               | Current number of active sessions.                                           |
+| haproxy_frontend_max_sessions                   | Maximum observed number of active sessions.                                  |
+| haproxy_frontend_limit_sessions                 | Configured session limit.                                                    |
+| haproxy_frontend_sessions_total                 | Total number of sessions.                                                    |
+| haproxy_frontend_current_session_rate           | Current number of sessions per second over last elapsed second.              |
+| haproxy_frontend_limit_session_rate             | Configured limit on new sessions per second.                                 |
+| haproxy_frontend_max_session_rate               | Maximum observed number of sessions per second.                              |
+| haproxy_frontend_connections_rate_current       | Current number of connections per second over the last elapsed second.       |
+| haproxy_frontend_connections_rate_max           | Maximum observed number of connections per second.                           |
+| haproxy_frontend_connections_total              | Total number of connections.                                                 |
+| haproxy_frontend_bytes_in_total                 | Current total of incoming bytes.                                             |
+| haproxy_frontend_bytes_out_total                | Current total of outgoing bytes.                                             |
+| haproxy_frontend_requests_denied_total          | Total number of denied requests.                                             |
+| haproxy_frontend_responses_denied_total         | Total number of denied responses.                                            |
+| haproxy_frontend_request_errors_total           | Total number of request errors.                                              |
+| haproxy_frontend_denied_connections_total       | Total number of requests denied by "tcp-request connection" rules.           |
+| haproxy_frontend_denied_sessions_total          | Total number of requests denied by "tcp-request session" rules.              |
+| haproxy_frontend_failed_header_rewriting_total  | Total number of failed header rewriting warnings.                            |
+| haproxy_frontend_http_requests_rate_current     | Current number of HTTP requests per second over last elapsed second.         |
+| haproxy_frontend_http_requests_rate_max         | Maximum observed number of HTTP requests per second.                         |
+| haproxy_frontend_http_requests_total            | Total number of HTTP requests received.                                      |
+| haproxy_frontend_http_responses_total           | Total number of HTTP responses.                                              |
+| haproxy_frontend_intercepted_requests_total     | Total number of intercepted HTTP requests.                                   |
+| haproxy_frontend_http_cache_lookups_total       | Total number of HTTP cache lookups.                                          |
+| haproxy_frontend_http_cache_hits_total          | Total number of HTTP cache hits.                                             |
+| haproxy_frontend_http_comp_bytes_in_total       | Total number of HTTP response bytes fed to the compressor.                   |
+| haproxy_frontend_http_comp_bytes_out_total      | Total number of HTTP response bytes emitted by the compressor.               |
+| haproxy_frontend_http_comp_bytes_bypassed_total | Total number of bytes that bypassed the HTTP compressor (CPU/BW limit).      |
+| haproxy_frontend_http_comp_responses_total      | Total number of HTTP responses that were compressed.                         |
++-------------------------------------------------+------------------------------------------------------------------------------+
+
+* Bakcned metrics
+
++-----------------------------------------------------+--------------------------------------------------------------------------+
+|    Metric name                                      |    Description                                                           |
++-----------------------------------------------------+--------------------------------------------------------------------------+
+| haproxy_backend_status                              | Current status of the service.                                           |
+| haproxy_backend_current_sessions                    | Current number of active sessions.                                       |
+| haproxy_backend_max_sessions                        | Maximum observed number of active sessions.                              |
+| haproxy_backend_limit_sessions                      | Configured session limit.                                                |
+| haproxy_backend_sessions_total                      | Total number of sessions.                                                |
+| haproxy_backend_current_session_rate                | Current number of sessions per second over last elapsed second.          |
+| haproxy_backend_max_session_rate                    | Maximum observed number of sessions per second.                          |
+| haproxy_backend_last_session_seconds                | Number of seconds since last session assigned to server/backend.         |
+| haproxy_backend_current_queue                       | Current number of queued requests.                                       |
+| haproxy_backend_max_queue                           | Maximum observed number of queued requests.                              |
+| haproxy_backend_connection_attempts_total           | Total number of connection establishment attempts.                       |
+| haproxy_backend_connection_reuses_total             | Total number of connection reuses.                                       |
+| haproxy_backend_bytes_in_total                      | Current total of incoming bytes.                                         |
+| haproxy_backend_bytes_out_total                     | Current total of outgoing bytes.                                         |
+| haproxy_backend_http_queue_time_average_seconds     | Avg. queue time for last 1024 successful connections.                    |
+| haproxy_backend_http_connect_time_average_seconds   | Avg. connect time for last 1024 successful connections.                  |
+| haproxy_backend_http_response_time_average_seconds  | Avg. response time for last 1024 successful connections.                 |
+| haproxy_backend_http_total_time_average_seconds     | Avg. total time for last 1024 successful connections.                    |
+| haproxy_backend_requests_denied_total               | Total number of denied requests.                                         |
+| haproxy_backend_responses_denied_total              | Total number of denied responses.                                        |
+| haproxy_backend_connection_errors_total             | Total number of connection errors.                                       |
+| haproxy_backend_response_errors_total               | Total number of response errors.                                         |
+| haproxy_backend_retry_warnings_total                | Total number of retry warnings.                                          |
+| haproxy_backend_redispatch_warnings_total           | Total number of redispatch warnings.                                     |
+| haproxy_backend_failed_header_rewriting_total       | Total number of failed header rewriting warnings.                        |
+| haproxy_backend_client_aborts_total                 | Total number of data transfers aborted by the client.                    |
+| haproxy_backend_server_aborts_total                 | Total number of data transfers aborted by the server.                    |
+| haproxy_backend_weight                              | Service weight.                                                          |
+| haproxy_backend_active_servers                      | Current number of active servers.                                        |
+| haproxy_backend_backup_servers                      | Current number of backup servers.                                        |
+| haproxy_backend_check_up_down_total                 | Total number of UP->DOWN transitions.                                    |
+| haproxy_backend_check_last_change_seconds           | Number of seconds since the last UP<->DOWN transition.                   |
+| haproxy_backend_downtime_seconds_total              | Total downtime (in seconds) for the service.                             |
+| haproxy_backend_loadbalanced_total                  | Total number of times a service was selected.                            |
+| haproxy_backend_http_requests_total                 | Total number of HTTP requests received.                                  |
+| haproxy_backend_http_responses_total                | Total number of HTTP responses.                                          |
+| haproxy_backend_http_cache_lookups_total            | Total number of HTTP cache lookups.                                      |
+| haproxy_backend_http_cache_hits_total               | Total number of HTTP cache hits.                                         |
+| haproxy_backend_http_comp_bytes_in_total            | Total number of HTTP response bytes fed to the compressor.               |
+| haproxy_backend_http_comp_bytes_out_total           | Total number of HTTP response bytes emitted by the compressor.           |
+| haproxy_backend_http_comp_bytes_bypassed_total      | Total number of bytes that bypassed the HTTP compressor (CPU/BW limit).  |
+| haproxy_backend_http_comp_responses_total           | Total number of HTTP responses that were compressed.                     |
++-----------------------------------------------------+--------------------------------------------------------------------------+
+
+* Server metrics
+
++----------------------------------------------------+---------------------------------------------------------------------------+
+|    Metric name                                     |    Description                                                            |
++----------------------------------------------------+---------------------------------------------------------------------------+
+| haproxy_server_status                              | Current status of the service.                                            |
+| haproxy_server_current_sessions                    | Current number of active sessions.                                        |
+| haproxy_server_max_sessions                        | Maximum observed number of active sessions.                               |
+| haproxy_server_limit_sessions                      | Configured session limit.                                                 |
+| haproxy_server_sessions_total                      | Total number of sessions.                                                 |
+| haproxy_server_current_session_rate                | Current number of sessions per second over last elapsed second.           |
+| haproxy_server_max_session_rate                    | Maximum observed number of sessions per second.                           |
+| haproxy_server_last_session_seconds                | Number of seconds since last session assigned to server/backend.          |
+| haproxy_server_current_queue                       | Current number of queued requests.                                        |
+| haproxy_server_max_queue                           | Maximum observed number of queued requests.                               |
+| haproxy_server_queue_limit                         | Configured maxqueue for the server (0 meaning no limit).                  |
+| haproxy_server_bytes_in_total                      | Current total of incoming bytes.                                          |
+| haproxy_server_bytes_out_total                     | Current total of outgoing bytes.                                          |
+| haproxy_server_http_queue_time_average_seconds     | Avg. queue time for last 1024 successful connections.                     |
+| haproxy_server_http_connect_time_average_seconds   | Avg. connect time for last 1024 successful connections.                   |
+| haproxy_server_http_response_time_average_seconds  | Avg. response time for last 1024 successful connections.                  |
+| haproxy_server_http_total_time_average_seconds     | Avg. total time for last 1024 successful connections.                     |
+| haproxy_server_connection_attempts_total           | Total number of connection establishment attempts.                        |
+| haproxy_server_connection_reuses_total             | Total number of connection reuses.                                        |
+| haproxy_server_responses_denied_total              | Total number of denied responses.                                         |
+| haproxy_server_connection_errors_total             | Total number of connection errors.                                        |
+| haproxy_server_response_errors_total               | Total number of response errors.                                          |
+| haproxy_server_retry_warnings_total                | Total number of retry warnings.                                           |
+| haproxy_server_redispatch_warnings_total           | Total number of redispatch warnings.                                      |
+| haproxy_server_failed_header_rewriting_total       | Total number of failed header rewriting warnings.                         |
+| haproxy_server_client_aborts_total                 | Total number of data transfers aborted by the client.                     |
+| haproxy_server_server_aborts_total                 | Total number of data transfers aborted by the server.                     |
+| haproxy_server_weight                              | Service weight.                                                           |
+| haproxy_server_check_failures_total                | Total number of failed check (Only when the server is up).                |
+| haproxy_server_check_up_down_total                 | Total number of UP->DOWN transitions.                                     |
+| haproxy_server_downtime_seconds_total              | Total downtime (in seconds) for the service.                              |
+| haproxy_server_check_last_change_seconds           | Number of seconds since the last UP<->DOWN transition.                    |
+| haproxy_server_current_throttle                    | Current throttle percentage for the server, when slowstart is active.     |
+| haproxy_server_loadbalanced_total                  | Total number of times a service was selected.                             |
+| haproxy_server_http_responses_total                | Total number of HTTP responses.                                           |
++----------------------------------------------------+---------------------------------------------------------------------------+
