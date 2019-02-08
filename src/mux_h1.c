@@ -784,13 +784,15 @@ static void h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 			if (htx)
 				h1_remove_conn_hdrs(h1m, htx);
 		}
-		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL))) {
+		if (!(h1m->flags & H1_MF_CONN_KAL) &&
+		    !((h1m->flags & h1s->req.flags) & H1_MF_VER_11)) {
 			if (conn_val)
 				*conn_val = ist("keep-alive");
 			if (htx)
 				h1_add_conn_hdr(h1m, htx, ist("keep-alive"));
 		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) == (H1_MF_VER_11|H1_MF_CONN_KAL)) {
+		else if ((h1m->flags & H1_MF_CONN_KAL) &&
+		         ((h1m->flags & h1s->req.flags) & H1_MF_VER_11)) {
 			if (conn_val)
 				*conn_val = ist("");
 			if (htx)
