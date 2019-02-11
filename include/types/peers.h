@@ -62,6 +62,7 @@ struct peer {
 	unsigned int flags; 	      /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int reconnect;	      /* next connect timer */
+	unsigned int heartbeat;	      /* next heartbeat timer */
 	unsigned int confirm;         /* confirm message counter */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
