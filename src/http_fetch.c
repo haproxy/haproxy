@@ -1571,9 +1571,10 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 			return 0;
 
 		for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
+			;
 
-			/* OK, we got the '/' ! */
-			smp->data.type = SMP_T_STR;
+		/* OK, we got the '/' ! */
+		smp->data.type = SMP_T_STR;
 		smp->data.u.str.area = path.ptr;
 		smp->data.u.str.data = len;
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
@@ -1638,7 +1639,9 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 		if (path.ptr) {
 			size_t len;
 
-			for (len = 0; len < path.len && *(path.ptr) != '?'; len++);
+			for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
+				;
+
 			if (len && *(path.ptr) == '/')
 				chunk_memcat(temp, path.ptr, len);
 		}
@@ -1708,7 +1711,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 			return 0;
 
 		ctx.blk = NULL;
-		if (!http_find_header(htx, ist("Host"), &ctx, 0)) {
+		if (http_find_header(htx, ist("Host"), &ctx, 0)) {
 			/* OK we have the header value in ctx.value */
 			while (ctx.value.len--)
 				hash = *(ctx.value.ptr++) + (hash << 6) + (hash << 16) - hash;
@@ -1720,7 +1723,9 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 		if (path.ptr) {
 			size_t len;
 
-			for (len = 0; len < path.len && *(path.ptr) != '?'; len++);
+			for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
+				;
+
 			if (len && *(path.ptr) == '/') {
 				while (len--)
 					hash = *(path.ptr++) + (hash << 6) + (hash << 16) - hash;
