@@ -32,7 +32,7 @@
 #if defined(USE_OPENSSL)
 static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
 {
-	if (p->srv && p->srv->use_ssl)
+	if (p->srv->use_ssl)
 		return &p->srv->obj_type;
 	else
 		return &s->be->obj_type;
@@ -40,7 +40,7 @@ static inline enum obj_type *peer_session_target(struct peer *p, struct stream *
 
 static inline struct xprt_ops *peer_xprt(struct peer *p)
 {
-	return (p->srv && p->srv->use_ssl) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW);
+	return p->srv->use_ssl ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW);
 }
 #else
 static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)

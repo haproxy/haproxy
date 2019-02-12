@@ -809,21 +809,29 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		/* This initializes curpeer->peers->peers_fe->srv. */
+		/* This initializes curpeer->peers->peers_fe->srv.
+		 * The server address is parsed only if we are parsing a "peer" line,
+		 * or if we are parsing a "server" line and the current peer is not the local one.
+		 */
 		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, peer || !local_peer);
 		if (!curpeers->peers_fe->srv)
 			goto out;
 
-		newpeer->addr = curpeers->peers_fe->srv->addr;
-		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+		/* If the peer address has just been parsed, let's copy it to <newpeer>
+		 * and initializes ->proto.
+		 */
+		if (peer || !local_peer) {
+			newpeer->addr = curpeers->peers_fe->srv->addr;
+			newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+		}
+
 		newpeer->xprt  = xprt_get(XPRT_RAW);
 		newpeer->sock_init_arg = NULL;
 		HA_SPIN_INIT(&newpeer->lock);
 
-		if (!newpeer->local) {
-			newpeer->srv = curpeers->peers_fe->srv;
+		newpeer->srv = curpeers->peers_fe->srv;
+		if (!newpeer->local)
 			goto out;
-		}
 
 		/* The lines above are reserved to "peer" lines. */
 		if (*args[0] == 's')
@@ -3864,23 +3872,29 @@ out_uri_auth_compat:
 				curpeers->peers_fe = NULL;
 			}
 			else {
+				/* Initializes the transport layer of the server part of all the peers belonging to
+				 * <curpeers> section if required.
+				 * Note that ->srv is used by the local peer of a new process to connect to the local peer
+				 * of an old process.
+				 */
 				p = curpeers->remote;
 				while (p) {
 					if (p->srv) {
 						if (p->srv->use_ssl && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 							cfgerr += xprt_get(XPRT_SSL)->prepare_srv(p->srv);
 					}
-					else if (!LIST_ISEMPTY(&curpeers->peers_fe->conf.bind)) {
-						struct list *l;
-						struct bind_conf *bind_conf;
-
-						l = &curpeers->peers_fe->conf.bind;
-						bind_conf = LIST_ELEM(l->n, typeof(bind_conf), by_fe);
-						if (bind_conf->xprt->prepare_bind_conf &&
-						    bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
-							cfgerr++;
-					}
 					p = p->next;
+				}
+				/* Configure the SSL bindings of the local peer if required. */
+				if (!LIST_ISEMPTY(&curpeers->peers_fe->conf.bind)) {
+					struct list *l;
+					struct bind_conf *bind_conf;
+
+					l = &curpeers->peers_fe->conf.bind;
+					bind_conf = LIST_ELEM(l->n, typeof(bind_conf), by_fe);
+					if (bind_conf->xprt->prepare_bind_conf &&
+						bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
+						cfgerr++;
 				}
 				if (!peers_init_sync(curpeers)) {
 					ha_alert("Peers section '%s': out of memory, giving up on peers.\n",
