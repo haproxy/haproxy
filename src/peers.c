@@ -213,9 +213,6 @@ int intencode(uint64_t i, char **str) {
 	int idx = 0;
 	unsigned char *msg;
 
-	if (!*str)
-		return 0;
-
 	msg = (unsigned char *)*str;
 	if (i < 240) {
 		msg[0] = (unsigned char)i;
