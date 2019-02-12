@@ -2825,19 +2825,37 @@ char *date2str_log(char *dst, const struct tm *tm, const struct timeval *date, s
 		return NULL;
 
 	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	if (!dst)
+		return NULL;
 	*dst++ = '/';
+
 	memcpy(dst, monthname[tm->tm_mon], 3); // month
 	dst += 3;
 	*dst++ = '/';
+
 	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	if (!dst)
+		return NULL;
 	*dst++ = '.';
+
 	utoa_pad((unsigned int)(date->tv_usec/1000), dst, 4); // millisecondes
+	if (!dst)
+		return NULL;
 	dst += 3;  // only the 3 first digits
 	*dst = '\0';
 
@@ -2919,17 +2937,32 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size)
 		return NULL;
 
 	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	if (!dst)
+		return NULL;
 	*dst++ = '/';
+
 	memcpy(dst, monthname[tm->tm_mon], 3); // month
 	dst += 3;
 	*dst++ = '/';
+
 	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	if (!dst)
+		return NULL;
 	*dst++ = ' ';
 	*dst++ = '+';
 	*dst++ = '0';
@@ -2956,18 +2989,34 @@ char *localdate2str_log(char *dst, time_t t, struct tm *tm, size_t size)
 	gmt_offset = get_gmt_offset(t, tm);
 
 	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	if (!dst)
+		return NULL;
 	*dst++ = '/';
+
 	memcpy(dst, monthname[tm->tm_mon], 3); // month
 	dst += 3;
 	*dst++ = '/';
+
 	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	if (!dst)
+		return NULL;
 	*dst++ = ':';
+
 	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	if (!dst)
+		return NULL;
 	*dst++ = ' ';
+
 	memcpy(dst, gmt_offset, 5); // Offset from local time to GMT
 	dst += 5;
 	*dst = '\0';
