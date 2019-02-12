@@ -4281,7 +4281,7 @@ static void htx_manage_client_side_cookies(struct stream *s, struct channel *req
 		if ((hdr_end - hdr_beg) != ctx.value.len) {
 			if (hdr_beg != hdr_end) {
 				htx_set_blk_value_len(ctx.blk, hdr_end - hdr_beg);
-				htx->data -= (hdr_end - ctx.value.ptr);
+				htx->data -= ctx.value.len - (hdr_end - hdr_beg);
 			}
 			else
 				http_remove_header(htx, &ctx);
@@ -4460,9 +4460,9 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 				next         += stripped_before;
 				hdr_end      += stripped_before;
 
+				htx_set_blk_value_len(ctx.blk, hdr_end - hdr_beg);
+				htx->data -= ctx.value.len - (hdr_end - hdr_beg);
 				ctx.value.len = hdr_end - hdr_beg;
-				htx_set_blk_value_len(ctx.blk, ctx.value.len);
-				htx->data -= (hdr_end - ctx.value.ptr);
 			}
 
 			/* First, let's see if we want to capture this cookie. We check
