@@ -220,6 +220,9 @@ int http_replace_req_meth(struct htx *htx, const struct ist meth)
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist uri, vsn;
 
+	if (!sl)
+		return 0;
+
 	/* Start by copying old uri and version */
 	chunk_memcat(temp, HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl)); /* uri */
 	uri = ist2(temp->area, HTX_SL_REQ_ULEN(sl));
@@ -241,6 +244,9 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist meth, vsn;
 
+	if (!sl)
+		return 0;
+
 	/* Start by copying old method and version */
 	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
 	meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
@@ -261,6 +267,9 @@ int http_replace_req_path(struct htx *htx, const struct ist path)
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist meth, uri, vsn, p;
 	size_t plen = 0;
+
+	if (!sl)
+		return 0;
 
 	uri = htx_sl_req_uri(sl);
 	p = http_get_path(uri);
@@ -295,6 +304,9 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist meth, uri, vsn, q;
 	int offset = 1;
+
+	if (!sl)
+		return 0;
 
 	uri = htx_sl_req_uri(sl);
 	q = uri;
@@ -337,6 +349,9 @@ int http_replace_res_status(struct htx *htx, const struct ist status)
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist vsn, reason;
 
+	if (!sl)
+		return 0;
+
 	/* Start by copying old uri and version */
 	chunk_memcat(temp, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)); /* vsn */
 	vsn = ist2(temp->area, HTX_SL_RES_VLEN(sl));
@@ -357,6 +372,9 @@ int http_replace_res_reason(struct htx *htx, const struct ist reason)
 	struct buffer *temp = get_trash_chunk();
 	struct htx_sl *sl = http_find_stline(htx);
 	struct ist vsn, status;
+
+	if (!sl)
+		return 0;
 
 	/* Start by copying old uri and version */
 	chunk_memcat(temp, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)); /* vsn */
