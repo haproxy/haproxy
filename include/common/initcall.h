@@ -32,6 +32,11 @@
 /* List of known init stages. If others are added, please declare their
  * section at the end of the file below.
  */
+/*
+ * Please keep those names short enough, they are used to generate section
+ * names, Mac OS X accepts section names up to 16 characters, and we prefix
+ * them with i_, so stage name can't be more than 14 characters.
+ */
 enum init_stage {
 	STG_PREPARE = 0,      // preset variables, tables, list heads
 	STG_LOCK,             // pre-initialize locks
@@ -50,6 +55,12 @@ struct initcall {
 	void *arg3;
 };
 
+#ifdef __APPLE__
+#define HA_SECTION(s) __section__("__DATA, i_" # s)
+#else
+#define HA_SECTION(s) __section__("init_" # s)
+#endif
+
 /* Declare a static variable in the init section dedicated to stage <stg>,
  * with an element referencing function <function> and arguments <a1..a3>.
  * <linenum> is needed to deduplicate entries created from a same file. The
@@ -62,7 +73,7 @@ struct initcall {
  */
 #define __DECLARE_INITCALL(stg, linenum, function, a1, a2, a3)     \
         static const struct initcall *__initcb_##linenum           \
-	    __attribute__((__used__,__section__("init_"#stg))) =   \
+	    __attribute__((__used__,HA_SECTION(stg))) =            \
 	        (stg < STG_SIZE) ? &(const struct initcall) {      \
 		.fct = (void (*)(void *,void *,void *))function,   \
 		.arg1 = (void *)(a1),                              \
@@ -113,9 +124,16 @@ struct initcall {
  * empty. The corresponding sections must contain exclusively pointers to
  * make sure each location may safely be visited by incrementing a pointer.
  */
+#ifdef __APPLE__
+#define DECLARE_INIT_SECTION(stg)                                                   \
+	extern __attribute__((__weak__)) const struct initcall *__start_init_##stg __asm("section$start$__DATA$i_" # stg); \
+	extern __attribute__((__weak__)) const struct initcall *__stop_init_##stg __asm("section$end$__DATA$i_" # stg)
+
+#else
 #define DECLARE_INIT_SECTION(stg)                                                   \
 	extern __attribute__((__weak__)) const struct initcall *__start_init_##stg; \
 	extern __attribute__((__weak__)) const struct initcall *__stop_init_##stg
+#endif
 
 /* Declare all initcall sections here */
 DECLARE_INIT_SECTION(STG_PREPARE);
