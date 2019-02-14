@@ -2437,13 +2437,6 @@ void deinit(void)
 			free(s->safe_conns);
 			free(s->idle_orphan_conns);
 			free(s->curr_idle_thr);
-			if (s->idle_task) {
-				int i;
-
-				for (i = 0; i < global.nbthread; i++)
-					task_free(s->idle_task[i]);
-				free(s->idle_task);
-			}
 
 			if (s->use_ssl || s->check.use_ssl) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
@@ -2537,6 +2530,8 @@ void deinit(void)
 	free(global.desc);    global.desc = NULL;
 	free(oldpids);        oldpids = NULL;
 	task_free(global_listener_queue_task); global_listener_queue_task = NULL;
+	task_free(idle_conn_task);
+	idle_conn_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
 			LIST_DEL(&log->list);

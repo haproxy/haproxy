@@ -1348,8 +1348,6 @@ int connect_server(struct stream *s)
 		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		srv->curr_idle_thr[tid]--;
 		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
-		if (LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
-			task_unlink_wq(srv->idle_task[tid]);
 	} else if (reuse) {
 		if (srv_conn->flags & CO_FL_SESS_IDLE) {
 			struct session *sess = srv_conn->owner;

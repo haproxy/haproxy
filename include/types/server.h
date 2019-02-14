@@ -227,7 +227,7 @@ struct server {
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 	int max_reuse;                          /* Max number of requests on a same connection */
-	struct task **idle_task;                /* task responsible for cleaning idle orphan connections */
+	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 
 	struct conn_src conn_src;               /* connection source settings */

@@ -36,6 +36,13 @@
 #include <proto/log.h>
 #include <proto/freq_ctr.h>
 
+
+__decl_hathreads(extern HA_SPINLOCK_T idle_conn_srv_lock);
+extern struct eb_root idle_conn_srv;
+extern struct task *idle_conn_task;
+extern struct task *idle_conn_cleanup[MAX_THREADS];
+extern struct list toremove_connections[MAX_THREADS];
+
 int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
@@ -59,6 +66,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 int snr_resolution_error_cb(struct dns_requester *requester, int error_code);
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family);
 struct task *srv_cleanup_idle_connections(struct task *task, void *ctx, unsigned short state);
+struct task *srv_cleanup_toremove_connections(struct task *task, void *context, unsigned short state);
 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
@@ -256,10 +264,22 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		srv->curr_idle_thr[tid]++;
 
 		conn->idle_time = now_ms;
-		if (!(task_in_wq(srv->idle_task[tid])) &&
-		    !(task_in_rq(srv->idle_task[tid])))
-			task_schedule(srv->idle_task[tid],
-			    tick_add(now_ms, srv->pool_purge_delay));
+		__ha_barrier_full();
+		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
+			if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+				srv->idle_node.key = tick_add(srv->pool_purge_delay,
+				                              now_ms);
+				eb32_insert(&idle_conn_srv, &srv->idle_node);
+				if (!task_in_wq(idle_conn_task) && !
+				    task_in_rq(idle_conn_task)) {
+					task_schedule(idle_conn_task,
+					              srv->idle_node.key);
+				}
+
+			}
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+		}
 		return 1;
 	}
 	return 0;

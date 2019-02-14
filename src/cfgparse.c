@@ -3581,18 +3581,26 @@ out_uri_auth_compat:
 			}
 
 			if (newsrv->max_idle_conns != 0) {
-				newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
-				newsrv->idle_task         = calloc(global.nbthread, sizeof(*newsrv->idle_task));
-				if (!newsrv->idle_orphan_conns || !newsrv->idle_task)
-					goto err;
-				for (i = 0; i < global.nbthread; i++) {
-					LIST_INIT(&newsrv->idle_orphan_conns[i]);
-					newsrv->idle_task[i] = task_new(1 << i);
-					if (!newsrv->idle_task[i])
+				if (idle_conn_task == NULL) {
+					idle_conn_task = task_new(MAX_THREADS_MASK);
+					if (!idle_conn_task)
 						goto err;
-					newsrv->idle_task[i]->process = srv_cleanup_idle_connections;
-					newsrv->idle_task[i]->context = newsrv;
+					idle_conn_task->process = srv_cleanup_idle_connections;
+					idle_conn_task->context = NULL;
+					for (i = 0; i < global.nbthread; i++) {
+						idle_conn_cleanup[i] = task_new(1 << i);
+						if (!idle_conn_cleanup[i])
+							goto err;
+						idle_conn_cleanup[i]->process = srv_cleanup_toremove_connections;
+						idle_conn_cleanup[i]->context = NULL;
+						LIST_INIT(&toremove_connections[i]);
+					}
 				}
+				newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
+				if (!newsrv->idle_orphan_conns)
+					goto err;
+				for (i = 0; i < global.nbthread; i++)
+					LIST_INIT(&newsrv->idle_orphan_conns[i]);
 				newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(int));
 				if (!newsrv->curr_idle_thr)
 					goto err;

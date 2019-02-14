@@ -56,6 +56,12 @@ static struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
 };
 
+__decl_hathreads(HA_SPINLOCK_T idle_conn_srv_lock);
+struct eb_root idle_conn_srv = EB_ROOT;
+struct task *idle_conn_task = NULL;
+struct task *idle_conn_cleanup[MAX_THREADS] = { NULL };
+struct list toremove_connections[MAX_THREADS];
+
 int srv_downtime(const struct server *s)
 {
 	if ((s->cur_state != SRV_ST_STOPPED) && s->last_change < now.tv_sec)		// ignore negative time
@@ -5305,25 +5311,84 @@ static void srv_update_status(struct server *s)
 	*s->adm_st_chg_cause = 0;
 }
 
+struct task *srv_cleanup_toremove_connections(struct task *task, void *context, unsigned short state)
+{
+	struct connection *conn;
+
+	while ((conn = LIST_POP_LOCKED(&toremove_connections[tid],
+	                               struct connection *, list)) != NULL) {
+		LIST_INIT(&conn->list);
+		conn->mux->destroy(conn);
+	}
+
+	return task;
+}
+
 struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsigned short state)
 {
-	struct server *srv = context;
-	struct connection *conn, *conn_back;
-	unsigned int to_destroy = srv->curr_idle_thr[tid] / 2 + (srv->curr_idle_thr[tid] & 1);
-	unsigned int i = 0;
+	struct server *srv;
+	struct eb32_node *eb;
+	int i;
+	unsigned int next_wakeup;
+	int need_wakeup = 0;
 
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
+	while (1) {
+		int srv_is_empty = 1;
 
+		eb = eb32_lookup_ge(&idle_conn_srv, now_ms - TIMER_LOOK_BACK);
+		if (!eb) {
+			/* we might have reached the end of the tree, typically because
+			 * <now_ms> is in the first half and we're first scanning the last
+			* half. Let's loop back to the beginning of the tree now.
+			*/
 
-	list_for_each_entry_safe(conn, conn_back, &srv->idle_orphan_conns[tid], list) {
-		if (i == to_destroy)
+			eb = eb32_first(&idle_conn_srv);
+			if (likely(!eb))
+				break;
+		}
+		if (tick_is_lt(now_ms, eb->key)) {
+			/* timer not expired yet, revisit it later */
+			next_wakeup = eb->key;
+			need_wakeup = 1;
 			break;
-		conn->mux->destroy(conn);
-		i++;
+		}
+		srv = eb32_entry(eb, struct server, idle_node);
+		for (i = 0; i < global.nbthread; i++) {
+			int max_conn = (srv->curr_idle_thr[i] / 2) +
+			    (srv->curr_idle_thr[i] & 1);
+			int j;
+			int did_remove = 0;
+
+			for (j = 0; j < max_conn; j++) {
+				struct connection *conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i], struct connection *, list);
+				if (!conn)
+					break;
+				did_remove = 1;
+				LIST_ADDQ_LOCKED(&toremove_connections[i], &conn->list);
+			}
+			if (did_remove && max_conn < srv->curr_idle_thr[i])
+				srv_is_empty = 0;
+			if (did_remove)
+				task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
+		}
+		eb32_delete(&srv->idle_node);
+		if (!srv_is_empty) {
+			/* There are still more idle connections, add the
+			 * server back in the tree.
+			 */
+			srv->idle_node.key = tick_add(srv->pool_purge_delay,
+			    now_ms);
+			eb32_insert(&idle_conn_srv, &srv->idle_node);
+		}
 	}
-	if (!LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
-		task_schedule(task, tick_add(now_ms, srv->pool_purge_delay));
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+
+	if (need_wakeup)
+		task->expire = next_wakeup;
 	else
 		task->expire = TICK_ETERNITY;
+
 	return task;
 }
 /*
