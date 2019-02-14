@@ -918,21 +918,20 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		struct htx_blk *blk;
+		int32_t pos;
 		unsigned long long len = 0;
 
 		if (!htx)
 			return 0;
 
-		len = htx->data;
+		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
 
-		/* Remove the length of headers part */
-		blk = htx_get_head_blk(htx);
-		while (blk) {
-			len -= htx_get_blksz(blk);
-			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
 				break;
-			blk = htx_get_next_blk(htx, blk);
+			if (type == HTX_BLK_DATA)
+				len += htx_get_blksz(blk);
 		}
 
 		smp->data.type = SMP_T_SINT;
@@ -969,21 +968,20 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
 		struct htx *htx = smp_prefetch_htx(smp, args);
-		struct htx_blk *blk;
+		int32_t pos;
 		unsigned long long len = 0;
 
 		if (!htx)
 			return 0;
 
-		len = htx->data;
+		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
 
-		/* Remove the length of headers part */
-		blk = htx_get_head_blk(htx);
-		while (blk) {
-			len -= htx_get_blksz(blk);
-			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
 				break;
-			blk = htx_get_next_blk(htx, blk);
+			if (type == HTX_BLK_DATA)
+				len += htx_get_blksz(blk);
 		}
 		if (htx->extra != ULLONG_MAX)
 			len += htx->extra;
