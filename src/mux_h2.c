@@ -5089,10 +5089,10 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		/* in HTX mode we ignore the count argument */
 		h2s_htx = htx_from_buf(&h2s->rxbuf);
 		if (htx_is_empty(h2s_htx)) {
-			if (cs->flags & CS_FL_REOS)
-				cs->flags |= CS_FL_EOS;
-			if (cs->flags & CS_FL_ERR_PENDING)
-				cs->flags |= CS_FL_ERROR;
+			/* Here htx_to_buf() will set buffer data to 0 because
+			 * the HTX is empty.
+			 */
+			htx_to_buf(h2s_htx, &h2s->rxbuf);
 			goto end;
 		}
 
@@ -5115,6 +5115,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		ret = b_xfer(buf, &h2s->rxbuf, count);
 	}
 
+  end:
 	if (b_data(&h2s->rxbuf))
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
@@ -5134,7 +5135,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		h2c->flags &= ~H2_CF_DEM_SFULL;
 		h2c_restart_reading(h2c);
 	}
-end:
+
 	return ret;
 }
 
