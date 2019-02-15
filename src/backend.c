@@ -1343,7 +1343,7 @@ int connect_server(struct stream *s)
 	if (reuse && reuse_orphan) {
 		LIST_DEL(&srv_conn->list);
 		srv_conn->idle_time = 0;
-		srv->curr_idle_conns--;
+		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
 		if (LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
 			task_unlink_wq(srv->idle_task[tid]);

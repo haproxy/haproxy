@@ -244,9 +244,15 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
+		int retadd;
+
+		retadd = HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);
+		if (retadd >= srv->max_idle_conns) {
+			HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+			return 0;
+		}
 		LIST_DEL(&conn->list);
 		LIST_ADDQ(&srv->idle_orphan_conns[tid], &conn->list);
-		srv->curr_idle_conns++;
 
 		conn->idle_time = now_ms;
 		if (!(task_in_wq(srv->idle_task[tid])) &&

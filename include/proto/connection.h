@@ -693,7 +693,7 @@ static inline void conn_free(struct connection *conn)
 	 */
 	if (conn->idle_time > 0) {
 		struct server *srv = __objt_server(conn->target);
-		srv->curr_idle_conns--;
+		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 	}
 
 	conn_force_unsubscribe(conn);
