@@ -4933,13 +4933,6 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
 	outbuf.data = 9;
 
-	/* encode status, which necessarily is the first one */
-	if (!hpack_encode_int_status(&outbuf, h2s->status)) {
-		if (b_space_wraps(&h2c->mbuf))
-			goto realign_again;
-		goto full;
-	}
-
 	/* encode all headers */
 	for (idx = 0; idx < hdr; idx++) {
 		/* these ones do not exist in H2 or must not appear in
