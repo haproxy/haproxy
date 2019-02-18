@@ -2436,6 +2436,7 @@ void deinit(void)
 			free(s->priv_conns);
 			free(s->safe_conns);
 			free(s->idle_orphan_conns);
+			free(s->curr_idle_thr);
 			if (s->idle_task) {
 				int i;
 

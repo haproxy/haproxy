@@ -5309,7 +5309,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 {
 	struct server *srv = context;
 	struct connection *conn, *conn_back;
-	unsigned int to_destroy = srv->curr_idle_conns / 2 + (srv->curr_idle_conns & 1);
+	unsigned int to_destroy = srv->curr_idle_thr[tid] / 2 + (srv->curr_idle_thr[tid] & 1);
 	unsigned int i = 0;
 
 

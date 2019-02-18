@@ -253,6 +253,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		}
 		LIST_DEL(&conn->list);
 		LIST_ADDQ(&srv->idle_orphan_conns[tid], &conn->list);
+		srv->curr_idle_thr[tid]++;
 
 		conn->idle_time = now_ms;
 		if (!(task_in_wq(srv->idle_task[tid])) &&

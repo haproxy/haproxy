@@ -3593,6 +3593,9 @@ out_uri_auth_compat:
 					newsrv->idle_task[i]->process = srv_cleanup_idle_connections;
 					newsrv->idle_task[i]->context = newsrv;
 				}
+				newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(int));
+				if (!newsrv->curr_idle_thr)
+					goto err;
 				continue;
 			err:
 				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",

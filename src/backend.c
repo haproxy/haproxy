@@ -1344,6 +1344,7 @@ int connect_server(struct stream *s)
 		LIST_DEL(&srv_conn->list);
 		srv_conn->idle_time = 0;
 		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		srv->curr_idle_thr[tid]--;
 		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
 		if (LIST_ISEMPTY(&srv->idle_orphan_conns[tid]))
 			task_unlink_wq(srv->idle_task[tid]);
