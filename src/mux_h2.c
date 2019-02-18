@@ -3404,8 +3404,11 @@ next_frame:
 
 	if (msgf & H2_MSGF_BODY) {
 		/* a payload is present */
-		if (msgf & H2_MSGF_BODY_CL)
+		if (msgf & H2_MSGF_BODY_CL) {
 			*flags |= H2_SF_DATA_CLEN;
+			if (htx)
+				htx->extra = *body_len;
+		}
 		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
 			*flags |= H2_SF_DATA_CHNK;
 	}
@@ -3565,8 +3568,10 @@ try_again:
 		h2c->rcvd_c += flen;
 		h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
 
-		if (h2s->flags & H2_SF_DATA_CLEN)
+		if (h2s->flags & H2_SF_DATA_CLEN) {
 			h2s->body_len -= flen;
+			htx->extra = h2s->body_len;
+		}
 		goto try_again;
 	}
 	else if (unlikely(b_space_wraps(csbuf))) {
@@ -5108,8 +5113,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		}
 
 		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
-
-		buf_htx->extra = h2s_htx->extra;
+		buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(h2s_htx, &h2s->rxbuf);
 		ret = htx_ret.ret;
