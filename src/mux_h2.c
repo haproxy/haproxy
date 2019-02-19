@@ -3411,10 +3411,14 @@ next_frame:
 	}
 
  done:
-	/* indicate that a HEADERS frame was received for this stream */
-	*flags |= H2_SF_HEADERS_RCVD;
+	/* indicate that a HEADERS frame was received for this stream, except
+	 * for 1xx responses. For 1xx responses, another HEADERS frame is
+	 * expected.
+	 */
+	if (!(msgf & H2_MSGF_RSP_1XX))
+		*flags |= H2_SF_HEADERS_RCVD;
 
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+	if ((h2c->dff & H2_F_HEADERS_END_STREAM) || (msgf & H2_MSGF_RSP_1XX)) {
 		/* Mark the end of message, either using EOM in HTX or with the
 		 * trailing CRLF after the end of trailers. Note that DATA_CHNK
 		 * is not set during headers with END_STREAM.
@@ -4255,11 +4259,12 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
-	/* we may need to add END_STREAM.
+	/* we may need to add END_STREAM except for 1xx responses.
 	 * FIXME: we should also set it when we know for sure that the
 	 * content-length is zero as well as on 204/304
 	 */
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM &&
+	    (h2s->status >= 200 || h2s->status == 101))
 		es_now = 1;
 
 	if (h2s->cs->flags & CS_FL_SHW)
@@ -4273,7 +4278,12 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	/* commit the H2 response */
 	b_add(&h2c->mbuf, outbuf.data);
-	h2s->flags |= H2_SF_HEADERS_SENT;
+
+	/* indicates the HEADERS frame was sent, except for 1xx responses. For
+	 * 1xx responses, another HEADERS frame is expected.
+	 */
+	if (h2s->status >= 200 || h2s->status == 101)
+		h2s->flags |= H2_SF_HEADERS_SENT;
 
 	if (es_now) {
 		h2s->flags |= H2_SF_ES_SENT;
