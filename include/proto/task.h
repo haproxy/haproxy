@@ -184,11 +184,14 @@ static inline struct task *__task_unlink_wq(struct task *t)
  */
 static inline struct task *task_unlink_wq(struct task *t)
 {
+	unsigned long locked;
+
 	if (likely(task_in_wq(t))) {
-		if (atleast2(t->thread_mask))
+		locked = atleast2(t->thread_mask);
+		if (locked)
 			HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
-		if (atleast2(t->thread_mask))
+		if (locked)
 			HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 	return t;
