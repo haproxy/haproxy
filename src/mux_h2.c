@@ -226,6 +226,7 @@ DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
 static unsigned int h2_settings_max_concurrent_streams = 100;
+static int h2_settings_max_frame_size         = 0;     /* unset */
 
 /* a dmumy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
@@ -1003,6 +1004,7 @@ static int h2c_send_settings(struct h2c *h2c)
 	struct buffer *res;
 	char buf_data[100]; // enough for 15 settings
 	struct buffer buf;
+	int mfs;
 	int ret;
 
 	if (h2c_mux_busy(h2c, NULL)) {
@@ -1048,14 +1050,21 @@ static int h2c_send_settings(struct h2c *h2c)
 		chunk_memcat(&buf, str, 6);
 	}
 
-	if (global.tune.bufsize != 16384) {
+	mfs = h2_settings_max_frame_size;
+	if (mfs > global.tune.bufsize)
+		mfs = global.tune.bufsize;
+
+	if (!mfs)
+		mfs = global.tune.bufsize;
+
+	if (mfs != 16384) {
 		char str[6] = "\x00\x05"; /* max_frame_size */
 
 		/* note: similarly we could also emit MAX_HEADER_LIST_SIZE to
 		 * match bufsize - rewrite size, but at the moment it seems
 		 * that clients don't take care of it.
 		 */
-		write_n32(str + 2, global.tune.bufsize);
+		write_n32(str + 2, mfs);
 		chunk_memcat(&buf, str, 6);
 	}
 
@@ -5479,6 +5488,22 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 	return 0;
 }
 
+/* config parser for global "tune.h2.max-frame-size" */
+static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *curpx,
+                                   struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	h2_settings_max_frame_size = atoi(args[1]);
+	if (h2_settings_max_frame_size < 16384 || h2_settings_max_frame_size > 16777215) {
+		memprintf(err, "'%s' expects a numeric value between 16384 and 16777215.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 
 /****************************************/
 /* MUX initialization and instanciation */
@@ -5521,6 +5546,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },
 	{ CFG_GLOBAL, "tune.h2.initial-window-size",    h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.max-frame-size",         h2_parse_max_frame_size         },
 	{ 0, NULL, NULL }
 }};
 

@@ -1580,6 +1580,15 @@ tune.h2.max-concurrent-streams <number>
   client may create as many streams as allocatable by haproxy. It is highly
   recommended not to change this value.
 
+tune.h2.max-frame-size <number>
+  Sets the HTTP/2 maximum frame size that haproxy announces it is willing to
+  receive to its peers. The default value is the largest between 16384 and the
+  buffer size (tune.bufsize). In any case, haproxy will not announce support
+  for frame sizes larger than buffers. The main purpose of this setting is to
+  allow to limit the maximum frame size setting when using large buffers. Too
+  large frame sizes might have performance impact or cause some peers to
+  misbehave. It is highly recommended not to change this value.
+
 tune.http.cookielen <number>
   Sets the maximum length of captured cookies. This is the maximum value that
   the "capture cookie xxx len yyy" will be allowed to take, and any upper value
