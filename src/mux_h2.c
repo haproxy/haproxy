@@ -4933,9 +4933,6 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	if (!blk_end)
 		goto end; // end not found yet
 
-	if (!hdr)
-		goto done;
-
 	chunk_reset(&outbuf);
 
 	while (1) {
@@ -4978,6 +4975,16 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 				goto realign_again;
 			goto full;
 		}
+	}
+
+	if (!hdr) {
+		/* here we have a problem, we've received an empty trailers
+		 * block followed by an EOM. Because of this we can't send a
+		 * HEADERS frame, so we have to cheat and instead send an empty
+		 * DATA frame conveying the ES flag.
+		 */
+		outbuf.area[3] = H2_FT_DATA;
+		outbuf.area[4] = H2_F_DATA_END_STREAM;
 	}
 
 	/* update the frame's size */
