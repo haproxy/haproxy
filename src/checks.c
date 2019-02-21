@@ -1970,8 +1970,7 @@ static int connect_proc_chk(struct task *t)
 		/* close all FDs. Keep stdin/stdout/stderr in verbose mode */
 		fd = (global.mode & (MODE_QUIET|MODE_VERBOSE)) == MODE_QUIET ? 0 : 3;
 
-		while (fd < global.rlimit_nofile)
-			close(fd++);
+		my_closefrom(fd);
 
 		environ = check->envp;
 		extchk_setenv(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)));
