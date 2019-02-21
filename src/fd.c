@@ -151,6 +151,11 @@
 #include <sys/types.h>
 #include <sys/resource.h>
 
+#if defined(ENABLE_POLL)
+#include <poll.h>
+#include <errno.h>
+#endif
+
 #include <common/compat.h>
 #include <common/config.h>
 
@@ -461,6 +466,62 @@ void fd_process_cached_events()
 	fdlist_process_cached_events(&fd_cache);
 }
 
+#if defined(ENABLE_POLL)
+/* This is a portable implementation of closefrom(). It closes all open file
+ * descriptors starting at <start> and above. It relies on the fact that poll()
+ * will return POLLNVAL for each invalid (hence close) file descriptor passed
+ * in argument in order to skip them. It acts with batches of FDs and will
+ * typically perform one poll() call per 1024 FDs so the overhead is low in
+ * case all FDs have to be closed.
+ */
+void my_closefrom(int start)
+{
+	struct pollfd poll_events[1024];
+	struct rlimit limit;
+	int nbfds, fd, ret, idx;
+	int step, next;
+
+	if (getrlimit(RLIMIT_NOFILE, &limit) == 0)
+		step = nbfds = limit.rlim_cur;
+	else
+		step = nbfds = 0;
+
+	if (nbfds <= 0) {
+		/* set safe limit */
+		nbfds = 1024;
+		step = 256;
+	}
+
+	if (step > sizeof(poll_events) / sizeof(poll_events[0]))
+		step = sizeof(poll_events) / sizeof(poll_events[0]);
+
+	while (start < nbfds) {
+		next = (start / step + 1) * step;
+
+		for (fd = start; fd < next && fd < nbfds; fd++) {
+			poll_events[fd - start].fd = fd;
+			poll_events[fd - start].events = 0;
+		}
+
+		do {
+			ret = poll(poll_events, fd - start, 0);
+			if (ret >= 0)
+				break;
+		} while (errno == EAGAIN || errno == EINTR || errno == ENOMEM);
+
+		for (idx = 0; idx < ret; idx++) {
+			if (poll_events[idx].revents & POLLNVAL)
+				continue; /* already closed */
+
+			fd = poll_events[idx].fd;
+			close(fd);
+		}
+		start = next;
+	}
+}
+
+#else // defined(ENABLE_POLL)
+
 /* This is a portable implementation of closefrom(). It closes all open file
  * descriptors starting at <start> and above. This is a naive version for use
  * when the operating system provides no alternative.
@@ -481,6 +542,7 @@ void my_closefrom(int start)
 	while (start < nbfds)
 		close(start++);
 }
+#endif // defined(ENABLE_POLL)
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name)
