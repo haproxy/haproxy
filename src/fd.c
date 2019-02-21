@@ -149,6 +149,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 
 #include <common/compat.h>
 #include <common/config.h>
@@ -458,6 +459,27 @@ void fd_process_cached_events()
 	HA_ATOMIC_AND(&fd_cache_mask, ~tid_bit);
 	fdlist_process_cached_events(&fd_cache_local[tid]);
 	fdlist_process_cached_events(&fd_cache);
+}
+
+/* This is a portable implementation of closefrom(). It closes all open file
+ * descriptors starting at <start> and above. This is a naive version for use
+ * when the operating system provides no alternative.
+ */
+void my_closefrom(int start)
+{
+	struct rlimit limit;
+	int nbfds;
+
+	if (getrlimit(RLIMIT_NOFILE, &limit) == 0)
+		nbfds = limit.rlim_cur;
+	else
+		nbfds = 0;
+
+	if (nbfds <= 0)
+		nbfds = 1024; /* safe limit */
+
+	while (start < nbfds)
+		close(start++);
 }
 
 /* disable the specified poller */

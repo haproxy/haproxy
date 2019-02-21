@@ -61,6 +61,9 @@ void fd_delete(int fd);
  */
 void fd_remove(int fd);
 
+/* close all FDs starting from <start> */
+void my_closefrom(int start);
+
 /* disable the specified poller */
 void disable_poller(const char *poller_name);
 
