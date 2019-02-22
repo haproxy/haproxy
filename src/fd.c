@@ -509,6 +509,9 @@ void my_closefrom(int start)
 				break;
 		} while (errno == EAGAIN || errno == EINTR || errno == ENOMEM);
 
+		if (ret)
+			ret = fd - start;
+
 		for (idx = 0; idx < ret; idx++) {
 			if (poll_events[idx].revents & POLLNVAL)
 				continue; /* already closed */
