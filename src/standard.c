@@ -4058,6 +4058,50 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 	}
 }
 
+/*
+ * Allocate an array of unsigned int with <nums> as address from <str> string
+ * made of integer sepereated by dot characters.
+ *
+ * First, initializes the value with <sz> as address to 0 and initializes the
+ * array with <nums> as address to NULL. Then allocates the array with <nums> as
+ * address updating <sz> pointed value to the size of this array.
+ *
+ * Returns 1 if succeeded, 0 if not.
+ */
+int parse_dotted_uints(const char *str, unsigned int **nums, size_t *sz)
+{
+	unsigned int *n;
+	const char *s, *end;
+
+	s = str;
+	*sz = 0;
+	end = str + strlen(str);
+	*nums = n = NULL;
+
+	while (1) {
+		unsigned int r;
+
+		if (s >= end)
+			break;
+
+		r = read_uint(&s, end);
+		/* Expected characters after having read an uint: '\0' or '.',
+		 * if '.', must not be terminal.
+		 */
+		if (*s != '\0'&& (*s++ != '.' || s == end))
+			return 0;
+
+		n = my_realloc2(n, *sz + 1);
+		if (!n)
+			return 0;
+
+		n[(*sz)++] = r;
+	}
+	*nums = n;
+
+	return 1;
+}
+
 /* do nothing, just a placeholder for debugging calls, the real one is in trace.c */
 __attribute__((weak,format(printf, 1, 2)))
 void trace(char *msg, ...)

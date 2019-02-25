@@ -1367,6 +1367,8 @@ static inline void *my_realloc2(void *ptr, size_t size)
 	return ret;
 }
 
+int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
+
 /* HAP_STRING() makes a string from a literal while HAP_XSTRING() first
  * evaluates the argument and is suited to pass macros.
  *
