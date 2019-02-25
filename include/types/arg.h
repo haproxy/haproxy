@@ -29,6 +29,7 @@
 #include <common/mini-clist.h>
 
 #include <types/vars.h>
+#include <types/protocol_buffers.h>
 
 /* encoding of each arg type : up to 31 types are supported */
 #define ARGT_BITS      5
@@ -60,6 +61,7 @@ enum {
 	ARGT_MAP,      /* a pointer to a map descriptor */
 	ARGT_REG,      /* a pointer to a regex */
 	ARGT_VAR,      /* contains a variable description. */
+	ARGT_PBUF_FNUM, /* a protocol buffer field number */
 	/* please update arg_type_names[] in args.c if you add entries here */
 };
 
@@ -100,6 +102,7 @@ union arg_data {
 	struct userlist *usr;
 	struct map_descriptor *map;
 	struct my_regex *reg;
+	struct pbuf_fid fid;
 	struct var_desc var;
 };
 

@@ -35,6 +35,7 @@ const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_MAP]  = "map",
 	[ARGT_REG]  = "regex",
 	[ARGT_VAR]  = "variable",
+	[ARGT_PBUF_FNUM] = "Protocol buffers field number",
 	/* Unassigned types must never happen. Better crash during parsing if they do. */
 };
 
@@ -237,6 +238,12 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 
 			arg->data.sint = uint;
 			arg->type = ARGT_SINT;
+			break;
+
+		case ARGT_PBUF_FNUM:
+			if (!parse_dotted_uints(word, &arg->data.fid.ids, &arg->data.fid.sz))
+				goto parse_err;
+
 			break;
 
 			/* FIXME: other types need to be implemented here */
