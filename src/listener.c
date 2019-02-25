@@ -448,8 +448,8 @@ void delete_listener(struct listener *listener)
 void listener_accept(int fd)
 {
 	struct listener *l = fdtab[fd].owner;
-	struct proxy *p = l->bind_conf->frontend;
-	int max_accept = l->maxaccept ? l->maxaccept : 1;
+	struct proxy *p;
+	int max_accept;
 	int expire;
 	int cfd;
 	int ret;
@@ -457,6 +457,10 @@ void listener_accept(int fd)
 	static int accept4_broken;
 #endif
 
+	if (!l)
+		return;
+	p = l->bind_conf->frontend;
+	max_accept = l->maxaccept ? l->maxaccept : 1;
 	if (HA_SPIN_TRYLOCK(LISTENER_LOCK, &l->lock))
 		return;
 
