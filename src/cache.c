@@ -1023,7 +1023,11 @@ static void htx_cache_io_handler(struct appctx *appctx)
 			goto error;
 
 		total += ret;
-		if (cache_ptr->data_len)
+		if (si_strm(si)->txn->meth == HTTP_METH_HEAD) {
+			/* Skip response body for HEAD requests */
+			appctx->st0 = HTX_CACHE_EOM;
+		}
+		else if (cache_ptr->data_len)
 			appctx->st0 = HTX_CACHE_DATA;
 		else if (first->len > sizeof(*cache_ptr) + appctx->ctx.cache.sent) {
 			/* Headers have benn sent (hrds_len) and there is no data
