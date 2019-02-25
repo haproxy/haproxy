@@ -913,6 +913,10 @@ static size_t htx_cache_dump_headers(struct appctx *appctx, struct htx *htx)
 		if (!blk)
 			return 0;
 
+		/* Set the start-line offset */
+		if (type == HTX_BLK_RES_SL)
+			htx->sl_off = blk->addr;
+
 		/* Copy info and data */
 		blk->info = info;
 		memcpy(htx_get_blk_ptr(htx, blk), b_peek(tmp, offset+4), sz);
