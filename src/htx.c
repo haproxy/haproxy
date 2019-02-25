@@ -307,6 +307,43 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 		blk = htx_remove_blk(htx, blk);
 }
 
+/* Drain <count> bytes from the HTX message <htx>. DATA blocks will be cut if
+ * necessary. Others blocks will be removed at once if <count> is large
+ * enough. The function returns an htx_ret with the first block remaing in the
+ * messsage and the amount of data drained. If everything is removed,
+ * htx_ret.blk is set to NULL.
+ */
+struct htx_ret htx_drain(struct htx *htx, uint32_t count)
+{
+	struct htx_blk *blk;
+	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
+
+	blk = htx_get_head_blk(htx);
+	while (count && blk) {
+		uint32_t sz = htx_get_blksz(blk);
+		enum htx_blk_type type = htx_get_blk_type(blk);
+
+		/* Ingore unused block */
+		if (type == HTX_BLK_UNUSED)
+			goto next;
+
+		if (sz > count) {
+			if (type == HTX_BLK_DATA) {
+				htx_cut_data_blk(htx, blk, count);
+				htxret.ret += count;
+			}
+			break;
+		}
+		count -= sz;
+		htxret.ret += sz;
+	  next:
+		blk = htx_remove_blk(htx, blk);
+	}
+	htxret.blk = blk;
+
+	return htxret;
+}
+
 /* Tries to append data to the last inserted block, if the type matches and if
  * there is enough non-wrapping space. Only DATA and TRAILERS content can be
  * appended. If the append fails, a new block is inserted. If an error occurred,
