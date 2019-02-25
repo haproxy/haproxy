@@ -374,6 +374,7 @@ ifeq ($(TARGET),freebsd)
   USE_LIBCRYPT   = implicit
   USE_THREAD     = implicit
   USE_CPU_AFFINITY= implicit
+  USE_CLOSEFROM  = implicit
 else
 ifeq ($(TARGET),osx)
   # This is for Mac OS/X
@@ -680,6 +681,10 @@ ifneq ($(USE_FUTEX),)
 OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
 endif
 endif
+endif
+
+ifneq ($(USE_CLOSEFROM),)
+OPTIONS_CFLAGS += -DUSE_CLOSEFROM
 endif
 
 ifneq ($(USE_LUA),)

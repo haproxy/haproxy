@@ -468,7 +468,13 @@ void fd_process_cached_events()
 	fdlist_process_cached_events(&fd_cache);
 }
 
-#if defined(ENABLE_POLL)
+#if defined(USE_CLOSEFROM)
+void my_closefrom(int start)
+{
+	closefrom(start);
+}
+
+#elif defined(ENABLE_POLL)
 /* This is a portable implementation of closefrom(). It closes all open file
  * descriptors starting at <start> and above. It relies on the fact that poll()
  * will return POLLNVAL for each invalid (hence close) file descriptor passed
