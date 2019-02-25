@@ -464,11 +464,6 @@ void listener_accept(int fd)
 	if (HA_SPIN_TRYLOCK(LISTENER_LOCK, &l->lock))
 		return;
 
-	if (unlikely(l->nbconn >= l->maxconn)) {
-		listener_full(l);
-		goto end;
-	}
-
 	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
 		int max = freq_ctr_remain(&global.sess_per_sec, global.sps_lim, 0);
 
@@ -527,7 +522,7 @@ void listener_accept(int fd)
 	 * worst case. If we fail due to system limits or temporary resource
 	 * shortage, we try again 100ms later in the worst case.
 	 */
-	while (max_accept--) {
+	while (l->nbconn < l->maxconn && max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 		unsigned int count;
@@ -647,11 +642,6 @@ void listener_accept(int fd)
 			goto transient_error;
 		}
 
-		if (l->nbconn >= l->maxconn) {
-			listener_full(l);
-			goto end;
-		}
-
 		/* increase the per-process number of cumulated connections */
 		if (!(l->options & LI_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.sess_per_sec, 1);
@@ -679,6 +669,9 @@ void listener_accept(int fd)
 	limit_listener(l, &global_listener_queue);
 	task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
  end:
+	if (l->nbconn >= l->maxconn)
+		listener_full(l);
+
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 }
 
