@@ -910,7 +910,7 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
  * when data have been read directly from the buffer. It is illegal to call
  * this function with <len> causing a wrapping at the end of the buffer. It's
  * the caller's responsibility to ensure that <len> is never larger than
- * chn->o. Channel flag WRITE_PARTIAL is set.
+ * chn->o. Channel flags WRITE_PARTIAL and WROTE_DATA are set.
  */
 static inline void co_skip(struct channel *chn, int len)
 {
@@ -919,8 +919,9 @@ static inline void co_skip(struct channel *chn, int len)
 	c_realign_if_empty(chn);
 
 	/* notify that some data was written to the SI from the buffer */
-	chn->flags |= CF_WRITE_PARTIAL;
+	chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 }
+
 
 /* Tries to copy chunk <chunk> into the channel's buffer after length controls.
  * The chn->o and to_forward pointers are updated. If the channel's input is
