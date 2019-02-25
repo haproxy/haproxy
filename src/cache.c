@@ -1097,39 +1097,22 @@ static void htx_cache_io_handler(struct appctx *appctx)
 	}
 
   end:
-	if (appctx->st0 == HTX_CACHE_END) {
-		/* eat the whole request */
-		req_htx = htxbuf(&req->buf);
-		htx_reset(req_htx);
-		htx_to_buf(req_htx, &req->buf);
-		co_set_data(req, 0);
+	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTX_CACHE_END) {
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
 
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
-		si_shutw(si);
-
-	if (appctx->st0 == HTX_CACHE_END) {
-		if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST)) {
-			si_shutr(si);
-			res->flags |= CF_READ_NULL;
-		}
-	}
   out:
 	if (total)
 		channel_add_input(res, total);
-
-	/* we have left the request in the buffer for the case where we
-	 * process a POST, and this automatically re-enables activity on
-	 * read. It's better to indicate that we want to stop reading when
-	 * we're sending, so that we know there's at most one direction
-	 * deciding to wake the applet up. It saves it from looping when
-	 * emitting large blocks into small TCP windows.
-	 */
 	htx_to_buf(res_htx, &res->buf);
-	if (!channel_is_empty(res))
-		si_stop_get(si);
+
+	/* eat the whole request */
+	if (co_data(req)) {
+		req_htx = htx_from_buf(&req->buf);
+		co_htx_skip(req, req_htx, co_data(req));
+		htx_to_buf(req_htx, &req->buf);
+	}
 	return;
 
   error:
@@ -1266,17 +1249,17 @@ static void http_cache_io_handler(struct appctx *appctx)
 		}
 	}
 
-	if (appctx->st0 == HTTP_CACHE_FWD) {
-		/* eat the whole request */
-		co_skip(si_oc(si), co_data(si_oc(si)));   // NOTE: when disabled does not repport the  correct status code
+	if (appctx->st0 == HTTP_CACHE_FWD)
+		appctx->st0 = HTTP_CACHE_END;
+
+	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTTP_CACHE_END) {
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
-
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
-		si_shutw(si);
 out:
-	;
+	/* eat the whole request */
+	if (co_data(si_oc(si)))
+	    co_skip(si_oc(si), co_data(si_oc(si)));
 }
 
 static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
