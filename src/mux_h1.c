@@ -1316,12 +1316,14 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
 	struct htx *htx;
+	size_t data = 0;
 	size_t total = 0;
 	size_t ret = 0;
 	size_t count, rsv;
 	int errflag;
 
 	htx = htx_from_buf(buf);
+	data = htx->data;
 	count = b_data(&h1c->ibuf);
 	if (!count)
 		goto end;
@@ -1373,7 +1375,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
   end:
 	htx_to_buf(htx, buf);
-
+	data = (htx->data - data);
 	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		tasklet_wakeup(h1c->wait_event.task);
@@ -1390,9 +1392,11 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
 	if ((h1s->cs->flags & CS_FL_REOS) && (!b_data(&h1c->ibuf) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
+		if (h1m->state < H1_MSG_DONE)
+			h1s->cs->flags |= CS_FL_ERROR;
 	}
 
-	return total;
+	return data;
 
   parsing_err:
 	b_reset(&h1c->ibuf);
