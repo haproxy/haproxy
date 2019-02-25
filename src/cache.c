@@ -1401,9 +1401,16 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
                                          struct session *sess, struct stream *s, int flags)
 {
 
+	struct http_txn *txn = s->txn;
 	struct cache_entry *res;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct cache *cache = cconf->c.cache;
+
+	/* Ignore cache for HTTP/1.0 requests and for requests other than GET
+	 * and HEAD */
+	if (!(txn->req.flags & HTTP_MSGF_VER_11) ||
+	    (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD))
+		txn->flags |= TX_CACHE_IGNORE;
 
 	if (IS_HTX_STRM(s))
 		htx_check_request_for_cacheability(s, &s->req);
