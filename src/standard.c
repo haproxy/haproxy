@@ -4091,7 +4091,7 @@ int parse_dotted_uints(const char *str, unsigned int **nums, size_t *sz)
 		if (*s != '\0'&& (*s++ != '.' || s == end))
 			return 0;
 
-		n = my_realloc2(n, *sz + 1);
+		n = my_realloc2(n, (*sz + 1) * sizeof *n);
 		if (!n)
 			return 0;
 
