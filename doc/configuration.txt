@@ -13766,6 +13766,18 @@ sub(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+svarint
+  Converts a binary input sample of a protocol buffers signed "varints" ("sint32"
+  and "sint64") to an integer.
+  More information may be found here about the protocol buffers message types:
+  https://developers.google.com/protocol-buffers/docs/encoding
+
+varint
+  Converts a binary input sample of a protocol buffers "varints", excepted
+  the signed ones "sint32" and "sint64", to an integer.
+  More information may be found here about the protocol buffers message types:
+  https://developers.google.com/protocol-buffers/docs/encoding
+
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -15938,6 +15950,40 @@ hdr_val([<name>[,<occ>]]) : integer (deprecated)
   Positive values indicate a position from the first occurrence, with 1 being
   the first one. Negative values indicate positions relative to the last one,
   with -1 being the last one. A typical use is with the X-Forwarded-For header.
+
+req.ungrpc(<field_number>) : binary
+  This extracts the protocol buffers message in raw mode of a gRPC request body
+  with <field_number> as terminal field number (dotted notation).
+
+  Example:
+    // with such a protocol buffer .proto file content adapted from
+    // https://github.com/grpc/grpc/blob/master/examples/protos/route_guide.proto
+
+    message Point {
+      int32 latitude = 1;
+      int32 longitude = 2;
+    }
+
+    message PPoint {
+      Point point = 59;
+    }
+
+    message Rectangle {
+      // One corner of the rectangle.
+      PPoint lo = 48;
+      // The other corner of the rectangle.
+      PPoint hi = 49;
+    }
+
+  Let's say a body requests is made of a "Rectangle" object value (two PPoint
+  protocol buffers messages), the four protocol buffers messages could be fetched
+  with this "req.ungrpc" sample fetch directives:
+
+    req.ungrpc(48.59.1) # "latitude" of "lo" first PPoint
+    req.ungrpc(48.59.2) # "longitude" of "lo" first PPoint
+    req.ungrpc(49.59.1) # "latidude" of "hi" second PPoint
+    req.ungrpc(49.59.2) # "longitude" of "hi" second PPoint
+
 
 http_auth(<userlist>) : boolean
   Returns a boolean indicating whether the authentication data received from
