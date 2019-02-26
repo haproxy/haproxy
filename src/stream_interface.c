@@ -339,7 +339,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	 * connection, in which case the connection is validated only once
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
-	while (conn->send_proxy_ofs) {
+	if (conn->send_proxy_ofs) {
 		const struct conn_stream *cs;
 		int ret;
 
@@ -399,7 +399,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			goto out_wait;
 
 		/* OK we've sent the whole line, we're connected */
-		break;
 	}
 
 	/* The connection is ready now, simply return and let the connection
