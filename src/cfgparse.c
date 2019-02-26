@@ -3596,7 +3596,7 @@ out_uri_auth_compat:
 						LIST_INIT(&toremove_connections[i]);
 					}
 				}
-				newsrv->idle_orphan_conns = calloc(global.nbthread, sizeof(*newsrv->idle_orphan_conns));
+				newsrv->idle_orphan_conns = calloc((unsigned int)global.nbthread, sizeof(*newsrv->idle_orphan_conns));
 				if (!newsrv->idle_orphan_conns)
 					goto err;
 				for (i = 0; i < global.nbthread; i++)
