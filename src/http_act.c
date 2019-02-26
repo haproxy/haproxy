@@ -375,12 +375,6 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		}
 		cur_arg++;
 
-		if (!len) {
-			memprintf(err, "a positive 'len' argument is mandatory");
-			free(expr);
-			return ACT_RET_PRS_ERR;
-		}
-
 		hdr = calloc(1, sizeof(*hdr));
 		hdr->next = px->req_cap;
 		hdr->name = NULL; /* not a header capture */
