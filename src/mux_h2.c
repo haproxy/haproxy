@@ -1026,6 +1026,11 @@ static int h2c_send_settings(struct h2c *h2c)
 	       "\x00\x00\x00\x00", /* stream ID : 0 */
 	       9);
 
+	if (h2c->flags & H2_CF_IS_BACK) {
+		/* send settings_enable_push=0 */
+		chunk_memcat(&buf, "\x00\x02\x00\x00\x00\x00", 6);
+	}
+
 	if (h2_settings_header_table_size != 4096) {
 		char str[6] = "\x00\x01"; /* header_table_size */
 
