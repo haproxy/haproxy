@@ -2650,6 +2650,93 @@ unsigned int full_hash(unsigned int a)
 	return __full_hash(a);
 }
 
+/* Return the bit position in mask <m> of the nth bit set of rank <r>, between
+ * 0 and LONGBITS-1 included, starting from the left. For example ranks 0,1,2,3
+ * for mask 0x55 will be 6, 4, 2 and 0 respectively. This algorithm is based on
+ * a popcount variant and is described here :
+ *   https://graphics.stanford.edu/~seander/bithacks.html
+ */
+unsigned int mask_find_rank_bit(unsigned int r, unsigned long m)
+{
+	unsigned long a, b, c, d;
+	unsigned int s;
+	unsigned int t;
+
+	a =  m - ((m >> 1) & ~0UL/3);
+	b = (a & ~0UL/5) + ((a >> 2) & ~0UL/5);
+	c = (b + (b >> 4)) & ~0UL/0x11;
+	d = (c + (c >> 8)) & ~0UL/0x101;
+
+	r++; // make r be 1..64
+
+	t = 0;
+	s = LONGBITS;
+	if (s > 32) {
+		t = (d >> 32) + (d >> 48);
+		s -= ((t - r) & 256) >> 3; r -= (t & ((t - r) >> 8));
+	}
+
+	t  = (d >> (s - 16)) & 0xff;
+	s -= ((t - r) & 256) >> 4; r -= (t & ((t - r) >> 8));
+	t  = (c >> (s - 8)) & 0xf;
+	s -= ((t - r) & 256) >> 5; r -= (t & ((t - r) >> 8));
+	t  = (b >> (s - 4)) & 0x7;
+	s -= ((t - r) & 256) >> 6; r -= (t & ((t - r) >> 8));
+	t  = (a >> (s - 2)) & 0x3;
+	s -= ((t - r) & 256) >> 7; r -= (t & ((t - r) >> 8));
+	t  = (m >> (s - 1)) & 0x1;
+	s -= ((t - r) & 256) >> 8;
+
+       return s - 1;
+}
+
+/* Same as mask_find_rank_bit() above but makes use of pre-computed bitmaps
+ * based on <m>, in <a..d>. These ones must be updated whenever <m> changes
+ * using mask_prep_rank_map() below.
+ */
+unsigned int mask_find_rank_bit_fast(unsigned int r, unsigned long m,
+                                     unsigned long a, unsigned long b,
+                                     unsigned long c, unsigned long d)
+{
+	unsigned int s;
+	unsigned int t;
+
+	r++; // make r be 1..64
+
+	t = 0;
+	s = LONGBITS;
+	if (s > 32) {
+		t = (d >> 32) + (d >> 48);
+		s -= ((t - r) & 256) >> 3; r -= (t & ((t - r) >> 8));
+	}
+
+	t  = (d >> (s - 16)) & 0xff;
+	s -= ((t - r) & 256) >> 4; r -= (t & ((t - r) >> 8));
+	t  = (c >> (s - 8)) & 0xf;
+	s -= ((t - r) & 256) >> 5; r -= (t & ((t - r) >> 8));
+	t  = (b >> (s - 4)) & 0x7;
+	s -= ((t - r) & 256) >> 6; r -= (t & ((t - r) >> 8));
+	t  = (a >> (s - 2)) & 0x3;
+	s -= ((t - r) & 256) >> 7; r -= (t & ((t - r) >> 8));
+	t  = (m >> (s - 1)) & 0x1;
+	s -= ((t - r) & 256) >> 8;
+
+	return s - 1;
+}
+
+/* Prepare the bitmaps used by the fast implementation of the find_rank_bit()
+ * above.
+ */
+void mask_prep_rank_map(unsigned long m,
+                        unsigned long *a, unsigned long *b,
+                        unsigned long *c, unsigned long *d)
+{
+	*a =  m - ((m >> 1) & ~0UL/3);
+	*b = (*a & ~0UL/5) + ((*a >> 2) & ~0UL/5);
+	*c = (*b + (*b >> 4)) & ~0UL/0x11;
+	*d = (*c + (*c >> 8)) & ~0UL/0x101;
+}
+
 /* Return non-zero if IPv4 address is part of the network,
  * otherwise zero. Note that <addr> may not necessarily be aligned
  * while the two other ones must.

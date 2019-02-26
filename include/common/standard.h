@@ -938,6 +938,20 @@ static inline unsigned int __full_hash(unsigned int a)
 	return a * 3221225473U;
 }
 
+/* Return the bit position in mask <m> of the nth bit set of rank <r>, between
+ * 0 and LONGBITS-1 included, starting from the left. For example ranks 0,1,2,3
+ * for mask 0x55 will be 6, 4, 2 and 0 respectively. This algorithm is based on
+ * a popcount variant and is described here :
+ *   https://graphics.stanford.edu/~seander/bithacks.html
+ */
+unsigned int mask_find_rank_bit(unsigned int r, unsigned long m);
+unsigned int mask_find_rank_bit_fast(unsigned int r, unsigned long m,
+                                     unsigned long a, unsigned long b,
+                                     unsigned long c, unsigned long d);
+void mask_prep_rank_map(unsigned long m,
+                        unsigned long *a, unsigned long *b,
+                        unsigned long *c, unsigned long *d);
+
 /* sets the address family to AF_UNSPEC so that is_addr() does not match */
 static inline void clear_addr(struct sockaddr_storage *addr)
 {
