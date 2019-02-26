@@ -30,6 +30,7 @@
 #include <proto/auth.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
+#include <proto/protocol_buffers.h>
 #include <proto/sample.h>
 #include <proto/stick_table.h>
 #include <proto/vars.h>
@@ -1778,6 +1779,33 @@ static int sample_conv_crc32c(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
+/* Decode an unsigned protocol buffers varint */
+static int sample_conv_varint(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	uint64_t varint;
+
+	if (!protobuf_varint(&varint, (unsigned char *)smp->data.u.str.area, smp->data.u.str.data))
+		return 0;
+
+	smp->data.u.sint = varint;
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
+/* Decode a signed protocol buffers varint encoded as (zigzag + varint). */
+static int sample_conv_svarint(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	uint64_t varint;
+
+	if (!protobuf_varint(&varint, (unsigned char *)smp->data.u.str.area, smp->data.u.str.data))
+		return 0;
+
+	/* zigzag decoding. */
+	smp->data.u.sint = (varint >> 1) ^ -(varint & 1);
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
 /* This function escape special json characters. The returned string can be
  * safely set between two '"' and used as json string. The json string is
  * defined like this:
@@ -3133,6 +3161,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
+	{ "varint", sample_conv_varint,    0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "svarint", sample_conv_svarint,  0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
