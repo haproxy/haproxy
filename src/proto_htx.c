@@ -3502,7 +3502,7 @@ static int htx_apply_filter_to_req_headers(struct stream *s, struct channel *req
 		n = htx_get_blk_name(htx, blk);
 		v = htx_get_blk_value(htx, blk);
 
-		chunk_memcat(hdr, n.ptr, n.len);
+		chunk_memcpy(hdr, n.ptr, n.len);
 		hdr->area[hdr->data++] = ':';
 		hdr->area[hdr->data++] = ' ';
 		chunk_memcat(hdr, v.ptr, v.len);
@@ -3534,6 +3534,7 @@ static int htx_apply_filter_to_req_headers(struct stream *s, struct channel *req
 					http_parse_header(ist2(trash.area, len), &n, &v);
 					ctx.blk = blk;
 					ctx.value = v;
+				        ctx.lws_before = ctx.lws_after = 0;
 					if (!http_replace_header(htx, &ctx, n, v))
 						return -1;
 					if (!ctx.blk)
@@ -3544,6 +3545,7 @@ static int htx_apply_filter_to_req_headers(struct stream *s, struct channel *req
 				case ACT_REMOVE:
 					ctx.blk = blk;
 					ctx.value = v;
+				        ctx.lws_before = ctx.lws_after = 0;
 					if (!http_remove_header(htx, &ctx))
 						return -1;
 					if (!ctx.blk)
@@ -3717,7 +3719,7 @@ static int htx_apply_filter_to_resp_headers(struct stream *s, struct channel *re
 		n = htx_get_blk_name(htx, blk);
 		v = htx_get_blk_value(htx, blk);
 
-		chunk_memcat(hdr, n.ptr, n.len);
+		chunk_memcpy(hdr, n.ptr, n.len);
 		hdr->area[hdr->data++] = ':';
 		hdr->area[hdr->data++] = ' ';
 		chunk_memcat(hdr, v.ptr, v.len);
@@ -3747,6 +3749,7 @@ static int htx_apply_filter_to_resp_headers(struct stream *s, struct channel *re
 					http_parse_header(ist2(trash.area, len), &n, &v);
 					ctx.blk = blk;
 					ctx.value = v;
+				        ctx.lws_before = ctx.lws_after = 0;
 					if (!http_replace_header(htx, &ctx, n, v))
 						return -1;
 					if (!ctx.blk)
@@ -3757,6 +3760,7 @@ static int htx_apply_filter_to_resp_headers(struct stream *s, struct channel *re
 				case ACT_REMOVE:
 					ctx.blk = blk;
 					ctx.value = v;
+				        ctx.lws_before = ctx.lws_after = 0;
 					if (!http_remove_header(htx, &ctx))
 						return -1;
 					if (!ctx.blk)
