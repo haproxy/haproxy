@@ -226,7 +226,7 @@ struct cond_wordlist {
 	do {                                                               \
 		while (1) {                                                \
 			struct list *n, *n2;                               \
-			struct list *p, *p2;                               \
+			struct list *p, *p2 = NULL;                        \
 			n = HA_ATOMIC_XCHG(&(el)->n, LLIST_BUSY);          \
 			if (n == LLIST_BUSY)                               \
 			        continue;                                  \
@@ -248,7 +248,8 @@ struct cond_wordlist {
 			if (n != (el)) {                                   \
 			        n2 = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);    \
 				if (n2 == LLIST_BUSY) {                    \
-					p2->n = (el);                      \
+					if (p2 != NULL)                    \
+						p2->n = (el);              \
 					(el)->p = p;                       \
 					(el)->n = n;                       \
 					__ha_barrier_store();              \
