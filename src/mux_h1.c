@@ -1323,11 +1323,6 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	int errflag;
 
 	htx = htx_from_buf(buf);
-	data = htx->data;
-	count = b_data(&h1c->ibuf);
-	if (!count)
-		goto end;
-	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
 
 	if (!conn_is_back(h1c->conn)) {
 		h1m = &h1s->req;
@@ -1337,6 +1332,12 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 		h1m = &h1s->res;
 		errflag = H1S_F_RES_ERROR;
 	}
+
+	data = htx->data;
+	count = b_data(&h1c->ibuf);
+	if (!count)
+		goto end;
+	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
 
 	do {
 		if (h1m->state <= H1_MSG_LAST_LF) {
