@@ -75,18 +75,6 @@
 #include <proto/pattern.h>
 #include <proto/vars.h>
 
-/* status codes available for the stats admin page (strictly 4 chars length) */
-const char *stat_status_codes[STAT_STATUS_SIZE] = {
-	[STAT_STATUS_DENY] = "DENY",
-	[STAT_STATUS_DONE] = "DONE",
-	[STAT_STATUS_ERRP] = "ERRP",
-	[STAT_STATUS_EXCD] = "EXCD",
-	[STAT_STATUS_NONE] = "NONE",
-	[STAT_STATUS_PART] = "PART",
-	[STAT_STATUS_UNKN] = "UNKN",
-	[STAT_STATUS_IVAL] = "IVAL",
-};
-
 /* This function handles a server error at the stream interface level. The
  * stream interface is assumed to be already in a closed state. An optional
  * message is copied into the input buffer.

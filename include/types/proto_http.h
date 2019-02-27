@@ -183,20 +183,6 @@ enum rule_result {
 	HTTP_RULE_RES_BADREQ,    /* bad request */
 };
 
-/* status codes available for the stats admin page */
-enum {
-	STAT_STATUS_INIT = 0,
-	STAT_STATUS_DENY,	/* action denied */
-	STAT_STATUS_DONE,	/* the action is successful */
-	STAT_STATUS_ERRP,	/* an error occurred due to invalid values in parameters */
-	STAT_STATUS_EXCD,	/* an error occurred because the buffer couldn't store all data */
-	STAT_STATUS_NONE,	/* nothing happened (no action chosen or servers state didn't change) */
-	STAT_STATUS_PART,	/* the action is partially successful */
-	STAT_STATUS_UNKN,	/* an unknown error occurred, shouldn't happen */
-	STAT_STATUS_IVAL,	/* invalid requests (chunked or invalid post) */
-	STAT_STATUS_SIZE
-};
-
 /* Legacy version of the HTTP/1 message state, used by the channels, should
  * ultimately be removed.
  */

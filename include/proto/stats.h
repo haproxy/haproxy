@@ -84,6 +84,8 @@ static inline struct field mkf_str(uint32_t type, const char *value)
 	return f;
 }
 
+extern const char *stat_status_codes[];
+
 /* These two structs contains all field names according with
  * the the number of entries in "enum stat_field" and
  * "enum info_field"

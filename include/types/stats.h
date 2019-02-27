@@ -45,6 +45,20 @@ enum {
 	STAT_HTTP_LAST,      /* sending last chunk of response */
 };
 
+/* status codes available for the stats admin page */
+enum {
+	STAT_STATUS_INIT = 0,
+	STAT_STATUS_DENY,	/* action denied */
+	STAT_STATUS_DONE,	/* the action is successful */
+	STAT_STATUS_ERRP,	/* an error occurred due to invalid values in parameters */
+	STAT_STATUS_EXCD,	/* an error occurred because the buffer couldn't store all data */
+	STAT_STATUS_NONE,	/* nothing happened (no action chosen or servers state didn't change) */
+	STAT_STATUS_PART,	/* the action is partially successful */
+	STAT_STATUS_UNKN,	/* an unknown error occurred, shouldn't happen */
+	STAT_STATUS_IVAL,       /* invalid requests (chunked or invalid post) */
+	STAT_STATUS_SIZE
+};
+
 /* HTML form to limit output scope */
 #define STAT_SCOPE_TXT_MAXLEN 20      /* max len for scope substring */
 #define STAT_SCOPE_INPUT_NAME "scope" /* pattern form scope name <input> in html form */
