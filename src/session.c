@@ -55,10 +55,6 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
-		HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.conn_max,
-				     HA_ATOMIC_ADD(&fe->feconn, 1));
-		if (li)
-			proxy_inc_fe_conn_ctr(li, fe);
 		HA_ATOMIC_ADD(&totalconn, 1);
 		HA_ATOMIC_ADD(&jobs, 1);
 		LIST_INIT(&sess->srv_list);
@@ -72,7 +68,6 @@ void session_free(struct session *sess)
 	struct connection *conn, *conn_back;
 	struct sess_srv_list *srv_list, *srv_list_back;
 
-	HA_ATOMIC_SUB(&sess->fe->feconn, 1);
 	if (sess->listener)
 		listener_release(sess->listener);
 	session_store_counters(sess);
