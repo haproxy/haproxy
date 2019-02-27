@@ -3312,8 +3312,8 @@ static void htx_stats_io_handler(struct appctx *appctx)
 	}
 
 	/* check that the output is not closed */
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
-		appctx->st0 = STAT_HTTP_DONE;
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
+		appctx->st0 = STAT_HTTP_END;
 
 	/* all states are processed in sequence */
 	if (appctx->st0 == STAT_HTTP_HEAD) {
@@ -3333,7 +3333,7 @@ static void htx_stats_io_handler(struct appctx *appctx)
 	if (appctx->st0 == STAT_HTTP_POST) {
 		if (stats_process_http_post(si))
 			appctx->st0 = STAT_HTTP_LAST;
-		else if (si_oc(si)->flags & CF_SHUTR)
+		else if (req->flags & CF_SHUTR)
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
@@ -3348,25 +3348,24 @@ static void htx_stats_io_handler(struct appctx *appctx)
 			si_rx_room_blk(si);
 			goto out;
 		}
+		channel_add_input(&s->res, 1);
+		appctx->st0 = STAT_HTTP_END;
+	}
+
+	if (appctx->st0 == STAT_HTTP_END) {
+		if (!(res->flags & CF_SHUTR)) {
+			res->flags |= CF_READ_NULL;
+			si_shutr(si);
+		}
 
 		/* eat the whole request */
-		req_htx = htxbuf(&req->buf);
-		htx_reset(req_htx);
-		htx_to_buf(req_htx, &req->buf);
-		co_set_data(req, 0);
-		res->flags |= CF_READ_NULL;
-		si_shutr(si);
-	}
-
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
-		si_shutw(si);
-
-	if (appctx->st0 == STAT_HTTP_DONE) {
-		if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST)) {
-			si_shutr(si);
-			res->flags |= CF_READ_NULL;
+		if (co_data(req)) {
+			req_htx = htx_from_buf(&req->buf);
+			co_htx_skip(req, req_htx, co_data(req));
+			htx_to_buf(req_htx, &req->buf);
 		}
 	}
+
  out:
 	/* we have left the request in the buffer for the case where we
 	 * process a POST, and this automatically re-enables activity on
@@ -3408,8 +3407,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	/* check that the output is not closed */
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
-		appctx->st0 = STAT_HTTP_DONE;
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
+		appctx->st0 = STAT_HTTP_END;
 
 	/* all states are processed in sequence */
 	if (appctx->st0 == STAT_HTTP_HEAD) {
@@ -3493,21 +3492,20 @@ static void http_stats_io_handler(struct appctx *appctx)
 				goto out;
 			}
 		}
-		/* eat the whole request */
-		co_skip(si_oc(si), co_data(si_oc(si)));
-		res->flags |= CF_READ_NULL;
-		si_shutr(si);
+		appctx->st0 = STAT_HTTP_END;
 	}
 
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
-		si_shutw(si);
-
-	if (appctx->st0 == STAT_HTTP_DONE) {
-		if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST)) {
-			si_shutr(si);
+	if (appctx->st0 == STAT_HTTP_END) {
+		if (!(res->flags & CF_SHUTR)) {
 			res->flags |= CF_READ_NULL;
+			si_shutr(si);
 		}
+
+		/* eat the whole request */
+		if (co_data(req))
+			co_skip(si_oc(si), co_data(si_oc(si)));
 	}
+
  out:
 	/* we have left the request in the buffer for the case where we
 	 * process a POST, and this automatically re-enables activity on
