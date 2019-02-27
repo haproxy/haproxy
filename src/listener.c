@@ -852,13 +852,14 @@ void listener_accept(int fd)
 			 */
 			ring = &accept_queue_rings[t1];
 			if (accept_queue_push_mp(ring, cfd, l, &addr, laddr)) {
+				HA_ATOMIC_ADD(&activity[t1].accq_pushed, 1);
 				task_wakeup(ring->task, TASK_WOKEN_IO);
 				continue;
 			}
 			/* If the ring is full we do a synchronous accept on
 			 * the local thread here.
-			 * FIXME: we should update some stats here.
 			 */
+			HA_ATOMIC_ADD(&activity[t1].accq_full, 1);
 		}
 #endif // USE_THREAD
 

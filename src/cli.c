@@ -1019,6 +1019,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "\ncpust_ms_1s:");  for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr(&activity[thr].cpust_1s)/2);
 	chunk_appendf(&trash, "\ncpust_ms_15s:"); for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr_period(&activity[thr].cpust_15s, 15000)/2);
 	chunk_appendf(&trash, "\navg_loop_us:");  for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", swrate_avg(activity[thr].avg_loop_us, TIME_STATS_SAMPLES));
+	chunk_appendf(&trash, "\naccq_pushed:");  for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].accq_pushed);
+	chunk_appendf(&trash, "\naccq_full:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].accq_full);
 
 	chunk_appendf(&trash, "\n");
 
