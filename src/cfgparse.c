@@ -649,7 +649,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 			l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
 			l->maxaccept = 1;
-			l->maxconn = curpeers->peers_fe->maxconn;
 			l->accept = session_accept_fd;
 			l->analysers |=  curpeers->peers_fe->fe_req_ana;
 			l->default_target = curpeers->peers_fe->default_target;
@@ -852,7 +851,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		l = LIST_ELEM(bind_conf->listeners.n, typeof(l), by_bind);
 		l->maxaccept = 1;
-		l->maxconn = curpeers->peers_fe->maxconn;
 		l->accept = session_accept_fd;
 		l->analysers |=  curpeers->peers_fe->fe_req_ana;
 		l->default_target = curpeers->peers_fe->default_target;
@@ -3739,8 +3737,6 @@ out_uri_auth_compat:
 
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
-			if (!listener->maxconn)
-				listener->maxconn = curproxy->maxconn;
 			if (!listener->maxaccept)
 				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
 

@@ -2551,14 +2551,11 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 int peers_init_sync(struct peers *peers)
 {
 	struct peer * curpeer;
-	struct listener *listener;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
 		peers->peers_fe->maxconn += 3;
 	}
 
-	list_for_each_entry(listener, &peers->peers_fe->conf.listeners, by_fe)
-		listener->maxconn = peers->peers_fe->maxconn;
 	peers->sync_task = task_new(MAX_THREADS_MASK);
 	if (!peers->sync_task)
 		return 0;

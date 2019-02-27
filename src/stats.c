@@ -1472,7 +1472,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
 	stats[ST_F_DCON]     = mkf_u64(FN_COUNTER, l->counters->denied_conn);
 	stats[ST_F_DSES]     = mkf_u64(FN_COUNTER, l->counters->denied_sess);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (!l->maxconn || l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);

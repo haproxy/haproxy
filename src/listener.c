@@ -234,7 +234,7 @@ static void enable_listener(struct listener *listener)
 				listener->state = LI_LISTEN;
 			}
 		}
-		else if (listener->nbconn < listener->maxconn) {
+		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
 			fd_want_recv(listener->fd);
 			listener->state = LI_READY;
 		}
@@ -360,7 +360,7 @@ int resume_listener(struct listener *l)
 
 	LIST_DEL_LOCKED(&l->wait_queue);
 
-	if (l->nbconn >= l->maxconn) {
+	if (l->maxconn && l->nbconn >= l->maxconn) {
 		l->state = LI_FULL;
 		goto end;
 	}
@@ -682,7 +682,7 @@ void listener_accept(int fd)
 		 */
 		do {
 			count = l->nbconn;
-			if (count >= l->maxconn) {
+			if (l->maxconn && count >= l->maxconn) {
 				/* the listener was marked full or another
 				 * thread is going to do it.
 				 */
@@ -692,7 +692,7 @@ void listener_accept(int fd)
 			next_conn = count + 1;
 		} while (!HA_ATOMIC_CAS(&l->nbconn, &count, next_conn));
 
-		if (next_conn == l->maxconn) {
+		if (l->maxconn && next_conn == l->maxconn) {
 			/* we filled it, mark it full */
 			listener_full(l);
 		}
@@ -942,7 +942,7 @@ void listener_accept(int fd)
 	if (next_actconn)
 		HA_ATOMIC_SUB(&actconn, 1);
 
-	if ((l->state == LI_FULL && l->nbconn < l->maxconn) ||
+	if ((l->state == LI_FULL && (!l->maxconn || l->nbconn < l->maxconn)) ||
 	    (l->state == LI_LIMITED && ((!p || p->feconn < p->maxconn) && (actconn < global.maxconn)))) {
 		/* at least one thread has to this when quitting */
 		resume_listener(l);
@@ -1212,8 +1212,8 @@ static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct
 	}
 
 	val = atol(args[cur_arg + 1]);
-	if (val <= 0) {
-		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+	if (val < 0) {
+		memprintf(err, "'%s' : invalid value %d, must be >= 0", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
