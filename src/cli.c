@@ -303,7 +303,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			l->default_target = global.stats_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			l->nice = -64;  /* we want to boost priority for local stats */
-			global.maxsock += l->maxconn;
+			global.maxsock++; /* for the listening socket */
 		}
 	}
 	else if (!strcmp(args[1], "timeout")) {
@@ -2528,8 +2528,9 @@ int mworker_cli_proxy_new_listener(char *line)
 		/* don't make the peers subject to global limits and don't close it in the master */
 		l->options |= (LI_O_UNLIMITED|LI_O_MWORKER); /* we are keeping this FD in the master */
 		l->nice = -64;  /* we want to boost priority for local stats */
-		global.maxsock += l->maxconn;
+		global.maxsock++; /* for the listening socket */
 	}
+	global.maxsock += mworker_proxy->maxconn;
 
 	return 0;
 
@@ -2598,7 +2599,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		/* it's a sockpair but we don't want to keep the fd in the master */
 		l->options &= ~LI_O_INHERITED;
 		l->nice = -64;  /* we want to boost priority for local stats */
-		global.maxsock += l->maxconn;
+		global.maxsock++; /* for the listening socket */
 	}
 
 	return 0;

@@ -655,7 +655,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			l->analysers |=  curpeers->peers_fe->fe_req_ana;
 			l->default_target = curpeers->peers_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
-			global.maxsock += l->maxconn;
+			global.maxsock++; /* for the listening socket */
 
 			bind_line = 1;
 			if (cfg_peers->local) {
@@ -859,7 +859,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		l->analysers |=  curpeers->peers_fe->fe_req_ana;
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
-		global.maxsock += l->maxconn;
+		global.maxsock++; /* for the listening socket */
 	} /* neither "peer" nor "peers" */
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
 		curpeers->state = PR_STSTOPPED;
