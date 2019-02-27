@@ -125,7 +125,7 @@ struct list postparsers = LIST_HEAD_INIT(postparsers);
 
 char *cursection = NULL;
 struct proxy defproxy = { };		/* fake proxy used to assign default values on all instances */
-int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
+int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
 char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
 
@@ -2524,8 +2524,6 @@ int check_config_validity()
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
-				/* Update tot_fe_maxconn for a further fullconn's computation */
-				target->tot_fe_maxconn += curproxy->maxconn;
 				/* Emit a warning if this proxy also has some servers */
 				if (curproxy->srv) {
 					ha_warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
@@ -2533,14 +2531,6 @@ int check_config_validity()
 					err_code |= ERR_WARN;
 				}
 			}
-		}
-
-		if (!curproxy->defbe.be && (curproxy->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
-			/* Case of listen without default backend
-			 * The curproxy will be its own default backend
-			 * so we update tot_fe_maxconn for a further
-			 * fullconn's computation */
-			curproxy->tot_fe_maxconn += curproxy->maxconn;
 		}
 
 		/* find the target proxy for 'use_backend' rules */
@@ -2611,23 +2601,6 @@ int check_config_validity()
 			} else {
 				free((void *)rule->be.name);
 				rule->be.backend = target;
-				/* For each target of switching rules, we update
-				 * their tot_fe_maxconn, except if a previous rule point
-				 * on the same backend or on the default backend */
-				if (rule->be.backend != curproxy->defbe.be) {
-					struct switching_rule *swrule;
-
-					list_for_each_entry(swrule, &curproxy->switching_rules, list) {
-						if (rule == swrule) {
-							target->tot_fe_maxconn += curproxy->maxconn;
-							break;
-						}
-						else if (!swrule->dynamic && swrule->be.backend == rule->be.backend) {
-							/* there is multiple ref of this backend */
-							break;
-						}
-					}
-				}
 			}
 		}
 
@@ -3814,24 +3787,6 @@ out_uri_auth_compat:
 			ha_alert("Proxy '%s': no more memory when trying to allocate the management task\n",
 				 curproxy->id);
 			cfgerr++;
-		}
-	}
-
-	/* automatically compute fullconn if not set. We must not do it in the
-	 * loop above because cross-references are not yet fully resolved.
-	 */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		/* If <fullconn> is not set, let's set it to 10% of the sum of
-		 * the possible incoming frontend's maxconns.
-		 */
-		if (!curproxy->fullconn && (curproxy->cap & PR_CAP_BE)) {
-			/* we have the sum of the maxconns in <total>. We only
-			 * keep 10% of that sum to set the default fullconn, with
-			 * a hard minimum of 1 (to avoid a divide by zero).
-			 */
-			curproxy->fullconn = (curproxy->tot_fe_maxconn + 9) / 10;
-			if (!curproxy->fullconn)
-				curproxy->fullconn = 1;
 		}
 	}
 

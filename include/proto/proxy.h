@@ -68,6 +68,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 			 unsigned int buf_out, unsigned int err_pos,
 			 const union error_snapshot_ctx *ctx,
 			 void (*show)(struct buffer *, const struct error_snapshot *));
+void proxy_adjust_all_maxconn();
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
 

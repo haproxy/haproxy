@@ -1488,6 +1488,75 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
 }
 
+/* Configure all proxies which lack a maxconn setting to use the global one by
+ * default. This avoids the common mistake consisting in setting maxconn only
+ * in the global section and discovering the hard way that it doesn't propagate
+ * through the frontends. These values are also propagated through the various
+ * targetted backends, whose fullconn is finally calculated if not yet set.
+ */
+void proxy_adjust_all_maxconn()
+{
+	struct proxy *curproxy;
+	struct switching_rule *swrule1, *swrule2;
+
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+		if (curproxy->state == PR_STSTOPPED)
+			continue;
+
+		if (!(curproxy->cap & PR_CAP_FE))
+			continue;
+
+		if (!curproxy->maxconn)
+			curproxy->maxconn = global.maxconn;
+
+		/* update the target backend's fullconn count : default_backend */
+		if (curproxy->defbe.be)
+			curproxy->defbe.be->tot_fe_maxconn += curproxy->maxconn;
+		else if ((curproxy->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN)
+			curproxy->tot_fe_maxconn += curproxy->maxconn;
+
+		list_for_each_entry(swrule1, &curproxy->switching_rules, list) {
+			/* For each target of switching rules, we update their
+			 * tot_fe_maxconn, except if a previous rule points to
+			 * the same backend or to the default backend.
+			 */
+			if (swrule1->be.backend != curproxy->defbe.be) {
+				list_for_each_entry(swrule2, &curproxy->switching_rules, list) {
+					if (swrule2 == swrule1) {
+						swrule1->be.backend->tot_fe_maxconn += curproxy->maxconn;
+						break;
+					}
+					else if (!swrule2->dynamic && swrule2->be.backend == swrule1->be.backend) {
+						/* there are multiple refs of this backend */
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	/* automatically compute fullconn if not set. We must not do it in the
+	 * loop above because cross-references are not yet fully resolved.
+	 */
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+		if (curproxy->state == PR_STSTOPPED)
+			continue;
+
+		/* If <fullconn> is not set, let's set it to 10% of the sum of
+		 * the possible incoming frontend's maxconns.
+		 */
+		if (!curproxy->fullconn && (curproxy->cap & PR_CAP_BE)) {
+			/* we have the sum of the maxconns in <total>. We only
+			 * keep 10% of that sum to set the default fullconn, with
+			 * a hard minimum of 1 (to avoid a divide by zero).
+			 */
+			curproxy->fullconn = (curproxy->tot_fe_maxconn + 9) / 10;
+			if (!curproxy->fullconn)
+				curproxy->fullconn = 1;
+		}
+	}
+}
+
 /* Config keywords below */
 
 static struct cfg_kw_list cfg_kws = {ILH, {

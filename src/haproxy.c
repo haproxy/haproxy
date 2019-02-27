@@ -2069,6 +2069,8 @@ static void init(int argc, char **argv)
 				global.maxsock += p->peers_fe->maxconn;
 	}
 
+	proxy_adjust_all_maxconn();
+
 	if (global.tune.maxpollevents <= 0)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;
 

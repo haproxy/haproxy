@@ -5481,7 +5481,8 @@ maxconn <conns>
   are not sized to accept such loads, and for this reason it is generally wise
   to assign them some reasonable connection limits.
 
-  By default, this value is set to 2000.
+  When this value is set to zero, which is the default, the global "maxconn"
+  value is used.
 
   See also : "server", global section's "maxconn", "fullconn"
 
