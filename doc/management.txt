@@ -48,13 +48,21 @@ familiar with troubleshooting utilities such as strace and tcpdump.
 2. Quick reminder about HAProxy's architecture
 ----------------------------------------------
 
-HAProxy is a single-threaded, event-driven, non-blocking daemon. This means is
+HAProxy is a multi-threaded, event-driven, non-blocking daemon. This means is
 uses event multiplexing to schedule all of its activities instead of relying on
 the system to schedule between multiple activities. Most of the time it runs as
 a single process, so the output of "ps aux" on a system will report only one
 "haproxy" process, unless a soft reload is in progress and an older process is
 finishing its job in parallel to the new one. It is thus always easy to trace
-its activity using the strace utility.
+its activity using the strace utility. In order to scale with the number of
+available processors, by default haproxy will start one worker thread per
+processor it is allowed to run on. Unless explicitly configured differently,
+the incoming traffic is spread over all these threads, all running the same
+event loop. A great care is taken to limit inter-thread dependencies to the
+strict minimum, so as to try to achieve near-linear scalability. This has some
+impacts such as the fact that a given connection is served by a single thread.
+Thus in order to use all available processing capacity, it is needed to have at
+least as many connections as there are threads, which is almost always granted.
 
 HAProxy is designed to isolate itself into a chroot jail during startup, where
 it cannot perform any file-system access at all. This is also true for the
