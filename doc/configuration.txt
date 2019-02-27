@@ -1554,6 +1554,12 @@ tune.comp.maxlevel <number>
   Each session using compression initializes the compression algorithm with
   this value. The default value is 1.
 
+tune.fail-alloc
+  If compiled with DEBUG_FAIL_ALLOC, gives the percentage of chances an
+  allocation attempt fails. Must be between 0 (no failure) and 100 (no
+  success). This is useful to debug and make sure memory failures are handled
+  gracefully.
+
 tune.h2.header-table-size <number>
   Sets the HTTP/2 dynamic header table size. It defaults to 4096 bytes and
   cannot be larger than 65536 bytes. A larger value may help certain clients
@@ -1661,12 +1667,6 @@ tune.lua.service-timeout <timeout>
   preventing infinite loops or spending too much time in Lua. This timeout
   counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
   not taken in account. The default timeout is 4s.
-
-tune.fail-alloc
-  If compiled with DEBUG_FAIL_ALLOC, gives the percentage of chances an
-  allocation attempt fails. Must be between 0 (no failure) and 100 (no
-  success). This is useful to debug and make sure memory failures are handled
-  gracefully.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
