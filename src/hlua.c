@@ -4213,8 +4213,7 @@ __LJMP static void hlua_applet_htx_reply_100_continue(lua_State *L)
 		goto fail;
 
 	data = htx->data - co_data(res);
-	res->total += data;
-	res->flags |= CF_READ_PARTIAL;
+	channel_add_input(res, data);
 	appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
 	return;
 
@@ -4635,9 +4634,8 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	/* Copy data. */
 	if (!htx_add_data(htx, ist2(data + l, max)))
 		goto snd_yield;
-	res->total += max;
-	res->flags |= CF_READ_PARTIAL;
 	htx_to_buf(htx, &res->buf);
+	channel_add_input(res, max);
 
 	/* update counters. */
 	l += max;
@@ -4988,8 +4986,7 @@ __LJMP static int hlua_applet_htx_send_response(lua_State *L)
 	}
 
 	htx_to_buf(htx, &res->buf);
-	res->total += htx->data;
-	res->flags |= CF_READ_PARTIAL;
+	channel_add_input(res, htx->data);
 
 	/* Headers sent, set the flag. */
 	appctx->appctx->ctx.hlua_apphttp.flags |= APPLET_HDR_SENT;
@@ -7392,8 +7389,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 			si_rx_room_blk(si);
 			goto out;
 		}
-                res->total++;
-		res->flags |= CF_READ_PARTIAL;
+		channel_add_input(res, 1);
 	}
 
   done:
@@ -7444,9 +7440,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 		res->buf.data = b_data(err);
                 memcpy(res->buf.area, b_head(err), b_data(err));
                 res_htx = htx_from_buf(&res->buf);
-
-                res->total += res_htx->data;
-		res->flags |= CF_READ_PARTIAL;
+		channel_add_input(res, res_htx->data);
 	}
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
