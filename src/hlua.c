@@ -4215,9 +4215,11 @@ __LJMP static void hlua_applet_htx_reply_100_continue(lua_State *L)
 	data = htx->data - co_data(res);
 	channel_add_input(res, data);
 	appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
+	htx_to_buf(htx, &res->buf);
 	return;
 
   fail:
+	htx_to_buf(htx, &res->buf);
 	hlua_pusherror(L, "Lua applet http '%s': Failed to create 100-Continue response.\n",
 		       appctx->appctx->rule->arg.hlua_rule->fcn.name);
 	WILL_LJMP(lua_error(L));
@@ -4300,6 +4302,7 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 		}
 	}
 
+	htx_to_buf(htx, &req->buf);
 	if (!stop) {
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_htx_getline_yield, TICK_ETERNITY, 0));
@@ -4472,6 +4475,8 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 		}
 	}
 
+	htx_to_buf(htx, &req->buf);
+
 	/* If we are no other data available, yield waiting for new data. */
 	if (len) {
 		if (len > 0) {
@@ -4634,7 +4639,6 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	/* Copy data. */
 	if (!htx_add_data(htx, ist2(data + l, max)))
 		goto snd_yield;
-	htx_to_buf(htx, &res->buf);
 	channel_add_input(res, max);
 
 	/* update counters. */
@@ -4647,10 +4651,12 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	 */
 	if (l < len) {
 	  snd_yield:
+		htx_to_buf(htx, &res->buf);
 		si_rx_room_blk(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_htx_send_yield, TICK_ETERNITY, 0));
 	}
 
+	htx_to_buf(htx, &res->buf);
 	return 1;
 }
 
@@ -7318,6 +7324,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 
 			if (sz > count) {
 				si_cant_get(si);
+				htx_to_buf(req_htx, &req->buf);
 				goto out;
 			}
 
@@ -7328,6 +7335,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 			if (type == HTX_BLK_EOH)
 				break;
 		}
+		htx_to_buf(req_htx, &req->buf);
 	}
 
 	/* Executes The applet if it is not done. */
