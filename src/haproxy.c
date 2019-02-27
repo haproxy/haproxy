@@ -150,6 +150,7 @@ struct global global = {
 		 }
 	},
 	.tune = {
+		.options = GTUNE_LISTENER_MQ,
 		.bufsize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.maxrewrite = -1,
 		.chksize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),

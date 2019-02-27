@@ -1638,6 +1638,17 @@ tune.idletimer <timeout>
   clicking). There should be not reason for changing this value. Please check
   tune.ssl.maxrecord below.
 
+tune.listener.multi-queue { on | off }
+  Enables ('on') or disables ('off') the listener's multi-queue accept which
+  spreads the incoming traffic to all threads a "bind" line is allowed to run
+  on instead of taking them for itself. This provides a smoother traffic
+  distribution and scales much better, especially in environments where threads
+  may be unevenly loaded due to external activity (network interrupts colliding
+  with one thread for example). This option is enabled by default, but it may
+  be forcefully disabled for troubleshooting or for situations where it is
+  estimated that the operating system already provides a good enough
+  distribution and connections are extremely short-lived.
+
 tune.lua.forced-yield <number>
   This directive forces the Lua engine to execute a yield each <number> of
   instructions executed. This permits interrupting a long script and allows the

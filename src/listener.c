@@ -818,7 +818,7 @@ void listener_accept(int fd)
 
 #if defined(USE_THREAD)
 		count = l->bind_conf->thr_count;
-		if (count > 1) {
+		if (count > 1 && (global.tune.options & GTUNE_LISTENER_MQ)) {
 			struct accept_queue_ring *ring;
 			int r, t1, t2, q1, q2;
 
@@ -1272,6 +1272,25 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 	return 0;
 }
 
+/* config parser for global "tune.listener.multi-queue", accepts "on" or "off" */
+static int cfg_parse_tune_listener_mq(char **args, int section_type, struct proxy *curpx,
+                                      struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.options |= GTUNE_LISTENER_MQ;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.options &= ~GTUNE_LISTENER_MQ;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -1313,6 +1332,14 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 }};
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.listener.multi-queue",      cfg_parse_tune_listener_mq      },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:

@@ -70,6 +70,7 @@
 #define GTUNE_USE_SYSTEMD        (1<<10)
 
 #define GTUNE_BUSY_POLLING       (1<<11)
+#define GTUNE_LISTENER_MQ        (1<<12)
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
