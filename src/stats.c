@@ -2553,6 +2553,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 			              "Action not processed because of invalid parameters."
 			              "<ul>"
 			              "<li>The action is maybe unknown.</li>"
+				      "<li>Invalid key parameter (empty or too long).</li>"
 			              "<li>The backend name is probably unknown or ambiguous (duplicated names).</li>"
 			              "<li>Some server names are probably unknown or ambiguous (duplicated names in the backend).</li>"
 			              "</ul>"
@@ -2761,41 +2762,21 @@ static int stats_process_http_post(struct stream_interface *si)
 	if (IS_HTX_STRM(s)) {
 		struct htx *htx = htxbuf(&s->req.buf);
 		struct htx_blk *blk;
-		size_t count = co_data(&s->req);
 
-		/* we need more data */
-		if (htx->extra || htx->data > count) {
-			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
-			return 0;
-		}
-
-		/* Skip the headers */
-		blk = htx_get_head_blk(htx);
-		while (count && blk) {
-			enum htx_blk_type type = htx_get_blk_type(blk);
-			uint32_t sz = htx_get_blksz(blk);
-
-			if (sz > count) {
-				appctx->ctx.stats.st_code = STAT_STATUS_NONE;
-				return 0;
+		/*  we need more data */
+		if (s->txn->req.msg_state < HTTP_MSG_DONE) {
+			/* check if we can receive more */
+			if (htx_free_data_space(htx) <= global.tune.maxrewrite) {
+				appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+				goto out;
 			}
-
-			count -= sz;
-			blk = htx_get_next_blk(htx, blk);
-
-			if (type == HTX_BLK_EOH)
-				break;
+			goto wait;
 		}
 
-		/* too large request */
-		if (count > b_size(temp)) {
-			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
-			goto out;
-		}
-
-		while (count && blk) {
+		/* The request was fully received. Copy data */
+		blk = htx_get_head_blk(htx);
+		while (blk) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
-			uint32_t sz = htx_get_blksz(blk);
 
 			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
 				break;
@@ -2807,26 +2788,26 @@ static int stats_process_http_post(struct stream_interface *si)
 					goto out;
 				}
 			}
-
-			count -= sz;
 			blk = htx_get_next_blk(htx, blk);
 		}
 	}
 	else {
 		int reql;
 
-		if (temp->size < s->txn->req.body_len) {
-			/* too large request */
-			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
-			goto out;
+		/* we need more data */
+		if (s->txn->req.msg_state < HTTP_MSG_DONE) {
+			/* check if we can receive more */
+			if (c_room(&s->req) <= global.tune.maxrewrite) {
+				appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+				goto out;
+			}
+			goto wait;
 		}
-
 		reql = co_getblk(si_oc(si), temp->area, s->txn->req.body_len,
 				 s->txn->req.eoh + 2);
 		if (reql <= 0) {
-			/* we need more data */
-			appctx->ctx.stats.st_code = STAT_STATUS_NONE;
-			return 0;
+			appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+			goto out;
 		}
 		temp->data = reql;
 	}
@@ -2857,7 +2838,7 @@ static int stats_process_http_post(struct stream_interface *si)
 				strncpy(key, cur_param + poffset, plen);
 				key[plen - 1] = '\0';
 			} else {
-				appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
+				appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
 				goto out;
 			}
 
@@ -3113,6 +3094,9 @@ static int stats_process_http_post(struct stream_interface *si)
 	}
  out:
 	return 1;
+ wait:
+	appctx->ctx.stats.st_code = STAT_STATUS_NONE;
+	return 0;
 }
 
 
