@@ -193,6 +193,7 @@ enum {
 	STAT_STATUS_NONE,	/* nothing happened (no action chosen or servers state didn't change) */
 	STAT_STATUS_PART,	/* the action is partially successful */
 	STAT_STATUS_UNKN,	/* an unknown error occurred, shouldn't happen */
+	STAT_STATUS_IVAL,	/* invalid requests (chunked or invalid post) */
 	STAT_STATUS_SIZE
 };
 

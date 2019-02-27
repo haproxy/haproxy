@@ -84,6 +84,7 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 	[STAT_STATUS_NONE] = "NONE",
 	[STAT_STATUS_PART] = "PART",
 	[STAT_STATUS_UNKN] = "UNKN",
+	[STAT_STATUS_IVAL] = "IVAL",
 };
 
 /* This function handles a server error at the stream interface level. The

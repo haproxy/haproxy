@@ -2572,6 +2572,16 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 			              scope_txt);
 			break;
+		case STAT_STATUS_IVAL:
+			chunk_appendf(&trash,
+			              "<p><div class=active_down>"
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
+			              "<b>Invalid requests (unsupported method or chunked encoded request).</b>"
+			              "</div>\n", uri->uri_prefix,
+			              (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
+			break;
 		default:
 			chunk_appendf(&trash,
 			              "<p><div class=active_no_check>"
