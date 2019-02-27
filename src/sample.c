@@ -2776,6 +2776,175 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
+#define GRPC_MSG_COMPRESS_FLAG_SZ 1 /* 1 byte */
+#define GRPC_MSG_LENGTH_SZ        4 /* 4 bytes */
+#define GRPC_MSG_HEADER_SZ        (GRPC_MSG_COMPRESS_FLAG_SZ + GRPC_MSG_LENGTH_SZ)
+
+/*
+ * Extract the field value of an input binary sample. Takes a mandatory argument:
+ * the protocol buffers field identifier (dotted notation) internally represented
+ * as an array of unsigned integers and its size.
+ * Return 1 if the field was found, 0 if not.
+ */
+static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	unsigned char *pos;
+	size_t grpc_left;
+	unsigned int *fid;
+	size_t fid_sz;
+
+	if (!smp->strm)
+		return 0;
+
+	fid = arg_p[0].data.fid.ids;
+	fid_sz = arg_p[0].data.fid.sz;
+
+	pos = (unsigned char *)smp->data.u.str.area;
+	/* Remaining bytes in the body to be parsed. */
+	grpc_left = smp->data.u.str.data;
+
+	while (grpc_left > GRPC_MSG_COMPRESS_FLAG_SZ + GRPC_MSG_LENGTH_SZ) {
+		int next_field, found;
+		size_t grpc_msg_len, left;
+		unsigned int wire_type, field_number;
+		uint64_t key, elen;
+
+		grpc_msg_len = left = ntohl(*(uint32_t *)(pos + GRPC_MSG_COMPRESS_FLAG_SZ));
+
+		pos += GRPC_MSG_HEADER_SZ;
+		grpc_left -= GRPC_MSG_HEADER_SZ;
+
+		if (grpc_left < left)
+			return 0;
+
+		found = 1;
+		/* Length of the length-delimited messages if any. */
+		elen = 0;
+
+		/* Message decoding: there may be serveral key+value protobuf pairs by
+		 * gRPC message.
+		 */
+		next_field = 0;
+		while (next_field < fid_sz) {
+			uint64_t sleft;
+
+			if ((ssize_t)left <= 0)
+				return 0;
+
+			/* Remaining bytes saving. */
+			sleft = left;
+
+			/* Key decoding */
+			if (!protobuf_decode_varint(&key, &pos, &left))
+				return 0;
+
+			wire_type = key & 0x7;
+			field_number = key >> 3;
+			found = field_number == fid[next_field];
+
+			if (found && field_number != fid[next_field])
+				found = 0;
+
+			switch (wire_type) {
+			case PBUF_TYPE_VARINT:
+			{
+				if (!found) {
+					protobuf_skip_varint(&pos, &left);
+				} else if (next_field == fid_sz - 1) {
+					int varint_len;
+					unsigned char *spos = pos;
+
+					varint_len = protobuf_varint_getlen(&pos, &left);
+					if (varint_len == -1)
+						return 0;
+
+					smp->data.type = SMP_T_BIN;
+					smp->data.u.str.area = (char *)spos;
+					smp->data.u.str.data = varint_len;
+					smp->flags = SMP_F_VOL_TEST;
+					return 1;
+				}
+				break;
+			}
+
+			case PBUF_TYPE_64BIT:
+			{
+				if (!found) {
+					pos += sizeof(uint64_t);
+					left -= sizeof(uint64_t);
+				} else if (next_field == fid_sz - 1) {
+					smp->data.type = SMP_T_BIN;
+					smp->data.u.str.area = (char *)pos;
+					smp->data.u.str.data = sizeof(uint64_t);
+					smp->flags = SMP_F_VOL_TEST;
+					return 1;
+				}
+				break;
+			}
+
+			case PBUF_TYPE_LENGTH_DELIMITED:
+			{
+				/* Decode the length of this length-delimited field. */
+				if (!protobuf_decode_varint(&elen, &pos, &left))
+					return 0;
+
+				if (elen > left)
+					return 0;
+
+				/* The size of the current field is computed from here do skip
+				 * the bytes to encode the previous lenght.*
+				 */
+				sleft = left;
+				if (!found) {
+					/* Skip the current length-delimited field. */
+					pos += elen;
+					left -= elen;
+					break;
+				} else if (next_field == fid_sz - 1) {
+					smp->data.type = SMP_T_BIN;
+					smp->data.u.str.area = (char *)pos;
+					smp->data.u.str.data = elen;
+					smp->flags = SMP_F_VOL_TEST;
+					return 1;
+				}
+				break;
+			}
+
+			case PBUF_TYPE_32BIT:
+			{
+				if (!found) {
+					pos += sizeof(uint32_t);
+					left -= sizeof(uint32_t);
+				} else if (next_field == fid_sz - 1) {
+					smp->data.type = SMP_T_BIN;
+					smp->data.u.str.area = (char *)pos;
+					smp->data.u.str.data = sizeof(uint32_t);
+					smp->flags = SMP_F_VOL_TEST;
+					return 1;
+				}
+				break;
+			}
+
+			default:
+				return 0;
+			}
+
+			if ((ssize_t)(elen) > 0)
+				elen -= sleft - left;
+
+			if (found) {
+				next_field++;
+			}
+			else if ((ssize_t)elen <= 0) {
+				next_field = 0;
+			}
+		}
+		grpc_left -= grpc_msg_len;
+	}
+
+	return 0;
+}
+
 /* This function checks the "strcmp" converter's arguments and extracts the
  * variable name and its scope.
  */
@@ -3161,6 +3330,9 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
+
+	/* gRPC converters. */
+	{ "ungrpc", sample_conv_ungrpc,    ARG1(1,PBUF_FNUM), NULL, SMP_T_BIN, SMP_T_BIN  },
 	{ "varint", sample_conv_varint,    0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "svarint", sample_conv_svarint,  0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
 
