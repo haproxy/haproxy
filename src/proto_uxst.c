@@ -315,7 +315,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		ready = 0;
 
 	if (!(ext && ready) && /* only listen if not already done by external process */
-	    listen(fd, listener->backlog ? listener->backlog : listener->maxconn) < 0) {
+	    listen(fd, listener_backlog(listener)) < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "cannot listen to UNIX socket";
 		goto err_unlink_temp;

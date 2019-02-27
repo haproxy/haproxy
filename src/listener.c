@@ -350,7 +350,7 @@ int resume_listener(struct listener *l)
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
 	    l->state == LI_PAUSED &&
-	    listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0) {
+	    listen(l->fd, listener_backlog(l)) != 0) {
 		ret = 0;
 		goto end;
 	}
@@ -566,6 +566,27 @@ void delete_listener(struct listener *listener)
 		HA_ATOMIC_SUB(&listeners, 1);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+}
+
+/* Returns a suitable value for a listener's backlog. It uses the listener's,
+ * otherwise the frontend's backlog, otherwise the listener's maxconn,
+ * otherwise the frontend's maxconn, otherwise 1024.
+ */
+int listener_backlog(const struct listener *l)
+{
+	if (l->backlog)
+		return l->backlog;
+
+	if (l->bind_conf->frontend->backlog)
+		return l->bind_conf->frontend->backlog;
+
+	if (l->maxconn)
+		return l->maxconn;
+
+	if (l->bind_conf->frontend->maxconn)
+		return l->bind_conf->frontend->maxconn;
+
+	return 1024;
 }
 
 /* This function is called on a read event from a listening socket, corresponding
@@ -1101,7 +1122,7 @@ static int bind_parse_accept_netscaler_cip(char **args, int cur_arg, struct prox
 
 	val = atol(args[cur_arg + 1]);
 	if (val <= 0) {
-		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		memprintf(err, "'%s' : invalid value %d, must be >= 0", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1125,7 +1146,7 @@ static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct
 	}
 
 	val = atol(args[cur_arg + 1]);
-	if (val <= 0) {
+	if (val < 0) {
 		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}

@@ -298,7 +298,6 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			l->maxconn = global.stats_fe->maxconn;
-			l->backlog = global.stats_fe->backlog;
 			l->accept = session_accept_fd;
 			l->default_target = global.stats_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
@@ -2522,7 +2521,6 @@ int mworker_cli_proxy_new_listener(char *line)
 
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->maxconn = 10;
-		l->backlog = 10;
 		l->accept = session_accept_fd;
 		l->default_target = mworker_proxy->default_target;
 		/* don't make the peers subject to global limits and don't close it in the master */
@@ -2592,7 +2590,6 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->maxconn = global.stats_fe->maxconn;
-		l->backlog = global.stats_fe->backlog;
 		l->accept = session_accept_fd;
 		l->default_target = global.stats_fe->default_target;
 		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);

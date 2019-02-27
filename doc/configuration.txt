@@ -10885,7 +10885,7 @@ alpn <protocols>
        bind :443 ssl crt pub.pem alpn h2,http/1.1
 
 backlog <backlog>
-  Sets the socket's backlog to this value. If unspecified, the frontend's
+  Sets the socket's backlog to this value. If unspecified or 0, the frontend's
   backlog is used instead, which generally defaults to the maxconn value.
 
 curves <curves>

@@ -109,6 +109,12 @@ void delete_listener(struct listener *listener);
  */
 void listener_accept(int fd);
 
+/* Returns a suitable value for a listener's backlog. It uses the listener's,
+ * otherwise the frontend's backlog, otherwise the listener's maxconn,
+ * otherwise the frontend's maxconn, otherwise 1024.
+ */
+int listener_backlog(const struct listener *l);
+
 /* Notify the listener that a connection initiated from it was released. This
  * is used to keep the connection count consistent and to possibly re-open
  * listening when it was limited.

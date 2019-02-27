@@ -1017,7 +1017,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #if defined(TCP_FASTOPEN)
 	if (listener->options & LI_O_TCP_FO) {
 		/* TFO needs a queue length, let's use the configured backlog */
-		int qlen = listener->backlog ? listener->backlog : listener->maxconn;
+		int qlen = listener_backlog(listener);
 		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
 			msg = "cannot enable TCP_FASTOPEN";
 			err |= ERR_WARN;
@@ -1058,7 +1058,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		ready = 0;
 
 	if (!(ext && ready) && /* only listen if not already done by external process */
-	    listen(fd, listener->backlog ? listener->backlog : listener->maxconn) == -1) {
+	    listen(fd, listener_backlog(listener)) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot listen to socket";
 		goto tcp_close_return;
@@ -1150,7 +1150,7 @@ int tcp_pause_listener(struct listener *l)
 	if (shutdown(l->fd, SHUT_WR) != 0)
 		return -1; /* Solaris dies here */
 
-	if (listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
+	if (listen(l->fd, listener_backlog(l)) != 0)
 		return -1; /* OpenBSD dies here */
 
 	if (shutdown(l->fd, SHUT_RD) != 0)
