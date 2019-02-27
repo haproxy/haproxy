@@ -3136,6 +3136,7 @@ static int stats_send_htx_headers(struct stream_interface *si, struct htx *htx)
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto full;
 
+	channel_add_input(&s->res, htx->data);
 	return 1;
 
   full:
@@ -3195,6 +3196,7 @@ static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto full;
 
+	channel_add_input(&s->res, htx->data);
 	return 1;
 
 full:
