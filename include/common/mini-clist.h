@@ -261,6 +261,9 @@ struct cond_wordlist {
 			n->p = p;                                          \
 			p->n = n;                                          \
 			__ha_barrier_store();                              \
+			(el)->p = (el);                                    \
+			(el)->n = (el);	                                   \
+			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
 	} while (0)
@@ -307,6 +310,9 @@ struct cond_wordlist {
 			 }                                                 \
 			 (lh)->n = n2;                                     \
 			 (n2)->p = (lh);                                   \
+			 __ha_barrier_store();                             \
+			 (n)->p = (n);                                     \
+			 (n)->n = (n);	                                   \
 			 __ha_barrier_store();                             \
 			 _ret = LIST_ELEM(n, pt, el);                      \
 			 break;                                            \
