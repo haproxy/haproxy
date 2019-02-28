@@ -528,7 +528,6 @@ static inline void conn_prepare(struct connection *conn, const struct protocol *
 	conn->ctrl = proto;
 	conn->xprt = xprt;
 	conn->mux  = NULL;
-	conn->xprt_st = 0;
 	conn->xprt_ctx = NULL;
 	conn->ctx = NULL;
 }
@@ -552,8 +551,6 @@ static inline void conn_init(struct connection *conn)
 {
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
-	conn->tmp_early_data = -1;
-	conn->sent_early_data = 0;
 	conn->mux = NULL;
 	conn->ctx = NULL;
 	conn->owner = NULL;

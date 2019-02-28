@@ -242,6 +242,10 @@ struct ssl_sock_ctx {
 	SSL *ssl;
 	struct xprt_ops *xprt;
 	void *xprt_ctx;
+	int xprt_st;                  /* transport layer state, initialized to zero */
+	int tmp_early_data;           /* 1st byte of early data, if any */
+	int sent_early_data;          /* Amount of early data we sent so far */
+
 };
 
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
@@ -1479,6 +1483,7 @@ out:
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 	BIO *write_bio;
 	(void)ret; /* shut gcc stupid warning */
 
@@ -1496,7 +1501,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 #endif
 
 	if ((where & SSL_CB_ACCEPT_LOOP) == SSL_CB_ACCEPT_LOOP) {
-		if (!(conn->xprt_st & SSL_SOCK_ST_FL_16K_WBFSIZE)) {
+		if (!(ctx->xprt_st & SSL_SOCK_ST_FL_16K_WBFSIZE)) {
 			/* Long certificate chains optimz
 			   If write and read bios are differents, we
 			   consider that the buffering was activated,
@@ -1505,7 +1510,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 			write_bio = SSL_get_wbio(ssl);
 			if (write_bio != SSL_get_rbio(ssl)) {
 				BIO_set_write_buffer_size(write_bio, 16384);
-				conn->xprt_st |= SSL_SOCK_ST_FL_16K_WBFSIZE;
+				ctx->xprt_st |= SSL_SOCK_ST_FL_16K_WBFSIZE;
 			}
 		}
 	}
@@ -1518,12 +1523,15 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 {
 	SSL *ssl;
 	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
 	int err, depth;
 
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
-	conn->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
+	ctx = conn->xprt_ctx;
+
+	ctx->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
 	if (ok) /* no errors */
 		return ok;
@@ -1533,9 +1541,9 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	/* check if CA error needs to be ignored */
 	if (depth > 0) {
-		if (!SSL_SOCK_ST_TO_CA_ERROR(conn->xprt_st)) {
-			conn->xprt_st |= SSL_SOCK_CA_ERROR_TO_ST(err);
-			conn->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
+		if (!SSL_SOCK_ST_TO_CA_ERROR(ctx->xprt_st)) {
+			ctx->xprt_st |= SSL_SOCK_CA_ERROR_TO_ST(err);
+			ctx->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
 		if (__objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err)) {
@@ -1548,8 +1556,8 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		return 0;
 	}
 
-	if (!SSL_SOCK_ST_TO_CRTERROR(conn->xprt_st))
-		conn->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
+	if (!SSL_SOCK_ST_TO_CRTERROR(ctx->xprt_st))
+		ctx->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
 	if (__objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err)) {
@@ -1679,10 +1687,11 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
 		struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+		struct ssl_sock_ctx *ctx = conn->ctx;
 		const unsigned char *p = buf;
 		unsigned int payload;
 
-		conn->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
 
 		/* Check if this is a CVE-2014-0160 exploitation attempt. */
 		if (*p != TLS1_HB_REQUEST)
@@ -5100,6 +5109,8 @@ static int ssl_sock_init(struct connection *conn)
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		return -1;
 	}
+	ctx->sent_early_data = 0;
+	ctx->tmp_early_data = -1;
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
@@ -5255,7 +5266,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (conn->flags & CO_FL_EARLY_SSL_HS) {
 		size_t read_data;
 
-		ret = SSL_read_early_data(ctx->ssl, &conn->tmp_early_data,
+		ret = SSL_read_early_data(ctx->ssl, &ctx->tmp_early_data,
 		    1, &read_data);
 		if (ret == SSL_READ_EARLY_DATA_ERROR)
 			goto check_error;
@@ -5326,20 +5337,20 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 #endif
 					if (empty_handshake) {
 						if (!errno) {
-							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+							if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 								conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 							else
 								conn->err_code = CO_ER_SSL_EMPTY;
 						}
 						else {
-							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+							if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 								conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 							else
 								conn->err_code = CO_ER_SSL_ABORT;
 						}
 					}
 					else {
-						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+						if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 						else
 							conn->err_code = CO_ER_SSL_HANDSHAKE;
@@ -5357,7 +5368,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				 */
 				conn_sock_drain(conn);
 				if (!conn->err_code)
-					conn->err_code = (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
+					conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 						CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
 				goto out_error;
 			}
@@ -5410,20 +5421,20 @@ check_error:
 #endif
 				if (empty_handshake) {
 					if (!errno) {
-						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+						if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 						else
 							conn->err_code = CO_ER_SSL_EMPTY;
 					}
 					else {
-						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+						if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 						else
 							conn->err_code = CO_ER_SSL_ABORT;
 					}
 				}
 				else {
-					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+					if (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
 						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 					else
 						conn->err_code = CO_ER_SSL_HANDSHAKE;
@@ -5441,7 +5452,7 @@ check_error:
 			 */
 			conn_sock_drain(conn);
 			if (!conn->err_code)
-				conn->err_code = (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
+				conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 					CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
 			goto out_error;
 		}
@@ -5552,13 +5563,13 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
 			try = count;
 
 		if (((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_EARLY_SSL_HS) &&
-		    conn->tmp_early_data != -1) {
-			*b_tail(buf) = conn->tmp_early_data;
+		    ctx->tmp_early_data != -1) {
+			*b_tail(buf) = ctx->tmp_early_data;
 			done++;
 			try--;
 			count--;
 			b_add(buf, 1);
-			conn->tmp_early_data = -1;
+			ctx->tmp_early_data = -1;
 			continue;
 		}
 
@@ -5712,7 +5723,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 			try = count;
 
 		if (!(flags & CO_SFL_STREAMER) &&
-		    !(conn->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&
+		    !(ctx->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&
 		    global_ssl.max_record && try > global_ssl.max_record) {
 			try = global_ssl.max_record;
 		}
@@ -5721,7 +5732,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 			 * we're not limiting the upcoming send(), because if it
 			 * fails, we'll have to retry with at least as many data.
 			 */
-			conn->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
+			ctx->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
 		}
 
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
@@ -5737,8 +5748,8 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 					max_early = 0;
 			}
 
-			if (try + conn->sent_early_data > max_early) {
-				try -= (try + conn->sent_early_data) - max_early;
+			if (try + ctx->sent_early_data > max_early) {
+				try -= (try + ctx->sent_early_data) - max_early;
 				if (try <= 0) {
 					if (!(conn->flags & CO_FL_EARLY_SSL_HS))
 						conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -5748,7 +5759,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 			ret = SSL_write_early_data(ctx->ssl, b_peek(buf, done), try, &written_data);
 			if (ret == 1) {
 				ret = written_data;
-				conn->sent_early_data += ret;
+				ctx->sent_early_data += ret;
 				if (objt_server(conn->target)) {
 					conn->flags &= ~CO_FL_EARLY_SSL_HS;
 					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_EARLY_DATA;
@@ -5767,7 +5778,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 		if (ret > 0) {
 			/* A send succeeded, so we can consier ourself connected */
 			conn->flags |= CO_FL_CONNECTED;
-			conn->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
+			ctx->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
 			count -= ret;
 			done += ret;
 		}
@@ -6302,10 +6313,12 @@ int ssl_sock_get_cert_used_sess(struct connection *conn)
 /* returns 1 if client passed a certificate for this connection, 0 if not */
 int ssl_sock_get_cert_used_conn(struct connection *conn)
 {
+	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
 
-	return SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
+	return SSL_SOCK_ST_FL_VERIFY_DONE & ctx->xprt_st ? 1 : 0;
 }
 
 /* returns result from SSL verify */
@@ -6374,10 +6387,13 @@ static int
 smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
+
+	ctx = conn->xprt_ctx;
 
 	if (!(conn->flags & CO_FL_CONNECTED)) {
 		smp->flags |= SMP_F_MAY_CHANGE;
@@ -6386,7 +6402,7 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 
 	smp->flags = 0;
 	smp->data.type = SMP_T_BOOL;
-	smp->data.u.sint = SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
+	smp->data.u.sint = SSL_SOCK_ST_FL_VERIFY_DONE & ctx->xprt_st ? 1 : 0;
 
 	return 1;
 }
@@ -7357,10 +7373,12 @@ static int
 smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
+	ctx = conn->xprt_ctx;
 
 	if (!(conn->flags & CO_FL_CONNECTED)) {
 		smp->flags = SMP_F_MAY_CHANGE;
@@ -7368,7 +7386,7 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 	}
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = (unsigned long long int)SSL_SOCK_ST_TO_CA_ERROR(conn->xprt_st);
+	smp->data.u.sint = (unsigned long long int)SSL_SOCK_ST_TO_CA_ERROR(ctx->xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -7379,6 +7397,7 @@ static int
 smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn || conn->xprt != &ssl_sock)
@@ -7388,9 +7407,10 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
+	ctx = conn->xprt_ctx;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CAEDEPTH(conn->xprt_st);
+	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CAEDEPTH(ctx->xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -7401,6 +7421,7 @@ static int
 smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
 
 	conn = objt_conn(smp->sess->origin);
 	if (!conn || conn->xprt != &ssl_sock)
@@ -7411,8 +7432,10 @@ smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	}
 
+	ctx = conn->xprt_ctx;
+
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CRTERROR(conn->xprt_st);
+	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CRTERROR(ctx->xprt_st);
 	smp->flags = 0;
 
 	return 1;

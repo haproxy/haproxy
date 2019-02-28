@@ -442,9 +442,6 @@ struct connection {
 	struct wait_event *recv_wait; /* Task to wake when we're ready to recv */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
 	struct list session_list;     /* List of attached connections to a session */
-	int xprt_st;                  /* transport layer state, initialized to zero */
-	int tmp_early_data;           /* 1st byte of early data, if any */
-	int sent_early_data;          /* Amount of early data we sent so far */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;
 	int (*xprt_done_cb)(struct connection *conn);  /* callback to notify of end of handshake */
