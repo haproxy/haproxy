@@ -292,7 +292,7 @@ struct cond_wordlist {
 				 __ha_barrier_store();                     \
 				 continue;                                 \
 			 }                                                 \
-			 p2 = HA_ATOMIC_XCHG(&n2->p, LLIST_BUSY);          \
+			 p2 = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);           \
 			 if (p2 == LLIST_BUSY) {                           \
 				 n->n = n2;                                \
 				 n->p = p;                                 \
