@@ -189,6 +189,7 @@ struct cond_wordlist {
 			}                                                  \
 			(el)->n = n;                                       \
 			(el)->p = p;                                       \
+			__ha_barrier_store();                              \
 			n->p = (el);                                       \
 			__ha_barrier_store();                              \
 			p->n = (el);                                       \
@@ -214,6 +215,7 @@ struct cond_wordlist {
 			}                                                  \
 			(el)->n = n;                                       \
 			(el)->p = p;                                       \
+			__ha_barrier_store();                              \
 			n->p = (el);                                       \
 			__ha_barrier_store();                              \
 			p->n = (el);                                       \
@@ -276,6 +278,7 @@ struct cond_wordlist {
 			         continue;                                 \
 			 if (n == (lh)) {                                  \
 				 (lh)->n = lh;                             \
+				 __ha_barrier_store();                     \
 				 _ret = NULL;                              \
 				 break;                                    \
 			 }                                                 \
@@ -288,6 +291,7 @@ struct cond_wordlist {
 			 n2 = HA_ATOMIC_XCHG(&n->n, LLIST_BUSY);           \
 			 if (n2 == LLIST_BUSY) {                           \
 				 n->p = p;                                 \
+				 __ha_barrier_store();                     \
 				 (lh)->n = n;                              \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
@@ -296,6 +300,7 @@ struct cond_wordlist {
 			 if (p2 == LLIST_BUSY) {                           \
 				 n->n = n2;                                \
 				 n->p = p;                                 \
+				 __ha_barrier_store();                     \
 				 (lh)->n = n;                              \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
