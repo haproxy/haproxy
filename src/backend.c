@@ -1308,11 +1308,9 @@ int connect_server(struct stream *s)
 		    (((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 		     s->txn && (s->txn->flags & TX_NOT_FIRST)))) {
 			srv_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[tid],
-			    struct connection *, list);
-			if (srv_conn) {
-				LIST_INIT(&srv_conn->list);
+			                           struct connection *, list);
+			if (srv_conn)
 				reuse_orphan = 1;
-			}
 		}
 
 		/* If we've picked a connection from the pool, we now have to
