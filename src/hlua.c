@@ -154,7 +154,7 @@ static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
 
 /* Applet status flags */
 #define APPLET_DONE     0x01 /* applet processing is done. */
-#define APPLET_100C     0x02 /* 100 continue expected. */
+/* unused: 0x02 */
 #define APPLET_HDR_SENT 0x04 /* Response header sent. */
 #define APPLET_CHUNKED  0x08 /* Use transfer encoding chunked. */
 #define APPLET_LAST_CHK 0x10 /* Last chunk sent. */
@@ -4194,39 +4194,6 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 	return 1;
 }
 
-__LJMP static void hlua_applet_htx_reply_100_continue(lua_State *L)
-{
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
-	struct channel *res = si_ic(si);
-	struct htx *htx = htx_from_buf(&res->buf);
-	struct htx_sl *sl;
-	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
-			      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
-	size_t data;
-
-	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
-			    ist("HTTP/1.1"), ist("100"), ist("Continue"));
-	if (!sl)
-		goto fail;
-	sl->info.res.status = 100;
-	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM))
-		goto fail;
-
-	data = htx->data - co_data(res);
-	channel_add_input(res, data);
-	appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
-	htx_to_buf(htx, &res->buf);
-	return;
-
-  fail:
-	htx_to_buf(htx, &res->buf);
-	hlua_pusherror(L, "Lua applet http '%s': Failed to create 100-Continue response.\n",
-		       appctx->appctx->rule->arg.hlua_rule->fcn.name);
-	WILL_LJMP(lua_error(L));
-}
-
-
 /* If expected data not yet available, it returns a yield. This function
  * consumes the data in the buffer. It returns a string containing the
  * data. This string can be empty.
@@ -4240,10 +4207,6 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 	struct htx_blk *blk;
 	size_t count;
 	int stop = 0;
-
-	/* Maybe we cant send a 100-continue ? */
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C)
-		MAY_LJMP(hlua_applet_htx_reply_100_continue(L));
 
 	htx = htx_from_buf(&req->buf);
 	count = co_data(req);
@@ -4323,28 +4286,11 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 {
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream_interface *si = appctx->appctx->owner;
-	struct channel *chn = si_ic(si);
 	int ret;
 	const char *blk1;
 	size_t len1;
 	const char *blk2;
 	size_t len2;
-
-	/* Maybe we cant send a 100-continue ? */
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = ci_putblk(chn, HTTP_100.ptr, HTTP_100.len);
-		/* if ret == -2 or -3 the channel closed or the message si too
-		 * big for the buffers. We cant send anything. So, we ignoring
-		 * the error, considers that the 100-continue is sent, and try
-		 * to receive.
-		 * If ret is -1, we dont have room in the buffer, so we yield.
-		 */
-		if (ret == -1) {
-			si_rx_room_blk(si);
-			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
-		}
-		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
-	}
 
 	/* Check for the end of the data. */
 	if (appctx->appctx->ctx.hlua_apphttp.left_bytes <= 0) {
@@ -4416,10 +4362,6 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 	struct htx_blk *blk;
 	size_t count;
 	int len;
-
-	/* Maybe we cant send a 100-continue ? */
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C)
-		MAY_LJMP(hlua_applet_htx_reply_100_continue(L));
 
 	htx = htx_from_buf(&req->buf);
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
@@ -4502,28 +4444,11 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct stream_interface *si = appctx->appctx->owner;
 	int len = MAY_LJMP(luaL_checkinteger(L, 2));
-	struct channel *chn = si_ic(si);
 	int ret;
 	const char *blk1;
 	size_t len1;
 	const char *blk2;
 	size_t len2;
-
-	/* Maybe we cant send a 100-continue ? */
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_100C) {
-		ret = ci_putblk(chn, HTTP_100.ptr, HTTP_100.len);
-		/* if ret == -2 or -3 the channel closed or the message si too
-		 * big for the buffers. We cant send anything. So, we ignoring
-		 * the error, considers that the 100-continue is sent, and try
-		 * to receive.
-		 * If ret is -1, we dont have room in the buffer, so we yield.
-		 */
-		if (ret == -1) {
-			si_rx_room_blk(si);
-			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
-		}
-		appctx->appctx->ctx.hlua_apphttp.flags &= ~APPLET_100C;
-	}
 
 	/* Read the maximum amount of data available. */
 	ret = co_getblk_nc(si_oc(si), &blk1, &len1, &blk2, &len2);
@@ -7141,8 +7066,6 @@ static void hlua_applet_tcp_release(struct appctx *ctx)
 static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct stream *strm)
 {
 	struct stream_interface *si = ctx->owner;
-	struct channel *req = si_oc(si);
-	struct http_msg *msg;
 	struct http_txn *txn;
 	struct hlua *hlua;
 	char **arg;
@@ -7150,7 +7073,6 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	const char *error;
 
 	txn = strm->txn;
-	msg = &txn->req;
 
 	/* We want two things in HTTP mode :
 	 *  - enforce server-close mode if we were in keep-alive, so that the
@@ -7231,31 +7153,6 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 		return 0;
 	}
 	hlua->nargs = 1;
-
-	/* Look for a 100-continue expected. */
-	if (msg->flags & HTTP_MSGF_VER_11) {
-		if (IS_HTX_STRM(si_strm(si))) {
-			/* HTX version */
-			struct htx *htx = htxbuf(&req->buf);
-			struct ist hdr = { .ptr = "Expect", .len = 6 };
-                        struct http_hdr_ctx hdr_ctx;
-
-                        hdr_ctx.blk = NULL;
-                        /* Expect is allowed in 1.1, look for it */
-                        if (http_find_header(htx, hdr, &hdr_ctx, 0) &&
-                            unlikely(isteqi(hdr_ctx.value, ist2("100-continue", 12))))
-				ctx->ctx.hlua_apphttp.flags |= APPLET_100C;
-		}
-		else {
-			/* Legacy HTTP version */
-			struct hdr_ctx hdr;
-
-			hdr.idx = 0;
-			if (http_find_header2("Expect", 6, ci_head(req), &txn->hdr_idx, &hdr) &&
-			    unlikely(hdr.vlen == 12 && strncasecmp(hdr.line+hdr.val, "100-continue", 12) == 0))
-				ctx->ctx.hlua_apphttp.flags |= APPLET_100C;
-		}
-	}
 
 	/* push keywords in the stack. */
 	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
