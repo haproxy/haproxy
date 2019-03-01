@@ -716,6 +716,7 @@ void mworker_reload()
 	int next_argc = 0;
 	int j;
 	char *msg = NULL;
+	struct rlimit limit;
 	struct per_thread_deinit_fct *ptdf;
 
 	mworker_block_signals();
@@ -738,6 +739,16 @@ void mworker_reload()
 		ptdf->fct();
 	if (fdtab)
 		deinit_pollers();
+
+	/* restore the initial FD limits */
+	limit.rlim_cur = rlim_fd_cur_at_boot;
+	limit.rlim_max = rlim_fd_max_at_boot;
+	if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
+		getrlimit(RLIMIT_NOFILE, &limit);
+		ha_warning("Failed to restore initial FD limits (cur=%u max=%u), using cur=%u max=%u\n",
+			   rlim_fd_cur_at_boot, rlim_fd_max_at_boot,
+			   (unsigned int)limit.rlim_cur, (unsigned int)limit.rlim_max);
+	}
 
 	/* compute length  */
 	while (next_argv[next_argc])
