@@ -2780,7 +2780,9 @@ int main(int argc, char **argv)
 		global.rlimit_nofile = global.maxsock;
 
 	if (global.rlimit_nofile) {
-		limit.rlim_cur = limit.rlim_max = global.rlimit_nofile;
+		limit.rlim_cur = global.rlimit_nofile;
+		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
+
 		if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
 			/* try to set it to the max possible at least */
 			getrlimit(RLIMIT_NOFILE, &limit);
