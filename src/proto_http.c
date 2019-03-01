@@ -1381,6 +1381,25 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
 	return ret;
 }
 
+/* Handle Expect: 100-continue for HTTP/1.1 messages if necessary. */
+static void http_handle_expect_hdr(struct stream *s, struct channel *req, struct http_msg *msg)
+{
+	/* If we have HTTP/1.1 message with a body and Expect: 100-continue,
+	 * then we must send an HTTP/1.1 100 Continue intermediate response.
+	 */
+	if (msg->msg_state == HTTP_MSG_BODY && (msg->flags & HTTP_MSGF_VER_11) &&
+	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
+		struct hdr_ctx ctx;
+		ctx.idx = 0;
+		/* Expect is allowed in 1.1, look for it */
+		if (http_find_header2("Expect", 6, ci_head(req), &s->txn->hdr_idx, &ctx) &&
+		    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
+			co_inject(&s->res, HTTP_100.ptr, HTTP_100.len);
+			http_remove_header2(&s->txn->req, &s->txn->hdr_idx, &ctx);
+		}
+	}
+}
+
 /*
  * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
  * built according to <fmt> log line format.
@@ -3160,33 +3179,16 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	if (IS_HTX_STRM(s))
 		return htx_wait_for_request_body(s, req, an_bit);
 
+	if (msg->msg_state < HTTP_MSG_BODY)
+		goto missing_data;
+
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
 	 * into this. We were brought here after HTTP header analysis, so all
 	 * related structures are ready.
 	 */
-
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* This is the first call */
-		if (msg->msg_state < HTTP_MSG_BODY)
-			goto missing_data;
-
-		if (msg->msg_state < HTTP_MSG_100_SENT) {
-			/* If we have HTTP/1.1 and Expect: 100-continue, then we must
-			 * send an HTTP/1.1 100 Continue intermediate response.
-			 */
-			if (msg->flags & HTTP_MSGF_VER_11) {
-				struct hdr_ctx ctx;
-				ctx.idx = 0;
-				/* Expect is allowed in 1.1, look for it */
-				if (http_find_header2("Expect", 6, ci_head(req), &txn->hdr_idx, &ctx) &&
-				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-					co_inject(&s->res, HTTP_100.ptr, HTTP_100.len);
-					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
-				}
-			}
-			msg->msg_state = HTTP_MSG_100_SENT;
-		}
+		http_handle_expect_hdr(s, req, msg);
 
 		/* we have msg->sov which points to the first byte of message body.
 		 * ci_head(req) still points to the beginning of the message. We
