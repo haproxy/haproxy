@@ -1314,12 +1314,8 @@ int http_handle_stats(struct stream *s, struct channel *req)
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		appctx->st0 = STAT_HTTP_HEAD;
 	else if (txn->meth == HTTP_METH_POST && (msg->flags & HTTP_MSGF_CNT_LEN)) {
-		if (appctx->ctx.stats.flags & STAT_ADMIN) {
-			/* we'll need the request body, possibly after sending 100-continue */
-			if (msg->msg_state < HTTP_MSG_DATA)
-				req->analysers |= AN_REQ_HTTP_BODY;
+		if (appctx->ctx.stats.flags & STAT_ADMIN)
 			appctx->st0 = STAT_HTTP_POST;
-		}
 		else {
 			/* POST without admin level */
 			appctx->ctx.stats.flags &= ~STAT_CHUNKED;
@@ -2649,6 +2645,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
+		http_handle_expect_hdr(s, req, msg);
+
 		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
 		if (!(s->flags & SF_FINST_MASK))
@@ -2658,6 +2656,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		req->analysers &= (AN_REQ_HTTP_BODY | AN_REQ_FLT_HTTP_HDRS | AN_REQ_FLT_END);
 		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
+
+		req->flags |= CF_SEND_DONTWAIT;
+		s->flags |= SF_ASSIGNED;
 		goto done;
 	}
 
