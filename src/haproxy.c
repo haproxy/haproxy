@@ -220,6 +220,8 @@ static char **next_argv = NULL;
 struct list proc_list = LIST_HEAD_INIT(proc_list);
 
 int master = 0; /* 1 if in master, 0 if in child */
+unsigned int rlim_fd_cur_at_boot = 0;
+unsigned int rlim_fd_max_at_boot = 0;
 
 struct mworker_proc *proc_self = NULL;
 
@@ -2747,6 +2749,11 @@ int main(int argc, char **argv)
 			 LONGBITS, MAX_PROCS);
 		exit(1);
 	}
+
+	/* take a copy of initial limits before we possibly change them */
+	getrlimit(RLIMIT_NOFILE, &limit);
+	rlim_fd_cur_at_boot = limit.rlim_cur;
+	rlim_fd_max_at_boot = limit.rlim_max;
 
 	/* process all initcalls in order of potential dependency */
 	RUN_INITCALLS(STG_PREPARE);
