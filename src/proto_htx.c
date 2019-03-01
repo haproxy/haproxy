@@ -612,10 +612,8 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 			goto return_bad_req;
 	}
 
-	/* Proceed with the stats now. */
-	if (unlikely(objt_applet(s->target) == &http_stats_applet) ||
-	    unlikely(objt_applet(s->target) == &http_cache_applet)) {
-		/* process the stats request now */
+	/* Proceed with the applets now. */
+	if (unlikely(objt_applet(s->target))) {
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
