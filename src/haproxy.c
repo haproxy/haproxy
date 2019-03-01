@@ -1402,6 +1402,53 @@ static char **copy_argv(int argc, char **argv)
 	return newargv;
 }
 
+/* considers splicing proxies' maxconn, computes the ideal global.maxpipes
+ * setting, and returns it. It may return -1 meaning "unlimited" if some
+ * unlimited proxies have been found and the global.maxconn value is not yet
+ * set. It may also return a value greater than maxconn if it's not yet set.
+ * Note that a value of zero means there is no need for pipes. -1 is never
+ * returned if global.maxconn is valid.
+ */
+static int compute_ideal_maxpipes()
+{
+	struct proxy *cur;
+	int nbfe = 0, nbbe = 0;
+	int unlimited = 0;
+	int pipes;
+	int max;
+
+	for (cur = proxies_list; cur; cur = cur->next) {
+		if (cur->options2 & (PR_O2_SPLIC_ANY)) {
+			if (cur->cap & PR_CAP_FE) {
+				max = cur->maxconn;
+				nbfe += max;
+				if (!max) {
+					unlimited = 1;
+					break;
+				}
+			}
+			if (cur->cap & PR_CAP_BE) {
+				max = cur->fullconn ? cur->fullconn : global.maxconn;
+				nbbe += max;
+				if (!max) {
+					unlimited = 1;
+					break;
+				}
+			}
+		}
+	}
+
+	pipes = MAX(nbfe, nbbe);
+	if (global.maxconn) {
+		if (pipes > global.maxconn || unlimited)
+			pipes = global.maxconn;
+	} else if (unlimited) {
+		pipes = -1;
+	}
+
+	return pipes >= 4 ? pipes / 4 : pipes;
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -2039,27 +2086,8 @@ static void init(int argc, char **argv)
 		}
 	}
 
-	if (!global.maxpipes) {
-		/* maxpipes not specified. Count how many frontends and backends
-		 * may be using splicing, and bound that to maxconn.
-		 */
-		struct proxy *cur;
-		int nbfe = 0, nbbe = 0;
-
-		for (cur = proxies_list; cur; cur = cur->next) {
-			if (cur->options2 & (PR_O2_SPLIC_ANY)) {
-				if (cur->cap & PR_CAP_FE)
-					nbfe += cur->maxconn;
-				if (cur->cap & PR_CAP_BE)
-					nbbe += cur->fullconn ? cur->fullconn : global.maxconn;
-			}
-		}
-		global.maxpipes = MAX(nbfe, nbbe);
-		if (global.maxpipes > global.maxconn)
-			global.maxpipes = global.maxconn;
-		global.maxpipes /= 4;
-	}
-
+	if (!global.maxpipes)
+		global.maxpipes = compute_ideal_maxpipes();
 
 	global.hardmaxconn = global.maxconn;  /* keep this max value */
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
