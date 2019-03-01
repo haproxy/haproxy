@@ -1940,6 +1940,18 @@ static void init(int argc, char **argv)
 	if (cfg_maxconn > 0)
 		global.maxconn = cfg_maxconn;
 
+	if (global.stats_fe)
+		global.maxsock += global.stats_fe->maxconn;
+
+	if (cfg_peers) {
+		/* peers also need to bypass global maxconn */
+		struct peers *p = cfg_peers;
+
+		for (p = cfg_peers; p; p = p->next)
+			if (p->peers_fe)
+				global.maxsock += p->peers_fe->maxconn;
+	}
+
 	if (cfg_pidfile) {
 		free(global.pidfile);
 		global.pidfile = strdup(cfg_pidfile);
@@ -2096,18 +2108,6 @@ static void init(int argc, char **argv)
 	if (global.ssl_used_async_engines) {
 		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 		global.maxsock += global.maxconn * sides * global.ssl_used_async_engines;
-	}
-
-	if (global.stats_fe)
-		global.maxsock += global.stats_fe->maxconn;
-
-	if (cfg_peers) {
-		/* peers also need to bypass global maxconn */
-		struct peers *p = cfg_peers;
-
-		for (p = cfg_peers; p; p = p->next)
-			if (p->peers_fe)
-				global.maxsock += p->peers_fe->maxconn;
 	}
 
 	proxy_adjust_all_maxconn();
