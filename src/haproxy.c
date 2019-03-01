@@ -1449,6 +1449,55 @@ static int compute_ideal_maxpipes()
 	return pipes >= 4 ? pipes / 4 : pipes;
 }
 
+/* considers global.maxsocks, global.maxpipes, async engines, SSL frontends and
+ * rlimits and computes an ideal maxconn. It's meant to be called only when
+ * maxsock contains the sum of listening FDs, before it is updated based on
+ * maxconn and pipes. If there are not enough FDs left, 100 is returned as it
+ * is expected that it will even run on tight environments. The system will
+ * emit a warning indicating how many FDs are missing anyway.
+ */
+static int compute_ideal_maxconn()
+{
+	int ssl_sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+	int engine_fds = global.ssl_used_async_engines * ssl_sides;
+	int pipes = compute_ideal_maxpipes();
+	int remain = rlim_fd_cur_at_boot;
+	int maxconn;
+
+	/* we have to take into account these elements :
+	 *   - number of engine_fds, which inflates the number of FD needed per
+	 *     connection by this number.
+	 *   - number of pipes per connection on average : for the unlimited
+	 *     case, this is 0.5 pipe FDs per connection, otherwise it's a
+	 *     fixed value of 2*pipes.
+	 *   - two FDs per connection
+	 */
+
+	/* subtract listeners and checks */
+	remain -= global.maxsock;
+
+	/* Fixed pipes values : we only subtract them if they're not larger
+	 * than the remaining FDs because pipes are optional.
+	 */
+	if (pipes >= 0 && pipes * 2 < remain)
+		remain -= pipes * 2;
+
+	if (pipes < 0) {
+		/* maxsock = maxconn * 2 + maxconn/4 * 2 + maxconn * engine_fds.
+		 *         = maxconn * (2 + 0.5 + engine_fds)
+		 *         = maxconn * (4 + 1 + 2*engine_fds) / 2
+		 */
+		maxconn = 2 * remain / (5 + 2 * engine_fds);
+	} else {
+		/* maxsock = maxconn * 2 + maxconn * engine_fds.
+		 *         = maxconn * (2 + engine_fds)
+		 */
+		maxconn = remain / (2 + engine_fds);
+	}
+
+	return MAX(maxconn, 100);
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -1465,6 +1514,7 @@ static void init(int argc, char **argv)
 	char *change_dir = NULL;
 	struct proxy *px;
 	struct post_check_fct *pcf;
+	int ideal_maxconn;
 
 	global.mode = MODE_STARTING;
 	next_argv = copy_argv(argc, argv);
@@ -1958,8 +2008,10 @@ static void init(int argc, char **argv)
 	}
 
 	/* Now we want to compute the maxconn and possibly maxsslconn values.
-	 * It's a bit tricky. If memmax is not set, maxconn defaults to
-	 * DEFAULT_MAXCONN and maxsslconn defaults to DEFAULT_MAXSSLCONN.
+	 * It's a bit tricky. Maxconn defaults to the pre-computed value based
+	 * on rlim_fd_cur and the number of FDs in use due to the configuration,
+	 * and maxsslconn defaults to DEFAULT_MAXSSLCONN. On top of that we can
+	 * enforce a lower limit based on memmax.
 	 *
 	 * If memmax is set, then it depends on which values are set. If
 	 * maxsslconn is set, we use memmax to determine how many cleartext
@@ -1978,9 +2030,11 @@ static void init(int argc, char **argv)
 	 * SYSTEM_MAXCONN is set, we still enforce it as an upper limit for
 	 * maxconn in order to protect the system.
 	 */
+	ideal_maxconn = compute_ideal_maxconn();
+
 	if (!global.rlimit_memmax) {
 		if (global.maxconn == 0) {
-			global.maxconn = DEFAULT_MAXCONN;
+			global.maxconn = ideal_maxconn;
 			if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
 				fprintf(stderr, "Note: setting global.maxconn to %d.\n", global.maxconn);
 		}
@@ -2008,6 +2062,7 @@ static void init(int argc, char **argv)
 			 sides * global.ssl_session_max_cost + // SSL buffers, one per side
 			 global.ssl_handshake_max_cost);       // 1 handshake per connection max
 
+		global.maxconn = MIN(global.maxconn, ideal_maxconn);
 		global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
 		if (global.maxconn > DEFAULT_MAXCONN)
@@ -2072,6 +2127,7 @@ static void init(int argc, char **argv)
 			clearmem -= (global.ssl_session_max_cost + global.ssl_handshake_max_cost) * (int64_t)global.maxsslconn;
 
 		global.maxconn = clearmem / (STREAM_MAX_COST + 2 * global.tune.bufsize);
+		global.maxconn = MIN(global.maxconn, ideal_maxconn);
 		global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
 		if (global.maxconn > DEFAULT_MAXCONN)
