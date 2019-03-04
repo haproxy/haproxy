@@ -2803,8 +2803,8 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 	/* Remaining bytes in the body to be parsed. */
 	grpc_left = smp->data.u.str.data;
 
-	while (grpc_left > GRPC_MSG_COMPRESS_FLAG_SZ + GRPC_MSG_LENGTH_SZ) {
-		int next_field, found;
+	while (grpc_left > GRPC_MSG_HEADER_SZ) {
+		int field, found;
 		size_t grpc_msg_len, left;
 		unsigned int wire_type, field_number;
 		uint64_t key, elen;
@@ -2824,8 +2824,8 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 		/* Message decoding: there may be serveral key+value protobuf pairs by
 		 * gRPC message.
 		 */
-		next_field = 0;
-		while (next_field < fid_sz) {
+		field = 0;
+		while (field < fid_sz) {
 			uint64_t sleft;
 
 			if ((ssize_t)left <= 0)
@@ -2840,50 +2840,32 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 
 			wire_type = key & 0x7;
 			field_number = key >> 3;
-			found = field_number == fid[next_field];
-
-			if (found && field_number != fid[next_field])
-				found = 0;
+			found = field_number == fid[field];
 
 			switch (wire_type) {
 			case PBUF_TYPE_VARINT:
-			{
-				if (!found) {
-					protobuf_skip_varint(&pos, &left);
-				} else if (next_field == fid_sz - 1) {
-					int varint_len;
-					unsigned char *spos = pos;
-
-					varint_len = protobuf_varint_getlen(&pos, &left);
-					if (varint_len == -1)
-						return 0;
-
-					smp->data.type = SMP_T_BIN;
-					smp->data.u.str.area = (char *)spos;
-					smp->data.u.str.data = varint_len;
-					smp->flags = SMP_F_VOL_TEST;
-					return 1;
-				}
-				break;
-			}
-
+			case PBUF_TYPE_32BIT:
 			case PBUF_TYPE_64BIT:
 			{
+				struct protobuf_parser_def *pbuf_parser;
+
+				pbuf_parser = &protobuf_parser_defs[wire_type];
 				if (!found) {
-					pos += sizeof(uint64_t);
-					left -= sizeof(uint64_t);
-				} else if (next_field == fid_sz - 1) {
-					smp->data.type = SMP_T_BIN;
-					smp->data.u.str.area = (char *)pos;
-					smp->data.u.str.data = sizeof(uint64_t);
-					smp->flags = SMP_F_VOL_TEST;
-					return 1;
+					/* Skip the data. */
+					if (!pbuf_parser->skip(&pos, &left, 0))
+						return 0;
 				}
+				else if (field == fid_sz - 1) {
+					return pbuf_parser->smp_store(smp, pos, left, 0);
+				}
+
 				break;
 			}
 
 			case PBUF_TYPE_LENGTH_DELIMITED:
 			{
+				struct protobuf_parser_def *pbuf_parser;
+
 				/* Decode the length of this length-delimited field. */
 				if (!protobuf_decode_varint(&elen, &pos, &left))
 					return 0;
@@ -2895,33 +2877,15 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 				 * the bytes to encode the previous lenght.*
 				 */
 				sleft = left;
+				pbuf_parser = &protobuf_parser_defs[wire_type];
 				if (!found) {
-					/* Skip the current length-delimited field. */
-					pos += elen;
-					left -= elen;
-					break;
-				} else if (next_field == fid_sz - 1) {
-					smp->data.type = SMP_T_BIN;
-					smp->data.u.str.area = (char *)pos;
-					smp->data.u.str.data = elen;
-					smp->flags = SMP_F_VOL_TEST;
-					return 1;
+					/* Skip the data. */
+					if (!pbuf_parser->skip(&pos, &left, elen))
+						return 0;
+				} else if (field == fid_sz - 1) {
+					return pbuf_parser->smp_store(smp, pos, left, elen);
 				}
-				break;
-			}
 
-			case PBUF_TYPE_32BIT:
-			{
-				if (!found) {
-					pos += sizeof(uint32_t);
-					left -= sizeof(uint32_t);
-				} else if (next_field == fid_sz - 1) {
-					smp->data.type = SMP_T_BIN;
-					smp->data.u.str.area = (char *)pos;
-					smp->data.u.str.data = sizeof(uint32_t);
-					smp->flags = SMP_F_VOL_TEST;
-					return 1;
-				}
 				break;
 			}
 
@@ -2933,10 +2897,10 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 				elen -= sleft - left;
 
 			if (found) {
-				next_field++;
+				field++;
 			}
 			else if ((ssize_t)elen <= 0) {
-				next_field = 0;
+				field = 0;
 			}
 		}
 		grpc_left -= grpc_msg_len;

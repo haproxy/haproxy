@@ -22,18 +22,52 @@
 #ifndef _PROTO_PROTOCOL_BUFFERS_H
 #define _PROTO_PROTOCOL_BUFFERS_H
 
+#include <stdint.h>
 #include <types/protocol_buffers.h>
-
-#define PBUF_TYPE_VARINT           0
-#define PBUF_TYPE_64BIT            1
-#define PBUF_TYPE_LENGTH_DELIMITED 2
-#define PBUF_TYPE_START_GROUP      3
-#define PBUF_TYPE_STOP_GROUP       4
-#define PBUF_TYPE_32BIT            5
+#include <proto/sample.h>
 
 #define PBUF_VARINT_DONT_STOP_BIT       7
 #define PBUF_VARINT_DONT_STOP_BITMASK  (1 << PBUF_VARINT_DONT_STOP_BIT)
 #define PBUF_VARINT_DATA_BITMASK            ~PBUF_VARINT_DONT_STOP_BITMASK
+
+/* .skip and .smp_store prototypes. */
+int protobuf_skip_varint(unsigned char **pos, size_t *len, size_t vlen);
+int protobuf_smp_store_varint(struct sample *smp,
+                              unsigned char *pos, size_t len, size_t vlen);
+int protobuf_skip_64bit(unsigned char **pos, size_t *len, size_t vlen);
+int protobuf_smp_store_64bit(struct sample *smp,
+                             unsigned char *pos, size_t len, size_t vlen);
+int protobuf_skip_vlen(unsigned char **pos, size_t *len, size_t vlen);
+int protobuf_smp_store_vlen(struct sample *smp,
+                            unsigned char *pos, size_t len, size_t vlen);
+int protobuf_skip_32bit(unsigned char **pos, size_t *len, size_t vlen);
+int protobuf_smp_store_32bit(struct sample *smp,
+                             unsigned char *pos, size_t len, size_t vlen);
+
+struct protobuf_parser_def protobuf_parser_defs [] = {
+	[PBUF_TYPE_VARINT          ] = {
+		.skip      = protobuf_skip_varint,
+		.smp_store = protobuf_smp_store_varint,
+	},
+	[PBUF_TYPE_64BIT           ] = {
+		.skip      = protobuf_skip_64bit,
+		.smp_store = protobuf_smp_store_64bit,
+	},
+	[PBUF_TYPE_LENGTH_DELIMITED] = {
+		.skip      = protobuf_skip_vlen,
+		.smp_store = protobuf_smp_store_vlen,
+	},
+	[PBUF_TYPE_START_GROUP     ] = {
+		/* XXX Deprecated XXX */
+	},
+	[PBUF_TYPE_STOP_GROUP      ] = {
+		/* XXX Deprecated XXX */
+	},
+	[PBUF_TYPE_32BIT           ] = {
+		.skip      = protobuf_skip_32bit,
+		.smp_store = protobuf_smp_store_32bit,
+	},
+};
 
 /*
  * Decode a protocol buffers varint located in a buffer at <pos> address with
@@ -112,8 +146,8 @@ protobuf_decode_varint(uint64_t *val, unsigned char **pos, size_t *len)
  * available byte. Decrease <*len> by the number of skipped bytes.
  * Returns 1 if succeeded, 0 if not.
  */
-static inline int
-protobuf_skip_varint(unsigned char **pos, size_t *len)
+int
+protobuf_skip_varint(unsigned char **pos, size_t *len, size_t vlen)
 {
 	unsigned int shift;
 
@@ -147,23 +181,23 @@ protobuf_skip_varint(unsigned char **pos, size_t *len)
  * Return -1 if failed.
  */
 static inline int
-protobuf_varint_getlen(unsigned char **pos, size_t *len)
+protobuf_varint_getlen(unsigned char *pos, size_t len)
 {
 	unsigned char *spos;
 	unsigned int shift;
 
 	shift = 0;
-	spos = *pos;
+	spos = pos;
 
-	while (*len > 0) {
-		int stop = !(**pos & PBUF_VARINT_DONT_STOP_BITMASK);
+	while (len > 0) {
+		int stop = !(*pos & PBUF_VARINT_DONT_STOP_BITMASK);
 
-		++*pos;
-		--*len;
+		++pos;
+		--len;
 
 		if (stop)
 			break;
-		else if (!*len)
+		else if (!len)
 			return -1;
 
 		shift += 7;
@@ -172,7 +206,129 @@ protobuf_varint_getlen(unsigned char **pos, size_t *len)
 			return -1;
 	}
 
-	return *pos - spos;
+	return pos - spos;
+}
+
+/*
+ * Store a raw varint field value in a sample from <pos> buffer
+ * with <len> available bytes.
+ * Return 1 if succeeded, 0 if not.
+ */
+int protobuf_smp_store_varint(struct sample *smp,
+                              unsigned char *pos, size_t len, size_t vlen)
+{
+	int varint_len;
+
+	varint_len = protobuf_varint_getlen(pos, len);
+	if (varint_len == -1)
+		return 0;
+
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.area = (char *)pos;
+	smp->data.u.str.data = varint_len;
+	smp->flags = SMP_F_VOL_TEST;
+
+	return 1;
+}
+
+/*
+ * Move forward <*pos> buffer by 8 bytes. Used to skip a 64bit field.
+ */
+int protobuf_skip_64bit(unsigned char **pos, size_t *len, size_t vlen)
+{
+	if (*len < sizeof(uint64_t))
+	    return 0;
+
+	*pos += sizeof(uint64_t);
+	*len -= sizeof(uint64_t);
+
+	return 1;
+}
+
+/*
+ * Store a fixed size 64bit field value in a sample from <pos> buffer
+ * with <len> available bytes.
+ * Return 1 if succeeded, 0 if not.
+ */
+int protobuf_smp_store_64bit(struct sample *smp,
+                             unsigned char *pos, size_t len, size_t vlen)
+{
+	if (len < sizeof(uint64_t))
+	    return 0;
+
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.area = (char *)pos;
+	smp->data.u.str.data = sizeof(uint64_t);
+	smp->flags = SMP_F_VOL_TEST;
+
+	return 1;
+}
+
+/*
+ * Move forward <*pos> buffer by <vlen> bytes. Use to skip a length-delimited
+ * field.
+ */
+int protobuf_skip_vlen(unsigned char **pos, size_t *len, size_t vlen)
+{
+	if (*len < vlen)
+		return 0;
+
+	*pos += vlen;
+	*len -= vlen;
+
+	return 1;
+}
+
+/*
+ * Store a <vlen>-bytes length-delimited field value in a sample from <pos>
+ * buffer with <len> available bytes.
+ * Return 1 if succeeded, 0 if not.
+ */
+int protobuf_smp_store_vlen(struct sample *smp,
+                            unsigned char *pos, size_t len, size_t vlen)
+{
+	if (len < vlen)
+		return 0;
+
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.area = (char *)pos;
+	smp->data.u.str.data = vlen;
+	smp->flags = SMP_F_VOL_TEST;
+
+	return 1;
+}
+
+/*
+ * Move forward <*pos> buffer by 4 bytes. Used to skip a 32bit field.
+ */
+int protobuf_skip_32bit(unsigned char **pos, size_t *len, size_t vlen)
+{
+	if (*len < sizeof(uint32_t))
+	    return 0;
+
+	*pos += sizeof(uint32_t);
+	*len -= sizeof(uint32_t);
+
+	return 1;
+}
+
+/*
+ * Store a fixed size 32bit field value in a sample from <pos> buffer
+ * with <len> available bytes.
+ * Return 1 if succeeded, 0 if not.
+ */
+int protobuf_smp_store_32bit(struct sample *smp,
+                             unsigned char *pos, size_t len, size_t vlen)
+{
+	if (len < sizeof(uint32_t))
+	    return 0;
+
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.area = (char *)pos;
+	smp->data.u.str.data = sizeof(uint32_t);
+	smp->flags = SMP_F_VOL_TEST;
+
+	return 1;
 }
 
 #endif /* _PROTO_PROTOCOL_BUFFERS_H */
