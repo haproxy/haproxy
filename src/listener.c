@@ -847,12 +847,23 @@ void listener_accept(int fd)
 		count = l->bind_conf->thr_count;
 		if (count > 1 && (global.tune.options & GTUNE_LISTENER_MQ)) {
 			struct accept_queue_ring *ring;
-			int r, t1, t2, q1, q2;
+			int t1, t2, q1, q2;
 
-			/* pick two small distinct random values and drop lower bits */
-			r = (random() >> 8) % ((count - 1) * count);
-			t2 = r / count; // 0..thr_count-2
-			t1 = r % count; // 0..thr_count-1
+			/* pick a first thread ID using a round robin index,
+			 * and a second thread ID using a random. The
+			 * connection will be assigned to the one with the
+			 * least connections. This provides fairness on short
+			 * connections (round robin) and on long ones (conn
+			 * count).
+			 */
+			t1 = l->bind_conf->thr_idx;
+			do {
+				t2 = t1 + 1;
+				if (t2 >= count)
+					t2 = 0;
+			} while (!HA_ATOMIC_CAS(&l->bind_conf->thr_idx, &t1, t2));
+
+			t2 = (random() >> 8) % (count - 1);  // 0..thr_count-2
 			t2 += t1 + 1;   // necessarily different from t1
 
 			if (t2 >= count)
