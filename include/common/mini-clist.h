@@ -216,9 +216,9 @@ struct cond_wordlist {
 			(el)->n = n;                                       \
 			(el)->p = p;                                       \
 			__ha_barrier_store();                              \
-			n->n = (el);                                       \
+			p->n = (el);                                       \
 			__ha_barrier_store();                              \
-			p->p = (el);                                       \
+			n->p = (el);                                       \
 			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
