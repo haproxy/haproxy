@@ -1347,11 +1347,12 @@ maxconn <number>
   the "select" poller cannot reliably use more than 1024 file descriptors on
   some platforms. If your platform only supports select and reports "select
   FAILED" on startup, you need to reduce maxconn until it works (slightly
-  below 500 in general). If this value is not set, it will default to the value
-  set in DEFAULT_MAXCONN at build time (reported in haproxy -vv) if no memory
-  limit is enforced, or will be computed based on the memory limit, the buffer
-  size, memory allocated to compression, SSL cache size, and use or not of SSL
-  and the associated maxsslconn (which can also be automatic).
+  below 500 in general). If this value is not set, it will automatically be
+  calculated based on the current file descriptors limit reported by the
+  "ulimit -n" command, possibly reduced to a lower value if a memory limit
+  is enforced, based on the buffer size, memory allocated to compression, SSL
+  cache size, and use or not of SSL and the associated maxsslconn (which can
+  also be automatic).
 
 maxconnrate <number>
   Sets the maximum per-process number of connections per second to <number>.
