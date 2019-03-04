@@ -13791,12 +13791,6 @@ sub(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
-svarint
-  Converts a binary input sample of a protocol buffers signed "varint" ("sint32"
-  and "sint64") to an integer.
-  More information may be found here about the protocol buffers message field types:
-  https://developers.google.com/protocol-buffers/docs/encoding
-
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -13967,9 +13961,17 @@ url_dec
   Takes an url-encoded string provided as input and returns the decoded
   version as output. The input and the output are of type string.
 
-ungrpc(<field_number>) : binary
+ungrpc(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
-  sample with <field_number> as field number (dotted notation).
+  sample with <field_number> as field number (dotted notation) if <field_type>
+  is not present, or as an integer sample if this field is present.
+  The list of the authorized types is the following one: "int32", "int64", "uint32",
+  "uint64", "sint32", "sint64", "bool", "enum" for the "varint" wire type 0
+  "fixed64", "sfixed64", "double" for the 64bit wire type 1, "fixed32", "sfixed32",
+  "float" for the wire type 5. Note that "string" is considered as a length-delimited
+  type. So it does not require any <field_type> argument to be extracted.
+  More information may be found here about the protocol buffers message field types:
+  https://developers.google.com/protocol-buffers/docs/encoding
 
   Example:
     // with such a protocol buffer .proto file content adapted from
@@ -13995,10 +13997,15 @@ ungrpc(<field_number>) : binary
     protocol buffers messages), the four protocol buffers fields could be
     extracted with these "ungrpc" directives:
 
-    req.body,ungrpc(48.59.1) # "latitude" of "lo" first PPoint
-    req.body,ungrpc(48.59.2) # "longitude" of "lo" first PPoint
-    req.body,ungrpc(49.59.1) # "latidude" of "hi" second PPoint
-    req.body,ungrpc(49.59.2) # "longitude" of "hi" second PPoint
+    req.body,ungrpc(48.59.1,int32) # "latitude" of "lo" first PPoint
+    req.body,ungrpc(48.59.2,int32) # "longitude" of "lo" first PPoint
+    req.body,ungrpc(49.59.1,int32) # "latidude" of "hi" second PPoint
+    req.body,ungrpc(49.59.2,int32) # "longitude" of "hi" second PPoint
+
+	We could also extract the intermediary 48.59 field as a binary sample as follows:
+
+	req.body,ungrpc(48.59)
+
 
 unset-var(<var name>)
   Unsets a variable if the input content is defined. The name of the variable
@@ -14025,12 +14032,6 @@ utime(<format>[,<offset>])
       # Emit two colons, one with the UTC time and another with ip:port
       # e.g.  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
-
-varint
-  Converts a binary input sample of a protocol buffers "varint", excepted
-  the signed ones "sint32" and "sint64", to an integer.
-  More information may be found here about the protocol buffers message field types:
-  https://developers.google.com/protocol-buffers/docs/encoding
 
 word(<index>,<delimiters>[,<count>])
   Extracts the nth word counting from the beginning (positive index) or from

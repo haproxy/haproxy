@@ -32,16 +32,16 @@
 
 /* .skip and .smp_store prototypes. */
 int protobuf_skip_varint(unsigned char **pos, size_t *len, size_t vlen);
-int protobuf_smp_store_varint(struct sample *smp,
+int protobuf_smp_store_varint(struct sample *smp, int type,
                               unsigned char *pos, size_t len, size_t vlen);
 int protobuf_skip_64bit(unsigned char **pos, size_t *len, size_t vlen);
-int protobuf_smp_store_64bit(struct sample *smp,
+int protobuf_smp_store_64bit(struct sample *smp, int type,
                              unsigned char *pos, size_t len, size_t vlen);
 int protobuf_skip_vlen(unsigned char **pos, size_t *len, size_t vlen);
-int protobuf_smp_store_vlen(struct sample *smp,
+int protobuf_smp_store_vlen(struct sample *smp, int type,
                             unsigned char *pos, size_t len, size_t vlen);
 int protobuf_skip_32bit(unsigned char **pos, size_t *len, size_t vlen);
-int protobuf_smp_store_32bit(struct sample *smp,
+int protobuf_smp_store_32bit(struct sample *smp, int type,
                              unsigned char *pos, size_t len, size_t vlen);
 
 struct protobuf_parser_def protobuf_parser_defs [] = {
@@ -68,6 +68,66 @@ struct protobuf_parser_def protobuf_parser_defs [] = {
 		.smp_store = protobuf_smp_store_32bit,
 	},
 };
+
+/*
+ * Note that the field values with protocol buffers 32bit and 64bit fixed size as type
+ * are sent in little-endian byte order to the network.
+ */
+
+/* Convert a little-endian ordered 32bit integer to the byte order of the host. */
+static inline uint32_t pbuf_le32toh(uint32_t v)
+{
+	uint8_t *p = (uint8_t *)&v;
+	return (p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24));
+}
+
+/* Convert a little-endian ordered 64bit integer to the byte order of the host. */
+static inline uint64_t pbuf_le64toh(uint64_t v)
+{
+	return (uint64_t)(pbuf_le32toh(v >> 32)) << 32 | pbuf_le32toh(v);
+}
+
+/*
+ * Return a protobuf type enum from <s> string if succedeed, -1 if not.
+ */
+int protobuf_type(const char *s)
+{
+	/* varint types. */
+	if (!strcmp(s, "int32"))
+		return PBUF_T_VARINT_INT32;
+	else if (!strcmp(s, "uint32"))
+		return PBUF_T_VARINT_UINT32;
+	else if (!strcmp(s, "sint32"))
+		return PBUF_T_VARINT_SINT32;
+	else if (!strcmp(s, "int64"))
+		return PBUF_T_VARINT_INT64;
+	else if (!strcmp(s, "uint64"))
+		return PBUF_T_VARINT_UINT64;
+	else if (!strcmp(s, "sint64"))
+		return PBUF_T_VARINT_SINT64;
+	else if (!strcmp(s, "bool"))
+		return PBUF_T_VARINT_BOOL;
+	else if (!strcmp(s, "enum"))
+		return PBUF_T_VARINT_ENUM;
+
+	/* 32bit fixed size types. */
+	else if (!strcmp(s, "fixed32"))
+		return PBUF_T_32BIT_FIXED32;
+	else if (!strcmp(s, "sfixed32"))
+		return PBUF_T_32BIT_SFIXED32;
+	else if (!strcmp(s, "float"))
+		return PBUF_T_32BIT_FLOAT;
+
+	/* 64bit fixed size types. */
+	else if (!strcmp(s, "fixed64"))
+		return PBUF_T_64BIT_FIXED64;
+	else if (!strcmp(s, "sfixed64"))
+		return PBUF_T_64BIT_SFIXED64;
+	else if (!strcmp(s, "double"))
+		return PBUF_T_64BIT_DOUBLE;
+	else
+		return -1;
+}
 
 /*
  * Decode a protocol buffers varint located in a buffer at <pos> address with
@@ -210,23 +270,59 @@ protobuf_varint_getlen(unsigned char *pos, size_t len)
 }
 
 /*
- * Store a raw varint field value in a sample from <pos> buffer
- * with <len> available bytes.
+ * Store a varint field value in a sample from <pos> buffer
+ * with <len> available bytes after having decoded it if needed
+ * depending on <type> the expected protocol buffer type of the field.
  * Return 1 if succeeded, 0 if not.
  */
-int protobuf_smp_store_varint(struct sample *smp,
+int protobuf_smp_store_varint(struct sample *smp, int type,
                               unsigned char *pos, size_t len, size_t vlen)
 {
-	int varint_len;
+	switch (type) {
+	case PBUF_T_BINARY:
+	{
+		int varint_len;
 
-	varint_len = protobuf_varint_getlen(pos, len);
-	if (varint_len == -1)
+		varint_len = protobuf_varint_getlen(pos, len);
+		if (varint_len == -1)
+			return 0;
+
+		smp->data.type = SMP_T_BIN;
+		smp->data.u.str.area = (char *)pos;
+		smp->data.u.str.data = varint_len;
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+	}
+
+	case PBUF_T_VARINT_INT32 ... PBUF_T_VARINT_ENUM:
+	{
+		uint64_t varint;
+
+		if (!protobuf_varint(&varint, pos, len))
+			return 0;
+
+		smp->data.u.sint = varint;
+		smp->data.type = SMP_T_SINT;
+		break;
+	}
+
+	case PBUF_T_VARINT_SINT32 ... PBUF_T_VARINT_SINT64:
+	{
+		uint64_t varint;
+
+		if (!protobuf_varint(&varint, pos, len))
+			return 0;
+
+		/* zigzag decoding. */
+		smp->data.u.sint = (varint >> 1) ^ -(varint & 1);
+		smp->data.type = SMP_T_SINT;
+		break;
+	}
+
+	default:
 		return 0;
 
-	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.area = (char *)pos;
-	smp->data.u.str.data = varint_len;
-	smp->flags = SMP_F_VOL_TEST;
+	}
 
 	return 1;
 }
@@ -247,19 +343,40 @@ int protobuf_skip_64bit(unsigned char **pos, size_t *len, size_t vlen)
 
 /*
  * Store a fixed size 64bit field value in a sample from <pos> buffer
- * with <len> available bytes.
+ * with <len> available bytes after having decoded it depending on <type>
+ * the expected protocol buffer type of the field.
  * Return 1 if succeeded, 0 if not.
  */
-int protobuf_smp_store_64bit(struct sample *smp,
+int protobuf_smp_store_64bit(struct sample *smp, int type,
                              unsigned char *pos, size_t len, size_t vlen)
 {
 	if (len < sizeof(uint64_t))
 	    return 0;
 
-	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.area = (char *)pos;
-	smp->data.u.str.data = sizeof(uint64_t);
-	smp->flags = SMP_F_VOL_TEST;
+	switch (type) {
+	case PBUF_T_BINARY:
+		smp->data.type = SMP_T_BIN;
+		smp->data.u.str.area = (char *)pos;
+		smp->data.u.str.data = sizeof(uint64_t);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	case PBUF_T_64BIT_FIXED64:
+	case PBUF_T_64BIT_SFIXED64:
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = pbuf_le64toh(*(uint64_t *)pos);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	case PBUF_T_64BIT_DOUBLE:
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = pbuf_le64toh(*(double *)pos);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	default:
+		return 0;
+	}
 
 	return 1;
 }
@@ -284,10 +401,13 @@ int protobuf_skip_vlen(unsigned char **pos, size_t *len, size_t vlen)
  * buffer with <len> available bytes.
  * Return 1 if succeeded, 0 if not.
  */
-int protobuf_smp_store_vlen(struct sample *smp,
+int protobuf_smp_store_vlen(struct sample *smp, int type,
                             unsigned char *pos, size_t len, size_t vlen)
 {
 	if (len < vlen)
+		return 0;
+
+	if (type != PBUF_T_BINARY)
 		return 0;
 
 	smp->data.type = SMP_T_BIN;
@@ -314,19 +434,45 @@ int protobuf_skip_32bit(unsigned char **pos, size_t *len, size_t vlen)
 
 /*
  * Store a fixed size 32bit field value in a sample from <pos> buffer
- * with <len> available bytes.
+ * with <len> available bytes after having decoded it depending on <type>
+ * the expected protocol buffer type of the field.
  * Return 1 if succeeded, 0 if not.
  */
-int protobuf_smp_store_32bit(struct sample *smp,
+int protobuf_smp_store_32bit(struct sample *smp, int type,
                              unsigned char *pos, size_t len, size_t vlen)
 {
 	if (len < sizeof(uint32_t))
 	    return 0;
 
-	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.area = (char *)pos;
-	smp->data.u.str.data = sizeof(uint32_t);
-	smp->flags = SMP_F_VOL_TEST;
+	switch (type) {
+	case PBUF_T_BINARY:
+		smp->data.type = SMP_T_BIN;
+		smp->data.u.str.area = (char *)pos;
+		smp->data.u.str.data = sizeof(uint32_t);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	case PBUF_T_32BIT_FIXED32:
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = pbuf_le32toh(*(uint32_t *)pos);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	case PBUF_T_32BIT_SFIXED32:
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = (int32_t)pbuf_le32toh(*(uint32_t *)pos);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	case PBUF_T_32BIT_FLOAT:
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = pbuf_le32toh(*(float *)pos);
+		smp->flags = SMP_F_VOL_TEST;
+		break;
+
+	default:
+		return 0;
+	}
 
 	return 1;
 }

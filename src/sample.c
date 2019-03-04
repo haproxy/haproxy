@@ -1779,33 +1779,6 @@ static int sample_conv_crc32c(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
-/* Decode an unsigned protocol buffers varint */
-static int sample_conv_varint(const struct arg *arg_p, struct sample *smp, void *private)
-{
-	uint64_t varint;
-
-	if (!protobuf_varint(&varint, (unsigned char *)smp->data.u.str.area, smp->data.u.str.data))
-		return 0;
-
-	smp->data.u.sint = varint;
-	smp->data.type = SMP_T_SINT;
-	return 1;
-}
-
-/* Decode a signed protocol buffers varint encoded as (zigzag + varint). */
-static int sample_conv_svarint(const struct arg *arg_p, struct sample *smp, void *private)
-{
-	uint64_t varint;
-
-	if (!protobuf_varint(&varint, (unsigned char *)smp->data.u.str.area, smp->data.u.str.data))
-		return 0;
-
-	/* zigzag decoding. */
-	smp->data.u.sint = (varint >> 1) ^ -(varint & 1);
-	smp->data.type = SMP_T_SINT;
-	return 1;
-}
-
 /* This function escape special json characters. The returned string can be
  * safely set between two '"' and used as json string. The json string is
  * defined like this:
@@ -2792,12 +2765,14 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 	size_t grpc_left;
 	unsigned int *fid;
 	size_t fid_sz;
+	int type;
 
 	if (!smp->strm)
 		return 0;
 
 	fid = arg_p[0].data.fid.ids;
 	fid_sz = arg_p[0].data.fid.sz;
+	type = arg_p[1].data.sint;
 
 	pos = (unsigned char *)smp->data.u.str.area;
 	/* Remaining bytes in the body to be parsed. */
@@ -2856,7 +2831,7 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 						return 0;
 				}
 				else if (field == fid_sz - 1) {
-					return pbuf_parser->smp_store(smp, pos, left, 0);
+					return pbuf_parser->smp_store(smp, type, pos, left, 0);
 				}
 
 				break;
@@ -2883,7 +2858,7 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 					if (!pbuf_parser->skip(&pos, &left, elen))
 						return 0;
 				} else if (field == fid_sz - 1) {
-					return pbuf_parser->smp_store(smp, pos, left, elen);
+					return pbuf_parser->smp_store(smp, type, pos, left, elen);
 				}
 
 				break;
@@ -2907,6 +2882,29 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 	}
 
 	return 0;
+}
+
+static int sample_conv_ungrpc_check(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+	if (!args[1].type) {
+		args[1].type = ARGT_SINT;
+		args[1].data.sint = PBUF_T_BINARY;
+	}
+	else {
+		int pbuf_type;
+
+		pbuf_type = protobuf_type(args[1].data.str.area);
+		if (pbuf_type == -1) {
+			memprintf(err, "Wrong protocol buffer type '%s'", args[1].data.str.area);
+			return 0;
+		}
+
+		args[1].type = ARGT_SINT;
+		args[1].data.sint = pbuf_type;
+	}
+
+	return 1;
 }
 
 /* This function checks the "strcmp" converter's arguments and extracts the
@@ -3296,9 +3294,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
 
 	/* gRPC converters. */
-	{ "ungrpc", sample_conv_ungrpc,    ARG1(1,PBUF_FNUM), NULL, SMP_T_BIN, SMP_T_BIN  },
-	{ "varint", sample_conv_varint,    0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
-	{ "svarint", sample_conv_svarint,  0,            NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_ungrpc_check, SMP_T_BIN, SMP_T_BIN  },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },

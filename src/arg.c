@@ -241,6 +241,9 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			break;
 
 		case ARGT_PBUF_FNUM:
+			if (in == beg)
+				goto empty_err;
+
 			if (!parse_dotted_uints(word, &arg->data.fid.ids, &arg->data.fid.sz))
 				goto parse_err;
 
