@@ -2328,8 +2328,6 @@ int check_config_validity()
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
 			}
 
-			bind_recount_thread_bits(bind_conf);
-
 			/* detect process and nbproc affinity inconsistencies */
 			mask = proc_mask(bind_conf->bind_proc) & proc_mask(curproxy->bind_proc);
 			if (!(mask & all_proc_mask)) {

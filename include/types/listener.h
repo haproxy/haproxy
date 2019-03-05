@@ -170,8 +170,6 @@ struct bind_conf {
 	struct list listeners;     /* list of listeners using this bind config */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
 	unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
-	unsigned long thr_2, thr_4, thr_8, thr_16; /* intermediate values for bind_thread counting */
-	unsigned int thr_count;    /* #threads bound */
 	unsigned int thr_idx;      /* thread indexes for queue distribution : (t2<<16)+t1 */
 	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
