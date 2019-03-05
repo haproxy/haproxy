@@ -808,7 +808,7 @@ static inline unsigned long atleast2(unsigned long a)
 }
 
 /* Simple ffs implementation. It returns the position of the lowest bit set to
- * one. It is illegal to call it with a==0 (undefined result).
+ * one, starting at 1. It is illegal to call it with a==0 (undefined result).
  */
 static inline unsigned int my_ffsl(unsigned long a)
 {
@@ -843,6 +843,50 @@ static inline unsigned int my_ffsl(unsigned long a)
 		cnt += 2;
 	}
 	if (!(a & 0x1)) {
+		a >>= 1;
+		cnt += 1;
+	}
+#endif /* x86_64 */
+
+	return cnt;
+}
+
+/* Simple fls implementation. It returns the position of the highest bit set to
+ * one, starting at 1. It is illegal to call it with a==0 (undefined result).
+ */
+static inline unsigned int my_flsl(unsigned long a)
+{
+	unsigned long cnt;
+
+#if defined(__x86_64__)
+	__asm__("bsr %1,%0\n" : "=r" (cnt) : "rm" (a));
+	cnt++;
+#else
+
+	cnt = 1;
+#if LONG_MAX > 0x7FFFFFFFUL /* 64bits */
+	if (a & 0xFFFFFFFF00000000UL) {
+		a >>= 32;
+		cnt += 32;
+	}
+#endif
+	if (a & 0XFFFF0000U) {
+		a >>= 16;
+		cnt += 16;
+	}
+	if (a & 0XFF00) {
+		a >>= 8;
+		cnt += 8;
+	}
+	if (a & 0xf0) {
+		a >>= 4;
+		cnt += 4;
+	}
+	if (a & 0xc) {
+		a >>= 2;
+		cnt += 2;
+	}
+	if (a & 0x2) {
 		a >>= 1;
 		cnt += 1;
 	}
