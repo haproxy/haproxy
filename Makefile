@@ -46,7 +46,6 @@
 #   USE_RT               : enable it if your system requires -lrt. Automatic on Linux.
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
-#   USE_WURFL            : enable WURFL detection library from Scientiamobile
 #   USE_SYSTEMD          : enable sd_notify() support.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
@@ -751,24 +750,6 @@ endif
 
 BUILD_OPTIONS   += $(call ignore_implicit,USE_51DEGREES)
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
-endif
-
-ifneq ($(USE_WURFL),)
-# Use WURFL_SRC and possibly WURFL_INC and WURFL_LIB to force path
-# to WURFL headers and libraries if needed.
-WURFL_SRC =
-WURFL_INC = $(WURFL_SRC)
-WURFL_LIB = $(WURFL_SRC)
-OPTIONS_OBJS    += src/wurfl.o
-OPTIONS_CFLAGS  += -DUSE_WURFL $(if $(WURFL_INC),-I$(WURFL_INC))
-ifneq ($(WURFL_DEBUG),)
-OPTIONS_CFLAGS  += -DWURFL_DEBUG
-endif
-ifneq ($(WURFL_HEADER_WITH_DETAILS),)
-OPTIONS_CFLAGS  += -DWURFL_HEADER_WITH_DETAILS
-endif
-BUILD_OPTIONS   += $(call ignore_implicit,USE_WURFL)
-OPTIONS_LDFLAGS += $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
 ifneq ($(USE_SYSTEMD),)
