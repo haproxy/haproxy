@@ -97,6 +97,14 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	htx = htxbuf(&req->buf);
 
+	/* Parsing errors are caught here */
+	if (htx->flags & HTX_FL_PARSING_ERROR) {
+		stream_inc_http_req_ctr(s);
+		stream_inc_http_err_ctr(s);
+		proxy_inc_fe_req_ctr(sess->fe);
+		goto return_bad_req;
+	}
+
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
 
@@ -126,12 +134,11 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
 		/*
-		 * First catch invalid request because of a parsing error or
-		 * because only part of headers have been transfered.
-		 * Multiplexers have the responsibility to emit all headers at
-		 * once.
+		 * First catch invalid request because only part of headers have
+		 * been transfered. Multiplexers have the responsibility to emit
+		 * all headers at once.
 		 */
-		if ((htx->flags & HTX_FL_PARSING_ERROR) || htx_is_not_empty(htx) || (s->si[0].flags & SI_FL_RXBLK_ROOM)) {
+		if (htx_is_not_empty(htx) || (s->si[0].flags & SI_FL_RXBLK_ROOM)) {
 			stream_inc_http_req_ctr(s);
 			stream_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -1055,6 +1062,9 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 
 	htx = htxbuf(&req->buf);
 
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_req;
+
 	if (msg->msg_state < HTTP_MSG_BODY)
 		goto missing_data;
 
@@ -1093,9 +1103,6 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 		goto http_end;
 
  missing_data:
-	if (htx->flags & HTX_FL_PARSING_ERROR)
-		goto return_bad_req;
-
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		htx_reply_and_close(s, txn->status, htx_error_message(s));
@@ -1446,6 +1453,10 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	htx = htxbuf(&rep->buf);
 
+	/* Parsing errors are caught here */
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_res;
+
 	/*
 	 * Now we quickly check if we have found a full valid response.
 	 * If not so, we check the FD and buffer states before leaving.
@@ -1466,8 +1477,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 * once. We must be sure to have forwarded all outgoing data
 		 * first.
 		 */
-		if (!co_data(rep) &&
-		    ((htx->flags & HTX_FL_PARSING_ERROR) || htx_is_not_empty(htx) || (s->si[1].flags & SI_FL_RXBLK_ROOM)))
+		if (!co_data(rep) && (htx_is_not_empty(htx) || (s->si[1].flags & SI_FL_RXBLK_ROOM)))
 			goto return_bad_res;
 
 		/* 1: have we encountered a read error ? */
