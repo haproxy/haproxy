@@ -23,6 +23,7 @@
 #define _PROTO_PROTOCOL_BUFFERS_H
 
 #include <stdint.h>
+#include <types/arg.h>
 #include <types/protocol_buffers.h>
 #include <proto/sample.h>
 
@@ -475,6 +476,95 @@ int protobuf_smp_store_32bit(struct sample *smp, int type,
 	}
 
 	return 1;
+}
+
+/*
+ * Lookup for a protocol buffers field whose parameters are provided by <arg_p>
+ * first argument in the buffer with <pos> as address and <len> as length address.
+ * If found, store its value depending on the type of storage to use provided by <arg_p>
+ * second argument and return 1, 0 if not.
+ */
+static inline int protobuf_field_lookup(const struct arg *arg_p, struct sample *smp,
+                                        unsigned char **pos, size_t *len)
+{
+	unsigned int *fid;
+	size_t fid_sz;
+	int type;
+	uint64_t elen;
+	int field;
+
+	fid = arg_p[0].data.fid.ids;
+	fid_sz = arg_p[0].data.fid.sz;
+	type = arg_p[1].data.sint;
+
+	/* Length of the length-delimited messages if any. */
+	elen = 0;
+	field = 0;
+
+	while (field < fid_sz) {
+		int found;
+		uint64_t key, sleft;
+		struct protobuf_parser_def *pbuf_parser = NULL;
+		unsigned int wire_type, field_number;
+
+		if ((ssize_t)*len <= 0)
+			return 0;
+
+		/* Remaining bytes saving. */
+		sleft = *len;
+
+		/* Key decoding */
+		if (!protobuf_decode_varint(&key, pos, len))
+			return 0;
+
+		wire_type = key & 0x7;
+		field_number = key >> 3;
+		found = field_number == fid[field];
+
+		/* Skip the data if the current field does not match. */
+		switch (wire_type) {
+		case PBUF_TYPE_VARINT:
+		case PBUF_TYPE_32BIT:
+		case PBUF_TYPE_64BIT:
+			pbuf_parser = &protobuf_parser_defs[wire_type];
+			if (!found && !pbuf_parser->skip(pos, len, 0))
+				return 0;
+			break;
+
+		case PBUF_TYPE_LENGTH_DELIMITED:
+			/* Decode the length of this length-delimited field. */
+			if (!protobuf_decode_varint(&elen, pos, len) || elen > *len)
+				return 0;
+
+			/* The size of the current field is computed from here to skip
+			 * the bytes used to encode the previous length.*
+			 */
+			sleft = *len;
+			pbuf_parser = &protobuf_parser_defs[wire_type];
+			if (!found && !pbuf_parser->skip(pos, len, elen))
+				return 0;
+			break;
+
+		default:
+			return 0;
+		}
+
+		/* Store the data if found. Note that <pbuf_parser> is not NULL */
+		if (found && field == fid_sz - 1)
+			return pbuf_parser->smp_store(smp, type, *pos, *len, elen);
+
+		if ((ssize_t)(elen) > 0)
+			elen -= sleft - *len;
+
+		if (found) {
+			field++;
+		}
+		else if ((ssize_t)elen <= 0) {
+			field = 0;
+		}
+	}
+
+	return 0;
 }
 
 #endif /* _PROTO_PROTOCOL_BUFFERS_H */
