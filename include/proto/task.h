@@ -271,8 +271,7 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 
 static inline void task_remove_from_task_list(struct task *t)
 {
-	LIST_DEL(&((struct tasklet *)t)->list);
-	LIST_INIT(&((struct tasklet *)t)->list);
+	LIST_DEL_INIT(&((struct tasklet *)t)->list);
 	task_per_thread[tid].task_list_size--;
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	if (!TASK_IS_TASKLET(t)) {
