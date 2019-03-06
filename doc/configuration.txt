@@ -3743,7 +3743,7 @@ hash-balance-factor <factor>
   Arguments :
     <factor> is the control for the maximum number of concurrent requests to
              send to a server, expressed as a percentage of the average number
-	     of concurrent requests across all of the active servers.
+             of concurrent requests across all of the active servers.
 
   Specifying a "hash-balance-factor" for a server with "hash-type consistent"
   enables an algorithm that prevents any one server from getting too many
@@ -6020,7 +6020,7 @@ no option http-keep-alive
 
   See also : "option httpclose",, "option http-server-close",
              "option prefer-last-server", "option http-pretend-keepalive",
-	     and "1.1. The HTTP transaction model".
+             and "1.1. The HTTP transaction model".
 
 
 option http-no-delay
@@ -12472,11 +12472,11 @@ timeout <event> <time>
   Defines timeouts related to name resolution
      <event> : the event on which the <time> timeout period applies to.
                events available are:
-	       - resolve : default time to trigger name resolutions when no
-	                   other time applied.
+               - resolve : default time to trigger name resolutions when no
+                           other time applied.
                            Default value: 1s
                - retry   : time between two DNS queries, when no valid response
-	                   have been received.
+                           have been received.
                            Default value: 1s
      <time>  : time related to the event. It follows the HAProxy time format.
                <time> is expressed in milliseconds.
@@ -13874,7 +13874,7 @@ ungrpc(<field_number>,[<field_type>])
   "uint64", "sint32", "sint64", "bool", "enum" for the "varint" wire type 0
   "fixed64", "sfixed64", "double" for the 64bit wire type 1, "fixed32", "sfixed32",
   "float" for the wire type 5. Note that "string" is considered as a length-delimited
-  type. So it does not require any <field_type> argument to be extracted.
+  type, so it does not require any <field_type> argument to be extracted.
   More information may be found here about the protocol buffers message field types:
   https://developers.google.com/protocol-buffers/docs/encoding
 
@@ -13907,9 +13907,9 @@ ungrpc(<field_number>,[<field_type>])
     req.body,ungrpc(49.59.1,int32) # "latidude" of "hi" second PPoint
     req.body,ungrpc(49.59.2,int32) # "longitude" of "hi" second PPoint
 
-	We could also extract the intermediary 48.59 field as a binary sample as follows:
+    We could also extract the intermediary 48.59 field as a binary sample as follows:
 
-	req.body,ungrpc(48.59)
+    req.body,ungrpc(48.59)
 
 
 unset-var(<var name>)
