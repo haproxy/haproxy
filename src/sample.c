@@ -2787,8 +2787,19 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 	return 0;
 }
 
-static int sample_conv_ungrpc_check(struct arg *args, struct sample_conv *conv,
-                                    const char *file, int line, char **err)
+static int sample_conv_protobuf(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	unsigned char *pos;
+	size_t left;
+
+	pos = (unsigned char *)smp->data.u.str.area;
+	left = smp->data.u.str.data;
+
+	return protobuf_field_lookup(arg_p, smp, &pos, &left);
+}
+
+static int sample_conv_protobuf_check(struct arg *args, struct sample_conv *conv,
+                                      const char *file, int line, char **err)
 {
 	if (!args[1].type) {
 		args[1].type = ARGT_SINT;
@@ -3197,7 +3208,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
 
 	/* gRPC converters. */
-	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_ungrpc_check, SMP_T_BIN, SMP_T_BIN  },
+	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
+	{ "protobuf", sample_conv_protobuf, ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },

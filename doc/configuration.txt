@@ -13599,6 +13599,19 @@ or(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+protobuf(<field_number>,[<field_type>])
+  This extracts the protocol buffers message field in raw mode of an input binary
+  sample representation of a protocol buffer message with <field_number> as field
+  number (dotted notation) if <field_type> is not present, or as an integer sample
+  if this field is present (see also "ungrpc" below).
+  The list of the authorized types is the following one: "int32", "int64", "uint32",
+  "uint64", "sint32", "sint64", "bool", "enum" for the "varint" wire type 0
+  "fixed64", "sfixed64", "double" for the 64bit wire type 1, "fixed32", "sfixed32",
+  "float" for the wire type 5. Note that "string" is considered as a length-delimited
+  type, so it does not require any <field_type> argument to be extracted.
+  More information may be found here about the protocol buffers message field types:
+  https://developers.google.com/protocol-buffers/docs/encoding
+
 regsub(<regex>,<subst>[,<flags>])
   Applies a regex-based substitution to the input string. It does the same
   operation as the well-known "sed" utility with "s/<regex>/<subst>/". By
@@ -13868,8 +13881,9 @@ url_dec
 
 ungrpc(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
-  sample with <field_number> as field number (dotted notation) if <field_type>
-  is not present, or as an integer sample if this field is present.
+  sample representation of a gRPC message with <field_number> as field number
+  (dotted notation) if <field_type> is not present, or as an integer sample if this
+  field is present.
   The list of the authorized types is the following one: "int32", "int64", "uint32",
   "uint64", "sint32", "sint64", "bool", "enum" for the "varint" wire type 0
   "fixed64", "sfixed64", "double" for the 64bit wire type 1, "fixed32", "sfixed32",
@@ -13910,6 +13924,18 @@ ungrpc(<field_number>,[<field_type>])
     We could also extract the intermediary 48.59 field as a binary sample as follows:
 
     req.body,ungrpc(48.59)
+
+    As a gRPC message is alway made of a gRPC header followed by protocol buffers
+    messages, in the previous example the "latitude" of "lo" first PPoint
+    could be extracted with these equivalent directives:
+
+    req.body,ungrpc(48.59),protobuf(1,int32)
+    req.body,ungrpc(48),protobuf(59.1,int32)
+    req.body,ungrpc(48),protobuf(59),protobuf(1,int32)
+
+    Note that the first convert must be "ungrpc", the remaining ones must be
+    "protobuf" and only the last one may have or not a second argument to
+    interpret the previous binary sample.
 
 
 unset-var(<var name>)
