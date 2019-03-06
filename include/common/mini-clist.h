@@ -89,6 +89,18 @@ struct cond_wordlist {
 /* removes an element from a list and returns it */
 #define LIST_DEL(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
 
+/* removes an element from a list, initializes it and returns it.
+ * This is faster than LIST_DEL+LIST_INIT as we avoid reloading the pointers.
+ */
+#define LIST_DEL_INIT(el) ({ \
+	typeof(el) __ret = (el);                        \
+	typeof(__ret->n) __n = __ret->n;                \
+	typeof(__ret->p) __p = __ret->p;                \
+	__n->p = __p; __p->n = __n;                     \
+	__ret->n = __ret->p = __ret;                    \
+	__ret;                                          \
+})
+
 /* returns a pointer of type <pt> to a structure containing a list head called
  * <el> at address <lh>. Note that <lh> can be the result of a function or macro
  * since it's used only once.
