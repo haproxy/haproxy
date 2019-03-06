@@ -862,7 +862,7 @@ void listener_accept(int fd)
 			/* keep a copy for the final update. thr_idx is composite
 			 * and made of (t2<<16) + t1.
 			 */
-			t0 = l->bind_conf->thr_idx;
+			t0 = l->thr_idx;
 			do {
 				unsigned long m1, m2;
 				int q1, q2;
@@ -937,7 +937,7 @@ void listener_accept(int fd)
 
 				/* new value for thr_idx */
 				t1 += (t2 << 16);
-			} while (unlikely(!HA_ATOMIC_CAS(&l->bind_conf->thr_idx, &t0, t1)));
+			} while (unlikely(!HA_ATOMIC_CAS(&l->thr_idx, &t0, t1)));
 
 			/* We successfully selected the best thread "t" for this
 			 * connection. We use deferred accepts even if it's the

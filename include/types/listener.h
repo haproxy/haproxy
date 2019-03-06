@@ -170,7 +170,6 @@ struct bind_conf {
 	struct list listeners;     /* list of listeners using this bind config */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
 	unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
-	unsigned int thr_idx;      /* thread indexes for queue distribution : (t2<<16)+t1 */
 	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
@@ -204,10 +203,10 @@ struct listener {
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
+	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */
 	int tcp_ut;                     /* for TCP, user timeout */
-	/* 4 bytes hole */
 	char *interface;		/* interface name or NULL */
 	char *name;			/* listener's name */
 
@@ -219,6 +218,7 @@ struct listener {
 	unsigned int thr_conn[MAX_THREADS]; /* number of connections per thread */
 
 	/* cache line boundary */
+
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
