@@ -277,12 +277,12 @@ static inline unsigned long thread_isolated()
 	})
 #else
 /* gcc >= 4.7 */
-#define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, 0, 0)
-#define HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, 0)
-#define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, 0)
-#define HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, 0)
-#define HA_ATOMIC_AND(val, flags)    __atomic_and_fetch(val, flags, 0)
-#define HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, 0)
+#define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_AND(val, flags)    __atomic_and_fetch(val, flags, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_BTS(val, bit)						\
 	({								\
 		typeof(*(val)) __b_bts = (1UL << (bit));		\
@@ -295,8 +295,8 @@ static inline unsigned long thread_isolated()
 		__sync_fetch_and_and((val), ~__b_btr) & __b_btr;	\
 	})
 
-#define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, 0)
-#define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, 0)
+#define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, __ATOMIC_SEQ_CST)
 #endif
 
 #define HA_ATOMIC_UPDATE_MAX(val, new)					\
