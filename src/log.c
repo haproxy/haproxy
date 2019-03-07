@@ -1692,11 +1692,15 @@ int init_log_buffers()
 /* Deinitialize log buffers used for syslog messages */
 void deinit_log_buffers()
 {
+	void *tmp_startup_logs;
+
 	free(logheader);
 	free(logheader_rfc5424);
 	free(logline);
 	free(logline_rfc5424);
-	free(startup_logs);
+	tmp_startup_logs = HA_ATOMIC_XCHG(&startup_logs, NULL);
+	free(tmp_startup_logs);
+
 	logheader         = NULL;
 	logheader_rfc5424 = NULL;
 	logline           = NULL;
