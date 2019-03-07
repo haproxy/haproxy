@@ -1521,9 +1521,14 @@ void proxy_adjust_all_maxconn()
 			 * the same backend or to the default backend.
 			 */
 			if (swrule1->be.backend != curproxy->defbe.be) {
+				/* note: swrule1->be.backend isn't a backend if the rule
+				 * is dynamic, it's an expression instead, so it must not
+				 * be dereferenced as a backend before being certain it is.
+				 */
 				list_for_each_entry(swrule2, &curproxy->switching_rules, list) {
 					if (swrule2 == swrule1) {
-						swrule1->be.backend->tot_fe_maxconn += curproxy->maxconn;
+						if (!swrule1->dynamic)
+							swrule1->be.backend->tot_fe_maxconn += curproxy->maxconn;
 						break;
 					}
 					else if (!swrule2->dynamic && swrule2->be.backend == swrule1->be.backend) {
