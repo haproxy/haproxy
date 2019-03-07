@@ -702,7 +702,8 @@ static void deinit_51degrees(void)
 
 	free(global_51degrees.header_names);
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	fiftyoneDegreesWorksetPoolFree(global_51degrees.pool);
+	if (global_51degrees.pool)
+		fiftyoneDegreesWorksetPoolFree(global_51degrees.pool);
 #endif
 #ifdef FIFTYONEDEGREES_H_TRIE_INCLUDED
 #ifdef FIFTYONEDEGREES_NO_THREADING
