@@ -128,6 +128,18 @@ static inline void ha_set_tid(unsigned int tid)
 {
 }
 
+static inline void __ha_barrier_atomic_load(void)
+{
+}
+
+static inline void __ha_barrier_atomic_store(void)
+{
+}
+
+static inline void __ha_barrier_atomic_full(void)
+{
+}
+
 static inline void __ha_barrier_load(void)
 {
 }
@@ -866,6 +878,27 @@ __ha_cas_dw(void *target, void *compare, const void *set)
         return (ret);
 }
 
+/* Use __ha_barrier_atomic* when you're trying to protect data that are
+ * are modified using HA_ATOMIC* (except HA_ATOMIC_STORE)
+ */
+static __inline void
+__ha_barrier_atomic_load(void)
+{
+	__asm __volatile("" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_store(void)
+{
+	__asm __volatile("" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_full(void)
+{
+	__asm __volatile("" ::: "memory");
+}
+
 static __inline void
 __ha_barrier_load(void)
 {
@@ -885,6 +918,27 @@ __ha_barrier_full(void)
 }
 
 #elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
+
+/* Use __ha_barrier_atomic* when you're trying to protect data that are
+ * are modified using HA_ATOMIC* (except HA_ATOMIC_STORE)
+ */
+static __inline void
+__ha_barrier_atomic_load(void)
+{
+	__asm __volatile("dmb" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_store(void)
+{
+	__asm __volatile("dsb" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_full(void)
+{
+	__asm __volatile("dmb" ::: "memory");
+}
 
 static __inline void
 __ha_barrier_load(void)
@@ -926,6 +980,27 @@ static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
 }
 
 #elif defined (__aarch64__)
+
+/* Use __ha_barrier_atomic* when you're trying to protect data that are
+ * are modified using HA_ATOMIC* (except HA_ATOMIC_STORE)
+ */
+static __inline void
+__ha_barrier_atomic_load(void)
+{
+	__asm __volatile("dmb ishld" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_store(void)
+{
+	__asm __volatile("dmb ishst" ::: "memory");
+}
+
+static __inline void
+__ha_barrier_atomic_full(void)
+{
+	__asm __volatile("dmb ish" ::: "memory");
+}
 
 static __inline void
 __ha_barrier_load(void)
@@ -972,6 +1047,9 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 }
 
 #else
+#define __ha_barrier_atomic_load __sync_synchronize
+#define __ha_barrier_atomic_store __sync_synchronize
+#define __ha_barrier_atomic_full __sync_synchronize
 #define __ha_barrier_load __sync_synchronize
 #define __ha_barrier_store __sync_synchronize
 #define __ha_barrier_full __sync_synchronize
