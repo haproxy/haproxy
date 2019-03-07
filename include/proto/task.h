@@ -273,11 +273,9 @@ static inline void task_remove_from_task_list(struct task *t)
 {
 	LIST_DEL_INIT(&((struct tasklet *)t)->list);
 	task_per_thread[tid].task_list_size--;
+	if (!TASK_IS_TASKLET(t))
+		HA_ATOMIC_STORE(&t->rq.node.leaf_p, NULL); // was 0x1
 	HA_ATOMIC_SUB(&tasks_run_queue, 1);
-	if (!TASK_IS_TASKLET(t)) {
-		t->rq.node.leaf_p = NULL; // was 0x1
-		__ha_barrier_store();
-	}
 }
 
 /*
