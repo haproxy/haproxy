@@ -3087,6 +3087,13 @@ static void h2_do_shutr(struct h2s *h2s)
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 		h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
 	}
+	else if (!(h2s->flags & H2_SF_HEADERS_SENT)) {
+		/* Nothing was never sent for this stream, so reset with
+		 * REFUSED_STREAM error to let the client retry the
+		 * request.
+		 */
+		h2s_error(h2s, H2_ERR_REFUSED_STREAM);
+	}
 
 	if (!(h2s->flags & H2_SF_RST_SENT) &&
 	    h2s_send_rst_stream(h2c, h2s) <= 0)
@@ -3141,6 +3148,13 @@ static void h2_do_shutw(struct h2s *h2s)
 		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
+		}
+		else {
+			/* Nothing was never sent for this stream, so reset with
+			 * REFUSED_STREAM error to let the client retry the
+			 * request.
+			 */
+			h2s_error(h2s, H2_ERR_REFUSED_STREAM);
 		}
 
 		if (!(h2s->flags & H2_SF_RST_SENT) &&
