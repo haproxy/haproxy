@@ -320,6 +320,20 @@ static inline unsigned long thread_isolated()
 
 #define HA_BARRIER() pl_barrier()
 
+/* Variants that don't generate any memory barrier.
+ * If you're unsure how to deal with barriers, just use the HA_ATOMIC_* version,
+ * that will always generate correct code.
+ * Usually it's fine to use those when updating data that have no dependency,
+ * ie updating a counter. Otherwise a barrier is required.
+ */
+#define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_AND(val, flags)    __atomic_and_fetch(val, flags, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, __ATOMIC_RELAXED)
 void thread_harmless_till_end();
 void thread_isolate();
 void thread_release();
@@ -1070,4 +1084,35 @@ static inline void __ha_compiler_barrier(void)
 int parse_nbthread(const char *arg, char **err);
 int thread_get_default_count();
 
+#ifndef _HA_ATOMIC_CAS
+#define _HA_ATOMIC_CAS HA_ATOMIC_CAS
+#endif /* !_HA_ATOMIC_CAS */
+
+#ifndef _HA_ATOMIC_ADD
+#define _HA_ATOMIC_ADD HA_ATOMIC_ADD
+#endif /* !_HA_ATOMIC_ADD */
+
+#ifndef _HA_ATOMIC_XADD
+#define _HA_ATOMIC_XADD HA_ATOMIC_XADD
+#endif /* !_HA_ATOMIC_SUB */
+
+#ifndef _HA_ATOMIC_SUB
+#define _HA_ATOMIC_SUB HA_ATOMIC_SUB
+#endif /* !_HA_ATOMIC_SUB */
+
+#ifndef _HA_ATOMIC_AND
+#define _HA_ATOMIC_AND HA_ATOMIC_AND
+#endif /* !_HA_ATOMIC_AND */
+
+#ifndef _HA_ATOMIC_OR
+#define _HA_ATOMIC_OR HA_ATOMIC_OR
+#endif /* !_HA_ATOMIC_OR */
+
+#ifndef _HA_ATOMIC_XCHG
+#define _HA_ATOMIC_XCHG HA_ATOMIC_XCHG
+#endif /* !_HA_ATOMIC_XCHG */
+
+#ifndef _HA_ATOMIC_STORE
+#define _HA_ATOMIC_STORE HA_ATOMIC_STORE
+#endif /* !_HA_ATOMIC_STORE */
 #endif /* _COMMON_HATHREADS_H */
