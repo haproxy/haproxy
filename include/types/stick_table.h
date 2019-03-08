@@ -144,6 +144,13 @@ struct stksess {
 /* stick table */
 struct stktable {
 	char *id;		  /* table id name */
+	struct stktable *next;    /* The stick-table may be linked when belonging to
+	                           * the same configuration section.
+	                           */
+	struct {
+		const char *file;     /* The file where the stick-table is declared. */
+		int line;             /* The line in this <file> the stick-table is declared. */
+	} conf;
 	struct eb_root keys;      /* head of sticky session tree */
 	struct eb_root exps;      /* head of sticky session expiration tree */
 	struct eb_root updates;   /* head of sticky updates sequence tree */
@@ -175,6 +182,7 @@ struct stktable {
 		unsigned int u;
 		void *p;
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
+	struct proxy *proxy;      /* The proxy this stick-table is attached to, if any.*/
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];

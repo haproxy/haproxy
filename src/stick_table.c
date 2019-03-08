@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <common/config.h>
+#include <common/cfgparse.h>
 #include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
@@ -662,6 +663,197 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 		return 0;
 	}
 	return 1;
+}
+
+/*
+ * Parse a line with <linenum> as number in <file> configuration file to configure the
+ * stick-table with <t> as address and  <id> as ID.
+ * <peers> provides the "peers" section pointer only if this function is called from a "peers" section.
+ * Return an error status with ERR_* flags set if required, 0 if no error was encountered.
+ */
+int parse_stick_table(const char *file, int linenum, char **args,
+                      struct stktable *t, char *id, struct peers *peers)
+{
+	int err_code = 0;
+	int idx = 1;
+	unsigned int val;
+
+	if (!id || !*id) {
+		ha_alert("parsing [%s:%d] : %s: ID not provided.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* Store the "peers" section if this function is called from a "peers" section. */
+	if (peers) {
+		t->peers.p = peers;
+		idx++;
+	}
+
+	t->id =  id;
+	t->type = (unsigned int)-1;
+	t->conf.file = file;
+	t->conf.line = linenum;
+
+	while (*args[idx]) {
+		const char *err;
+
+		if (strcmp(args[idx], "size") == 0) {
+			idx++;
+			if (!*(args[idx])) {
+				ha_alert("parsing [%s:%d] : %s: missing argument after '%s'.\n",
+					 file, linenum, args[0], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if ((err = parse_size_err(args[idx], &t->size))) {
+				ha_alert("parsing [%s:%d] : %s: unexpected character '%c' in argument of '%s'.\n",
+					 file, linenum, args[0], *err, args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			idx++;
+		}
+		/* This argument does not exit in "peers" section. */
+		else if (!peers && strcmp(args[idx], "peers") == 0) {
+			idx++;
+			if (!*(args[idx])) {
+				ha_alert("parsing [%s:%d] : %s: missing argument after '%s'.\n",
+					 file, linenum, args[0], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			t->peers.name = strdup(args[idx++]);
+		}
+		else if (strcmp(args[idx], "expire") == 0) {
+			idx++;
+			if (!*(args[idx])) {
+				ha_alert("parsing [%s:%d] : %s: missing argument after '%s'.\n",
+					 file, linenum, args[0], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			err = parse_time_err(args[idx], &val, TIME_UNIT_MS);
+			if (err) {
+				ha_alert("parsing [%s:%d] : %s: unexpected character '%c' in argument of '%s'.\n",
+					 file, linenum, args[0], *err, args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (val > INT_MAX) {
+				ha_alert("parsing [%s:%d] : Expire value [%u]ms exceeds maxmimum value of 24.85 days.\n",
+					 file, linenum, val);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			t->expire = val;
+			idx++;
+		}
+		else if (strcmp(args[idx], "nopurge") == 0) {
+			t->nopurge = 1;
+			idx++;
+		}
+		else if (strcmp(args[idx], "type") == 0) {
+			idx++;
+			if (stktable_parse_type(args, &idx, &t->type, &t->key_size) != 0) {
+				ha_alert("parsing [%s:%d] : %s: unknown type '%s'.\n",
+					 file, linenum, args[0], args[idx]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			/* idx already points to next arg */
+		}
+		else if (strcmp(args[idx], "store") == 0) {
+			int type, err;
+			char *cw, *nw, *sa;
+
+			idx++;
+			nw = args[idx];
+			while (*nw) {
+				/* the "store" keyword supports a comma-separated list */
+				cw = nw;
+				sa = NULL; /* store arg */
+				while (*nw && *nw != ',') {
+					if (*nw == '(') {
+						*nw = 0;
+						sa = ++nw;
+						while (*nw != ')') {
+							if (!*nw) {
+								ha_alert("parsing [%s:%d] : %s: missing closing parenthesis after store option '%s'.\n",
+									 file, linenum, args[0], cw);
+								err_code |= ERR_ALERT | ERR_FATAL;
+								goto out;
+							}
+							nw++;
+						}
+						*nw = '\0';
+					}
+					nw++;
+				}
+				if (*nw)
+					*nw++ = '\0';
+				type = stktable_get_data_type(cw);
+				if (type < 0) {
+					ha_alert("parsing [%s:%d] : %s: unknown store option '%s'.\n",
+						 file, linenum, args[0], cw);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				err = stktable_alloc_data_type(t, type, sa);
+				switch (err) {
+				case PE_NONE: break;
+				case PE_EXIST:
+					ha_warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
+						   file, linenum, args[0], cw);
+					err_code |= ERR_WARN;
+					break;
+
+				case PE_ARG_MISSING:
+					ha_alert("parsing [%s:%d] : %s: missing argument to store option '%s'.\n",
+						 file, linenum, args[0], cw);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+
+				case PE_ARG_NOT_USED:
+					ha_alert("parsing [%s:%d] : %s: unexpected argument to store option '%s'.\n",
+						 file, linenum, args[0], cw);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+
+				default:
+					ha_alert("parsing [%s:%d] : %s: error when processing store option '%s'.\n",
+						 file, linenum, args[0], cw);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			idx++;
+		}
+		else {
+			ha_alert("parsing [%s:%d] : %s: unknown argument '%s'.\n",
+				 file, linenum, args[0], args[idx]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
+	if (!t->size) {
+		ha_alert("parsing [%s:%d] : %s: missing size.\n",
+			 file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	if (t->type == (unsigned int)-1) {
+		ha_alert("parsing [%s:%d] : %s: missing type.\n",
+			 file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+ out:
+	return err_code;
 }
 
 /* Prepares a stktable_key from a sample <smp> to search into table <t>.

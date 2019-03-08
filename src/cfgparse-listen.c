@@ -25,6 +25,7 @@
 #include <proto/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
+#include <proto/stick_table.h>
 
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
@@ -1710,7 +1711,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->persist_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stick-table")) {
-		int myidx = 1;
 		struct proxy *other;
 
 		if (curproxy == &defproxy) {
@@ -1728,163 +1728,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		curproxy->table.id =  curproxy->id;
-		curproxy->table.type = (unsigned int)-1;
-		while (*args[myidx]) {
-			const char *err;
-
-			if (strcmp(args[myidx], "size") == 0) {
-				myidx++;
-				if (!*(args[myidx])) {
-					ha_alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
-						 file, linenum, args[myidx-1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if ((err = parse_size_err(args[myidx], &curproxy->table.size))) {
-					ha_alert("parsing [%s:%d] : stick-table: unexpected character '%c' in argument of '%s'.\n",
-						 file, linenum, *err, args[myidx-1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				myidx++;
-			}
-			else if (strcmp(args[myidx], "peers") == 0) {
-				myidx++;
-				if (!*(args[myidx])) {
-					ha_alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
-						 file, linenum, args[myidx-1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				curproxy->table.peers.name = strdup(args[myidx++]);
-			}
-			else if (strcmp(args[myidx], "expire") == 0) {
-				myidx++;
-				if (!*(args[myidx])) {
-					ha_alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
-						 file, linenum, args[myidx-1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				err = parse_time_err(args[myidx], &val, TIME_UNIT_MS);
-				if (err) {
-					ha_alert("parsing [%s:%d] : stick-table: unexpected character '%c' in argument of '%s'.\n",
-						 file, linenum, *err, args[myidx-1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (val > INT_MAX) {
-					ha_alert("parsing [%s:%d] : Expire value [%u]ms exceeds maxmimum value of 24.85 days.\n",
-						 file, linenum, val);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				curproxy->table.expire = val;
-				myidx++;
-			}
-			else if (strcmp(args[myidx], "nopurge") == 0) {
-				curproxy->table.nopurge = 1;
-				myidx++;
-			}
-			else if (strcmp(args[myidx], "type") == 0) {
-				myidx++;
-				if (stktable_parse_type(args, &myidx, &curproxy->table.type, &curproxy->table.key_size) != 0) {
-					ha_alert("parsing [%s:%d] : stick-table: unknown type '%s'.\n",
-						 file, linenum, args[myidx]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				/* myidx already points to next arg */
-			}
-			else if (strcmp(args[myidx], "store") == 0) {
-				int type, err;
-				char *cw, *nw, *sa;
-
-				myidx++;
-				nw = args[myidx];
-				while (*nw) {
-					/* the "store" keyword supports a comma-separated list */
-					cw = nw;
-					sa = NULL; /* store arg */
-					while (*nw && *nw != ',') {
-						if (*nw == '(') {
-							*nw = 0;
-							sa = ++nw;
-							while (*nw != ')') {
-								if (!*nw) {
-									ha_alert("parsing [%s:%d] : %s: missing closing parenthesis after store option '%s'.\n",
-										 file, linenum, args[0], cw);
-									err_code |= ERR_ALERT | ERR_FATAL;
-									goto out;
-								}
-								nw++;
-							}
-							*nw = '\0';
-						}
-						nw++;
-					}
-					if (*nw)
-						*nw++ = '\0';
-					type = stktable_get_data_type(cw);
-					if (type < 0) {
-						ha_alert("parsing [%s:%d] : %s: unknown store option '%s'.\n",
-							 file, linenum, args[0], cw);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					err = stktable_alloc_data_type(&curproxy->table, type, sa);
-					switch (err) {
-					case PE_NONE: break;
-					case PE_EXIST:
-						ha_warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
-							   file, linenum, args[0], cw);
-						err_code |= ERR_WARN;
-						break;
-
-					case PE_ARG_MISSING:
-						ha_alert("parsing [%s:%d] : %s: missing argument to store option '%s'.\n",
-							 file, linenum, args[0], cw);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-
-					case PE_ARG_NOT_USED:
-						ha_alert("parsing [%s:%d] : %s: unexpected argument to store option '%s'.\n",
-							 file, linenum, args[0], cw);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-
-					default:
-						ha_alert("parsing [%s:%d] : %s: error when processing store option '%s'.\n",
-							 file, linenum, args[0], cw);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-				myidx++;
-			}
-			else {
-				ha_alert("parsing [%s:%d] : stick-table: unknown argument '%s'.\n",
-					 file, linenum, args[myidx]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-
-		if (!curproxy->table.size) {
-			ha_alert("parsing [%s:%d] : stick-table: missing size.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= parse_stick_table(file, linenum, args, &curproxy->table, curproxy->id, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
 
-		if (curproxy->table.type == (unsigned int)-1) {
-			ha_alert("parsing [%s:%d] : stick-table: missing type.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+		/* Store the proxy in the stick-table. */
+		curproxy->table->proxy = curproxy;
 	}
 	else if (!strcmp(args[0], "stick")) {
 		struct sticking_rule *rule;
