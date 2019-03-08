@@ -201,7 +201,7 @@ redo_next:
 	/* Check that we're not already in the cache, and if not, lock us. */
 	if (next >= -2)
 		goto done;
-	if (!HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2))
+	if (!_HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2))
 		goto redo_next;
 	__ha_barrier_atomic_store();
 
@@ -217,7 +217,7 @@ redo_last:
 
 	if (unlikely(last == -1)) {
 		/* list is empty, try to add ourselves alone so that list->last=fd */
-		if (unlikely(!HA_ATOMIC_CAS(&list->last, &old, new)))
+		if (unlikely(!_HA_ATOMIC_CAS(&list->last, &old, new)))
 			    goto redo_last;
 
 		/* list->first was necessary -1, we're guaranteed to be alone here */
@@ -227,7 +227,7 @@ redo_last:
 		 * The CAS will only succeed if its next is -1,
 		 * which means it's in the cache, and the last element.
 		 */
-		if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(last, off), &old, new)))
+		if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(last, off), &old, new)))
 			goto redo_last;
 
 		/* Then, update the last entry */
@@ -268,7 +268,7 @@ lock_self:
 			goto lock_self;
 	} while (
 #ifdef HA_CAS_IS_8B
-	    unlikely(!HA_ATOMIC_CAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
+	    unlikely(!_HA_ATOMIC_CAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
 #else
 	    unlikely(!__ha_cas_dw((void *)&_GET_NEXT(fd, off), (void *)&cur_list, (void *)&next_list)))
 #endif
@@ -283,13 +283,13 @@ lock_self_next:
 		goto lock_self_next;
 	if (next <= -3)
 		goto done;
-	if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2)))
+	if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
 	prev = ({ volatile int *prev = &_GET_PREV(fd, off); *prev; });
 	if (prev == -2)
 		goto lock_self_prev;
-	if (unlikely(!HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
+	if (unlikely(!_HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
 		goto lock_self_prev;
 #endif
 	__ha_barrier_atomic_store();
@@ -299,7 +299,7 @@ lock_self_prev:
 redo_prev:
 		old = fd;
 
-		if (unlikely(!HA_ATOMIC_CAS(&_GET_NEXT(prev, off), &old, new))) {
+		if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(prev, off), &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
@@ -316,7 +316,7 @@ redo_prev:
 	if (likely(next != -1)) {
 redo_next:
 		old = fd;
-		if (unlikely(!HA_ATOMIC_CAS(&_GET_PREV(next, off), &old, new))) {
+		if (unlikely(!_HA_ATOMIC_CAS(&_GET_PREV(next, off), &old, new))) {
 			if (unlikely(old == -2)) {
 				/* Neighbour already locked, give up and
 				 * retry again once he's done
@@ -338,7 +338,7 @@ redo_next:
 		list->first = next;
 	__ha_barrier_store();
 	last = list->last;
-	while (unlikely(last == fd && (!HA_ATOMIC_CAS(&list->last, &last, prev))))
+	while (unlikely(last == fd && (!_HA_ATOMIC_CAS(&list->last, &last, prev))))
 		__ha_compiler_barrier();
 	/* Make sure we let other threads know we're no longer in cache,
 	 * before releasing our neighbours.
@@ -427,7 +427,7 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
 		if (fdtab[fd].cache.next < -3)
 			continue;
 
-		HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
+		_HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
 		locked = atleast2(fdtab[fd].thread_mask);
 		if (locked && HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
 			activity[tid].fd_lock++;
@@ -463,7 +463,7 @@ static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
  */
 void fd_process_cached_events()
 {
-	HA_ATOMIC_AND(&fd_cache_mask, ~tid_bit);
+	_HA_ATOMIC_AND(&fd_cache_mask, ~tid_bit);
 	fdlist_process_cached_events(&fd_cache_local[tid]);
 	fdlist_process_cached_events(&fd_cache);
 }
