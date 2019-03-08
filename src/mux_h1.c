@@ -1393,7 +1393,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
 	if ((h1s->cs->flags & CS_FL_REOS) && (!b_data(&h1c->ibuf) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
-		if (h1m->state < H1_MSG_DONE)
+		if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 			h1s->cs->flags |= CS_FL_ERROR;
 	}
 
