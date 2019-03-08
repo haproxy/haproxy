@@ -148,8 +148,6 @@ static inline void done_update_polling(int fd)
 	while ((update_mask & all_threads_mask)== 0) {
 		/* If we were the last one that had to update that entry, remove it from the list */
 		fd_rm_from_fd_list(&update_list, fd, offsetof(struct fdtab, update));
-		if (update_list.first == fd)
-			abort();
 		update_mask = (volatile unsigned long)fdtab[fd].update_mask;
 		if ((update_mask & all_threads_mask) != 0) {
 			/* Maybe it's been re-updated in the meanwhile, and we
