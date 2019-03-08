@@ -721,9 +721,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			req->analysers &= AN_REQ_FLT_END;
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
-				HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -754,9 +754,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
-				HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -784,9 +784,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
-				HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -899,7 +899,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		struct acl_cond *cond;
 
 		s->flags |= SF_MONITOR;
-		HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
+		_HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
 		/* Check if we want to fail this monitor request or not */
 		list_for_each_entry(cond, &sess->fe->mon_fail_cond, list) {
@@ -1178,9 +1178,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	txn->status = 400;
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
  return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
@@ -1631,11 +1631,11 @@ resume_execution:
 						 replace->area, s->uniq_id);
 				}
 
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 				if (sess->fe != s->be)
-					HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+					_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
 				if (sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 			}
 
 			free_trash_chunk(replace);
@@ -1983,13 +1983,13 @@ resume_execution:
 						 replace->area, s->uniq_id);
 				}
 
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 				if (sess->fe != s->be)
-					HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+					_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
 				if (sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 				if (objt_server(s->target))
-					HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_rewrites, 1);
+					_HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_rewrites, 1);
 			}
 
 			free_trash_chunk(replace);
@@ -2634,7 +2634,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	    unlikely(objt_applet(s->target) == &http_cache_applet)) {
 		/* process the stats request now */
 		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
 		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
@@ -2708,11 +2708,11 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!req->analyse_exp)
 		req->analyse_exp = tick_add(now_ms, 0);
 	stream_inc_http_err_ctr(s);
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 	if (sess->fe != s->be)
-		HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 	goto done_without_exp;
 
  deny:	/* this request was blocked (denied) */
@@ -2727,11 +2727,11 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	s->logs.tv_request = now;
 	http_reply_and_close(s, txn->status, http_error_message(s));
 	stream_inc_http_err_ctr(s);
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 	if (sess->fe != s->be)
-		HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 	goto return_prx_cond;
 
  return_bad_req:
@@ -2748,9 +2748,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	txn->status = 400;
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
  return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
@@ -3095,9 +3095,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	req->analysers &= AN_REQ_FLT_END;
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -3307,9 +3307,9 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  return_err_msg:
 	req->analysers &= AN_REQ_FLT_END;
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 	return 0;
 }
 
@@ -3404,7 +3404,7 @@ void http_end_txn_clean_session(struct stream *s)
 	}
 
 	if (s->flags & SF_BE_ASSIGNED) {
-		HA_ATOMIC_SUB(&be->beconn, 1);
+		_HA_ATOMIC_SUB(&be->beconn, 1);
 		if (unlikely(s->srv_conn))
 			sess_change_server(s, NULL);
 	}
@@ -3420,12 +3420,12 @@ void http_end_txn_clean_session(struct stream *s)
 			n = 0;
 
 		if (fe->mode == PR_MODE_HTTP) {
-			HA_ATOMIC_ADD(&fe->fe_counters.p.http.rsp[n], 1);
+			_HA_ATOMIC_ADD(&fe->fe_counters.p.http.rsp[n], 1);
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (be->mode == PR_MODE_HTTP)) {
-			HA_ATOMIC_ADD(&be->be_counters.p.http.rsp[n], 1);
-			HA_ATOMIC_ADD(&be->be_counters.p.http.cum_req, 1);
+			_HA_ATOMIC_ADD(&be->be_counters.p.http.rsp[n], 1);
+			_HA_ATOMIC_ADD(&be->be_counters.p.http.cum_req, 1);
 		}
 	}
 
@@ -3471,7 +3471,7 @@ void http_end_txn_clean_session(struct stream *s)
 	if (objt_server(s->target)) {
 		if (s->flags & SF_CURR_SESS) {
 			s->flags &= ~SF_CURR_SESS;
-			HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
+			_HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
 		}
 		if (may_dequeue_tasks(objt_server(s->target), be))
 			process_srv_queue(objt_server(s->target));
@@ -3822,9 +3822,9 @@ int http_sync_res_state(struct stream *s)
 		else if (chn->flags & CF_SHUTW) {
 			txn->rsp.err_state = txn->rsp.msg_state;
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
-			HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 		}
 		goto wait_other_side;
 	}
@@ -4101,10 +4101,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 				s->flags |= SF_FINST_D;
 		}
 
-		HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-		HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+		_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 		if (objt_server(s->target))
-			HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+			_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 
 		goto return_bad_req_stats_ok;
 	}
@@ -4139,9 +4139,9 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
  return_bad_req_stats_ok:
 	txn->req.err_state = txn->req.msg_state;
@@ -4179,10 +4179,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	req->analysers   &= AN_REQ_FLT_END;
 	s->res.analysers &= AN_RES_FLT_END; /* we're in data phase, we want to abort both directions */
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-	HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 	if (objt_server(s->target))
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.srv_aborts, 1);
+		_HA_ATOMIC_ADD(&objt_server(s->target)->counters.srv_aborts, 1);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
@@ -4312,9 +4312,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
 				http_capture_bad_message(s->be, s, msg, msg->err_state, sess->fe);
 
-			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 			}
 		abort_response:
@@ -4347,9 +4347,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
-			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
 			}
 
@@ -4383,9 +4383,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(s->be, s, msg, msg->err_state, sess->fe);
 
-			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
 			}
 
@@ -4405,10 +4405,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* client abort with an abortonclose */
 		else if ((rep->flags & CF_SHUTR) && ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-			HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 
 			rep->analysers &= AN_RES_FLT_END;
 			channel_auto_close(rep);
@@ -4433,9 +4433,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
-			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
-				HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
 			}
 
@@ -4460,7 +4460,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
-			HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			rep->analysers &= AN_RES_FLT_END;
 			channel_auto_close(rep);
 
@@ -4501,7 +4501,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		stream_inc_http_err_ctr(s);
 
 	if (objt_server(s->target))
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.p.http.rsp[n], 1);
+		_HA_ATOMIC_ADD(&objt_server(s->target)->counters.p.http.rsp[n], 1);
 
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
@@ -4935,10 +4935,10 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			if (apply_filters_to_response(s, rep, rule_set) < 0) {
 			return_bad_resp:
 				if (objt_server(s->target)) {
-					HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+					_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 					health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
 				}
-				HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			return_srv_prx_502:
 				rep->analysers &= AN_RES_FLT_END;
 				txn->status = 502;
@@ -4957,12 +4957,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		/* has the response been denied ? */
 		if (txn->flags & TX_SVDENY) {
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
+				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
 
-			HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-			HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 			if (sess->listener->counters)
-				HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
+				_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
 			goto return_srv_prx_502;
 		}
@@ -5109,12 +5109,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		 * the 'checkcache' option, and send an alert.
 		 */
 		if (objt_server(s->target))
-			HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
+			_HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
 
-		HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-		HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+		_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 		if (sess->listener->counters)
-			HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
+			_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
 		ha_alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
 			 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
@@ -5301,9 +5301,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		if (!ci_data(res)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
-			HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 			if (objt_server(s->target))
-				HA_ATOMIC_ADD(&objt_server(s->target)->counters.srv_aborts, 1);
+				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.srv_aborts, 1);
 			goto return_bad_res_stats_ok;
 		}
 	}
@@ -5339,9 +5339,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	return 0;
 
  return_bad_res: /* let's centralize all bad responses */
-	HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 	if (objt_server(s->target))
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
+		_HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_resp, 1);
 
  return_bad_res_stats_ok:
 	txn->rsp.err_state = txn->rsp.msg_state;
@@ -5367,10 +5367,10 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	res->analysers   &= AN_RES_FLT_END;
 	s->req.analysers &= AN_REQ_FLT_END; /* we're in data phase, we want to abort both directions */
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-	HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 	if (objt_server(s->target))
-		HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
+		_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_CLICL;
@@ -7306,7 +7306,7 @@ void http_reset_txn(struct stream *s)
 	s->target = NULL;
 	/* re-init store persistence */
 	s->store_count = 0;
-	s->uniq_id = HA_ATOMIC_XADD(&global.req_count, 1);
+	s->uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
 
 	s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
