@@ -31,7 +31,7 @@ static inline struct xref *xref_get_peer_and_lock(struct xref *xref)
 	while (1) {
 
 		/* Get the local pointer to the peer. */
-		local = HA_ATOMIC_XCHG(&xref->peer, XREF_BUSY);
+		local = _HA_ATOMIC_XCHG(&xref->peer, XREF_BUSY);
 		__ha_barrier_atomic_store();
 
 		/* If the local pointer is NULL, the peer no longer exists. */
@@ -49,7 +49,7 @@ static inline struct xref *xref_get_peer_and_lock(struct xref *xref)
 		/* We are locked, the peer cant disapear, try to acquire
 		 * the pper's lock. Note that remote can't be NULL.
 		 */
-		remote = HA_ATOMIC_XCHG(&local->peer, XREF_BUSY);
+		remote = _HA_ATOMIC_XCHG(&local->peer, XREF_BUSY);
 
 		/* The remote lock is BUSY, We retry the process. */
 		if (remote == XREF_BUSY) {
