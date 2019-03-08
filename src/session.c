@@ -55,8 +55,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
-		HA_ATOMIC_ADD(&totalconn, 1);
-		HA_ATOMIC_ADD(&jobs, 1);
+		_HA_ATOMIC_ADD(&totalconn, 1);
+		_HA_ATOMIC_ADD(&jobs, 1);
 		LIST_INIT(&sess->srv_list);
 		sess->idle_conns = 0;
 	}
@@ -97,7 +97,7 @@ void session_free(struct session *sess)
 		pool_free(pool_head_sess_srv_list, srv_list);
 	}
 	pool_free(pool_head_session, sess);
-	HA_ATOMIC_SUB(&jobs, 1);
+	_HA_ATOMIC_SUB(&jobs, 1);
 }
 
 /* callback used from the connection/mux layer to notify that a connection is
