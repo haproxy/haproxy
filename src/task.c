@@ -85,7 +85,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	 * in the meanwhile.
 	 */
 redo:
-	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1))) {
+	if (unlikely(!_HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1))) {
 #ifdef USE_THREAD
 		if (root == &rqueue)
 			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
@@ -118,21 +118,21 @@ redo:
 #endif
 		return;
 	}
-	HA_ATOMIC_ADD(&tasks_run_queue, 1);
+	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 #ifdef USE_THREAD
 	if (root == &rqueue) {
-		HA_ATOMIC_OR(&global_tasks_mask, t->thread_mask);
+		_HA_ATOMIC_OR(&global_tasks_mask, t->thread_mask);
 		__ha_barrier_atomic_store();
 	}
 #endif
 	old_active_mask = active_tasks_mask;
-	HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
-	t->rq.key = HA_ATOMIC_ADD(&rqueue_ticks, 1);
+	_HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
+	t->rq.key = _HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
 	if (likely(t->nice)) {
 		int offset;
 
-		HA_ATOMIC_ADD(&niced_tasks, 1);
+		_HA_ATOMIC_ADD(&niced_tasks, 1);
 		if (likely(t->nice > 0))
 			offset = (unsigned)((*rq_size * (unsigned int)t->nice) / 32U);
 		else
@@ -147,7 +147,7 @@ redo:
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		global_rqueue_size++;
-		HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
+		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	} else
 #endif
@@ -347,7 +347,7 @@ void process_runnable_tasks()
 				 */
 				rq_next = eb32sc_first(&rqueue, tid_bit);
 				if (!rq_next) {
-					HA_ATOMIC_AND(&global_tasks_mask, ~tid_bit);
+					_HA_ATOMIC_AND(&global_tasks_mask, ~tid_bit);
 					break;
 				}
 			}
@@ -392,7 +392,7 @@ void process_runnable_tasks()
 		t = eb32sc_entry(rq_next, struct task, rq);
 		rq_next = eb32sc_next(rq_next, tid_bit);
 		/* Make sure nobody re-adds the task in the runqueue */
-		HA_ATOMIC_OR(&t->state, TASK_RUNNING);
+		_HA_ATOMIC_OR(&t->state, TASK_RUNNING);
 
 		/* detach the task from the queue */
 		__task_unlink_rq(t);
@@ -400,10 +400,10 @@ void process_runnable_tasks()
 		task_insert_into_tasklet_list(t);
 	}
 	if (!(global_tasks_mask & tid_bit) && task_per_thread[tid].rqueue_size == 0) {
-		HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
+		_HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
 		__ha_barrier_atomic_load();
 		if (global_tasks_mask & tid_bit)
-			HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
+			_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	}
 	while (max_processed > 0 && !LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
 		struct task *t;
@@ -412,7 +412,7 @@ void process_runnable_tasks()
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 
 		t = (struct task *)LIST_ELEM(task_per_thread[tid].task_list.n, struct tasklet *, list);
-		state = HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
+		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
 		task_remove_from_task_list(t);
 
@@ -448,7 +448,7 @@ void process_runnable_tasks()
 				t->call_date = 0;
 			}
 
-			state = HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
+			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (state)
 #ifdef USE_THREAD
 				__task_wakeup(t, ((t->thread_mask & all_threads_mask) == tid_bit) ?
@@ -462,7 +462,7 @@ void process_runnable_tasks()
 
 		max_processed--;
 		if (max_processed <= 0) {
-			HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
+			_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 			activity[tid].long_rq++;
 			break;
 		}

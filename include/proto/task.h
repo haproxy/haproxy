@@ -154,7 +154,7 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 
 	f |= TASK_QUEUED;
 	state = t->state;
-	while (!HA_ATOMIC_CAS(&t->state, &state, state | f))
+	while (!_HA_ATOMIC_CAS(&t->state, &state, state | f))
 		;
 	if (!(state & TASK_QUEUED))
 		__task_wakeup(t, root);
@@ -206,17 +206,17 @@ static inline struct task *task_unlink_wq(struct task *t)
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
-	HA_ATOMIC_SUB(&tasks_run_queue, 1);
+	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 #ifdef USE_THREAD
 	if (t->state & TASK_GLOBAL) {
-		HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+		_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
 		global_rqueue_size--;
 	} else
 #endif
 		task_per_thread[tid].rqueue_size--;
 	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
-		HA_ATOMIC_SUB(&niced_tasks, 1);
+		_HA_ATOMIC_SUB(&niced_tasks, 1);
 	return t;
 }
 
@@ -247,8 +247,8 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 		return;
 	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
 	task_per_thread[tid].task_list_size++;
-	HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
-	HA_ATOMIC_ADD(&tasks_run_queue, 1);
+	_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
+	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 
 }
 
@@ -261,9 +261,9 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 	 * another runqueue. We set leaf_p to 0x1 to indicate that the node is
 	 * not in a tree but that it's in the tasklet list. See task_in_rq().
 	 */
-	if (unlikely(!HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1)))
+	if (unlikely(!_HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1)))
 		return;
-	HA_ATOMIC_ADD(&tasks_run_queue, 1);
+	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 	task_per_thread[tid].task_list_size++;
 	tl = (struct tasklet *)t;
 	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
@@ -274,8 +274,8 @@ static inline void task_remove_from_task_list(struct task *t)
 	LIST_DEL_INIT(&((struct tasklet *)t)->list);
 	task_per_thread[tid].task_list_size--;
 	if (!TASK_IS_TASKLET(t))
-		HA_ATOMIC_STORE(&t->rq.node.leaf_p, NULL); // was 0x1
-	HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		_HA_ATOMIC_STORE(&t->rq.node.leaf_p, NULL); // was 0x1
+	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 }
 
 /*
@@ -337,7 +337,7 @@ static inline struct task *task_new(unsigned long thread_mask)
 {
 	struct task *t = pool_alloc(pool_head_task);
 	if (t) {
-		HA_ATOMIC_ADD(&nb_tasks, 1);
+		_HA_ATOMIC_ADD(&nb_tasks, 1);
 		task_init(t, thread_mask);
 	}
 	return t;
@@ -352,7 +352,7 @@ static inline void __task_free(struct task *t)
 	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
-	HA_ATOMIC_SUB(&nb_tasks, 1);
+	_HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
 static inline void task_free(struct task *t)
@@ -370,7 +370,7 @@ static inline void tasklet_free(struct tasklet *tl)
 {
 	if (!LIST_ISEMPTY(&tl->list)) {
 		task_per_thread[tid].task_list_size--;
-		HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
 	LIST_DEL(&tl->list);
 
