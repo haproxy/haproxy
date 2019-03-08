@@ -1222,9 +1222,18 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	channel_auto_close(req);
 
 	if (req->to_forward) {
-		/* We can't process the buffer's contents yet */
-		req->flags |= CF_WAKE_WRITE;
-		goto missing_data_or_waiting;
+		if (req->to_forward == CHN_INFINITE_FORWARD) {
+			if (req->flags & CF_SHUTR) {
+				msg->msg_state = HTTP_MSG_DONE;
+				req->to_forward = 0;
+				goto done;
+			}
+		}
+		else {
+			/* We can't process the buffer's contents yet */
+			req->flags |= CF_WAKE_WRITE;
+			goto missing_data_or_waiting;
+		}
 	}
 
 	if (msg->msg_state >= HTTP_MSG_DONE)
@@ -1243,14 +1252,8 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	}
 	else {
 		c_adv(req, htx->data - co_data(req));
-
-		/* To let the function channel_forward work as expected we must update
-		 * the channel's buffer to pretend there is no more input data. The
-		 * right length is then restored. We must do that, because when an HTX
-		 * message is stored into a buffer, it appears as full.
-		 */
-		if ((msg->flags & HTTP_MSGF_XFER_LEN) && htx->extra)
-			htx->extra -= channel_htx_forward(req, htx, htx->extra);
+		if (msg->flags & HTTP_MSGF_XFER_LEN)
+			channel_htx_forward_forever(req, htx);
 	}
 
 	/* Check if the end-of-message is reached and if so, switch the message
@@ -1260,6 +1263,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_DONE;
+	req->to_forward = 0;
 
   done:
 	/* other states, DONE...TUNNEL */
@@ -2140,9 +2144,18 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	channel_auto_close(res);
 
 	if (res->to_forward) {
-                /* We can't process the buffer's contents yet */
-		res->flags |= CF_WAKE_WRITE;
-		goto missing_data_or_waiting;
+		if (res->to_forward == CHN_INFINITE_FORWARD) {
+			if (res->flags & CF_SHUTR) {
+				msg->msg_state = HTTP_MSG_DONE;
+				res->to_forward = 0;
+				goto done;
+			}
+		}
+		else {
+			/* We can't process the buffer's contents yet */
+			res->flags |= CF_WAKE_WRITE;
+			goto missing_data_or_waiting;
+		}
 	}
 
 	if (msg->msg_state >= HTTP_MSG_DONE)
@@ -2162,14 +2175,8 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	}
 	else {
 		c_adv(res, htx->data - co_data(res));
-
-		/* To let the function channel_forward work as expected we must update
-		 * the channel's buffer to pretend there is no more input data. The
-		 * right length is then restored. We must do that, because when an HTX
-		 * message is stored into a buffer, it appears as full.
-		 */
-		if ((msg->flags & HTTP_MSGF_XFER_LEN) && htx->extra)
-			htx->extra -= channel_htx_forward(res, htx, htx->extra);
+		if (msg->flags & HTTP_MSGF_XFER_LEN)
+			channel_htx_forward_forever(res, htx);
 	}
 
 	if (!(msg->flags & HTTP_MSGF_XFER_LEN)) {
@@ -2187,6 +2194,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_DONE;
+	res->to_forward = 0;
 
   done:
 	/* other states, DONE...TUNNEL */
