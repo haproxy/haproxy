@@ -76,9 +76,9 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	}
 
 	if (strcmp(args[3], "on") == 0)
-		HA_ATOMIC_OR(&profiling, bit);
+		_HA_ATOMIC_OR(&profiling, bit);
 	else if (strcmp(args[3], "off") == 0)
-		HA_ATOMIC_AND(&profiling, ~bit);
+		_HA_ATOMIC_AND(&profiling, ~bit);
 	else {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Expects either 'on' or 'off'.\n";
