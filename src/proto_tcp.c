@@ -1337,16 +1337,16 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 		channel_abort(&strm->res);
 		strm->req.analysers = 0;
 		strm->res.analysers = 0;
-		HA_ATOMIC_ADD(&strm->be->be_counters.denied_req, 1);
+		_HA_ATOMIC_ADD(&strm->be->be_counters.denied_req, 1);
 		if (!(strm->flags & SF_ERR_MASK))
 			strm->flags |= SF_ERR_PRXCOND;
 		if (!(strm->flags & SF_FINST_MASK))
 			strm->flags |= SF_FINST_R;
 	}
 
-	HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 	if (sess->listener->counters)
-		HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 
 	return ACT_RET_STOP;
 }
