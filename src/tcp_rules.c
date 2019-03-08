@@ -168,10 +168,10 @@ resume_execution:
 				channel_abort(&s->res);
 				req->analysers = 0;
 
-				HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 				if (sess->listener && sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -348,10 +348,10 @@ resume_execution:
 				channel_abort(&s->req);
 				rep->analysers = 0;
 
-				HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 				if (sess->listener && sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -432,9 +432,9 @@ int tcp_exec_l4_rules(struct session *sess)
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_conn, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_conn, 1);
 				if (sess->listener && sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
 
 				result = 0;
 				break;
@@ -519,9 +519,9 @@ int tcp_exec_l5_rules(struct session *sess)
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_sess, 1);
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_sess, 1);
 				if (sess->listener && sess->listener->counters)
-					HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
+					_HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
 
 				result = 0;
 				break;
