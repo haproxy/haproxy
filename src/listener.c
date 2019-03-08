@@ -449,7 +449,7 @@ void dequeue_all_listeners(struct list *list)
  */
 void do_unbind_listener(struct listener *listener, int do_close)
 {
-	if (listener->state == LI_READY)
+	if (listener->state == LI_READY && fd_updt)
 		fd_stop_recv(listener->fd);
 
 	LIST_DEL_LOCKED(&listener->wait_queue);
