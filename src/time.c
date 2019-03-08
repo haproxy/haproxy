@@ -230,7 +230,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 		new_now = (((unsigned long long)tmp_adj.tv_sec) << 32) + (unsigned int)tmp_adj.tv_usec;
 
 		/* let's try to update the global <now> or loop again */
-	} while (!HA_ATOMIC_CAS(&global_now, &old_now, new_now));
+	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now));
 
 	adjusted = tmp_adj;
 
