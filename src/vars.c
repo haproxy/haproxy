@@ -44,17 +44,17 @@ static void var_accounting_diff(struct vars *vars, struct session *sess, struct 
 	switch (vars->scope) {
 	case SCOPE_REQ:
 	case SCOPE_RES:
-		HA_ATOMIC_ADD(&strm->vars_reqres.size, size);
+		_HA_ATOMIC_ADD(&strm->vars_reqres.size, size);
 		/* fall through */
 	case SCOPE_TXN:
-		HA_ATOMIC_ADD(&strm->vars_txn.size, size);
+		_HA_ATOMIC_ADD(&strm->vars_txn.size, size);
 		/* fall through */
 	case SCOPE_SESS:
-		HA_ATOMIC_ADD(&sess->vars.size, size);
+		_HA_ATOMIC_ADD(&sess->vars.size, size);
 		/* fall through */
 	case SCOPE_PROC:
-		HA_ATOMIC_ADD(&global.vars.size, size);
-		HA_ATOMIC_ADD(&var_global_size, size);
+		_HA_ATOMIC_ADD(&global.vars.size, size);
+		_HA_ATOMIC_ADD(&var_global_size, size);
 	}
 }
 
@@ -140,9 +140,9 @@ void vars_prune_per_sess(struct vars *vars)
 	}
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 
-	HA_ATOMIC_SUB(&vars->size, size);
-	HA_ATOMIC_SUB(&global.vars.size, size);
-	HA_ATOMIC_SUB(&var_global_size, size);
+	_HA_ATOMIC_SUB(&vars->size, size);
+	_HA_ATOMIC_SUB(&global.vars.size, size);
+	_HA_ATOMIC_SUB(&var_global_size, size);
 }
 
 /* This function init a list of variabes. */
