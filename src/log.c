@@ -1559,7 +1559,7 @@ send:
 			static char once;
 
 			if (errno == EAGAIN)
-				HA_ATOMIC_ADD(&dropped_logs, 1);
+				_HA_ATOMIC_ADD(&dropped_logs, 1);
 			else if (!once) {
 				once = 1; /* note: no need for atomic ops here */
 				ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
@@ -1698,7 +1698,7 @@ void deinit_log_buffers()
 	free(logheader_rfc5424);
 	free(logline);
 	free(logline_rfc5424);
-	tmp_startup_logs = HA_ATOMIC_XCHG(&startup_logs, NULL);
+	tmp_startup_logs = _HA_ATOMIC_XCHG(&startup_logs, NULL);
 	free(tmp_startup_logs);
 
 	logheader         = NULL;
@@ -1761,7 +1761,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		txn = NULL;
 		be_conn = NULL;
 		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
-		uniq_id = HA_ATOMIC_XADD(&global.req_count, 1);
+		uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
 
 		/* prepare a valid log structure */
 		tmp_strm_log.tv_accept = sess->tv_accept;
@@ -2759,7 +2759,7 @@ void strm_log(struct stream *s)
 
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
-		HA_ATOMIC_ADD(&sess->fe->log_count, 1);
+		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
 		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
@@ -2797,7 +2797,7 @@ void sess_log(struct session *sess)
 
 	size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
-		HA_ATOMIC_ADD(&sess->fe->log_count, 1);
+		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
 		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
 	}
 }
