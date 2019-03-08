@@ -203,7 +203,7 @@ redo_next:
 		goto done;
 	if (!HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2))
 		goto redo_next;
-	__ha_barrier_store();
+	__ha_barrier_atomic_store();
 
 	new = fd;
 redo_last:
@@ -292,7 +292,7 @@ lock_self_prev:
 	if (unlikely(!HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
 		goto lock_self_prev;
 #endif
-	__ha_barrier_store();
+	__ha_barrier_atomic_store();
 
 	/* Now, lock the entries of our neighbours */
 	if (likely(prev != -1)) {

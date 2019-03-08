@@ -32,7 +32,7 @@ static inline struct xref *xref_get_peer_and_lock(struct xref *xref)
 
 		/* Get the local pointer to the peer. */
 		local = HA_ATOMIC_XCHG(&xref->peer, XREF_BUSY);
-		__ha_barrier_store();
+		__ha_barrier_atomic_store();
 
 		/* If the local pointer is NULL, the peer no longer exists. */
 		if (local == NULL) {

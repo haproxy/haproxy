@@ -122,7 +122,7 @@ redo:
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		HA_ATOMIC_OR(&global_tasks_mask, t->thread_mask);
-		__ha_barrier_store();
+		__ha_barrier_atomic_store();
 	}
 #endif
 	old_active_mask = active_tasks_mask;
@@ -401,7 +401,7 @@ void process_runnable_tasks()
 	}
 	if (!(global_tasks_mask & tid_bit) && task_per_thread[tid].rqueue_size == 0) {
 		HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
-		__ha_barrier_load();
+		__ha_barrier_atomic_load();
 		if (global_tasks_mask & tid_bit)
 			HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	}
@@ -413,7 +413,7 @@ void process_runnable_tasks()
 
 		t = (struct task *)LIST_ELEM(task_per_thread[tid].task_list.n, struct tasklet *, list);
 		state = HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
-		__ha_barrier_store();
+		__ha_barrier_atomic_store();
 		task_remove_from_task_list(t);
 
 		ctx = t->context;
