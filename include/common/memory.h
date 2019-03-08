@@ -229,8 +229,9 @@ static inline void *__pool_get_first(struct pool_head *pool)
 		__ha_barrier_load();
 		new.free_list = *POOL_LINK(pool, cmp.free_list);
 	} while (__ha_cas_dw((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
+	__ha_barrier_atomic_store();
 
-	HA_ATOMIC_ADD(&pool->used, 1);
+	_HA_ATOMIC_ADD(&pool->used, 1);
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
 	*POOL_LINK(pool, cmp.free_list) = (void *)pool;
@@ -288,8 +289,9 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	do {
 		*POOL_LINK(pool, ptr) = (void *)free_list;
 		__ha_barrier_store();
-	} while (!HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
-	HA_ATOMIC_SUB(&pool->used, 1);
+	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
+	__ha_barrier_atomic_store();
+	_HA_ATOMIC_SUB(&pool->used, 1);
 }
 
 /* frees an object to the local cache, possibly pushing oldest objects to the

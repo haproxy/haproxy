@@ -159,13 +159,13 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 
 	while (1) {
 		if (limit && allocated >= limit) {
-			HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
+			_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
 			return NULL;
 		}
 
 		ptr = malloc(size + POOL_EXTRA);
 		if (!ptr) {
-			HA_ATOMIC_ADD(&pool->failed, 1);
+			_HA_ATOMIC_ADD(&pool->failed, 1);
 			if (failed)
 				return NULL;
 			failed++;
@@ -179,11 +179,12 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		do {
 			*POOL_LINK(pool, ptr) = free_list;
 			__ha_barrier_store();
-		} while (HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr) == 0);
+		} while (_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr) == 0);
 	}
+	__ha_barrier_atomic_store();
 
-	HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
-	HA_ATOMIC_ADD(&pool->used, 1);
+	_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
+	_HA_ATOMIC_ADD(&pool->used, 1);
 
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
@@ -210,7 +211,8 @@ void pool_flush(struct pool_head *pool)
 		return;
 	do {
 		next = pool->free_list;
-	} while (!HA_ATOMIC_CAS(&pool->free_list, &next, NULL));
+	} while (!_HA_ATOMIC_CAS(&pool->free_list, &next, NULL));
+	__ha_barrier_atomic_store();
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);
@@ -218,7 +220,7 @@ void pool_flush(struct pool_head *pool)
 		free(temp);
 	}
 	pool->free_list = next;
-	HA_ATOMIC_SUB(&pool->allocated, removed);
+	_HA_ATOMIC_SUB(&pool->allocated, removed);
 	/* here, we should have pool->allocate == pool->used */
 }
 
@@ -235,7 +237,7 @@ void pool_gc(struct pool_head *pool_ctx)
 	int cur_recurse = 0;
 	struct pool_head *entry;
 
-	if (recurse || !HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
+	if (recurse || !_HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
 		return;
 
 	list_for_each_entry(entry, &pools, list) {
@@ -253,11 +255,11 @@ void pool_gc(struct pool_head *pool_ctx)
 			if (__ha_cas_dw(&entry->free_list, &cmp, &new) == 0)
 				continue;
 			free(cmp.free_list);
-			HA_ATOMIC_SUB(&entry->allocated, 1);
+			_HA_ATOMIC_SUB(&entry->allocated, 1);
 		}
 	}
 
-	HA_ATOMIC_STORE(&recurse, 0);
+	_HA_ATOMIC_STORE(&recurse, 0);
 }
 
 /* frees an object to the local cache, possibly pushing oldest objects to the
@@ -386,7 +388,7 @@ void pool_gc(struct pool_head *pool_ctx)
 	int cur_recurse = 0;
 	struct pool_head *entry;
 
-	if (recurse || !HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
+	if (recurse || !_HA_ATOMIC_CAS(&recurse, &cur_recurse, 1))
 		return;
 
 	list_for_each_entry(entry, &pools, list) {
@@ -407,7 +409,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
 
-	HA_ATOMIC_STORE(&recurse, 0);
+	_HA_ATOMIC_STORE(&recurse, 0);
 }
 #endif
 
