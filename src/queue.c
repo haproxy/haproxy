@@ -141,7 +141,7 @@ static void __pendconn_unlink(struct pendconn *p)
 		p->strm->logs.prx_queue_pos += p->px->queue_idx - p->queue_idx;
 		p->px->nbpend--;
 	}
-	HA_ATOMIC_SUB(&p->px->totpend, 1);
+	_HA_ATOMIC_SUB(&p->px->totpend, 1);
 	eb32_delete(&p->node);
 }
 
@@ -292,8 +292,9 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	else
 		px->queue_idx++;
 
-	HA_ATOMIC_ADD(&srv->served, 1);
-	HA_ATOMIC_ADD(&srv->proxy->served, 1);
+	_HA_ATOMIC_ADD(&srv->served, 1);
+	_HA_ATOMIC_ADD(&srv->proxy->served, 1);
+	__ha_barrier_atomic_store();
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv);
 	__stream_add_srv_conn(p->strm, srv);
@@ -385,7 +386,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 
 	pendconn_queue_unlock(p);
 
-	HA_ATOMIC_ADD(&px->totpend, 1);
+	_HA_ATOMIC_ADD(&px->totpend, 1);
 	return p;
 }
 
