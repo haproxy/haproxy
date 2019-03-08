@@ -608,8 +608,8 @@ static void peer_session_release(struct appctx *appctx)
 	/* peer session identified */
 	if (peer) {
 		if (appctx->st0 == PEER_SESS_ST_WAITMSG)
-			HA_ATOMIC_SUB(&connected_peers, 1);
-		HA_ATOMIC_SUB(&active_peers, 1);
+			_HA_ATOMIC_SUB(&connected_peers, 1);
+		_HA_ATOMIC_SUB(&active_peers, 1);
 		HA_SPIN_LOCK(PEER_LOCK, &peer->lock);
 		if (peer->appctx == appctx) {
 			/* Re-init current table pointers to force announcement on re-connect */
@@ -2043,7 +2043,7 @@ switchstate:
 				curpeer->appctx = appctx;
 				appctx->ctx.peers.ptr = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
-				HA_ATOMIC_ADD(&active_peers, 1);
+				_HA_ATOMIC_ADD(&active_peers, 1);
 				/* fall through */
 			}
 			case PEER_SESS_ST_SENDSUCCESS: {
@@ -2067,7 +2067,7 @@ switchstate:
 				init_accepted_peer(curpeer, curpeers);
 
 				/* switch to waiting message state */
-				HA_ATOMIC_ADD(&connected_peers, 1);
+				_HA_ATOMIC_ADD(&connected_peers, 1);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
 				goto switchstate;
 			}
@@ -2131,7 +2131,7 @@ switchstate:
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				HA_ATOMIC_ADD(&connected_peers, 1);
+				_HA_ATOMIC_ADD(&connected_peers, 1);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
 				/* fall through */
 			}
@@ -2191,7 +2191,7 @@ send_msgs:
 			}
 			case PEER_SESS_ST_EXIT:
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
 				if (peer_send_status_errormsg(appctx) == -1)
 					goto out;
@@ -2199,7 +2199,7 @@ send_msgs:
 				goto switchstate;
 			case PEER_SESS_ST_ERRSIZE: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
 				if (peer_send_error_size_limitmsg(appctx) == -1)
 					goto out;
@@ -2208,7 +2208,7 @@ send_msgs:
 			}
 			case PEER_SESS_ST_ERRPROTO: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
 				if (peer_send_error_protomsg(appctx) == -1)
 					goto out;
@@ -2218,7 +2218,7 @@ send_msgs:
 			}
 			case PEER_SESS_ST_END: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_SUB(&connected_peers, 1);
 				prev_state = appctx->st0;
 				if (curpeer) {
 					HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
@@ -2264,7 +2264,7 @@ static void peer_session_forceshutdown(struct appctx *appctx)
 		return;
 
 	if (appctx->st0 == PEER_SESS_ST_WAITMSG)
-		HA_ATOMIC_SUB(&connected_peers, 1);
+		_HA_ATOMIC_SUB(&connected_peers, 1);
 	appctx->st0 = PEER_SESS_ST_END;
 	appctx_wakeup(appctx);
 }
@@ -2355,7 +2355,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	peer->appctx = appctx;
 	task_wakeup(s->task, TASK_WOKEN_INIT);
-	HA_ATOMIC_ADD(&active_peers, 1);
+	_HA_ATOMIC_ADD(&active_peers, 1);
 	return appctx;
 
 	/* Error unrolling */
@@ -2512,7 +2512,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 			/* We've just received the signal */
 			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 				/* add DO NOT STOP flag if not present */
-				HA_ATOMIC_ADD(&jobs, 1);
+				_HA_ATOMIC_ADD(&jobs, 1);
 				peers->flags |= PEERS_F_DONOTSTOP;
 				ps = peers->local;
 				for (st = ps->tables; st ; st = st->next)
@@ -2537,7 +2537,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 		if (ps->flags & PEER_F_TEACH_COMPLETE) {
 			if (peers->flags & PEERS_F_DONOTSTOP) {
 				/* resync of new process was complete, current process can die now */
-				HA_ATOMIC_SUB(&jobs, 1);
+				_HA_ATOMIC_SUB(&jobs, 1);
 				peers->flags &= ~PEERS_F_DONOTSTOP;
 				for (st = ps->tables; st ; st = st->next)
 					st->table->syncing--;
@@ -2561,7 +2561,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 				/* Other error cases */
 				if (peers->flags & PEERS_F_DONOTSTOP) {
 					/* unable to resync new process, current process can die now */
-					HA_ATOMIC_SUB(&jobs, 1);
+					_HA_ATOMIC_SUB(&jobs, 1);
 					peers->flags &= ~PEERS_F_DONOTSTOP;
 					for (st = ps->tables; st ; st = st->next)
 						st->table->syncing--;
