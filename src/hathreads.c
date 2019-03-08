@@ -46,7 +46,7 @@ struct lock_stat lock_stats[LOCK_LABELS];
  */
 void thread_harmless_till_end()
 {
-		HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
 		while (threads_want_rdv_mask & all_threads_mask) {
 #if _POSIX_PRIORITY_SCHEDULING
 			sched_yield();
@@ -65,16 +65,16 @@ void thread_isolate()
 {
 	unsigned long old;
 
-	HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
-	__ha_barrier_store();
-	HA_ATOMIC_OR(&threads_want_rdv_mask, tid_bit);
+	_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+	__ha_barrier_atomic_store();
+	_HA_ATOMIC_OR(&threads_want_rdv_mask, tid_bit);
 
 	/* wait for all threads to become harmless */
 	old = threads_harmless_mask;
 	while (1) {
 		if (unlikely((old & all_threads_mask) != all_threads_mask))
 			old = threads_harmless_mask;
-		else if (HA_ATOMIC_CAS(&threads_harmless_mask, &old, old & ~tid_bit))
+		else if (_HA_ATOMIC_CAS(&threads_harmless_mask, &old, old & ~tid_bit))
 			break;
 
 #if _POSIX_PRIORITY_SCHEDULING
@@ -95,7 +95,7 @@ void thread_isolate()
  */
 void thread_release()
 {
-	HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
+	_HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
 	thread_harmless_end();
 }
 

@@ -2739,11 +2739,11 @@ static void run_poll_loop()
 		else if (signal_queue_len && tid == 0)
 			activity[tid].wake_signal++;
 		else {
-			HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
-			__ha_barrier_store();
+			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
+			__ha_barrier_atomic_store();
 			if (active_tasks_mask & tid_bit) {
 				activity[tid].wake_tasks++;
-				HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+				_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 			} else
 				exp = next;
 		}
@@ -2751,7 +2751,7 @@ static void run_poll_loop()
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, exp);
 		if (sleeping_thread_mask & tid_bit)
-			HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
+			_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 		fd_process_cached_events();
 
 		activity[tid].loops++;
@@ -2787,7 +2787,7 @@ static void *run_thread_poll_loop(void *data)
 		ptdf->fct();
 
 #ifdef USE_THREAD
-	HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
+	_HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);
 	if (tid > 0)
 		pthread_exit(NULL);
 #endif
