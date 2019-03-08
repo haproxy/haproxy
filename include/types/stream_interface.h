@@ -72,7 +72,7 @@ enum {
 	SI_FL_NOLINGER   = 0x00000080,  /* may close without lingering. One-shot. */
 	SI_FL_NOHALF     = 0x00000100,  /* no half close, close both sides at once */
 	SI_FL_SRC_ADDR   = 0x00001000,  /* get the source ip/port with getsockname */
-	/* unused:         0x00002000 */
+	SI_FL_READ_NULL  = 0x00000200,   /* Last read reported */
 	SI_FL_WANT_GET   = 0x00004000,  /* a stream-int would like to get some data from the buffer */
 	SI_FL_CLEAN_ABRT = 0x00008000,  /* SI_FL_ERR is used to report aborts, and not SHUTR */
 
