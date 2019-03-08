@@ -71,7 +71,7 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
 {
-	HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
+	_HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
 			     update_freq_ctr(&s->sess_per_sec, 1));
 }
@@ -254,9 +254,9 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
 		int retadd;
 
-		retadd = HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);
+		retadd = _HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);
 		if (retadd >= srv->max_idle_conns) {
-			HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			return 0;
 		}
 		LIST_DEL(&conn->list);
