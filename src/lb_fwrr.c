@@ -354,7 +354,7 @@ static void fwrr_queue_srv(struct server *s)
 		 s->npos >= grp->curr_weight + grp->next_weight) {
 		/* put into next tree, and readjust npos in case we could
 		 * finally take this back to current. */
-		HA_ATOMIC_SUB(&s->npos, grp->curr_weight);
+		_HA_ATOMIC_SUB(&s->npos, grp->curr_weight);
 		fwrr_queue_by_weight(grp->next, s);
 	}
 	else {
@@ -392,7 +392,7 @@ static inline void fwrr_get_srv_next(struct server *s)
 		&s->proxy->lbprm.fwrr.bck :
 		&s->proxy->lbprm.fwrr.act;
 
-	HA_ATOMIC_ADD(&s->npos, grp->curr_weight);
+	_HA_ATOMIC_ADD(&s->npos, grp->curr_weight);
 }
 
 /* prepares a server when it was marked down.
@@ -487,20 +487,20 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
 		/* first time ever for this server */
 		s->lpos = grp->curr_pos;
 		s->npos = grp->curr_pos + grp->next_weight / s->cur_eweight;
-		HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
+		_HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
 
 		if (s->rweight >= s->cur_eweight) {
-			HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
-			HA_ATOMIC_ADD(&s->npos, 1);
+			_HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
+			_HA_ATOMIC_ADD(&s->npos, 1);
 		}
 	} else {
 		s->lpos = s->npos;
-		HA_ATOMIC_ADD(&s->npos, (grp->next_weight / s->cur_eweight));
-		HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
+		_HA_ATOMIC_ADD(&s->npos, (grp->next_weight / s->cur_eweight));
+		_HA_ATOMIC_ADD(&s->rweight, (grp->next_weight % s->cur_eweight));
 
 		if (s->rweight >= s->cur_eweight) {
-			HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
-			HA_ATOMIC_ADD(&s->npos, 1);
+			_HA_ATOMIC_SUB(&s->rweight, s->cur_eweight);
+			_HA_ATOMIC_ADD(&s->npos, 1);
 		}
 	}
 }

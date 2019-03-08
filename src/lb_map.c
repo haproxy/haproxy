@@ -123,7 +123,7 @@ void recalc_server_map(struct proxy *px)
 					break;
 				}
 
-				HA_ATOMIC_ADD(&cur->wscore, cur->next_eweight);
+				_HA_ATOMIC_ADD(&cur->wscore, cur->next_eweight);
 				v = (cur->wscore + tot) / tot; /* result between 0 and 3 */
 				if (best == NULL || v > max) {
 					max = v;
@@ -133,7 +133,7 @@ void recalc_server_map(struct proxy *px)
 		}
 		px->lbprm.map.srv[o] = best;
 		if (best)
-			HA_ATOMIC_SUB(&best->wscore, tot);
+			_HA_ATOMIC_SUB(&best->wscore, tot);
 	}
 }
 
