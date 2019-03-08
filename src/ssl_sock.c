@@ -508,8 +508,8 @@ static void ssl_async_fd_free(int fd)
 
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
-	HA_ATOMIC_SUB(&sslconns, 1);
-	HA_ATOMIC_SUB(&jobs, 1);
+	_HA_ATOMIC_SUB(&sslconns, 1);
+	_HA_ATOMIC_SUB(&jobs, 1);
 }
 /*
  * function used to manage a returned SSL_ERROR_WANT_ASYNC
@@ -1790,7 +1790,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	 * number */
 	if (X509_set_version(newcrt, 2L) != 1)
 		goto mkcert_error;
-	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), HA_ATOMIC_ADD(&ssl_ctx_serial, 1));
+	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), _HA_ATOMIC_ADD(&ssl_ctx_serial, 1));
 
 	/* Set duration for the certificate */
 	if (!X509_gmtime_adj(X509_getm_notBefore(newcrt), (long)-60*60*24) ||
@@ -5139,8 +5139,8 @@ static int ssl_sock_init(struct connection *conn)
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
-		HA_ATOMIC_ADD(&sslconns, 1);
-		HA_ATOMIC_ADD(&totalsslconns, 1);
+		_HA_ATOMIC_ADD(&sslconns, 1);
+		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5190,8 +5190,8 @@ static int ssl_sock_init(struct connection *conn)
 		conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
-		HA_ATOMIC_ADD(&sslconns, 1);
-		HA_ATOMIC_ADD(&totalsslconns, 1);
+		_HA_ATOMIC_ADD(&sslconns, 1);
+		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -5820,7 +5820,7 @@ static void ssl_sock_close(struct connection *conn) {
 					fd_cant_recv(afd);
 				}
 				conn->xprt_ctx = NULL;
-				HA_ATOMIC_ADD(&jobs, 1);
+				_HA_ATOMIC_ADD(&jobs, 1);
 				return;
 			}
 			/* Else we can remove the fds from the fdtab
@@ -5835,7 +5835,7 @@ static void ssl_sock_close(struct connection *conn) {
 #endif
 		SSL_free(conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
-		HA_ATOMIC_SUB(&sslconns, 1);
+		_HA_ATOMIC_SUB(&sslconns, 1);
 	}
 }
 
