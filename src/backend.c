@@ -813,8 +813,8 @@ int assign_server(struct stream *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
-			HA_ATOMIC_ADD(&s->be->be_counters.cum_lbconn, 1);
-			HA_ATOMIC_ADD(&srv->counters.cum_lbconn, 1);
+			_HA_ATOMIC_ADD(&s->be->be_counters.cum_lbconn, 1);
+			_HA_ATOMIC_ADD(&srv->counters.cum_lbconn, 1);
 		}
 		s->target = &srv->obj_type;
 	}
@@ -994,11 +994,11 @@ int assign_server_and_queue(struct stream *s)
 					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
-				HA_ATOMIC_ADD(&prev_srv->counters.redispatches, 1);
-				HA_ATOMIC_ADD(&s->be->be_counters.redispatches, 1);
+				_HA_ATOMIC_ADD(&prev_srv->counters.redispatches, 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.redispatches, 1);
 			} else {
-				HA_ATOMIC_ADD(&prev_srv->counters.retries, 1);
-				HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
+				_HA_ATOMIC_ADD(&prev_srv->counters.retries, 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
 			}
 		}
 	}
@@ -1343,7 +1343,8 @@ int connect_server(struct stream *s)
 	 */
 	if (reuse && reuse_orphan) {
 		srv_conn->idle_time = 0;
-		HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		__ha_barrier_atomic_store();
 		srv->curr_idle_thr[tid]--;
 		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
 	} else if (reuse) {
@@ -1514,13 +1515,13 @@ int connect_server(struct stream *s)
 		s->si[1].flags |= SI_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
-		HA_ATOMIC_ADD(&s->be->be_counters.reuse, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.reuse, 1);
 		if (srv)
-			HA_ATOMIC_ADD(&srv->counters.reuse, 1);
+			_HA_ATOMIC_ADD(&srv->counters.reuse, 1);
 	} else {
-		HA_ATOMIC_ADD(&s->be->be_counters.connect, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.connect, 1);
 		if (srv)
-			HA_ATOMIC_ADD(&srv->counters.connect, 1);
+			_HA_ATOMIC_ADD(&srv->counters.connect, 1);
 	}
 
 	err = si_connect(&s->si[1], srv_conn);
@@ -1565,7 +1566,7 @@ int connect_server(struct stream *s)
 		int count;
 
 		s->flags |= SF_CURR_SESS;
-		count = HA_ATOMIC_ADD(&srv->cur_sess, 1);
+		count = _HA_ATOMIC_ADD(&srv->cur_sess, 1);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
@@ -1658,8 +1659,8 @@ int srv_redispatch_connect(struct stream *s)
 			s->si[1].err_type = SI_ET_QUEUE_ERR;
 		}
 
-		HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
-		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
+		_HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		return 1;
 
 	case SRV_STATUS_NOSRV:
@@ -1668,7 +1669,7 @@ int srv_redispatch_connect(struct stream *s)
 			s->si[1].err_type = SI_ET_CONN_ERR;
 		}
 
-		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 		return 1;
 
 	case SRV_STATUS_QUEUED:
@@ -1688,8 +1689,8 @@ int srv_redispatch_connect(struct stream *s)
 		if (srv)
 			srv_set_sess_last(srv);
 		if (srv)
-			HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
-		HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
+			_HA_ATOMIC_ADD(&srv->counters.failed_conns, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_conns, 1);
 
 		/* release other streams waiting for this server */
 		if (may_dequeue_tasks(srv, s->be))
@@ -1708,7 +1709,7 @@ int srv_redispatch_connect(struct stream *s)
 void set_backend_down(struct proxy *be)
 {
 	be->last_change = now.tv_sec;
-	HA_ATOMIC_ADD(&be->down_trans, 1);
+	_HA_ATOMIC_ADD(&be->down_trans, 1);
 
 	if (!(global.mode & MODE_STARTING)) {
 		ha_alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
