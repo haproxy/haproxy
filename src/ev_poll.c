@@ -65,7 +65,7 @@ static void _update_fd(int fd, int *max_add_fd)
 		/* fd totally removed from poll list */
 		hap_fd_clr(fd, fd_evts[DIR_RD]);
 		hap_fd_clr(fd, fd_evts[DIR_WR]);
-		HA_ATOMIC_AND(&polled_mask[fd], 0);
+		_HA_ATOMIC_AND(&polled_mask[fd], 0);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
@@ -79,7 +79,7 @@ static void _update_fd(int fd, int *max_add_fd)
 		else
 			hap_fd_set(fd, fd_evts[DIR_WR]);
 
-		HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
+		_HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
 		if (fd > *max_add_fd)
 			*max_add_fd = fd;
 	}
@@ -106,7 +106,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 
-		HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
+		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_drop++;
 			continue;
@@ -129,7 +129,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			 * we don't need every thread ot take care of the
 			 * update.
 			 */
-			HA_ATOMIC_AND(&fdtab[fd].update_mask, ~all_threads_mask);
+			_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~all_threads_mask);
 			done_update_polling(fd);
 		} else
 			continue;
@@ -140,7 +140,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 	/* maybe we added at least one fd larger than maxfd */
 	for (old_maxfd = maxfd; old_maxfd <= max_add_fd; ) {
-		if (HA_ATOMIC_CAS(&maxfd, &old_maxfd, max_add_fd + 1))
+		if (_HA_ATOMIC_CAS(&maxfd, &old_maxfd, max_add_fd + 1))
 			break;
 	}
 
@@ -156,7 +156,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			new_maxfd--;
 		if (new_maxfd >= old_maxfd)
 			break;
-	} while (!HA_ATOMIC_CAS(&maxfd, &old_maxfd, new_maxfd));
+	} while (!_HA_ATOMIC_CAS(&maxfd, &old_maxfd, new_maxfd));
 
 	thread_harmless_now();
 
@@ -235,7 +235,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		/* always remap RDHUP to HUP as they're used similarly */
 		if (e & POLLRDHUP) {
-			HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
+			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
 			n |= FD_POLL_HUP;
 		}
 		fd_update_events(fd, n);
