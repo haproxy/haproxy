@@ -192,11 +192,15 @@
  * absolute limit accepted by the system. If the configuration specifies a
  * higher value, it will be capped to SYSTEM_MAXCONN and a warning will be
  * emitted. The only way to override this limit will be to set it via the
- * command-line '-n' argument.
+ * command-line '-n' argument. If SYSTEM_MAXCONN is not set, a minimum value
+ * of 100 will be used for DEFAULT_MAXCONN which almost guarantees that a
+ * process will correctly start in any situation.
  */
 #ifdef SYSTEM_MAXCONN
 #undef  DEFAULT_MAXCONN
 #define DEFAULT_MAXCONN SYSTEM_MAXCONN
+#elif !defined(DEFAULT_MAXCONN)
+#define DEFAULT_MAXCONN 100
 #endif
 
 /* Minimum check interval for spread health checks. Servers with intervals
