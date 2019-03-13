@@ -192,7 +192,6 @@ struct cond_wordlist {
 			n = HA_ATOMIC_XCHG(&(lh)->n, LLIST_BUSY);          \
 			if (n == LLIST_BUSY)                               \
 			        continue;                                  \
-			__ha_barrier_atomic_store();                       \
 			p = HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);             \
 			if (p == LLIST_BUSY) {                             \
 				(lh)->n = n;                               \
@@ -218,7 +217,6 @@ struct cond_wordlist {
 			p = HA_ATOMIC_XCHG(&(lh)->p, LLIST_BUSY);          \
 			if (p == LLIST_BUSY)                               \
 			        continue;                                  \
-			__ha_barrier_store();                              \
 			n = HA_ATOMIC_XCHG(&p->n, LLIST_BUSY);             \
 			if (n == LLIST_BUSY) {                             \
 				(lh)->p = p;                               \
