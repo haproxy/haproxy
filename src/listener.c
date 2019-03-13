@@ -845,7 +845,7 @@ void listener_accept(int fd)
 		next_actconn = 0;
 
 #if defined(USE_THREAD)
-		mask = thread_mask(l->bind_conf->bind_thread);
+		mask = thread_mask(l->bind_conf->bind_thread) & all_threads_mask;
 		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ)) {
 			struct accept_queue_ring *ring;
 			unsigned int t, t0, t1, t2;
