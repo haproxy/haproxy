@@ -398,9 +398,9 @@ static void display_build_opts()
 	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
 	       "\n\nDefault settings :"
-	       "\n  maxconn = %d, bufsize = %d, maxrewrite = %d, maxpollevents = %d"
+	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
-	       DEFAULT_MAXCONN, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
+	       BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
 	list_for_each_entry(item, &build_opts_list, list) {
 		puts(item->str);
@@ -437,7 +437,7 @@ static void usage(char *name)
 #endif
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
-		"        -n sets the maximum total # of connections (%d)\n"
+		"        -n sets the maximum total # of connections (uses ulimit -n)\n"
 		"        -m limits the usable amount of memory (in MB)\n"
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
 		"        -L set local peer name (default to hostname)\n"
@@ -466,7 +466,7 @@ static void usage(char *name)
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"        -S <unix_socket>[,<bind options>...] new stats socket for the master\n"
 		"\n",
-		name, DEFAULT_MAXCONN, cfg_maxpconn);
+		name, cfg_maxpconn);
 	exit(1);
 }
 
@@ -2065,8 +2065,8 @@ static void init(int argc, char **argv)
 		global.maxconn = MIN(global.maxconn, ideal_maxconn);
 		global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
-		if (global.maxconn > DEFAULT_MAXCONN)
-			global.maxconn = DEFAULT_MAXCONN;
+		if (global.maxconn > SYSTEM_MAXCONN)
+			global.maxconn = SYSTEM_MAXCONN;
 #endif /* SYSTEM_MAXCONN */
 		global.maxsslconn = sides * global.maxconn;
 		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
@@ -2130,8 +2130,8 @@ static void init(int argc, char **argv)
 		global.maxconn = MIN(global.maxconn, ideal_maxconn);
 		global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
-		if (global.maxconn > DEFAULT_MAXCONN)
-			global.maxconn = DEFAULT_MAXCONN;
+		if (global.maxconn > SYSTEM_MAXCONN)
+			global.maxconn = SYSTEM_MAXCONN;
 #endif /* SYSTEM_MAXCONN */
 
 		if (clearmem <= 0 || !global.maxconn) {

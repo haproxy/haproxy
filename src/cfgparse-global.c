@@ -528,9 +528,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxconn = atol(args[1]);
 #ifdef SYSTEM_MAXCONN
-		if (global.maxconn > DEFAULT_MAXCONN && cfg_maxconn <= DEFAULT_MAXCONN) {
-			ha_alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, DEFAULT_MAXCONN);
-			global.maxconn = DEFAULT_MAXCONN;
+		if (global.maxconn > SYSTEM_MAXCONN && cfg_maxconn <= SYSTEM_MAXCONN) {
+			ha_alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, SYSTEM_MAXCONN);
+			global.maxconn = SYSTEM_MAXCONN;
 			err_code |= ERR_ALERT;
 		}
 #endif /* SYSTEM_MAXCONN */

@@ -194,11 +194,7 @@
  * emitted. The only way to override this limit will be to set it via the
  * command-line '-n' argument.
  */
-#ifndef SYSTEM_MAXCONN
-#ifndef DEFAULT_MAXCONN
-#define DEFAULT_MAXCONN 2000
-#endif
-#else
+#ifdef SYSTEM_MAXCONN
 #undef  DEFAULT_MAXCONN
 #define DEFAULT_MAXCONN SYSTEM_MAXCONN
 #endif
