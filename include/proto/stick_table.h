@@ -28,9 +28,13 @@
 #include <common/time.h>
 #include <types/stick_table.h>
 
+extern struct stktable *stktables_list;
+
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
 #define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
 
+void stktable_store_name(struct stktable *t);
+struct stktable *stktable_find_by_name(const char *name);
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);

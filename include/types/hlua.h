@@ -11,6 +11,7 @@
 #include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/server.h>
+#include <types/stick_table.h>
 
 #define CLASS_CORE         "Core"
 #define CLASS_TXN          "TXN"

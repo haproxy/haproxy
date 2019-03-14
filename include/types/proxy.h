@@ -416,7 +416,7 @@ struct proxy {
 	struct fe_counters fe_counters;		/* frontend statistics counters */
 
 	struct list listener_queue;		/* list of the temporarily limited listeners because of lack of a proxy resource */
-	struct stktable table;			/* table for storing sticking streams */
+	struct stktable *table;			/* table for storing sticking streams */
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
 	struct list tcpcheck_rules;		/* tcp-check send / expect rules */

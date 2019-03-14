@@ -856,7 +856,45 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		l->default_target = curpeers->peers_fe->default_target;
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
-	} /* neither "peer" nor "peers" */
+	}
+	else if (!strcmp(args[0], "table")) {
+		struct stktable *t, *other;
+		char *id;
+
+		/* Line number and peer ID are updated only if this peer is the local one. */
+		if (init_peers_frontend(file, -1, NULL, curpeers) != 0) {
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		other = stktable_find_by_name(args[1]);
+		if (other) {
+			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
+				 file, linenum, args[1],
+				 other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
+				 other->proxy ? other->id : other->peers.p->id,
+				 other->conf.file, other->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		t = calloc(1, sizeof *t);
+		id = strdup(args[1]);
+		if (!t || !id) {
+			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err_code |= parse_stick_table(file, linenum, args, t, id, curpeers);
+		if (err_code & ERR_FATAL)
+			goto out;
+
+		stktable_store_name(t);
+		t->next = stktables_list;
+		stktables_list = t;
+	}
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
 		curpeers->state = PR_STSTOPPED;
 	}
@@ -2171,6 +2209,7 @@ int check_config_validity()
 {
 	int cfgerr = 0;
 	struct proxy *curproxy = NULL;
+	struct stktable *t;
 	struct server *newsrv = NULL;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
@@ -2261,8 +2300,8 @@ int check_config_validity()
 		if (curproxy->state == PR_STSTOPPED) {
 			/* ensure we don't keep listeners uselessly bound */
 			stop_proxy(curproxy);
-			free((void *)curproxy->table.peers.name);
-			curproxy->table.peers.p = NULL;
+			free((void *)curproxy->table->peers.name);
+			curproxy->table->peers.p = NULL;
 			continue;
 		}
 
@@ -2624,79 +2663,69 @@ int check_config_validity()
 
 		/* find the target table for 'stick' rules */
 		list_for_each_entry(mrule, &curproxy->sticking_rules, list) {
-			struct proxy *target;
+			struct stktable *target;
 
 			curproxy->be_req_ana |= AN_REQ_STICKING_RULES;
 			if (mrule->flags & STK_IS_STORE)
 				curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = proxy_tbl_by_name(mrule->table.name);
+				target = stktable_find_by_name(mrule->table.name);
 			else
-				target = curproxy;
+				target = curproxy->table;
 
 			if (!target) {
 				ha_alert("Proxy '%s': unable to find stick-table '%s'.\n",
 					 curproxy->id, mrule->table.name);
 				cfgerr++;
 			}
-			else if (target->table.size == 0) {
-				ha_alert("Proxy '%s': stick-table '%s' used but not configured.\n",
-					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(mrule->expr,  target->table.type)) {
+			else if (!stktable_compatible_sample(mrule->expr,  target->type)) {
 				ha_alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
 					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (curproxy->bind_proc & ~target->bind_proc) {
+			else if (target->proxy && curproxy->bind_proc & ~target->proxy->bind_proc) {
 				ha_alert("Proxy '%s': stick-table '%s' referenced 'stick-store' rule not present on all processes covered by proxy '%s'.\n",
 				         curproxy->id, target->id, curproxy->id);
 				cfgerr++;
 			}
 			else {
 				free((void *)mrule->table.name);
-				mrule->table.t = &(target->table);
-				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID, NULL);
+				mrule->table.t = target;
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
 			}
 		}
 
 		/* find the target table for 'store response' rules */
 		list_for_each_entry(mrule, &curproxy->storersp_rules, list) {
-			struct proxy *target;
+			struct stktable *target;
 
 			curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = proxy_tbl_by_name(mrule->table.name);
+				target = stktable_find_by_name(mrule->table.name);
 			else
-				target = curproxy;
+				target = curproxy->table;
 
 			if (!target) {
 				ha_alert("Proxy '%s': unable to find store table '%s'.\n",
 					 curproxy->id, mrule->table.name);
 				cfgerr++;
 			}
-			else if (target->table.size == 0) {
-				ha_alert("Proxy '%s': stick-table '%s' used but not configured.\n",
-					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
-				cfgerr++;
-			}
-			else if (!stktable_compatible_sample(mrule->expr, target->table.type)) {
+			else if (!stktable_compatible_sample(mrule->expr, target->type)) {
 				ha_alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
 					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (curproxy->bind_proc & ~target->bind_proc) {
+			else if (target->proxy && (curproxy->bind_proc & ~target->proxy->bind_proc)) {
 				ha_alert("Proxy '%s': stick-table '%s' referenced 'stick-store' rule not present on all processes covered by proxy '%s'.\n",
 				         curproxy->id, target->id, curproxy->id);
 				cfgerr++;
 			}
 			else {
 				free((void *)mrule->table.name);
-				mrule->table.t = &(target->table);
-				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID, NULL);
+				mrule->table.t = target;
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
 			}
 		}
 
@@ -2760,32 +2789,32 @@ int check_config_validity()
 			LIST_INIT(&curproxy->block_rules);
 		}
 
-		if (curproxy->table.peers.name) {
+		if (curproxy->table && curproxy->table->peers.name) {
 			struct peers *curpeers;
 
 			for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
-				if (strcmp(curpeers->id, curproxy->table.peers.name) == 0) {
-					free((void *)curproxy->table.peers.name);
-					curproxy->table.peers.p = curpeers;
+				if (strcmp(curpeers->id, curproxy->table->peers.name) == 0) {
+					free((void *)curproxy->table->peers.name);
+					curproxy->table->peers.p = curpeers;
 					break;
 				}
 			}
 
 			if (!curpeers) {
 				ha_alert("Proxy '%s': unable to find sync peers '%s'.\n",
-					 curproxy->id, curproxy->table.peers.name);
-				free((void *)curproxy->table.peers.name);
-				curproxy->table.peers.p = NULL;
+					 curproxy->id, curproxy->table->peers.name);
+				free((void *)curproxy->table->peers.name);
+				curproxy->table->peers.p = NULL;
 				cfgerr++;
 			}
 			else if (curpeers->state == PR_STSTOPPED) {
 				/* silently disable this peers section */
-				curproxy->table.peers.p = NULL;
+				curproxy->table->peers.p = NULL;
 			}
 			else if (!curpeers->peers_fe) {
 				ha_alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
 					 curproxy->id, localpeer, curpeers->id);
-				curproxy->table.peers.p = NULL;
+				curproxy->table->peers.p = NULL;
 				cfgerr++;
 			}
 		}
@@ -3829,8 +3858,8 @@ out_uri_auth_compat:
 
 	/* compute the required process bindings for the peers */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next)
-		if (curproxy->table.peers.p)
-			curproxy->table.peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
+		if (curproxy->table && curproxy->table->peers.p)
+			curproxy->table->peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
 
 	if (cfg_peers) {
 		struct peers *curpeers = cfg_peers, **last;
@@ -3920,15 +3949,24 @@ out_uri_auth_compat:
 		}
 	}
 
+	for (t = stktables_list; t; t = t->next) {
+		if (t->proxy)
+			continue;
+		if (!stktable_init(t)) {
+			ha_alert("Proxy '%s': failed to initialize stick-table.\n", t->id);
+			cfgerr++;
+		}
+	}
+
 	/* initialize stick-tables on backend capable proxies. This must not
 	 * be done earlier because the data size may be discovered while parsing
 	 * other proxies.
 	 */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->state == PR_STSTOPPED)
+		if (curproxy->state == PR_STSTOPPED || !curproxy->table)
 			continue;
 
-		if (!stktable_init(&curproxy->table)) {
+		if (!stktable_init(curproxy->table)) {
 			ha_alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
 			cfgerr++;
 		}

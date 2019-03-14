@@ -1711,7 +1711,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->persist_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stick-table")) {
-		struct proxy *other;
+		struct stktable *other;
 
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : 'stick-table' is not supported in 'defaults' section.\n",
@@ -1720,20 +1720,35 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		other = proxy_tbl_by_name(curproxy->id);
+		other = stktable_find_by_name(curproxy->id);
 		if (other) {
 			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
-				 file, linenum, curproxy->id, proxy_type_str(other), other->id, other->conf.file, other->conf.line);
+				 file, linenum, curproxy->id,
+				 other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
+				 other->proxy ? other->id : other->peers.p->id,
+				 other->conf.file, other->conf.line);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		err_code |= parse_stick_table(file, linenum, args, &curproxy->table, curproxy->id, NULL);
+		curproxy->table = calloc(1, sizeof *curproxy->table);
+		if (!curproxy->table) {
+			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err_code |= parse_stick_table(file, linenum, args, curproxy->table, curproxy->id, NULL);
 		if (err_code & ERR_FATAL)
 			goto out;
 
 		/* Store the proxy in the stick-table. */
 		curproxy->table->proxy = curproxy;
+
+		stktable_store_name(curproxy->table);
+		curproxy->table->next = stktables_list;
+		stktables_list = curproxy->table;
 	}
 	else if (!strcmp(args[0], "stick")) {
 		struct sticking_rule *rule;

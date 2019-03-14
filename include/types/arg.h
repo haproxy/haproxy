@@ -30,6 +30,7 @@
 
 #include <types/vars.h>
 #include <types/protocol_buffers.h>
+#include <types/stick_table.h>
 
 /* encoding of each arg type : up to 31 types are supported */
 #define ARGT_BITS      5
@@ -99,6 +100,7 @@ union arg_data {
 	struct in6_addr ipv6;
 	struct proxy *prx; /* used for fe, be, tables */
 	struct server *srv;
+	struct stktable *t;
 	struct userlist *usr;
 	struct map_descriptor *map;
 	struct my_regex *reg;

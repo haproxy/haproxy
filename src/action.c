@@ -30,37 +30,34 @@
  */
 int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 {
-	struct proxy *target;
+	struct stktable *target;
 
 	if (rule->arg.trk_ctr.table.n)
-		target = proxy_tbl_by_name(rule->arg.trk_ctr.table.n);
+		target = stktable_find_by_name(rule->arg.trk_ctr.table.n);
 	else
-		target = px;
+		target = px->table;
 
 	if (!target) {
 		memprintf(err, "unable to find table '%s' referenced by track-sc%d",
-			  rule->arg.trk_ctr.table.n, trk_idx(rule->action));
+			  rule->arg.trk_ctr.table.n ?  rule->arg.trk_ctr.table.n : px->id,
+			  trk_idx(rule->action));
 		return 0;
 	}
-	else if (target->table.size == 0) {
-		memprintf(err, "table '%s' used but not configured",
-			  rule->arg.trk_ctr.table.n ? rule->arg.trk_ctr.table.n : px->id);
-		return 0;
-	}
-	else if (!stktable_compatible_sample(rule->arg.trk_ctr.expr,  target->table.type)) {
+
+	if (!stktable_compatible_sample(rule->arg.trk_ctr.expr,  target->type)) {
 		memprintf(err, "stick-table '%s' uses a type incompatible with the 'track-sc%d' rule",
 			  rule->arg.trk_ctr.table.n ? rule->arg.trk_ctr.table.n : px->id,
 			  trk_idx(rule->action));
 		return 0;
 	}
-	else if (px->bind_proc & ~target->bind_proc) {
+	else if (target->proxy && (px->bind_proc & ~target->proxy->bind_proc)) {
 		memprintf(err, "stick-table '%s' referenced by 'track-sc%d' rule not present on all processes covered by proxy '%s'",
 			  target->id, trk_idx(rule->action), px->id);
 		return 0;
 	}
 	else {
 		free(rule->arg.trk_ctr.table.n);
-		rule->arg.trk_ctr.table.t = &target->table;
+		rule->arg.trk_ctr.table.t = target;
 		/* Note: if we decide to enhance the track-sc syntax, we may be
 		 * able to pass a list of counters to track and allocate them
 		 * right here using stktable_alloc_data_type().

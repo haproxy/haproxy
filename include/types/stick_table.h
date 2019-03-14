@@ -152,6 +152,7 @@ struct stktable {
 		const char *file;     /* The file where the stick-table is declared. */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
+	struct ebpt_node name;    /* Stick-table are lookup by name here. */
 	struct eb_root keys;      /* head of sticky session tree */
 	struct eb_root exps;      /* head of sticky session expiration tree */
 	struct eb_root updates;   /* head of sticky updates sequence tree */

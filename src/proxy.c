@@ -587,7 +587,7 @@ struct proxy *proxy_find_by_id(int id, int cap, int table)
 		if ((px->cap & cap) != cap)
 			continue;
 
-		if (table && !px->table.size)
+		if (table && (!px->table || !px->table->size))
 			continue;
 
 		return px;
@@ -620,7 +620,7 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 			if ((curproxy->cap & cap) != cap)
 				continue;
 
-			if (table && !curproxy->table.size)
+			if (table && (!curproxy->table || !curproxy->table->size))
 				continue;
 
 			return curproxy;
@@ -993,12 +993,12 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 	 * be in neither list. Any entry being dumped will have ref_cnt > 0.
 	 * However we protect tables that are being synced to peers.
 	 */
-	if (unlikely(stopping && p->state == PR_STSTOPPED && p->table.current)) {
-		if (!p->table.syncing) {
-			stktable_trash_oldest(&p->table, p->table.current);
+	if (unlikely(stopping && p->state == PR_STSTOPPED && p->table && p->table->current)) {
+		if (!p->table->syncing) {
+			stktable_trash_oldest(p->table, p->table->current);
 			pool_gc(NULL);
 		}
-		if (p->table.current) {
+		if (p->table->current) {
 			/* some entries still remain, let's recheck in one second */
 			next = tick_first(next, tick_add(now_ms, 1000));
 		}
@@ -1138,8 +1138,8 @@ void soft_stop(void)
 			/* Note: do not wake up stopped proxies' task nor their tables'
 			 * tasks as these ones might point to already released entries.
 			 */
-			if (p->table.size && p->table.sync_task)
-				task_wakeup(p->table.sync_task, TASK_WOKEN_MSG);
+			if (p->table && p->table->size && p->table->sync_task)
+				task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);
 
 			if (p->task)
 				task_wakeup(p->task, TASK_WOKEN_MSG);

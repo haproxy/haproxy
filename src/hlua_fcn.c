@@ -1269,9 +1269,9 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	}
 	lua_settable(L, -3);
 
-	if (px->table.id) {
+	if (px->table && px->table->id) {
 		lua_pushstring(L, "stktable");
-		hlua_fcn_new_stktable(L, &px->table);
+		hlua_fcn_new_stktable(L, px->table);
 		lua_settable(L, -3);
 	}
 
