@@ -225,14 +225,16 @@ static inline struct task *__task_unlink_rq(struct task *t)
  */
 static inline struct task *task_unlink_rq(struct task *t)
 {
-	if (t->thread_mask != tid_bit)
+	int is_global = t->state & TASK_GLOBAL;
+
+	if (is_global)
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	if (likely(task_in_rq(t))) {
 		if (&t->rq == rq_next)
 			rq_next = eb32sc_next(rq_next, tid_bit);
 		__task_unlink_rq(t);
 	}
-	if (t->thread_mask != tid_bit)
+	if (is_global)
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;
 }
