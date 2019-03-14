@@ -1478,6 +1478,12 @@ static int compute_ideal_maxconn()
 	/* subtract listeners and checks */
 	remain -= global.maxsock;
 
+	/* one epoll_fd/kqueue_fd per thread */
+	remain -= global.nbthread;
+
+	/* one wake-up pipe (2 fd) per thread */
+	remain -= 2 * global.nbthread;
+
 	/* Fixed pipes values : we only subtract them if they're not larger
 	 * than the remaining FDs because pipes are optional.
 	 */
