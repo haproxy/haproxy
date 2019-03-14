@@ -69,7 +69,6 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 {
 	void *expected = NULL;
 	int *rq_size;
-	unsigned long __maybe_unused old_active_mask;
 
 #ifdef USE_THREAD
 	if (root == &rqueue) {
@@ -125,7 +124,6 @@ redo:
 		__ha_barrier_atomic_store();
 	}
 #endif
-	old_active_mask = active_tasks_mask;
 	_HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
 	t->rq.key = _HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
@@ -160,9 +158,13 @@ redo:
 	 * wake one.
 	 */
 	if ((((t->thread_mask & all_threads_mask) & sleeping_thread_mask) ==
-	    (t->thread_mask & all_threads_mask)) &&
-	    !(t->thread_mask & old_active_mask))
-		wake_thread(my_ffsl((t->thread_mask & all_threads_mask) &~ tid_bit) - 1);
+	     (t->thread_mask & all_threads_mask))) {
+		unsigned long m = (t->thread_mask & all_threads_mask) &~ tid_bit;
+
+		m = (m & (m - 1)) ^ m; // keep lowest bit set
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~m);
+		wake_thread(my_ffsl(m) - 1);
+	}
 #endif
 	return;
 }
