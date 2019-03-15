@@ -31,6 +31,7 @@
 #include <eb32tree.h>
 #include <common/memory.h>
 #include <types/freq_ctr.h>
+#include <types/peers.h>
 #include <types/sample.h>
 
 /* The types of extra data we can store in a stick table */
