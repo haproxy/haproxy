@@ -597,7 +597,6 @@ void listener_accept(int fd)
 {
 	struct listener *l = fdtab[fd].owner;
 	struct proxy *p;
-	__decl_hathreads(unsigned long mask);
 	int max_accept;
 	int next_conn = 0;
 	int next_feconn = 0;
@@ -676,6 +675,7 @@ void listener_accept(int fd)
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 		unsigned int count;
+		__decl_hathreads(unsigned long mask);
 
 		/* pre-increase the number of connections without going too far.
 		 * We process the listener, then the proxy, then the process.
