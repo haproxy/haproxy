@@ -2082,6 +2082,56 @@ server <peername> [<ip>:<port>] [param*]
          server hostA  127.0.0.10:10000
          server hostB  #local peer
 
+
+table <tablename> type {ip | integer | string [len <length>] | binary [len <length>]}
+      size <size> [expire <expire>] [nopurge] [store <data_type>]*
+
+  Configure a stickiness table for the current section. This line is parsed
+  exactly the same way as the "stick-table" keyword in others section, except
+  for the "peers" argument which is not required here and with an aditionnal
+  mandatory first parameter to designate the stick-table. Contrary to others
+  sections, there may be several "table" lines in "peers" sections (see also
+  "stick-table" keyword).
+
+  Also be aware of the fact that "peers" sections have their own stick-table
+  namespaces to avoid collisions between stick-table names identical in
+  different "peers" section. This is internally handled prepending the "peers"
+  sections names to the name of the stick-tables followed by a '/' character.
+  If somewhere else in the configuration file you have to refer to such
+  stick-tables declared in "peers" sections you must use the prefixed version
+  of the stick-table name as follows:
+
+      peers mypeers
+          peer A ...
+          peer B ...
+          table t1 ...
+
+      frontend fe1
+          tcp-request content track-sc0 src table mypeers/t1
+
+  This is also this prefixed version of the stick-table names which must be
+  used to refer to stick-tables through the CLI.
+
+  About "peers" protocol, as only "peers" belonging to the same section may
+  communicate with each others, there is no need to do such a distinction.
+  Several "peers" sections may declare stick-tables with the same name.
+  This is shorter version of the stick-table name  which is sent over the network.
+  There is only a '/' character as prefix to avoid stick-table name collisions between
+  stick-tables declared as backends and stick-table declared in "peers" sections
+  as follows in this weird but supported configuration:
+
+      peers mypeers
+          peer A ...
+          peer B ...
+          table t1 type string size 10m store gpc0
+
+      backend t1
+          stick-table type string size 10m store gpc0 peers mypeers
+
+  Here "t1" table declared in "mypeeers" section has "mypeers/t1" as global name.
+  "t1" table declared as a backend as "t1" as global name. But at peer protocol
+  level the former table is named "/t1", the latter is again named "t1".
+
 3.6. Mailers
 ------------
 It is possible to send email alerts when the state of servers changes.
