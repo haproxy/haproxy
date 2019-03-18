@@ -5295,6 +5295,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		if (!ci_data(res)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_SRVCL;
+			_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
 			_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 			if (objt_server(s->target))
 				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.srv_aborts, 1);
