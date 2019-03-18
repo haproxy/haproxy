@@ -3082,18 +3082,18 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 	if (global.nbthread == 1)
 		conf->agent->flags |= SPOE_FL_ASYNC;
 
-	if ((curagent->rt = calloc(global.nbthread, sizeof(*curagent->rt))) == NULL) {
+	if ((conf->agent->rt = calloc(global.nbthread, sizeof(*conf->agent->rt))) == NULL) {
 		ha_alert("Proxy %s : out of memory initializing SPOE agent '%s' declared at %s:%d.\n",
 			 px->id, conf->agent->id, conf->agent->conf.file, conf->agent->conf.line);
 		return 1;
 	}
 	for (i = 0; i < global.nbthread; ++i) {
-		curagent->rt[i].frame_size   = curagent->max_frame_size;
-		curagent->rt[i].processing   = 0;
-		LIST_INIT(&curagent->rt[i].applets);
-		LIST_INIT(&curagent->rt[i].sending_queue);
-		LIST_INIT(&curagent->rt[i].waiting_queue);
-		HA_SPIN_INIT(&curagent->rt[i].lock);
+		conf->agent->rt[i].frame_size   = conf->agent->max_frame_size;
+		conf->agent->rt[i].processing   = 0;
+		LIST_INIT(&conf->agent->rt[i].applets);
+		LIST_INIT(&conf->agent->rt[i].sending_queue);
+		LIST_INIT(&conf->agent->rt[i].waiting_queue);
+		HA_SPIN_INIT(&conf->agent->rt[i].lock);
 	}
 
 	free(conf->agent->b.name);
