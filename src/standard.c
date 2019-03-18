@@ -2672,7 +2672,8 @@ unsigned int mask_find_rank_bit(unsigned int r, unsigned long m)
 	t = 0;
 	s = LONGBITS;
 	if (s > 32) {
-		t = (d >> 32) + (d >> 48);
+		unsigned long d2 = (d >> 16) >> 16;
+		t = d2 + (d2 >> 16);
 		s -= ((t - r) & 256) >> 3; r -= (t & ((t - r) >> 8));
 	}
 
@@ -2706,7 +2707,8 @@ unsigned int mask_find_rank_bit_fast(unsigned int r, unsigned long m,
 	t = 0;
 	s = LONGBITS;
 	if (s > 32) {
-		t = (d >> 32) + (d >> 48);
+		unsigned long d2 = (d >> 16) >> 16;
+		t = d2 + (d2 >> 16);
 		s -= ((t - r) & 256) >> 3; r -= (t & ((t - r) >> 8));
 	}
 
