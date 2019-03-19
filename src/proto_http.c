@@ -3992,6 +3992,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_resync_states(s);
+		return 1;
 	}
 
 	/* Note that we don't have to send 100-continue back because we don't
