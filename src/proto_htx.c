@@ -16,7 +16,6 @@
 #include <common/htx.h>
 #include <common/uri_auth.h>
 
-#include <types/cache.h>
 #include <types/capture.h>
 
 #include <proto/acl.h>

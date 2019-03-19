@@ -48,7 +48,7 @@
 
 const char *cache_store_flt_id = "cache store filter";
 
-struct applet http_cache_applet;
+static struct applet http_cache_applet;
 
 struct flt_ops cache_ops;
 
@@ -1839,7 +1839,7 @@ static struct action_kw_list http_req_actions = {
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
-struct applet http_cache_applet = {
+static struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CACHE>", /* used for logging */
 	.fct = http_cache_io_handler,

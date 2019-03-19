@@ -42,7 +42,6 @@
 #include <types/cli.h>
 #include <types/filters.h>
 #include <types/global.h>
-#include <types/cache.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
