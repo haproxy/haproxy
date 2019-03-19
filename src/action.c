@@ -56,6 +56,10 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 		return 0;
 	}
 	else {
+		if (target->proxies_list != px) {
+			px->next_stkt_ref = target->proxies_list;
+			target->proxies_list = px;
+		}
 		free(rule->arg.trk_ctr.table.n);
 		rule->arg.trk_ctr.table.t = target;
 		/* Note: if we decide to enhance the track-sc syntax, we may be

@@ -1278,6 +1278,11 @@ int smp_resolve_args(struct proxy *p)
 				break;
 			}
 
+			if (t->proxies_list != p) {
+				p->next_stkt_ref = t->proxies_list;
+				t->proxies_list = p;
+			}
+
 			free(arg->data.str.area);
 			arg->data.str.area = NULL;
 			arg->unresolved = 0;

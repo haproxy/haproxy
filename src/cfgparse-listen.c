@@ -1749,6 +1749,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		stktable_store_name(curproxy->table);
 		curproxy->table->next = stktables_list;
 		stktables_list = curproxy->table;
+
+		/* Add this proxy to the list of proxies which refer to its stick-table. */
+		if (curproxy->table->proxies_list != curproxy) {
+			curproxy->next_stkt_ref = curproxy->table->proxies_list;
+			curproxy->table->proxies_list = curproxy;
+		}
 	}
 	else if (!strcmp(args[0], "stick")) {
 		struct sticking_rule *rule;

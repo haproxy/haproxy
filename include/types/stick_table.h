@@ -185,6 +185,7 @@ struct stktable {
 		void *p;
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 	struct proxy *proxy;      /* The proxy this stick-table is attached to, if any.*/
+	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];

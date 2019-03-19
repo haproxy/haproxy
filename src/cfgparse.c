@@ -3861,6 +3861,19 @@ out_uri_auth_compat:
 		if (curproxy->table && curproxy->table->peers.p)
 			curproxy->table->peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
 
+	/* compute the required process bindings for the peers from <stktables_list>
+	 * for all the stick-tables, the ones coming with "peers" sections included.
+	 */
+	for (t = stktables_list; t; t = t->next) {
+		struct proxy *p;
+
+		for (p = t->proxies_list; p; p = p->next_stkt_ref) {
+			if (t->peers.p && t->peers.p->peers_fe) {
+				t->peers.p->peers_fe->bind_proc |= p->bind_proc;
+			}
+		}
+	}
+
 	if (cfg_peers) {
 		struct peers *curpeers = cfg_peers, **last;
 		struct peer *p, *pb;
