@@ -2795,6 +2795,25 @@ void service_keywords_register(struct action_kw_list *kw_list)
 	LIST_ADDQ(&service_keywords, &kw_list->list);
 }
 
+/* Lists the known services on <out> */
+void list_services(FILE *out)
+{
+	struct action_kw_list *kw_list;
+	int found = 0;
+	int i;
+
+	fprintf(out, "Available services :");
+	list_for_each_entry(kw_list, &service_keywords, list) {
+		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (!found)
+				fputc('\n', out);
+			found = 1;
+			fprintf(out, "\t%s\n", kw_list->kw[i].kw);
+		}
+	}
+	if (!found)
+		fprintf(out, " none\n");
+}
 
 /* This function dumps a complete stream state onto the stream interface's
  * read buffer. The stream has to be set in strm. It returns 0 if the output

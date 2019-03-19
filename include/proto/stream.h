@@ -348,6 +348,7 @@ static void inline stream_init_srv_conn(struct stream *sess)
 }
 
 void service_keywords_register(struct action_kw_list *kw_list);
+void list_services(FILE *out);
 
 #endif /* _PROTO_STREAM_H */
 

@@ -412,6 +412,8 @@ static void display_build_opts()
 	putchar('\n');
 	list_mux_proto(stdout);
 	putchar('\n');
+	list_services(stdout);
+	putchar('\n');
 	list_filters(stdout);
 	putchar('\n');
 }
