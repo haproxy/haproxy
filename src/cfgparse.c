@@ -860,6 +860,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "table")) {
 		struct stktable *t, *other;
 		char *id;
+		size_t prefix_len;
 
 		/* Line number and peer ID are updated only if this peer is the local one. */
 		if (init_peers_frontend(file, -1, NULL, curpeers) != 0) {
@@ -878,8 +879,27 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		/* Build the stick-table name, concatenating the "peers" section name
+		 * followed by a '/' character and the table name argument.
+		 */
+		chunk_reset(&trash);
+		if (!chunk_strcpy(&trash, curpeers->id) || !chunk_memcat(&trash, "/", 1)) {
+			ha_alert("parsing [%s:%d]: '%s %s' : stick-table name too long.\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		prefix_len = trash.data;
+		if (!chunk_strcat(&trash, args[1])) {
+			ha_alert("parsing [%s:%d]: '%s %s' : stick-table name too long.\n",
+			         file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		t = calloc(1, sizeof *t);
-		id = strdup(args[1]);
+		id = strdup(trash.area);
 		if (!t || !id) {
 			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
 			         file, linenum, args[0], args[1]);
@@ -887,7 +907,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= parse_stick_table(file, linenum, args, t, id, curpeers);
+		err_code |= parse_stick_table(file, linenum, args, t, id, id + prefix_len, curpeers);
 		if (err_code & ERR_FATAL)
 			goto out;
 

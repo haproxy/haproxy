@@ -695,13 +695,18 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 }
 
 /*
- * Parse a line with <linenum> as number in <file> configuration file to configure the
- * stick-table with <t> as address and  <id> as ID.
- * <peers> provides the "peers" section pointer only if this function is called from a "peers" section.
+ * Parse a line with <linenum> as number in <file> configuration file to configure
+ * the stick-table with <t> as address and  <id> as ID.
+ * <peers> provides the "peers" section pointer only if this function is called
+ * from a "peers" section.
+ * <nid> is the stick-table name which is sent over the network. It must be equal
+ * to <id> if this stick-table is parsed from a proxy section, and prefixed by <peers>
+ * "peers" section name followed by a '/' character if parsed from a "peers" section.
+ * This is the responsability of the caller to check this.
  * Return an error status with ERR_* flags set if required, 0 if no error was encountered.
  */
 int parse_stick_table(const char *file, int linenum, char **args,
-                      struct stktable *t, char *id, struct peers *peers)
+                      struct stktable *t, char *id, char *nid, struct peers *peers)
 {
 	int err_code = 0;
 	int idx = 1;
@@ -720,6 +725,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	}
 
 	t->id =  id;
+	t->nid =  nid;
 	t->type = (unsigned int)-1;
 	t->conf.file = file;
 	t->conf.line = linenum;

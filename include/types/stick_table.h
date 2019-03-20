@@ -144,7 +144,8 @@ struct stksess {
 
 /* stick table */
 struct stktable {
-	char *id;		  /* table id name */
+	char *id;		  /* local table id name. */
+	char *nid;		  /* table id name sent over the network with peers protocol. */
 	struct stktable *next;    /* The stick-table may be linked when belonging to
 	                           * the same configuration section.
 	                           */

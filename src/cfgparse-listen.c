@@ -1739,7 +1739,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= parse_stick_table(file, linenum, args, curproxy->table, curproxy->id, NULL);
+		err_code |= parse_stick_table(file, linenum, args, curproxy->table,
+		                              curproxy->id, curproxy->id, NULL);
 		if (err_code & ERR_FATAL)
 			goto out;
 
