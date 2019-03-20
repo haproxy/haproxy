@@ -883,7 +883,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * followed by a '/' character and the table name argument.
 		 */
 		chunk_reset(&trash);
-		if (!chunk_strcpy(&trash, curpeers->id) || !chunk_memcat(&trash, "/", 1)) {
+		if (!chunk_strcpy(&trash, curpeers->id)) {
 			ha_alert("parsing [%s:%d]: '%s %s' : stick-table name too long.\n",
 			         file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -891,7 +891,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		prefix_len = trash.data;
-		if (!chunk_strcat(&trash, args[1])) {
+		if (!chunk_memcat(&trash, "/", 1) || !chunk_strcat(&trash, args[1])) {
 			ha_alert("parsing [%s:%d]: '%s %s' : stick-table name too long.\n",
 			         file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;

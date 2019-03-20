@@ -524,9 +524,9 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 	intencode(st->local_id, &cursor);
 
 	/* encode table name */
-	len = strlen(st->table->id);
+	len = strlen(st->table->nid);
 	intencode(len, &cursor);
-	memcpy(cursor, st->table->id, len);
+	memcpy(cursor, st->table->nid, len);
 	cursor += len;
 
 	/* encode table type */
@@ -1483,8 +1483,8 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 		if (st->remote_id == table_id)
 			st->remote_id = 0;
 
-		if (!p->remote_table && (table_id_len == strlen(st->table->id)) &&
-		    (memcmp(st->table->id, *msg_cur, table_id_len) == 0))
+		if (!p->remote_table && (table_id_len == strlen(st->table->nid)) &&
+		    (memcmp(st->table->nid, *msg_cur, table_id_len) == 0))
 			p->remote_table = st;
 	}
 
