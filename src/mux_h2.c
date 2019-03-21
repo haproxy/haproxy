@@ -4733,13 +4733,17 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		void *old_area = h2c->mbuf.area;
 
 		if (b_data(&h2c->mbuf)) {
-			/* too bad there are data left there. If we have less
-			 * than 1/4 of the mbuf's size and everything fits,
-			 * we'll perform a copy anyway. Otherwise we'll pretend
-			 * the mbuf is full and wait.
+			/* Too bad there are data left there. We're willing to memcpy/memmove
+			 * up to 1/4 of the buffer, which means that it's OK to copy a large
+			 * frame into a buffer containing few data if it needs to be realigned,
+			 * and that it's also OK to copy few data without realigning. Otherwise
+			 * we'll pretend the mbuf is full and wait for it to become empty.
 			 */
-			if (fsize <= b_size(&h2c->mbuf) / 4 && fsize + 9 <= b_room(&h2c->mbuf))
+			if (fsize + 9 <= b_room(&h2c->mbuf) &&
+			    (b_data(&h2c->mbuf) <= b_size(&h2c->mbuf) / 4 ||
+			     (fsize <= b_size(&h2c->mbuf) / 4 && fsize + 9 <= b_contig_space(&h2c->mbuf))))
 				goto copy;
+
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
 			goto end;
