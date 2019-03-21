@@ -82,6 +82,7 @@
 #define	PEER_F_TEACH_COMPLETE		0x00000010 /* All that we know already taught to current peer, used only for a local peer */
 #define	PEER_F_LEARN_ASSIGN		0x00000100 /* Current peer was assigned for a lesson */
 #define	PEER_F_LEARN_NOTUP2DATE		0x00000200 /* Learn from peer finished but peer is not up to date */
+#define	PEER_F_ALIVE		0x20000000 /* Used to flag a peer a alive. */
 #define	PEER_F_HEARTBEAT		0x40000000 /* Heartbeat message to send. */
 #define	PEER_F_DWNGRD		        0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
 
@@ -2163,6 +2164,8 @@ switchstate:
 				if (!peer_treat_awaited_msg(appctx, curpeer, msg_head, &msg_cur, msg_end, msg_len, totl))
 					goto switchstate;
 
+				curpeer->flags |= PEER_F_ALIVE;
+
 				/* skip consumed message */
 				co_skip(si_oc(si), totl);
 				/* loop on that state to peek next message */
@@ -2469,18 +2472,48 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 							if ((int)(st->last_pushed - st->table->localupdate) < 0) {
 								/* wake up the peer handler to push local updates */
 								update_to_push = 1;
+								/* There is no need to send a heartbeat message
+								 * when some updates must be pushed. The remote
+								 * peer will consider <ps> peer as alive when it will
+								 * receive these updates.
+								 */
 								ps->flags &= ~PEER_F_HEARTBEAT;
+								/* Re-schedule another one later. */
 								ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+								/* We are going to send updates, let's ensure we will
+								 * come back to send heartbeat messages or to reconnect.
+								 */
+								task->expire = tick_first(ps->reconnect, ps->heartbeat);
 								appctx_wakeup(ps->appctx);
 								break;
 							}
 						}
-						if (!update_to_push && tick_is_expired(ps->heartbeat, now_ms)) {
-							ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
-							ps->flags |= PEER_F_HEARTBEAT;
-							appctx_wakeup(ps->appctx);
+						/* When there are updates to send we do not reconnect
+						 * and do not send heartbeat message either.
+						 */
+						if (!update_to_push) {
+							if (tick_is_expired(ps->reconnect, now_ms)) {
+								if (ps->flags & PEER_F_ALIVE) {
+									/* This peer was alive during a 'reconnect' period.
+									 * Flag it as not alive again for the next period.
+									 */
+									ps->flags &= ~PEER_F_ALIVE;
+									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
+								}
+								else  {
+									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
+									peer_session_forceshutdown(ps->appctx);
+									ps->appctx = NULL;
+								}
+							}
+							else if (tick_is_expired(ps->heartbeat, now_ms)) {
+								ps->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+								ps->flags |= PEER_F_HEARTBEAT;
+								appctx_wakeup(ps->appctx);
+							}
+							if (ps->appctx)
+								task->expire = tick_first(ps->reconnect, ps->heartbeat);
 						}
-						task->expire = tick_first(task->expire, ps->heartbeat);
 					}
 					/* else do nothing */
 				} /* SUCCESSCODE */
