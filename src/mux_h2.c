@@ -196,8 +196,8 @@ struct h2s {
 	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
 	struct wait_event wait_event; /* Wait list, when we're attempting to send a RST but we can't send */
-	struct wait_event *recv_wait; /* Address of the wait_event the conn_stream associated is waiting on */
-	struct wait_event *send_wait; /* The streeam is waiting for flow control */
+	struct wait_event *recv_wait; /* recv wait_event the conn_stream associated is waiting on (via h2_subscribe) */
+	struct wait_event *send_wait; /* send wait_event the conn_stream associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
 };
 
@@ -2758,6 +2758,7 @@ schedule:
 	return sent;
 }
 
+/* this is the tasklet referenced in h2c->wait_event.task */
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct h2c *h2c = ctx;
@@ -2860,6 +2861,7 @@ static int h2_process(struct h2c *h2c)
 	return 0;
 }
 
+/* wake-up function called by the connection layer (mux_ops.wake) */
 static int h2_wake(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
@@ -3079,6 +3081,9 @@ static void h2_detach(struct conn_stream *cs)
 	}
 }
 
+/* Performs a synchronous or asynchronous shutr().
+ * FIXME: guess what the return code tries to indicate!
+ */
 static int h2_do_shutr(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
@@ -3130,6 +3135,9 @@ add_to_list:
 	return 1;
 }
 
+/* Performs a synchronous or asynchronous shutw().
+ * FIXME: guess what the return code tries to indicate!
+ */
 static int h2_do_shutw(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
@@ -3195,6 +3203,10 @@ static int h2_do_shutw(struct h2s *h2s)
        return 1;
 }
 
+/* This is the tasklet referenced in h2s->wait_event.task, it is used for
+ * deferred shutdowns when the h2_detach() was done but the mux buffer was full
+ * and prevented the last frame from being emitted.
+ */
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct h2s *h2s = ctx;
@@ -3224,6 +3236,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 	return NULL;
 }
 
+/* shutr() called by the conn_stream (mux_ops.shutr) */
 static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
@@ -3234,6 +3247,7 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	h2_do_shutr(h2s);
 }
 
+/* shutw() called by the conn_stream (mux_ops.shutw) */
 static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
@@ -5090,7 +5104,13 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	goto end;
 }
 
-/* Called from the upper layer, to subscribe to events, such as being able to send */
+/* Called from the upper layer, to subscribe to events, such as being able to send.
+ * The <param> argument here is supposed to be a pointer to a wait_event struct
+ * which will be passed to h2s->recv_wait or h2s->send_wait depending on the
+ * event_type. The event_type must only be a combination of SUB_RETRY_RECV and
+ * SUB_RETRY_SEND, other values will lead to -1 being returned. It always
+ * returns 0 except for the error above.
+ */
 static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_event *sw;
@@ -5124,10 +5144,13 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	if (event_type != 0)
 		return -1;
 	return 0;
-
-
 }
 
+/* Called from the upper layer, to unsubscribe some events (undo h2_subscribe).
+ * The <param> argument here is supposed to be a pointer to the same wait_event
+ * struct that was passed to h2_subscribe() otherwise nothing will be changed.
+ * It always returns zero.
+ */
 static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_event *sw;
@@ -5230,6 +5253,9 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	return ret;
 }
 
+/* stops all senders of this connection for example when the mux buffer is full.
+ * They are moved from the sending_list to either fctl_list or send_list.
+ */
 static void h2_stop_senders(struct h2c *h2c)
 {
 	struct h2s *h2s, *h2s_back;
@@ -5250,7 +5276,10 @@ static void h2_stop_senders(struct h2c *h2c)
 	}
 }
 
-/* Called from the upper layer, to send data */
+/* Called from the upper layer, to send data from buffer <buf> for no more than
+ * <count> bytes. Returns the number of bytes effectively sent. Some status
+ * flags may be updated on the conn_stream.
+ */
 static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	struct h2s *h2s = cs->ctx;
