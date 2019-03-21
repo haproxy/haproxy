@@ -316,7 +316,7 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	return ret;
 }
 
-int conn_unsubscribe(struct connection *conn, int event_type, void *param)
+int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
 	struct wait_event *sw;
 
@@ -340,7 +340,7 @@ int conn_unsubscribe(struct connection *conn, int event_type, void *param)
 	return 0;
 }
 
-int conn_subscribe(struct connection *conn, int event_type, void *param)
+int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
 	struct wait_event *sw;
 

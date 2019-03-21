@@ -54,7 +54,7 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
 		mux_pt_destroy(ctx);
 	else
-		ctx->conn->xprt->subscribe(ctx->conn, SUB_RETRY_RECV,
+		ctx->conn->xprt->subscribe(ctx->conn, ctx->conn->xprt_ctx, SUB_RETRY_RECV,
 		    &ctx->wait_event);
 
 	return NULL;
@@ -146,7 +146,7 @@ static struct conn_stream *mux_pt_attach(struct connection *conn, struct session
 	struct conn_stream *cs;
 	struct mux_pt_ctx *ctx = conn->ctx;
 
-	conn->xprt->unsubscribe(conn, SUB_RETRY_RECV, &ctx->wait_event);
+	conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	cs = cs_new(conn);
 	if (!cs)
 		goto fail;
@@ -191,7 +191,7 @@ static void mux_pt_detach(struct conn_stream *cs)
 	if (conn->owner != NULL &&
 	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 		ctx->cs = NULL;
-		conn->xprt->subscribe(conn, SUB_RETRY_RECV, &ctx->wait_event);
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 	} else
 		/* There's no session attached to that connection, destroy it */
 		mux_pt_destroy(ctx);
@@ -217,7 +217,8 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		return;
 	cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
-		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
+		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
+		    (mode == CS_SHR_DRAIN));
 	if (cs->flags & CS_FL_SHW)
 		conn_full_close(cs->conn);
 	/* Maybe we've been put in the list of available idle connections,
@@ -232,7 +233,8 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	if (cs->flags & CS_FL_SHW)
 		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutw)
-		cs->conn->xprt->shutw(cs->conn, (mode == CS_SHW_NORMAL));
+		cs->conn->xprt->shutw(cs->conn, cs->conn->xprt_ctx,
+		    (mode == CS_SHW_NORMAL));
 	if (!(cs->flags & CS_FL_SHR))
 		conn_sock_shutw(cs->conn, (mode == CS_SHW_NORMAL));
 	else
@@ -256,7 +258,7 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 		return 0;
 	}
 	b_realign_if_empty(buf);
-	ret = cs->conn->xprt->rcv_buf(cs->conn, buf, count, flags);
+	ret = cs->conn->xprt->rcv_buf(cs->conn, cs->conn->xprt_ctx, buf, count, flags);
 	if (conn_xprt_read0_pending(cs->conn)) {
 		if (ret == 0)
 			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
@@ -277,7 +279,7 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 
 	if (cs->conn->flags & CO_FL_HANDSHAKE)
 		return 0;
-	ret = cs->conn->xprt->snd_buf(cs->conn, buf, count, flags);
+	ret = cs->conn->xprt->snd_buf(cs->conn, cs->conn->xprt_ctx, buf, count, flags);
 
 	if (ret > 0)
 		b_del(buf, ret);
@@ -287,12 +289,12 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 /* Called from the upper layer, to subscribe to events */
 static int mux_pt_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
-	return (cs->conn->xprt->subscribe(cs->conn, event_type, param));
+	return (cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, event_type, param));
 }
 
 static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 {
-	return (cs->conn->xprt->unsubscribe(cs->conn, event_type, param));
+	return (cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx, event_type, param));
 }
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
@@ -301,7 +303,7 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 {
 	int ret;
 
-	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
+	ret = cs->conn->xprt->rcv_pipe(cs->conn, cs->conn->xprt_ctx, pipe, count);
 	if (conn_xprt_read0_pending(cs->conn))
 		cs->flags |= CS_FL_EOS;
 	if (cs->conn->flags & CO_FL_ERROR)
@@ -311,7 +313,7 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 
 static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 {
-	return (cs->conn->xprt->snd_pipe(cs->conn, pipe));
+	return (cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe));
 }
 #endif
 

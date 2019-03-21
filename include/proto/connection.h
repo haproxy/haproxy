@@ -48,8 +48,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
-int conn_subscribe(struct connection *conn, int event_type, void *param);
-int conn_unsubscribe(struct connection *conn, int event_type, void *param);
+int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param);
+int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param);
 
 /* receive a NetScaler Client IP insertion header over a connection */
 int conn_recv_netscaler_cip(struct connection *conn, int flag);
@@ -81,7 +81,7 @@ static inline int conn_xprt_init(struct connection *conn)
 	int ret = 0;
 
 	if (!conn_xprt_ready(conn) && conn->xprt && conn->xprt->init)
-		ret = conn->xprt->init(conn);
+		ret = conn->xprt->init(conn, &conn->xprt_ctx);
 
 	if (ret >= 0)
 		conn->flags |= CO_FL_XPRT_READY;
@@ -98,7 +98,7 @@ static inline void conn_xprt_close(struct connection *conn)
 {
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
 		if (conn->xprt->close)
-			conn->xprt->close(conn);
+			conn->xprt->close(conn, conn->xprt_ctx);
 		conn->flags &= ~CO_FL_XPRT_READY;
 	}
 }
@@ -462,7 +462,7 @@ static inline void conn_xprt_shutw(struct connection *c)
 
 	/* clean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
-		c->xprt->shutw(c, 1);
+		c->xprt->shutw(c, c->xprt_ctx, 1);
 }
 
 static inline void conn_xprt_shutw_hard(struct connection *c)
@@ -471,7 +471,7 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
-		c->xprt->shutw(c, 0);
+		c->xprt->shutw(c, c->xprt_ctx, 0);
 }
 
 /* shut read */
@@ -940,7 +940,7 @@ static inline int conn_get_alpn(const struct connection *conn, const char **str,
 {
 	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)
 		return 0;
-	return conn->xprt->get_alpn(conn, str, len);
+	return conn->xprt->get_alpn(conn, conn->xprt_ctx, str, len);
 }
 
 /* registers proto mux list <list>. Modifies the list element! */

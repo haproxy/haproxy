@@ -484,7 +484,7 @@ static void h1_release(struct h1c *h1c)
 
 		h1s_destroy(h1c->h1s);
 		if (conn && h1c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, h1c->wait_event.events,
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h1c->wait_event.events,
 			    &h1c->wait_event);
 		pool_free(pool_head_h1c, h1c);
 	}
@@ -1753,7 +1753,7 @@ static int h1_recv(struct h1c *h1c)
 			 */
 			h1c->ibuf.head  = sizeof(struct htx);
 		}
-		ret = conn->xprt->rcv_buf(conn, &h1c->ibuf, max, 0);
+		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, 0);
 	}
 	if (ret > 0) {
 		rcvd = 1;
@@ -1769,7 +1769,7 @@ static int h1_recv(struct h1c *h1c)
 		goto end;
 	}
 
-	conn->xprt->subscribe(conn, SUB_RETRY_RECV, &h1c->wait_event);
+	conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
   end:
 	if (ret > 0 || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn))
@@ -1800,7 +1800,7 @@ static int h1_send(struct h1c *h1c)
 
 	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
 		if (!(h1c->wait_event.events & SUB_RETRY_SEND))
-			conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h1c->wait_event);
+			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
 		return 0;
 	}
 
@@ -1810,7 +1810,7 @@ static int h1_send(struct h1c *h1c)
 	if (h1c->flags & H1C_F_OUT_FULL)
 		flags |= CO_SFL_MSG_MORE;
 
-	ret = conn->xprt->snd_buf(conn, &h1c->obuf, b_data(&h1c->obuf), flags);
+	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), flags);
 	if (ret > 0) {
 		h1c->flags &= ~H1C_F_OUT_FULL;
 		b_del(&h1c->obuf, ret);
@@ -1833,7 +1833,7 @@ static int h1_send(struct h1c *h1c)
 			h1_shutw_conn(conn, CS_SHW_NORMAL);
 	}
 	else if (!(h1c->wait_event.events & SUB_RETRY_SEND))
-		conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h1c->wait_event);
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
 
 	return sent;
 }
@@ -2134,7 +2134,8 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (cs->flags & CS_FL_SHR)
 		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
-		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
+		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
+		    (mode == CS_SHR_DRAIN));
 	if ((cs->conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
 		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 }
@@ -2296,7 +2297,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if ((h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) ||
 	    (h1m->state == H1_MSG_DATA && !h1m->curr_len)) {
 		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
-		cs->conn->xprt->subscribe(cs->conn, SUB_RETRY_RECV, &h1s->h1c->wait_event);
+		cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_RECV, &h1s->h1c->wait_event);
 		goto end;
 	}
 
@@ -2309,7 +2310,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	h1s->flags |= H1S_F_SPLICED_DATA;
 	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
 		count = h1m->curr_len;
-	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
+	ret = cs->conn->xprt->rcv_pipe(cs->conn, cs->conn->xprt_ctx, pipe, count);
 	if (h1m->state == H1_MSG_DATA && ret > 0) {
 		h1m->curr_len -= ret;
 		if (!h1m->curr_len)
@@ -2333,11 +2334,11 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	if (b_data(&h1s->h1c->obuf))
 		goto end;
 
-	ret = cs->conn->xprt->snd_pipe(cs->conn, pipe);
+	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
   end:
 	if (pipe->data) {
 		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND))
-			cs->conn->xprt->subscribe(cs->conn, SUB_RETRY_SEND, &h1s->h1c->wait_event);
+			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_SEND, &h1s->h1c->wait_event);
 	}
 	return ret;
 }

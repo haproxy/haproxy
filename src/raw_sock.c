@@ -66,7 +66,7 @@
  *   connection flags are updated (error, read0, wait_room, wait_data).
  *   The caller must have previously allocated the pipe.
  */
-int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int count)
+int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count)
 {
 #ifndef ASSUME_SPLICE_WORKS
 	static THREAD_LOCAL int splice_detects_close;
@@ -198,7 +198,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 
 /* Send as many bytes as possible from the pipe to the connection's socket.
  */
-int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
+int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe)
 {
 	int ret, done;
 
@@ -250,7 +250,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
  * errno is cleared before starting so that the caller knows that if it spots an
  * error without errno, it's pending and can be retrieved via getsockopt(SO_ERROR).
  */
-static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_t count, int flags)
+static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags)
 {
 	ssize_t ret;
 	size_t try, done = 0;
@@ -363,7 +363,7 @@ static size_t raw_sock_to_buf(struct connection *conn, struct buffer *buf, size_
  * is responsible for this. It's up to the caller to update the buffer's contents
  * based on the return value.
  */
-static size_t raw_sock_from_buf(struct connection *conn, const struct buffer *buf, size_t count, int flags)
+static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags)
 {
 	ssize_t ret;
 	size_t try, done;
@@ -419,13 +419,22 @@ static size_t raw_sock_from_buf(struct connection *conn, const struct buffer *bu
 	return done;
 }
 
+static int raw_sock_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+{
+	return conn_subscribe(conn, xprt_ctx, event_type, param);
+}
+
+static int raw_sock_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+{
+	return conn_unsubscribe(conn, xprt_ctx, event_type, param);
+}
 
 /* transport-layer operations for RAW sockets */
 static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
 	.rcv_buf  = raw_sock_to_buf,
-	.subscribe = conn_subscribe,
-	.unsubscribe = conn_unsubscribe,
+	.subscribe = raw_sock_subscribe,
+	.unsubscribe = raw_sock_unsubscribe,
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,

@@ -5094,11 +5094,11 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
  * handshake flag on the connection. It is safe to call it multiple times.
  * It returns 0 on success and -1 in error case.
  */
-static int ssl_sock_init(struct connection *conn)
+static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 {
 	struct ssl_sock_ctx *ctx;
 	/* already initialized */
-	if (conn->xprt_ctx)
+	if (*xprt_ctx)
 		return 0;
 
 	if (!conn_ctrl_ready(conn))
@@ -5174,10 +5174,10 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-		conn->xprt_ctx = ctx;
 
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
+		*xprt_ctx = ctx;
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5229,7 +5229,7 @@ static int ssl_sock_init(struct connection *conn)
 
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
-		conn->xprt_ctx = ctx;
+		*xprt_ctx = ctx;
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -5524,14 +5524,16 @@ reneg_ok:
 	return 0;
 }
 
-static int ssl_subscribe(struct connection *conn, int event_type, void *param)
+static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	return conn_subscribe(conn, event_type, param);
+
+	return conn_subscribe(conn, NULL, event_type, param);
 }
 
-static int ssl_unsubscribe(struct connection *conn, int event_type, void *param)
+static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	return conn_unsubscribe(conn, event_type, param);
+
+	return conn_unsubscribe(conn, NULL, event_type, param);
 }
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them
@@ -5542,15 +5544,15 @@ static int ssl_unsubscribe(struct connection *conn, int event_type, void *param)
  * avoiding the call if inappropriate. The function does not call the
  * connection's polling update function, so the caller is responsible for this.
  */
-static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_t count, int flags)
+static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 	ssize_t ret;
 	size_t try, done = 0;
 
 	conn_refresh_polling_flags(conn);
 
-	if (!conn->xprt_ctx)
+	if (!ctx)
 		goto out_error;
 
 	if (conn->flags & CO_FL_HANDSHAKE)
@@ -5703,16 +5705,16 @@ static size_t ssl_sock_to_buf(struct connection *conn, struct buffer *buf, size_
  * caller to take care of this. It's up to the caller to update the buffer's
  * contents based on the return value.
  */
-static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *buf, size_t count, int flags)
+static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 	ssize_t ret;
 	size_t try, done;
 
 	done = 0;
 	conn_refresh_polling_flags(conn);
 
-	if (!conn->xprt_ctx)
+	if (!ctx)
 		goto out_error;
 
 	if (conn->flags & CO_FL_HANDSHAKE)
@@ -5838,11 +5840,11 @@ static size_t ssl_sock_from_buf(struct connection *conn, const struct buffer *bu
 	goto leave;
 }
 
-static void ssl_sock_close(struct connection *conn) {
+static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 
-	if (conn->xprt_ctx) {
+	if (ctx) {
 #if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 		if (global_ssl.async) {
 			OSSL_ASYNC_FD all_fd[32], afd;
@@ -5875,7 +5877,6 @@ static void ssl_sock_close(struct connection *conn) {
 					fd_cant_recv(afd);
 				}
 				pool_free(ssl_sock_ctx_pool, ctx);
-				conn->xprt_ctx = NULL;
 				_HA_ATOMIC_ADD(&jobs, 1);
 				return;
 			}
@@ -5891,7 +5892,6 @@ static void ssl_sock_close(struct connection *conn) {
 #endif
 		SSL_free(ctx->ssl);
 		pool_free(ssl_sock_ctx_pool, ctx);
-		conn->xprt_ctx = NULL;
 		_HA_ATOMIC_SUB(&sslconns, 1);
 	}
 }
@@ -5899,9 +5899,9 @@ static void ssl_sock_close(struct connection *conn) {
 /* This function tries to perform a clean shutdown on an SSL connection, and in
  * any case, flags the connection as reusable if no handshake was in progress.
  */
-static void ssl_sock_shutw(struct connection *conn, int clean)
+static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 
 	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
@@ -6348,14 +6348,12 @@ unsigned int ssl_sock_get_verify_result(struct connection *conn)
  * freed by the caller. NPN is also checked if available since older versions
  * of openssl (1.0.1) which are more common in field only support this one.
  */
-static int ssl_sock_get_alpn(const struct connection *conn, const char **str, int *len)
+static int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx, const char **str, int *len)
 {
 #if defined(TLSEXT_TYPE_application_layer_protocol_negotiation) || \
 	defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
-struct ssl_sock_ctx *ctx = conn->xprt_ctx;
-#endif
-
-	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+	if (!ctx)
 		return 0;
 
 	*str = NULL;
@@ -6369,6 +6367,7 @@ struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 	SSL_get0_next_proto_negotiated(ctx->ssl, (const unsigned char **)str, (unsigned *)len);
 	if (*str)
 		return 1;
+#endif
 #endif
 	return 0;
 }

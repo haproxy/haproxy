@@ -302,22 +302,22 @@ enum {
  * and the other ones are used to setup and release the transport layer.
  */
 struct xprt_ops {
-	size_t (*rcv_buf)(struct connection *conn, struct buffer *buf, size_t count, int flags); /* recv callback */
-	size_t (*snd_buf)(struct connection *conn, const struct buffer *buf, size_t count, int flags); /* send callback */
-	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
-	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
-	void (*shutr)(struct connection *, int);    /* shutr function */
-	void (*shutw)(struct connection *, int);    /* shutw function */
-	void (*close)(struct connection *);         /* close the transport layer */
-	int  (*init)(struct connection *conn);      /* initialize the transport layer */
+	size_t (*rcv_buf)(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags); /* recv callback */
+	size_t (*snd_buf)(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags); /* send callback */
+	int  (*rcv_pipe)(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
+	int  (*snd_pipe)(struct connection *conn, void *xprt_ctx, struct pipe *pipe); /* send-to-pipe callback */
+	void (*shutr)(struct connection *conn, void *xprt_ctx, int);    /* shutr function */
+	void (*shutw)(struct connection *conn, void *xprt_ctx, int);    /* shutw function */
+	void (*close)(struct connection *conn, void *xprt_ctx);         /* close the transport layer */
+	int  (*init)(struct connection *conn, void **ctx);      /* initialize the transport layer */
 	int  (*prepare_bind_conf)(struct bind_conf *conf); /* prepare a whole bind_conf */
 	void (*destroy_bind_conf)(struct bind_conf *conf); /* destroy a whole bind_conf */
 	int  (*prepare_srv)(struct server *srv);    /* prepare a server context */
 	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
-	int  (*get_alpn)(const struct connection *conn, const char **str, int *len); /* get application layer name */
+	int  (*get_alpn)(const struct connection *conn, void *xprt_ctx, const char **str, int *len); /* get application layer name */
 	char name[8];                               /* transport layer name, zero-terminated */
-	int (*subscribe)(struct connection *conn, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
-	int (*unsubscribe)(struct connection *conn, int event_type, void *param); /* Unsubscribe to events */
+	int (*subscribe)(struct connection *conn, void *xprt_ctx, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
+	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, void *param); /* Unsubscribe to events */
 };
 
 /* mux_ops describes the mux operations, which are to be performed at the

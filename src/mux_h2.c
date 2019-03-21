@@ -643,7 +643,7 @@ static void h2_release(struct h2c *h2c)
 		if (h2c->wait_event.task)
 			tasklet_free(h2c->wait_event.task);
 		if (h2c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, h2c->wait_event.events,
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 			    &h2c->wait_event);
 
 		pool_free(pool_head_h2c, h2c);
@@ -2676,13 +2676,13 @@ static int h2_recv(struct h2c *h2c)
 			max = b_room(buf);
 
 		if (max)
-			ret = conn->xprt->rcv_buf(conn, buf, max, 0);
+			ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0);
 		else
 			ret = 0;
 	} while (ret > 0);
 
 	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))
-		conn->xprt->subscribe(conn, SUB_RETRY_RECV, &h2c->wait_event);
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -2749,7 +2749,7 @@ static int h2_send(struct h2c *h2c)
 			flags |= CO_SFL_MSG_MORE;
 
 		if (b_data(&h2c->mbuf)) {
-			int ret = conn->xprt->snd_buf(conn, &h2c->mbuf, b_data(&h2c->mbuf), flags);
+			int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h2c->mbuf, b_data(&h2c->mbuf), flags);
 			if (!ret)
 				break;
 			sent = 1;
@@ -2796,7 +2796,7 @@ static int h2_send(struct h2c *h2c)
 		return sent;
 schedule:
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
-		conn->xprt->subscribe(conn, SUB_RETRY_SEND, &h2c->wait_event);
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h2c->wait_event);
 	return sent;
 }
 
@@ -2947,7 +2947,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
 	if (b_data(&h2c->mbuf) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
-		int ret = h2c->conn->xprt->snd_buf(h2c->conn, &h2c->mbuf, b_data(&h2c->mbuf), 0);
+		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, &h2c->mbuf, b_data(&h2c->mbuf), 0);
 		if (ret > 0) {
 			b_del(&h2c->mbuf, ret);
 			b_realign_if_empty(&h2c->mbuf);
