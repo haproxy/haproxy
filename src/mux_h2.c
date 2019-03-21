@@ -5239,7 +5239,10 @@ static void h2_stop_senders(struct h2c *h2c)
 		task_remove_from_task_list((struct task *)h2s->send_wait->task);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
 		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
-		LIST_ADD(&h2c->send_list, &h2s->list);
+		if (h2s->flags & H2_SF_BLK_MFCTL)
+			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+		else
+			LIST_ADDQ(&h2c->send_list, &h2s->list);
 	}
 }
 
