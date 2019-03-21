@@ -4785,7 +4785,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (srv->ssl_ctx.ciphersuites &&
-		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
+		!SSL_CTX_set_ciphersuites(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
 		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
 			 curproxy->id, srv->id,
 			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphersuites);
