@@ -279,6 +279,22 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
 static void h2s_alert(struct h2s *h2s);
 
+static __inline int
+h2c_is_dead(struct h2c *h2c)
+{
+	if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
+	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
+	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
+	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
+	     (!b_data(&h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
+	      (conn_xprt_read0_pending(h2c->conn) ||
+	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
+		return 1;
+
+	return 0;
+
+}
+
 /*****************************************************/
 /* functions below are for dynamic buffer management */
 /*****************************************************/
@@ -3049,13 +3065,7 @@ static void h2_detach(struct conn_stream *cs)
 	 * reached the ID already specified in a GOAWAY frame received
 	 * or sent (as seen by last_sid >= 0).
 	 */
-	if (eb_is_empty(&h2c->streams_by_id) &&     /* don't close if streams exist */
-	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
-	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
-	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
-	     (!b_data(&h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
-	      (conn_xprt_read0_pending(h2c->conn) ||
-	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid))))) {
+	if (h2c_is_dead(h2c)) {
 		/* no more stream will come, kill it now */
 		h2_release(h2c->conn);
 	}
@@ -3069,13 +3079,13 @@ static void h2_detach(struct conn_stream *cs)
 	}
 }
 
-static void h2_do_shutr(struct h2s *h2s)
+static int h2_do_shutr(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
-		return;
+		return 0;
 
 	/* a connstream may require us to immediately kill the whole connection
 	 * for example because of a "tcp-request content reject" rule that is
@@ -3103,7 +3113,7 @@ static void h2_do_shutr(struct h2s *h2s)
 		tasklet_wakeup(h2c->wait_event.task);
 	h2s_close(h2s);
 
-	return;
+	return 0;
 add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
 		sw->events |= SUB_RETRY_SEND;
@@ -3117,15 +3127,16 @@ add_to_list:
 	}
 	/* Let the handler know we want shutr */
 	sw->handle = (void *)((long)sw->handle | 1);
+	return 1;
 }
 
-static void h2_do_shutw(struct h2s *h2s)
+static int h2_do_shutw(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
-		return;
+		return 0;
 
 	if (h2s->flags & H2_SF_HEADERS_SENT) {
 		/* we can cleanly close using an empty data frame only after headers */
@@ -3166,7 +3177,7 @@ static void h2_do_shutw(struct h2s *h2s)
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
-	return;
+	return 0;
 
  add_to_list:
 	if (LIST_ISEMPTY(&h2s->list)) {
@@ -3181,12 +3192,14 @@ static void h2_do_shutw(struct h2s *h2s)
 	}
        /* let the handler know we want to shutw */
        sw->handle = (void *)((long)(sw->handle) | 2);
+       return 1;
 }
 
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct h2s *h2s = ctx;
 	long reason = (long)h2s->wait_event.handle;
+	int ret = 0;
 
 	if (h2s->send_wait) {
 		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
@@ -3195,13 +3208,19 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 		LIST_INIT(&h2s->list);
 	}
 	if (reason & 2)
-		h2_do_shutw(h2s);
+		ret |= h2_do_shutw(h2s);
 	if (reason & 1)
-		h2_do_shutr(h2s);
+		ret |= h2_do_shutr(h2s);
 
-	if (h2s->st == H2_SS_CLOSED &&
-	    !((h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL))) && !h2s->cs)
+	/* We're no longer trying to send anything, let's destroy the h2s */
+	if (!ret) {
+		struct h2c *h2c = h2s->h2c;
 		h2s_destroy(h2s);
+
+		if (h2c_is_dead(h2c))
+			h2_release(h2c->conn);
+	}
+
 	return NULL;
 }
 
