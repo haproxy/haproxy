@@ -5524,6 +5524,16 @@ reneg_ok:
 	return 0;
 }
 
+static int ssl_subscribe(struct connection *conn, int event_type, void *param)
+{
+	return conn_subscribe(conn, event_type, param);
+}
+
+static int ssl_unsubscribe(struct connection *conn, int event_type, void *param)
+{
+	return conn_unsubscribe(conn, event_type, param);
+}
+
 /* Receive up to <count> bytes from connection <conn>'s socket and store them
  * into buffer <buf>. Only one call to recv() is performed, unless the
  * buffer wraps, in which case a second call may be performed. The connection's
@@ -9619,8 +9629,8 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 static struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
 	.rcv_buf  = ssl_sock_to_buf,
-	.subscribe = conn_subscribe,
-	.unsubscribe = conn_unsubscribe,
+	.subscribe = ssl_subscribe,
+	.unsubscribe = ssl_unsubscribe,
 	.rcv_pipe = NULL,
 	.snd_pipe = NULL,
 	.shutr    = NULL,
