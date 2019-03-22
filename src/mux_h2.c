@@ -3765,12 +3765,6 @@ try_again:
 	h2c->rcvd_s += h2c->dpl;
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
-
-	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		h2s->flags |= H2_SF_ES_RCVD;
-		if (h2s->cs)
-			h2s->cs->flags |= CS_FL_REOS;
-	}
 	if (htx)
 		htx_to_buf(htx, csbuf);
 	return 1;
