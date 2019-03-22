@@ -88,6 +88,7 @@ enum {
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
 	CS_FL_REOS          = 0x00002000,  /* End of stream received (buffer not empty) */
 	CS_FL_READ_NULL     = 0x00004000,  /* Last read received */
+	CS_FL_EOI           = 0x00008000,  /* end-of-input reached */
 	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
 	CS_FL_KILL_CONN     = 0x00020000,  /* must kill the connection when the CS closes */
 
