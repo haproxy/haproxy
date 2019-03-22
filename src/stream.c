@@ -670,7 +670,7 @@ static int sess_update_st_con_tcp(struct stream *s)
 	    unlikely((rep->flags & CF_SHUTW) ||
 		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
 		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
-		       ((s->be->options & PR_O_ABRT_CLOSE) && !(s->si[0].flags & SI_FL_CLEAN_ABRT)))))) {
+		       (s->be->options & PR_O_ABRT_CLOSE))))) {
 		/* give up */
 		si_shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
@@ -890,8 +890,7 @@ static int check_req_may_abort(struct channel *req, struct stream *s)
 {
 	return ((req->flags & (CF_READ_ERROR)) ||
 	        ((req->flags & (CF_SHUTW_NOW|CF_SHUTW)) &&  /* empty and client aborted */
-	         (channel_is_empty(req) ||
-		  ((s->be->options & PR_O_ABRT_CLOSE) && !(s->si[0].flags & SI_FL_CLEAN_ABRT)))));
+	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
 /* Update back stream interface status for input states SI_ST_ASS, SI_ST_QUE,
