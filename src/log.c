@@ -1153,8 +1153,21 @@ char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struc
 	char pn[INET6_ADDRSTRLEN];
 
 	if (node->options & LOG_OPT_HEXA) {
-		const unsigned char *addr = (const unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_addr.s_addr;
-		iret = snprintf(dst, size, "%02X%02X%02X%02X", addr[0], addr[1], addr[2], addr[3]);
+		unsigned char *addr = NULL;
+		switch (sockaddr->sa_family) {
+		case AF_INET:
+			addr = (unsigned char *)&((struct sockaddr_in *)sockaddr)->sin_addr.s_addr;
+			iret = snprintf(dst, size, "%02X%02X%02X%02X", addr[0], addr[1], addr[2], addr[3]);
+			break;
+		case AF_INET6:
+			addr = (unsigned char *)&((struct sockaddr_in6 *)sockaddr)->sin6_addr.s6_addr;
+			iret = snprintf(dst, size, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+			                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
+			                addr[8], addr[9], addr[10], addr[11], addr[12], addr[13], addr[14], addr[15]);
+			break;
+		default:
+			return NULL;
+		}
 		if (iret < 0 || iret > size)
 			return NULL;
 		ret += iret;
