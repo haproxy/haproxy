@@ -530,7 +530,7 @@ static void stream_int_notify(struct stream_interface *si)
 	    (si->state != SI_ST_EST && si->state != SI_ST_CON) ||
 	    (si->flags & SI_FL_ERR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
-	     (!ic->to_forward || sio->state != SI_ST_EST)) ||
+	     ((ic->flags & CF_EOI) || !ic->to_forward || sio->state != SI_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
@@ -604,6 +604,10 @@ static int si_cs_process(struct conn_stream *cs)
 		si->flags |= SI_FL_READ_NULL;
 		ic->flags |= CF_READ_NULL;
 	}
+	/* Report EOI on the channel if it was reached from the mux point of
+	 * view. */
+	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI))
+		ic->flags |= CF_EOI;
 
 	/* Second step : update the stream-int and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new
