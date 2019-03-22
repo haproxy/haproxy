@@ -255,7 +255,7 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 	if (conn_xprt_read0_pending(cs->conn)) {
 		if (ret == 0)
 			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		cs->flags |= (CS_FL_EOS|CS_FL_READ_NULL);
+		cs->flags |= CS_FL_EOS;
 	}
 	if (cs->conn->flags & CO_FL_ERROR) {
 		if (ret == 0)
@@ -298,7 +298,7 @@ static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned i
 
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
 	if (conn_xprt_read0_pending(cs->conn))
-		cs->flags |= (CS_FL_EOS|CS_FL_READ_NULL);
+		cs->flags |= CS_FL_EOS;
 	if (cs->conn->flags & CO_FL_ERROR)
 		cs->flags |= CS_FL_ERROR;
 	return (ret);

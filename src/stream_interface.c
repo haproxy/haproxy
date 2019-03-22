@@ -594,16 +594,6 @@ static int si_cs_process(struct conn_stream *cs)
 		oc->flags |= CF_WRITE_NULL;
 	}
 
-	/* The last read was received but not reported to the channel
-	 * (CS_FL_READ_NULL set but not SI_FL_READ_NULL). So do it, even if the
-	 * EOS was already reported.
-	 *
-	 * NOTE: It is a temporary fix to handle client aborts.
-	 */
-	if (cs->flags & CS_FL_READ_NULL && !(si->flags & SI_FL_READ_NULL)) {
-		si->flags |= SI_FL_READ_NULL;
-		ic->flags |= CF_READ_NULL;
-	}
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
 	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI))

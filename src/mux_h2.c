@@ -1443,7 +1443,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 		flags |= CS_FL_ERR_PENDING;
 
 	if (conn_xprt_read0_pending(h2c->conn))
-		flags |= (CS_FL_REOS|CS_FL_READ_NULL);
+		flags |= CS_FL_REOS;
 
 	/* Wake all streams with ID > last */
 	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
