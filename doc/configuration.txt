@@ -13205,6 +13205,18 @@ add(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+aes_gcm_dec(<bits>,<nonce>,<key>,<aead_tag>)
+  Decrypts the raw byte input using the AES128-GCM, AES192-GCM or
+  AES256-GCM algorithm, depending on the <bits> parameter. All other parameters
+  need to be base64 encoded and the returned result is in raw byte format.
+  If the <aead_tag> validation fails, the converter doesn't return any data.
+  The <nonce>, <key> and <aead_tag> can either be strings or variables. This
+  converter requires at least OpenSSL 1.0.1.
+
+  Example:
+    http-response set-header X-Decrypted-Text %[var(txn.enc),\
+      aes_gcm_dec(128,txn.nonce,Zm9vb2Zvb29mb29wZm9vbw==,txn.aead_tag)]
+
 and(<value>)
   Performs a bitwise "AND" between <value> and the input value of type signed
   integer, and returns the result as an signed integer. <value> can be a
