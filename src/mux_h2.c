@@ -714,13 +714,12 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 {
 	struct wait_event *sw;
 
-	if (h2s->send_wait) {
+	if (h2s->send_wait && !(h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)) {
 		sw = h2s->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
+		sw->events |= SUB_CALL_UNSUBSCRIBE;
+		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
 		tasklet_wakeup(sw->task);
-		h2s->send_wait = NULL;
-		LIST_DEL(&h2s->list);
-		LIST_INIT(&h2s->list);
 	}
 }
 
