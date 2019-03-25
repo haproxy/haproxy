@@ -3233,7 +3233,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 		ret |= h2_do_shutr(h2s);
 
 	/* We're no longer trying to send anything, let's destroy the h2s */
-	if (!ret) {
+	if (!ret && (h2s->cs == NULL)) {
 		struct h2c *h2c = h2s->h2c;
 		h2s_destroy(h2s);
 
