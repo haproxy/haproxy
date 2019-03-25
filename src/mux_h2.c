@@ -5182,9 +5182,11 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		sw = param;
 		if (h2s->send_wait == sw) {
 			sw->events &= ~SUB_CALL_UNSUBSCRIBE;
+			task_remove_from_task_list((struct task *)h2s->send_wait->task);
 			h2s->send_wait = NULL;
 			LIST_DEL(&h2s->list);
 			LIST_INIT(&h2s->list);
+			LIST_DEL_INIT(&h2s->sending_list);
 		}
 	}
 	return 0;
