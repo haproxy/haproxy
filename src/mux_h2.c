@@ -5182,7 +5182,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		sw = param;
 		if (h2s->send_wait == sw) {
 			sw->events &= ~SUB_CALL_UNSUBSCRIBE;
-			task_remove_from_task_list((struct task *)h2s->send_wait->task);
+			task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 			h2s->send_wait = NULL;
 			LIST_DEL(&h2s->list);
 			LIST_INIT(&h2s->list);
@@ -5270,7 +5270,7 @@ static void h2_stop_senders(struct h2c *h2c)
 
 	list_for_each_entry_safe(h2s, h2s_back, &h2c->sending_list, sending_list) {
 		LIST_DEL_INIT(&h2s->sending_list);
-		task_remove_from_task_list((struct task *)h2s->send_wait->task);
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
 		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
 	}

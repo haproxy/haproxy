@@ -416,7 +416,7 @@ void process_runnable_tasks()
 		t = (struct task *)LIST_ELEM(task_per_thread[tid].task_list.n, struct tasklet *, list);
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
-		task_remove_from_task_list(t);
+		__task_remove_from_tasklet_list(t);
 
 		ctx = t->context;
 		process = t->process;
