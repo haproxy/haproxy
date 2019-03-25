@@ -2171,7 +2171,7 @@ option http-use-proxy-header         (*)  X          X         X         -
 option http-use-htx                  (*)  X          X         X         X
 option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
-option httplog                            X          X         X         X
+option httplog                            X          X         X         -
 option http_proxy                    (*)  X          X         X         X
 option independent-streams           (*)  X          X         X         X
 option ldap-check                         X          -         X         X
