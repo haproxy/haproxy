@@ -380,10 +380,10 @@ static inline void task_free(struct task *t)
 static inline void tasklet_free(struct tasklet *tl)
 {
 	if (!LIST_ISEMPTY(&tl->list)) {
+		LIST_DEL(&tl->list);
 		task_per_thread[tid].task_list_size--;
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
-	LIST_DEL(&tl->list);
 
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
