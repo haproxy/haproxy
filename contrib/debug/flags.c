@@ -71,6 +71,7 @@ void show_chn_flags(unsigned int f)
 	}
 
 	SHOW_FLAG(f, CF_ISRESP);
+	SHOW_FLAG(f, CF_EOI);
 	SHOW_FLAG(f, CF_FLT_ANALYZE);
 	SHOW_FLAG(f, CF_WAKE_ONCE);
 	SHOW_FLAG(f, CF_NEVER_WAIT);
@@ -158,6 +159,7 @@ void show_cs_flags(unsigned int f)
 	}
 	SHOW_FLAG(f, CS_FL_NOT_FIRST);
 	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
+	SHOW_FLAG(f, CS_FL_EOI);
 	SHOW_FLAG(f, CS_FL_REOS);
 	SHOW_FLAG(f, CS_FL_EOS);
 	SHOW_FLAG(f, CS_FL_ERR_PENDING);
