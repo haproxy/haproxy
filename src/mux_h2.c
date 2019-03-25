@@ -3220,17 +3220,22 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 	long reason = (long)h2s->wait_event.handle;
 	int ret = 0;
 
+	LIST_DEL_INIT(&h2s->sending_list);
 	if (h2s->send_wait) {
 		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
-		h2s->send_wait = NULL;
-		LIST_DEL(&h2s->list);
-		LIST_INIT(&h2s->list);
+		h2s->send_wait->events |= SUB_RETRY_SEND;
 	}
 	if (reason & 2)
 		ret |= h2_do_shutw(h2s);
 	if (reason & 1)
 		ret |= h2_do_shutr(h2s);
 
+	if (!ret) {
+		/* We're done trying to send, remove ourself from the send_list */
+		h2s->send_wait->events &= ~SUB_RETRY_SEND;
+		h2s->send_wait = NULL;
+		LIST_DEL_INIT(&h2s->list);
+	}
 	/* We're no longer trying to send anything, let's destroy the h2s */
 	if (!ret && (h2s->cs == NULL)) {
 		struct h2c *h2c = h2s->h2c;
