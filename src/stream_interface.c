@@ -168,7 +168,6 @@ static void stream_int_shutr(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 
 	si_rx_shut_blk(si);
-	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -237,7 +236,6 @@ static void stream_int_shutw(struct stream_interface *si)
 	default:
 		si->flags &= ~SI_FL_NOLINGER;
 		si_rx_shut_blk(si);
-		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
@@ -899,7 +897,6 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 
 	si_rx_shut_blk(si);
-	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -1006,7 +1003,6 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 	default:
 		si->flags &= ~SI_FL_NOLINGER;
 		si_rx_shut_blk(si);
-		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
@@ -1408,7 +1404,6 @@ static void stream_int_read0(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 
 	si_rx_shut_blk(si);
-	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -1493,7 +1488,6 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 	struct channel *ic = si_ic(si);
 
 	si_rx_shut_blk(si);
-	ic->flags &= ~CF_SHUTR_NOW;
 	if (ic->flags & CF_SHUTR)
 		return;
 	ic->flags |= CF_SHUTR;
@@ -1565,7 +1559,6 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	default:
 		si->flags &= ~SI_FL_NOLINGER;
 		si_rx_shut_blk(si);
-		ic->flags &= ~CF_SHUTR_NOW;
 		ic->flags |= CF_SHUTR;
 		ic->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
