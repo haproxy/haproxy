@@ -840,8 +840,11 @@ static inline void h2s_close(struct h2s *h2s)
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
-		if (h2s->cs)
+		if (h2s->cs) {
 			h2s->cs->flags |= CS_FL_REOS;
+			if (!(h2s->cs->flags & CS_FL_EOS) && !b_data(&h2s->rxbuf))
+				h2s_notify_recv(h2s);
+		}
 	}
 	h2s->st = H2_SS_CLOSED;
 }
