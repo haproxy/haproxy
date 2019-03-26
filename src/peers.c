@@ -56,38 +56,38 @@
 /******************************/
 /* Current peers section resync state */
 /******************************/
-#define	PEERS_F_RESYNC_LOCAL		0x00000001 /* Learn from local finished or no more needed */
-#define	PEERS_F_RESYNC_REMOTE		0x00000002 /* Learn from remote finished or no more needed */
-#define	PEERS_F_RESYNC_ASSIGN		0x00000004 /* A peer was assigned to learn our lesson */
-#define	PEERS_F_RESYNC_PROCESS		0x00000008 /* The assigned peer was requested for resync */
-#define	PEERS_F_DONOTSTOP		0x00010000 /* Main table sync task block process during soft stop
-						      to push data to new process */
+#define PEERS_F_RESYNC_LOCAL        0x00000001 /* Learn from local finished or no more needed */
+#define PEERS_F_RESYNC_REMOTE       0x00000002 /* Learn from remote finished or no more needed */
+#define PEERS_F_RESYNC_ASSIGN       0x00000004 /* A peer was assigned to learn our lesson */
+#define PEERS_F_RESYNC_PROCESS      0x00000008 /* The assigned peer was requested for resync */
+#define PEERS_F_DONOTSTOP           0x00010000 /* Main table sync task block process during soft stop
+                                                  to push data to new process */
 
-#define	PEERS_RESYNC_STATEMASK		(PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
-#define	PEERS_RESYNC_FROMLOCAL		0x00000000
-#define	PEERS_RESYNC_FROMREMOTE		PEERS_F_RESYNC_LOCAL
-#define	PEERS_RESYNC_FINISHED		(PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
+#define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
+#define PEERS_RESYNC_FROMLOCAL      0x00000000
+#define PEERS_RESYNC_FROMREMOTE     PEERS_F_RESYNC_LOCAL
+#define PEERS_RESYNC_FINISHED       (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
 
 /***********************************/
 /* Current shared table sync state */
 /***********************************/
-#define SHTABLE_F_TEACH_STAGE1		0x00000001 /* Teach state 1 complete */
-#define SHTABLE_F_TEACH_STAGE2		0x00000002 /* Teach state 2 complete */
+#define SHTABLE_F_TEACH_STAGE1      0x00000001 /* Teach state 1 complete */
+#define SHTABLE_F_TEACH_STAGE2      0x00000002 /* Teach state 2 complete */
 
 /******************************/
 /* Remote peer teaching state */
 /******************************/
-#define	PEER_F_TEACH_PROCESS		0x00000001 /* Teach a lesson to current peer */
-#define	PEER_F_TEACH_FINISHED		0x00000008 /* Teach conclude, (wait for confirm) */
-#define	PEER_F_TEACH_COMPLETE		0x00000010 /* All that we know already taught to current peer, used only for a local peer */
-#define	PEER_F_LEARN_ASSIGN		0x00000100 /* Current peer was assigned for a lesson */
-#define	PEER_F_LEARN_NOTUP2DATE		0x00000200 /* Learn from peer finished but peer is not up to date */
-#define	PEER_F_ALIVE		0x20000000 /* Used to flag a peer a alive. */
-#define	PEER_F_HEARTBEAT		0x40000000 /* Heartbeat message to send. */
-#define	PEER_F_DWNGRD		        0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
+#define PEER_F_TEACH_PROCESS        0x00000001 /* Teach a lesson to current peer */
+#define PEER_F_TEACH_FINISHED       0x00000008 /* Teach conclude, (wait for confirm) */
+#define PEER_F_TEACH_COMPLETE       0x00000010 /* All that we know already taught to current peer, used only for a local peer */
+#define PEER_F_LEARN_ASSIGN         0x00000100 /* Current peer was assigned for a lesson */
+#define PEER_F_LEARN_NOTUP2DATE     0x00000200 /* Learn from peer finished but peer is not up to date */
+#define PEER_F_ALIVE                0x20000000 /* Used to flag a peer a alive. */
+#define PEER_F_HEARTBEAT            0x40000000 /* Heartbeat message to send. */
+#define PEER_F_DWNGRD               0x80000000 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
 
-#define	PEER_TEACH_RESET		~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
-#define	PEER_LEARN_RESET		~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_NOTUP2DATE)
+#define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
+#define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_NOTUP2DATE)
 
 #define PEER_HEARTBEAT_TIMEOUT      3000 /* 3 seconds */
 
@@ -187,17 +187,17 @@ enum {
 /* Peer Session status code - part of the protocol */
 /***************************************************/
 
-#define	PEER_SESS_SC_CONNECTCODE	100 /* connect in progress */
-#define	PEER_SESS_SC_CONNECTEDCODE	110 /* tcp connect success */
+#define PEER_SESS_SC_CONNECTCODE    100 /* connect in progress */
+#define PEER_SESS_SC_CONNECTEDCODE  110 /* tcp connect success */
 
-#define	PEER_SESS_SC_SUCCESSCODE	200 /* accept or connect successful */
+#define PEER_SESS_SC_SUCCESSCODE    200 /* accept or connect successful */
 
-#define	PEER_SESS_SC_TRYAGAIN		300 /* try again later */
+#define PEER_SESS_SC_TRYAGAIN       300 /* try again later */
 
-#define	PEER_SESS_SC_ERRPROTO		501 /* error protocol */
-#define	PEER_SESS_SC_ERRVERSION		502 /* unknown protocol version */
-#define	PEER_SESS_SC_ERRHOST		503 /* bad host name */
-#define	PEER_SESS_SC_ERRPEER		504 /* unknown peer */
+#define PEER_SESS_SC_ERRPROTO       501 /* error protocol */
+#define PEER_SESS_SC_ERRVERSION     502 /* unknown protocol version */
+#define PEER_SESS_SC_ERRHOST        503 /* bad host name */
+#define PEER_SESS_SC_ERRPEER        504 /* unknown peer */
 
 #define PEER_SESSION_PROTO_NAME         "HAProxyS"
 #define PEER_MAJOR_VER        2
