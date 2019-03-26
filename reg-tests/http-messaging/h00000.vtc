@@ -25,7 +25,7 @@ server s1 {
 	txresp \
 	  -status 200 \
 	  -body "response 4"
-} -repeat 2 -start
+} -repeat 3 -start
 
 haproxy h1 -conf {
     defaults
@@ -87,47 +87,47 @@ client c1h1 -connect ${h1_feh1_sock} {
 # HEAD requests
 # Note: for now they fail with varnishtest, which expects the amount of
 # data advertised in the content-length response.
-#client c2h1 -connect ${h1_feh1_sock} {
-#	# first request is valid
-#	txreq \
-#	  -req "HEAD" \
-#	  -url "/test11.html"
-#	rxresp
-#	expect resp.status == 200
-#
-#	# second request is valid and advertises C-L:0
-#	txreq \
-#	  -req "HEAD" \
-#	  -url "/test12.html" \
-#          -hdr "content-length: 0"
-#	rxresp
-#	expect resp.status == 200
-#
-#	# third request sends a body with a GET
-#	txreq \
-#	  -req "GET" \
-#	  -url "/test13.html" \
-#          -body "this must be delivered, like it or not"
-#	rxresp
-#	expect resp.status == 200
-#
-#	# fourth request is valid and advertises C-L:0, and close, and is
-#	# followed by a string "this is not sent\r\n\r\n" which must be
-#	# dropped.
-#	txreq \
-#	  -req "HEAD" \
-#	  -url "/test14.html" \
-#          -hdr "content-length: 0" \
-#          -hdr "connection: close"
-#	# "this is not sent"
-#	sendhex "74787973207973206E6F742073656E740D0A0D0A"
-#	rxresp
-#	expect resp.status == 200
-#
-#	# the connection is expected to be closed and no more response must
-#	# arrive here.
-#	expect_close
-#} -run
+client c2h1 -connect ${h1_feh1_sock} {
+	# first request is valid
+	txreq \
+	  -req "HEAD" \
+	  -url "/test11.html"
+	rxresp
+	expect resp.status == 200
+
+	# second request is valid and advertises C-L:0
+	txreq \
+	  -req "HEAD" \
+	  -url "/test12.html" \
+          -hdr "content-length: 0"
+	rxresp
+	expect resp.status == 200
+
+	# third request sends a body with a GET
+	txreq \
+	  -req "GET" \
+	  -url "/test13.html" \
+          -body "this must be delivered, like it or not"
+	rxresp
+	expect resp.status == 200
+
+	# fourth request is valid and advertises C-L:0, and close, and is
+	# followed by a string "this is not sent\r\n\r\n" which must be
+	# dropped.
+	txreq \
+	  -req "HEAD" \
+	  -url "/test14.html" \
+          -hdr "content-length: 0" \
+          -hdr "connection: close"
+	# "this is not sent"
+	sendhex "74787973207973206E6F742073656E740D0A0D0A"
+	rxresp
+	expect resp.status == 200
+
+	# the connection is expected to be closed and no more response must
+	# arrive here.
+	expect_close
+} -run
 
 client c1h1 -connect ${h1_feh1_sock} {
 	# first request is valid
