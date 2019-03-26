@@ -409,18 +409,8 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->req_cap))
 		htx_capture_headers(htx, s->req_cap, sess->fe->req_cap);
 
-	/* Until set to anything else, the connection mode is set as Keep-Alive. It will
-	 * only change if both the request and the config reference something else.
-	 * Option httpclose by itself sets tunnel mode where headers are mangled.
-	 * However, if another mode is set, it will affect it (eg: server-close/
-	 * keep-alive + httpclose = close). Note that we avoid to redo the same work
-	 * if FE and BE have the same settings (common). The method consists in
-	 * checking if options changed between the two calls (implying that either
-	 * one is non-null, or one of them is non-null and we are there for the first
-	 * time.
-	 */
-	if ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))
-		htx_adjust_conn_mode(s, txn);
+	/* by default, close the stream at the end of the transaction. */
+	txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 	/* we may have to wait for the request's body */
 	if (s->be->options & PR_O_WREQ_BODY)
@@ -2294,14 +2284,6 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_D;
 	return 0;
-}
-
-void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn)
-{
-	int tmp = TX_CON_WANT_CLO;
-
-	if ((txn->flags & TX_CON_WANT_MSK) < tmp)
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
 }
 
 /* Perform an HTTP redirect based on the information in <rule>. The function
