@@ -227,9 +227,10 @@
      *** Control message class ***
 
      At this time of writing, control messages are fixed-length messages used
-     only to control the synchonrizations between local and/or remote processes.
+     only to control the synchronizations between local and/or remote processes
+     and to emit heartbeat messages.
 
-     There exist four types of such control messages:
+     There exists five types of such control messages:
 
        +------------+--------------------------------------------------------+
        | type byte  |                   signification                        |
@@ -248,7 +249,17 @@
        |      3     | synchronization confirmed: acknowledge a finished or   |
        |            | partial synchronization message.                       |
        +------------+--------------------------------------------------------+
+       |      4     | Heartbeat message.                                     |
+       +------------+--------------------------------------------------------+
 
+     About hearbeat messages: a peer sends heartbeat messages to peers it is
+     connected to after periods of 3s of inactivity (i.e. when there is no
+     stick-table to synchronize for 3s). After a successful peer protocol
+     handshake between two peers, if one of them does not send any other peer
+     protocol messages (i.e. no heartbeat and no stick-table update messages)
+     during a 5s period, it is considered as no more alive by its remote peer
+     which closes the session and then tries to reconnect to the peer which
+     has just disappeared.
 
      *** Error message class ***
 
