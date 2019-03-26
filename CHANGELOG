@@ -1,6 +1,184 @@
 ChangeLog :
 ===========
 
+2019/03/26 : 2.0-dev2
+    - CLEANUP: http: Remove unreachable code in parse_http_req_capture
+    - CLEANUP: stream: Remove bogus loop in conn_si_send_proxy
+    - MINOR: lists: Implement locked variations.
+    - MEDIUM: servers: Used a locked list for idle_orphan_conns.
+    - MEDIUM: servers: Reorganize the way idle connections are cleaned.
+    - BUG/MEDIUM: lists: Properly handle the case we're removing the first elt.
+    - MINOR: cfgparse: Add a cast to make gcc happier.
+    - BUG/MEDIUM: standard: Wrong reallocation size.
+    - BUG/MINOR: listener: keep accept rate counters accurate under saturation
+    - DOC: fix alphabetic ordering for "tune.fail-alloc" setting
+    - MAJOR: config: disable support for nbproc and nbthread in parallel
+    - MEDIUM: listener: keep a single thread-mask and warn on "process" misuse
+    - MAJOR: listener: do not hold the listener lock in listener_accept()
+    - MINOR: listener: maintain a per-thread count of the number of connections on a listener
+    - MINOR: tools: implement functions to look up the nth bit set in a mask
+    - MINOR: listener: pre-compute some thread counts per bind_conf
+    - MINOR: listener: implement multi-queue accept for threads
+    - MAJOR: listener: use the multi-queue for multi-thread listeners
+    - MINOR: activity: add accept queue counters for pushed and overflows
+    - MINOR: config: add global tune.listener.multi-queue setting
+    - MAJOR: threads: enable one thread per CPU by default
+    - DOC: update management.txt to reflect that threads are used by default
+    - BUG/MINOR: config: don't over-count the global maxsock value
+    - BUG/MEDIUM: list: fix the rollback on addq in the locked liss
+    - BUG/MEDIUM: list: fix LIST_POP_LOCKED's removal of the last pointer
+    - BUG/MEDIUM: list: add missing store barriers when updating elements and head
+    - MINOR: list: make the delete and pop operations idempotent
+    - MINOR: server: remove a few unneeded LIST_INIT calls after LIST_DEL_LOCKED
+    - BUG/MEDIUM: listener: use a self-locked list for the dequeue lists
+    - BUG/MEDIUM: listener: make sure the listener never accepts too many conns
+    - BUG/MEDIUM: list: correct fix for LIST_POP_LOCKED's removal of last element
+    - MINOR: listener: introduce listener_backlog() to report the backlog value
+    - MINOR: listener: do not needlessly set l->maxconn
+    - MINOR: proxy: do not change the listeners' maxconn when updating the frontend's
+    - MEDIUM: config: don't enforce a low frontend maxconn value anymore
+    - MINOR: peers: Add a message for heartbeat.
+    - MINOR: global: keep a copy of the initial rlim_fd_cur and rlim_fd_max values
+    - BUG/MINOR: init: never lower rlim_fd_max
+    - BUG/MINOR: checks: make external-checks restore the original rlim_fd_cur/max
+    - BUG/MINOR: mworker: be careful to restore the original rlim_fd_cur/max on reload
+    - MINOR: init: make the maxpipe computation more accurate
+    - MINOR: init: move some maxsock updates earlier
+    - MEDIUM: init: make the global maxconn default to what rlim_fd_cur permits
+    - REGTEST: fix a spurious "nbthread 4" in the connection test
+    - DOC: update the text related to the global maxconn value
+    - BUG/MAJOR: mux-h2: fix race condition between close on both ends
+    - MINOR: sample: Replace "req.ungrpc" smp fetch by a "ungrpc" converter.
+    - BUG/MEDIUM: list: fix again LIST_ADDQ_LOCKED
+    - MINOR: htx: unconditionally handle parsing errors in requests or responses
+    - MINOR: mux-h2: always pass HTX_FL_PARSING_ERROR between h2s and buf on RX
+    - BUG/MEDIUM: h2/htx: verify that :path doesn't contain invalid chars
+    - MINOR: sample: Code factorization "ungrpc" converter.
+    - MINOR: sample: Rework gRPC converter code.
+    - CLEANUP: wurfl: remove dead, broken and unmaintained code
+    - MINOR: config: relax the range checks on cpu-map
+    - BUG/MINOR: ssl: fix warning about ssl-min/max-ver support
+    - MINOR: sample: Extract some protocol buffers specific code.
+    - DOC: Remove tabs and fixed punctuation.
+    - MINOR: sample: Add a protocol buffers specific converter.
+    - REGTEST: Peers reg tests.
+    - REGTEST: Enable reg tests with HEAD HTTP method usage.
+    - MINOR: lists: add a LIST_DEL_INIT() macro
+    - MINOR: task: use LIST_DEL_INIT() to remove a task from the queue
+    - MINOR: listener: improve incoming traffic distribution
+    - MINOR: tools: implement my_flsl()
+    - MEDIUM: listener: change the LB algorithm again to use two round robins instead
+    - CLEANUP: listener: remove old thread bit mapping
+    - MINOR: listener: move thr_idx from the bind_conf to the listener
+    - BUG/MEDIUM: logs: Only attempt to free startup_logs once.
+    - BUG/MAJOR: config: Wrong maxconn adjustment.
+    - BUG/MEDIUM: 51d: fix possible segfault on deinit_51degrees()
+    - OPTIM: task: limit the impact of memory barriers in taks_remove_from_task_list()
+    - MINOR: fd: Remove debugging code.
+    - BUG/MEDIUM: listeners: Don't call fd_stop_recv() if fd_updt is NULL.
+    - MINOR: threads: Implement __ha_barrier_atomic*.
+    - MEDIUM: threads: Use __ATOMIC_SEQ_CST when using the newer atomic API.
+    - MINOR: threads: Add macros to do atomic operation with no memory barrier.
+    - MEDIUM: various: Use __ha_barrier_atomic* when relevant.
+    - MEDIUM: applets: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: xref: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: fd: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: freq_ctr: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: proxy: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: server: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: task: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: activity: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: backend: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: cache: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: checks: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: pollers: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: compression: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: spoe: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: threads: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: http: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: lb/threads: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: listeners: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: logs: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: memory: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: peers: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: proto_tcp: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: queues: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: sessions: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: ssl: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: stream: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: tcp_rules: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: time: Use the new _HA_ATOMIC_* macros.
+    - MEDIUM: vars: Use the new _HA_ATOMIC_* macros.
+    - MINOR: config: remove obsolete use of DEFAULT_MAXCONN at various places
+    - MINOR: config: continue to rely on DEFAULT_MAXCONN to set the minimum maxconn
+    - BUG/MEDIUM: list: fix incorrect pointer unlocking in LIST_DEL_LOCKED()
+    - BUG/MEDIUM: listener: make sure we don't pick stopped threads
+    - MEDIUM: list: Remove useless barriers.
+    - MEDIUM: list: Use _HA_ATOMIC_*
+    - MEDIUM: connections: Use _HA_ATOMIC_*
+    - BUG/MAJOR: tasks: Use the TASK_GLOBAL flag to know if we're in the global rq.
+    - BUG/MEDIUM: threads/fd: do not forget to take into account epoll_fd/pipes
+    - BUG/MEDIUM: init/threads: consider epoll_fd/pipes for automatic maxconn calculation
+    - BUG/MEDIUM: tasks: Make sure we wake sleeping threads if needed.
+    - BUG/MINOR: mux-h1: Don't report an error on EOS if no message was received
+    - BUG/MINOR: stats/htx: Call channel_add_input() when response headers are sent
+    - BUG/MINOR: lua/htx: Use channel_add_input() when response data are added
+    - BUG/MINOR: lua/htx: Don't forget to call htx_to_buf() when appropriate
+    - MINOR: stats: Add the status code STAT_STATUS_IVAL to handle invalid requests
+    - MINOR: stats: Move stuff about the stats status codes in stats files
+    - BUG/MINOR: stats: Be more strict on what is a valid request to the stats applet
+    - Revert "REGTEST: Enable reg tests with HEAD HTTP method usage."
+    - BUILD: listener: shut up a build warning when threads are disabled
+    - BUILD: Makefile: allow the reg-tests target to be verbose
+    - BUILD: Makefile: resolve LEVEL before calling run-regtests
+    - BUG/MAJOR: spoe: Fix initialization of thread-dependent fields
+    - BUG/MAJOR: stats: Fix how huge POST data are read from the channel
+    - BUG/MINOR: http/counters: fix missing increment of fe->srv_aborts
+    - BUG/MEDIUM: mux-h2: Always wakeup streams with no id to avoid frozen streams
+    - MINOR: mux-h2: Set REFUSED_STREAM error to reset a stream if no data was never sent
+    - MINOR: muxes: Report the Last read with a dedicated flag
+    - MINOR: proto-http/proto-htx: Make error handling clearer during data forwarding
+    - BUILD: tools: fix a build warning on some 32-bit archs
+    - MINOR: init: report the list of optionally available services
+    - MEDIUM: proto_htx: Switch to infinite forwarding if there is no data filter
+    - BUG/MINOR: cache: Fully consume large requests in the cache applet
+    - BUG/MINOR: stats: Fully consume large requests in the stats applet
+    - BUG/MEDIUM: lua: Fully consume large requests when an HTTP applet ends
+    - MINOR: proto_http: Add function to handle the header "Expect: 100-continue"
+    - MINOR: proto_htx: Add function to handle the header "Expect: 100-continue"
+    - MINOR: stats/cache: Handle the header Expect when applets are registered
+    - MINOR: http/applets: Handle all applets intercepting HTTP requests the same way
+    - CLEANUP: cache: don't export http_cache_applet anymore
+    - MINOR: lua: Don't handle the header Expect in lua HTTP applets anymore
+    - BUG/MINOR: doc: Be accurate on the behavior on pool-purge-delay.
+    - Revert "MEDIUM: proto_htx: Switch to infinite forwarding if there is no data filter"
+    - BUG/MEDIUM: mux-h2: Make sure we destroyed the h2s once shutr/shutw is done.
+    - BUG/MEDIUM: mux-h2: Don't bother keeping the h2s if detaching and nothing to send.
+    - BUG/MEDIUM: mux-h2: Use the right list in h2_stop_senders().
+    - MINOR: mux-h2: copy small data blocks more often and reduce the number of pauses
+    - CLEANUP: mux-h2: add some comments to help understand the code
+    - BUG/MEDIUM: ssl: ability to set TLS 1.3 ciphers using ssl-default-server-ciphersuites
+    - BUG/MINOR: log: properly format IPv6 address when LOG_OPT_HEXA modifier is used.
+    - BUG/MEDIUM: h2: Try to be fair when sending data.
+    - BUG/MINOR: proto-http: Don't forward request body anymore on error
+    - MINOR: mux-h2: Remove useless test on ES flag in h2_frt_transfer_data()
+    - MINOR: connection: and new flag to mark end of input (EOI)
+    - MINOR: channel: Report EOI on the input channel if it was reached in the mux
+    - MEDIUM: mux-h2: Don't mix the end of the message with the end of stream
+    - MINOR: mux-h1: Set CS_FL_EOI the end of the message is reached
+    - BUG/MEDIUM: http/htx: Fix handling of the option abortonclose
+    - CLEANUP: muxes/stream-int: Remove flags CS_FL_READ_NULL and SI_FL_READ_NULL
+    - MEDIUM: proto_htx: Reintroduce the infinite forwarding on data
+    - BUG/MEDIUM: h2: only destroy the h2s if h2s->cs is NULL.
+    - BUG/MEDIUM: h2: Use the new sending_list in h2s_notify_send().
+    - BUG/MEDIUM: h2: Follow the same logic in h2_deferred_shut than in h2_snd_buf.
+    - BUG/MEDIUM: h2: Remove the tasklet from the task list if unsubscribing.
+    - BUG/MEDIUM: task/h2: add an idempotent task removal fucntion
+    - CLEANUP: task: only perform a LIST_DEL() when the list is not empty
+    - BUG/MEDIUM: mux-h2: make sure to always notify streams of EOS condition
+    - CONTRIB: debug: report the CS and CF's EOI flags
+    - MINOR: channel: don't unset CF_SHUTR_NOW after shutting down.
+
 2019/02/26 : 2.0-dev1
     - MINOR: mux-h2: only increase the connection window with the first update
     - REGTESTS: remove the expected window updates from H2 handshakes
