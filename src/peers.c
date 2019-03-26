@@ -89,6 +89,8 @@
 #define PEER_TEACH_RESET            ~(PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED) /* PEER_F_TEACH_COMPLETE should never be reset */
 #define PEER_LEARN_RESET            ~(PEER_F_LEARN_ASSIGN|PEER_F_LEARN_NOTUP2DATE)
 
+#define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
+#define PEER_RECONNECT_TIMEOUT      5000 /* 5 seconds */
 #define PEER_HEARTBEAT_TIMEOUT      3000 /* 3 seconds */
 
 /*****************************/
@@ -622,7 +624,7 @@ static void peer_session_release(struct appctx *appctx)
 				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 
 				/* reschedule a resync */
-				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
+				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 			}
 			/* reset teaching and learning flags to 0 */
 			peer->flags &= PEER_TEACH_RESET;
@@ -1603,7 +1605,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 
 				peer->flags |= PEER_F_LEARN_NOTUP2DATE;
-				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
+				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 			}
 			peer->confirm++;
@@ -1627,7 +1629,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			peer->flags &= PEER_TEACH_RESET;
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_HEARTBEAT) {
-			peer->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
+			peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 		}
 	}
 	else if (msg_head[0] == PEER_MSG_CLASS_STICKTABLE) {
@@ -2298,7 +2300,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct connection *conn;
 	struct conn_stream *cs;
 
-	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
+	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	s = NULL;
@@ -2417,7 +2419,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 			peers->flags |= PEERS_F_RESYNC_LOCAL;
 
 			/* reschedule a resync */
-			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
+			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 		}
 
 		/* For each session */
@@ -2498,7 +2500,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 									 * Flag it as not alive again for the next period.
 									 */
 									ps->flags &= ~PEER_F_ALIVE;
-									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
+									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 								}
 								else  {
 									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
