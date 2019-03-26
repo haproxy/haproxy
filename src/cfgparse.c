@@ -3539,6 +3539,16 @@ out_uri_auth_compat:
 			newsrv->mux_proto = mux_ent;
 		}
 
+		/* the option "http-tunnel" is ignored when HTX is enabled and
+		 * only works with the legacy HTTP. So emit a warning if the
+		 * option is set on a HTX frontend. */
+		if ((curproxy->cap & PR_CAP_FE) && curproxy->options2 & PR_O2_USE_HTX &&
+		    (curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN) {
+			ha_warning("config : %s '%s' : the option 'http-tunnel' is ignored for HTX proxies.\n",
+				   proxy_type_str(curproxy), curproxy->id);
+			curproxy->options &= ~PR_O_HTTP_MODE;
+		}
+
 		/* initialize idle conns lists */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int i;

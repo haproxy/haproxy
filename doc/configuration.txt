@@ -185,7 +185,7 @@ waiting for new requests, just as if it was a keep-alive HTTP connection.
 HAProxy supports 4 connection modes :
   - keep alive    : all requests and responses are processed (default)
   - tunnel        : only the first request and response are processed,
-                    everything else is forwarded with no analysis.
+                    everything else is forwarded with no analysis (deprecated).
   - server close  : the server-facing connection is closed after the response.
   - close         : the connection is actively closed after end of response.
 
@@ -2047,8 +2047,10 @@ the backend's. HAProxy supports 4 connection modes :
   - TUN: tunnel ("option http-tunnel") : this was the default mode for versions
     1.0 to 1.5-dev21 : only the first request and response are processed, and
     everything else is forwarded with no analysis at all. This mode should not
-    be used as it creates lots of trouble with logging and HTTP processing. It
-    is supported only on frontends.
+    be used as it creates lots of trouble with logging and HTTP processing.
+    And because it cannot work in HTTP/2, this option is deprecated and it is
+    only supported on legacy HTTP frontends. In HTX, it is ignored and a
+    warning is emitted during HAProxy startup.
 
   - SCL: server close ("option http-server-close") : the server-facing
     connection is closed after the end of the response is received, but the
@@ -2166,7 +2168,7 @@ option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          -         X         X
 option http-server-close             (*)  X          X         X         X
-option http-tunnel                   (*)  X          X         X         -
+option http-tunnel      (deprecated) (*)  X          X         X         -
 option http-use-proxy-header         (*)  X          X         X         -
 option http-use-htx                  (*)  X          X         X         X
 option httpchk                            X          -         X         X
@@ -6145,12 +6147,16 @@ no option http-server-close
              "option http-keep-alive", and "1.1. The HTTP transaction model".
 
 
-option http-tunnel
-no option http-tunnel
-  Disable or enable HTTP connection processing after first transaction
+option http-tunnel    (deprecated)
+no option http-tunnel (deprecated)
+  Disable or enable HTTP connection processing after first transaction.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
   Arguments : none
+
+  Warning : Because it cannot work in HTTP/2, this option is deprecated and it
+  is only supported on legacy HTTP frontends. In HTX, it is ignored and a
+  warning is emitted during HAProxy startup.
 
   By default HAProxy operates in keep-alive mode with regards to persistent
   connections: for each connection it processes each request and response, and

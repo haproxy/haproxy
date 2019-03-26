@@ -616,10 +616,7 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	struct proxy *fe = h1s->h1c->px;
 	int flag = H1S_F_WANT_KAL; /* For client connection: server-close == keepalive */
 
-	/* Tunnel mode can only by set on the frontend */
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
-		flag = H1S_F_WANT_TUN;
-	else if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
 		flag = H1S_F_WANT_CLO;
 
 	/* flags order: CLO > SCL > TUN > KAL */
@@ -667,10 +664,6 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 	struct proxy *be = h1c->px;
 	int flag =  H1S_F_WANT_KAL;
 	int fe_flags = sess ? sess->fe->options : 0;
-
-	/* Tunnel mode can only by set on the frontend */
-	if ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
-		flag = H1S_F_WANT_TUN;
 
 	/* For the server connection: server-close == httpclose */
 	if ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||

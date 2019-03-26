@@ -2298,11 +2298,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 
 void htx_adjust_conn_mode(struct stream *s, struct http_txn *txn)
 {
-	struct proxy *fe = strm_fe(s);
 	int tmp = TX_CON_WANT_CLO;
-
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
-		tmp = TX_CON_WANT_TUN;
 
 	if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
