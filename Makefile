@@ -469,10 +469,14 @@ EXTRA_OBJS =
 # Do not assign anything to it.
 BUILD_OPTIONS =
 
-# Return USE_xxx=$(USE_xxx) unless $(USE_xxx) = "implicit"
-# Usage: 
+# Return USE_xxx=$(USE_xxx) if the variable was set from the environment or the
+# command line.
+# Usage:
 #   BUILD_OPTIONS += $(call ignore_implicit,USE_xxx)
-ignore_implicit = $(patsubst %=implicit,,$(1)=$($(1)))
+ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
+                       $(if $(subst command line,,$(origin $(1))),,  \
+                            $(1)=$($(1))),                           \
+                       $(1)=$($(1)))                                 \
 
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
