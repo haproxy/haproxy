@@ -46,7 +46,7 @@ enum {
         PROMEX_ST_HEAD,      /* send headers before dump */
         PROMEX_ST_DUMP,      /* dumping stats */
         PROMEX_ST_DONE,      /* finished */
-        PROMEX_ST_ERROR,     /* unrecoverable error occurred */
+        PROMEX_ST_END,       /* treatment terminated */
 };
 
 /* Prometheus exporter dumper states (appctx->st1) */
@@ -2125,6 +2125,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
  * full. */
 static int promex_send_headers(struct appctx *appctx, struct stream_interface *si, struct htx *htx)
 {
+	struct channel *chn = si_ic(appctx->owner);
 	struct htx_sl *sl;
 	unsigned int flags;
 
@@ -2140,6 +2141,7 @@ static int promex_send_headers(struct appctx *appctx, struct stream_interface *s
 	    !htx_add_endof(htx, HTX_BLK_EOH))
 		goto full;
 
+	channel_add_input(chn, htx->data);
 	return 1;
   full:
 	htx_reset(htx);
@@ -2206,33 +2208,25 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 				si_rx_room_blk(si);
 				goto out;
 			}
-			res->flags |= CF_READ_NULL;
+			channel_add_input(res, 1);
+			appctx->st0 = PROMEX_ST_END;
+			/* fall through */
 
-			/* eat the whole request */
-			req_htx = htxbuf(&req->buf);
-			htx_reset(req_htx);
-			htx_to_buf(req_htx, &req->buf);
-			co_set_data(req, 0);
-
-			/* Set SI flags */
-			if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
-				s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_R;
-
-			si_shutr(si);
-
-		case PROMEX_ST_ERROR:
-			return;
+		case PROMEX_ST_END:
+			if (!(res->flags & CF_SHUTR)) {
+				res->flags |= CF_READ_NULL;
+				si_shutr(si);
+			}
 	}
-
-	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
-		si_shutw(si);
 
   out:
 	htx_to_buf(res_htx, &res->buf);
-	if (!channel_is_empty(res))
-		si_stop_get(si);
+
+	/* eat the whole request */
+	if (co_data(req)) {
+		req_htx = htx_from_buf(&req->buf);
+		co_htx_skip(req, req_htx, co_data(req));
+	}
 	return;
 
   error:
