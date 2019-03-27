@@ -195,7 +195,7 @@ _findtests() {
       alternatives=$(echo "$requiredoption" | sed -e 's/|/ /g')
       found=
       for alt in $alternatives; do
-        if [ -n "$( echo "$OPTIONS" | grep "USE_$alt=1" )" ]; then
+        if echo "$FEATURES" | grep -qw "\+$alt"; then
           found=1;
 	fi
       done
@@ -323,8 +323,8 @@ if [ $preparefailed ]; then
   exit 1
 fi
 
-{ read HAPROXY_VERSION; read TARGET; read OPTIONS; } << EOF
-$($HAPROXY_PROGRAM -vv |grep 'HA-Proxy version\|TARGET\|OPTIONS' | sed 's/.* = //')
+{ read HAPROXY_VERSION; read TARGET; read OPTIONS; read FEATURES; } << EOF
+$($HAPROXY_PROGRAM -vv |grep 'HA-Proxy version\|TARGET.*=\|OPTIONS.*=\|^Feature' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
@@ -402,7 +402,7 @@ if [ $TARGET = cygwin ] ; then
 fi
 
 echo "Target : $TARGET"
-echo "Options : $OPTIONS"
+echo "Options : $FEATURES"
 
 echo "########################## Gathering tests to run ##########################"
 # if 'use-htx' option is set, but HAProxy version is lower to 1.9, disable it
