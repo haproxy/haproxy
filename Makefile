@@ -8,7 +8,6 @@
 #
 # Valid USE_* options are the following. Most of them are automatically set by
 # the TARGET, others have to be explicitly specified :
-#   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
@@ -80,8 +79,6 @@
 #           installation only.
 #
 # Other variables :
-#   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
-#   DLMALLOC_THRES : should match PAGE_SIZE on every platform (default: 4096).
 #   PCRE_CONFIG    : force the binary path to get pcre config (by default
 #                                                              pcre-config)
 #   PCREDIR        : force the path to libpcre.
@@ -606,24 +603,6 @@ BUILD_OPTIONS   += $(call ignore_implicit,USE_RT)
 OPTIONS_LDFLAGS += -lrt
 endif
 
-# report DLMALLOC_SRC only if explicitly specified
-ifneq ($(DLMALLOC_SRC),)
-BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
-endif
-
-ifneq ($(USE_DLMALLOC),)
-BUILD_OPTIONS  += $(call ignore_implicit,USE_DLMALLOC)
-ifeq ($(DLMALLOC_SRC),)
-DLMALLOC_SRC=src/dlmalloc.c
-endif
-endif
-
-ifneq ($(DLMALLOC_SRC),)
-# DLMALLOC_THRES may be changed to match PAGE_SIZE on every platform
-DLMALLOC_THRES = 4096
-OPTIONS_OBJS  += src/dlmalloc.o
-endif
-
 ifneq ($(USE_OPENSSL),)
 # OpenSSL is packaged in various forms and with various dependencies.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
@@ -968,9 +947,6 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
 	       -c -o $@ $<
-
-src/dlmalloc.o: $(DLMALLOC_SRC) $(DEP)
-	$(cmd_CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 install-man:
 	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1

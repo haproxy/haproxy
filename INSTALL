@@ -146,13 +146,9 @@ Optional dependencies may be split into several categories :
 4.1) Memory allocation
 ----------------------
 By default, HAProxy uses the standard malloc() call provided by the libc. It
-may be built to use dlmalloc instead. In this case, "USE_DLMALLOC=1" needs to
-be appended to the build options, and "DLMALLOC_SRC" needs to point to the
-absolute path to "dlmalloc.c". Doing this is not safe when using threads.
-HAProxy may also be built to use jemalloc, which is fast and thread-safe.
-In order to use it, please add "-ljemalloc" to the ADDLIB variable. You may
-possibly also need to append "-lpthread" and/or "-ldl" depending on the
-operating system.
+may also be built to use jemalloc, which is fast and thread-safe. In order to
+use it, please add "-ljemalloc" to the ADDLIB variable. You may possibly also
+need to append "-lpthread" and/or "-ldl" depending on the operating system.
 
 
 4.2) Regular expressions
