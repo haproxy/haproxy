@@ -477,10 +477,6 @@ BUILD_OPTIONS =
 #   BUILD_OPTIONS += $(call ignore_implicit,USE_xxx)
 ignore_implicit = $(patsubst %=implicit,,$(1)=$($(1)))
 
-ifneq ($(USE_TCPSPLICE),)
-$(error experimental option USE_TCPSPLICE has been removed, check USE_LINUX_SPLICE)
-endif
-
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
 BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_SPLICE)
