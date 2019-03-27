@@ -296,109 +296,108 @@ USE_POLL   = default
 # Always enable threads support by default and let the Makefile detect if
 # HAProxy can be compiled with threads or not.
 
+# generic system target has nothing specific
 ifeq ($(TARGET),generic)
-  # generic system target has nothing specific
   $(call default_opts,USE_POLL USE_TPROXY)
-else
+endif
+
+# Haiku
 ifeq ($(TARGET),haiku)
-  # For Haiku
   TARGET_LDFLAGS = -lnetwork
   $(call default_opts,USE_POLL USE_TPROXY)
-else
+endif
+
+# Linux 2.2
 ifeq ($(TARGET),linux22)
-  # This is for Linux 2.2
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT)
-else
+endif
+
+# Standard Linux 2.4 with netfilter but without epoll()
 ifeq ($(TARGET),linux24)
-  # This is for standard Linux 2.4 with netfilter but without epoll()
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER)
-else
+endif
+
+# Enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
 ifeq ($(TARGET),linux24e)
-  # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_EPOLL USE_MY_EPOLL)
-else
+endif
+
+# Standard Linux 2.6 with netfilter and standard epoll()
 ifeq ($(TARGET),linux26)
-  # This is for standard Linux 2.6 with netfilter and standard epoll()
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_EPOLL USE_FUTEX)
-else
+endif
+
+# Standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
 ifeq ($(TARGET),linux2628)
-  # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
     USE_ACCEPT4 USE_LINUX_SPLICE ASSUME_SPLICE_WORKS)
-else
+endif
+
+# Solaris 8 and above
 ifeq ($(TARGET),solaris)
-  # This is for Solaris 8
   # We also enable getaddrinfo() which works since solaris 8.
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_CRYPT_H USE_GETADDRINFO USE_THREAD)
   TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
-else
+endif
+
+# FreeBSD 5 and above
 ifeq ($(TARGET),freebsd)
-  # This is for FreeBSD
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
     USE_CLOSEFROM)
-else
+endif
+
+# Mac OS/X
 ifeq ($(TARGET),osx)
-  # This is for Mac OS/X
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_KQUEUE)
   EXPORT_SYMBOL  = -export_dynamic
-else
+endif
+
+# OpenBSD 5.7 and above
 ifeq ($(TARGET),openbsd)
-  # This is for OpenBSD >= 5.7
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4)
-else
+endif
+
+# NetBSD
 ifeq ($(TARGET),netbsd)
-  # This is for NetBSD
   $(call default_opts, \
     USE_POLL USE_TPROXY USE_KQUEUE)
-else
+endif
+
+# AIX 5.1 only
 ifeq ($(TARGET),aix51)
-  # This is for AIX 5.1
   $(call default_opts, \
     USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -Dss_family=__ss_family
   DEBUG_CFLAGS    =
-else
+endif
+
+# AIX 5.2 and above
 ifeq ($(TARGET),aix52)
-  # This is for AIX 5.2 and later
   $(call default_opts, \
     USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
-else
-ifeq ($(TARGET),cygwin)
-  # This is for Cygwin
-  # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
-  $(call default_opts,USE_POLL USE_TPROXY)
-  TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
-endif # cygwin
-endif # aix52
-endif # aix51
-endif # netbsd
-endif # openbsd
-endif # osx
-endif # freebsd
-endif # solaris
-endif # linux2628
-endif # linux26
-endif # linux24e
-endif # linux24
-endif # linux22
-endif # haiku
-endif # generic
+endif
 
+# Cygwin
+ifeq ($(TARGET),cygwin)
+  $(call default_opts,USE_POLL USE_TPROXY)
+  # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
+  TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
+endif
 
 #### Determine version, sub-version and release date.
 # If GIT is found, and IGNOREGIT is not set, VERSION, SUBVERS and VERDATE are
