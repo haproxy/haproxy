@@ -287,6 +287,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
 # options string. They may be set to any value, but are historically set to
 # "implicit" which eases debugging. You should not have to change anything
 # there unless you're adding support for a new platform.
+default_opts = $(foreach name,$(1),$(eval $(name)=implicit))
 
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
 # on the make command line.
@@ -297,137 +298,90 @@ USE_POLL   = default
 
 ifeq ($(TARGET),generic)
   # generic system target has nothing specific
-  USE_POLL   = implicit
-  USE_TPROXY = implicit
+  $(call default_opts,USE_POLL USE_TPROXY)
 else
 ifeq ($(TARGET),haiku)
   # For Haiku
   TARGET_LDFLAGS = -lnetwork
-  USE_POLL = implicit
-  USE_TPROXY = implicit
+  $(call default_opts,USE_POLL USE_TPROXY)
 else
 ifeq ($(TARGET),linux22)
   # This is for Linux 2.2
-  USE_POLL        = implicit
-  USE_TPROXY      = implicit
-  USE_LIBCRYPT    = implicit
-  USE_DL          = implicit
-  USE_RT          = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT)
 else
 ifeq ($(TARGET),linux24)
   # This is for standard Linux 2.4 with netfilter but without epoll()
-  USE_NETFILTER   = implicit
-  USE_POLL        = implicit
-  USE_TPROXY      = implicit
-  USE_CRYPT_H     = implicit
-  USE_LIBCRYPT    = implicit
-  USE_DL          = implicit
-  USE_RT          = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER)
 else
 ifeq ($(TARGET),linux24e)
   # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
-  USE_NETFILTER   = implicit
-  USE_POLL        = implicit
-  USE_EPOLL       = implicit
-  USE_MY_EPOLL    = implicit
-  USE_TPROXY      = implicit
-  USE_CRYPT_H     = implicit
-  USE_LIBCRYPT    = implicit
-  USE_DL          = implicit
-  USE_RT          = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
+    USE_EPOLL USE_MY_EPOLL)
 else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
-  USE_NETFILTER   = implicit
-  USE_POLL        = implicit
-  USE_EPOLL       = implicit
-  USE_TPROXY      = implicit
-  USE_CRYPT_H     = implicit
-  USE_LIBCRYPT    = implicit
-  USE_FUTEX       = implicit
-  USE_DL          = implicit
-  USE_RT          = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
+    USE_EPOLL USE_FUTEX)
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
-  USE_NETFILTER   = implicit
-  USE_POLL        = implicit
-  USE_EPOLL       = implicit
-  USE_TPROXY      = implicit
-  USE_CRYPT_H     = implicit
-  USE_LIBCRYPT    = implicit
-  USE_LINUX_SPLICE= implicit
-  USE_LINUX_TPROXY= implicit
-  USE_ACCEPT4     = implicit
-  USE_FUTEX       = implicit
-  USE_CPU_AFFINITY= implicit
-  ASSUME_SPLICE_WORKS= implicit
-  USE_DL          = implicit
-  USE_RT          = implicit
-  USE_THREAD      = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
+    USE_ACCEPT4 USE_LINUX_SPLICE ASSUME_SPLICE_WORKS)
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
   # We also enable getaddrinfo() which works since solaris 8.
-  USE_POLL       = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_CRYPT_H USE_GETADDRINFO USE_THREAD)
   TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
-  USE_TPROXY     = implicit
-  USE_LIBCRYPT    = implicit
-  USE_CRYPT_H     = implicit
-  USE_GETADDRINFO = implicit
-  USE_THREAD      = implicit
 else
 ifeq ($(TARGET),freebsd)
   # This is for FreeBSD
-  USE_POLL       = implicit
-  USE_KQUEUE     = implicit
-  USE_TPROXY     = implicit
-  USE_LIBCRYPT   = implicit
-  USE_THREAD     = implicit
-  USE_CPU_AFFINITY= implicit
-  USE_CLOSEFROM  = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
+    USE_CLOSEFROM)
 else
 ifeq ($(TARGET),osx)
   # This is for Mac OS/X
-  USE_POLL       = implicit
-  USE_KQUEUE     = implicit
-  USE_TPROXY     = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_KQUEUE)
   EXPORT_SYMBOL  = -export_dynamic
 else
 ifeq ($(TARGET),openbsd)
   # This is for OpenBSD >= 5.7
-  USE_POLL       = implicit
-  USE_KQUEUE     = implicit
-  USE_TPROXY     = implicit
-  USE_ACCEPT4    = implicit
-  USE_THREAD     = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4)
 else
 ifeq ($(TARGET),netbsd)
   # This is for NetBSD
-  USE_POLL       = implicit
-  USE_KQUEUE     = implicit
-  USE_TPROXY     = implicit
+  $(call default_opts, \
+    USE_POLL USE_TPROXY USE_KQUEUE)
 else
 ifeq ($(TARGET),aix51)
   # This is for AIX 5.1
-  USE_POLL        = implicit
-  USE_LIBCRYPT    = implicit
+  $(call default_opts, \
+    USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -Dss_family=__ss_family
   DEBUG_CFLAGS    =
 else
 ifeq ($(TARGET),aix52)
   # This is for AIX 5.2 and later
-  USE_POLL        = implicit
-  USE_LIBCRYPT    = implicit
+  $(call default_opts, \
+    USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
 else
 ifeq ($(TARGET),cygwin)
   # This is for Cygwin
   # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
-  USE_POLL   = implicit
-  USE_TPROXY = implicit
+  $(call default_opts,USE_POLL USE_TPROXY)
   TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
 endif # cygwin
 endif # aix52
