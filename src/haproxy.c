@@ -397,6 +397,9 @@ static void display_build_opts()
 #ifdef BUILD_OPTIONS
 	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
+#ifdef BUILD_FEATURES
+	       "\n\nFeature list : " BUILD_FEATURES
+#endif
 	       "\n\nDefault settings :"
 	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",

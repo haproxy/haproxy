@@ -445,7 +445,8 @@ ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
 # This variable collects all USE_* values except those set to "implicit". This
 # is used to report a list of all flags which were used to build this version.
 # Do not assign anything to it.
-BUILD_OPTIONS := $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
+BUILD_OPTIONS  := $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
+BUILD_FEATURES := $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),+$(opt),-$(opt)))
 
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
@@ -883,6 +884,7 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
+	      -DBUILD_FEATURES='"$(strip $(BUILD_FEATURES))"' \
 	       -c -o $@ $<
 
 install-man:
