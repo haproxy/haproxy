@@ -448,6 +448,10 @@ ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
 BUILD_OPTIONS  := $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
 BUILD_FEATURES := $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),+$(opt),-$(opt)))
 
+# All USE_* options have their equivalent macro defined in the code (some might
+# possibly be unused though)
+OPTIONS_CFLAGS += $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
+
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
 endif
@@ -469,15 +473,11 @@ ifneq ($(USE_CRYPT_H),)
 OPTIONS_CFLAGS  += -DNEED_CRYPT_H
 endif
 
-ifneq ($(USE_GETADDRINFO),)
-OPTIONS_CFLAGS  += -DUSE_GETADDRINFO
-endif
-
 ifneq ($(USE_SLZ),)
 # Use SLZ_INC and SLZ_LIB to force path to zlib.h and libz.{a,so} if needed.
 SLZ_INC =
 SLZ_LIB =
-OPTIONS_CFLAGS  += -DUSE_SLZ $(if $(SLZ_INC),-I$(SLZ_INC))
+OPTIONS_CFLAGS  += $(if $(SLZ_INC),-I$(SLZ_INC))
 OPTIONS_LDFLAGS += $(if $(SLZ_LIB),-L$(SLZ_LIB)) -lslz
 endif
 
@@ -485,7 +485,7 @@ ifneq ($(USE_ZLIB),)
 # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
 ZLIB_INC =
 ZLIB_LIB =
-OPTIONS_CFLAGS  += -DUSE_ZLIB $(if $(ZLIB_INC),-I$(ZLIB_INC))
+OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
 OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
@@ -499,10 +499,6 @@ OPTIONS_CFLAGS += -DENABLE_EPOLL
 OPTIONS_OBJS   += src/ev_epoll.o
 endif
 
-ifneq ($(USE_MY_EPOLL),)
-OPTIONS_CFLAGS += -DUSE_MY_EPOLL
-endif
-
 ifneq ($(USE_KQUEUE),)
 OPTIONS_CFLAGS += -DENABLE_KQUEUE
 OPTIONS_OBJS   += src/ev_kqueue.o
@@ -513,24 +509,8 @@ OPTIONS_OBJS   += src/i386-linux-vsys.o
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
 endif
 
-ifneq ($(USE_CPU_AFFINITY),)
-OPTIONS_CFLAGS += -DUSE_CPU_AFFINITY
-endif
-
-ifneq ($(USE_MY_SPLICE),)
-OPTIONS_CFLAGS += -DUSE_MY_SPLICE
-endif
-
 ifneq ($(ASSUME_SPLICE_WORKS),)
 OPTIONS_CFLAGS += -DASSUME_SPLICE_WORKS
-endif
-
-ifneq ($(USE_ACCEPT4),)
-OPTIONS_CFLAGS += -DUSE_ACCEPT4
-endif
-
-ifneq ($(USE_MY_ACCEPT4),)
-OPTIONS_CFLAGS += -DUSE_MY_ACCEPT4
 endif
 
 ifneq ($(USE_NETFILTER),)
@@ -546,7 +526,6 @@ OPTIONS_LDFLAGS += -ldl
 endif
 
 ifneq ($(USE_THREAD),)
-OPTIONS_CFLAGS  += -DUSE_THREAD
 OPTIONS_LDFLAGS += -lpthread
 endif
 
@@ -560,7 +539,7 @@ ifneq ($(USE_OPENSSL),)
 # reason why it's added by default. Some even need -lz, then you'll need to
 # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
 # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
-OPTIONS_CFLAGS  += -DUSE_OPENSSL $(if $(SSL_INC),-I$(SSL_INC))
+OPTIONS_CFLAGS  += $(if $(SSL_INC),-I$(SSL_INC))
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
@@ -569,28 +548,17 @@ OPTIONS_OBJS  += src/ssl_sock.o
 endif
 
 # The private cache option affect the way the shctx is built
-ifneq ($(USE_PRIVATE_CACHE),)
-OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE
-else
+ifeq ($(USE_PRIVATE_CACHE),)
 ifneq ($(USE_PTHREAD_PSHARED),)
-OPTIONS_CFLAGS  += -DUSE_PTHREAD_PSHARED
 OPTIONS_LDFLAGS += -lpthread
-else
-ifneq ($(USE_FUTEX),)
-OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
 endif
-endif
-endif
-
-ifneq ($(USE_CLOSEFROM),)
-OPTIONS_CFLAGS += -DUSE_CLOSEFROM
 endif
 
 ifneq ($(USE_LUA),)
 check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
 check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
 
-OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
+OPTIONS_CFLAGS  += $(if $(LUA_INC),-I$(LUA_INC))
 LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 ifeq ($(LUA_LIB_NAME),)
 # Try to automatically detect the Lua library
@@ -627,7 +595,7 @@ OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
 endif
 OPTIONS_OBJS	+= src/da.o
-OPTIONS_CFLAGS += -DUSE_DEVICEATLAS $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
+OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
 ifneq ($(USE_51DEGREES),)
@@ -639,7 +607,7 @@ ifneq ($(USE_51DEGREES),)
 OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
 OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
 OPTIONS_OBJS    += src/51d.o
-OPTIONS_CFLAGS  += -DUSE_51DEGREES $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
+OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
 ifeq ($(USE_THREAD),)
 OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
 else
@@ -650,7 +618,6 @@ OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
 endif
 
 ifneq ($(USE_SYSTEMD),)
-OPTIONS_CFLAGS  += -DUSE_SYSTEMD
 OPTIONS_LDFLAGS += -lsystemd
 endif
 
@@ -680,10 +647,6 @@ else
 # static PCRE
 OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
-endif
-# JIT PCRE
-ifneq ($(USE_PCRE_JIT),)
-OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
 endif
 endif
 
@@ -726,16 +689,7 @@ else
 OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
 endif
 
-ifneq ($(USE_PCRE2_JIT),)
-OPTIONS_CFLAGS  += -DUSE_PCRE2_JIT
 endif
-
-endif
-endif
-
-# TCP Fast Open
-ifneq ($(USE_TFO),)
-OPTIONS_CFLAGS  += -DUSE_TFO
 endif
 
 # This one can be changed to look for ebtree files in an external directory
