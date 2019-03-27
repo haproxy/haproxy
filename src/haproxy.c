@@ -835,8 +835,11 @@ static void mworker_catch_sigchld(struct sig_handler *sh)
 	int exitpid = -1;
 	int status = 0;
 	struct mworker_proc *child, *it;
+	int childfound;
 
 restart_wait:
+
+	childfound = 0;
 
 	exitpid = waitpid(-1, &status, WNOHANG);
 	if (exitpid > 0) {
@@ -855,10 +858,11 @@ restart_wait:
 
 			LIST_DEL(&child->list);
 			close(child->ipc_fd[0]);
+			childfound = 1;
 			break;
 		}
 
-		if (!children) {
+		if (!children || !childfound) {
 			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else {
 			/* check if exited child was in the current children list */
@@ -875,8 +879,8 @@ restart_wait:
 				ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				delete_oldpid(exitpid);
 			}
+			free(child);
 		}
-		free(child);
 
 		/* do it again to check if it was the last worker */
 		goto restart_wait;
