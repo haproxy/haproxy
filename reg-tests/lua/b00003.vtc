@@ -30,7 +30,6 @@ haproxy h1 -conf {
 
     global
         lua-load ${testdir}/b00003.lua
-        nbthread 4
 
     frontend frt
         log ${Slog_addr}:${Slog_port} local0 debug err

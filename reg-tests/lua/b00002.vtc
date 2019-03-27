@@ -5,7 +5,6 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
-        nbthread 3
         lua-load ${testdir}/b00002.lua
         lua-load ${testdir}/b00002_print_r.lua
 
