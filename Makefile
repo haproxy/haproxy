@@ -6,8 +6,9 @@
 # By default the detailed commands are hidden for a cleaner output, but you may
 # see them by appending "V=1" to the make command.
 #
-# Valid USE_* options are the following. Most of them are automatically set by
-# the TARGET, others have to be explicitly specified :
+# Valid USE_* options are enumerated in the "use_opts" variable and are listed
+# below. Most of them are automatically set by the TARGET, others have to be
+# explicitly specified :
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
@@ -268,12 +269,27 @@ CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
 # option at the beginning of the ld command line.
 LDFLAGS = $(ARCH_FLAGS) -g
 
+#### list of all "USE_*" options. These ones must be updated if new options are
+# added, so that the relevant options are properly added to the CFLAGS and to
+# the reported build options.
+use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
+           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
+           USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED USE_REGPARM       \
+           USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
+           USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_VSYSCALL             \
+           USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
+           USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
+           USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_SYSTEMD
+
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
-# CFLAGS and LDFLAGS. The USE_* values are set to "implicit" so that they are
-# not reported in the build options string. You should not have to change
-# anything there. poll() is always supported, unless explicitly disabled by
-# passing USE_POLL="" on the make command line.
+# CFLAGS and LDFLAGS. All variables pre-set here will not appear in the build
+# options string. They may be set to any value, but are historically set to
+# "implicit" which eases debugging. You should not have to change anything
+# there unless you're adding support for a new platform.
+
+# poll() is always supported, unless explicitly disabled by passing USE_POLL=""
+# on the make command line.
 USE_POLL   = default
 
 # Always enable threads support by default and let the Makefile detect if
@@ -464,11 +480,6 @@ OPTIONS_OBJS    =
 #### Extra objects to be built and integrated (used only for development)
 EXTRA_OBJS =
 
-# This variable collects all USE_* values except those set to "implicit". This
-# is used to report a list of all flags which were used to build this version.
-# Do not assign anything to it.
-BUILD_OPTIONS =
-
 # Return USE_xxx=$(USE_xxx) if the variable was set from the environment or the
 # command line.
 # Usage:
@@ -478,35 +489,34 @@ ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
                             $(1)=$($(1))),                           \
                        $(1)=$($(1)))                                 \
 
+# This variable collects all USE_* values except those set to "implicit". This
+# is used to report a list of all flags which were used to build this version.
+# Do not assign anything to it.
+BUILD_OPTIONS := $(foreach opt,$(use_opts),$(call ignore_implicit,$(opt)))
+
 ifneq ($(USE_LINUX_SPLICE),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
-BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_SPLICE)
 endif
 
 ifneq ($(USE_TPROXY),)
 OPTIONS_CFLAGS += -DTPROXY
-BUILD_OPTIONS  += $(call ignore_implicit,USE_TPROXY)
 endif
 
 ifneq ($(USE_LINUX_TPROXY),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_TPROXY
-BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_TPROXY)
 endif
 
 ifneq ($(USE_LIBCRYPT),)
 OPTIONS_CFLAGS  += -DCONFIG_HAP_CRYPT
-BUILD_OPTIONS   += $(call ignore_implicit,USE_LIBCRYPT)
 OPTIONS_LDFLAGS += -lcrypt
 endif
 
 ifneq ($(USE_CRYPT_H),)
 OPTIONS_CFLAGS  += -DNEED_CRYPT_H
-BUILD_OPTIONS   += $(call ignore_implicit,USE_CRYPT_H)
 endif
 
 ifneq ($(USE_GETADDRINFO),)
 OPTIONS_CFLAGS  += -DUSE_GETADDRINFO
-BUILD_OPTIONS   += $(call ignore_implicit,USE_GETADDRINFO)
 endif
 
 ifneq ($(USE_SLZ),)
@@ -514,7 +524,6 @@ ifneq ($(USE_SLZ),)
 SLZ_INC =
 SLZ_LIB =
 OPTIONS_CFLAGS  += -DUSE_SLZ $(if $(SLZ_INC),-I$(SLZ_INC))
-BUILD_OPTIONS   += $(call ignore_implicit,USE_SLZ)
 OPTIONS_LDFLAGS += $(if $(SLZ_LIB),-L$(SLZ_LIB)) -lslz
 endif
 
@@ -523,87 +532,71 @@ ifneq ($(USE_ZLIB),)
 ZLIB_INC =
 ZLIB_LIB =
 OPTIONS_CFLAGS  += -DUSE_ZLIB $(if $(ZLIB_INC),-I$(ZLIB_INC))
-BUILD_OPTIONS   += $(call ignore_implicit,USE_ZLIB)
 OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
 ifneq ($(USE_POLL),)
 OPTIONS_CFLAGS += -DENABLE_POLL
 OPTIONS_OBJS   += src/ev_poll.o
-BUILD_OPTIONS  += $(call ignore_implicit,USE_POLL)
 endif
 
 ifneq ($(USE_EPOLL),)
 OPTIONS_CFLAGS += -DENABLE_EPOLL
 OPTIONS_OBJS   += src/ev_epoll.o
-BUILD_OPTIONS  += $(call ignore_implicit,USE_EPOLL)
 endif
 
 ifneq ($(USE_MY_EPOLL),)
 OPTIONS_CFLAGS += -DUSE_MY_EPOLL
-BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_EPOLL)
 endif
 
 ifneq ($(USE_KQUEUE),)
 OPTIONS_CFLAGS += -DENABLE_KQUEUE
 OPTIONS_OBJS   += src/ev_kqueue.o
-BUILD_OPTIONS  += $(call ignore_implicit,USE_KQUEUE)
 endif
 
 ifneq ($(USE_VSYSCALL),)
 OPTIONS_OBJS   += src/i386-linux-vsys.o
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
-BUILD_OPTIONS  += $(call ignore_implicit,USE_VSYSCALL)
 endif
 
 ifneq ($(USE_CPU_AFFINITY),)
 OPTIONS_CFLAGS += -DUSE_CPU_AFFINITY
-BUILD_OPTIONS  += $(call ignore_implicit,USE_CPU_AFFINITY)
 endif
 
 ifneq ($(USE_MY_SPLICE),)
 OPTIONS_CFLAGS += -DUSE_MY_SPLICE
-BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_SPLICE)
 endif
 
 ifneq ($(ASSUME_SPLICE_WORKS),)
 OPTIONS_CFLAGS += -DASSUME_SPLICE_WORKS
-BUILD_OPTIONS  += $(call ignore_implicit,ASSUME_SPLICE_WORKS)
 endif
 
 ifneq ($(USE_ACCEPT4),)
 OPTIONS_CFLAGS += -DUSE_ACCEPT4
-BUILD_OPTIONS  += $(call ignore_implicit,USE_ACCEPT4)
 endif
 
 ifneq ($(USE_MY_ACCEPT4),)
 OPTIONS_CFLAGS += -DUSE_MY_ACCEPT4
-BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_ACCEPT4)
 endif
 
 ifneq ($(USE_NETFILTER),)
 OPTIONS_CFLAGS += -DNETFILTER
-BUILD_OPTIONS  += $(call ignore_implicit,USE_NETFILTER)
 endif
 
 ifneq ($(USE_REGPARM),)
 OPTIONS_CFLAGS += -DCONFIG_REGPARM=3
-BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
 endif
 
 ifneq ($(USE_DL),)
-BUILD_OPTIONS   += $(call ignore_implicit,USE_DL)
 OPTIONS_LDFLAGS += -ldl
 endif
 
 ifneq ($(USE_THREAD),)
-BUILD_OPTIONS   += $(call ignore_implicit,USE_THREAD)
 OPTIONS_CFLAGS  += -DUSE_THREAD
 OPTIONS_LDFLAGS += -lpthread
 endif
 
 ifneq ($(USE_RT),)
-BUILD_OPTIONS   += $(call ignore_implicit,USE_RT)
 OPTIONS_LDFLAGS += -lrt
 endif
 
@@ -613,7 +606,6 @@ ifneq ($(USE_OPENSSL),)
 # reason why it's added by default. Some even need -lz, then you'll need to
 # pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
 # in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
-BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
 OPTIONS_CFLAGS  += -DUSE_OPENSSL $(if $(SSL_INC),-I$(SSL_INC))
 OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 ifneq ($(USE_DL),)
@@ -644,7 +636,6 @@ ifneq ($(USE_LUA),)
 check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
 check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
 
-BUILD_OPTIONS   += $(call ignore_implicit,USE_LUA)
 OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
 LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 ifeq ($(LUA_LIB_NAME),)
@@ -683,7 +674,6 @@ OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
 endif
 OPTIONS_OBJS	+= src/da.o
 OPTIONS_CFLAGS += -DUSE_DEVICEATLAS $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
-BUILD_OPTIONS  += $(call ignore_implicit,USE_DEVICEATLAS)
 endif
 
 ifneq ($(USE_51DEGREES),)
@@ -702,12 +692,10 @@ else
 OPTIONS_OBJS    += $(51DEGREES_LIB)/../threading.o
 endif
 
-BUILD_OPTIONS   += $(call ignore_implicit,USE_51DEGREES)
 OPTIONS_LDFLAGS += $(if $(51DEGREES_LIB),-L$(51DEGREES_LIB)) -lm
 endif
 
 ifneq ($(USE_SYSTEMD),)
-BUILD_OPTIONS   += $(call ignore_implicit,USE_SYSTEMD)
 OPTIONS_CFLAGS  += -DUSE_SYSTEMD
 OPTIONS_LDFLAGS += -lsystemd
 endif
@@ -734,17 +722,14 @@ ifeq ($(USE_STATIC_PCRE),)
 # dynamic PCRE
 OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
-BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
 else
 # static PCRE
 OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
-BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
 endif
 # JIT PCRE
 ifneq ($(USE_PCRE_JIT),)
 OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
-BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE_JIT)
 endif
 endif
 
@@ -783,15 +768,12 @@ OPTIONS_CFLAGS  += $(if $(PCRE2_INC), -I$(PCRE2_INC))
 
 ifneq ($(USE_STATIC_PCRE2),)
 OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -Wl,-Bstatic -L$(PCRE2_LIB) $(PCRE2_LDFLAGS) -Wl,-Bdynamic
-BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE2)
 else
 OPTIONS_LDFLAGS += $(if $(PCRE2_LIB),-L$(PCRE2_LIB)) -L$(PCRE2_LIB) $(PCRE2_LDFLAGS)
-BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE2)
 endif
 
 ifneq ($(USE_PCRE2_JIT),)
 OPTIONS_CFLAGS  += -DUSE_PCRE2_JIT
-BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE2_JIT)
 endif
 
 endif
@@ -800,7 +782,6 @@ endif
 # TCP Fast Open
 ifneq ($(USE_TFO),)
 OPTIONS_CFLAGS  += -DUSE_TFO
-BUILD_OPTIONS   += $(call ignore_implicit,USE_TFO)
 endif
 
 # This one can be changed to look for ebtree files in an external directory
@@ -833,7 +814,6 @@ endif
 
 ifneq ($(USE_NS),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_NS
-BUILD_OPTIONS  += $(call ignore_implicit,USE_NS)
 OPTIONS_OBJS  += src/namespace.o
 endif
 
