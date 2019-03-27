@@ -433,31 +433,6 @@ endif # haiku
 endif # generic
 
 
-#### Old-style REGEX library settings for compatibility with previous setups.
-# It is still possible to use REGEX=<regex_lib> to select an alternative regex
-# library. By default, we use libc's regex. On Solaris 8/Sparc, grouping seems
-# to be broken using libc, so consider using pcre instead. Supported values are
-# "libc", "pcre", and "static-pcre". Use of this method is deprecated in favor
-# of "USE_PCRE" and "USE_STATIC_PCRE" (see build options below).
-REGEX = libc
-
-ifeq ($(REGEX),pcre)
-USE_PCRE = 1
-$(warning WARNING! use of "REGEX=pcre" is deprecated, consider using "USE_PCRE=1" instead.)
-endif
-
-ifeq ($(REGEX),static-pcre)
-USE_STATIC_PCRE = 1
-$(warning WARNING! use of "REGEX=pcre-static" is deprecated, consider using "USE_STATIC_PCRE=1" instead.)
-endif
-
-#### Old-style TPROXY settings
-ifneq ($(findstring -DTPROXY,$(DEFINE)),)
-USE_TPROXY = 1
-$(warning WARNING! use of "DEFINE=-DTPROXY" is deprecated, consider using "USE_TPROXY=1" instead.)
-endif
-
-
 #### Determine version, sub-version and release date.
 # If GIT is found, and IGNOREGIT is not set, VERSION, SUBVERS and VERDATE are
 # extracted from the last commit. Otherwise, use the contents of the files
