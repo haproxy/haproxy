@@ -1557,7 +1557,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (isteqi(n, ist("transfer-encoding")))
 					h1_parse_xfer_enc_header(h1m, v);
 				else if (isteqi(n, ist("content-length"))) {
-					if (h1_parse_cont_len_header(h1m, &v) <= 0)
+					/* Only skip C-L header with invalid value. */
+					if (h1_parse_cont_len_header(h1m, &v) < 0)
 						goto skip_hdr;
 				}
 				else if (isteqi(n, ist("connection"))) {
