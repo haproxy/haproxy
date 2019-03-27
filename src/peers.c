@@ -2505,7 +2505,6 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 								else  {
 									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
 									peer_session_forceshutdown(ps->appctx);
-									ps->appctx = NULL;
 								}
 							}
 							else if (tick_is_expired(ps->heartbeat, now_ms)) {
@@ -2513,8 +2512,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 								ps->flags |= PEER_F_HEARTBEAT;
 								appctx_wakeup(ps->appctx);
 							}
-							if (ps->appctx)
-								task->expire = tick_first(ps->reconnect, ps->heartbeat);
+							task->expire = tick_first(ps->reconnect, ps->heartbeat);
 						}
 					}
 					/* else do nothing */
