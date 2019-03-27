@@ -323,8 +323,8 @@ if [ $preparefailed ]; then
   exit 1
 fi
 
-{ read HAPROXY_VERSION; read TARGET; read OPTIONS; read FEATURES; } << EOF
-$($HAPROXY_PROGRAM -vv |grep 'HA-Proxy version\|TARGET.*=\|OPTIONS.*=\|^Feature' | sed 's/.* [:=] //')
+{ read HAPROXY_VERSION; read TARGET; read FEATURES; } << EOF
+$($HAPROXY_PROGRAM -vv |grep 'HA-Proxy version\|TARGET.*=\|^Feature' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
@@ -337,69 +337,6 @@ TESTDIR=$(mktemp -d "$TESTDIR/haregtests-$TESTRUNDATETIME.XXXXXX") || exit 1
 
 export TMPDIR="$TESTDIR"
 export HAPROXY_PROGRAM="$HAPROXY_PROGRAM"
-
-# Mimic implicit build options from haproxy MakeFile that are present for each target:
-
-if [ $TARGET = generic ] ; then
-  #generic system target has nothing specific
-  OPTIONS="$OPTIONS USE_POLL=1 USE_TPROXY=1"
-fi
-if [ $TARGET = haiku ] ; then
-  #For Haiku
-  OPTIONS="$OPTIONS USE_POLL=1 USE_TPROXY=1"
-fi
-if [ $TARGET = linux22 ] ; then
-  #This is for Linux 2.2
-  OPTIONS="$OPTIONS USE_POLL=1 USE_TPROXY=1 USE_LIBCRYPT=1 USE_DL=1 USE_RT=1"
-fi
-if [ $TARGET = linux24 ] ; then
-  #This is for standard Linux 2.4 with netfilter but without epoll()
-  OPTIONS="$OPTIONS USE_NETFILTER=1 USE_POLL=1 USE_TPROXY=1 USE_CRYPT_H=1 USE_LIBCRYPT=1 USE_DL=1 USE_RT=1"
-fi
-if [ $TARGET = linux24e ] ; then
-  #This is for enhanced Linux 2.4 with netfilter and epoll() patch>0.21
-  OPTIONS="$OPTIONS USE_NETFILTER=1 USE_POLL=1 USE_EPOLL=1 USE_MY_EPOLL=1 USE_TPROXY=1 USE_CRYPT_H=1 USE_LIBCRYPT=1 USE_DL=1 USE_RT=1"
-fi
-if [ $TARGET = linux26 ] ; then
-  #This is for standard Linux 2.6 with netfilter and standard epoll()
-  OPTIONS="$OPTIONS USE_NETFILTER=1 USE_POLL=1 USE_EPOLL=1 USE_TPROXY=1 USE_CRYPT_H=1 USE_LIBCRYPT=1 USE_FUTEX=1 USE_DL=1 USE_RT=1"
-fi
-if [ $TARGET = linux2628 ] ; then
-  #This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
-  OPTIONS="$OPTIONS USE_NETFILTER=1 USE_POLL=1 USE_EPOLL=1 USE_TPROXY=1 USE_CRYPT_H=1 USE_LIBCRYPT=1 USE_LINUX_SPLICE=1 USE_LINUX_TPROXY=1 USE_ACCEPT4=1 USE_FUTEX=1 USE_CPU_AFFINITY=1 ASSUME_SPLICE_WORKS=1 USE_DL=1 USE_RT=1 USE_THREAD=1"
-fi
-if [ $TARGET = solaris ] ; then
-  #This is for Solaris8
-  OPTIONS="$OPTIONS USE_POLL=1 USE_TPROXY=1 USE_LIBCRYPT=1 USE_CRYPT_H=1 USE_GETADDRINFO=1 USE_THREAD=1"
-fi
-if [ $TARGET = freebsd ] ; then
-  #This is for FreeBSD
-  OPTIONS="$OPTIONS USE_POLL=1 USE_KQUEUE=1 USE_TPROXY=1 USE_LIBCRYPT=1 USE_THREAD=1 USE_CPU_AFFINITY=1"
-fi
-if [ $TARGET = osx ] ; then
-  #This is for MacOS/X
-  OPTIONS="$OPTIONS USE_POLL=1 USE_KQUEUE=1 USE_TPROXY=1"
-fi
-if [ $TARGET = openbsd ] ; then
-  #This is for OpenBSD >= 5.7
-  OPTIONS="$OPTIONS USE_POLL=1 USE_KQUEUE=1 USE_TPROXY=1 USE_ACCEPT4=1 USE_THREAD=1"
-fi
-if [ $TARGET = netbsd ] ; then
-  #This is for NetBSD
-  OPTIONS="$OPTIONS USE_POLL=1 USE_KQUEUE=1 USE_TPROXY=1"
-fi
-if [ $TARGET = aix51 ] ; then
-  #This is for AIX 5.1
-  OPTIONS="$OPTIONS USE_POLL=1 USE_LIBCRYPT=1"
-fi
-if [ $TARGET = aix52 ] ; then
-  #This is for AIX 5.2 and later
-  OPTIONS="$OPTIONS USE_POLL=1 USE_LIBCRYPT=1"
-fi
-if [ $TARGET = cygwin ] ; then
-  #This is for Cygwin
-  OPTIONS="$OPTIONS USE_POLL=1 USE_TPROXY=1"
-fi
 
 echo "Target : $TARGET"
 echo "Options : $FEATURES"
