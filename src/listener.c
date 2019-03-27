@@ -691,7 +691,7 @@ void listener_accept(int fd)
 				goto end;
 			}
 			next_conn = count + 1;
-		} while (!_HA_ATOMIC_CAS(&l->nbconn, &count, next_conn));
+		} while (!_HA_ATOMIC_CAS(&l->nbconn, (int *)(&count), next_conn));
 
 		if (l->maxconn && next_conn == l->maxconn) {
 			/* we filled it, mark it full */
@@ -728,7 +728,7 @@ void listener_accept(int fd)
 					goto end;
 				}
 				next_actconn = count + 1;
-			} while (!_HA_ATOMIC_CAS(&actconn, &count, next_actconn));
+			} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn));
 
 			if (unlikely(next_actconn == global.maxconn)) {
 				limit_listener(l, &global_listener_queue);
