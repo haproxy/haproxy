@@ -753,7 +753,8 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+		if (!(conn->flags & CO_FL_ERROR))
+			cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 		goto out;
 	}
 
@@ -838,7 +839,8 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		goto out_wakeup;
 
 	if (conn->flags & CO_FL_HANDSHAKE) {
-		cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+		if (!(conn->flags & CO_FL_ERROR))
+			cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 		goto out;
 	}
 
