@@ -1253,6 +1253,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_DONE;
+	req->to_forward = 0;
 
   done:
 	/* other states, DONE...TUNNEL */
@@ -2183,6 +2184,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_DONE;
+	res->to_forward = 0;
 
   done:
 	/* other states, DONE...TUNNEL */
