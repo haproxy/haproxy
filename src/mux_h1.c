@@ -946,6 +946,21 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 }
 
 /*
+ * Handle 100-Continue responses or any other informational 1xx responses which
+ * is non-final. In such case, this function reset the response parser. It is
+ * the caller responsibility to call this function when appropriate.
+ */
+static void h1_handle_1xx_response(struct h1s *h1s, struct h1m *h1m)
+{
+	if ((h1m->flags & H1_MF_RESP) && h1m->state == H1_MSG_DONE &&
+	    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
+		h1m_init_res(&h1s->res);
+		h1m->flags |= H1_MF_NO_PHDR;
+		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+	}
+}
+
+/*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
@@ -1320,33 +1335,6 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 }
 
 /*
- * Synchronize the request and the response before reseting them. Except for 1xx
- * responses, we wait that the request and the response are in DONE state and
- * that all data are forwarded for both. For 1xx responses, only the response is
- * reset, waiting the final one. Many 1xx messages can be sent.
- */
-static void h1_sync_messages(struct h1c *h1c)
-{
-	struct h1s *h1s = h1c->h1s;
-
-	if (!h1s)
-		return;
-
-	if (h1s->res.state == H1_MSG_DONE &&
-	    (h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) &&
-	    (conn_is_back(h1c->conn) || !b_data(&h1c->obuf))) {
-		/* For 100-Continue response or any other informational 1xx
-		 * response which is non-final, don't reset the request, the
-		 * transaction is not finished. We take care the response was
-		 * transferred before.
-		 */
-		h1m_init_res(&h1s->res);
-		h1s->res.flags |= H1_MF_NO_PHDR;
-		h1c->flags &= ~H1C_F_IN_BUSY;
-	}
-}
-
-/*
  * Process incoming data. It parses data and transfer them from h1c->ibuf into
  * <buf>. It returns the number of bytes parsed and transferred if > 0, or 0 if
  * it couldn't proceed.
@@ -1378,6 +1366,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	if (!count)
 		goto end;
 	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
+
+	if (htx_is_empty(htx))
+		h1_handle_1xx_response(h1s, h1m);
 
 	do {
 		if (h1m->state <= H1_MSG_LAST_LF) {
@@ -1424,10 +1415,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
 	h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 
-	if (!b_data(&h1c->ibuf)) {
+	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-		h1_sync_messages(h1c);
-	}
 	else if (!htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
@@ -1723,6 +1712,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		}
 	}
 
+	if (htx_is_empty(chn_htx))
+		h1_handle_1xx_response(h1s, h1m);
+
   copy:
 	/* when the output buffer is empty, tmp shares the same area so that we
 	 * only have to update pointers and lengths.
@@ -1882,7 +1874,6 @@ static int h1_send(struct h1c *h1c)
 	/* We're done, no more to send */
 	if (!b_data(&h1c->obuf)) {
 		h1_release_buf(h1c, &h1c->obuf);
-		h1_sync_messages(h1c);
 		if (h1c->flags & H1C_F_CS_SHUTW_NOW)
 			h1_shutw_conn(conn, CS_SHW_NORMAL);
 	}
