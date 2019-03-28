@@ -266,16 +266,16 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 	h1s->sess = sess;
 
 	h1s->cs    = NULL;
-	h1s->flags = H1S_F_NONE;
+	h1s->flags = H1S_F_WANT_KAL;
 
 	h1s->recv_wait = NULL;
 	h1s->send_wait = NULL;
 
 	h1m_init_req(&h1s->req);
-	h1s->req.flags |= H1_MF_NO_PHDR;
+	h1s->req.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 
 	h1m_init_res(&h1s->res);
-	h1s->res.flags |= H1_MF_NO_PHDR;
+	h1s->res.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 
 	h1s->status = 0;
 	h1s->meth   = HTTP_METH_OTHER;
@@ -584,27 +584,6 @@ static int h1_process_res_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
 
 	return 1;
 }
-/* Remove all "Connection:" headers from the HTX message <htx> */
-static void h1_remove_conn_hdrs(struct h1m *h1m, struct htx *htx)
-{
-	struct ist hdr = {.ptr = "Connection", .len = 10};
-	struct http_hdr_ctx ctx;
-
-	while (http_find_header(htx, hdr, &ctx, 1))
-		http_remove_header(htx, &ctx);
-
-	h1m->flags &= ~(H1_MF_CONN_KAL|H1_MF_CONN_CLO);
-}
-
-/* Add a "Connection:" header with the value <value> into the HTX message
- * <htx>.
- */
-static void h1_add_conn_hdr(struct h1m *h1m, struct htx *htx, struct ist value)
-{
-	struct ist hdr = {.ptr = "Connection", .len = 10};
-
-	http_add_header(htx, hdr, value);
-}
 
 /* Deduce the connection mode of the client connection, depending on the
  * configuration and the H1 message flags. This function is called twice, the
@@ -614,37 +593,43 @@ static void h1_add_conn_hdr(struct h1m *h1m, struct htx *htx, struct ist value)
 static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 {
 	struct proxy *fe = h1s->h1c->px;
-	int flag = H1S_F_WANT_KAL; /* For client connection: server-close == keepalive */
-
-	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
-		flag = H1S_F_WANT_CLO;
-
-	/* flags order: CLO > SCL > TUN > KAL */
-	if ((h1s->flags & H1S_F_WANT_MSK) < flag)
-		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | flag;
 
 	if (h1m->flags & H1_MF_RESP) {
-		/* Either we've established an explicit tunnel, or we're
-		 * switching the protocol. In both cases, we're very unlikely to
-		 * understand the next protocols. We have to switch to tunnel
-		 * mode, so that we transfer the request and responses then let
-		 * this protocol pass unmodified. When we later implement
-		 * specific parsers for such protocols, we'll want to check the
-		 * Upgrade header which contains information about that protocol
-		 * for responses with status 101 (eg: see RFC2817 about TLS).
-		 */
+		/* Output direction: second pass */
 		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
-		    h1s->status == 101)
+		    h1s->status == 101) {
+			/* Either we've established an explicit tunnel, or we're
+			 * switching the protocol. In both cases, we're very unlikely to
+			 * understand the next protocols. We have to switch to tunnel
+			 * mode, so that we transfer the request and responses then let
+			 * this protocol pass unmodified. When we later implement
+			 * specific parsers for such protocols, we'll want to check the
+			 * Upgrade header which contains information about that protocol
+			 * for responses with status 101 (eg: see RFC2817 about TLS).
+			 */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
-		else if (!(h1m->flags & H1_MF_XFER_LEN) || /* no length known => close */
-			 (h1m->flags & H1_MF_CONN_CLO && h1s->req.state != H1_MSG_DONE)) /*explicit close and unfinished request */
-			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		}
+		else if (h1s->flags & H1S_F_WANT_KAL) {
+			/* By default the client is in KAL mode. CLOSE mode mean
+			 * it is imposed by the client itself. So only change
+			 * KAL mode here. */
+			if (!(h1m->flags & H1_MF_XFER_LEN) || (h1m->flags & H1_MF_CONN_CLO)) {
+				/* no length known or explicit close => close */
+				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			}
+			else if (!(h1m->flags & H1_MF_CONN_KAL) &&
+				 (fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO) {
+				/* no explict keep-alive and option httpclose => close */
+				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			}
+		}
 	}
 	else {
-		if (h1s->flags & H1S_F_WANT_KAL &&
-		    (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
-		     h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
+		/* Input direction: first pass */
+		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || h1m->flags & H1_MF_CONN_CLO)  {
+			/* no explicit keep-alive in HTTP/1.0 or explicit close => close*/
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		}
 	}
 
 	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode */
@@ -659,48 +644,51 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
  */
 static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 {
-	struct h1c *h1c = h1s->h1c;
 	struct session *sess = h1s->sess;
-	struct proxy *be = h1c->px;
-	int flag =  H1S_F_WANT_KAL;
+	struct proxy *be = h1s->h1c->px;
 	int fe_flags = sess ? sess->fe->options : 0;
 
-	/* For the server connection: server-close == httpclose */
-	if ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-	    (fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
-	    (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
-		flag = H1S_F_WANT_CLO;
-
-	/* flags order: CLO > SCL > TUN > KAL */
-	if ((h1s->flags & H1S_F_WANT_MSK) < flag)
-		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | flag;
-
 	if (h1m->flags & H1_MF_RESP) {
-		/* Either we've established an explicit tunnel, or we're
-		 * switching the protocol. In both cases, we're very unlikely to
-		 * understand the next protocols. We have to switch to tunnel
-		 * mode, so that we transfer the request and responses then let
-		 * this protocol pass unmodified. When we later implement
-		 * specific parsers for such protocols, we'll want to check the
-		 * Upgrade header which contains information about that protocol
-		 * for responses with status 101 (eg: see RFC2817 about TLS).
-		 */
+		/* Input direction: second pass */
+
 		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
-		    h1s->status == 101)
+		    h1s->status == 101) {
+			/* Either we've established an explicit tunnel, or we're
+			 * switching the protocol. In both cases, we're very unlikely to
+			 * understand the next protocols. We have to switch to tunnel
+			 * mode, so that we transfer the request and responses then let
+			 * this protocol pass unmodified. When we later implement
+			 * specific parsers for such protocols, we'll want to check the
+			 * Upgrade header which contains information about that protocol
+			 * for responses with status 101 (eg: see RFC2817 about TLS).
+			 */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
-		else if (!(h1m->flags & H1_MF_XFER_LEN)) /* no length known => close */
-			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
-		else if (h1s->flags & H1S_F_WANT_KAL &&
-			 (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
-			  h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
-			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		}
+		else if (h1s->flags & H1S_F_WANT_KAL) {
+			/* By default the server is in KAL mode. CLOSE mode mean
+			 * it is imposed by haproxy itself. So only change KAL
+			 * mode here. */
+			if (!(h1m->flags & H1_MF_XFER_LEN) || h1m->flags & H1_MF_CONN_CLO ||
+			    !(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL))){
+				/* no length known or explicit close or no explicit keep-alive in HTTP/1.0 => close */
+				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			}
+		}
 	}
 	else {
-		if (h1s->flags & H1S_F_WANT_KAL &&
-		    (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || /* no KA in HTTP/1.0 */
-		     h1m->flags & H1_MF_CONN_CLO))                    /* explicit close */
+		/* Output direction: first pass */
+		if (h1m->flags & H1_MF_CONN_CLO) {
+			/* explicit close => close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		}
+		else if (!(h1m->flags & H1_MF_CONN_KAL) &&
+			 ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+			  (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+			  (fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_CLO ||
+			  (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)) {
+			/* no explicit keep-alive option httpclose/server-close => close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		}
 	}
 
 	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
@@ -708,8 +696,7 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 }
 
-static void h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
-				   struct htx *htx, struct ist *conn_val)
+static void h1_update_req_conn_value(struct h1s *h1s, struct h1m *h1m, struct ist *conn_val)
 {
 	struct proxy *px = h1s->h1c->px;
 
@@ -720,49 +707,16 @@ static void h1_update_req_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 		return;
 
 	if (h1s->flags & H1S_F_WANT_KAL || px->options2 & PR_O2_FAKE_KA) {
-		if (h1m->flags & H1_MF_CONN_CLO) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
-		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL))) {
-			if (conn_val)
-				*conn_val = ist("keep-alive");
-			if (htx)
-				h1_add_conn_hdr(h1m, htx, ist("keep-alive"));
-		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) == (H1_MF_VER_11|H1_MF_CONN_KAL)) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
+		if (!(h1m->flags & H1_MF_VER_11))
+			*conn_val = ist("keep-alive");
 	}
 	else { /* H1S_F_WANT_CLO && !PR_O2_FAKE_KA */
-		if (h1m->flags & H1_MF_CONN_KAL) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_VER_11) {
-			if (conn_val)
-				*conn_val = ist("close");
-			if (htx)
-				h1_add_conn_hdr(h1m, htx, ist("close"));
-		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_CONN_CLO) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
+		if (h1m->flags & H1_MF_VER_11)
+			*conn_val = ist("close");
 	}
 }
 
-static void h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
-					 struct htx *htx, struct ist *conn_val)
+static void h1_update_res_conn_value(struct h1s *h1s, struct h1m *h1m, struct ist *conn_val)
 {
 	/* Don't update "Connection:" header in TUNNEL mode or if "Upgrage"
 	 * token is found
@@ -771,69 +725,36 @@ static void h1_update_res_conn_hdr(struct h1s *h1s, struct h1m *h1m,
 		return;
 
 	if (h1s->flags & H1S_F_WANT_KAL) {
-		if (h1m->flags & H1_MF_CONN_CLO) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
-		if (!(h1m->flags & H1_MF_CONN_KAL) &&
-		    !((h1m->flags & h1s->req.flags) & H1_MF_VER_11)) {
-			if (conn_val)
-				*conn_val = ist("keep-alive");
-			if (htx)
-				h1_add_conn_hdr(h1m, htx, ist("keep-alive"));
-		}
-		else if ((h1m->flags & H1_MF_CONN_KAL) &&
-		         ((h1m->flags & h1s->req.flags) & H1_MF_VER_11)) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
+		if (!(h1m->flags & H1_MF_VER_11) ||
+		    !((h1m->flags & h1s->req.flags) & H1_MF_VER_11))
+			*conn_val = ist("keep-alive");
 	}
 	else { /* H1S_F_WANT_CLO */
-		if (h1m->flags & H1_MF_CONN_KAL) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_VER_11) {
-			if (conn_val)
-				*conn_val = ist("close");
-			if (htx)
-				h1_add_conn_hdr(h1m, htx, ist("close"));
-		}
-		if ((h1m->flags & (H1_MF_VER_11|H1_MF_CONN_CLO)) == H1_MF_CONN_CLO) {
-			if (conn_val)
-				*conn_val = ist("");
-			if (htx)
-				h1_remove_conn_hdrs(h1m, htx);
-		}
+		if (h1m->flags & H1_MF_VER_11)
+			*conn_val = ist("close");
 	}
 }
 
-/* Set the right connection mode and update "Connection:" header if
- * needed. <htx> and <conn_val> can be NULL. When <htx> is not NULL, the HTX
- * message is updated accordingly. When <conn_val> is not NULL, it is set with
- * the new header value.
- */
-static void h1_process_conn_mode(struct h1s *h1s, struct h1m *h1m,
-				 struct htx *htx, struct ist *conn_val)
+static void h1_process_input_conn_mode(struct h1s *h1s, struct h1m *h1m, struct htx *htx)
 {
-	if (!conn_is_back(h1s->h1c->conn)) {
+	if (!conn_is_back(h1s->h1c->conn))
 		h1_set_cli_conn_mode(h1s, h1m);
-		if (h1m->flags & H1_MF_RESP)
-			h1_update_res_conn_hdr(h1s, h1m, htx, conn_val);
-	}
-	else {
+	else
 		h1_set_srv_conn_mode(h1s, h1m);
-		if (!(h1m->flags & H1_MF_RESP))
-			h1_update_req_conn_hdr(h1s, h1m, htx, conn_val);
-	}
 }
 
+static void h1_process_output_conn_mode(struct h1s *h1s, struct h1m *h1m, struct ist *conn_val)
+{
+	if (!conn_is_back(h1s->h1c->conn))
+		h1_set_cli_conn_mode(h1s, h1m);
+	else
+		h1_set_srv_conn_mode(h1s, h1m);
+
+	if (!(h1m->flags & H1_MF_RESP))
+		h1_update_req_conn_value(h1s, h1m, conn_val);
+	else
+		h1_update_res_conn_value(h1s, h1m, conn_val);
+}
 
 /* Append the description of what is present in error snapshot <es> into <out>.
  * The description must be small enough to always fit in a buffer. The output
@@ -955,7 +876,7 @@ static void h1_handle_1xx_response(struct h1s *h1s, struct h1m *h1m)
 	if ((h1m->flags & H1_MF_RESP) && h1m->state == H1_MSG_DONE &&
 	    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 		h1m_init_res(&h1s->res);
-		h1m->flags |= H1_MF_NO_PHDR;
+		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
 	}
 }
@@ -1099,7 +1020,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		h1s->cs->flags |= CS_FL_EOI;
 	}
 
-	h1_process_conn_mode(h1s, h1m, htx, NULL);
+	h1_process_input_conn_mode(h1s, h1m, htx);
 
 	/* If body length cannot be determined, set htx->extra to
 	 * ULLONG_MAX. This value is impossible in other cases.
@@ -1545,7 +1466,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			case HTX_BLK_REQ_SL:
 				h1m_init_req(h1m);
-				h1m->flags |= H1_MF_NO_PHDR;
+				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
@@ -1559,7 +1480,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			case HTX_BLK_RES_SL:
 				h1m_init_res(h1m);
-				h1m->flags |= H1_MF_NO_PHDR;
+				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
@@ -1586,9 +1507,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						goto skip_hdr;
 				}
 				else if (isteqi(n, ist("connection"))) {
-					h1_parse_connection_header(h1m, v);
-					h1_process_conn_mode(h1s, h1m, NULL, &v);
-					process_conn_mode = 0;
+					h1_parse_connection_header(h1m, &v);
 					if (!v.len)
 						goto skip_hdr;
 				}
@@ -1611,12 +1530,12 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					 * processed. So do it */
 					n = ist("Connection");
 					v = ist("");
-					h1_process_conn_mode(h1s, h1m, NULL, &v);
-					process_conn_mode = 0;
+					h1_process_output_conn_mode(h1s, h1m, &v);
 					if (v.len) {
 						if (!htx_hdr_to_h1(n, v, tmp))
 							goto copy;
 					}
+					process_conn_mode = 0;
 				}
 
 				if ((h1s->meth != HTTP_METH_CONNECT &&
