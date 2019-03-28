@@ -911,6 +911,41 @@ static void h1_emit_chunk_crlf(struct buffer *buf)
 }
 
 /*
+ * Switch the request to tunnel mode. This function must only be called for
+ * CONNECT requests. On the client side, the mux is mark as busy on input,
+ * waiting the response.
+ */
+static void h1_set_req_tunnel_mode(struct h1s *h1s)
+{
+	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+	h1s->req.state = H1_MSG_TUNNEL;
+	if (!conn_is_back(h1s->h1c->conn))
+		h1s->h1c->flags |= H1C_F_IN_BUSY;
+}
+
+/*
+ * Switch the response to tunnel mode. This function must only be called on
+ * successfull replies to CONNECT requests or on protocol switching. On the
+ * server side, if the request is not finished, the mux is mark as busy on
+ * input.  Otherwise the request is also switch to tunnel mode.
+ */
+static void h1_set_res_tunnel_mode(struct h1s *h1s)
+{
+	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+	h1s->res.state = H1_MSG_TUNNEL;
+	if (conn_is_back(h1s->h1c->conn) && h1s->req.state < H1_MSG_DONE)
+		h1s->h1c->flags |= H1C_F_IN_BUSY;
+	else {
+		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+		h1s->req.state = H1_MSG_TUNNEL;
+		if (h1s->h1c->flags & H1C_F_IN_BUSY) {
+			h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+			tasklet_wakeup(h1s->h1c->wait_event.task);
+		}
+	}
+}
+
+/*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
@@ -955,10 +990,17 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	if (!(h1m->flags & H1_MF_RESP)) {
 		h1s->meth = h1sl.rq.meth;
 
-		/* Request have always a known length */
+		/* By default, request have always a known length */
 		h1m->flags |= H1_MF_XFER_LEN;
-		if (!(h1m->flags & H1_MF_CHNK) && !h1m->body_len)
+
+		if (h1s->meth == HTTP_METH_CONNECT) {
+			/* Switch CONNECT requests to tunnel mode */
+			h1_set_req_tunnel_mode(h1s);
+		}
+		else if (!(h1m->flags & H1_MF_CHNK) && !h1m->body_len) {
+			/* Switch requests with no body to done. */
 			h1m->state = H1_MSG_DONE;
+		}
 
 		if (!h1_process_req_vsn(h1s, h1m, h1sl)) {
 			h1m->err_pos = h1sl.rq.v.ptr - b_head(buf);
@@ -969,22 +1011,32 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	else {
 		h1s->status = h1sl.st.status;
 
-		if ((h1s->meth == HTTP_METH_HEAD) ||
-		    (h1s->status >= 100 && h1s->status < 200) ||
-		    (h1s->status == 204) || (h1s->status == 304) ||
-		    (h1s->meth == HTTP_METH_CONNECT && h1s->status == 200)) {
+		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
+		    h1s->status == 101) {
+			/* Switch successfull replies to CONNECT requests and
+			 * protocol switching to tunnel mode. */
+			h1_set_res_tunnel_mode(h1s);
+		}
+		else if ((h1s->meth == HTTP_METH_HEAD) ||
+			 (h1s->status >= 100 && h1s->status < 200) ||
+			 (h1s->status == 204) || (h1s->status == 304)) {
+			/* Switch responses without body to done. */
 			h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 			h1m->flags |= H1_MF_XFER_LEN;
 			h1m->curr_len = h1m->body_len = 0;
 			h1m->state = H1_MSG_DONE;
 		}
 		else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
+			/* Responses with a known body length. Switch requests
+			 * with no body to done. */
 			h1m->flags |= H1_MF_XFER_LEN;
 			if ((h1m->flags & H1_MF_CLEN) && !h1m->body_len)
 				h1m->state = H1_MSG_DONE;
 		}
-		else
+		else {
+			/* Responses with an unknown body length */
 			h1m->state = H1_MSG_TUNNEL;
+		}
 
 		if (!h1_process_res_vsn(h1s, h1m, h1sl)) {
 			h1m->err_pos = h1sl.st.v.ptr - b_head(buf);
@@ -1292,16 +1344,6 @@ static void h1_sync_messages(struct h1c *h1c)
 		h1s->res.flags |= H1_MF_NO_PHDR;
 		h1c->flags &= ~H1C_F_IN_BUSY;
 	}
-	else if (!b_data(&h1c->obuf) &&
-		 h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
-		if (h1s->flags & H1S_F_WANT_TUN) {
-			h1m_init_req(&h1s->req);
-			h1m_init_res(&h1s->res);
-			h1s->req.state = H1_MSG_TUNNEL;
-			h1s->res.state = H1_MSG_TUNNEL;
-			h1c->flags &= ~H1C_F_IN_BUSY;
-		}
-	}
 }
 
 /*
@@ -1588,7 +1630,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					}
 				}
 
-				if (((h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
+				if ((h1s->meth != HTTP_METH_CONNECT &&
+				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
 				    (h1s->status >= 200 && h1s->status != 204 && h1s->status != 304 &&
 				     h1s->meth != HTTP_METH_HEAD && !(h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) &&
@@ -1604,7 +1647,17 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (!chunk_memcat(tmp, "\r\n", 2))
 					goto copy;
 
-				h1m->state = H1_MSG_DATA;
+				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
+					/* a CONNECT request is sent to the server. Switch it to tunnel mode. */
+					h1_set_req_tunnel_mode(h1s);
+				}
+				else if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) || h1s->status == 101) {
+					/* a successfull reply to a CONNECT or a protocol switching is sent
+					 * to the client . Switch the response to tunnel mode. */
+					h1_set_res_tunnel_mode(h1s);
+				}
+				else
+					h1m->state = H1_MSG_DATA;
 				break;
 
 			case HTX_BLK_DATA:

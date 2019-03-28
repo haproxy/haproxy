@@ -1236,6 +1236,11 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			channel_htx_forward_forever(req, htx);
 	}
 
+	if (txn->meth == HTTP_METH_CONNECT) {
+		msg->msg_state = HTTP_MSG_TUNNEL;
+		goto done;
+	}
+
 	/* Check if the end-of-message is reached and if so, switch the message
 	 * in HTTP_MSG_DONE state.
 	 */
@@ -2159,12 +2164,10 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 			channel_htx_forward_forever(res, htx);
 	}
 
-	if (!(msg->flags & HTTP_MSGF_XFER_LEN)) {
-		/* The server still sending data that should be filtered */
-		if (res->flags & CF_SHUTR || !HAS_RSP_DATA_FILTERS(s)) {
-			msg->msg_state = HTTP_MSG_TUNNEL;
-			goto done;
-		}
+	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
+	    (!(msg->flags & HTTP_MSGF_XFER_LEN) && (res->flags & CF_SHUTR || !HAS_RSP_DATA_FILTERS(s)))) {
+		msg->msg_state = HTTP_MSG_TUNNEL;
+		goto done;
 	}
 
 	/* Check if the end-of-message is reached and if so, switch the message
