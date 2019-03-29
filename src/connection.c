@@ -789,7 +789,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 {
 	char *line;
 	uint32_t hdr_len;
-	uint8_t ip_v;
+	uint8_t ip_ver;
 	int ret;
 
 	/* we might have been called just after an asynchronous shutr */
@@ -857,9 +857,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto missing;
 
 	/* Get IP version from the first four bits */
-	ip_v = (*line & 0xf0) >> 4;
+	ip_ver = (*line & 0xf0) >> 4;
 
-	if (ip_v == 4) {
+	if (ip_ver == 4) {
 		struct ip *hdr_ip4;
 		struct my_tcphdr *hdr_tcp;
 
@@ -889,7 +889,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
-	else if (ip_v == 6) {
+	else if (ip_ver == 6) {
 		struct ip6_hdr *hdr_ip6;
 		struct my_tcphdr *hdr_tcp;
 
