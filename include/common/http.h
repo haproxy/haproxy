@@ -121,11 +121,11 @@ struct http_method_desc {
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern const char *http_err_msgs[HTTP_ERR_SIZE];
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
-const struct ist http_known_methods[HTTP_METH_OTHER];
+extern const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
 
-const struct ist HTTP_100;
-const struct ist HTTP_103;
+extern const struct ist HTTP_100;
+extern const struct ist HTTP_103;
 extern const char *HTTP_301;
 extern const char *HTTP_302;
 extern const char *HTTP_303;
