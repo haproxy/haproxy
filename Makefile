@@ -382,7 +382,7 @@ endif
 ifeq ($(TARGET),aix51)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
-  TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT
+  TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT -Dunsetenv=my_unsetenv
   DEBUG_CFLAGS    =
 endif
 
