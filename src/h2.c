@@ -25,7 +25,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <common/config.h>
 #include <common/h2.h>
 #include <common/http-hdr.h>

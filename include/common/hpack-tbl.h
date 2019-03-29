@@ -27,7 +27,7 @@
 #ifndef _COMMON_HPACK_TBL_H
 #define _COMMON_HPACK_TBL_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <common/config.h>
 #include <common/http-hdr.h>

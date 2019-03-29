@@ -1,7 +1,7 @@
 #ifndef _SPOP_FUNCTIONS_H
 #define _SPOP_FUNCTIONS_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <spoe_types.h>
 

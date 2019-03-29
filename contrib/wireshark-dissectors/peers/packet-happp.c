@@ -22,7 +22,7 @@
  */
 
 #include <stdio.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <inttypes.h>
 #include <arpa/inet.h>
 

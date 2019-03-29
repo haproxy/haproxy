@@ -22,7 +22,7 @@
 #ifndef _COMMON_HASH_H_
 #define _COMMON_HASH_H_
 
-#include <stdint.h>
+#include <inttypes.h>
 
 unsigned int hash_djb2(const char *key, int len);
 unsigned int hash_wt6(const char *key, int len);

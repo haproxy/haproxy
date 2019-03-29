@@ -22,7 +22,7 @@
 #ifndef _PROTO_CHANNEL_H
 #define _PROTO_CHANNEL_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

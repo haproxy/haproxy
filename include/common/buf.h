@@ -28,7 +28,7 @@
 #ifndef _COMMON_BUF_H
 #define _COMMON_BUF_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <unistd.h>
 

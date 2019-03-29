@@ -10,7 +10,7 @@
  *
  */
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <sys/time.h>
 

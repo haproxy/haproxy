@@ -27,7 +27,7 @@
 #ifndef _COMMON_HTTP_HDR_H
 #define _COMMON_HTTP_HDR_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <common/ist.h>
 
 /* a header field made of a name and a value. Such structure stores 4 longs so

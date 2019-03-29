@@ -22,7 +22,7 @@
 #ifndef _COMMON_TIME_H
 #define _COMMON_TIME_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>

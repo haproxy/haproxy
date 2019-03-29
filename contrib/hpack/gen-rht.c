@@ -9,7 +9,7 @@
  *   00 => 0x0a, 01 => 0x0d, 10 => 0x16, 11 => EOS
  */
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

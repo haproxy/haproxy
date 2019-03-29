@@ -27,7 +27,7 @@
 #ifndef _PROTO_HPACK_HUFF_H
 #define _PROTO_HPACK_HUFF_H
 
-#include <stdint.h>
+#include <inttypes.h>
 
 int huff_enc(const char *s, char *out);
 int huff_dec(const uint8_t *huff, int hlen, char *out, int olen);

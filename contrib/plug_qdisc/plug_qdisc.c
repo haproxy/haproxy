@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <inttypes.h>
 #include <netlink/cache.h>
 #include <netlink/cli/utils.h>
 #include <netlink/cli/tc.h>

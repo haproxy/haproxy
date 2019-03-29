@@ -17,7 +17,7 @@
 #include <common/mini-clist.h>
 #include <types/shctx.h>
 
-#include <stdint.h>
+#include <inttypes.h>
 
 #ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED

@@ -28,7 +28,7 @@
 #ifndef _COMMON_ISTBUF_H
 #define _COMMON_ISTBUF_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <common/buf.h>
 #include <common/ist.h>
 

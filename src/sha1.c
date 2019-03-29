@@ -26,7 +26,7 @@
 
 /* this is only to get definitions for memcpy(), ntohl() and htonl() */
 #include <string.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <arpa/inet.h>
 
 #include <import/sha1.h>

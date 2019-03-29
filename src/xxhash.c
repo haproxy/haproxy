@@ -98,7 +98,7 @@ static void* XXH_memcpy(void* dest, const void* src, size_t size)
 // Basic Types
 //**************************************
 #if defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L   // C99
-# include <stdint.h>
+# include <inttypes.h>
 typedef uint8_t  BYTE;
 typedef uint16_t U16;
 typedef uint32_t U32;

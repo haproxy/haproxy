@@ -22,7 +22,7 @@
 #ifndef _PROTO_PROTOCOL_BUFFERS_H
 #define _PROTO_PROTOCOL_BUFFERS_H
 
-#include <stdint.h>
+#include <inttypes.h>
 #include <types/arg.h>
 #include <types/protocol_buffers.h>
 #include <proto/sample.h>

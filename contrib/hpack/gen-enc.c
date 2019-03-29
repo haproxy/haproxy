@@ -8,7 +8,7 @@
  *    gcc -I../../include -I../../ebtree -o gen-enc gen-enc.c
  */
 #include <ctype.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
