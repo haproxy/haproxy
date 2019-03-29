@@ -5,6 +5,8 @@
 # segmentaion fault when first errors are catched, when the "filter spoe" line is
 # parsed.
 
+#REGTEST_TYPE=bug
+
 varnishtest "SPOE bug: missing configuration file"
 
 feature ignore_unknown_macro

@@ -32,6 +32,7 @@
 
 varnishtest "Basic LUA test h00000"
 #REQUIRE_OPTIONS=LUA
+#REGTEST_TYPE=bug
 
 feature ignore_unknown_macro
 

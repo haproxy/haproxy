@@ -3,6 +3,7 @@
 varnishtest "Compression validation"
 #REQUIRE_VERSION=1.6
 #REQUIRE_OPTIONS=ZLIB|SLZ,LUA
+#REGTEST_TYPE=slow
 
 feature ignore_unknown_macro
 

@@ -18,6 +18,8 @@
 # Note that the problem doesn't happen when using %[src] or %[dst] since
 # all sample expressions set LW_XPRT.
 
+#REGTEST_TYPE=bug
+
 varnishtest "Wrong ip/port logging"
 feature ignore_unknown_macro
 

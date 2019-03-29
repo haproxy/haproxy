@@ -166,6 +166,7 @@ ERR =
 
 #### May be used to force running a specific set of reg-tests
 REG_TEST_FILES =
+REG_TEST_SCRIPT=./scripts/run-regtests.sh
 
 #### Compiler-specific flags that may be used to disable some negative over-
 # optimization or to silence some warnings. -fno-strict-aliasing is needed with
@@ -967,17 +968,19 @@ endif
 
 # Target to run the regression testing script files.
 reg-tests:
-	$(Q)./scripts/run-regtests.sh --LEVEL "$(LEVEL)" $(REGTEST_ARGS) $(REG_TEST_FILES)
+	$(Q)$(REG_TEST_SCRIPT) --type "$(REGTESTS_TYPES)" $(REGTEST_ARGS) $(REG_TEST_FILES)
 .PHONY: $(REGTEST_ARGS)
 
 reg-tests-help:
 	@echo
-	@echo "To launch the reg tests for haproxy, first export to your environment VTEST_PROGRAM variable to point to your vtest program:"
+	@echo "To launch the reg tests for haproxy, first export to your environment "
+	@echo "VTEST_PROGRAM variable to point to your vtest program:"
 	@echo "    $$ export VTEST_PROGRAM=/opt/local/bin/vtest"
 	@echo "or"
 	@echo "    $$ setenv VTEST_PROGRAM /opt/local/bin/vtest"
 	@echo
-	@echo "The same thing may be done to set your haproxy program with HAPROXY_PROGRAM but with ./haproxy as default value."
+	@echo "The same thing may be done to set your haproxy program with HAPROXY_PROGRAM "
+	@echo "but with ./haproxy as default value."
 	@echo
 	@echo "To run all the tests:"
 	@echo "    $$ make reg-tests"
@@ -985,16 +988,23 @@ reg-tests-help:
 	@echo "You can also set the programs to be used on the command line:"
 	@echo "    $$ VTEST_PROGRAM=<...> HAPROXY_PROGRAM=<...> make reg-tests"
 	@echo
-	@echo "To run tests with specific levels:"
-	@echo "    $$ LEVEL=1,3,4   make reg-tests  #list of levels"
-	@echo "    $$ LEVEL=1-3,5-6 make reg-tests  #list of range of levels"
+	@echo "To run tests with specific types:"
+	@echo "    $$ REGTESTS_TYPES=slow,default make reg-tests"
 	@echo
-	@echo "About the levels:"
-	@echo "    LEVEL 1 scripts are dedicated to pure haproxy compliance tests (prefixed with 'h' letter)."
-	@echo "    LEVEL 2 scripts are slow scripts (prefixed with 's' letter)."
-	@echo "    LEVEL 3 scripts are low interest scripts (prefixed with 'l' letter)."
-	@echo "    LEVEL 4 scripts are in relation with bugs they help to reproduce (prefixed with 'b' letter)."
-	@echo "    LEVEL 5 scripts are scripts triggering known broken behaviors for which there is still no fix (prefixed with 'k' letter)."
-	@echo "    LEVEL 6 scripts are experimental, typically used to develop new scripts (prefixed with 'e' lettre)."
+	@echo "with 'any' as default value for REGTESTS_TYPES variable."
+	@echo
+	@echo "About the reg test types:"
+	@echo "    any         : all the tests without distinction (this is the default"
+	@echo "                  value of REGTESTS_TYPES."
+	@echo "    default     : dedicated to pure haproxy compliance tests."
+	@echo "    slow        : scripts which take non negligible time to run."
+	@echo "    bug         : scripts in relation with bugs they help to reproduce."
+	@echo "    broken      : scripts triggering known broken behaviors for which"
+	@echo "                  there is still no fix."
+	@echo "    experimental: for scripts which are experimental, typically used to"
+	@echo "                  develop new scripts."
+	@echo
+	@echo "Note that 'reg-tests' target run '"$(REG_TEST_SCRIPT)"' script"
+	@echo "(see --help option of this script for more information)."
 
 .PHONY: reg-tests reg-tests-help

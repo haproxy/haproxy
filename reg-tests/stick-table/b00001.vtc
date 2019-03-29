@@ -14,6 +14,8 @@
 #
 # This should be backported to 1.8
 
+#REGTEST_TYPE=bug
+
 varnishtest "stick-tables: Test expirations when used with table_*"
 
 # As some macros for haproxy are used in this file, this line is mandatory.

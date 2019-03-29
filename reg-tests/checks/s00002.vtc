@@ -3,6 +3,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=1.8
 #EXCLUDE_TARGETS=freebsd
+#REGTEST_TYPE=slow
 
 # This script start 40 servers named s0 up to s39.
 # For 0 <= i <= 19:

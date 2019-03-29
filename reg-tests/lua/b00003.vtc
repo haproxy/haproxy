@@ -15,6 +15,7 @@
 
 varnishtest "possible CLOSE-WAIT with '\n' headers"
 #REQUIRE_OPTIONS=LUA
+#REGTEST_TYPE=bug
 
 feature ignore_unknown_macro
 

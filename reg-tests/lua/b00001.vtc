@@ -21,6 +21,7 @@
 
 varnishtest "LUA bug"
 #REQUIRE_OPTIONS=LUA
+#REGTEST_TYPE=bug
 
 feature ignore_unknown_macro
 

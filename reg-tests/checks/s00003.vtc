@@ -1,6 +1,8 @@
 varnishtest "Check: smptchk option"
 feature ignore_unknown_macro
 
+#REGTEST_TYPE=slow
+
 barrier b cond 3
 
 syslog S1 -level notice {

@@ -13,6 +13,8 @@ varnishtest "PROXY protocol random failures"
 
 feature ignore_unknown_macro
 
+#REGTEST_TYPE=bug
+
 syslog Slog_1 -repeat 8 -level info {
     recv
     expect ~ "Connect from .* to ${h1_ssl_addr}:${h1_ssl_port}"

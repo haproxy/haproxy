@@ -15,6 +15,7 @@
 #    #define SSL_set_app_data(s,arg)     (SSL_set_ex_data(s,0,(char *)arg))
 #    #define SSL_get_app_data(s)      (SSL_get_ex_data(s,0))
 
+#REGTEST_TYPE=bug
 
 varnishtest "OpenSSL bug: Random crashes"
 #REQUIRE_OPTIONS=OPENSSL

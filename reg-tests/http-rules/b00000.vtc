@@ -11,6 +11,8 @@ varnishtest "map_regm get_trash_chunk test"
 feature ignore_unknown_macro
 
 #REQUIRE_VERSION=1.6
+#REGTEST_TYPE=bug
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."

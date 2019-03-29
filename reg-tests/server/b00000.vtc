@@ -2,6 +2,8 @@ varnishtest "Set server FQDN via CLI crash"
 
 feature ignore_unknown_macro
 
+#REGTEST_TYPE=bug
+
 # Do nothing. Is there only to create s1_* macros
 server s1 {
 } -start

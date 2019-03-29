@@ -1,5 +1,7 @@
 # Shipped with the commit fixing the bug.
 
+#REGTEST_TYPE=bug
+
 varnishtest "Stick Table: Crash when accessing unknown key."
 feature ignore_unknown_macro
 
