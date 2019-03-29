@@ -41,7 +41,7 @@ syslog Slog {
 
 haproxy h1 -conf {
     global
-        lua-load ${testdir}/b00001.lua
+        lua-load ${testdir}/bad_http_clt_req_duration.lua
 
     defaults
         timeout client 1s

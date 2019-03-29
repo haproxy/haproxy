@@ -10,7 +10,7 @@ feature ignore_unknown_macro
 haproxy h1 -conf {
 global
 #	log stdout format short daemon
-	lua-load		${testdir}/s00000.lua
+	lua-load		${testdir}/lua_validation.lua
 
 defaults
 	mode			http

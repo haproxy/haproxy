@@ -173,7 +173,7 @@ haproxy h2 -conf {
     http-request set-header Okwordtest %[var(sess.okword)] #OK
     http-request set-var(sess.qsword) url_param(qs),word(1,_,2) #Yes_It
     http-request set-header Qswordtest %[var(sess.qsword)] #Yes_It
-    http-request set-header Qswordregmtest %[var(sess.qsword),map_regm(${testdir}/h00002.map)] #It_Yes
+    http-request set-header Qswordregmtest %[var(sess.qsword),map_regm(${testdir}/converters_ipmask_concat_strcmp_field_word.map)] #It_Yes
     http-request set-header Wordtest2 %[var(sess.fieldhdr),word(2,_,0)] #f2_f3__f5
     http-request set-header Wordtest3 %[var(sess.fieldconcat),word(3,_,2)] #f3__f5
     http-request set-header Wordtest4 %[hdr(Fieldconcat2),word(-2,_,3)] #f1_f2_f3

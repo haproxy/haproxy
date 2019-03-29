@@ -6,8 +6,8 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
-        lua-load ${testdir}/b00002.lua
-        lua-load ${testdir}/b00002_print_r.lua
+        lua-load ${testdir}/txn_get_priv.lua
+        lua-load ${testdir}/txn_get_priv-print_r.lua
 
     frontend fe1
         mode http

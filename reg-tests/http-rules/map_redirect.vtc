@@ -46,19 +46,19 @@ haproxy h1 -conf {
     bind "fd@${fe1}"
 
     # redirect Host: example.org / subdomain.example.org
-    http-request redirect prefix %[req.hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map)] code 301 if { hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) -m found }
+    http-request redirect prefix %[req.hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map)] code 301 if { hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map) -m found }
 
     # set var and redirect in be1
-    http-request set-var(txn.testvar) req.hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) if { hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/h00003.map) -m found }
+    http-request set-var(txn.testvar) req.hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map) if { hdr(Testvar),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map) -m found }
 
     # use map to select backend (no default map value)
-    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map)] if { hdr_dom(Host) -i test1.example.com || hdr_dom(Host) -i test2.example.com }
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map)] if { hdr_dom(Host) -i test1.example.com || hdr_dom(Host) -i test2.example.com }
 
     # use map to select backend with default value(test3_be)
-    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map,test3_be)] if { hdr_dom(Host) -m end -i example.com }
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test3_be)] if { hdr_dom(Host) -m end -i example.com }
 
     # use map(after del map test1.example.com) default value(test4_be)
-    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/h00003-be.map,test4_be)] if { hdr_dom(Host) -m end -i example.invalid }
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test4_be)] if { hdr_dom(Host) -m end -i example.invalid }
 
     default_backend be1
 
@@ -146,29 +146,29 @@ client c7 -connect ${h1_fe1_sock} {
 
 # cli show maps
 haproxy h1 -cli {
-    send "show map ${testdir}/h00003.map"
+    send "show map ${testdir}/map_redirect.map"
     expect ~ "^0x[a-f0-9]+ example\\.org https://www\\.example\\.org\\n0x[a-f0-9]+ subdomain\\.example\\.org https://www\\.subdomain\\.example\\.org\\n$"
 
-    send "show map ${testdir}/h00003-be.map"
+    send "show map ${testdir}/map_redirect-be.map"
     expect ~ "^0x[a-f0-9]+ test1\\.example\\.com test1_be\\n0x[a-f0-9]+ test1\\.example\\.invalid test1_be\\n0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"
 }
 
 haproxy h1 -cli {
-    # clear map ${testdir}/h00003.map
-    send "clear map ${testdir}/h00003.map"
+    # clear map ${testdir}/map_redirect.map
+    send "clear map ${testdir}/map_redirect.map"
     expect ~ "^\\n"
 
-    send "show map ${testdir}/h00003.map"
+    send "show map ${testdir}/map_redirect.map"
     expect ~ "^\\n"
 
-    # del map ${testdir}/h00003-be.map test1.example.{com,invalid}
-    send "del map ${testdir}/h00003-be.map test1.example.com"
+    # del map ${testdir}/map_redirect-be.map test1.example.{com,invalid}
+    send "del map ${testdir}/map_redirect-be.map test1.example.com"
     expect ~ "^\\n"
 
-    send "del map ${testdir}/h00003-be.map test1.example.invalid"
+    send "del map ${testdir}/map_redirect-be.map test1.example.invalid"
     expect ~ "^\\n"
 
-    send "show map ${testdir}/h00003-be.map"
+    send "show map ${testdir}/map_redirect-be.map"
     expect ~ "^0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"
 }
 

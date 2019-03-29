@@ -12,7 +12,7 @@ server s1 {
 
 haproxy h1 -conf {
     global
-        lua-load ${testdir}/k_healthcheckmail.lua
+        lua-load ${testdir}/healthcheckmail.lua
 defaults
     frontend femail
         mode tcp

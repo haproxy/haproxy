@@ -30,7 +30,7 @@ haproxy h1 -conf {
         timeout connect 1s
 
     global
-        lua-load ${testdir}/b00003.lua
+        lua-load ${testdir}/close_wait_lf.lua
 
     frontend frt
         log ${Slog_addr}:${Slog_port} local0 debug err

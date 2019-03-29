@@ -57,9 +57,9 @@ haproxy h1 -conf {
     # Store host header in variable
     http-request set-var(txn.host) req.hdr(Host)
     # This works correctly
-    http-request set-header X-Mapped-From-Header %[req.hdr(Host),map_regm(${testdir}/b00000.map,"unknown")]
+    http-request set-header X-Mapped-From-Header %[req.hdr(Host),map_regm(${testdir}/map_regm_with_backref.map,"unknown")]
     # This breaks before commit 271022150d7961b9aa39dbfd88e0c6a4bc48c3ee
-    http-request set-header X-Mapped-From-Var %[var(txn.host),map_regm(${testdir}/b00000.map,"unknown")]
+    http-request set-header X-Mapped-From-Var %[var(txn.host),map_regm(${testdir}/map_regm_with_backref.map,"unknown")]
 
     default_backend be1
 
