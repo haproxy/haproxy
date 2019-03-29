@@ -3577,12 +3577,14 @@ char *memvprintf(char **out, const char *format, va_list orig_args)
 		return NULL;
 
 	do {
+		char buf1;
+
 		/* vsnprintf() will return the required length even when the
 		 * target buffer is NULL. We do this in a loop just in case
 		 * intermediate evaluations get wrong.
 		 */
 		va_copy(args, orig_args);
-		needed = vsnprintf(ret, allocated, format, args);
+		needed = vsnprintf(ret ? ret : &buf1, allocated, format, args);
 		va_end(args);
 		if (needed < allocated) {
 			/* Note: on Solaris 8, the first iteration always
