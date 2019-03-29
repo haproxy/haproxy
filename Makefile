@@ -810,7 +810,8 @@ help:
 	$(Q)sed -ne "/^[^#]*$$/q;s/^#\(.*\)/\1/p" Makefile
 
 # Used only to force a rebuild if some build options change
-.build_opts: $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
+build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
+.build_opts: $(build_opts)
 
 haproxy: $(OPTIONS_OBJS) $(OBJS) $(EBTREE_OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
