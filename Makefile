@@ -47,6 +47,7 @@
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
 #   USE_SYSTEMD          : enable sd_notify() support.
+#   USE_OBSOLETE_LINKER  : use when the linker fails to emit __start_init/__stop_init
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -279,7 +280,8 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_VSYSCALL             \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
-           USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_SYSTEMD
+           USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_SYSTEMD            \
+           USE_OBSOLETE_LINKER
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -379,7 +381,7 @@ endif
 # AIX 5.1 only
 ifeq ($(TARGET),aix51)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_LIBCRYPT)
+    USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -Dss_family=__ss_family
   DEBUG_CFLAGS    =
 endif
@@ -387,14 +389,15 @@ endif
 # AIX 5.2 and above
 ifeq ($(TARGET),aix52)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_LIBCRYPT)
+    USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
 endif
 
 # Cygwin
 ifeq ($(TARGET),cygwin)
-  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
+  set_target_defaults = $(call default_opts, \
+    USE_POLL USE_TPROXY USE_OBSOLETE_LINKER)
   # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
   TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
 endif

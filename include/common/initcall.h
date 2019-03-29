@@ -32,6 +32,27 @@
 /* List of known init stages. If others are added, please declare their
  * section at the end of the file below.
  */
+
+/* The principle of the initcalls is to create optional sections in the target
+ * program which are made of arrays of structures containing a function pointer
+ * and 3 argument pointers. Then at boot time, these sections are scanned in a
+ * well defined order to call in turn each of these functions with their
+ * arguments. This allows to declare register callbacks in C files without
+ * having to export lots of things nor to cross-reference functions. There are
+ * several initialization stages defined so that certain guarantees are offered
+ * (for example list heads might or might not be initialized, pools might or
+ * might not have been created yet).
+ *
+ * On some very old platforms there is no convenient way to retrieve the start
+ * or stop pointer for these sections so there is no reliable way to enumerate
+ * the callbacks. When this is the case, as detected when USE_OBSOLETE_LINKER
+ * is set, instead of using sections we exclusively use constructors whose name
+ * is based on the current line number in the file to guarantee uniqueness.
+ * When called, these constructors then add their callback to their respective
+ * list. It works as well but slightly inflates the executable's size since
+ * code has to be emitted just to register each of these callbacks.
+ */
+
 /*
  * Please keep those names short enough, they are used to generate section
  * names, Mac OS X accepts section names up to 16 characters, and we prefix
@@ -53,7 +74,13 @@ struct initcall {
 	void *arg1;
 	void *arg2;
 	void *arg3;
+#if defined(USE_OBSOLETE_LINKER)
+	void *next;
+#endif
 };
+
+
+#if !defined(USE_OBSOLETE_LINKER)
 
 #ifdef __APPLE__
 #define HA_SECTION(s) __section__("__DATA, i_" # s)
@@ -72,7 +99,7 @@ struct initcall {
  * use INITCALL{0..3}() instead.
  */
 #define __DECLARE_INITCALL(stg, linenum, function, a1, a2, a3)     \
-        static const struct initcall *__initcb_##linenum           \
+	static const struct initcall *__initcb_##linenum           \
 	    __attribute__((__used__,HA_SECTION(stg))) =            \
 	        (stg < STG_SIZE) ? &(const struct initcall) {      \
 		.fct = (void (*)(void *,void *,void *))function,   \
@@ -80,6 +107,36 @@ struct initcall {
 		.arg2 = (void *)(a2),                              \
 		.arg3 = (void *)(a3),                              \
 	} : NULL
+
+#else // USE_OBSOLETE_LINKER
+
+/* Declare a static constructor function to register a static descriptor for
+ * stage <stg>, with an element referencing function <function> and arguments
+ * <a1..a3>. <linenum> is needed to deduplicate entries created from a same
+ * file. The trick with (stg<STG_SIZE) consists in verifying that stg if a
+ * valid enum value from the initcall set, and to emit a warning or error if
+ * it is not.
+ * The function's type is cast so that it is technically possible to call a
+ * function taking other argument types, provided they are all the same size
+ * as a pointer (args are cast to (void*)). Do not use this macro directly,
+ * use INITCALL{0..3}() instead.
+ */
+#define __DECLARE_INITCALL(stg, linenum, function, a1, a2, a3)     \
+__attribute__((constructor)) static void __initcb_##linenum()      \
+{                                                                  \
+	static struct initcall entry = {                           \
+		.fct  = (void (*)(void *,void *,void *))function,  \
+		.arg1 = (void *)(a1),                              \
+		.arg2 = (void *)(a2),                              \
+		.arg3 = (void *)(a3),                              \
+	};                                                         \
+	if (stg < STG_SIZE) {                                      \
+		entry.next = __initstg[stg];                       \
+		__initstg[stg] = &entry;                           \
+	};                                                         \
+}
+
+#endif // USE_OBSOLETE_LINKER
 
 /* This is used to resolve <linenum> to an integer before calling
  * __DECLARE_INITCALL(). Do not use this macro directly, use INITCALL{0..3}()
@@ -112,12 +169,21 @@ struct initcall {
 #define INITCALL3(stage, function, arg1, arg2, arg3)                   \
 	_DECLARE_INITCALL(stage, __LINE__, function, arg1, arg2, arg3)
 
+#if !defined(USE_OBSOLETE_LINKER)
 /* Iterate pointer p (of type initcall**) over all registered calls at
  * stage <stg>.
  */
 #define FOREACH_INITCALL(p,stg)                                               \
 	for ((p) = &(__start_init_##stg); (p) < &(__stop_init_##stg); (p)++)
 
+#else // USE_OBSOLETE_LINKER
+
+#define FOREACH_INITCALL(p,stg)                                               \
+	for ((p) = __initstg[stg]; (p); (p) = (p)->next)
+#endif // USE_OBSOLETE_LINKER
+
+
+#if !defined(USE_OBSOLETE_LINKER)
 /* Declare a section for stage <stg>. The start and stop pointers are set by
  * the linker itself, which is why they're declared extern here. The weak
  * attribute is used so that we declare them ourselves if the section is
@@ -143,9 +209,22 @@ DECLARE_INIT_SECTION(STG_POOL);
 DECLARE_INIT_SECTION(STG_REGISTER);
 DECLARE_INIT_SECTION(STG_INIT);
 
+// for use in the main haproxy.c file
+#define DECLARE_INIT_STAGES asm("")
+
 /* not needed anymore */
 #undef DECLARE_INIT_SECTION
 
+#else // USE_OBSOLETE_LINKER
+
+extern struct initcall *__initstg[STG_SIZE];
+
+// for use in the main haproxy.c file
+#define DECLARE_INIT_STAGES struct initcall *__initstg[STG_SIZE]
+
+#endif // USE_OBSOLETE_LINKER
+
+#if !defined(USE_OBSOLETE_LINKER)
 /* Run the initcalls for stage <stg>. The test on <stg> is only there to
  * ensure it is a valid initcall stage.
  */
@@ -157,6 +236,22 @@ DECLARE_INIT_SECTION(STG_INIT);
 		FOREACH_INITCALL(ptr, stg)                                     \
 			(*ptr)->fct((*ptr)->arg1, (*ptr)->arg2, (*ptr)->arg3); \
 	} while (0)
+
+#else // USE_OBSOLETE_LINKER
+
+/* Run the initcalls for stage <stg>. The test on <stg> is only there to
+ * ensure it is a valid initcall stage.
+ */
+#define RUN_INITCALLS(stg)                                                     \
+	do {                                                                   \
+		const struct initcall *ptr;                                    \
+		if (stg >= STG_SIZE)                                           \
+			break;                                                 \
+		FOREACH_INITCALL(ptr, stg)                                     \
+			(ptr)->fct((ptr)->arg1, (ptr)->arg2, (ptr)->arg3);     \
+	} while (0)
+
+#endif // USE_OBSOLETE_LINKER
 
 #endif /* _COMMON_INIT_H */
 

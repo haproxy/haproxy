@@ -124,6 +124,9 @@
 #include <proto/ssl_sock.h>
 #endif
 
+/* array of init calls for older platforms */
+DECLARE_INIT_STAGES;
+
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
