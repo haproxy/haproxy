@@ -93,6 +93,7 @@ enum h1m_state {
 #define H1_MF_XFER_ENC          0x00000200 // transfer-encoding is present
 #define H1_MF_NO_PHDR           0x00000400 // don't add pseudo-headers in the header list
 #define H1_MF_HDRS_ONLY         0x00000800 // parse headers only
+#define H1_MF_CLEAN_CONN_HDR    0x00001000 // skip close/keep-alive values of connection headers during parsing
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
@@ -144,7 +145,7 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 
 int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value);
 void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
-void h1_parse_connection_header(struct h1m *h1m, struct ist value);
+void h1_parse_connection_header(struct h1m *h1m, struct ist *value);
 
 /* for debugging, reports the HTTP/1 message state name */
 static inline const char *h1m_state_str(enum h1m_state msg_state)
