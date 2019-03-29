@@ -3114,8 +3114,7 @@ static int stats_send_htx_headers(struct stream_interface *si, struct htx *htx)
 		goto full;
 	sl->info.res.status = 200;
 
-	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
-	    !htx_add_header(htx, ist("Connection"), ist("close")))
+	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")))
 		goto full;
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("text/html")))
@@ -3191,7 +3190,6 @@ static int stats_send_htx_redirect(struct stream_interface *si, struct htx *htx)
 	sl->info.res.status = 303;
 
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
-	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
 	    !htx_add_header(htx, ist("Content-Type"), ist("text/plain")) ||
 	    !htx_add_header(htx, ist("Content-Length"), ist("0")) ||
 	    !htx_add_header(htx, ist("Location"), ist2(trash.area, trash.data)))
