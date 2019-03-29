@@ -298,44 +298,44 @@ USE_POLL   = default
 
 # generic system target has nothing specific
 ifeq ($(TARGET),generic)
-  $(call default_opts,USE_POLL USE_TPROXY)
+  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
 endif
 
 # Haiku
 ifeq ($(TARGET),haiku)
   TARGET_LDFLAGS = -lnetwork
-  $(call default_opts,USE_POLL USE_TPROXY)
+  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
 endif
 
 # Linux 2.2
 ifeq ($(TARGET),linux22)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT)
 endif
 
 # Standard Linux 2.4 with netfilter but without epoll()
 ifeq ($(TARGET),linux24)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER)
 endif
 
 # Enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
 ifeq ($(TARGET),linux24e)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_EPOLL USE_MY_EPOLL)
 endif
 
 # Standard Linux 2.6 with netfilter and standard epoll()
 ifeq ($(TARGET),linux26)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_EPOLL USE_FUTEX)
 endif
 
 # Standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
 ifeq ($(TARGET),linux2628)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
     USE_ACCEPT4 USE_LINUX_SPLICE ASSUME_SPLICE_WORKS)
@@ -344,7 +344,7 @@ endif
 # Solaris 8 and above
 ifeq ($(TARGET),solaris)
   # We also enable getaddrinfo() which works since solaris 8.
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_CRYPT_H USE_GETADDRINFO USE_THREAD)
   TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
@@ -352,33 +352,33 @@ endif
 
 # FreeBSD 5 and above
 ifeq ($(TARGET),freebsd)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
     USE_CLOSEFROM)
 endif
 
 # Mac OS/X
 ifeq ($(TARGET),osx)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_KQUEUE)
   EXPORT_SYMBOL  = -export_dynamic
 endif
 
 # OpenBSD 5.7 and above
 ifeq ($(TARGET),openbsd)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4)
 endif
 
 # NetBSD
 ifeq ($(TARGET),netbsd)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_KQUEUE)
 endif
 
 # AIX 5.1 only
 ifeq ($(TARGET),aix51)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -Dss_family=__ss_family
   DEBUG_CFLAGS    =
@@ -386,7 +386,7 @@ endif
 
 # AIX 5.2 and above
 ifeq ($(TARGET),aix52)
-  $(call default_opts, \
+  set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
@@ -394,10 +394,13 @@ endif
 
 # Cygwin
 ifeq ($(TARGET),cygwin)
-  $(call default_opts,USE_POLL USE_TPROXY)
+  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
   # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
   TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
 endif
+
+# set the default settings according to the target above
+$(set_target_defaults)
 
 #### Determine version, sub-version and release date.
 # If GIT is found, and IGNOREGIT is not set, VERSION, SUBVERS and VERDATE are
