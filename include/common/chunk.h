@@ -30,7 +30,7 @@
 #include <common/memory.h>
 
 
-struct pool_head *pool_head_trash;
+extern struct pool_head *pool_head_trash;
 
 /* function prototypes */
 
