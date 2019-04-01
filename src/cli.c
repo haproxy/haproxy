@@ -1078,18 +1078,19 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 							const struct sockaddr_un *un;
 
 							un = (struct sockaddr_un *)&l->addr;
-							if (un->sun_path[0] == '\0')
+							if (un->sun_path[0] == '\0') {
 								chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
-							else
-								chunk_appendf(&trash, "%s ", un->sun_path);
+							} else {
+								chunk_appendf(&trash, "unix@%s ", un->sun_path);
+							}
 						} else if (l->addr.ss_family == AF_INET) {
 							addr_to_str(&l->addr, addr, sizeof(addr));
 							port_to_str(&l->addr, port, sizeof(port));
-							chunk_appendf(&trash, "%s:%s ", addr, port);
+							chunk_appendf(&trash, "ipv4@%s:%s ", addr, port);
 						} else if (l->addr.ss_family == AF_INET6) {
 							addr_to_str(&l->addr, addr, sizeof(addr));
 							port_to_str(&l->addr, port, sizeof(port));
-							chunk_appendf(&trash, "[%s]:%s ", addr, port);
+							chunk_appendf(&trash, "ipv6@[%s]:%s ", addr, port);
 						} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
 							chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
 						} else
