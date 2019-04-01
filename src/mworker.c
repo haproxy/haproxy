@@ -16,9 +16,9 @@
 #include <common/mini-clist.h>
 
 #include <proto/mworker.h>
+#include <proto/signal.h>
 
 #include <types/global.h>
-
 
 
 /*
@@ -85,4 +85,23 @@ void mworker_env_to_proc_list()
 	}
 
 	unsetenv("HAPROXY_PROCESSES");
+}
+
+/* Signal blocking and unblocking */
+
+void mworker_block_signals()
+{
+	sigset_t set;
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGUSR1);
+	sigaddset(&set, SIGUSR2);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGCHLD);
+	ha_sigmask(SIG_SETMASK, &set, NULL);
+}
+
+void mworker_unblock_signals()
+{
+	haproxy_unblock_signals();
 }

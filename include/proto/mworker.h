@@ -16,4 +16,8 @@
 void mworker_proc_list_to_env();
 void mworker_env_to_proc_list();
 
+
+void mworker_block_signals();
+void mworker_unblock_signals();
+
 #endif /* PROTO_MWORKER_H_ */

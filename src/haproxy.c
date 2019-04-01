@@ -511,23 +511,6 @@ int current_child(int pid)
 	return 0;
 }
 
-static void mworker_block_signals()
-{
-	sigset_t set;
-
-	sigemptyset(&set);
-	sigaddset(&set, SIGUSR1);
-	sigaddset(&set, SIGUSR2);
-	sigaddset(&set, SIGHUP);
-	sigaddset(&set, SIGCHLD);
-	ha_sigmask(SIG_SETMASK, &set, NULL);
-}
-
-static void mworker_unblock_signals()
-{
-	haproxy_unblock_signals();
-}
-
 /*
  * Send signal to every known children.
  */
