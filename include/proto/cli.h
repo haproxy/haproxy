@@ -34,6 +34,8 @@ void cli_register_kw(struct cli_kw_list *kw_list);
 
 int cli_has_level(struct appctx *appctx, int level);
 
+int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private);
+
 /* mworker proxy functions */
 
 int mworker_cli_proxy_create();
