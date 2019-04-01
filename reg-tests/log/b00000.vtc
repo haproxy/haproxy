@@ -23,7 +23,7 @@ feature ignore_unknown_macro
 
 server s1 {
     rxreq
-    txresp
+    delay 0.02
 } -start
 
 syslog Slg_1 -level notice {
@@ -55,7 +55,7 @@ backend be_app
 
 client c1 -connect ${h1_fe_1_sock} {
     txreq -url "/"
-    delay 0.02
+    rxresp
 } -run
 
 syslog Slg_1 -wait
