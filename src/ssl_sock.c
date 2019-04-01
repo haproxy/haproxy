@@ -72,7 +72,7 @@
 #define X509_getm_notAfter      X509_get_notAfter
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL && !defined LIBRESSL_VERSION_NUMBER)
 #define EVP_CTRL_AEAD_SET_IVLEN EVP_CTRL_GCM_SET_IVLEN
 #define EVP_CTRL_AEAD_SET_TAG   EVP_CTRL_GCM_SET_TAG
 #endif
@@ -9081,7 +9081,7 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
 static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
@@ -9478,7 +9478,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
 	{ "aes_gcm_dec", sample_conv_aes_gcm_dec, ARG4(4,SINT,STR,STR,STR), check_aes_gcm, SMP_T_BIN, SMP_T_BIN },
 #endif
 	{ NULL, NULL, 0, 0, 0 },
