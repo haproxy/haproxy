@@ -17,18 +17,24 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#include <common/initcall.h>
 #include <common/mini-clist.h>
 
+#include <types/cli.h>
+#include <types/global.h>
+#include <types/peers.h>
+#include <types/signal.h>
+
+#include <proto/cli.h>
 #include <proto/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/mworker.h>
-#include <proto/signal.h>
-
-#include <types/global.h>
-#include <types/peers.h>
 #include <proto/proxy.h>
-#include <types/signal.h>
+#include <proto/signal.h>
+#include <proto/stream.h>
+#include <proto/stream_interface.h>
+
 
 #if defined(USE_SYSTEMD)
 #include <systemd/sd-daemon.h>
@@ -374,3 +380,88 @@ void mworker_cleanlisteners()
 			curproxy->state = PR_STSTOPPED;
 	}
 }
+
+/*  Displays workers and processes  */
+static int cli_io_handler_show_proc(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct mworker_proc *child;
+	int old = 0;
+	int up = now.tv_sec - proc_self->timestamp;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		return 1;
+
+	chunk_reset(&trash);
+
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", getpid(), "master", 0, proc_self->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+
+	/* displays current processes */
+
+	chunk_appendf(&trash, "# workers\n");
+	list_for_each_entry(child, &proc_list, list) {
+		up = now.tv_sec - child->timestamp;
+
+		if (child->type != 'w')
+			continue;
+
+		if (child->reloads > 0) {
+			old++;
+			continue;
+		}
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+	}
+
+	/* displays old processes */
+
+	if (old) {
+		char *msg = NULL;
+
+		chunk_appendf(&trash, "# old workers\n");
+		list_for_each_entry(child, &proc_list, list) {
+			up = now.tv_sec - child->timestamp;
+
+			if (child->type != 'w')
+				continue;
+
+			if (child->reloads > 0) {
+				memprintf(&msg, "[was: %u]", child->relative_pid);
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", msg, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+			}
+		}
+		free(msg);
+	}
+
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		si_rx_room_blk(si);
+		return 0;
+	}
+
+	/* dump complete */
+	return 1;
+}
+
+/* reload the master process */
+static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	mworker_reload();
+
+	return 1;
+}
+
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "@<relative pid>", NULL }, "@<relative pid> : send a command to the <relative pid> process", NULL, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "@!<pid>", NULL }, "@!<pid>        : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "@master", NULL }, "@master        : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "reload", NULL },    "reload         : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{{},}
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
