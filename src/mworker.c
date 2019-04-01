@@ -36,8 +36,6 @@
 
 static int exitcode = -1;
 
-int *children = NULL; /* store PIDs of children in master workers mode */
-
 /* ----- children processes handling ----- */
 
 /*
@@ -46,28 +44,45 @@ int *children = NULL; /* store PIDs of children in master workers mode */
 
 static void mworker_kill(int sig)
 {
-	int i;
+	struct mworker_proc *child;
 
-	/* TODO: merge mworker_kill and tell_old_pids for mworker mode */
-	tell_old_pids(sig);
-	if (children) {
-		for (i = 0; i < global.nbproc; i++)
-			kill(children[i], sig);
+	list_for_each_entry(child, &proc_list, list) {
+		/* careful there, we must be sure that the pid > 0, we don't want to emit a kill -1 */
+		if ((child->type == 'w' || child->type == 'e') && (child->reloads == 0) && (child->pid > 0))
+			kill(child->pid, sig);
 	}
 }
 
 
 /* return 1 if a pid is a current child otherwise 0 */
-int current_child(int pid)
+int mworker_current_child(int pid)
 {
-	int i;
+	struct mworker_proc *child;
 
-	for (i = 0; i < global.nbproc; i++) {
-		if (children[i] == pid)
+	list_for_each_entry(child, &proc_list, list) {
+		if ((child->type == 'w' || child->type == 'e') && (child->reloads == 0) && (child->pid == pid))
 			return 1;
 	}
 	return 0;
 }
+
+/*
+ * Return the number of new and old children (including workers and external
+ * processes)
+ */
+int mworker_child_nb()
+{
+	struct mworker_proc *child;
+	int ret = 0;
+
+	list_for_each_entry(child, &proc_list, list) {
+		if ((child->type == 'w' || child->type == 'e'))
+			ret++;
+	}
+
+	return ret;
+}
+
 
 /*
  * serialize the proc list and put it in the environment
@@ -204,6 +219,7 @@ restart_wait:
 		else
 			status = 255;
 
+		/* delete the child from the process list */
 		list_for_each_entry_safe(child, it, &proc_list, list) {
 			if (child->pid != exitpid)
 				continue;
@@ -214,12 +230,15 @@ restart_wait:
 			break;
 		}
 
-		if (!children || !childfound) {
+		if (!childfound) {
+			/* We didn't find the PID in the list, that shouldn't happen but we can emit a warning */
 			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else {
-			/* check if exited child was in the current children list */
-			if (current_child(exitpid)) {
-				ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+			/* check if exited child was is a current child */
+			if (child->reloads == 0) {
+				if (child->type == 'w')
+					ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
@@ -228,9 +247,10 @@ restart_wait:
 					mworker_kill(SIGTERM);
 				}
 			} else {
-				ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
-				/* TODO: merge children and oldpids list in mworker mode */
-				delete_oldpid(exitpid);
+				if (child->type == 'w') {
+					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+					delete_oldpid(exitpid);
+				}
 			}
 			free(child);
 		}

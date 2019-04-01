@@ -31,6 +31,7 @@ void mworker_pipe_register();
 
 void mworker_cleanlisteners();
 
-extern int *children; /* store PIDs of children in master workers mode */
+int mworker_child_nb();
+
 
 #endif /* PROTO_MWORKER_H_ */

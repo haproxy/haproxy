@@ -557,7 +557,6 @@ static void get_cur_unixsocket()
 void mworker_reload()
 {
 	int next_argc = 0;
-	int j;
 	char *msg = NULL;
 	struct rlimit limit;
 	struct per_thread_deinit_fct *ptdf;
@@ -598,29 +597,27 @@ void mworker_reload()
 		next_argc++;
 
 	/* 1 for haproxy -sf, 2 for -x /socket */
-	next_argv = realloc(next_argv, (next_argc + 1 + 2 + global.nbproc + nb_oldpids + 1) * sizeof(char *));
+	next_argv = realloc(next_argv, (next_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1) * sizeof(char *));
 	if (next_argv == NULL)
 		goto alloc_error;
 
-
 	/* add -sf <PID>*  to argv */
-	if (children || nb_oldpids > 0)
+	if (mworker_child_nb() > 0) {
+		struct mworker_proc *child;
+
 		next_argv[next_argc++] = "-sf";
-	if (children) {
-		for (j = 0; j < global.nbproc; next_argc++,j++) {
-			next_argv[next_argc] = memprintf(&msg, "%d", children[j]);
+
+		list_for_each_entry(child, &proc_list, list) {
+			if (child->type != 'w' && child->type != 'e')
+				continue;
+			next_argv[next_argc] = memprintf(&msg, "%d", child->pid);
 			if (next_argv[next_argc] == NULL)
 				goto alloc_error;
 			msg = NULL;
+			next_argc++;
 		}
 	}
-	/* copy old process PIDs */
-	for (j = 0; j < nb_oldpids; next_argc++,j++) {
-		next_argv[next_argc] = memprintf(&msg, "%d", oldpids[j]);
-		if (next_argv[next_argc] == NULL)
-			goto alloc_error;
-		msg = NULL;
-	}
+
 	next_argv[next_argc] = NULL;
 
 	/* add the -x option with the stat socket */
@@ -2844,7 +2841,6 @@ int main(int argc, char **argv)
 
 		/* the father launches the required number of processes */
 		if (!(global.mode & MODE_MWORKER_WAIT)) {
-			children = calloc(global.nbproc, sizeof(int));
 			for (proc = 0; proc < global.nbproc; proc++) {
 				ret = fork();
 				if (ret < 0) {
@@ -2854,7 +2850,6 @@ int main(int argc, char **argv)
 				}
 				else if (ret == 0) /* child breaks here */
 					break;
-				children[proc] = ret;
 				if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 					char pidstr[100];
 					snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
