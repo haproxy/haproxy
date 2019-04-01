@@ -442,6 +442,38 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		free(msg);
 	}
 
+	/* displays external process */
+	chunk_appendf(&trash, "# programs\n");
+	old = 0;
+	list_for_each_entry(child, &proc_list, list) {
+		up = now.tv_sec - child->timestamp;
+
+		if (child->type != 'e')
+			continue;
+
+		if (child->reloads > 0) {
+			old++;
+			continue;
+		}
+		chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, child->id, "-", child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+	}
+
+	if (old) {
+		chunk_appendf(&trash, "# old programs\n");
+		list_for_each_entry(child, &proc_list, list) {
+			up = now.tv_sec - child->timestamp;
+
+			if (child->type != 'e')
+				continue;
+
+			if (child->reloads > 0) {
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, child->id, "-", child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+			}
+		}
+	}
+
+
+
 	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_rx_room_blk(si);
 		return 0;
