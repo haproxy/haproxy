@@ -100,7 +100,7 @@ void mworker_proc_list_to_env()
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp);
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "");
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -145,12 +145,17 @@ void mworker_env_to_proc_list()
 				child->reloads = atoi(subtoken+8) + 1;
 			} else if (strncmp(subtoken, "timestamp=", 10) == 0) {
 				child->timestamp = atoi(subtoken+10);
+			} else if (strncmp(subtoken, "id=", 3) == 0) {
+				child->id = strdup(subtoken+3);
 			}
 		}
-		if (child->pid)
+		if (child->pid) {
 			LIST_ADDQ(&proc_list, &child->list);
-		else
+		} else {
+			free(child->id);
 			free(child);
+
+		}
 	}
 
 	unsetenv("HAPROXY_PROCESSES");
@@ -238,16 +243,18 @@ restart_wait:
 
 		if (!childfound) {
 			/* We didn't find the PID in the list, that shouldn't happen but we can emit a warning */
-			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+			ha_warning("Process %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else {
-			/* check if exited child was is a current child */
+			/* check if exited child is a current child */
 			if (child->reloads == 0) {
 				if (child->type == 'w')
 					ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+				else if (child->type == 'e')
+					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
-					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
+					ha_alert("exit-on-failure: killing every processes with SIGTERM\n");
 					if (exitcode < 0)
 						exitcode = status;
 					mworker_kill(SIGTERM);
@@ -256,6 +263,8 @@ restart_wait:
 				if (child->type == 'w') {
 					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 					delete_oldpid(exitpid);
+				} else if (child->type == 'e') {
+					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				}
 			}
 			free(child);

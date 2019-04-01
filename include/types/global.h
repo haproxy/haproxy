@@ -187,6 +187,9 @@ struct mworker_proc {
 	int pid;
 	char type;  /* m(aster), w(orker)  */
 	/* 3 bytes hole here */
+	char *id;
+	char **command;
+	char *path;
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int relative_pid;
 	int reloads;

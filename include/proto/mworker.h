@@ -33,5 +33,7 @@ void mworker_cleanlisteners();
 
 int mworker_child_nb();
 
+int mworker_ext_launch_all();
+
 
 #endif /* PROTO_MWORKER_H_ */

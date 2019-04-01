@@ -2841,6 +2841,8 @@ int main(int argc, char **argv)
 
 		/* the father launches the required number of processes */
 		if (!(global.mode & MODE_MWORKER_WAIT)) {
+			if (global.mode & MODE_MWORKER)
+				mworker_ext_launch_all();
 			for (proc = 0; proc < global.nbproc; proc++) {
 				ret = fork();
 				if (ret < 0) {
@@ -2862,7 +2864,7 @@ int main(int argc, char **argv)
 					/* find the right mworker_proc */
 					list_for_each_entry(child, &proc_list, list) {
 						if (child->relative_pid == relative_pid &&
-						    child->reloads == 0) {
+						    child->reloads == 0 && child->type == 'w') {
 							child->timestamp = now.tv_sec;
 							child->pid = ret;
 							break;
