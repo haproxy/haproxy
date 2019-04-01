@@ -1078,7 +1078,10 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 							const struct sockaddr_un *un;
 
 							un = (struct sockaddr_un *)&l->addr;
-							chunk_appendf(&trash, "%s ", un->sun_path);
+							if (un->sun_path[0] == '\0')
+								chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
+							else
+								chunk_appendf(&trash, "%s ", un->sun_path);
 						} else if (l->addr.ss_family == AF_INET) {
 							addr_to_str(&l->addr, addr, sizeof(addr));
 							port_to_str(&l->addr, port, sizeof(port));
