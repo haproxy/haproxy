@@ -372,6 +372,57 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
+/*
+ * This function put a list of stats socket separated by a semicolon in the
+ * "HAPROXY_CLI" environment variable
+ */
+int cli_socket_setenv()
+{
+	struct buffer *trash = get_trash_chunk();
+	struct bind_conf *bind_conf;
+
+	if (global.stats_fe) {
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			struct listener *l;
+
+			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+				char addr[46];
+				char port[6];
+
+				if (l->addr.ss_family == AF_UNIX) {
+					const struct sockaddr_un *un;
+
+					un = (struct sockaddr_un *)&l->addr;
+					if (un->sun_path[0] == '\0') {
+						chunk_appendf(trash, "abns@%s", un->sun_path+1);
+					} else {
+						chunk_appendf(trash, "unix@%s", un->sun_path);
+					}
+				} else if (l->addr.ss_family == AF_INET) {
+					addr_to_str(&l->addr, addr, sizeof(addr));
+					port_to_str(&l->addr, port, sizeof(port));
+					chunk_appendf(trash, "ipv4@%s:%s", addr, port);
+				} else if (l->addr.ss_family == AF_INET6) {
+					addr_to_str(&l->addr, addr, sizeof(addr));
+					port_to_str(&l->addr, port, sizeof(port));
+					chunk_appendf(trash, "ipv6@[%s]:%s", addr, port);
+				} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
+					chunk_appendf(trash, "sockpair@%d", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
+				}
+				/* separate listener by semicolons */
+				trash->area[trash->data++] = ';';
+			}
+		}
+		trash->area[trash->data++] = '\0';
+		if (setenv("HAPROXY_CLI", trash->area, 1) < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
+REGISTER_CONFIG_POSTPARSER("cli", cli_socket_setenv);
+
 /* Verifies that the CLI at least has a level at least as high as <level>
  * (typically ACCESS_LVL_ADMIN). Returns 1 if OK, otherwise 0. In case of
  * failure, an error message is prepared and the appctx's state is adjusted
