@@ -10,11 +10,16 @@
  *
  */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <common/mini-clist.h>
 
+#include <proto/fd.h>
+#include <proto/listener.h>
 #include <proto/mworker.h>
 #include <proto/signal.h>
 
@@ -104,4 +109,59 @@ void mworker_block_signals()
 void mworker_unblock_signals()
 {
 	haproxy_unblock_signals();
+}
+
+/* ----- IPC FD (sockpair) related ----- */
+
+/* This wrapper is called from the workers. It is registered instead of the
+ * normal listener_accept() so the worker can exit() when it detects that the
+ * master closed the IPC FD. If it's not a close, we just call the regular
+ * listener_accept() function */
+void mworker_accept_wrapper(int fd)
+{
+	char c;
+	int ret;
+
+	while (1) {
+		ret = recv(fd, &c, 1, MSG_PEEK);
+		if (ret == -1) {
+			if (errno == EINTR)
+				continue;
+			if (errno == EAGAIN) {
+				fd_cant_recv(fd);
+				return;
+			}
+			break;
+		} else if (ret > 0) {
+			listener_accept(fd);
+			return;
+		} else if (ret == 0) {
+			/* At this step the master is down before
+			 * this worker perform a 'normal' exit.
+			 * So we want to exit with an error but
+			 * other threads could currently process
+			 * some stuff so we can't perform a clean
+			 * deinit().
+			 */
+			exit(EXIT_FAILURE);
+		}
+	}
+	return;
+}
+
+/*
+ * This function register the accept wrapper for the sockpair of the master worker
+ */
+void mworker_pipe_register()
+{
+	/* The iocb should be already initialized with listener_accept */
+	if (fdtab[proc_self->ipc_fd[1]].iocb == mworker_accept_wrapper)
+		return;
+
+	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
+	/* In multi-tread, we need only one thread to process
+	 * events on the pipe with master
+	 */
+	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, 1);
+	fd_want_recv(proc_self->ipc_fd[1]);
 }

@@ -2598,58 +2598,6 @@ void deinit(void)
 } /* end deinit() */
 
 
-
-/* This is a wrapper for the sockpair FD, It tests if the socket received an
- * EOF, if not, it calls listener_accept */
-void mworker_accept_wrapper(int fd)
-{
-	char c;
-	int ret;
-
-	while (1) {
-		ret = recv(fd, &c, 1, MSG_PEEK);
-		if (ret == -1) {
-			if (errno == EINTR)
-				continue;
-			if (errno == EAGAIN) {
-				fd_cant_recv(fd);
-				return;
-			}
-			break;
-		} else if (ret > 0) {
-			listener_accept(fd);
-			return;
-		} else if (ret == 0) {
-			/* At this step the master is down before
-			 * this worker perform a 'normal' exit.
-			 * So we want to exit with an error but
-			 * other threads could currently process
-			 * some stuff so we can't perform a clean
-			 * deinit().
-			 */
-			exit(EXIT_FAILURE);
-		}
-	}
-	return;
-}
-
-/*
- * This function register the accept wrapper for the sockpair of the master worker
- */
-void mworker_pipe_register()
-{
-	/* The iocb should be already initialized with listener_accept */
-	if (fdtab[proc_self->ipc_fd[1]].iocb == mworker_accept_wrapper)
-		return;
-
-	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
-	/* In multi-tread, we need only one thread to process
-	 * events on the pipe with master
-	 */
-	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, 1);
-	fd_want_recv(proc_self->ipc_fd[1]);
-}
-
 /* Runs the polling loop */
 static void run_poll_loop()
 {
