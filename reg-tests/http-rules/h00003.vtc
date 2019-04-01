@@ -84,34 +84,41 @@ client c1 -connect ${h1_fe1_sock} {
     rxresp
     expect resp.status == 301
     expect resp.http.location ~ "https://www.example.org"
+    # Closes connection
+} -run
 
+client c2 -connect ${h1_fe1_sock} {
     txreq -hdr "Host: subdomain.example.org"
     rxresp
     expect resp.status == 301
     expect resp.http.location ~ "https://www.subdomain.example.org"
+    # Closes connection
+} -run
 
+client c3 -connect ${h1_fe1_sock} {
     # redirect on Testvar header
     txreq -hdr "Testvar: subdomain.example.org"
     rxresp
     expect resp.status == 301
     expect resp.http.location ~ "https://www.subdomain.example.org"
+    # Closes connection
 } -run
 
-client c2 -connect ${h1_fe1_sock} {
+client c4 -connect ${h1_fe1_sock} {
     txreq -hdr "Host: www.subdomain.example.org"
     rxresp
     expect resp.status == 403
     # Closes connection
 } -run
 
-client c3 -connect ${h1_fe1_sock} {
+client c5 -connect ${h1_fe1_sock} {
     txreq -hdr "Testvar: www.subdomain.example.org"
     rxresp
     expect resp.status == 403
     # Closes connection
 } -run
 
-client c4 -connect ${h1_fe1_sock} {
+client c6 -connect ${h1_fe1_sock} {
     txreq -hdr "Host: :8443example.org"
     rxresp
     expect resp.status == 403
@@ -119,7 +126,7 @@ client c4 -connect ${h1_fe1_sock} {
 } -run
 
 # Check map backend selection
-client c5 -connect ${h1_fe1_sock} {
+client c7 -connect ${h1_fe1_sock} {
     txreq -hdr "Host: test1.example.com"
     rxresp
     expect resp.status == 200
