@@ -1599,7 +1599,7 @@ static void init(int argc, char **argv)
 
 		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
 
-			tmproc = malloc(sizeof(*tmproc));
+			tmproc = calloc(1, sizeof(*tmproc));
 			if (!tmproc) {
 				ha_alert("Cannot allocate process structures.\n");
 				exit(EXIT_FAILURE);
@@ -1619,7 +1619,7 @@ static void init(int argc, char **argv)
 
 		for (proc = 0; proc < global.nbproc; proc++) {
 
-			tmproc = malloc(sizeof(*tmproc));
+			tmproc = calloc(1, sizeof(*tmproc));
 			if (!tmproc) {
 				ha_alert("Cannot allocate process structures.\n");
 				exit(EXIT_FAILURE);
