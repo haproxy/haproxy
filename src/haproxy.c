@@ -202,8 +202,6 @@ static char *cur_unixsocket = NULL;
 
 int atexit_flag = 0;
 
-static int exitcode = -1;
-
 int nb_oldpids = 0;
 const int zero = 0;
 const int one = 1;
@@ -216,8 +214,6 @@ char localpeer[MAX_HOSTNAME_LEN];
  * recent versions of gcc increasingly and annoyingly complain about.
  */
 int shut_your_big_mouth_gcc_int = 0;
-
-int *children = NULL; /* store PIDs of children in master workers mode */
 
 static char **next_argv = NULL;
 
@@ -488,7 +484,7 @@ static void usage(char *name)
 /* sends the signal <sig> to all pids found in <oldpids>. Returns the number of
  * pids the signal was correctly delivered to.
  */
-static int tell_old_pids(int sig)
+int tell_old_pids(int sig)
 {
 	int p;
 	int ret = 0;
@@ -496,34 +492,6 @@ static int tell_old_pids(int sig)
 		if (kill(oldpids[p], sig) == 0)
 			ret++;
 	return ret;
-}
-
-/* return 1 if a pid is a current child otherwise 0 */
-
-int current_child(int pid)
-{
-	int i;
-
-	for (i = 0; i < global.nbproc; i++) {
-		if (children[i] == pid)
-			return 1;
-	}
-	return 0;
-}
-
-/*
- * Send signal to every known children.
- */
-
-static void mworker_kill(int sig)
-{
-	int i;
-
-	tell_old_pids(sig);
-	if (children) {
-		for (i = 0; i < global.nbproc; i++)
-			kill(children[i], sig);
-	}
 }
 
 
@@ -724,98 +692,6 @@ void mworker_reload()
 alloc_error:
 	ha_warning("Failed to reexecute the master process [%d]: Cannot allocate memory\n", pid);
 	return;
-}
-
-/*
- * When called, this function reexec haproxy with -sf followed by current
- * children PIDs and possibly old children PIDs if they didn't leave yet.
- */
-static void mworker_catch_sighup(struct sig_handler *sh)
-{
-	mworker_reload();
-}
-
-static void mworker_catch_sigterm(struct sig_handler *sh)
-{
-	int sig = sh->arg;
-
-#if defined(USE_SYSTEMD)
-	if (global.tune.options & GTUNE_USE_SYSTEMD) {
-		sd_notify(0, "STOPPING=1");
-	}
-#endif
-	ha_warning("Exiting Master process...\n");
-	mworker_kill(sig);
-}
-
-/*
- * Wait for every children to exit
- */
-
-static void mworker_catch_sigchld(struct sig_handler *sh)
-{
-	int exitpid = -1;
-	int status = 0;
-	struct mworker_proc *child, *it;
-	int childfound;
-
-restart_wait:
-
-	childfound = 0;
-
-	exitpid = waitpid(-1, &status, WNOHANG);
-	if (exitpid > 0) {
-		if (WIFEXITED(status))
-			status = WEXITSTATUS(status);
-		else if (WIFSIGNALED(status))
-			status = 128 + WTERMSIG(status);
-		else if (WIFSTOPPED(status))
-			status = 128 + WSTOPSIG(status);
-		else
-			status = 255;
-
-		list_for_each_entry_safe(child, it, &proc_list, list) {
-			if (child->pid != exitpid)
-				continue;
-
-			LIST_DEL(&child->list);
-			close(child->ipc_fd[0]);
-			childfound = 1;
-			break;
-		}
-
-		if (!children || !childfound) {
-			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
-		} else {
-			/* check if exited child was in the current children list */
-			if (current_child(exitpid)) {
-				ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
-				if (status != 0 && status != 130 && status != 143
-				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
-					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
-					if (exitcode < 0)
-						exitcode = status;
-					mworker_kill(SIGTERM);
-				}
-			} else {
-				ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
-				delete_oldpid(exitpid);
-			}
-			free(child);
-		}
-
-		/* do it again to check if it was the last worker */
-		goto restart_wait;
-	}
-	/* Better rely on the system than on a list of process to check if it was the last one */
-	else if (exitpid == -1 && errno == ECHILD) {
-		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : status);
-		atexit_flag = 0;
-		if (exitcode > 0)
-			exit(exitcode);
-		exit(status); /* parent must leave using the latest status code known */
-	}
-
 }
 
 static void mworker_loop()

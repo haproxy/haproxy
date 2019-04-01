@@ -15,16 +15,57 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #include <common/mini-clist.h>
 
 #include <proto/fd.h>
 #include <proto/listener.h>
+#include <proto/log.h>
 #include <proto/mworker.h>
 #include <proto/signal.h>
 
 #include <types/global.h>
+#include <types/signal.h>
 
+#if defined(USE_SYSTEMD)
+#include <systemd/sd-daemon.h>
+#endif
+
+static int exitcode = -1;
+
+int *children = NULL; /* store PIDs of children in master workers mode */
+
+/* ----- children processes handling ----- */
+
+/*
+ * Send signal to every known children.
+ */
+
+static void mworker_kill(int sig)
+{
+	int i;
+
+	/* TODO: merge mworker_kill and tell_old_pids for mworker mode */
+	tell_old_pids(sig);
+	if (children) {
+		for (i = 0; i < global.nbproc; i++)
+			kill(children[i], sig);
+	}
+}
+
+
+/* return 1 if a pid is a current child otherwise 0 */
+int current_child(int pid)
+{
+	int i;
+
+	for (i = 0; i < global.nbproc; i++) {
+		if (children[i] == pid)
+			return 1;
+	}
+	return 0;
+}
 
 /*
  * serialize the proc list and put it in the environment
@@ -109,6 +150,101 @@ void mworker_block_signals()
 void mworker_unblock_signals()
 {
 	haproxy_unblock_signals();
+}
+
+/* ----- mworker signal handlers ----- */
+
+/*
+ * When called, this function reexec haproxy with -sf followed by current
+ * children PIDs and possibly old children PIDs if they didn't leave yet.
+ */
+void mworker_catch_sighup(struct sig_handler *sh)
+{
+	mworker_reload();
+}
+
+void mworker_catch_sigterm(struct sig_handler *sh)
+{
+	int sig = sh->arg;
+
+#if defined(USE_SYSTEMD)
+	if (global.tune.options & GTUNE_USE_SYSTEMD) {
+		sd_notify(0, "STOPPING=1");
+	}
+#endif
+	ha_warning("Exiting Master process...\n");
+	mworker_kill(sig);
+}
+
+/*
+ * Wait for every children to exit
+ */
+
+void mworker_catch_sigchld(struct sig_handler *sh)
+{
+	int exitpid = -1;
+	int status = 0;
+	struct mworker_proc *child, *it;
+	int childfound;
+
+restart_wait:
+
+	childfound = 0;
+
+	exitpid = waitpid(-1, &status, WNOHANG);
+	if (exitpid > 0) {
+		if (WIFEXITED(status))
+			status = WEXITSTATUS(status);
+		else if (WIFSIGNALED(status))
+			status = 128 + WTERMSIG(status);
+		else if (WIFSTOPPED(status))
+			status = 128 + WSTOPSIG(status);
+		else
+			status = 255;
+
+		list_for_each_entry_safe(child, it, &proc_list, list) {
+			if (child->pid != exitpid)
+				continue;
+
+			LIST_DEL(&child->list);
+			close(child->ipc_fd[0]);
+			childfound = 1;
+			break;
+		}
+
+		if (!children || !childfound) {
+			ha_warning("Worker %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+		} else {
+			/* check if exited child was in the current children list */
+			if (current_child(exitpid)) {
+				ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+				if (status != 0 && status != 130 && status != 143
+				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
+					ha_alert("exit-on-failure: killing every workers with SIGTERM\n");
+					if (exitcode < 0)
+						exitcode = status;
+					mworker_kill(SIGTERM);
+				}
+			} else {
+				ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+				/* TODO: merge children and oldpids list in mworker mode */
+				delete_oldpid(exitpid);
+			}
+			free(child);
+		}
+
+		/* do it again to check if it was the last worker */
+		goto restart_wait;
+	}
+	/* Better rely on the system than on a list of process to check if it was the last one */
+	else if (exitpid == -1 && errno == ECHILD) {
+		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : status);
+		atexit_flag = 0;
+		if (exitcode > 0)
+			exit(exitcode);
+		exit(status); /* parent must leave using the latest status code known */
+	}
+
 }
 
 /* ----- IPC FD (sockpair) related ----- */
