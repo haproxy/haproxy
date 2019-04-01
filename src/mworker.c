@@ -26,6 +26,8 @@
 #include <proto/signal.h>
 
 #include <types/global.h>
+#include <types/peers.h>
+#include <proto/proxy.h>
 #include <types/signal.h>
 
 #if defined(USE_SYSTEMD)
@@ -300,4 +302,55 @@ void mworker_pipe_register()
 	 */
 	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, 1);
 	fd_want_recv(proc_self->ipc_fd[1]);
+}
+
+/* ----- proxies ----- */
+/*
+ * Upon a reload, the master worker needs to close all listeners FDs but the mworker_pipe
+ * fd, and the FD provided by fd@
+ */
+void mworker_cleanlisteners()
+{
+	struct listener *l, *l_next;
+	struct proxy *curproxy;
+	struct peers *curpeers;
+
+	/* we might have to unbind some peers sections from some processes */
+	for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
+		if (!curpeers->peers_fe)
+			continue;
+
+		stop_proxy(curpeers->peers_fe);
+		/* disable this peer section so that it kills itself */
+		signal_unregister_handler(curpeers->sighandler);
+		task_delete(curpeers->sync_task);
+		task_free(curpeers->sync_task);
+		curpeers->sync_task = NULL;
+		task_free(curpeers->peers_fe->task);
+		curpeers->peers_fe->task = NULL;
+		curpeers->peers_fe = NULL;
+	}
+
+	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+		int listen_in_master = 0;
+
+		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
+			/* remove the listener, but not those we need in the master... */
+			if (!(l->options & LI_O_MWORKER)) {
+				/* unbind the listener but does not close if
+				   the FD is inherited with fd@ from the parent
+				   process */
+				if (l->options & LI_O_INHERITED)
+					unbind_listener_no_close(l);
+				else
+					unbind_listener(l);
+				delete_listener(l);
+			} else {
+				listen_in_master = 1;
+			}
+		}
+		/* if the proxy shouldn't be in the master, we stop it */
+		if (!listen_in_master)
+			curproxy->state = PR_STSTOPPED;
+	}
 }

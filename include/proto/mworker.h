@@ -29,6 +29,8 @@ void mworker_catch_sigchld(struct sig_handler *sh);
 void mworker_accept_wrapper(int fd);
 void mworker_pipe_register();
 
+void mworker_cleanlisteners();
+
 extern int *children; /* store PIDs of children in master workers mode */
 
 #endif /* PROTO_MWORKER_H_ */
