@@ -6,22 +6,109 @@ varnishtest "HTTP request tests: H1 to H1 (HTX mode supported only for HAProxy >
 feature ignore_unknown_macro
 
 server s1 {
+	##
+	## Handle GET requests
+	##
 	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
 	txresp \
 	  -status 200 \
 	  -body "response 1"
 
 	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
 	txresp \
 	  -status 200 \
 	  -body "response 2"
 
 	rxreq
+	expect req.bodylen == 38
+	expect req.body == "this must be delivered, like it or not"
 	txresp \
 	  -status 200 \
 	  -body "response 3"
 
 	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 4"
+
+	accept
+
+	##
+	## Handle HEAD requests
+	##
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 1"
+
+	accept
+
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 2"
+
+	accept
+
+	rxreq
+	expect req.bodylen == 38
+	expect req.body == "this must be delivered, like it or not"
+	txresp \
+	  -status 200 \
+	  -body "response 3"
+
+	accept
+
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 4"
+
+	accept
+
+	##
+	## Handle POST requests
+	##
+	# POST request without body
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 1"
+
+	# POST request without body
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
+	txresp \
+	  -status 200 \
+	  -body "response 2"
+
+	# POST request with a body
+	rxreq
+	expect req.bodylen == 12
+	expect req.body == "this is sent"
+	txresp \
+	  -status 200 \
+	  -body "response 3"
+
+	# POST request without body
+	rxreq
+	expect req.bodylen == 0
+	expect req.body == ""
 	txresp \
 	  -status 200 \
 	  -body "response 4"
@@ -49,6 +136,7 @@ client c1h1 -connect ${h1_feh1_sock} {
 	  -url "/test1.html"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 1"
 
 	# second request is valid and advertises C-L:0
 	txreq \
@@ -57,6 +145,7 @@ client c1h1 -connect ${h1_feh1_sock} {
           -hdr "content-length: 0"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 2"
 
 	# third request sends a body with a GET
 	txreq \
@@ -65,6 +154,7 @@ client c1h1 -connect ${h1_feh1_sock} {
           -body "this must be delivered, like it or not"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 3"
 
 	# fourth request is valid and advertises C-L:0, and close, and is
 	# followed by a string "this is not sent\r\n\r\n" which must be
@@ -78,6 +168,7 @@ client c1h1 -connect ${h1_feh1_sock} {
 	sendhex "74787973207973206E6F742073656E740D0A0D0A"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 4"
 
 	# the connection is expected to be closed and no more response must
 	# arrive here.
@@ -94,6 +185,7 @@ client c2h1 -connect ${h1_feh1_sock} {
 	  -url "/test11.html"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == ""
 
 	# second request is valid and advertises C-L:0
 	txreq \
@@ -102,14 +194,16 @@ client c2h1 -connect ${h1_feh1_sock} {
           -hdr "content-length: 0"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == ""
 
-	# third request sends a body with a GET
+	# third request sends a body with a HEAD
 	txreq \
-	  -req "GET" \
+	  -req "HEAD" \
 	  -url "/test13.html" \
           -body "this must be delivered, like it or not"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == ""
 
 	# fourth request is valid and advertises C-L:0, and close, and is
 	# followed by a string "this is not sent\r\n\r\n" which must be
@@ -123,19 +217,21 @@ client c2h1 -connect ${h1_feh1_sock} {
 	sendhex "74787973207973206E6F742073656E740D0A0D0A"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == ""
 
 	# the connection is expected to be closed and no more response must
 	# arrive here.
 	expect_close
 } -run
 
-client c1h1 -connect ${h1_feh1_sock} {
+client c3h1 -connect ${h1_feh1_sock} {
 	# first request is valid
 	txreq \
 	  -req "POST" \
 	  -url "/test21.html"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 1"
 
 	# second request is valid and advertises C-L:0
 	txreq \
@@ -144,6 +240,7 @@ client c1h1 -connect ${h1_feh1_sock} {
           -hdr "content-length: 0"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 2"
 
 	# third request is valid and advertises (and sends) somme contents
 	txreq \
@@ -152,6 +249,7 @@ client c1h1 -connect ${h1_feh1_sock} {
 	  -body "this is sent"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 3"
 
 	# fourth request is valid and advertises C-L:0, and close, and is
 	# followed by a string "this is not sent\r\n\r\n" which must be
@@ -165,6 +263,7 @@ client c1h1 -connect ${h1_feh1_sock} {
 	sendhex "74787973207973206E6F742073656E740D0A0D0A"
 	rxresp
 	expect resp.status == 200
+	expect resp.body == "response 4"
 
 	# the connection is expected to be closed and no more response must
 	# arrive here.
