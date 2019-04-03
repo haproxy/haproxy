@@ -236,8 +236,15 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	si_set_state(&s->si[0], SI_ST_EST);
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
-	if (cs && cs->conn->mux && cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
-		s->si[0].flags |= SI_FL_CLEAN_ABRT;
+	if (cs && cs->conn->mux) {
+		if (cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
+			s->si[0].flags |= SI_FL_CLEAN_ABRT;
+		if (cs->conn->mux->flags & MX_FL_HTX)
+			s->flags |= SF_HTX;
+	}
+	/* Set SF_HTX flag for HTX frontends. */
+	if (sess->fe->mode == PR_MODE_HTTP && sess->fe->options2 & PR_O2_USE_HTX)
+		s->flags |= SF_HTX;
 
 	/* attach the incoming connection to the stream interface now. */
 	if (cs)

@@ -58,7 +58,7 @@
 #define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
 /* unused: 0x00000200 */
 #define SF_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */
-/* unused: 0x00000800 */
+#define SF_HTX          0x00000800      /* set if this stream is an htx stream */
 
 /* stream termination conditions, bits values 0x1000 to 0x7000 (0-9 shift 12) */
 #define SF_ERR_NONE     0x00000000	/* normal end of request */
