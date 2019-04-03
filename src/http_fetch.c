@@ -169,7 +169,6 @@ static int get_http_auth(struct sample *smp)
  */
 struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 {
-	struct proxy *px = smp->px;
 	struct stream *s = smp->strm;
 	unsigned int opt = smp->opt;
 	struct http_txn *txn = NULL;
@@ -190,7 +189,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 		txn = s->txn;
 	}
 
-	if (px->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(s)) {
 		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
 			htx = htxbuf(&s->req.buf);
 			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
@@ -221,7 +220,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 			}
 		}
 	}
-	else { /* PR_MODE_TCP */
+	else { /* RAW mode */
 		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
 			struct buffer *buf;
 			struct h1m h1m;
