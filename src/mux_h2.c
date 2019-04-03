@@ -5682,7 +5682,7 @@ static const struct mux_ops h2_htx_ops = {
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
 	.show_fd = h2_show_fd,
-	.flags = MX_FL_CLEAN_ABRT,
+	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX,
 	.name = "H2",
 };
 

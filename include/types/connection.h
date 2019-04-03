@@ -294,6 +294,7 @@ enum {
 enum {
 	MX_FL_NONE        = 0x00000000,
 	MX_FL_CLEAN_ABRT  = 0x00000001, /* abort is clearly reported as an error */
+	MX_FL_HTX         = 0x00000002, /* set if it is an HTX multiplexer */
 };
 
 /* xprt_ops describes transport-layer operations for a connection. They

@@ -2343,7 +2343,7 @@ static const struct mux_ops mux_h1_ops = {
 	.shutw       = h1_shutw,
 	.show_fd     = h1_show_fd,
 	.reset       = h1_reset,
-	.flags       = MX_FL_NONE,
+	.flags       = MX_FL_HTX,
 	.name        = "h1",
 };
 
