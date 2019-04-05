@@ -1386,6 +1386,45 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	return 0;
 }
 
+/* Reset the stream and the backend stream_interface to a situation suitable for attemption connection */
+/* Returns 0 if we can attempt to retry, -1 otherwise */
+static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
+{
+	struct channel *req, *res;
+	int co_data;
+
+	si->conn_retries--;
+	if (si->conn_retries < 0)
+		return -1;
+
+	req = &s->req;
+	res = &s->res;
+	/* Remove any write error from the request, and read error from the response */
+	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
+	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
+	res->analysers = 0;
+	si->flags &= ~(SI_FL_ERR | SI_FL_EXP | SI_FL_RXBLK_SHUT);
+	si->state = SI_ST_REQ;
+	si->exp = TICK_ETERNITY;
+	res->rex = TICK_ETERNITY;
+	res->to_forward = 0;
+	res->analyse_exp = TICK_ETERNITY;
+	res->total = 0;
+	s->flags &= ~(SF_ASSIGNED | SF_ADDR_SET | SF_ERR_SRVTO | SF_ERR_SRVCL);
+	si_release_endpoint(&s->si[1]);
+	b_free(&req->buf);
+	/* Swap the L7 buffer with the channel buffer */
+	/* We know we stored the co_data as b_data, so get it there */
+	co_data = b_data(&si->l7_buffer);
+	b_set_data(&si->l7_buffer, b_size(&si->l7_buffer));
+	b_xfer(&req->buf, &si->l7_buffer, b_data(&si->l7_buffer));
+
+	co_set_data(req, co_data);
+	b_reset(&res->buf);
+	co_set_data(res, 0);
+	return 0;
+}
+
 /* This stream analyser waits for a complete HTTP response. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the response (eg: timeout, error, ...). It
@@ -1406,6 +1445,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
+	struct stream_interface *si_b = &s->si[1];
 	struct connection *srv_conn;
 	struct htx_sl *sl;
 	int n;
@@ -1453,6 +1493,17 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
+			if (si_b->flags & SI_FL_L7_RETRY) {
+				/* If we arrive here, then CF_READ_ERROR was
+				 * set by si_cs_recv() because we matched a
+				 * status, overwise it would have removed
+				 * the SI_FL_L7_RETRY flag, so it's ok not
+				 * to check s->be->retry_type.
+				 */
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
+					return 0;
+			}
+
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
 				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
@@ -1484,6 +1535,11 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 2: read timeout : return a 504 to the client. */
 		else if (rep->flags & CF_READ_TIMEOUT) {
+			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			    (s->be->retry_type & PR_RE_TIMEOUT)) {
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
+					return 0;
+			}
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
 				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
@@ -1526,6 +1582,12 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_SHUTR) {
 			if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
+
+			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
+					return 0;
+			}
 
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {

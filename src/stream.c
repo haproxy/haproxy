@@ -323,6 +323,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
 
+	s->si[1].l7_buffer = BUF_NULL;
 	/* finish initialization of the accepted file descriptor */
 	if (appctx)
 		si_want_get(&s->si[0]);
@@ -475,6 +476,7 @@ static void stream_free(struct stream *s)
 	tasklet_free(s->si[0].wait_event.task);
 	tasklet_free(s->si[1].wait_event.task);
 
+	b_free(&s->si[1].l7_buffer);
 	if (must_free_sess) {
 		sess->origin = NULL;
 		session_free(sess);
@@ -769,7 +771,7 @@ static int sess_update_st_cer(struct stream *s)
 
 	/* ensure that we have enough retries left */
 	si->conn_retries--;
-	if (si->conn_retries < 0) {
+	if (si->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
 		if (!si->err_type) {
 			si->err_type = SI_ET_CONN_ERR;
 		}
@@ -2322,6 +2324,8 @@ redo:
 				 */
 				si_b->state = SI_ST_REQ; /* new connection requested */
 				si_b->conn_retries = s->be->conn_retries;
+				if (s->be->retry_type &~ PR_RE_CONN_FAILED)
+					si_b->flags |= SI_FL_L7_RETRY;
 			}
 		}
 		else {

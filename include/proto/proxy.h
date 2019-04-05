@@ -155,6 +155,35 @@ static inline void proxy_inc_fe_req_ctr(struct proxy *fe)
 			     update_freq_ctr(&fe->fe_req_per_sec, 1));
 }
 
+/* Returns non-zero if the proxy is configured to retry a request if we got that status, 0 overwise */
+static inline int l7_status_match(struct proxy *p, int status)
+{
+	/* Just return 0 if no retry was configured for any status */
+	if (!(p->retry_type & PR_RE_STATUS_MASK))
+		return 0;
+
+	switch (status) {
+	case 404:
+		return (p->retry_type & PR_RE_404);
+	case 408:
+		return (p->retry_type & PR_RE_408);
+	case 425:
+		return (p->retry_type & PR_RE_425);
+	case 500:
+		return (p->retry_type & PR_RE_500);
+	case 501:
+		return (p->retry_type & PR_RE_501);
+	case 502:
+		return (p->retry_type & PR_RE_502);
+	case 503:
+		return (p->retry_type & PR_RE_503);
+	case 504:
+		return (p->retry_type & PR_RE_504);
+	default:
+		break;
+	}
+	return 0;
+}
 #endif /* _PROTO_PROXY_H */
 
 /*

@@ -395,6 +395,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->except_mask = defproxy.except_mask;
 		curproxy->except_to = defproxy.except_to;
 		curproxy->except_mask_to = defproxy.except_mask_to;
+		curproxy->retry_type = defproxy.retry_type;
 
 		if (defproxy.fwdfor_hdr_len) {
 			curproxy->fwdfor_hdr_len  = defproxy.fwdfor_hdr_len;

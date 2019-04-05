@@ -1170,9 +1170,12 @@ In addition to these callbacks, there are three others:
 Then, to finish, there are 2 informational callbacks:
 
   * 'flt_ops.http_reset': This callback is called when a HTTP message is
-    reset. This only happens when a '100-continue' response is received. It
+    reset. This happens either when a '100-continue' response is received, or
+    if we're retrying to send the request to the server after it failed. It
     could be useful to reset the filter context before receiving the true
     response.
+    You can know why the callback is called by checking s->txn->status. If it's
+    10X, we're called because of a '100-continue', if not, it's a L7 retry.
 
   * 'flt_ops.http_reply': This callback is called when, at any time, HAProxy
     decides to stop the processing on a HTTP message and to send an internal

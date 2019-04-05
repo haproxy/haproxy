@@ -137,7 +137,9 @@ struct flt_kw_list {
  *                          it needs to wait for some reason, any other value
  *                          otherwise.
  *  - http_reset          : Called when the HTTP message is reseted. It happens
- *                          when a 100-continue response is received.
+ *                          either when a 100-continue response is received.
+ *                          that can be detected if s->txn->status is 10X, or
+ *                          if we're attempting a L7 retry.
  *                          Returns nothing.
  *  - http_reply          : Called when, at any time, HA proxy decides to stop
  *                          the HTTP message's processing and to send a message

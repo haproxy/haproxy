@@ -2446,6 +2446,12 @@ int check_config_validity()
 			}
 		}
 
+		if ((curproxy->retry_type &~ PR_RE_CONN_FAILED) &&
+		    !(curproxy->options2 & PR_O2_USE_HTX)) {
+			ha_warning("Proxy '%s' : retry-on with any other keywords than 'conn-failure' will be ignored, requires 'option http-use-htx'.\n", curproxy->id);
+			err_code |= ERR_WARN;
+			curproxy->retry_type &= PR_RE_CONN_FAILED;
+		}
 		if (curproxy->email_alert.set) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
 			    ha_warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "

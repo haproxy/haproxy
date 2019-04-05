@@ -2352,6 +2352,7 @@ reqrep                                    -          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 reqtarpit                                 -          X         X         X
 retries                                   X          -         X         X
+retry-on                                  X          -         X         X
 rspadd                                    -          X         X         X
 rspdel                                    -          X         X         X
 rspdeny                                   -          X         X         X
@@ -8003,6 +8004,70 @@ retries <value>
 
   See also : "option redispatch"
 
+
+retry-on [list of keywords]
+  Specify when to attempt to automatically retry a failed request
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <keywords>  is a list of keywords or HTTP status codes, each representing a
+                type of failure event on which an attempt to retry the request
+                is desired. Please read the notes at the bottom before changing
+                this setting. The following keywords are supported :
+
+      none              never retry
+
+      conn-failure      retry when the connection or the SSL handshake failed
+                        and the request could not be sent. This is the default.
+
+      empty-response    retry when the server connection was closed after part
+                        of the request was sent, and nothing was received from
+                        the server. This type of failure may be caused by the
+                        request timeout on the server side, poor network
+                        condition, or a server crash or restart while
+                        processing the request.
+
+      response-timeout  the server timeout stroke while waiting for the server
+                        to respond to the request. This may be caused by poor
+                        network condition, the reuse of an idle connection
+                        which has expired on the path, or by the request being
+                        extremely expensive to process. It generally is a bad
+                        idea to retry on such events on servers dealing with
+                        heavy database processing (full scans, etc) as it may
+                        amplify denial of service attacks.
+
+      <status>          any HTTP status code among "404" (Not Found), "408"
+                        (Request Timeout), "425" (Too Early), "500" (Server
+                        Error), "501" (Not Implemented), "502" (Bad Gateway),
+                        "503" (Service Unavailable), "504" (Gateway Timeout).
+
+  Using this directive replaces any previous settings with the new ones; it is
+  not cumulative.
+
+  Please note that using anything other than "none" and "conn-failure" requires
+  to allocate a buffer and copy the whole request into it, so it has memory and
+  performance impacts. Requests not fitting in a single buffer will never be
+  retried (see the global tune.bufsize setting).
+
+  You have to make sure the application has a replay protection mechanism built
+  in such as a unique transaction IDs passed in requests, or that replaying the
+  same request has no consequence, or it is very dangerous to use any retry-on
+  value beside "conn-failure" and "none". Static file servers and caches are
+  generally considered safe against any type of retry. Using a status code can
+  be useful to quickly leave a server showing an abnormal behavior (out of
+  memory, file system issues, etc), but in this case it may be a good idea to
+  immediately redispatch the connection to another server (please see "option
+  redispatch" for this). Last, it is important to understand that most causes
+  of failures are the requests themselves and that retrying a request causing a
+  server to misbehave will often make the situation even worse for this server,
+  or for the whole service in case of redispatch.
+
+  Unless you know exactly how the application deals with replayed requests, you
+  should not use this directive.
+
+  The default is "conn-failure".
+
+  See also: "retries", "option redispatch", "tune.bufsize"
 
 rspadd <string> [{if | unless} <cond>]
   Add a header at the end of the HTTP response
