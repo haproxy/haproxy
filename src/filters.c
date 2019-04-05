@@ -389,7 +389,7 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 {
 	struct filter *f;
 
-	if ((strm_fe(s)->options2 & PR_O2_USE_HTX) && !(fconf->flags & FLT_CFG_FL_HTX))
+	if (IS_HTX_STRM(s) && !(fconf->flags & FLT_CFG_FL_HTX))
 		return 0;
 
 	f = pool_alloc(pool_head_filter);
