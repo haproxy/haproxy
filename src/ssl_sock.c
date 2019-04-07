@@ -238,8 +238,12 @@ static struct {
 	.capture_cipherlist = 0,
 };
 
+static BIO_METHOD *ha_meth;
+
 struct ssl_sock_ctx {
+	struct connection *conn;
 	SSL *ssl;
+	BIO *bio;
 	struct xprt_ops *xprt;
 	void *xprt_ctx;
 	int xprt_st;                  /* transport layer state, initialized to zero */
@@ -249,6 +253,81 @@ struct ssl_sock_ctx {
 };
 
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
+
+/* Methods to implement OpenSSL BIO */
+static int ha_ssl_write(BIO *h, const char *buf, int num)
+{
+	struct buffer tmpbuf;
+	struct ssl_sock_ctx *ctx;
+	int ret;
+
+	ctx = BIO_get_data(h);
+	tmpbuf.size = num;
+	tmpbuf.area = (void *)(uintptr_t)buf;
+	tmpbuf.data = num;
+	tmpbuf.head = 0;
+	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, 0);
+	if (ret == 0 && !(ctx->conn->flags & CO_FL_ERROR))
+		BIO_set_retry_write(h);
+	return ret;
+}
+
+static int ha_ssl_gets(BIO *h, char *buf, int size)
+{
+
+	return 0;
+}
+
+static int ha_ssl_puts(BIO *h, const char *str)
+{
+
+	return ha_ssl_write(h, str, strlen(str));
+}
+
+static int ha_ssl_read(BIO *h, char *buf, int size)
+{
+	struct buffer tmpbuf;
+	struct ssl_sock_ctx *ctx;
+	int ret;
+
+	ctx = BIO_get_data(h);
+	tmpbuf.size = size;
+	tmpbuf.area = buf;
+	tmpbuf.data = 0;
+	tmpbuf.head = 0;
+	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, 0);
+	if (ret == 0 && !(ctx->conn->flags & CO_FL_ERROR))
+		BIO_set_retry_read(h);
+
+	return ret;
+}
+
+static long ha_ssl_ctrl(BIO *h, int cmd, long arg1, void *arg2)
+{
+	int ret = 0;
+	switch (cmd) {
+	case BIO_CTRL_DUP:
+	case BIO_CTRL_FLUSH:
+		ret = 1;
+		break;
+	}
+	return ret;
+}
+
+static int ha_ssl_new(BIO *h)
+{
+	BIO_set_init(h, 1);
+	BIO_set_data(h, NULL);
+	BIO_clear_flags(h, ~0);
+	return 1;
+}
+
+static int ha_ssl_free(BIO *data)
+{
+
+	return 1;
+}
+
 
 #if defined(USE_THREAD) && ((OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
 
@@ -5111,6 +5190,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	}
 	ctx->sent_early_data = 0;
 	ctx->tmp_early_data = -1;
+	ctx->conn = conn;
+
+	/* Only work with sockets for now, this should be adapted when we'll
+	 * add QUIC support.
+	 */
+	ctx->xprt = xprt_get(XPRT_RAW);
+	if (ctx->xprt->init)
+		ctx->xprt->init(conn, &ctx->xprt_ctx);
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
@@ -5133,11 +5220,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-
-		/* set fd on SSL session context */
-		if (!SSL_set_fd(ctx->ssl, conn->handle.fd)) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
+		ctx->bio = BIO_new(ha_meth);
+		if (!ctx->bio) {
 			if (may_retry--) {
 				pool_gc(NULL);
 				goto retry_connect;
@@ -5145,6 +5229,12 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
+#if OPENSSL_VERSION_NUMBER < 0x10100000
+		ctx->bio->ptr = ctx;
+#else
+		BIO_set_data(ctx->bio, ctx);
+#endif
+		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
 
 		/* set connection pointer */
 		if (!SSL_set_ex_data(ctx->ssl, ssl_app_data_index, conn)) {
@@ -5195,10 +5285,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			goto err;
 		}
 
-		/* set fd on SSL session context */
-		if (!SSL_set_fd(ctx->ssl, conn->handle.fd)) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
+		ctx->bio = BIO_new(ha_meth);
+		if (!ctx->bio) {
 			if (may_retry--) {
 				pool_gc(NULL);
 				goto retry_accept;
@@ -5206,6 +5294,12 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
+#if OPENSSL_VERSION_NUMBER < 0x10100000
+		ctx->bio->ptr = ctx;
+#else
+		BIO_set_data(ctx->bio, ctx);
+#endif
+		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
 
 		/* set connection pointer */
 		if (!SSL_set_ex_data(ctx->ssl, ssl_app_data_index, conn)) {
@@ -9744,6 +9838,26 @@ static void __ssl_sock_init(void)
 #endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	ha_meth = malloc(sizeof(*ha_meth));
+	bzero(ha_meth, sizeof(*ha_metho));
+	ha_meth->bwrite = ha_ssl_write;
+	ha_meth->bread = ha_ssl_read;
+	ha_meth->ctrl = ha_ssl_ctrl;
+	ha_meth->create = ha_ssl_new;
+	ha_meth->destroy = ha_ssl_free;
+	ha_meth->bputs = ha_ssl_puts;
+	ha_meth->bgets = ha_ssl_gets;
+#else
+	ha_meth = BIO_meth_new(0x666, "ha methods");
+	BIO_meth_set_write(ha_meth, ha_ssl_write);
+	BIO_meth_set_read(ha_meth, ha_ssl_read);
+	BIO_meth_set_ctrl(ha_meth, ha_ssl_ctrl);
+	BIO_meth_set_create(ha_meth, ha_ssl_new);
+	BIO_meth_set_destroy(ha_meth, ha_ssl_free);
+	BIO_meth_set_puts(ha_meth, ha_ssl_puts);
+	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
+#endif
 }
 
 /* Compute and register the version string */
@@ -9847,6 +9961,11 @@ static void __ssl_sock_deinit(void)
 
 #if ((OPENSSL_VERSION_NUMBER >= 0x00907000L) && (OPENSSL_VERSION_NUMBER < 0x10100000L)) || defined(LIBRESSL_VERSION_NUMBER)
         CRYPTO_cleanup_all_ex_data();
+#endif
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+	free(ha_meth);
+#else
+	BIO_meth_free(ha_meth);
 #endif
 }
 
