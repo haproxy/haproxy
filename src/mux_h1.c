@@ -2079,21 +2079,26 @@ static void h1_detach(struct conn_stream *cs)
 static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	struct h1s *h1s = cs->ctx;
+	struct h1c *h1c;
 
 	if (!h1s)
 		return;
+	h1c = h1s->h1c;
 
-	if ((h1s->flags & H1S_F_WANT_KAL) &&
-	    !(cs->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
+	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
+		goto do_shutr;
+
+	if (h1s->flags & H1S_F_WANT_KAL)
 		return;
 
+  do_shutr:
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
 	if (cs->flags & CS_FL_SHR)
 		return;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, (mode == CS_SHR_DRAIN));
 	if ((cs->conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
-		h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
+		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 }
 
 static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -2105,12 +2110,13 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	if ((h1s->flags & H1S_F_WANT_KAL) &&
-	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) &&
+	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
+		goto do_shutw;
 
-	    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
+	if ((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
 		return;
 
+  do_shutw:
 	h1c->flags |= H1C_F_CS_SHUTW_NOW;
 	if ((cs->flags & CS_FL_SHW) || b_data(&h1c->obuf))
 		return;
