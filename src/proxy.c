@@ -1325,7 +1325,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	proxy_inc_be_ctr(be);
 
 	/* HTX/legacy must match */
-	if ((s->sess->fe->options2 ^ be->options2) & PR_O2_USE_HTX)
+	if ((strm_fe(s)->options2 ^ be->options2) & PR_O2_USE_HTX)
 		return 0;
 
 	/* assign new parameters to the stream from the new backend */
@@ -1370,6 +1370,20 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		if (strm_fe(s)->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
 		    ((strm_fe(s)->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
 			http_adjust_conn_mode(s, s->txn, &s->txn->req);
+
+		/* If we chain a TCP frontend to an HTX backend, we must upgrade
+		 * the client mux */
+		if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP && (be->options2 & PR_O2_USE_HTX)) {
+			struct connection  *conn = objt_conn(strm_sess(s)->origin);
+			struct conn_stream *cs   = objt_cs(s->si[0].end);
+
+			if (conn && cs) {
+				si_rx_endp_more(&s->si[0]);
+				if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTX)  == -1)
+					return 0;
+				s->flags |= SF_HTX;
+			}
+		}
 
 		/* If an LB algorithm needs to access some pre-parsed body contents,
 		 * we must not start to forward anything until the connection is
