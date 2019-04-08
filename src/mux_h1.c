@@ -445,6 +445,10 @@ static void h1_release(struct h1c *h1c)
 {
 	struct connection *conn = h1c->conn;
 
+	/* The connection was attached to another mux */
+	if (conn && conn->ctx != h1c)
+		conn = NULL;
+
 	if (h1c) {
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
@@ -466,20 +470,20 @@ static void h1_release(struct h1c *h1c)
 			tasklet_free(h1c->wait_event.task);
 
 		h1s_destroy(h1c->h1s);
-		if (h1c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, h1c->wait_event.events,
-			    &h1c->wait_event);
 		pool_free(pool_head_h1c, h1c);
 	}
 
-	conn->mux = NULL;
-	conn->ctx = NULL;
+	if (conn) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
 
-	conn_stop_tracking(conn);
-	conn_full_close(conn);
-	if (conn->destroy_cb)
-		conn->destroy_cb(conn);
-	conn_free(conn);
+		conn_force_unsubscribe(conn);
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
 }
 
 /******************************************************/
@@ -1988,7 +1992,7 @@ static void h1_destroy(void *ctx)
 {
 	struct h1c *h1c = ctx;
 
-	if (!h1c->h1s)
+	if (!h1c->h1s || !h1c->conn || h1c->conn->ctx != h1c)
 		h1_release(h1c);
 }
 

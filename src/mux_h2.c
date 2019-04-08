@@ -621,6 +621,11 @@ static void h2_release(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
 
+	/* The connection was attached to another mux (unexpected but safer to
+	 * check) */
+	if (conn && conn->ctx != h2c)
+		conn = NULL;
+
 	if (h2c) {
 		hpack_dht_free(h2c->ddht);
 
@@ -638,21 +643,21 @@ static void h2_release(struct h2c *h2c)
 		}
 		if (h2c->wait_event.task)
 			tasklet_free(h2c->wait_event.task);
-		if (h2c->wait_event.events != 0)
-			conn->xprt->unsubscribe(conn, h2c->wait_event.events,
-			    &h2c->wait_event);
 
 		pool_free(pool_head_h2c, h2c);
 	}
 
-	conn->mux = NULL;
-	conn->ctx = NULL;
+	if (conn) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
 
-	conn_stop_tracking(conn);
-	conn_full_close(conn);
-	if (conn->destroy_cb)
-		conn->destroy_cb(conn);
-	conn_free(conn);
+		conn_force_unsubscribe(conn);
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		conn_free(conn);
+	}
 }
 
 
@@ -2989,7 +2994,7 @@ static void h2_destroy(void *ctx)
 {
 	struct h2c *h2c = ctx;
 
-	if (eb_is_empty(&h2c->streams_by_id))
+	if (eb_is_empty(&h2c->streams_by_id) || !h2c->conn || h2c->conn->ctx != h2c)
 		h2_release(h2c);
 }
 

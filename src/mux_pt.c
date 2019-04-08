@@ -28,17 +28,23 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
 	struct connection *conn = ctx->conn;
 
-	conn_stop_tracking(conn);
-	conn_full_close(conn);
-	tasklet_free(ctx->wait_event.task);
-	conn->mux = NULL;
-	conn->ctx = NULL;
-	if (conn->destroy_cb)
-		conn->destroy_cb(conn);
-	/* We don't bother unsubscribing here, as we're about to destroy
-	 * both the connection and the mux_pt_ctx
-	 */
-	conn_free(conn);
+	/* The connection was attached to another mux */
+	if (conn && conn->ctx != ctx)
+		conn = NULL;
+
+	if (conn) {
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		tasklet_free(ctx->wait_event.task);
+		conn->mux = NULL;
+		conn->ctx = NULL;
+		if (conn->destroy_cb)
+			conn->destroy_cb(conn);
+		/* We don't bother unsubscribing here, as we're about to destroy
+		 * both the connection and the mux_pt_ctx
+		 */
+		conn_free(conn);
+	}
 	pool_free(pool_head_pt_ctx, ctx);
 }
 
@@ -172,7 +178,7 @@ static void mux_pt_destroy_meth(void *ctx)
 {
 	struct mux_pt_ctx *pt = ctx;
 
-	if (!(pt->cs))
+	if (!(pt->cs) || !(pt->conn) || pt->conn->ctx != pt)
 		mux_pt_destroy(pt);
 }
 
