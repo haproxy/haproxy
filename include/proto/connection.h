@@ -836,7 +836,7 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
 
 	conn->mux = mux;
 	conn->ctx = ctx;
-	ret = mux->init ? mux->init(conn, prx, sess) : 0;
+	ret = mux->init ? mux->init(conn, prx, sess, &BUF_NULL) : 0;
 	if (ret < 0) {
 		conn->mux = NULL;
 		conn->ctx = NULL;

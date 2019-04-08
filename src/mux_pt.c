@@ -62,7 +62,8 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
  * incoming ones, in which case one will be allocated and a new stream will be
  * instanciated). Returns < 0 on error.
  */
-static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess)
+static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess,
+		       struct buffer *input)
 {
 	struct conn_stream *cs = conn->ctx;
 	struct mux_pt_ctx *ctx = pool_alloc(pool_head_pt_ctx);

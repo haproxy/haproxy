@@ -356,11 +356,15 @@ static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
 }
 
 /*
- * Initialize the mux once it's attached. It is expected that conn->ctx
- * points to the existing conn_stream (for outgoing connections) or NULL (for
- * incoming ones). Returns < 0 on error.
+ * Initialize the mux once it's attached. It is expected that conn->ctx points
+ * to the existing conn_stream (for outgoing connections or for incoming onces
+ * during a mux upgrade) or NULL (for incoming ones during the connexion
+ * establishment). <input> is always used as Input buffer and may contain
+ * data. It is the caller responsibility to not reuse it anymore. Returns < 0 on
+ * error.
  */
-static int h1_init(struct connection *conn, struct proxy *proxy, struct session *sess)
+static int h1_init(struct connection *conn, struct proxy *proxy, struct session *sess,
+		   struct buffer *input)
 {
 	struct h1c *h1c;
 	struct task *t = NULL;
@@ -372,10 +376,10 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->px   = proxy;
 
 	h1c->flags = H1C_F_NONE;
-	h1c->ibuf  = BUF_NULL;
+	h1c->ibuf  = *input;
 	h1c->obuf  = BUF_NULL;
 	h1c->h1s   = NULL;
-	h1c->task = NULL;
+	h1c->task  = NULL;
 
 	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.task = tasklet_new();

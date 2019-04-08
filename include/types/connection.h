@@ -329,7 +329,7 @@ struct xprt_ops {
  * layer is not ready yet.
  */
 struct mux_ops {
-	int  (*init)(struct connection *conn, struct proxy *prx, struct session *sess);  /* early initialization */
+	int  (*init)(struct connection *conn, struct proxy *prx, struct session *sess, struct buffer *input);  /* early initialization */
 	int  (*wake)(struct connection *conn);        /* mux-layer callback to report activity, mandatory */
 	size_t (*rcv_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to get data */
 	size_t (*snd_buf)(struct conn_stream *cs, struct buffer *buf, size_t count, int flags); /* Called from the upper layer to send data */

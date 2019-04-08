@@ -472,10 +472,12 @@ static int h2_avail_streams(struct connection *conn)
 
 /* Initialize the mux once it's attached. For outgoing connections, the context
  * is already initialized before installing the mux, so we detect incoming
- * connections from the fact that the context is still NULL. Returns < 0 on
- * error.
+ * connections from the fact that the context is still NULL (even during mux
+ * upgrades). <input> is always used as Input buffer and may contain data. It is
+ * the caller responsibility to not reuse it anymore. Returns < 0 on error.
  */
-static int h2_init(struct connection *conn, struct proxy *prx, struct session *sess)
+static int h2_init(struct connection *conn, struct proxy *prx, struct session *sess,
+		   struct buffer *input)
 {
 	struct h2c *h2c;
 	struct task *t = NULL;
@@ -533,7 +535,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->nb_reserved = 0;
 	h2c->stream_cnt = 0;
 
-	h2c->dbuf = BUF_NULL;
+	h2c->dbuf = *input;
 	h2c->dsi = -1;
 	h2c->msi = -1;
 
