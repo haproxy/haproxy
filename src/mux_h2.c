@@ -484,7 +484,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	if (!h2c)
 		goto fail_no_h2c;
 
-	if (conn->ctx) {
+	if (conn_is_back(conn)) {
 		h2c->flags = H2_CF_IS_BACK;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
 		if (tick_isset(prx->timeout.serverfin))

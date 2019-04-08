@@ -287,33 +287,34 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 	if (!conn_is_back(h1c->conn)) {
 		if (h1c->px->options2 & PR_O2_REQBUG_OK)
 			h1s->req.err_pos = -1;
+
+		/* For frontend connections we should always have a session */
+		if (!sess)
+			sess = h1c->conn->owner;
+
+		h1s->csinfo.create_date = sess->accept_date;
+		h1s->csinfo.tv_create   = sess->tv_accept;
+		h1s->csinfo.t_handshake = sess->t_handshake;
+		h1s->csinfo.t_idle      = -1;
 	}
 	else {
 		if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 			h1s->res.err_pos = -1;
+
+		h1s->csinfo.create_date = date;
+		h1s->csinfo.tv_create   = now;
+		h1s->csinfo.t_handshake = 0;
+		h1s->csinfo.t_idle      = -1;
 	}
 
 	/* If a conn_stream already exists, attach it to this H1S. Otherwise we
 	 * create a new one.
 	 */
 	if (cs) {
-		h1s->csinfo.create_date = date;
-		h1s->csinfo.tv_create   = now;
-		h1s->csinfo.t_handshake = 0;
-		h1s->csinfo.t_idle      = -1;
-
 		cs->ctx = h1s;
 		h1s->cs = cs;
 	}
 	else {
-		/* For frontend connections we should always have a session */
-		sess = h1c->conn->owner;
-
-		h1s->csinfo.create_date = sess->accept_date;
-		h1s->csinfo.tv_create   = sess->tv_accept;
-		h1s->csinfo.t_handshake = sess->t_handshake;
-		h1s->csinfo.t_idle      = -1;
-
 		cs = h1s_new_cs(h1s);
 		if (!cs)
 			goto fail;
@@ -384,7 +385,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->wait_event.task->context = h1c;
 	h1c->wait_event.events   = 0;
 
-	if (conn->ctx) {
+	if (conn_is_back(conn)) {
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.server;
 		if (tick_isset(proxy->timeout.serverfin))
 			h1c->shut_timeout = proxy->timeout.serverfin;
