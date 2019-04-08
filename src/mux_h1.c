@@ -341,8 +341,6 @@ static void h1s_destroy(struct h1s *h1s)
 		h1c->flags |= H1C_F_WAIT_NEXT_REQ;
 		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR))
 			h1c->flags |= H1C_F_CS_ERROR;
-
-		cs_free(h1s->cs);
 		pool_free(pool_head_h1s, h1s);
 	}
 }
