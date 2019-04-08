@@ -1158,6 +1158,47 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct
 	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
 }
 
+static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
+				      struct ist mux_proto, int mode)
+{
+	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
+	const struct mux_ops *old_mux, *new_mux;
+	void *old_mux_ctx;
+	const char *alpn_str = NULL;
+	int alpn_len = 0;
+
+	if (!mux_proto.len) {
+		conn_get_alpn(conn, &alpn_str, &alpn_len);
+		mux_proto = ist2(alpn_str, alpn_len);
+	}
+	new_mux = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
+	old_mux = conn->mux;
+
+	/* No mux found */
+	if (!new_mux)
+		return -1;
+
+	/* Same mux, nothing to do */
+	if (old_mux == new_mux)
+		return 0;
+
+	old_mux_ctx = conn->ctx;
+	conn->mux = new_mux;
+	conn->ctx = ctx;
+	conn_force_unsubscribe(conn);
+	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1) {
+		/* The mux upgrade failed, so restore the old mux */
+		conn->ctx = old_mux_ctx;
+		conn->mux = old_mux;
+		return -1;
+	}
+
+	/* The mux was upgraded, destroy the old one */
+	*buf = BUF_NULL;
+	old_mux->destroy(old_mux_ctx);
+	return 0;
+}
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*
