@@ -438,13 +438,12 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	return -1;
 }
 
-
-/* release function for a connection. This one should be called to free all
- * resources allocated to the mux.
+/* release function. This one should be called to free all resources allocated
+ * to the mux.
  */
-static void h1_release(struct connection *conn)
+static void h1_release(struct h1c *h1c)
 {
-	struct h1c *h1c = conn->ctx;
+	struct connection *conn = h1c->conn;
 
 	if (h1c) {
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
@@ -1867,7 +1866,7 @@ static int h1_process(struct h1c * h1c)
 	return 0;
 
   release:
-	h1_release(conn);
+	h1_release(h1c);
 	return -1;
 }
 
@@ -1936,13 +1935,14 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	if (h1c->h1s && h1c->h1s->cs)
 		h1c->flags |= H1C_F_CS_ERROR;
 	else
-		h1_release(h1c->conn);
+		h1_release(h1c);
 	return NULL;
 }
 
 /*******************************************/
 /* functions below are used by the streams */
 /*******************************************/
+
 /*
  * Attach a new stream to a connection
  * (Used for outgoing connections)
@@ -1984,12 +1984,12 @@ static const struct conn_stream *h1_get_first_cs(const struct connection *conn)
 	return NULL;
 }
 
-static void h1_destroy(struct connection *conn)
+static void h1_destroy(void *ctx)
 {
-	struct h1c *h1c = conn->ctx;
+	struct h1c *h1c = ctx;
 
 	if (!h1c->h1s)
-		h1_release(conn);
+		h1_release(h1c);
 }
 
 /*
@@ -2065,7 +2065,7 @@ static void h1_detach(struct conn_stream *cs)
 	/* We don't want to close right now unless the connection is in error */
 	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)) ||
 	    (h1c->conn->flags & CO_FL_ERROR) || !h1c->conn->owner)
-		h1_release(h1c->conn);
+		h1_release(h1c);
 	else {
 		tasklet_wakeup(h1c->wait_event.task);
 		if (h1c->task) {

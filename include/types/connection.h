@@ -346,7 +346,7 @@ struct mux_ops {
 	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
-	void (*destroy)(struct connection *conn); /* Let the mux know one of its users left, so it may have to disappear */
+	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	void (*reset)(struct connection *conn); /* Reset the mux, because we're re-trying to connect */
 	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */

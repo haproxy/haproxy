@@ -5317,7 +5317,7 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 
 	while ((conn = LIST_POP_LOCKED(&toremove_connections[tid],
 	                               struct connection *, list)) != NULL) {
-		conn->mux->destroy(conn);
+		conn->mux->destroy(conn->ctx);
 	}
 
 	return task;

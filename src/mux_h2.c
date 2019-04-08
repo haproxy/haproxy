@@ -614,12 +614,12 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
 	return container_of(node, struct h2s, by_id);
 }
 
-/* release function for a connection. This one should be called to free all
- * resources allocated to the mux.
+/* release function. This one should be called to free all resources allocated
+ * to the mux.
  */
-static void h2_release(struct connection *conn)
+static void h2_release(struct h2c *h2c)
 {
-	struct h2c *h2c = conn->ctx;
+	struct connection *conn = h2c->conn;
 
 	if (h2c) {
 		hpack_dht_free(h2c->ddht);
@@ -2845,7 +2845,7 @@ static int h2_process(struct h2c *h2c)
 
 		if (eb_is_empty(&h2c->streams_by_id)) {
 			/* no more stream, kill the connection now */
-			h2_release(conn);
+			h2_release(h2c);
 			return -1;
 		}
 	}
@@ -2930,7 +2930,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	 * the last stream closes.
 	 */
 	if (eb_is_empty(&h2c->streams_by_id))
-		h2_release(h2c->conn);
+		h2_release(h2c);
 
 	return NULL;
 }
@@ -2985,12 +2985,12 @@ static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
 /*
  * Destroy the mux and the associated connection, if it is no longer used
  */
-static void h2_destroy(struct connection *conn)
+static void h2_destroy(void *ctx)
 {
-	struct h2c *h2c = conn->ctx;
+	struct h2c *h2c = ctx;
 
 	if (eb_is_empty(&h2c->streams_by_id))
-		h2_release(h2c->conn);
+		h2_release(h2c);
 }
 
 /*
@@ -3082,7 +3082,7 @@ static void h2_detach(struct conn_stream *cs)
 	 */
 	if (h2c_is_dead(h2c)) {
 		/* no more stream will come, kill it now */
-		h2_release(h2c->conn);
+		h2_release(h2c);
 	}
 	else if (h2c->task) {
 		if (eb_is_empty(&h2c->streams_by_id) || b_data(&h2c->mbuf)) {
@@ -3248,7 +3248,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 		h2s_destroy(h2s);
 
 		if (h2c_is_dead(h2c))
-			h2_release(h2c->conn);
+			h2_release(h2c);
 	}
 
 	return NULL;

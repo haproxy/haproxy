@@ -166,13 +166,14 @@ static const struct conn_stream *mux_pt_get_first_cs(const struct connection *co
 	return cs;
 }
 
-/* Destroy the mux and the associated connection, if no longer used */
-static void mux_pt_destroy_meth(struct connection *conn)
+/* Destroy the mux and the associated connection if still attached to this mux
+ * and no longer used */
+static void mux_pt_destroy_meth(void *ctx)
 {
-	struct mux_pt_ctx *ctx = conn->ctx;
+	struct mux_pt_ctx *pt = ctx;
 
-	if (!(ctx->cs))
-		mux_pt_destroy(ctx);
+	if (!(pt->cs))
+		mux_pt_destroy(pt);
 }
 
 /*

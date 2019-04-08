@@ -1371,7 +1371,7 @@ int connect_server(struct stream *s)
 				old_conn->owner = sess;
 				if (!session_add_conn(sess, old_conn, old_conn->target)) {
 					old_conn->owner = NULL;
-					old_conn->mux->destroy(old_conn);
+					old_conn->mux->destroy(old_conn->ctx);
 				} else
 					session_check_idle_conn(sess, old_conn);
 			}
@@ -1427,7 +1427,7 @@ int connect_server(struct stream *s)
 			srv_conn->owner = NULL;
 			if (srv_conn->mux && !srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
 			/* The server doesn't want it, let's kill the connection right away */
-				srv_conn->mux->destroy(srv_conn);
+				srv_conn->mux->destroy(srv_conn->ctx);
 			srv_conn = NULL;
 
 		}
