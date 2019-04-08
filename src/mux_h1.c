@@ -12,6 +12,7 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/h1.h>
+#include <common/h2.h>
 #include <common/htx.h>
 #include <common/initcall.h>
 
@@ -48,6 +49,7 @@
 #define H1C_F_CS_WAIT_CONN   0x00008000 /* waiting for the connection establishment */
 
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
+#define H1C_F_UPG_H2C        0x00020000 /* set if an upgrade to h2 should be done */
 
 /*
  * H1 Stream flags (32 bits)
@@ -450,6 +452,16 @@ static void h1_release(struct h1c *h1c)
 		conn = NULL;
 
 	if (h1c) {
+		if (h1c->flags & H1C_F_UPG_H2C) {
+			h1c->flags &= ~H1C_F_UPG_H2C;
+			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTX) != -1) {
+				/* connection successfully upgraded to H2, this
+				 * mux was already released */
+				return;
+			}
+			sess_log(conn->owner); /* Log if the upgrade failed */
+		}
+
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 			LIST_DEL(&h1c->buf_wait.list);
@@ -908,6 +920,13 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	if (b_head(buf) + b_data(buf) > b_wrap(buf))
 		b_slow_realign(buf, trash.area, 0);
 
+	if (!(h1m->flags & H1_MF_RESP)) {
+		/* Try to match H2 preface before parsing the request headers. */
+		ret = b_isteq(buf, 0, b_data(buf), ist(H2_CONN_PREFACE));
+		if (ret > 0)
+			goto h2c_upgrade;
+	}
+
 	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_peek(buf, *ofs) + max,
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &h1sl);
 	if (ret <= 0) {
@@ -1047,6 +1066,13 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
   vsn_error:
 	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
 	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+	ret = 0;
+	goto end;
+
+  h2c_upgrade:
+	h1s->h1c->flags |= H1C_F_UPG_H2C;
+	h1s->cs->flags |= CS_FL_REOS;
+	htx->flags |= HTX_FL_UPGRADE;
 	ret = 0;
 	goto end;
 }
@@ -2067,7 +2093,7 @@ static void h1_detach(struct conn_stream *cs)
 	}
 
 	/* We don't want to close right now unless the connection is in error */
-	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)) ||
+	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN|H1C_F_UPG_H2C)) ||
 	    (h1c->conn->flags & CO_FL_ERROR) || !h1c->conn->owner)
 		h1_release(h1c);
 	else {
@@ -2097,7 +2123,7 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
 		goto do_shutr;
 
-	if (h1s->flags & H1S_F_WANT_KAL)
+	if ((h1c->flags & H1C_F_UPG_H2C) || (h1s->flags & H1S_F_WANT_KAL))
 		return;
 
   do_shutr:
@@ -2122,7 +2148,8 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
 		goto do_shutw;
 
-	if ((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
+	if ((h1c->flags & H1C_F_UPG_H2C) ||
+	    ((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE))
 		return;
 
   do_shutw:

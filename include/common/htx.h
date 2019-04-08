@@ -91,6 +91,7 @@
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000
 #define HTX_FL_PARSING_ERROR     0x00000001
+#define HTX_FL_UPGRADE           0x00000002
 
 
 /* Pseudo header types (max 255). */
@@ -727,7 +728,7 @@ static inline struct htx *htx_from_buf(struct buffer *buf)
 /* Upate <buf> accordingly to the HTX message <htx> */
 static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
 {
-	if (!htx->used && !(htx->flags & HTX_FL_PARSING_ERROR)) {
+	if (!htx->used && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_UPGRADE))) {
 		htx_reset(htx);
 		b_set_data(buf, 0);
 	}

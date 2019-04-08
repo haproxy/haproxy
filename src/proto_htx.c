@@ -145,6 +145,9 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			goto return_bad_req;
 		}
 
+		if (htx->flags & HTX_FL_UPGRADE)
+			goto failed_keep_alive;
+
 		/* 1: have we encountered a read error ? */
 		if (req->flags & CF_READ_ERROR) {
 			if (!(s->flags & SF_ERR_MASK))
