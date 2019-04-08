@@ -73,6 +73,8 @@
 #define GTUNE_LISTENER_MQ        (1<<12)
 #define GTUNE_SET_DUMPABLE       (1<<13)
 
+#define GTUNE_USE_EVPORTS        (1<<14)
+
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
 #define ACCESS_LVL_USER     1

@@ -460,6 +460,9 @@ static void usage(char *name)
 #if defined(ENABLE_KQUEUE)
 		"        -dk disables kqueue() usage even when available\n"
 #endif
+#if defined(ENABLE_EVPORTS)
+		"        -dv disables event ports usage even when available\n"
+#endif
 #if defined(ENABLE_POLL)
 		"        -dp disables poll() usage even when available\n"
 #endif
@@ -1352,6 +1355,9 @@ static void init(int argc, char **argv)
 #if defined(ENABLE_KQUEUE)
 	global.tune.options |= GTUNE_USE_KQUEUE;
 #endif
+#if defined(ENABLE_EVPORTS)
+	global.tune.options |= GTUNE_USE_EVPORTS;
+#endif
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	global.tune.options |= GTUNE_USE_SPLICE;
 #endif
@@ -1395,6 +1401,10 @@ static void init(int argc, char **argv)
 #if defined(ENABLE_KQUEUE)
 			else if (*flag == 'd' && flag[1] == 'k')
 				global.tune.options &= ~GTUNE_USE_KQUEUE;
+#endif
+#if defined(ENABLE_EVPORTS)
+			else if (*flag == 'd' && flag[1] == 'v')
+				global.tune.options &= ~GTUNE_USE_EVPORTS;
 #endif
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 			else if (*flag == 'd' && flag[1] == 'S')
@@ -2024,6 +2034,9 @@ static void init(int argc, char **argv)
 
 	if (!(global.tune.options & GTUNE_USE_KQUEUE))
 		disable_poller("kqueue");
+
+	if (!(global.tune.options & GTUNE_USE_EVPORTS))
+		disable_poller("evports");
 
 	if (!(global.tune.options & GTUNE_USE_EPOLL))
 		disable_poller("epoll");

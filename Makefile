@@ -11,6 +11,7 @@
 # explicitly specified :
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
+#   USE_EVPORTS          : enable event ports on SunOS systems. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
 #   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
@@ -285,7 +286,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP
+           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -352,7 +353,7 @@ ifeq ($(TARGET),solaris)
   # We also enable getaddrinfo() which works since solaris 8.
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_CRYPT_H USE_GETADDRINFO USE_THREAD \
-    USE_OBSOLETE_LINKER)
+    USE_OBSOLETE_LINKER USE_EVPORTS)
   TARGET_CFLAGS  = -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
 endif
@@ -513,6 +514,11 @@ endif
 ifneq ($(USE_KQUEUE),)
 OPTIONS_CFLAGS += -DENABLE_KQUEUE
 OPTIONS_OBJS   += src/ev_kqueue.o
+endif
+
+ifneq ($(USE_EVPORTS),)
+OPTIONS_CFLAGS += -DENABLE_EVPORTS
+OPTIONS_OBJS   += src/ev_evports.o
 endif
 
 ifneq ($(USE_VSYSCALL),)
