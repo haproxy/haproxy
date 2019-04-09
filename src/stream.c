@@ -1051,6 +1051,8 @@ static void sess_update_stream_int(struct stream *s)
 		if (!(si->flags & SI_FL_EXP))
 			return;  /* still in turn-around */
 
+		si->flags &= ~SI_FL_EXP;
+
 		si->exp = TICK_ETERNITY;
 
 		/* we keep trying on the same server as long as the stream is

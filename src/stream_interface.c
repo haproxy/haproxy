@@ -830,9 +830,6 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 
-	si_f->flags &= ~SI_FL_EXP;
-	si_b->flags &= ~SI_FL_EXP;
-
 	si_f->prev_state = si_f->state;
 	si_b->prev_state = si_b->state;
 
