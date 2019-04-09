@@ -519,8 +519,8 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		max = htx_free_data_space(dst);
 		if (max > count)
 			max = count;
-		if (ret + sz > max) {
-			sz = max - ret;
+		if (sz > max) {
+			sz = max;
 			info = (type << 28) + sz;
 			/* Headers and pseudo headers must be fully copied  */
 			if (type < HTX_BLK_DATA || !sz)
