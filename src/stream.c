@@ -822,6 +822,7 @@ static int sess_update_st_cer(struct stream *s)
 			si->state = SI_ST_TAR;
 			si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
+		si->flags &= ~SI_FL_ERR;
 		return 0;
 	}
 	return 0;
