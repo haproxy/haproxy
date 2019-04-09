@@ -2488,14 +2488,18 @@ redo:
 
 	if (likely((si_f->state != SI_ST_CLO) ||
 		   (si_b->state > SI_ST_INI && si_b->state < SI_ST_CLO))) {
+		enum si_state si_b_prev_state, si_f_prev_state;
+
+		si_f_prev_state = si_f->prev_state;
+		si_b_prev_state = si_b->prev_state;
 
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
 		si_update_both(si_f, si_b);
 
-		if (si_f->state == SI_ST_DIS || si_f->state != si_f->prev_state ||
-		    si_b->state == SI_ST_DIS || si_b->state != si_b->prev_state ||
+		if (si_f->state == SI_ST_DIS || si_f->state != si_f_prev_state ||
+		    si_b->state == SI_ST_DIS || si_b->state != si_b_prev_state ||
 		    ((si_f->flags | si_b->flags) & SI_FL_ERR) ||
 		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
 			goto redo;
