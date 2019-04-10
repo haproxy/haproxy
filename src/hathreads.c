@@ -19,6 +19,10 @@
 #include <sched.h>
 #endif
 
+#ifdef __FreeBSD__
+#include <sys/cpuset.h>
+#endif
+
 #include <common/cfgparse.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
@@ -122,6 +126,11 @@ static int thread_cpus_enabled()
 
 	if (sched_getaffinity(0, sizeof(mask), &mask) == 0)
 		ret = CPU_COUNT(&mask);
+#elif defined(__FreeBSD__) && defined(USE_CPU_AFFINITY)
+	cpuset_t cpuset;
+	if (cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1,
+	    sizeof(cpuset), &cpuset) == 0)
+		ret = CPU_COUNT(&cpuset);
 #endif
 #endif
 	ret = MAX(ret, 1);
