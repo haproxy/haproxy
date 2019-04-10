@@ -1310,13 +1310,16 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 }
 
 /*
- * This function sends a syslog message.
- * It doesn't care about errors nor does it report them.
+ * This function sends a syslog message to <logsrv>.
+ * <pid_str> is the string to be used for the PID of the caller, <pid_size> is length.
+ * Same thing for <sd> and <sd_size> which are used for the structured-data part
+ * in RFC5424 formatted syslog messages, and <tag_str> and <tag_size> the syslog tag.
  * It overrides the last byte of the message vector with an LF character.
- * The arguments <sd> and <sd_size> are used for the structured-data part
- * in RFC5424 formatted syslog messages.
+ * Does not return any error,
  */
-void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd, size_t sd_size)
+static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_str, size_t pid_size,
+                                 int level, char *message, size_t size, char *sd, size_t sd_size,
+                                 char *tag_str, size_t tag_size)
 {
 	static THREAD_LOCAL struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
 	static THREAD_LOCAL struct msghdr msghdr = {
@@ -1326,21 +1329,235 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
 	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
 	static THREAD_LOCAL char *dataptr = NULL;
-	int fac_level;
-	struct list *logsrvs = NULL;
-	struct logsrv *tmp = NULL;
-	int nblogger;
+	time_t time = date.tv_sec;
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
-	time_t time = date.tv_sec;
 	struct buffer *tag = &global.log_tag;
-	static THREAD_LOCAL int curr_pid;
-	static THREAD_LOCAL char pidstr[100];
-	static THREAD_LOCAL struct buffer pid;
+	int fac_level;
+	int *plogfd;
+	char *pid_sep1 = "", *pid_sep2 = "";
+	char logheader_short[3];
+	int sent;
+	int maxlen;
+	int hdr_max = 0;
+	int tag_max = 0;
+	int pid_sep1_max = 0;
+	int pid_sep2_max = 0;
+	int sd_max = 0;
+	int max = 0;
 
 	msghdr.msg_iov = iovec;
 
 	dataptr = message;
+
+	if (logsrv->addr.ss_family == AF_UNSPEC) {
+		/* the socket's address is a file descriptor */
+		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
+		if (unlikely(!((struct sockaddr_in *)&logsrv->addr)->sin_port)) {
+			/* FD not yet initialized to non-blocking mode.
+			 * DON'T DO IT ON A TERMINAL!
+			 */
+			if (!isatty(*plogfd))
+				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
+			((struct sockaddr_in *)&logsrv->addr)->sin_port = 1;
+		}
+	}
+	else if (logsrv->addr.ss_family == AF_UNIX)
+		plogfd = &logfdunix;
+	else
+		plogfd = &logfdinet;
+
+	if (unlikely(*plogfd < 0)) {
+		/* socket not successfully initialized yet */
+		if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
+							  (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
+			static char once;
+
+			if (!once) {
+				once = 1; /* note: no need for atomic ops here */
+				ha_alert("socket() failed in logger #%d: %s (errno=%d)\n",
+						 nblogger, strerror(errno), errno);
+			}
+			return;
+		} else {
+			/* we don't want to receive anything on this socket */
+			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+			/* does nothing under Linux, maybe needed for others */
+			shutdown(*plogfd, SHUT_RD);
+			fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
+		}
+	}
+
+	switch (logsrv->format) {
+	case LOG_FORMAT_RFC3164:
+		hdr = logheader;
+		hdr_ptr = update_log_hdr(time);
+		break;
+
+	case LOG_FORMAT_RFC5424:
+		hdr = logheader_rfc5424;
+		hdr_ptr = update_log_hdr_rfc5424(time);
+		sd_max = sd_size; /* the SD part allowed only in RFC5424 */
+		break;
+
+	case LOG_FORMAT_SHORT:
+		/* all fields are known, skip the header generation */
+		hdr = logheader_short;
+		hdr[0] = '<';
+		hdr[1] = '0' + MAX(level, logsrv->minlvl);
+		hdr[2] = '>';
+		hdr_ptr = hdr;
+		hdr_max = 3;
+		maxlen = logsrv->maxlen - hdr_max;
+		max = MIN(size, maxlen) - 1;
+		goto send;
+
+	case LOG_FORMAT_RAW:
+		/* all fields are known, skip the header generation */
+		hdr_ptr = hdr = "";
+		hdr_max = 0;
+		maxlen = logsrv->maxlen;
+		max = MIN(size, maxlen) - 1;
+		goto send;
+
+	default:
+		return; /* must never happen */
+	}
+
+	hdr_size = hdr_ptr - hdr;
+
+	/* For each target, we may have a different facility.
+	 * We can also have a different log level for each message.
+	 * This induces variations in the message header length.
+	 * Since we don't want to recompute it each time, nor copy it every
+	 * time, we only change the facility in the pre-computed header,
+	 * and we change the pointer to the header accordingly.
+	 */
+	fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
+	hdr_ptr = hdr + 3; /* last digit of the log level */
+	do {
+		*hdr_ptr = '0' + fac_level % 10;
+		fac_level /= 10;
+		hdr_ptr--;
+	} while (fac_level && hdr_ptr > hdr);
+	*hdr_ptr = '<';
+
+	hdr_max = hdr_size - (hdr_ptr - hdr);
+
+	/* time-based header */
+	if (unlikely(hdr_size >= logsrv->maxlen)) {
+		hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
+		sd_max = 0;
+		goto send;
+	}
+
+	maxlen = logsrv->maxlen - hdr_max;
+
+	/* tag */
+	tag_max = tag->data;
+	if (unlikely(tag_max >= maxlen)) {
+		tag_max = maxlen - 1;
+		sd_max = 0;
+		goto send;
+	}
+
+	maxlen -= tag_max;
+
+	/* first pid separator */
+	pid_sep1_max = log_formats[logsrv->format].pid.sep1.data;
+	if (unlikely(pid_sep1_max >= maxlen)) {
+		pid_sep1_max = maxlen - 1;
+		sd_max = 0;
+		goto send;
+	}
+
+	pid_sep1 = log_formats[logsrv->format].pid.sep1.area;
+	maxlen -= pid_sep1_max;
+
+	/* pid */
+	if (unlikely(pid_size >= maxlen)) {
+		pid_size = maxlen - 1;
+		sd_max = 0;
+		goto send;
+	}
+
+	maxlen -= pid_size;
+
+	/* second pid separator */
+	pid_sep2_max = log_formats[logsrv->format].pid.sep2.data;
+	if (unlikely(pid_sep2_max >= maxlen)) {
+		pid_sep2_max = maxlen - 1;
+		sd_max = 0;
+		goto send;
+	}
+
+	pid_sep2 = log_formats[logsrv->format].pid.sep2.area;
+	maxlen -= pid_sep2_max;
+
+	/* structured-data */
+	if (sd_max >= maxlen) {
+		sd_max = maxlen - 1;
+		goto send;
+	}
+
+	max = MIN(size, maxlen - sd_max) - 1;
+send:
+	iovec[0].iov_base = hdr_ptr;
+	iovec[0].iov_len  = hdr_max;
+	iovec[1].iov_base = tag_str;
+	iovec[1].iov_len  = tag_size;
+	iovec[2].iov_base = pid_sep1;
+	iovec[2].iov_len  = pid_sep1_max;
+	iovec[3].iov_base = pid_str;
+	iovec[3].iov_len  = pid_size;
+	iovec[4].iov_base = pid_sep2;
+	iovec[4].iov_len  = pid_sep2_max;
+	iovec[5].iov_base = sd;
+	iovec[5].iov_len  = sd_max;
+	iovec[6].iov_base = dataptr;
+	iovec[6].iov_len  = max;
+	iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
+	iovec[7].iov_len  = 1;
+
+	if (logsrv->addr.ss_family == AF_UNSPEC) {
+		/* the target is a direct file descriptor */
+		sent = writev(*plogfd, iovec, 8);
+	}
+	else {
+		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
+		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
+
+		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
+	}
+
+	if (sent < 0) {
+		static char once;
+
+		if (errno == EAGAIN)
+			_HA_ATOMIC_ADD(&dropped_logs, 1);
+		else if (!once) {
+			once = 1; /* note: no need for atomic ops here */
+			ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
+					 nblogger, strerror(errno), errno);
+		}
+	}
+}
+
+/*
+ * This function sends a syslog message.
+ * It doesn't care about errors nor does it report them.
+ * The arguments <sd> and <sd_size> are used for the structured-data part
+ * in RFC5424 formatted syslog messages.
+ */
+void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd, size_t sd_size)
+{
+	struct list *logsrvs = NULL;
+	struct logsrv *logsrv;
+	int nblogger;
+	static THREAD_LOCAL int curr_pid;
+	static THREAD_LOCAL char pidstr[100];
+	static THREAD_LOCAL struct buffer pid;
+	struct buffer *tag = &global.log_tag;
 
 	if (p == NULL) {
 		if (!LIST_ISEMPTY(&global.logsrvs)) {
@@ -1366,219 +1583,13 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
-	list_for_each_entry(tmp, logsrvs, list) {
-		const struct logsrv *logsrv = tmp;
-		int *plogfd;
-		char *pid_sep1 = "", *pid_sep2 = "";
-		char logheader_short[3];
-		int sent;
-		int maxlen;
-		int hdr_max = 0;
-		int tag_max = 0;
-		int pid_sep1_max = 0;
-		int pid_max = 0;
-		int pid_sep2_max = 0;
-		int sd_max = 0;
-		int max = 0;
-
-		nblogger++;
-
+	list_for_each_entry(logsrv, logsrvs, list) {
 		/* we can filter the level of the messages that are sent to each logger */
 		if (level > logsrv->level)
 			continue;
 
-		if (logsrv->addr.ss_family == AF_UNSPEC) {
-			/* the socket's address is a file descriptor */
-			plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
-			if (unlikely(!((struct sockaddr_in *)&logsrv->addr)->sin_port)) {
-				/* FD not yet initialized to non-blocking mode.
-				 * DON'T DO IT ON A TERMINAL!
-				 */
-				if (!isatty(*plogfd))
-					fcntl(*plogfd, F_SETFL, O_NONBLOCK);
-				((struct sockaddr_in *)&logsrv->addr)->sin_port = 1;
-			}
-		}
-		else if (logsrv->addr.ss_family == AF_UNIX)
-			plogfd = &logfdunix;
-		else
-			plogfd = &logfdinet;
-
-		if (unlikely(*plogfd < 0)) {
-			/* socket not successfully initialized yet */
-			if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
-			                      (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
-				static char once;
-
-				if (!once) {
-					once = 1; /* note: no need for atomic ops here */
-					ha_alert("socket() failed in logger #%d: %s (errno=%d)\n",
-					         nblogger, strerror(errno), errno);
-				}
-				continue;
-			} else {
-				/* we don't want to receive anything on this socket */
-				setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
-				/* does nothing under Linux, maybe needed for others */
-				shutdown(*plogfd, SHUT_RD);
-				fcntl(*plogfd, F_SETFD, fcntl(*plogfd, F_GETFD, FD_CLOEXEC) | FD_CLOEXEC);
-			}
-		}
-
-		switch (logsrv->format) {
-		case LOG_FORMAT_RFC3164:
-			hdr = logheader;
-			hdr_ptr = update_log_hdr(time);
-			break;
-
-		case LOG_FORMAT_RFC5424:
-			hdr = logheader_rfc5424;
-			hdr_ptr = update_log_hdr_rfc5424(time);
-			sd_max = sd_size; /* the SD part allowed only in RFC5424 */
-			break;
-
-		case LOG_FORMAT_SHORT:
-			/* all fields are known, skip the header generation */
-			hdr = logheader_short;
-			hdr[0] = '<';
-			hdr[1] = '0' + MAX(level, logsrv->minlvl);
-			hdr[2] = '>';
-			hdr_ptr = hdr;
-			hdr_max = 3;
-			maxlen = logsrv->maxlen - hdr_max;
-			max = MIN(size, maxlen) - 1;
-			goto send;
-
-		case LOG_FORMAT_RAW:
-			/* all fields are known, skip the header generation */
-			hdr_ptr = hdr = "";
-			hdr_max = 0;
-			maxlen = logsrv->maxlen;
-			max = MIN(size, maxlen) - 1;
-			goto send;
-
-		default:
-			continue; /* must never happen */
-		}
-
-		hdr_size = hdr_ptr - hdr;
-
-		/* For each target, we may have a different facility.
-		 * We can also have a different log level for each message.
-		 * This induces variations in the message header length.
-		 * Since we don't want to recompute it each time, nor copy it every
-		 * time, we only change the facility in the pre-computed header,
-		 * and we change the pointer to the header accordingly.
-		 */
-		fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
-		hdr_ptr = hdr + 3; /* last digit of the log level */
-		do {
-			*hdr_ptr = '0' + fac_level % 10;
-			fac_level /= 10;
-			hdr_ptr--;
-		} while (fac_level && hdr_ptr > hdr);
-		*hdr_ptr = '<';
-
-		hdr_max = hdr_size - (hdr_ptr - hdr);
-
-		/* time-based header */
-		if (unlikely(hdr_size >= logsrv->maxlen)) {
-			hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
-			sd_max = 0;
-			goto send;
-		}
-
-		maxlen = logsrv->maxlen - hdr_max;
-
-		/* tag */
-		tag_max = tag->data;
-		if (unlikely(tag_max >= maxlen)) {
-			tag_max = maxlen - 1;
-			sd_max = 0;
-			goto send;
-		}
-
-		maxlen -= tag_max;
-
-		/* first pid separator */
-		pid_sep1_max = log_formats[logsrv->format].pid.sep1.data;
-		if (unlikely(pid_sep1_max >= maxlen)) {
-			pid_sep1_max = maxlen - 1;
-			sd_max = 0;
-			goto send;
-		}
-
-		pid_sep1 = log_formats[logsrv->format].pid.sep1.area;
-		maxlen -= pid_sep1_max;
-
-		/* pid */
-		pid_max = pid.data;
-		if (unlikely(pid_max >= maxlen)) {
-			pid_max = maxlen - 1;
-			sd_max = 0;
-			goto send;
-		}
-
-		maxlen -= pid_max;
-
-		/* second pid separator */
-		pid_sep2_max = log_formats[logsrv->format].pid.sep2.data;
-		if (unlikely(pid_sep2_max >= maxlen)) {
-			pid_sep2_max = maxlen - 1;
-			sd_max = 0;
-			goto send;
-		}
-
-		pid_sep2 = log_formats[logsrv->format].pid.sep2.area;
-		maxlen -= pid_sep2_max;
-
-		/* structured-data */
-		if (sd_max >= maxlen) {
-			sd_max = maxlen - 1;
-			goto send;
-		}
-
-		max = MIN(size, maxlen - sd_max) - 1;
-send:
-		iovec[0].iov_base = hdr_ptr;
-		iovec[0].iov_len  = hdr_max;
-		iovec[1].iov_base = tag->area;
-		iovec[1].iov_len  = tag_max;
-		iovec[2].iov_base = pid_sep1;
-		iovec[2].iov_len  = pid_sep1_max;
-		iovec[3].iov_base = pid.area;
-		iovec[3].iov_len  = pid_max;
-		iovec[4].iov_base = pid_sep2;
-		iovec[4].iov_len  = pid_sep2_max;
-		iovec[5].iov_base = sd;
-		iovec[5].iov_len  = sd_max;
-		iovec[6].iov_base = dataptr;
-		iovec[6].iov_len  = max;
-		iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
-		iovec[7].iov_len  = 1;
-
-		if (logsrv->addr.ss_family == AF_UNSPEC) {
-			/* the target is a direct file descriptor */
-			sent = writev(*plogfd, iovec, 8);
-		}
-		else {
-			msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
-			msghdr.msg_namelen = get_addr_len(&logsrv->addr);
-
-			sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
-		}
-
-		if (sent < 0) {
-			static char once;
-
-			if (errno == EAGAIN)
-				_HA_ATOMIC_ADD(&dropped_logs, 1);
-			else if (!once) {
-				once = 1; /* note: no need for atomic ops here */
-				ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
-				         nblogger, strerror(errno), errno);
-			}
-		}
+		__do_send_log(logsrv, ++nblogger, pid.area, pid.data, level,
+		              message, size, sd, sd_size, tag->area, tag->data);
 	}
 }
 
