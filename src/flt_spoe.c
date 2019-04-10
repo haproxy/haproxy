@@ -2674,8 +2674,8 @@ spoe_process_messages(struct stream *s, struct spoe_context *ctx,
 	}
 
 	if (ctx->state == SPOE_CTX_ST_ENCODING_MSGS) {
-		if (!tv_iszero(&ctx->stats.tv_request))
-		    ctx->stats.tv_request = now;
+		if (tv_iszero(&ctx->stats.tv_request))
+			ctx->stats.tv_request = now;
 		if (!spoe_acquire_buffer(&ctx->buffer, &ctx->buffer_wait))
 			goto out;
 		ret = spoe_encode_messages(s, ctx, messages, dir, type);
