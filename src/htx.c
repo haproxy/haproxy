@@ -353,8 +353,9 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type type,
 					    const struct ist data)
 {
-	struct htx_blk *blk;
-	struct ist     v;
+	struct htx_blk *blk, *tailblk, *headblk, *frtblk;
+	struct ist v;
+	int32_t room;
 
 	if (!htx->used)
 		goto add_new_block;
@@ -367,47 +368,45 @@ static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type t
 	if (type != HTX_BLK_DATA && type != HTX_BLK_TLR)
 		goto add_new_block;
 
-	/* get the tail block */
-	blk = htx_get_blk(htx, htx->tail);
+	/* get the tail and head block */
+	tailblk = htx_get_tail_blk(htx);
+	headblk = htx_get_head_blk(htx);
+	if (tailblk == NULL || headblk == NULL)
+		goto add_new_block;
 
 	/* Don't try to append data if the last inserted block is not of the
 	 * same type */
-	if (type != htx_get_blk_type(blk))
+	if (type != htx_get_blk_type(tailblk))
 		goto add_new_block;
 
 	/*
 	 * Same type and enough space: append data
 	 */
-	if (htx->tail + 1 == htx->wrap) {
-		struct htx_blk *frtblk = htx_get_blk(htx, htx->front);
-		int32_t tailroom = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - (frtblk->addr + htx_get_blksz(frtblk));
-		if (tailroom >= (int32_t)data.len)
-			goto append_data;
-		htx_defrag(htx, NULL);
-		blk = htx_get_blk(htx, htx->tail);
+	frtblk = htx_get_blk(htx, htx->front);
+	if (tailblk->addr >= headblk->addr) {
+		if (htx->tail != htx->front)
+			goto add_new_block;
+		room = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - (frtblk->addr + htx_get_blksz(frtblk));
 	}
-	else {
-		struct htx_blk *headblk = htx_get_blk(htx, htx_get_head(htx));
-		int32_t headroom = headblk->addr - (blk->addr + htx_get_blksz(blk));
-		if (headroom >= (int32_t)data.len)
-			goto append_data;
-		htx_defrag(htx, NULL);
-		blk = htx_get_blk(htx, htx->tail);
-	}
+	else
+		room = headblk->addr - (tailblk->addr + htx_get_blksz(tailblk));
+
+	if (room < (int32_t)data.len)
+		tailblk = htx_defrag(htx, tailblk);
 
   append_data:
 	/* get the value of the tail block */
 	/* FIXME: check v.len + data.len < 256MB */
-	v = htx_get_blk_value(htx, blk);
+	v = htx_get_blk_value(htx, tailblk);
 
 	/* Append data and update the block itself */
 	memcpy(v.ptr + v.len, data.ptr, data.len);
-	htx_set_blk_value_len(blk, v.len + data.len);
+	htx_set_blk_value_len(tailblk, v.len + data.len);
 
 	/* Update HTTP message */
 	htx->data += data.len;
 
-	return blk;
+	return tailblk;
 
   add_new_block:
 	/* FIXME: check tlr.len (< 256MB) */
