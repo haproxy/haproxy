@@ -1015,7 +1015,8 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	/* (re)start reading */
-	tasklet_wakeup(si->wait_event.task);
+	if (si->state == SI_ST_CON || si->state == SI_ST_EST)
+		tasklet_wakeup(si->wait_event.task);
 }
 
 
@@ -1029,7 +1030,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 	struct conn_stream *cs = __objt_cs(si->end);
 
-	if (unlikely(si->state > SI_ST_EST || (oc->flags & CF_SHUTW)))
+	if (unlikely((si->state != SI_ST_CON && si->state != SI_ST_EST) ||
+	    (oc->flags & CF_SHUTW)))
 		return;
 
 	if (unlikely(channel_is_empty(oc)))  /* called with nothing to send ! */
