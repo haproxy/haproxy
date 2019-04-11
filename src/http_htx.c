@@ -183,6 +183,10 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
 		blk = pblk;
 	}
+
+	if (htx_get_blk_pos(htx, blk) != htx->front)
+		htx_defrag(htx, NULL);
+
 	return 1;
 }
 

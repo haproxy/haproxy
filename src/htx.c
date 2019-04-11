@@ -841,6 +841,10 @@ struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
 			break;
 		blk = pblk;
 	}
+
+	if (htx_get_blk_pos(htx, blk) != htx->front)
+		htx_defrag(htx, NULL);
+
 	return blk;
 }
 
