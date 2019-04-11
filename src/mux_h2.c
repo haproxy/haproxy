@@ -5664,8 +5664,30 @@ static struct mux_proto_list mux_proto_h2 =
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
 
+
+/* The mux operations */
+static const struct mux_ops h2_htx_ops = {
+	.init = h2_init,
+	.wake = h2_wake,
+	.snd_buf = h2_snd_buf,
+	.rcv_buf = h2_rcv_buf,
+	.subscribe = h2_subscribe,
+	.unsubscribe = h2_unsubscribe,
+	.attach = h2_attach,
+	.get_first_cs = h2_get_first_cs,
+	.detach = h2_detach,
+	.destroy = h2_destroy,
+	.avail_streams = h2_avail_streams,
+	.used_streams = h2_used_streams,
+	.shutr = h2_shutr,
+	.shutw = h2_shutw,
+	.show_fd = h2_show_fd,
+	.flags = MX_FL_CLEAN_ABRT,
+	.name = "H2",
+};
+
 static struct mux_proto_list mux_proto_h2_htx =
-	{ .token = IST("h2"), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &h2_ops };
+	{ .token = IST("h2"), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &h2_htx_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2_htx);
 
