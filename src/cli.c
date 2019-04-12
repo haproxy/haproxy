@@ -373,16 +373,18 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 }
 
 /*
- * This function put a list of stats socket separated by a semicolon in the
- * "HAPROXY_CLI" environment variable
+ * This function exports the bound addresses of a <frontend> in the environment
+ * variable <varname>. Those addresses are separated by semicolons and prefixed
+ * with their type (abns@, unix@, sockpair@ etc)
+ * Return -1 upon error, 0 otherwise
  */
-int cli_socket_setenv()
+int listeners_setenv(struct proxy *frontend, const char *varname)
 {
 	struct buffer *trash = get_trash_chunk();
 	struct bind_conf *bind_conf;
 
-	if (global.stats_fe) {
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+	if (frontend) {
+		list_for_each_entry(bind_conf, &frontend->conf.bind, by_fe) {
 			struct listener *l;
 
 			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
@@ -414,9 +416,19 @@ int cli_socket_setenv()
 			}
 		}
 		trash->area[trash->data++] = '\0';
-		if (setenv("HAPROXY_CLI", trash->area, 1) < 0)
+		if (setenv(varname, trash->area, 1) < 0)
 			return -1;
 	}
+
+	return 0;
+}
+
+int cli_socket_setenv()
+{
+	if (listeners_setenv(global.stats_fe, "HAPROXY_CLI") < 0)
+		return -1;
+	if (listeners_setenv(mworker_proxy, "HAPROXY_MASTER_CLI") < 0)
+		return -1;
 
 	return 0;
 }
