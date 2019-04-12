@@ -302,7 +302,7 @@ jobcount=""
 verbose="-q"
 debug=""
 keep_logs="-l"
-no_htx="#"
+no_htx="no "
 testlist=""
 
 _process "$@";

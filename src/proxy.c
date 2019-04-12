@@ -820,6 +820,9 @@ void init_new_proxy(struct proxy *p)
 	/* initial uuid is unassigned (-1) */
 	p->uuid = -1;
 
+	/* HTX is the default mode, for HTTP and TCP */
+	p->options2 |= PR_O2_USE_HTX;
+
 	HA_SPIN_INIT(&p->lock);
 }
 
