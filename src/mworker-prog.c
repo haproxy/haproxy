@@ -35,13 +35,63 @@ int mworker_ext_launch_all()
 {
 	int ret;
 	struct mworker_proc *child;
+	struct mworker_proc *tmp;
+	int reexec = 0;
 
 	if (!use_program)
 		return 0;
 
+	reexec = getenv("HAPROXY_MWORKER_REEXEC") ? 1 : 0;
+
 	/* find the right mworker_proc */
-	list_for_each_entry(child, &proc_list, list) {
+	list_for_each_entry_safe(child, tmp, &proc_list, list) {
 		if (child->reloads == 0 && child->type == 'e') {
+
+			if (reexec && (!(child->options & PROC_O_START_RELOAD))) {
+				struct mworker_proc *old_child;
+
+				/*
+				 * This is a reload and we don't want to fork a
+				 * new program so have to remove the entry in
+				 * the list.
+				 *
+				 * But before that, we need to mark the
+				 * previous program as not leaving, if we find one.
+				 */
+
+				list_for_each_entry(old_child, &proc_list, list) {
+					if (old_child->type != 'e' || (!(old_child->options & PROC_O_LEAVING)))
+						continue;
+
+					if (!strcmp(old_child->id, child->id))
+						old_child->options &= ~PROC_O_LEAVING;
+				}
+
+
+				LIST_DEL(&child->list);
+				if (child->command) {
+					int i;
+
+					for (i = 0; child->command[i]; i++) {
+						if (child->command[i]) {
+							free(child->command[i]);
+							child->command[i] = NULL;
+						}
+					}
+					free(child->command);
+					child->command = NULL;
+				}
+				if (child->id) {
+					free(child->id);
+					child->id = NULL;
+				}
+
+				free(child);
+				child = NULL;
+
+				continue;
+			}
+
 			child->timestamp = now.tv_sec;
 
 			ret = fork();
@@ -109,6 +159,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		ext_child->timestamp = -1;
 		ext_child->ipc_fd[0] = -1;
 		ext_child->ipc_fd[1] = -1;
+		ext_child->options |= PROC_O_START_RELOAD; /* restart the programs by default */
 		LIST_INIT(&ext_child->list);
 
 		list_for_each_entry(child, &proc_list, list) {
@@ -162,6 +213,29 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		}
 		ext_child->command[i] = NULL;
 
+	} else if (!strcmp(args[0], "option")) {
+
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+
+		if (strcmp(args[1], "start-on-reload") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto error;
+			if (kwm == KWM_STD)
+				ext_child->options |= PROC_O_START_RELOAD;
+			else if (kwm == KWM_NO)
+				ext_child->options &= ~PROC_O_START_RELOAD;
+			goto out;
+
+		} else {
+			ha_alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
 	} else {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "program");
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -194,6 +268,7 @@ error:
 	free(ext_child);
 	ext_child = NULL;
 
+out:
 	return err_code;
 
 }
