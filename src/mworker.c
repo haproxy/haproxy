@@ -66,7 +66,7 @@ int mworker_current_child(int pid)
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if ((child->type == 'w' || child->type == 'e') && (child->reloads == 0) && (child->pid == pid))
+		if ((child->type == 'w' || child->type == 'e') && (!(child->options & PROC_O_LEAVING)) && (child->pid == pid))
 			return 1;
 	}
 	return 0;
@@ -156,6 +156,8 @@ void mworker_env_to_proc_list()
 			free(child);
 
 		}
+		/* this is a process inherited from a reload that should be leaving */
+		child->options |= PROC_O_LEAVING;
 	}
 
 	unsetenv("HAPROXY_PROCESSES");
@@ -246,7 +248,7 @@ restart_wait:
 			ha_warning("Process %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else {
 			/* check if exited child is a current child */
-			if (child->reloads == 0) {
+			if (!(child->options & PROC_O_LEAVING)) {
 				if (child->type == 'w')
 					ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				else if (child->type == 'e')
@@ -415,7 +417,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		if (child->type != 'w')
 			continue;
 
-		if (child->reloads > 0) {
+		if (child->options & PROC_O_LEAVING) {
 			old++;
 			continue;
 		}
@@ -434,7 +436,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			if (child->type != 'w')
 				continue;
 
-			if (child->reloads > 0) {
+			if (child->options & PROC_O_LEAVING) {
 				memprintf(&msg, "[was: %u]", child->relative_pid);
 				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", msg, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 			}
@@ -451,7 +453,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		if (child->type != 'e')
 			continue;
 
-		if (child->reloads > 0) {
+		if (child->options & PROC_O_LEAVING) {
 			old++;
 			continue;
 		}
@@ -466,7 +468,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			if (child->type != 'e')
 				continue;
 
-			if (child->reloads > 0) {
+			if (child->options & PROC_O_LEAVING) {
 				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, child->id, "-", child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 			}
 		}

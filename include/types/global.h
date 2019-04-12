@@ -180,6 +180,14 @@ struct global {
 #endif
 };
 
+/* options for mworker_proc */
+
+#define PROC_O_TYPE_MASTER           0x00000001
+#define PROC_O_TYPE_WORKER           0x00000002
+#define PROC_O_TYPE_PROG             0x00000004
+/* 0x00000008 unused */
+#define PROC_O_LEAVING               0x00000010  /* this process should be leaving */
+
 /*
  * Structure used to describe the processes in master worker mode
  */
@@ -187,6 +195,7 @@ struct mworker_proc {
 	int pid;
 	char type;  /* m(aster), w(orker)  */
 	/* 3 bytes hole here */
+	int options;
 	char *id;
 	char **command;
 	char *path;
