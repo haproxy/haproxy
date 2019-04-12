@@ -195,8 +195,6 @@ struct global {
  */
 struct mworker_proc {
 	int pid;
-	char type;  /* m(aster), w(orker)  */
-	/* 3 bytes hole here */
 	int options;
 	char *id;
 	char **command;

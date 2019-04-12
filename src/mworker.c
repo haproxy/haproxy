@@ -54,7 +54,7 @@ static void mworker_kill(int sig)
 
 	list_for_each_entry(child, &proc_list, list) {
 		/* careful there, we must be sure that the pid > 0, we don't want to emit a kill -1 */
-		if ((child->type == 'w' || child->type == 'e') && (child->reloads == 0) && (child->pid > 0))
+		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (child->reloads == 0) && (child->pid > 0))
 			kill(child->pid, sig);
 	}
 }
@@ -66,7 +66,7 @@ int mworker_current_child(int pid)
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if ((child->type == 'w' || child->type == 'e') && (!(child->options & PROC_O_LEAVING)) && (child->pid == pid))
+		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (!(child->options & PROC_O_LEAVING)) && (child->pid == pid))
 			return 1;
 	}
 	return 0;
@@ -82,7 +82,7 @@ int mworker_child_nb()
 	int ret = 0;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if ((child->type == 'w' || child->type == 'e'))
+		if (child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG))
 			ret++;
 	}
 
@@ -99,8 +99,17 @@ void mworker_proc_list_to_env()
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
+		char type = '?';
+
+		if (child->options & PROC_O_TYPE_MASTER)
+			type = 'm';
+		else if (child->options & PROC_O_TYPE_PROG)
+			type = 'e';
+		else if (child->options &= PROC_O_TYPE_WORKER)
+			type = 'w';
+
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s", msg ? msg : "", child->type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "");
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "");
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -131,9 +140,18 @@ void mworker_env_to_proc_list()
 			token = NULL;
 
 			if (strncmp(subtoken, "type=", 5) == 0) {
-				child->type = *(subtoken+5);
-				if (child->type == 'm') /* we are in the master, assign it */
+				char type;
+
+				type = *(subtoken+5);
+				if (type == 'm') { /* we are in the master, assign it */
 					proc_self = child;
+					child->options |= PROC_O_TYPE_MASTER;
+				} else if (type == 'e') {
+					child->options |= PROC_O_TYPE_PROG;
+				} else if (type == 'w') {
+					child->options |= PROC_O_TYPE_WORKER;
+				}
+
 			} else if (strncmp(subtoken, "fd=", 3) == 0) {
 				child->ipc_fd[0] = atoi(subtoken+3);
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
@@ -249,9 +267,9 @@ restart_wait:
 		} else {
 			/* check if exited child is a current child */
 			if (!(child->options & PROC_O_LEAVING)) {
-				if (child->type == 'w')
+				if (child->options & PROC_O_TYPE_WORKER)
 					ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
-				else if (child->type == 'e')
+				else if (child->options & PROC_O_TYPE_PROG)
 					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 
 				if (status != 0 && status != 130 && status != 143
@@ -262,10 +280,10 @@ restart_wait:
 					mworker_kill(SIGTERM);
 				}
 			} else {
-				if (child->type == 'w') {
+				if (child->options & PROC_O_TYPE_WORKER) {
 					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 					delete_oldpid(exitpid);
-				} else if (child->type == 'e') {
+				} else if (child->options & PROC_O_TYPE_PROG) {
 					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				}
 			}
@@ -414,7 +432,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	list_for_each_entry(child, &proc_list, list) {
 		up = now.tv_sec - child->timestamp;
 
-		if (child->type != 'w')
+		if (!(child->options & PROC_O_TYPE_WORKER))
 			continue;
 
 		if (child->options & PROC_O_LEAVING) {
@@ -433,7 +451,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		list_for_each_entry(child, &proc_list, list) {
 			up = now.tv_sec - child->timestamp;
 
-			if (child->type != 'w')
+			if (!(child->options & PROC_O_TYPE_WORKER))
 				continue;
 
 			if (child->options & PROC_O_LEAVING) {
@@ -450,7 +468,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	list_for_each_entry(child, &proc_list, list) {
 		up = now.tv_sec - child->timestamp;
 
-		if (child->type != 'e')
+		if (!(child->options & PROC_O_TYPE_PROG))
 			continue;
 
 		if (child->options & PROC_O_LEAVING) {
@@ -465,7 +483,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		list_for_each_entry(child, &proc_list, list) {
 			up = now.tv_sec - child->timestamp;
 
-			if (child->type != 'e')
+			if (!(child->options & PROC_O_TYPE_PROG))
 				continue;
 
 			if (child->options & PROC_O_LEAVING) {

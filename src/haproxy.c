@@ -608,7 +608,7 @@ void mworker_reload()
 		next_argv[next_argc++] = "-sf";
 
 		list_for_each_entry(child, &proc_list, list) {
-			if (child->type != 'w' && child->type != 'e')
+			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)))
 				continue;
 			next_argv[next_argc] = memprintf(&msg, "%d", child->pid);
 			if (next_argv[next_argc] == NULL)
@@ -1601,7 +1601,7 @@ static void init(int argc, char **argv)
 				ha_alert("Cannot allocate process structures.\n");
 				exit(EXIT_FAILURE);
 			}
-			tmproc->type = 'm'; /* master */
+			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
 			tmproc->reloads = 0;
 			tmproc->relative_pid = 0;
 			tmproc->pid = pid;
@@ -1622,7 +1622,7 @@ static void init(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 
-			tmproc->type = 'w'; /* worker */
+			tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
 			tmproc->pid = -1;
 			tmproc->reloads = 0;
 			tmproc->timestamp = -1;
@@ -2864,7 +2864,7 @@ int main(int argc, char **argv)
 					/* find the right mworker_proc */
 					list_for_each_entry(child, &proc_list, list) {
 						if (child->relative_pid == relative_pid &&
-						    child->reloads == 0 && child->type == 'w') {
+						    child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
 							child->timestamp = now.tv_sec;
 							child->pid = ret;
 							break;

@@ -45,7 +45,7 @@ int mworker_ext_launch_all()
 
 	/* find the right mworker_proc */
 	list_for_each_entry_safe(child, tmp, &proc_list, list) {
-		if (child->reloads == 0 && child->type == 'e') {
+		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
 
 			if (reexec && (!(child->options & PROC_O_START_RELOAD))) {
 				struct mworker_proc *old_child;
@@ -60,7 +60,7 @@ int mworker_ext_launch_all()
 				 */
 
 				list_for_each_entry(old_child, &proc_list, list) {
-					if (old_child->type != 'e' || (!(old_child->options & PROC_O_LEAVING)))
+					if (!(old_child->options & PROC_O_TYPE_PROG) || (!(old_child->options & PROC_O_LEAVING)))
 						continue;
 
 					if (!strcmp(old_child->id, child->id))
@@ -149,7 +149,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			goto error;
 		}
 
-		ext_child->type = 'e'; /* external process */
+		ext_child->options |= PROC_O_TYPE_PROG; /* external process */
 		ext_child->command = NULL;
 		ext_child->path = NULL;
 		ext_child->id = NULL;
@@ -163,7 +163,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&ext_child->list);
 
 		list_for_each_entry(child, &proc_list, list) {
-			if (child->reloads == 0 && child->type == 'e') {
+			if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
 				if (!strcmp(args[1], child->id)) {
 					ha_alert("parsing [%s:%d]: '%s' program section already exists in the configuration.\n", file, linenum, args[1]);
 					err_code |= ERR_ALERT | ERR_ABORT;
@@ -279,7 +279,7 @@ int cfg_program_postparser()
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if (child->reloads == 0 && child->type == 'e') {
+		if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
 			if (child->command == NULL) {
 				ha_alert("The program section '%s' lacks a command to launch.\n", child->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
