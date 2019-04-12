@@ -391,6 +391,10 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 				char addr[46];
 				char port[6];
 
+				/* separate listener by semicolons */
+				if (trash->data)
+					chunk_appendf(trash, ";");
+
 				if (l->addr.ss_family == AF_UNIX) {
 					const struct sockaddr_un *un;
 
@@ -411,8 +415,6 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 				} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
 					chunk_appendf(trash, "sockpair@%d", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
 				}
-				/* separate listener by semicolons */
-				trash->area[trash->data++] = ';';
 			}
 		}
 		trash->area[trash->data++] = '\0';
