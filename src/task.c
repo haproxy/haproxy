@@ -339,7 +339,7 @@ void process_runnable_tasks()
 		 * than the average.
 		 */
 		rq_next = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
-		while ((task_per_thread[tid].task_list_size + task_per_thread[tid].rqueue_size) * global.nbthread <= tasks_run_queue) {
+		while ((task_per_thread[tid].task_list_size + task_per_thread[tid].rqueue_size) * global.nbthread <= tasks_run_queue + global.nbthread - 1) {
 			if (unlikely(!rq_next)) {
 				/* either we just started or we reached the end
 				 * of the tree, typically because <rqueue_ticks>
