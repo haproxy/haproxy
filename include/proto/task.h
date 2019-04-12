@@ -92,7 +92,6 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
-extern THREAD_LOCAL struct eb32sc_node *rq_next; /* Next task to be potentially run */
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
@@ -229,11 +228,8 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 	if (is_global)
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	if (likely(task_in_rq(t))) {
-		if (&t->rq == rq_next)
-			rq_next = eb32sc_next(rq_next, tid_bit);
+	if (likely(task_in_rq(t)))
 		__task_unlink_rq(t);
-	}
 	if (is_global)
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	return t;

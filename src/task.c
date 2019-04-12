@@ -42,7 +42,6 @@ unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
-THREAD_LOCAL struct eb32sc_node *rq_next = NULL; /* Next task to be potentially run */
 
 __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
 __decl_aligned_spinlock(wq_lock); /* spin lock related to wait queue */
@@ -317,6 +316,7 @@ int wake_expired_tasks()
  */
 void process_runnable_tasks()
 {
+	struct eb32sc_node *rq_next;
 	struct task *t;
 	int max_processed;
 
