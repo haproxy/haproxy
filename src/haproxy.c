@@ -1594,6 +1594,8 @@ static void init(int argc, char **argv)
 		int proc;
 		struct mworker_proc *tmproc;
 
+		setenv("HAPROXY_MWORKER", "1", 1);
+
 		if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
 
 			tmproc = calloc(1, sizeof(*tmproc));
