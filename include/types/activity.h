@@ -51,6 +51,7 @@ struct activity {
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
 	struct freq_ctr_period cpust_15s; // avg amount of half-ms stolen over last 15s
 	unsigned int avg_loop_us;  // average run time per loop over last 1024 runs
+	unsigned int accepted;     // accepted incoming connections
 	unsigned int accq_pushed;  // accept queue connections pushed
 	unsigned int accq_full;    // accept queue connection not pushed because full
 	char __pad[0]; // unused except to check remaining room

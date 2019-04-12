@@ -826,6 +826,8 @@ void listener_accept(int fd)
 			HA_ATOMIC_UPDATE_MAX(&global.cps_max, count);
 		}
 
+		_HA_ATOMIC_ADD(&activity[tid].accepted, 1);
+
 		if (unlikely(cfd >= global.maxsock)) {
 			send_log(p, LOG_EMERG,
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
