@@ -31,8 +31,10 @@ _help()
     --clean to cleanup previous reg-tests log directories and exit
       run-regtests.sh --clean
 
-    --use-htx to use the HTX in tests
-      run-regtests.sh --use-htx, unsets the macro \${no-htx}
+    --use-htx to use the HTX in tests (deprecated, the default mode now)
+
+    --no-htx to use the legacy HTTP in tests
+      run-regtests.sh --no-htx, sets the macro \${no-htx}
       In .vtc files, in HAProxy configuration, you should use the following line
       to "templatize" your tests:
 
@@ -269,6 +271,9 @@ _process() {
         --use-htx)
           no_htx=""
           ;;
+        --no-htx)
+          no_htx="no "
+          ;;
         --clean)
           _cleanup
           exit 0
@@ -302,7 +307,7 @@ jobcount=""
 verbose="-q"
 debug=""
 keep_logs="-l"
-no_htx="no "
+no_htx=""
 testlist=""
 
 _process "$@";
@@ -342,15 +347,9 @@ echo "Target : $TARGET"
 echo "Options : $FEATURES"
 
 echo "########################## Gathering tests to run ##########################"
-# if 'use-htx' option is set, but HAProxy version is lower to 1.9, disable it
-if [ -z "$no_htx" ]; then
-  if [ $(_version "$HAPROXY_VERSION") -lt $(_version "1.9") ]; then
-    echo ""
-    echo "WARNING : Unset HTX for haproxy (version: $HAPROXY_VERSION)"
-    echo "    REASON: this test requires at least version: 1.9"
-    echo ""
-    no_htx="#"
-  fi
+# if htx is enable, but HAProxy version is lower to 1.9, disable it
+if [ $(_version "$HAPROXY_VERSION") -lt $(_version "1.9") ]; then
+  no_htx="#"
 fi
 
 if [ -z "$REGTESTS" ]; then
