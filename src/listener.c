@@ -201,6 +201,7 @@ static int accept_queue_init()
 			ha_alert("Out of memory while initializing accept queue for thread %d\n", i);
 			return ERR_FATAL|ERR_ABORT;
 		}
+		t->nice = -1024;
 		t->process = accept_queue_process;
 		t->context = &accept_queue_rings[i];
 		accept_queue_rings[i].task = t;
