@@ -132,9 +132,9 @@ redo:
 
 		_HA_ATOMIC_ADD(&niced_tasks, 1);
 		if (likely(t->nice > 0))
-			offset = (unsigned)((*rq_size * (unsigned int)t->nice) / 32U);
+			offset = (unsigned)(((*rq_size + 1) * (unsigned int)t->nice) / 32U);
 		else
-			offset = -(unsigned)((*rq_size * (unsigned int)-t->nice) / 32U);
+			offset = -(unsigned)(((*rq_size + 1) * (unsigned int)-t->nice) / 32U);
 		t->rq.key += offset;
 	}
 
