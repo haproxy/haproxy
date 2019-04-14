@@ -63,7 +63,7 @@ struct tls_sess_key_256 {
 
 union tls_sess_key{
 	unsigned char name[16];
-	struct tls_sess_key_256 key_128;
+	struct tls_sess_key_128 key_128;
 	struct tls_sess_key_256 key_256;
 } __attribute__((packed));
 
