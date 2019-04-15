@@ -81,6 +81,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_BUSY_POLLING;
 	}
+	else if (!strcmp(args[0], "set-dumpable")) { /* "no set-dumpable" or "set-dumpable" */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		if (kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_SET_DUMPABLE;
+		else
+			global.tune.options |=  GTUNE_SET_DUMPABLE;
+	}
 	else if (!strcmp(args[0], "nosplice")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;

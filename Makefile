@@ -37,6 +37,7 @@
 #   USE_FUTEX            : enable use of futex on kernel 2.6. Automatic.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_MY_ACCEPT4       : use own implemention of accept4() if glibc < 2.10.
+#   USE_PRCTL            : enable use of prctl(). Automatic.
 #   USE_ZLIB             : enable zlib library support.
 #   USE_SLZ              : enable slz library instead of zlib (pick at most one).
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
@@ -281,7 +282,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_SYSTEMD            \
-           USE_OBSOLETE_LINKER
+           USE_OBSOLETE_LINKER USE_PRCTL
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -332,7 +333,7 @@ endif
 ifeq ($(TARGET),linux26)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_EPOLL USE_FUTEX)
+    USE_EPOLL USE_FUTEX USE_PRCTL)
 endif
 
 # Standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
@@ -340,7 +341,7 @@ ifeq ($(TARGET),linux2628)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
-    USE_ACCEPT4 USE_LINUX_SPLICE ASSUME_SPLICE_WORKS)
+    USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL ASSUME_SPLICE_WORKS)
 endif
 
 # Solaris 8 and above

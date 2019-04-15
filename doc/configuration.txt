@@ -580,6 +580,7 @@ The following keywords are supported in the "global" section :
    - uid
    - ulimit-n
    - user
+   - set-dumpable
    - setenv
    - stats
    - ssl-default-bind-ciphers
@@ -1027,6 +1028,25 @@ setenv <name> <value>
   is overwritten. The changes immediately take effect so that the next line in
   the configuration file sees the new value. See also "presetenv", "resetenv",
   and "unsetenv".
+
+set-dumpable
+  This option is better left disabled by default and enabled only upon a
+  developer's request. It has no impact on performance nor stability but will
+  try hard to re-enable core dumps that were possibly disabled by file size
+  limitations (ulimit -f), core size limitations (ulimit -c), or "dumpability"
+  of a process after changing its UID/GID (such as /proc/sys/fs/suid_dumpable
+  on Linux). Core dumps might still be limited by the current directory's
+  permissions (check what directory the file is started from), the chroot
+  directory's permission (it may be needed to temporarily disable the chroot
+  directive or to move it to a dedicated writable location), or any other
+  system-specific constraint. For example, some Linux flavours are notorious
+  for replacing the default core file with a path to an executable not even
+  installed on the system (check /proc/sys/kernel/core_pattern). Often, simply
+  writing "core", "core.%p" or "/var/log/core/core.%p" addresses the issue.
+  When trying to enable this option waiting for a rare issue to re-appear, it's
+  often a good idea to first try to obtain such a dump by issuing, for example,
+  "kill -11" to the haproxy process and verify that it leaves a core where
+  expected when dying.
 
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
