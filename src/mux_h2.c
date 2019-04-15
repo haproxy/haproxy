@@ -5150,7 +5150,8 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 			sw->events |= SUB_RETRY_SEND;
 			sw->handle = h2s;
 			h2s->send_wait = sw;
-			if (!(h2s->flags & H2_SF_BLK_SFCTL)) {
+			if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
+			    LIST_ISEMPTY(&h2s->list)) {
 				if (h2s->flags & H2_SF_BLK_MFCTL)
 					LIST_ADDQ(&h2c->fctl_list, &h2s->list);
 				else
