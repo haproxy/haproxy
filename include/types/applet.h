@@ -161,6 +161,11 @@ struct appctx {
 			struct task *task;
 			struct hlua_function *fcn;
 		} hlua_cli;
+		struct {
+			void *target;
+			struct peers *peers; /* "peers" section being currently dumped. */
+			struct peer *peer;   /* "peer" being currently dumped. */
+		} cfgpeers;
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */
