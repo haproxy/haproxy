@@ -325,6 +325,9 @@ void process_runnable_tasks()
 	nb_tasks_cur = nb_tasks;
 	max_processed = global.tune.runqueue_depth;
 
+	if (likely(niced_tasks))
+		max_processed = (max_processed + 3) / 4;
+
 	/* Note: the grq lock is always held when grq is not null */
 
 	while (task_per_thread[tid].task_list_size < max_processed) {
