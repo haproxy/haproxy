@@ -4263,7 +4263,7 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 	struct server *srv;
 	char *hdr_beg, *hdr_end;
 	char *prev, *att_beg, *att_end, *equal, *val_beg, *val_end, *next;
-	int is_cookie2;
+	int is_cookie2 = 0;
 
 	htx = htxbuf(&res->buf);
 
