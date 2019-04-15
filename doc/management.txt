@@ -2087,6 +2087,57 @@ show map [<map>]
   are not directly a list of available maps, but are the list of all patterns
   composing any map. Many of these patterns can be shared with ACL.
 
+show peers [<peers section>]
+  Dump info about the peers configured in "peers" sections. Without argument,
+  the list of the peers belonging to all the "peers" sections are listed. If
+  <peers section> is specified, only the information about the peers belonging
+  to this "peers" section are dumped.
+
+  Here are two examples of ouputs where hostA, hostB and hostC peers belong to
+  "sharedlb" peers sections. Only hostA and hostB are connected. Only hostA has
+  sent data to hostB.
+
+  $ echo "show peers" | socat - /tmp/hostA
+  0x55deb0224320: [15/Apr/2019:11:28:01] id=sharedlb state=0 flags=0x3 \
+    resync_timeout=<PAST>
+      0x55deb022b540: id=hostC(remote) addr=127.0.0.12:10002 status=CONN \
+        reconnect=4s confirm=0
+        flags=0x0
+      0x55deb022a440: id=hostA(local) addr=127.0.0.10:10000 status=NONE \
+        reconnect=<NEVER> confirm=0
+        flags=0x0
+      0x55deb0227d70: id=hostB(remote) addr=127.0.0.11:10001 status=ESTA
+        reconnect=2s confirm=0
+        flags=0x20000200 appctx:0x55deb028fba0 st0=7 st1=0 state=EST
+        xprt=RAW src=127.0.0.1:37257 addr=127.0.0.10:10000
+        remote_table:0x55deb0224a10 id=stkt local_id=1 remote_id=1
+        last_local_table:0x55deb0224a10 id=stkt local_id=1 remote_id=1
+        shared tables:
+          0x55deb0224a10 local_id=1 remote_id=1 flags=0x0 remote_data=0x65
+            last_acked=0 last_pushed=3 last_get=0 teaching_origin=0 update=3
+            table:0x55deb022d6a0 id=stkt update=3 localupdate=3 \
+              commitupdate=3 syncing=0
+
+  $ echo "show peers" | socat - /tmp/hostB
+  0x55871b5ab320: [15/Apr/2019:11:28:03] id=sharedlb state=0 flags=0x3 \
+    resync_timeout=<PAST>
+      0x55871b5b2540: id=hostC(remote) addr=127.0.0.12:10002 status=CONN \
+        reconnect=3s confirm=0
+        flags=0x0
+      0x55871b5b1440: id=hostB(local) addr=127.0.0.11:10001 status=NONE \
+        reconnect=<NEVER> confirm=0
+        flags=0x0
+      0x55871b5aed70: id=hostA(remote) addr=127.0.0.10:10000 status=ESTA \
+        reconnect=2s confirm=0
+        flags=0x20000200 appctx:0x7fa46800ee00 st0=7 st1=0 state=EST
+        remote_table:0x55871b5ab960 id=stkt local_id=1 remote_id=1
+        last_local_table:0x55871b5ab960 id=stkt local_id=1 remote_id=1
+        shared tables:
+          0x55871b5ab960 local_id=1 remote_id=1 flags=0x0 remote_data=0x65
+            last_acked=3 last_pushed=0 last_get=3 teaching_origin=0 update=0
+            table:0x55871b5b46a0 id=stkt update=1 localupdate=0 \
+              commitupdate=0 syncing=0
+
 show pools
   Dump the status of internal memory pools. This is useful to track memory
   usage when suspecting a memory leak for example. It does exactly the same
