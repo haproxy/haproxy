@@ -53,7 +53,6 @@ struct pipe;
 enum sub_event_type {
 	SUB_RETRY_RECV       = 0x00000001,  /* Schedule the tasklet when we can attempt to recv again */
 	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
-	SUB_CALL_UNSUBSCRIBE = 0x00000004,  /* The mux wants its unsubscribe() method to be called before destruction of the underlying object */
 };
 
 struct wait_event {
