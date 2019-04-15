@@ -483,6 +483,9 @@ static void h1_release(struct h1c *h1c)
 			tasklet_free(h1c->wait_event.task);
 
 		h1s_destroy(h1c->h1s);
+		if (conn && h1c->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, h1c->wait_event.events,
+			    &h1c->wait_event);
 		pool_free(pool_head_h1c, h1c);
 	}
 
@@ -490,7 +493,6 @@ static void h1_release(struct h1c *h1c)
 		conn->mux = NULL;
 		conn->ctx = NULL;
 
-		conn_force_unsubscribe(conn);
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
 		if (conn->destroy_cb)
