@@ -723,10 +723,9 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 {
 	struct wait_event *sw;
 
-	if (h2s->send_wait && !(h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)) {
+	if (h2s->send_wait && LIST_ISEMPTY(&h2s->sending_list)) {
 		sw = h2s->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
-		sw->events |= SUB_CALL_UNSUBSCRIBE;
 		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
 		tasklet_wakeup(sw->task);
 	}
@@ -876,7 +875,10 @@ static void h2s_destroy(struct h2s *h2s)
 	 * we're in it, we're getting out anyway
 	 */
 	LIST_DEL_INIT(&h2s->list);
-	LIST_DEL_INIT(&h2s->sending_list);
+	if (!LIST_ISEMPTY(&h2s->sending_list)) {
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+		LIST_DEL_INIT(&h2s->sending_list);
+	}
 	tasklet_free(h2s->wait_event.task);
 	pool_free(pool_head_h2s, h2s);
 }
@@ -2546,7 +2548,7 @@ static void h2_process_demux(struct h2c *h2c)
  */
 static int h2_process_mux(struct h2c *h2c)
 {
-	struct h2s *h2s;
+	struct h2s *h2s, *h2s_back;
 
 	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
 		if (unlikely(h2c->st0 == H2_CS_PREFACE && (h2c->flags & H2_CF_IS_BACK))) {
@@ -2576,29 +2578,43 @@ static int h2_process_mux(struct h2c *h2c)
 	 * blocked just on this.
 	 */
 
-	list_for_each_entry(h2s, &h2c->fctl_list, list) {
+	list_for_each_entry_safe(h2s, h2s_back, &h2c->fctl_list, list) {
 		if (h2c->mws <= 0 || h2c->flags & H2_CF_MUX_BLOCK_ANY ||
 		    h2c->st0 >= H2_CS_ERROR)
 			break;
-		if (h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)
+
+		if (!LIST_ISEMPTY(&h2s->sending_list))
 			continue;
 
 		h2s->flags &= ~H2_SF_BLK_ANY;
+		/* For some reason, the upper layer failed to subsribe again,
+		 * so remove it from the send_list
+		 */
+		if (!h2s->send_wait) {
+			LIST_DEL_INIT(&h2s->list);
+			continue;
+		}
 		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 		LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
 		tasklet_wakeup(h2s->send_wait->task);
 	}
 
-	list_for_each_entry(h2s, &h2c->send_list, list) {
+	list_for_each_entry_safe(h2s, h2s_back, &h2c->send_list, list) {
 		if (h2c->st0 >= H2_CS_ERROR || h2c->flags & H2_CF_MUX_BLOCK_ANY)
 			break;
-		if (h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)
+
+		if (!LIST_ISEMPTY(&h2s->sending_list))
 			continue;
 
+		/* For some reason, the upper layer failed to subsribe again,
+		 * so remove it from the send_list
+		 */
+		if (!h2s->send_wait) {
+			LIST_DEL_INIT(&h2s->list);
+			continue;
+		}
 		h2s->flags &= ~H2_SF_BLK_ANY;
 		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 		LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
 		tasklet_wakeup(h2s->send_wait->task);
 	}
@@ -2758,12 +2774,19 @@ static int h2_send(struct h2c *h2c)
 		list_for_each_entry(h2s, &h2c->send_list, list) {
 			if (h2c->st0 >= H2_CS_ERROR || h2c->flags & H2_CF_MUX_BLOCK_ANY)
 				break;
-			if (h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)
+
+			if (!LIST_ISEMPTY(&h2s->sending_list))
 				continue;
 
+			/* For some reason, the upper layer failed to subsribe again,
+			 * so remove it from the send_list
+			 */
+			if (!h2s->send_wait) {
+				LIST_DEL_INIT(&h2s->list);
+				continue;
+			}
 			h2s->flags &= ~H2_SF_BLK_ANY;
 			h2s->send_wait->events &= ~SUB_RETRY_SEND;
-			h2s->send_wait->events |= SUB_CALL_UNSUBSCRIBE;
 			tasklet_wakeup(h2s->send_wait->task);
 			LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
 		}
@@ -3012,6 +3035,13 @@ static void h2_detach(struct conn_stream *cs)
 	if (!h2s)
 		return;
 
+	/* The stream is about to die, so no need to attempt to run its task */
+	if (!LIST_ISEMPTY(&h2s->sending_list) &&
+	    h2s->send_wait != &h2s->wait_event) {
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+		LIST_DEL_INIT(&h2s->sending_list);
+	}
+
 	sess = h2s->sess;
 	h2c = h2s->h2c;
 	h2s->cs = NULL;
@@ -3233,10 +3263,6 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 	int ret = 0;
 
 	LIST_DEL_INIT(&h2s->sending_list);
-	if (h2s->send_wait) {
-		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
-		h2s->send_wait->events |= SUB_RETRY_SEND;
-	}
 	if (reason & 2)
 		ret |= h2_do_shutw(h2s);
 	if (reason & 1)
@@ -3244,8 +3270,6 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 
 	if (!ret) {
 		/* We're done trying to send, remove ourself from the send_list */
-		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		h2s->send_wait = NULL;
 		LIST_DEL_INIT(&h2s->list);
 	}
 	/* We're no longer trying to send anything, let's destroy the h2s */
@@ -5188,18 +5212,14 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 			LIST_DEL(&h2s->list);
 			LIST_INIT(&h2s->list);
 			sw->events &= ~SUB_RETRY_SEND;
+			/* We were about to send, make sure it does not happen */
+			if (!LIST_ISEMPTY(&h2s->sending_list) &&
+			    h2s->send_wait != &h2s->wait_event) {
+				task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+				LIST_DEL_INIT(&h2s->sending_list);
+			}
 			h2s->send_wait = NULL;
-		}
-	}
-	if (event_type & SUB_CALL_UNSUBSCRIBE) {
-		sw = param;
-		if (h2s->send_wait == sw) {
-			sw->events &= ~SUB_CALL_UNSUBSCRIBE;
-			task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
-			h2s->send_wait = NULL;
-			LIST_DEL(&h2s->list);
-			LIST_INIT(&h2s->list);
-			LIST_DEL_INIT(&h2s->sending_list);
+
 		}
 	}
 	return 0;
@@ -5285,7 +5305,6 @@ static void h2_stop_senders(struct h2c *h2c)
 		LIST_DEL_INIT(&h2s->sending_list);
 		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
-		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
 	}
 }
 
@@ -5309,19 +5328,16 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
 	 */
-	LIST_DEL_INIT(&h2s->sending_list);
-	if ((!(h2s->send_wait) || !(h2s->send_wait->events & SUB_CALL_UNSUBSCRIBE)) &&
+	if (LIST_ISEMPTY(&h2s->sending_list) &&
 	    (!LIST_ISEMPTY(&h2s->h2c->send_list) || !LIST_ISEMPTY(&h2s->h2c->fctl_list)))
 		return 0;
+	LIST_DEL_INIT(&h2s->sending_list);
 
-	if (h2s->send_wait) {
-		/* We want to stay in the send_list, so prepare ourself to be
-		 * eventually recalled if needed, and only remove ourself from
-		 * the list if we managed to send anything.
-		 */
-		h2s->send_wait->events &= ~SUB_CALL_UNSUBSCRIBE;
-		h2s->send_wait->events |= SUB_RETRY_SEND;
-	}
+	/* We couldn't set it to NULL before, because we needed it in case
+	 * we had to cancel the tasklet
+	 */
+	h2s->send_wait = NULL;
+
 	if (h2s->h2c->st0 < H2_CS_FRAME_H)
 		return 0;
 
@@ -5510,10 +5526,8 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		else
 			cs->flags |= CS_FL_ERR_PENDING;
 	}
-	if (total > 0 && h2s->send_wait) {
+	if (total > 0) {
 		/* Ok we managed to send something, leave the send_list */
-		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		h2s->send_wait = NULL;
 		LIST_DEL_INIT(&h2s->list);
 	}
 	return total;
