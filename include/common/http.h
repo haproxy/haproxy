@@ -136,7 +136,7 @@ extern const char *HTTP_407_fmt;
 
 int init_http(char **err);
 enum http_meth_t find_http_meth(const char *str, const int len);
-const int http_get_status_idx(unsigned int status);
+int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
 struct ist http_get_path(const struct ist uri);
 int http_header_match2(const char *hdr, const char *end,

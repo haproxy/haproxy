@@ -229,48 +229,48 @@ int htx_trailer_to_h1(const struct ist tlr, struct buffer *chk);
 #define HTX_SL_RES_CPTR(sl) HTX_SL_P2_PTR(sl)
 #define HTX_SL_RES_RPTR(sl) HTX_SL_P3_PTR(sl)
 
-static inline const struct ist htx_sl_p1(const struct htx_sl *sl)
+static inline struct ist htx_sl_p1(const struct htx_sl *sl)
 {
 	return ist2(HTX_SL_P1_PTR(sl), HTX_SL_P1_LEN(sl));
 }
 
-static inline const struct ist htx_sl_p2(const struct htx_sl *sl)
+static inline struct ist htx_sl_p2(const struct htx_sl *sl)
 {
 	return ist2(HTX_SL_P2_PTR(sl), HTX_SL_P2_LEN(sl));
 }
 
-static inline const struct ist htx_sl_p3(const struct htx_sl *sl)
+static inline struct ist htx_sl_p3(const struct htx_sl *sl)
 {
 	return ist2(HTX_SL_P3_PTR(sl), HTX_SL_P3_LEN(sl));
 }
 
-static inline const struct ist htx_sl_req_meth(const struct htx_sl *sl)
+static inline struct ist htx_sl_req_meth(const struct htx_sl *sl)
 {
 	return htx_sl_p1(sl);
 }
 
-static inline const struct ist htx_sl_req_uri(const struct htx_sl *sl)
+static inline struct ist htx_sl_req_uri(const struct htx_sl *sl)
 {
 	return htx_sl_p2(sl);
 }
 
-static inline const struct ist htx_sl_req_vsn(const struct htx_sl *sl)
+static inline struct ist htx_sl_req_vsn(const struct htx_sl *sl)
 {
 	return htx_sl_p3(sl);
 }
 
 
-static inline const struct ist htx_sl_res_vsn(const struct htx_sl *sl)
+static inline struct ist htx_sl_res_vsn(const struct htx_sl *sl)
 {
 	return htx_sl_p1(sl);
 }
 
-static inline const struct ist htx_sl_res_code(const struct htx_sl *sl)
+static inline struct ist htx_sl_res_code(const struct htx_sl *sl)
 {
 	return htx_sl_p2(sl);
 }
 
-static inline const struct ist htx_sl_res_reason(const struct htx_sl *sl)
+static inline struct ist htx_sl_res_reason(const struct htx_sl *sl)
 {
 	return htx_sl_p3(sl);
 }

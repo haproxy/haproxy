@@ -362,7 +362,7 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 /* This function returns HTTP_ERR_<num> (enum) matching http status code.
  * Returned value should match codes from http_err_codes.
  */
-const int http_get_status_idx(unsigned int status)
+int http_get_status_idx(unsigned int status)
 {
 	switch (status) {
 	case 200: return HTTP_ERR_200;
