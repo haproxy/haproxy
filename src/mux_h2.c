@@ -619,14 +619,13 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
  */
 static void h2_release(struct h2c *h2c)
 {
-	struct connection *conn = h2c->conn;
-
-	/* The connection was attached to another mux (unexpected but safer to
-	 * check) */
-	if (conn && conn->ctx != h2c)
-		conn = NULL;
+	struct connection *conn = NULL;;
 
 	if (h2c) {
+		/* The connection must be aattached to this mux to be released */
+		if (h2c->conn && h2c->conn->ctx == h2c)
+			conn = h2c->conn;
+
 		hpack_dht_free(h2c->ddht);
 
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);

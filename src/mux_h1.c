@@ -445,14 +445,14 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
  */
 static void h1_release(struct h1c *h1c)
 {
-	struct connection *conn = h1c->conn;
-
-	/* The connection was attached to another mux */
-	if (conn && conn->ctx != h1c)
-		conn = NULL;
+	struct connection *conn = NULL;
 
 	if (h1c) {
-		if (h1c->flags & H1C_F_UPG_H2C) {
+		/* The connection must be aattached to this mux to be released */
+		if (h1c->conn && h1c->conn->ctx == h1c)
+			conn = h1c->conn;
+
+		if (conn && h1c->flags & H1C_F_UPG_H2C) {
 			h1c->flags &= ~H1C_F_UPG_H2C;
 			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTX) != -1) {
 				/* connection successfully upgraded to H2, this
@@ -461,6 +461,7 @@ static void h1_release(struct h1c *h1c)
 			}
 			sess_log(conn->owner); /* Log if the upgrade failed */
 		}
+
 
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);

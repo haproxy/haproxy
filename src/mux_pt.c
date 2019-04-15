@@ -26,13 +26,10 @@ DECLARE_STATIC_POOL(pool_head_pt_ctx, "mux_pt", sizeof(struct mux_pt_ctx));
 
 static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
-	struct connection *conn = ctx->conn;
+	/* The connection must be aattached to this mux to be released */
+	if (ctx && ctx->conn && ctx->conn->ctx == ctx) {
+		struct connection *conn = ctx->conn;
 
-	/* The connection was attached to another mux */
-	if (conn && conn->ctx != ctx)
-		conn = NULL;
-
-	if (conn) {
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
 		tasklet_free(ctx->wait_event.task);
