@@ -531,7 +531,7 @@ static int srv_parse_no_check_send_proxy(char **args, int *cur_arg,
 }
 
 /* Disable server PROXY protocol flags. */
-static int inline srv_disable_pp_flags(struct server *srv, unsigned int flags)
+static inline int srv_disable_pp_flags(struct server *srv, unsigned int flags)
 {
 	srv->pp_opts &= ~flags;
 	return 0;
@@ -560,7 +560,7 @@ static int srv_parse_non_stick(char **args, int *cur_arg,
 }
 
 /* Enable server PROXY protocol flags. */
-static int inline srv_enable_pp_flags(struct server *srv, unsigned int flags)
+static inline int srv_enable_pp_flags(struct server *srv, unsigned int flags)
 {
 	srv->pp_opts |= flags;
 	return 0;

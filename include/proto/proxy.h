@@ -119,7 +119,7 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 }
 
 /* increase the number of cumulated connections received on the designated frontend */
-static void inline proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
+static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
 	_HA_ATOMIC_ADD(&fe->fe_counters.cum_conn, 1);
 	if (l->counters)
@@ -129,7 +129,7 @@ static void inline proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 }
 
 /* increase the number of cumulated connections accepted by the designated frontend */
-static void inline proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
+static inline void proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
 
 	_HA_ATOMIC_ADD(&fe->fe_counters.cum_sess, 1);
@@ -140,7 +140,7 @@ static void inline proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 }
 
 /* increase the number of cumulated connections on the designated backend */
-static void inline proxy_inc_be_ctr(struct proxy *be)
+static inline void proxy_inc_be_ctr(struct proxy *be)
 {
 	_HA_ATOMIC_ADD(&be->be_counters.cum_conn, 1);
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.sps_max,
@@ -148,7 +148,7 @@ static void inline proxy_inc_be_ctr(struct proxy *be)
 }
 
 /* increase the number of cumulated requests on the designated frontend */
-static void inline proxy_inc_fe_req_ctr(struct proxy *fe)
+static inline void proxy_inc_fe_req_ctr(struct proxy *fe)
 {
 	_HA_ATOMIC_ADD(&fe->fe_counters.p.http.cum_req, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.p.http.rps_max,

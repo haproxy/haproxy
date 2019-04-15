@@ -69,7 +69,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *ctx, unsigned
 struct task *srv_cleanup_toremove_connections(struct task *task, void *context, unsigned short state);
 
 /* increase the number of cumulated connections on the designated server */
-static void inline srv_inc_sess_ctr(struct server *s)
+static inline void srv_inc_sess_ctr(struct server *s)
 {
 	_HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
@@ -77,7 +77,7 @@ static void inline srv_inc_sess_ctr(struct server *s)
 }
 
 /* set the time of last session on the designated server */
-static void inline srv_set_sess_last(struct server *s)
+static inline void srv_set_sess_last(struct server *s)
 {
 	s->counters.last_sess = now.tv_sec;
 }

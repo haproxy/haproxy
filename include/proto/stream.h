@@ -202,7 +202,7 @@ static inline void stream_track_stkctr(struct stkctr *ctr, struct stktable *t, s
 }
 
 /* Increase the number of cumulated HTTP requests in the tracked counters */
-static void inline stream_inc_http_req_ctr(struct stream *s)
+static inline void stream_inc_http_req_ctr(struct stream *s)
 {
 	struct stksess *ts;
 	void *ptr;
@@ -240,7 +240,7 @@ static void inline stream_inc_http_req_ctr(struct stream *s)
 /* Increase the number of cumulated HTTP requests in the backend's tracked
  * counters. We don't look up the session since it cannot happen in the bakcend.
  */
-static void inline stream_inc_be_http_req_ctr(struct stream *s)
+static inline void stream_inc_be_http_req_ctr(struct stream *s)
 {
 	struct stksess *ts;
 	void *ptr;
@@ -280,7 +280,7 @@ static void inline stream_inc_be_http_req_ctr(struct stream *s)
  * Note that even 404 are interesting because they're generally caused by
  * vulnerability scans.
  */
-static void inline stream_inc_http_err_ctr(struct stream *s)
+static inline void stream_inc_http_err_ctr(struct stream *s)
 {
 	struct stksess *ts;
 	void *ptr;
@@ -315,20 +315,20 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 	}
 }
 
-static void inline __stream_add_srv_conn(struct stream *sess, struct server *srv)
+static inline void __stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
 	sess->srv_conn = srv;
 	LIST_ADD(&srv->actconns, &sess->by_srv);
 }
 
-static void inline stream_add_srv_conn(struct stream *sess, struct server *srv)
+static inline void stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	__stream_add_srv_conn(sess, srv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
-static void inline stream_del_srv_conn(struct stream *sess)
+static inline void stream_del_srv_conn(struct stream *sess)
 {
 	struct server *srv = sess->srv_conn;
 
@@ -341,7 +341,7 @@ static void inline stream_del_srv_conn(struct stream *sess)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 }
 
-static void inline stream_init_srv_conn(struct stream *sess)
+static inline void stream_init_srv_conn(struct stream *sess)
 {
 	sess->srv_conn = NULL;
 	LIST_INIT(&sess->by_srv);

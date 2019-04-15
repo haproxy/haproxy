@@ -58,7 +58,7 @@ static inline int be_usable_srv(struct proxy *be)
 }
 
 /* set the time of last session on the backend */
-static void inline be_set_sess_last(struct proxy *be)
+static inline void be_set_sess_last(struct proxy *be)
 {
 	be->be_counters.last_sess = now.tv_sec;
 }

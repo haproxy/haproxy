@@ -71,7 +71,7 @@ struct pipe *get_pipe()
 	return ret;
 }
 
-static void inline __kill_pipe(struct pipe *p)
+static inline void __kill_pipe(struct pipe *p)
 {
 	close(p->prod);
 	close(p->cons);
