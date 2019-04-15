@@ -67,18 +67,12 @@ struct task_per_thread task_per_thread[MAX_THREADS];
 void __task_wakeup(struct task *t, struct eb_root *root)
 {
 	void *expected = NULL;
-	int *rq_size;
 
 #ifdef USE_THREAD
 	if (root == &rqueue) {
-		rq_size = &global_rqueue_size;
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	} else
-#endif
-	{
-		int nb = ((void *)root - (void *)&task_per_thread[0].rqueue) / sizeof(task_per_thread[0]);
-		rq_size = &task_per_thread[nb].rqueue_size;
 	}
+#endif
 	/* Make sure if the task isn't in the runqueue, nobody inserts it
 	 * in the meanwhile.
 	 */
@@ -130,10 +124,7 @@ redo:
 		int offset;
 
 		_HA_ATOMIC_ADD(&niced_tasks, 1);
-		if (likely(t->nice > 0))
-			offset = (unsigned)(((*rq_size + 1) * (unsigned int)t->nice) / 32U);
-		else
-			offset = -(unsigned)(((*rq_size + 1) * (unsigned int)-t->nice) / 32U);
+		offset = t->nice * (int)global.tune.runqueue_depth;
 		t->rq.key += offset;
 	}
 
