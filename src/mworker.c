@@ -275,10 +275,11 @@ restart_wait:
 				if (status != 0 && status != 130 && status != 143
 				    && !(global.tune.options & GTUNE_NOEXIT_ONFAILURE)) {
 					ha_alert("exit-on-failure: killing every processes with SIGTERM\n");
-					if (exitcode < 0)
-						exitcode = status;
 					mworker_kill(SIGTERM);
 				}
+				/* 0 & SIGTERM (143) are normal, but we should report SIGINT (130) and other signals */
+				if (exitcode < 0 && status != 0 && status != 143)
+					exitcode = status;
 			} else {
 				if (child->options & PROC_O_TYPE_WORKER) {
 					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
