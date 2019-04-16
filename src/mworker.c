@@ -54,7 +54,7 @@ static void mworker_kill(int sig)
 
 	list_for_each_entry(child, &proc_list, list) {
 		/* careful there, we must be sure that the pid > 0, we don't want to emit a kill -1 */
-		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (child->reloads == 0) && (child->pid > 0))
+		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (child->pid > 0))
 			kill(child->pid, sig);
 	}
 }
