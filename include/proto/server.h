@@ -251,7 +251,8 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
-	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
+	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn) &&
+	    ha_used_fds < global.tune.pool_low_count) {
 		int retadd;
 
 		retadd = _HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);

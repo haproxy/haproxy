@@ -161,6 +161,10 @@ struct global {
 		int pattern_cache; /* max number of entries in the pattern cache. */
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
 		int comp_maxlevel;    /* max HTTP compression level */
+		int pool_low_ratio;   /* max ratio of FDs used before we stop using new idle connections */
+		int pool_high_ratio;  /* max ratio of FDs used before we start killing idle connections when creating new connections */
+		int pool_low_count;   /* max number of opened fd before we stop using new idle connections */
+		int pool_high_count;  /* max number of opened fd before we start killing idle connections when creating new connections */
 		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
 	} tune;
 	struct {

@@ -1338,6 +1338,39 @@ int connect_server(struct stream *s)
 				reuse = 0;
 		}
 	}
+	if ((!reuse || (srv_conn && !(srv_conn->flags & CO_FL_CONNECTED)))
+	    && ha_used_fds > global.tune.pool_high_count) {
+		struct connection *tokill_conn;
+
+		/* We can't reuse a connection, and e have more FDs than deemd
+		 * acceptable, attempt to kill an idling connection
+		 */
+		/* First, try from our own idle list */
+		tokill_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[tid],
+		    struct connection *, list);
+		if (tokill_conn)
+			tokill_conn->mux->destroy(tokill_conn->ctx);
+		/* If not, iterate over other thread's idling pool, and try to grab one */
+		else {
+			int i;
+
+			for (i = 0; i < global.nbthread; i++) {
+				if (i == tid)
+					continue;
+				tokill_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i],
+				    struct connection *, list);
+				if (tokill_conn) {
+					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
+
+					LIST_ADDQ_LOCKED(&toremove_connections[i],
+					    &tokill_conn->list);
+					task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
+					break;
+				}
+			}
+		}
+
+	}
 	/* If we're really reusing the connection, remove it from the orphan
 	 * list and add it back to the idle list.
 	 */

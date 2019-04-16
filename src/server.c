@@ -5390,6 +5390,41 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 
 	return task;
 }
+
+/* config parser for global "tune.pool-{low,high}-fd-ratio" */
+static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *curpx,
+                                   struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	int arg = -1;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) != 0)
+		arg = atoi(args[1]);
+
+	if (arg < 0 || arg > 100) {
+		memprintf(err, "'%s' expects an integer argument between 0 and 100.", args[0]);
+		return -1;
+	}
+
+	if (args[0][10] == 'h')
+		global.tune.pool_high_ratio = arg;
+	else
+		global.tune.pool_low_ratio = arg;
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.pool-high-fd-ratio",     cfg_parse_pool_fd_ratio },
+	{ CFG_GLOBAL, "tune.pool-low-fd-ratio",      cfg_parse_pool_fd_ratio },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 /*
  * Local variables:
  *  c-indent-level: 8

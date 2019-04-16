@@ -164,6 +164,8 @@ struct global global = {
 		.chksize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.reserved_bufs = RESERVED_BUFS,
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
+		.pool_low_ratio  = 20,
+		.pool_high_ratio = 25,
 #ifdef USE_OPENSSL
 		.sslcachesize = SSLCACHESIZE,
 #endif
@@ -1936,6 +1938,10 @@ static void init(int argc, char **argv)
 		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 		global.maxsock += global.maxconn * sides * global.ssl_used_async_engines;
 	}
+
+	/* update connection pool thresholds */
+	global.tune.pool_low_count  = ((long long)global.maxsock * global.tune.pool_low_ratio  + 99) / 100;
+	global.tune.pool_high_count = ((long long)global.maxsock * global.tune.pool_high_ratio + 99) / 100;
 
 	proxy_adjust_all_maxconn();
 
