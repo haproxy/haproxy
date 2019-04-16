@@ -1337,7 +1337,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 				break;
 		}
 		else if (h1m->state == H1_MSG_DONE) {
-			h1c->flags |= H1C_F_IN_BUSY;
+			if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE)
+				h1c->flags |= H1C_F_IN_BUSY;
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
