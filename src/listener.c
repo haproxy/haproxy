@@ -880,21 +880,21 @@ void listener_accept(int fd)
 				m1 = mask >> t1;
 				m2 = mask & (t2 ? nbits(t2 + 1) : ~0UL);
 
-				if (unlikely((signed long)m2 >= 0)) {
-					/* highest bit not set */
-					if (!m2)
-						m2 = mask;
-
-					t2 = my_flsl(m2) - 1;
-				}
-
-				if (unlikely(!(m1 & 1) || t1 == t2)) {
+				if (unlikely(!(m1 & 1))) {
 					m1 &= ~1UL;
 					if (!m1) {
 						m1 = mask;
 						t1 = 0;
 					}
 					t1 += my_ffsl(m1) - 1;
+				}
+
+				if (unlikely(!(m2 & (1UL << t2)) || t1 == t2)) {
+					/* highest bit not set */
+					if (!m2)
+						m2 = mask;
+
+					t2 = my_flsl(m2) - 1;
 				}
 
 				/* now we have two distinct thread IDs belonging to the mask */
