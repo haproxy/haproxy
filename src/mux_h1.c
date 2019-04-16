@@ -2242,8 +2242,12 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
 		ret = h1_process_input(h1c, buf, flags);
 
-	if (flags & CO_RFL_BUF_FLUSH)
-		h1s->flags |= H1S_F_BUF_FLUSH;
+	if (flags & CO_RFL_BUF_FLUSH) {
+		struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
+
+		if (h1m->state != H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len))
+			h1s->flags |= H1S_F_BUF_FLUSH;
+	}
 	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
 		h1s->flags &= ~H1S_F_SPLICED_DATA;
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
@@ -2290,6 +2294,13 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	int ret = 0;
 
+	if ((h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) ||
+	    (h1m->state == H1_MSG_DATA && !h1m->curr_len)) {
+		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
+		cs->conn->xprt->subscribe(cs->conn, SUB_RETRY_RECV, &h1s->h1c->wait_event);
+		goto end;
+	}
+
 	if (b_data(&h1s->h1c->ibuf)) {
 		h1s->flags |= H1S_F_BUF_FLUSH;
 		goto end;
@@ -2300,11 +2311,14 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, pipe, count);
-	if (h1m->state == H1_MSG_DATA && ret > 0)
+	if (h1m->state == H1_MSG_DATA && ret > 0) {
 		h1m->curr_len -= ret;
+		if (!h1m->curr_len)
+			h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
+	}
+
   end:
 	return ret;
-
 }
 
 static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
