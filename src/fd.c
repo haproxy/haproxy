@@ -186,6 +186,8 @@ THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 THREAD_LOCAL int poller_rd_pipe = -1; // Pipe to wake the thread
 int poller_wr_pipe[MAX_THREADS]; // Pipe to wake the threads
 
+volatile int ha_used_fds = 0; // Number of FD we're currently using
+
 #define _GET_NEXT(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
 #define _GET_PREV(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
 /* adds fd <fd> to fd list <list> if it was not yet in it */
@@ -387,6 +389,7 @@ static void fd_dodelete(int fd, int do_close)
 	if (do_close) {
 		polled_mask[fd] = 0;
 		close(fd);
+		_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	}
 	if (locked)
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);

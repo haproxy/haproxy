@@ -49,6 +49,8 @@ extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
 
 extern int poller_wr_pipe[MAX_THREADS];
 
+extern volatile int ha_used_fds; // Number of FDs we're currently using
+
 __decl_hathreads(extern HA_RWLOCK_T   __attribute__((aligned(64))) fdcache_lock);    /* global lock to protect fd_cache array */
 
 /* Deletes an FD from the fdsets.
@@ -555,6 +557,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	 */
 	if (locked)
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	_HA_ATOMIC_ADD(&ha_used_fds, 1);
 }
 
 /* Computes the bounded poll() timeout based on the next expiration timer <next>
