@@ -1723,13 +1723,15 @@ static int h1_recv(struct h1c *h1c)
 		goto end;
 	}
 
-	if (h1s && (h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
-		rcvd = 1;
+	if (!h1_get_buf(h1c, &h1c->ibuf)) {
+		h1c->flags |= H1C_F_IN_ALLOC;
 		goto end;
 	}
 
-	if (!h1_get_buf(h1c, &h1c->ibuf)) {
-		h1c->flags |= H1C_F_IN_ALLOC;
+	if (h1s && (h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
+		if (!b_data(&h1c->ibuf))
+			h1_wake_stream_for_recv(h1s);
+		rcvd = 1;
 		goto end;
 	}
 
