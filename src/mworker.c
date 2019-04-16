@@ -295,11 +295,11 @@ restart_wait:
 	}
 	/* Better rely on the system than on a list of process to check if it was the last one */
 	else if (exitpid == -1 && errno == ECHILD) {
-		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : status);
+		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : EXIT_SUCCESS);
 		atexit_flag = 0;
 		if (exitcode > 0)
-			exit(exitcode);
-		exit(status); /* parent must leave using the latest status code known */
+			exit(exitcode); /* parent must leave using the status code that provoked the exit */
+		exit(EXIT_SUCCESS);
 	}
 
 }
