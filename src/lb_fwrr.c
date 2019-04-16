@@ -448,32 +448,40 @@ static inline void fwrr_switch_trees(struct fwrr_group *grp)
 /* return next server from the current tree in FWRR group <grp>, or a server
  * from the "init" tree if appropriate. If both trees are empty, return NULL.
  *
- * The lbprm's lock must be held.
+ * The lbprm's lock must be held. The server's lock will be held on return if
+ * a non-null server is returned.
  */
 static struct server *fwrr_get_server_from_group(struct fwrr_group *grp)
 {
-	struct eb32_node *node;
-	struct server *s;
+	struct eb32_node *node1;
+	struct eb32_node *node2;
+	struct server *s1 = NULL;
+	struct server *s2 = NULL;
 
-	node = eb32_first(&grp->curr);
-	s = eb32_entry(node, struct server, lb_node);
+	node1 = eb32_first(&grp->curr);
+	if (node1) {
+		s1 = eb32_entry(node1, struct server, lb_node);
+		HA_SPIN_LOCK(SERVER_LOCK, &s1->lock);
+		if (s1->cur_eweight && s1->npos <= grp->curr_pos)
+			return s1;
+	}
 
-	if (!node || s->npos > grp->curr_pos) {
-		/* either we have no server left, or we have a hole */
-		struct eb32_node *node2;
-		node2 = eb32_first(grp->init);
-		if (node2) {
-			node = node2;
-			s = eb32_entry(node, struct server, lb_node);
-			fwrr_get_srv_init(s);
-			if (s->cur_eweight == 0) /* FIXME: is it possible at all ? */
-				node = NULL;
+	/* Either we have no server left, or we have a hole. We'll look in the
+	 * init tree or a better proposal. At this point, if <s1> is non-null,
+	 * it is locked.
+	 */
+	node2 = eb32_first(grp->init);
+	if (node2) {
+		s2 = eb32_entry(node2, struct server, lb_node);
+		HA_SPIN_LOCK(SERVER_LOCK, &s2->lock);
+		if (s2->cur_eweight) {
+			if (s1)
+				HA_SPIN_UNLOCK(SERVER_LOCK, &s1->lock);
+			fwrr_get_srv_init(s2);
+			return s2;
 		}
 	}
-	if (node)
-		return s;
-	else
-		return NULL;
+	return s1;
 }
 
 /* Computes next position of server <s> in the group. It is mandatory for <s>
@@ -509,7 +517,7 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
  * the init tree if appropriate. If both trees are empty, return NULL.
  * Saturated servers are skipped and requeued.
  *
- * The server's lock must be held. The lbprm's lock will be used.
+ * The lbprm's lock and the server's lock will be used.
  */
 struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {
@@ -550,6 +558,9 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 				break;
 			if (switched) {
 				if (avoided) {
+					/* no need to lock it, it was already
+					 * locked on first pass.
+					 */
 					srv = avoided;
 					break;
 				}
@@ -557,13 +568,12 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			}
 			switched = 1;
 			fwrr_switch_trees(grp);
-
 		}
 
-		/* OK, we have a server. However, it may be saturated, in which
-		 * case we don't want to reconsider it for now. We'll update
-		 * its position and dequeue it anyway, so that we can move it
-		 * to a better place afterwards.
+		/* OK, we have a server and it is locked. However, it may be
+		 * saturated, in which case we don't want to reconsider it for
+		 * now. We'll update its position and dequeue it anyway, so
+		 * that we can move it to a better place afterwards.
 		 */
 		fwrr_update_position(grp, srv);
 		fwrr_dequeue_srv(srv);
@@ -576,7 +586,9 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			avoided = srv; /* ...but remember that is was selected yet avoided */
 		}
 
-		/* the server is saturated or avoided, let's chain it for later reinsertion */
+		/* the server is saturated or avoided, let's chain it for later reinsertion.
+		 * Note that servers chained this way are all locked.
+		 */
 		srv->next_full = full;
 		full = srv;
 	}
@@ -584,9 +596,14 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	/* OK, we got the best server, let's update it */
 	fwrr_queue_srv(srv);
 
+	/* we don't need to keep this lock anymore  */
+	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+
  requeue_servers:
 	/* Requeue all extracted servers. If full==srv then it was
-	 * avoided (unsuccessfully) and chained, omit it now.
+	 * avoided (unsuccessfully) and chained, omit it now. The
+	 * only way to get there is by having <avoided>==NULL or
+	 * <avoided>==<srv>.
 	 */
 	if (unlikely(full != NULL)) {
 		if (switched) {
@@ -595,8 +612,10 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			 * their weight matters.
 			 */
 			do {
-				if (likely(full != srv))
+				if (likely(full != srv)) {
 					fwrr_queue_by_weight(grp->init, full);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &full->lock);
+				}
 				full = full->next_full;
 			} while (full);
 		} else {
@@ -604,8 +623,10 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			 * so that they regain their expected place.
 			 */
 			do {
-				if (likely(full != srv))
+				if (likely(full != srv)) {
 					fwrr_queue_srv(full);
+					HA_SPIN_UNLOCK(SERVER_LOCK, &full->lock);
+				}
 				full = full->next_full;
 			} while (full);
 		}

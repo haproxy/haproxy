@@ -113,7 +113,8 @@ static inline int srv_currently_usable(const struct server *srv)
 }
 
 /* This function commits the next server state and weight onto the current
- * ones in order to detect future changes.
+ * ones in order to detect future changes. The server's lock is expected to
+ * be held when calling this function.
  */
 static inline void srv_lb_commit_status(struct server *srv)
 {
