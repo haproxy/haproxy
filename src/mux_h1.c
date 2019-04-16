@@ -1319,8 +1319,6 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
 	data = htx->data;
 	count = b_data(&h1c->ibuf);
-	if (!count)
-		goto end;
 	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
 
 	if (htx_is_empty(htx))
