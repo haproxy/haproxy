@@ -30,17 +30,17 @@
 /* Note: these functions *do* modify the sample. Even in case of success, at
  * least the type and uint value are modified.
  */
-#define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 1); if (r <= 0) return r; } while (0)
+#define CHECK_HTTP_MESSAGE_FIRST(chn) \
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, (chn), smp, 1); if (r <= 0) return r; } while (0)
 
-#define CHECK_HTTP_MESSAGE_FIRST_PERM() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 0); if (r <= 0) return r; } while (0)
+#define CHECK_HTTP_MESSAGE_FIRST_PERM(chn) \
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, (chn), smp, 0); if (r <= 0) return r; } while (0)
 
 int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
-                  const struct arg *args, struct sample *smp, int req_vol);
+                  struct channel *chn, struct sample *smp, int req_vol);
 
 struct htx;
-struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args);
+struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn);
 
 int val_hdr(struct arg *arg, char **err_msg);
 

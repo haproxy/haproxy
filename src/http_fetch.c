@@ -47,6 +47,8 @@
 static THREAD_LOCAL struct hdr_ctx static_hdr_ctx;
 static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
 
+#define SMP_REQ_CHN(smp) (smp->strm ? &smp->strm->req : NULL)
+#define SMP_RES_CHN(smp) (smp->strm ? &smp->strm->res : NULL)
 
 /*
  * Returns the data from Authorization header. Function may be called more
@@ -167,19 +169,19 @@ static int get_http_auth(struct sample *smp)
  *     we'll never have any HTTP message there ;
  *   The HTX message if ready
  */
-struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
+struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn)
 {
 	struct stream *s = smp->strm;
-	unsigned int opt = smp->opt;
 	struct http_txn *txn = NULL;
 	struct htx *htx = NULL;
+	struct http_msg *msg;
 	struct htx_sl *sl;
 
 	/* Note: it is possible that <s> is NULL when called before stream
 	 * initialization (eg: tcp-request connection), so this function is the
 	 * one responsible for guarding against this case for all HTTP users.
 	 */
-	if (!s)
+	if (!s || !chn)
 		return NULL;
 
 	if (!s->txn) {
@@ -188,109 +190,101 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
 		http_init_txn(s);
 		txn = s->txn;
 	}
+	txn = s->txn;
+	msg = (!(chn->flags & CF_ISRESP) ? &txn->req : &txn->rsp);
+	smp->data.type = SMP_T_BOOL;
 
 	if (IS_HTX_STRM(s)) {
-		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			htx = htxbuf(&s->req.buf);
+		htx = htxbuf(&chn->buf);
+
+		if (msg->msg_state == HTTP_MSG_ERROR || (htx->flags & HTX_FL_PARSING_ERROR))
+			return NULL;
+
+		if (msg->msg_state < HTTP_MSG_BODY) {
+			/* Analyse not yet started */
 			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
 				/* Parsing is done by the mux, just wait */
 				smp->flags |= SMP_F_MAY_CHANGE;
 				return NULL;
 			}
-
-			/* OK we just got a valid HTTP request. We have some
-			 * minor preparation to perform so that further checks
-			 * can rely on HTTP tests.
-			 */
-			if (txn) {
-				sl = http_find_stline(htx);
-				txn->meth = sl->info.req.meth;
-				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-					s->flags |= SF_REDIRECTABLE;
-			}
-
-			/* otherwise everything's ready for the request */
 		}
-		else {
-			htx = htxbuf(&s->res.buf);
-			if (htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH) {
-				/* Parsing is done by the mux, just wait */
-				smp->flags |= SMP_F_MAY_CHANGE;
-				return NULL;
-			}
+		sl = http_find_stline(htx);
+		if (!sl) {
+			/* The start-line was already forwarded, it is too late to fetch anything */
+			return NULL;
 		}
 	}
 	else { /* RAW mode */
-		if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			struct buffer *buf;
-			struct h1m h1m;
-			struct http_hdr hdrs[MAX_HTTP_HDR];
-			union h1_sl h1sl;
-			unsigned int flags = HTX_FL_NONE;
-			int ret;
+		struct buffer *buf;
+		struct h1m h1m;
+		struct http_hdr hdrs[MAX_HTTP_HDR];
+		union h1_sl h1sl;
+		unsigned int flags = HTX_FL_NONE;
+		int ret;
 
-			buf = &s->req.buf;
-			if (b_head(buf) + b_data(buf) > b_wrap(buf))
-				b_slow_realign(buf, trash.area, 0);
+		/* no HTTP fetch on the response in TCP mode */
+		if (chn->flags & CF_ISRESP)
+			return NULL;
 
-			h1m_init_req(&h1m);
-			ret = h1_headers_to_hdr_list(b_head(buf), b_stop(buf),
-						     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
-			if (ret <= 0) {
-				/* Invalid or too big*/
-				if (ret < 0 || channel_full(&s->req, global.tune.maxrewrite))
-					return NULL;
+		/* Now we are working on the request only */
+		buf = &chn->buf;
+		if (b_head(buf) + b_data(buf) > b_wrap(buf))
+			b_slow_realign(buf, trash.area, 0);
 
-				/* wait for a full request */
-				smp->flags |= SMP_F_MAY_CHANGE;
+		h1m_init_req(&h1m);
+		ret = h1_headers_to_hdr_list(b_head(buf), b_stop(buf),
+					     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
+		if (ret <= 0) {
+			/* Invalid or too big*/
+			if (ret < 0 || channel_full(&s->req, global.tune.maxrewrite))
 				return NULL;
-			}
 
-			/* OK we just got a valid HTTP request. We have to
-			 * convert it into an HTX message.
-			 */
-			if (unlikely(h1sl.rq.v.len == 0)) {
-				/* try to convert HTTP/0.9 requests to HTTP/1.0 */
-				if (h1sl.rq.meth != HTTP_METH_GET || !h1sl.rq.u.len)
-					return NULL;
-				h1sl.rq.v = ist("HTTP/1.0");
-			}
-			else if ((h1sl.rq.v.len == 8) &&
-				 ((*(h1sl.rq.v.ptr + 5) > '1') ||
-				  ((*(h1sl.rq.v.ptr + 5) == '1') && (*(h1sl.rq.v.ptr + 7) >= '1'))))
-				h1m.flags |= H1_MF_VER_11;
-
-
-			/* Set HTX start-line flags */
-			if (h1m.flags & H1_MF_VER_11)
-				flags |= HTX_SL_F_VER_11;
-			if (h1m.flags & H1_MF_XFER_ENC)
-				flags |= HTX_SL_F_XFER_ENC;
-			if (h1m.flags & H1_MF_XFER_LEN) {
-				flags |= HTX_SL_F_XFER_LEN;
-				if (h1m.flags & H1_MF_CHNK)
-					flags |= HTX_SL_F_CHNK;
-				else if (h1m.flags & H1_MF_CLEN)
-					flags |= HTX_SL_F_CLEN;
-			}
-
-			htx = htx_from_buf(get_trash_chunk());
-			sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
-			if (!sl || !htx_add_all_headers(htx, hdrs))
-				return NULL;
-			sl->info.req.meth = h1sl.rq.meth;
-
-			if (txn) {
-				txn->meth = h1sl.rq.meth;
-				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-					s->flags |= SF_REDIRECTABLE;
-			}
-			/* Ok, now everything's ready for the request */
-		}
-		else {
-			/* Impossible, no HTTP fetch on tcp-response */
+			/* wait for a full request */
+			smp->flags |= SMP_F_MAY_CHANGE;
 			return NULL;
 		}
+
+		/* OK we just got a valid HTTP mesage. We have to convert it
+		 * into an HTX message.
+		 */
+		if (unlikely(h1sl.rq.v.len == 0)) {
+			/* try to convert HTTP/0.9 requests to HTTP/1.0 */
+			if (h1sl.rq.meth != HTTP_METH_GET || !h1sl.rq.u.len)
+				return NULL;
+			h1sl.rq.v = ist("HTTP/1.0");
+		}
+
+		/* Set HTX start-line flags */
+		if (h1m.flags & H1_MF_VER_11)
+			flags |= HTX_SL_F_VER_11;
+		if (h1m.flags & H1_MF_XFER_ENC)
+			flags |= HTX_SL_F_XFER_ENC;
+		flags |= HTX_SL_F_XFER_LEN;
+		if (h1m.flags & H1_MF_CHNK)
+			flags |= HTX_SL_F_CHNK;
+		else if (h1m.flags & H1_MF_CLEN)
+			flags |= HTX_SL_F_CLEN;
+
+		htx = htx_from_buf(get_trash_chunk());
+		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
+		if (!sl || !htx_add_all_headers(htx, hdrs))
+			return NULL;
+	}
+
+	/* OK we just got a valid HTTP message. If not already done by
+	 * HTTP analyzers, we have some minor preparation to perform so
+	 * that further checks can rely on HTTP tests.
+	 */
+	if (sl && msg->msg_state < HTTP_MSG_BODY) {
+		if (!(chn->flags & CF_ISRESP)) {
+			txn->meth = sl->info.req.meth;
+			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+				s->flags |= SF_REDIRECTABLE;
+		}
+		else
+			txn->status = sl->info.res.status;
+		if (sl->flags & HTX_SL_F_VER_11)
+			msg->flags |= HTTP_MSGF_VER_11;
 	}
 
 	/* everything's OK */
@@ -312,7 +306,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, const struct arg *args)
  *   1 if an HTTP message is ready
  */
 int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
-                      const struct arg *args, struct sample *smp, int req_vol)
+                      struct channel *chn, struct sample *smp, int req_vol)
 {
 	struct http_txn *txn;
 	struct http_msg *msg;
@@ -321,7 +315,7 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 	 * initialization (eg: tcp-request connection), so this function is the
 	 * one responsible for guarding against this case for all HTTP users.
 	 */
-	if (!s)
+	if (!s || !chn)
 		return 0;
 
 	if (!s->txn) {
@@ -330,78 +324,77 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
 		http_init_txn(s);
 	}
 	txn = s->txn;
-	msg = &txn->req;
-
-	/* Check for a dependency on a request */
 	smp->data.type = SMP_T_BOOL;
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-		/* If the buffer does not leave enough free space at the end,
-		 * we must first realign it.
-		 */
-		if (ci_head(&s->req) > b_orig(&s->req.buf) &&
-		    ci_head(&s->req) + ci_data(&s->req) > b_wrap(&s->req.buf) - global.tune.maxrewrite)
-			channel_slow_realign(&s->req, trash.area);
-
-		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
-			if (msg->msg_state == HTTP_MSG_ERROR)
-				return 0;
-
-			/* Try to decode HTTP request */
-			if (likely(msg->next < ci_data(&s->req)))
-				http_msg_analyzer(msg, &txn->hdr_idx);
-
-			/* Still no valid request ? */
-			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-				if ((msg->msg_state == HTTP_MSG_ERROR) ||
-				    channel_full(&s->req, global.tune.maxrewrite)) {
-					return 0;
-				}
-				/* wait for final state */
-				smp->flags |= SMP_F_MAY_CHANGE;
-				return 0;
-			}
-
-			/* OK we just got a valid HTTP request. We have some minor
-			 * preparation to perform so that further checks can rely
-			 * on HTTP tests.
-			 */
-
-			/* If the request was parsed but was too large, we must absolutely
-			 * return an error so that it is not processed. At the moment this
-			 * cannot happen, but if the parsers are to change in the future,
-			 * we want this check to be maintained.
-			 */
-			if (unlikely(ci_head(&s->req) + ci_data(&s->req) >
-				     b_wrap(&s->req.buf) - global.tune.maxrewrite)) {
-				msg->err_state = msg->msg_state;
-				msg->msg_state = HTTP_MSG_ERROR;
-				smp->data.u.sint = 1;
-				return 1;
-			}
-
-			txn->meth = find_http_meth(ci_head(msg->chn), msg->sl.rq.m_l);
-			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-				s->flags |= SF_REDIRECTABLE;
-
-			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
-				return 0;
-		}
-
-		if (req_vol && txn->rsp.msg_state != HTTP_MSG_RPBEFORE) {
-			return 0;  /* data might have moved and indexes changed */
-		}
-
-		/* otherwise everything's ready for the request */
-	}
-	else {
+	if (chn->flags & CF_ISRESP) {
 		/* Check for a dependency on a response */
 		if (txn->rsp.msg_state < HTTP_MSG_BODY) {
 			smp->flags |= SMP_F_MAY_CHANGE;
 			return 0;
 		}
+		goto end;
 	}
 
+	/* Check for a dependency on a request */
+	msg = &txn->req;
+
+	if (req_vol && (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) {
+		return 0;  /* data might have moved and indexes changed */
+	}
+
+	/* If the buffer does not leave enough free space at the end, we must
+	 * first realign it.
+	 */
+	if (ci_head(chn) > b_orig(&chn->buf) &&
+	    ci_head(chn) + ci_data(chn) > b_wrap(&chn->buf) - global.tune.maxrewrite)
+		channel_slow_realign(chn, trash.area);
+
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
+		if (msg->msg_state == HTTP_MSG_ERROR)
+			return 0;
+
+		/* Try to decode HTTP request */
+		if (likely(msg->next < ci_data(chn)))
+			http_msg_analyzer(msg, &txn->hdr_idx);
+
+		/* Still no valid request ? */
+		if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
+			if ((msg->msg_state == HTTP_MSG_ERROR) ||
+			    channel_full(chn, global.tune.maxrewrite)) {
+				return 0;
+			}
+			/* wait for final state */
+			smp->flags |= SMP_F_MAY_CHANGE;
+			return 0;
+		}
+
+		/* OK we just got a valid HTTP message. We have some minor
+		 * preparation to perform so that further checks can rely
+		 * on HTTP tests.
+		 */
+
+		/* If the message was parsed but was too large, we must absolutely
+		 * return an error so that it is not processed. At the moment this
+		 * cannot happen, but if the parsers are to change in the future,
+		 * we want this check to be maintained.
+		 */
+		if (unlikely(ci_head(chn) + ci_data(chn) >
+			     b_wrap(&chn->buf) - global.tune.maxrewrite)) {
+			msg->err_state = msg->msg_state;
+			msg->msg_state = HTTP_MSG_ERROR;
+			smp->data.u.sint = 1;
+			return 1;
+		}
+
+		txn->meth = find_http_meth(ci_head(chn), msg->sl.rq.m_l);
+		if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+			s->flags |= SF_REDIRECTABLE;
+
+		if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
+			return 0;
+	}
+
+  end:
 	/* everything's OK */
 	smp->data.u.sint = 1;
 	return 1;
@@ -417,12 +410,13 @@ int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
  */
 static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	int meth;
 	struct http_txn *txn;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 
 		if (!htx)
 			return 0;
@@ -434,10 +428,10 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 		if (meth == HTTP_METH_OTHER) {
 			struct htx_sl *sl;
 
-			if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+			if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) {
 				/* ensure the indexes are not affected */
 				return 0;
-
+			}
 			sl = http_find_stline(htx);
 			smp->flags |= SMP_F_CONST;
 			smp->data.u.meth.str.area = HTX_SL_REQ_MPTR(sl);
@@ -447,16 +441,17 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST_PERM();
+		CHECK_HTTP_MESSAGE_FIRST_PERM(chn);
 
 		txn = smp->strm->txn;
 		meth = txn->meth;
 		smp->data.type = SMP_T_METH;
 		smp->data.u.meth.meth = meth;
 		if (meth == HTTP_METH_OTHER) {
-			if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+			if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) {
 				/* ensure the indexes are not affected */
 				return 0;
+			}
 			smp->flags |= SMP_F_CONST;
 			smp->data.u.meth.str.data = txn->req.sl.rq.m_l;
 			smp->data.u.meth.str.area = ci_head(txn->req.chn);
@@ -468,13 +463,14 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 
 static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 	char *ptr;
 	int len;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -486,11 +482,11 @@ static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const cha
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		len = txn->req.sl.rq.v_l;
-		ptr = ci_head(txn->req.chn) + txn->req.sl.rq.v;
+		ptr = ci_head(chn) + txn->req.sl.rq.v;
 	}
 
 	while ((len-- > 0) && (*ptr++ != '/'));
@@ -507,13 +503,14 @@ static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const cha
 
 static int smp_fetch_stver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_RES_CHN(smp);
 	struct http_txn *txn;
 	char *ptr;
 	int len;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -525,14 +522,11 @@ static int smp_fetch_stver(const struct arg *args, struct sample *smp, const cha
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		if (txn->rsp.msg_state < HTTP_MSG_BODY)
-			return 0;
-
 		len = txn->rsp.sl.st.v_l;
-		ptr = ci_head(txn->rsp.chn);
+		ptr = ci_head(chn);
 	}
 
 	while ((len-- > 0) && (*ptr++ != '/'));
@@ -550,13 +544,14 @@ static int smp_fetch_stver(const struct arg *args, struct sample *smp, const cha
 /* 3. Check on Status Code. We manipulate integers here. */
 static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_RES_CHN(smp);
 	struct http_txn *txn;
 	char *ptr;
 	int len;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -568,14 +563,11 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		if (txn->rsp.msg_state < HTTP_MSG_BODY)
-			return 0;
-
 		len = txn->rsp.sl.st.c_l;
-		ptr = ci_head(txn->rsp.chn) + txn->rsp.sl.st.c;
+		ptr = ci_head(chn) + txn->rsp.sl.st.c;
 	}
 
 	smp->data.type = SMP_T_SINT;
@@ -609,11 +601,12 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
  */
 static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct buffer *temp;
 		int32_t pos;
 
@@ -646,16 +639,16 @@ static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char
 		struct http_msg *msg;
 		struct hdr_idx *idx;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		idx = &txn->hdr_idx;
 		msg = &txn->req;
 
 		smp->data.type = SMP_T_STR;
-		smp->data.u.str.area = ci_head(msg->chn) + hdr_idx_first_pos(idx);
+		smp->data.u.str.area = ci_head(chn) + hdr_idx_first_pos(idx);
 		smp->data.u.str.data = msg->eoh - hdr_idx_first_pos(idx) + 1 +
-			(ci_head(msg->chn)[msg->eoh] == '\r');
+			(ci_head(chn)[msg->eoh] == '\r');
 	}
 	return 1;
 }
@@ -675,12 +668,13 @@ static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char
  */
 static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 	struct buffer *temp;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct buffer *temp;
 		char *p, *end;
 		int32_t pos;
@@ -741,7 +735,6 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
 	}
 	else {
 		/* LEGACY version */
-		struct http_msg *msg;
 		struct hdr_idx *idx;
 		const char *cur_ptr, *cur_next, *p;
 		int old_idx, cur_idx;
@@ -752,7 +745,7 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
 		char *buf;
 		char *end;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		temp = get_trash_chunk();
 		buf = temp->area;
@@ -760,11 +753,10 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
 
 		txn = smp->strm->txn;
 		idx = &txn->hdr_idx;
-		msg = &txn->req;
 
 		/* Build array of headers. */
 		old_idx = 0;
-		cur_next = ci_head(msg->chn) + hdr_idx_first_pos(idx);
+		cur_next = ci_head(chn) + hdr_idx_first_pos(idx);
 		while (1) {
 			cur_idx = idx->v[old_idx].next;
 			if (!cur_idx)
@@ -838,11 +830,12 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
  */
 static int smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct buffer *temp;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		int32_t pos;
 
 		if (!htx)
@@ -872,19 +865,15 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 		unsigned long block1;
 		char *body;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-			msg = &smp->strm->txn->req;
-		else
-			msg = &smp->strm->txn->rsp;
-
+		msg = &smp->strm->txn->req;
 		len  = http_body_bytes(msg);
-		body = c_ptr(msg->chn, -http_data_rewind(msg));
+		body = c_ptr(chn, -http_data_rewind(msg));
 
 		block1 = len;
-		if (block1 > b_wrap(&msg->chn->buf) - body)
-			block1 = b_wrap(&msg->chn->buf) - body;
+		if (block1 > b_wrap(&chn->buf) - body)
+			block1 = b_wrap(&chn->buf) - body;
 
 		if (block1 == len) {
 			/* buffer is not wrapped (or empty) */
@@ -897,8 +886,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 			/* buffer is wrapped, we need to defragment it */
 			temp = get_trash_chunk();
 			memcpy(temp->area, body, block1);
-			memcpy(temp->area + block1, b_orig(&msg->chn->buf),
-			       len - block1);
+			memcpy(temp->area + block1, b_orig(&chn->buf), len - block1);
 			smp->data.type = SMP_T_BIN;
 			smp->data.u.str.area = temp->area;
 			smp->data.u.str.data = len;
@@ -914,9 +902,11 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
  */
 static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
+
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		int32_t pos;
 		unsigned long long len = 0;
 
@@ -942,13 +932,9 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 		/* LEGACY version */
 		struct http_msg *msg;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-			msg = &smp->strm->txn->req;
-		else
-			msg = &smp->strm->txn->rsp;
-
+		msg = &smp->strm->txn->req;
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = http_body_bytes(msg);
 
@@ -964,9 +950,11 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
  */
 static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
+
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		int32_t pos;
 		unsigned long long len = 0;
 
@@ -994,13 +982,9 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 		/* LEGACY version */
 		struct http_msg *msg;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-			msg = &smp->strm->txn->req;
-		else
-			msg = &smp->strm->txn->rsp;
-
+		msg = &smp->strm->txn->req;
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = msg->body_len;
 
@@ -1013,11 +997,12 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int smp_fetch_url(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1030,12 +1015,12 @@ static int smp_fetch_url(const struct arg *args, struct sample *smp, const char 
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		smp->data.type = SMP_T_STR;
 		smp->data.u.str.data = txn->req.sl.rq.u_l;
-		smp->data.u.str.area = ci_head(txn->req.chn) + txn->req.sl.rq.u;
+		smp->data.u.str.area = ci_head(chn) + txn->req.sl.rq.u;
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	}
 	return 1;
@@ -1043,12 +1028,13 @@ static int smp_fetch_url(const struct arg *args, struct sample *smp, const char 
 
 static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 	struct sockaddr_storage addr;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1058,10 +1044,10 @@ static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const ch
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		url2sa(ci_head(txn->req.chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
+		url2sa(ci_head(chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
 	}
 
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
@@ -1075,12 +1061,13 @@ static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const ch
 
 static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct http_txn *txn;
 	struct sockaddr_storage addr;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1090,10 +1077,10 @@ static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const 
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		url2sa(ci_head(txn->req.chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
+		url2sa(ci_head(chn) + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
 	}
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
@@ -1113,11 +1100,13 @@ static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const 
  */
 static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.fhdr, res.fhdr */
+	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	int occ = 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx *ctx = smp->ctx.a[0];
 		struct ist name;
 
@@ -1183,10 +1172,10 @@ static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char
 				occ = args[1].data.sint;
 		}
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		idx = &smp->strm->txn->hdr_idx;
-		msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+		msg = (!(chn->flags & CF_ISRESP) ? &smp->strm->txn->req : &smp->strm->txn->rsp);
 
 		if (ctx && !(smp->flags & SMP_F_NOT_LAST))
 			/* search for header from the beginning */
@@ -1215,11 +1204,13 @@ static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char
  */
 static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.fhdr_cnt, res.fhdr_cnt */
+	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	int cnt;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx ctx;
 		struct ist name;
 
@@ -1252,10 +1243,10 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 			len = args->data.str.data;
 		}
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		idx = &smp->strm->txn->hdr_idx;
-		msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+		msg = (!(chn->flags & CF_ISRESP) ? &smp->strm->txn->req : &smp->strm->txn->rsp);
 
 		ctx.idx = 0;
 		cnt = 0;
@@ -1271,12 +1262,14 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 
 static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.hdr_names, res.hdr_names */
+	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	struct buffer *temp;
 	char del = ',';
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		int32_t pos;
 
 		if (!htx)
@@ -1311,10 +1304,10 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
 		if (args && args->type == ARGT_STR)
 			del = *args[0].data.str.area;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		idx = &smp->strm->txn->hdr_idx;
-		msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+		msg = (!(chn->flags & CF_ISRESP) ? &smp->strm->txn->req : &smp->strm->txn->rsp);
 
 		temp = get_trash_chunk();
 
@@ -1341,11 +1334,13 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
  */
 static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.hdr / hdr, res.hdr / shdr */
+	struct channel *chn = ((kw[0] == 'h' || kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	int occ = 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx *ctx = smp->ctx.a[0];
 		struct ist name;
 
@@ -1411,10 +1406,10 @@ static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char 
 				occ = args[1].data.sint;
 		}
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		idx = &smp->strm->txn->hdr_idx;
-		msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+		msg = (!(chn->flags & CF_ISRESP) ? &smp->strm->txn->req : &smp->strm->txn->rsp);
 
 		if (ctx && !(smp->flags & SMP_F_NOT_LAST))
 			/* search for header from the beginning */
@@ -1443,11 +1438,13 @@ static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char 
  */
 static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.hdr_cnt / hdr_cnt, res.hdr_cnt / shdr_cnt */
+	struct channel *chn = ((kw[0] == 'h' || kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	int cnt;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx ctx;
 		struct ist name;
 
@@ -1480,10 +1477,10 @@ static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const c
 			len = args->data.str.data;
 		}
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		idx = &smp->strm->txn->hdr_idx;
-		msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+		msg = (!(chn->flags & CF_ISRESP) ? &smp->strm->txn->req : &smp->strm->txn->rsp);
 
 		ctx.idx = 0;
 		cnt = 0;
@@ -1552,9 +1549,11 @@ static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const ch
  */
 static int smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
+
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 		struct ist path;
 		size_t len;
@@ -1580,10 +1579,10 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 		struct http_txn *txn;
 		char *ptr, *end;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		end = ci_head(chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		ptr = http_txn_get_path(txn);
 		if (!ptr)
 			return 0;
@@ -1610,11 +1609,12 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
  */
 static int smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	struct buffer *temp;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
@@ -1652,11 +1652,11 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 		char *ptr, *end, *beg;
 		struct hdr_ctx ctx;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		ctx.idx = 0;
-		if (!http_find_header2("Host", 4, ci_head(txn->req.chn), &txn->hdr_idx, &ctx) || !ctx.vlen)
+		if (!http_find_header2("Host", 4, ci_head(chn), &txn->hdr_idx, &ctx) || !ctx.vlen)
 			return smp_fetch_path(args, smp, kw, private);
 
 		/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
@@ -1667,7 +1667,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 		smp->data.u.str.data = ctx.vlen;
 
 		/* now retrieve the path */
-		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		end = ci_head(chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		beg = http_txn_get_path(txn);
 		if (!beg)
 			beg = end;
@@ -1695,11 +1695,12 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
  */
 static int smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	unsigned int hash = 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
@@ -1736,11 +1737,11 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 		char *ptr, *beg, *end;
 		int len;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		ctx.idx = 0;
-		if (http_find_header2("Host", 4, ci_head(txn->req.chn), &txn->hdr_idx, &ctx)) {
+		if (http_find_header2("Host", 4, ci_head(chn), &txn->hdr_idx, &ctx)) {
 			/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 			ptr = ctx.line + ctx.val;
 			len = ctx.vlen;
@@ -1749,7 +1750,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 		}
 
 		/* now retrieve the path */
-		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		end = ci_head(chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		beg = http_txn_get_path(txn);
 		if (!beg)
 			beg = end;
@@ -1820,11 +1821,12 @@ static int smp_fetch_base32_src(const struct arg *args, struct sample *smp, cons
  */
 static int smp_fetch_query(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	char *ptr, *end;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1838,10 +1840,10 @@ static int smp_fetch_query(const struct arg *args, struct sample *smp, const cha
 		/* LEGACY version */
 		struct http_txn *txn;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
-		ptr = ci_head(txn->req.chn) + txn->req.sl.rq.u;
+		ptr = ci_head(chn) + txn->req.sl.rq.u;
 		end = ptr + txn->req.sl.rq.u_l;
 	}
 
@@ -1860,9 +1862,11 @@ static int smp_fetch_query(const struct arg *args, struct sample *smp, const cha
 
 static int smp_fetch_proto_http(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
+
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 
 		if (!htx)
 			return 0;
@@ -1873,7 +1877,7 @@ static int smp_fetch_proto_http(const struct arg *args, struct sample *smp, cons
 		/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
 		 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
 		 */
-		CHECK_HTTP_MESSAGE_FIRST_PERM();
+		CHECK_HTTP_MESSAGE_FIRST_PERM(chn);
 	}
 		smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = 1;
@@ -1891,20 +1895,21 @@ static int smp_fetch_http_first_req(const struct arg *args, struct sample *smp, 
 /* Accepts exactly 1 argument of type userlist */
 static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 
 	if (!args || args->type != ARGT_USR)
 		return 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 
 		if (!htx)
 			return 0;
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 	}
 
 	if (!get_http_auth(smp))
@@ -1918,19 +1923,21 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 /* Accepts exactly 1 argument of type userlist */
 static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
+
 	if (!args || args->type != ARGT_USR)
 		return 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 
 		if (!htx)
 			return 0;
 	}
 	else {
 		/* LEGACY version */
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 	}
 
 	if (!get_http_auth(smp))
@@ -2121,6 +2128,8 @@ static int smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp,
  */
 static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.cookie / cookie / cook, res.cookie / scook / set-cookie */
+	struct channel *chn = ((kw[0] == 'c' || kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	int occ = 0;
 	int found = 0;
 
@@ -2129,7 +2138,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx *ctx = smp->ctx.a[2];
 		struct ist hdr;
 
@@ -2143,9 +2152,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 		if (!htx)
 			return 0;
 
-		hdr = (((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-		       ? ist("Cookie")
-		       : ist("Set-Cookie"));
+		hdr = (!(chn->flags & CF_ISRESP) ? ist("Cookie") : ist("Set-Cookie"));
 
 		if (!occ && !(smp->opt & SMP_OPT_ITERATE))
 			/* no explicit occurrence and single fetch => last cookie by default */
@@ -2198,10 +2205,8 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 	}
 	else {
 		/* LEGACY version */
-		struct http_txn *txn;
 		struct hdr_idx *idx;
 		struct hdr_ctx *ctx = smp->ctx.a[2];
-		const struct http_msg *msg;
 		const char *hdr_name;
 		int hdr_name_len;
 		char *sol;
@@ -2213,17 +2218,13 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 			smp->ctx.a[2] = ctx;
 		}
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
-		txn = smp->strm->txn;
 		idx = &smp->strm->txn->hdr_idx;
-
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			msg = &txn->req;
+		if (!(chn->flags & CF_ISRESP)) {
 			hdr_name = "Cookie";
 			hdr_name_len = 6;
 		} else {
-			msg = &txn->rsp;
 			hdr_name = "Set-Cookie";
 			hdr_name_len = 10;
 		}
@@ -2237,7 +2238,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 		 * next one.
 		 */
 
-		sol = ci_head(msg->chn);
+		sol = ci_head(chn);
 		if (!(smp->flags & SMP_F_NOT_LAST)) {
 			/* search for the header from the beginning, we must first initialize
 			 * the search parameters.
@@ -2293,6 +2294,8 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
  */
 static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	/* possible keywords: req.cook_cnt / cook_cnt, res.cook_cnt / scook_cnt */
+	struct channel *chn = ((kw[0] == 'c' || kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	char *val_beg, *val_end;
 	int cnt;
 
@@ -2301,16 +2304,14 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx ctx;
 		struct ist hdr;
 
 		if (!htx)
 			return 0;
 
-		hdr = (((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-		       ? ist("Cookie")
-		       : ist("Set-Cookie"));
+		hdr = (!(chn->flags & CF_ISRESP) ? ist("Cookie") : ist("Set-Cookie"));
 
 		val_end = val_beg = NULL;
 		ctx.blk = NULL;
@@ -2341,30 +2342,24 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 	}
 	else {
 		/* LEGACY version */
-		struct http_txn *txn;
 		struct hdr_idx *idx;
 		struct hdr_ctx ctx;
-		const struct http_msg *msg;
 		const char *hdr_name;
 		int hdr_name_len;
 		char *sol;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
-		txn = smp->strm->txn;
 		idx = &smp->strm->txn->hdr_idx;
-
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-			msg = &txn->req;
+		if (!(chn->flags & CF_ISRESP)) {
 			hdr_name = "Cookie";
 			hdr_name_len = 6;
 		} else {
-			msg = &txn->rsp;
 			hdr_name = "Set-Cookie";
 			hdr_name_len = 10;
 		}
 
-		sol = ci_head(msg->chn);
+		sol = ci_head(chn);
 		val_end = val_beg = NULL;
 		ctx.idx = 0;
 		cnt = 0;
@@ -2477,6 +2472,7 @@ static int smp_fetch_param(char delim, const char *name, int name_len, const str
  */
 static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	char delim = '?';
 	const char *name;
 	int name_len;
@@ -2499,7 +2495,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 			/* HTX version */
-			struct htx *htx = smp_prefetch_htx(smp, args);
+			struct htx *htx = smp_prefetch_htx(smp, chn);
 			struct htx_sl *sl;
 
 			if (!htx)
@@ -2516,16 +2512,16 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 			/* LEGACY version */
 			struct http_msg *msg;
 
-			CHECK_HTTP_MESSAGE_FIRST();
+			CHECK_HTTP_MESSAGE_FIRST(chn);
 
 			msg = &smp->strm->txn->req;
 
-			smp->ctx.a[0] = http_find_param_list(ci_head(msg->chn) + msg->sl.rq.u,
+			smp->ctx.a[0] = http_find_param_list(ci_head(chn) + msg->sl.rq.u,
 							     msg->sl.rq.u_l, delim);
 			if (!smp->ctx.a[0])
 				return 0;
 
-			smp->ctx.a[1] = ci_head(msg->chn) + msg->sl.rq.u + msg->sl.rq.u_l;
+			smp->ctx.a[1] = ci_head(chn) + msg->sl.rq.u + msg->sl.rq.u_l;
 		}
 
 		/* Assume that the context is filled with NULL pointer
@@ -2547,6 +2543,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
  */
 static int smp_fetch_body_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	const char *name;
 	int name_len;
 
@@ -2563,7 +2560,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 			/* HTX version */
-			struct htx *htx = smp_prefetch_htx(smp, args);
+			struct htx *htx = smp_prefetch_htx(smp, chn);
 			struct buffer *temp;
 			int32_t pos;
 
@@ -2599,19 +2596,15 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 			unsigned long block1;
 			char *body;
 
-			CHECK_HTTP_MESSAGE_FIRST();
+			CHECK_HTTP_MESSAGE_FIRST(chn);
 
-			if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-				msg = &smp->strm->txn->req;
-			else
-				msg = &smp->strm->txn->rsp;
-
+			msg = &smp->strm->txn->req;
 			len  = http_body_bytes(msg);
-			body = c_ptr(msg->chn, -http_data_rewind(msg));
+			body = c_ptr(chn, -http_data_rewind(msg));
 
 			block1 = len;
-			if (block1 > b_wrap(&msg->chn->buf) - body)
-				block1 = b_wrap(&msg->chn->buf) - body;
+			if (block1 > b_wrap(&chn->buf) - body)
+				block1 = b_wrap(&chn->buf) - body;
 
 			if (block1 == len) {
 				/* buffer is not wrapped (or empty) */
@@ -2628,8 +2621,8 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				/* buffer is wrapped, we need to defragment it */
 				smp->ctx.a[0] = body;
 				smp->ctx.a[1] = body + block1;
-				smp->ctx.a[2] = b_orig(&msg->chn->buf);
-				smp->ctx.a[3] = b_orig(&msg->chn->buf) + ( len - block1 );
+				smp->ctx.a[2] = b_orig(&chn->buf);
+				smp->ctx.a[3] = b_orig(&chn->buf) + ( len - block1 );
 			}
 		}
 	}
@@ -2665,11 +2658,12 @@ static int smp_fetch_url_param_val(const struct arg *args, struct sample *smp, c
  */
 static int smp_fetch_url32(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct channel *chn = SMP_REQ_CHN(smp);
 	unsigned int hash = 0;
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, args);
+		struct htx *htx = smp_prefetch_htx(smp, chn);
 		struct http_hdr_ctx ctx;
 		struct htx_sl *sl;
 		struct ist path;
@@ -2703,11 +2697,11 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 		char *ptr, *beg, *end;
 		int len;
 
-		CHECK_HTTP_MESSAGE_FIRST();
+		CHECK_HTTP_MESSAGE_FIRST(chn);
 
 		txn = smp->strm->txn;
 		ctx.idx = 0;
-		if (http_find_header2("Host", 4, ci_head(txn->req.chn), &txn->hdr_idx, &ctx)) {
+		if (http_find_header2("Host", 4, ci_head(chn), &txn->hdr_idx, &ctx)) {
 			/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 			ptr = ctx.line + ctx.val;
 			len = ctx.vlen;
@@ -2716,7 +2710,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 		}
 
 		/* now retrieve the path */
-		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+		end = ci_head(chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 		beg = http_txn_get_path(txn);
 		if (!beg)
 			beg = end;
