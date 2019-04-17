@@ -1468,9 +1468,8 @@ void si_applet_wake_cb(struct stream_interface *si)
 	 * appctx but in the case the task is not in runqueue we may have to
 	 * wakeup the appctx immediately.
 	 */
-	if (!task_in_rq(si_task(si)) &&
-	    ((si_rx_endp_ready(si) && !si_rx_blocked(si)) ||
-	     (si_tx_endp_ready(si) && !si_tx_blocked(si))))
+	if ((si_rx_endp_ready(si) && !si_rx_blocked(si)) ||
+	    (si_tx_endp_ready(si) && !si_tx_blocked(si)))
 		appctx_wakeup(si_appctx(si));
 }
 
