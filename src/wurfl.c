@@ -783,7 +783,7 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	msg = &smp->strm->txn->req;
 	ctx.idx = 0;
 
-	if (http_find_full_header2(header_name, strlen(header_name), msg->chn->buf->p, idx, &ctx) == 0)
+	if (http_find_full_header2(header_name, strlen(header_name), ci_head(msg->chn), idx, &ctx) == 0)
 		return 0;
 
 	if (header_len > ctx.vlen)
