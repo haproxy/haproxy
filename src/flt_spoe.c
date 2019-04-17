@@ -1276,8 +1276,7 @@ spoe_release_appctx(struct appctx *appctx)
 
 	/* Destroy the task attached to this applet */
 	if (spoe_appctx->task) {
-		task_delete(spoe_appctx->task);
-		task_free(spoe_appctx->task);
+		task_destroy(spoe_appctx->task);
 	}
 
 	/* Notify all waiting streams */
@@ -2023,7 +2022,7 @@ spoe_create_appctx(struct spoe_config *conf)
  out_free_sess:
 	session_free(sess);
  out_free_spoe:
-	task_free(SPOE_APPCTX(appctx)->task);
+	task_destroy(SPOE_APPCTX(appctx)->task);
  out_free_spoe_appctx:
 	pool_free(pool_head_spoe_appctx, SPOE_APPCTX(appctx));
  out_free_appctx:

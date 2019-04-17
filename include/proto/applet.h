@@ -85,8 +85,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
  */
 static inline void __appctx_free(struct appctx *appctx)
 {
-	task_delete(appctx->t);
-	task_free(appctx->t);
+	task_destroy(appctx->t);
 	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_DEL(&appctx->buffer_wait.list);

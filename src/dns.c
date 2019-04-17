@@ -1841,8 +1841,7 @@ static void dns_deinit(void)
 
 		free(resolvers->id);
 		free((char *)resolvers->conf.file);
-		task_delete(resolvers->t);
-		task_free(resolvers->t);
+		task_destroy(resolvers->t);
 		LIST_DEL(&resolvers->list);
 		free(resolvers);
 	}

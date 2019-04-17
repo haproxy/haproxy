@@ -3301,8 +3301,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		struct check        *check = &q->check;
 
 		if (check->task) {
-			task_delete(check->task);
-			task_free(check->task);
+			task_destroy(check->task);
 			check->task = NULL;
 		}
 		free_check(check);

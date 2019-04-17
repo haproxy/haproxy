@@ -396,8 +396,7 @@ static void session_kill_embryonic(struct session *sess, unsigned short state)
 	conn_free(conn);
 	sess->origin = NULL;
 
-	task_delete(task);
-	task_free(task);
+	task_destroy(task);
 	session_free(sess);
 }
 
@@ -450,8 +449,7 @@ static int conn_complete_session(struct connection *conn)
 
 	/* the embryonic session's task is not needed anymore */
 	if (sess->task) {
-		task_delete(sess->task);
-		task_free(sess->task);
+		task_destroy(sess->task);
 		sess->task = NULL;
 	}
 

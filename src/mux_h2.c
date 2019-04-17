@@ -576,7 +576,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	hpack_dht_free(h2c->ddht);
   fail:
 	if (t)
-		task_free(t);
+		task_destroy(t);
 	if (h2c->wait_event.task)
 		tasklet_free(h2c->wait_event.task);
 	pool_free(pool_head_h2c, h2c);
@@ -2925,8 +2925,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (!expired && h2c)
 		return t;
 
-	task_delete(t);
-	task_free(t);
+	task_destroy(t);
 
 	if (!h2c) {
 		/* resources were already deleted */

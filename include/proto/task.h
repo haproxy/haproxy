@@ -274,17 +274,6 @@ static inline void task_remove_from_tasklet_list(struct task *t)
 }
 
 /*
- * Unlinks the task and adjusts run queue stats.
- * A pointer to the task itself is returned.
- */
-static inline struct task *task_delete(struct task *t)
-{
-	task_unlink_wq(t);
-	task_unlink_rq(t);
-	return t;
-}
-
-/*
  * Initialize a new task. The bare minimum is performed (queue pointers and
  * state).  The task is returned. This function should not be used outside of
  * task_new().
@@ -350,8 +339,15 @@ static inline void __task_free(struct task *t)
 	_HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
-static inline void task_free(struct task *t)
+static inline void task_destroy(struct task *t)
 {
+	task_unlink_wq(t);
+	/* We don't have to explicitely remove from the run queue.
+	 * If we are in the runqueue, the test below will set t->process
+	 * to NULL, and the task will be free'd when it'll be its turn
+	 * to run.
+	 */
+
 	/* There's no need to protect t->state with a lock, as the task
 	 * has to run on the current thread.
 	 */

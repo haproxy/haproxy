@@ -6185,8 +6185,7 @@ static struct task *hlua_process_task(struct task *task, void *context, unsigned
 	/* finished or yield */
 	case HLUA_E_OK:
 		hlua_ctx_destroy(hlua);
-		task_delete(task);
-		task_free(task);
+		task_destroy(task);
 		task = NULL;
 		break;
 
@@ -6199,8 +6198,7 @@ static struct task *hlua_process_task(struct task *task, void *context, unsigned
 	case HLUA_E_ERRMSG:
 		SEND_ERR(NULL, "Lua task: %s.\n", lua_tostring(hlua->T, -1));
 		hlua_ctx_destroy(hlua);
-		task_delete(task);
-		task_free(task);
+		task_destroy(task);
 		task = NULL;
 		break;
 
@@ -6208,8 +6206,7 @@ static struct task *hlua_process_task(struct task *task, void *context, unsigned
 	default:
 		SEND_ERR(NULL, "Lua task: unknown error.\n");
 		hlua_ctx_destroy(hlua);
-		task_delete(task);
-		task_free(task);
+		task_destroy(task);
 		task = NULL;
 		break;
 	}
@@ -7052,8 +7049,7 @@ error:
 
 static void hlua_applet_tcp_release(struct appctx *ctx)
 {
-	task_delete(ctx->ctx.hlua_apptcp.task);
-	task_free(ctx->ctx.hlua_apptcp.task);
+	task_destroy(ctx->ctx.hlua_apptcp.task);
 	ctx->ctx.hlua_apptcp.task = NULL;
 	hlua_ctx_destroy(ctx->ctx.hlua_apptcp.hlua);
 	ctx->ctx.hlua_apptcp.hlua = NULL;
@@ -7520,8 +7516,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 
 static void hlua_applet_http_release(struct appctx *ctx)
 {
-	task_delete(ctx->ctx.hlua_apphttp.task);
-	task_free(ctx->ctx.hlua_apphttp.task);
+	task_destroy(ctx->ctx.hlua_apphttp.task);
 	ctx->ctx.hlua_apphttp.task = NULL;
 	hlua_ctx_destroy(ctx->ctx.hlua_apphttp.hlua);
 	ctx->ctx.hlua_apphttp.hlua = NULL;

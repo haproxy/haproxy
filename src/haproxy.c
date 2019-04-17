@@ -2278,19 +2278,13 @@ void deinit(void)
 		while (s) {
 			s_next = s->next;
 
-			if (s->check.task) {
-				task_delete(s->check.task);
-				task_free(s->check.task);
-			}
-			if (s->agent.task) {
-				task_delete(s->agent.task);
-				task_free(s->agent.task);
-			}
+			if (s->check.task)
+				task_destroy(s->check.task);
+			if (s->agent.task)
+				task_destroy(s->agent.task);
 
-			if (s->warmup) {
-				task_delete(s->warmup);
-				task_free(s->warmup);
-			}
+			if (s->warmup)
+				task_destroy(s->warmup);
 
 			free(s->id);
 			free(s->cookie);
@@ -2352,7 +2346,7 @@ void deinit(void)
 
 		free_http_req_rules(&p->http_req_rules);
 		free_http_res_rules(&p->http_res_rules);
-		task_free(p->task);
+		task_destroy(p->task);
 
 		pool_destroy(p->req_cap_pool);
 		pool_destroy(p->rsp_cap_pool);
@@ -2398,8 +2392,8 @@ void deinit(void)
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
 	free(oldpids);        oldpids = NULL;
-	task_free(global_listener_queue_task); global_listener_queue_task = NULL;
-	task_free(idle_conn_task);
+	task_destroy(global_listener_queue_task); global_listener_queue_task = NULL;
+	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
@@ -3080,10 +3074,9 @@ int main(int argc, char **argv)
 			stop_proxy(curpeers->peers_fe);
 			/* disable this peer section so that it kills itself */
 			signal_unregister_handler(curpeers->sighandler);
-			task_delete(curpeers->sync_task);
-			task_free(curpeers->sync_task);
+			task_destroy(curpeers->sync_task);
 			curpeers->sync_task = NULL;
-			task_free(curpeers->peers_fe->task);
+			task_destroy(curpeers->peers_fe->task);
 			curpeers->peers_fe->task = NULL;
 			curpeers->peers_fe = NULL;
 		}

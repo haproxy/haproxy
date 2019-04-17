@@ -333,7 +333,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	/* Error unrolling */
  out_fail_accept:
 	flt_stream_release(s, 0);
-	task_free(t);
+	task_destroy(t);
 	tasklet_free(s->si[1].wait_event.task);
 	LIST_DEL(&s->list);
 out_fail_alloc_si1:
@@ -2616,8 +2616,7 @@ redo:
 
 	/* the task MUST not be in the run queue anymore */
 	stream_free(s);
-	task_delete(t);
-	task_free(t);
+	task_destroy(t);
 	return NULL;
 }
 

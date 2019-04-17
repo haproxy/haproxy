@@ -432,7 +432,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 
   fail:
 	if (t)
-		task_free(t);
+		task_destroy(t);
 	if (h1c->wait_event.task)
 		tasklet_free(h1c->wait_event.task);
 	pool_free(pool_head_h1c, h1c);
@@ -1953,8 +1953,7 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	if (!expired && h1c)
 		return t;
 
-	task_delete(t);
-	task_free(t);
+	task_destroy(t);
 
 	if (!h1c) {
 		/* resources were already deleted */
