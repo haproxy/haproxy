@@ -384,13 +384,11 @@ void process_runnable_tasks()
 		curr_task = (struct task *)t;
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
+		else if (process != NULL)
+			t = process(TASK_IS_TASKLET(t) ? NULL : t, ctx, state);
 		else {
-			if (t->process != NULL)
-				t = process(TASK_IS_TASKLET(t) ? NULL : t, ctx, state);
-			else {
-				__task_free(t);
-				t = NULL;
-			}
+			__task_free(t);
+			t = NULL;
 		}
 		curr_task = NULL;
 		/* If there is a pending state  we have to wake up the task
