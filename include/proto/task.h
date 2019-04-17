@@ -238,10 +238,6 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
-	if (!TASK_IS_TASKLET(tl)) {
-		task_insert_into_tasklet_list((struct task *)tl);
-		return;
-	}
 	if (!LIST_ISEMPTY(&tl->list))
 		return;
 	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
