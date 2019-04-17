@@ -2318,6 +2318,11 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	}
 
   end:
+	if (conn_xprt_read0_pending(cs->conn)) {
+		cs->flags |= CS_FL_REOS;
+		if (!pipe->data)
+			cs->flags |= CS_FL_EOS;
+	}
 	return ret;
 }
 
