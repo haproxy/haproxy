@@ -153,11 +153,11 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 
 	state = _HA_ATOMIC_OR(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
-		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED))
+		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
+			__task_wakeup(t, root);
 			break;
+		}
 	}
-	if (!(state & (TASK_QUEUED | TASK_RUNNING)))
-		__task_wakeup(t, root);
 }
 
 /* change the thread affinity of a task to <thread_mask> */
