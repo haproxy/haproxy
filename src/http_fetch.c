@@ -160,7 +160,8 @@ static int get_http_auth(struct sample *smp)
 /* This function ensures that the prerequisites for an L7 fetch are ready,
  * which means that a request or response is ready. If some data is missing,
  * a parsing attempt is made. This is useful in TCP-based ACLs which are able
- * to extract data from L7.
+ * to extract data from L7. If <vol> is non-null during a prefetch, another
+ * test is made to ensure the required information is not gone.
  *
  * The function returns :
  *   NULL with SMP_F_MAY_CHANGE in the sample flags if some data is missing to
@@ -169,7 +170,7 @@ static int get_http_auth(struct sample *smp)
  *     we'll never have any HTTP message there ;
  *   The HTX message if ready
  */
-struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn)
+struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol)
 {
 	struct stream *s = smp->strm;
 	struct http_txn *txn = NULL;
@@ -209,7 +210,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn)
 			}
 		}
 		sl = http_find_stline(htx);
-		if (!sl) {
+		if (vol && !sl) {
 			/* The start-line was already forwarded, it is too late to fetch anything */
 			return NULL;
 		}
@@ -416,7 +417,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 0);
 
 		if (!htx)
 			return 0;
@@ -470,7 +471,7 @@ static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const cha
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -510,7 +511,7 @@ static int smp_fetch_stver(const struct arg *args, struct sample *smp, const cha
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -551,7 +552,7 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -606,7 +607,7 @@ static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct buffer *temp;
 		int32_t pos;
 
@@ -674,7 +675,7 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct buffer *temp;
 		char *p, *end;
 		int32_t pos;
@@ -835,7 +836,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		int32_t pos;
 
 		if (!htx)
@@ -906,7 +907,7 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		int32_t pos;
 		unsigned long long len = 0;
 
@@ -954,7 +955,7 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		int32_t pos;
 		unsigned long long len = 0;
 
@@ -1002,7 +1003,7 @@ static int smp_fetch_url(const struct arg *args, struct sample *smp, const char 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1034,7 +1035,7 @@ static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const ch
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1067,7 +1068,7 @@ static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1106,7 +1107,7 @@ static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx *ctx = smp->ctx.a[0];
 		struct ist name;
 
@@ -1210,7 +1211,7 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx ctx;
 		struct ist name;
 
@@ -1269,7 +1270,7 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		int32_t pos;
 
 		if (!htx)
@@ -1340,7 +1341,7 @@ static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char 
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx *ctx = smp->ctx.a[0];
 		struct ist name;
 
@@ -1444,7 +1445,7 @@ static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const c
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx ctx;
 		struct ist name;
 
@@ -1553,7 +1554,7 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 		struct ist path;
 		size_t len;
@@ -1614,7 +1615,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
@@ -1700,7 +1701,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 		struct http_hdr_ctx ctx;
 		struct ist path;
@@ -1826,7 +1827,7 @@ static int smp_fetch_query(const struct arg *args, struct sample *smp, const cha
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct htx_sl *sl;
 
 		if (!htx)
@@ -1866,7 +1867,7 @@ static int smp_fetch_proto_http(const struct arg *args, struct sample *smp, cons
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 0);
 
 		if (!htx)
 			return 0;
@@ -1902,7 +1903,7 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 
 		if (!htx)
 			return 0;
@@ -1930,7 +1931,7 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 
 		if (!htx)
 			return 0;
@@ -2138,7 +2139,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx *ctx = smp->ctx.a[2];
 		struct ist hdr;
 
@@ -2304,7 +2305,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx ctx;
 		struct ist hdr;
 
@@ -2495,7 +2496,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 			/* HTX version */
-			struct htx *htx = smp_prefetch_htx(smp, chn);
+			struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 			struct htx_sl *sl;
 
 			if (!htx)
@@ -2560,7 +2561,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 			/* HTX version */
-			struct htx *htx = smp_prefetch_htx(smp, chn);
+			struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 			struct buffer *temp;
 			int32_t pos;
 
@@ -2663,7 +2664,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 
 	if (IS_HTX_SMP(smp) || (smp->px->mode == PR_MODE_TCP)) {
 		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn);
+		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 		struct http_hdr_ctx ctx;
 		struct htx_sl *sl;
 		struct ist path;
