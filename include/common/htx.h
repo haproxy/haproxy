@@ -280,7 +280,7 @@ static inline struct htx_sl *htx_get_stline(struct htx *htx)
 {
 	struct htx_sl *sl = NULL;
 
-	if (htx->sl_off != -1)
+	if (htx->used && htx->sl_off != -1)
 		sl = ((void *)htx->blocks + htx->sl_off);
 
 	return sl;
