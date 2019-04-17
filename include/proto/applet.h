@@ -103,7 +103,7 @@ static inline void appctx_free(struct appctx *appctx)
 	/* The task is supposed to be run on this thread, so we can just
 	 * check if it's running already (or about to run) or not
 	 */
-	if (!(appctx->t->state & TASK_RUNNING))
+	if (!(appctx->t->state & (TASK_QUEUED | TASK_RUNNING)))
 		__appctx_free(appctx);
 	else {
 		/* if it's running, or about to run, defer the freeing

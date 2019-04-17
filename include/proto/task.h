@@ -355,7 +355,7 @@ static inline void task_free(struct task *t)
 	/* There's no need to protect t->state with a lock, as the task
 	 * has to run on the current thread.
 	 */
-	if (t == curr_task || !(t->state & TASK_RUNNING))
+	if (t == curr_task || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
 		__task_free(t);
 	else
 		t->process = NULL;
