@@ -17,6 +17,7 @@
 
 
 varnishtest "OpenSSL bug: Random crashes"
+#REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 
 

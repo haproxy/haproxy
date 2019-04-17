@@ -1,4 +1,5 @@
 varnishtest "haproxy host header: map / redirect tests"
+#REQUIRE_OPTIONS=PCRE
 feature ignore_unknown_macro
 
 #REQUIRE_VERSION=1.6

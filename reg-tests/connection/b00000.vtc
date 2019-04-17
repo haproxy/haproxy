@@ -9,6 +9,7 @@
 # without storing it first.
 
 varnishtest "PROXY protocol random failures"
+#REQUIRE_OPTIONS=OPENSSL
 
 feature ignore_unknown_macro
 

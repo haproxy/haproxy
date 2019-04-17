@@ -1,4 +1,5 @@
 varnishtest "Health-check test over TLS/SSL"
+#REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 
 
