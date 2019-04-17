@@ -66,8 +66,6 @@ struct task_per_thread task_per_thread[MAX_THREADS];
  */
 void __task_wakeup(struct task *t, struct eb_root *root)
 {
-	void *expected = NULL;
-
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -76,40 +74,6 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	/* Make sure if the task isn't in the runqueue, nobody inserts it
 	 * in the meanwhile.
 	 */
-redo:
-	if (unlikely(!_HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1))) {
-#ifdef USE_THREAD
-		if (root == &rqueue)
-			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-#endif
-		return;
-	}
-	/* There's a small race condition, when running a task, the thread
-	 * first sets TASK_RUNNING, and then unlink the task.
-	 * If an another thread calls task_wakeup() for the same task,
-	 * it may set t->state before TASK_RUNNING was set, and then try
-	 * to set t->rq.nod.leaf_p after it was unlinked.
-	 * To make sure it is not a problem, we check if TASK_RUNNING is set
-	 * again. If it is, we unset t->rq.node.leaf_p.
-	 * We then check for TASK_RUNNING a third time. If it is still there,
-	 * then we can give up, the task will be re-queued later if it needs
-	 * to be. If it's not there, and there is still something in t->state,
-	 * then we have to requeue.
-	 */
-	if (((volatile unsigned short)(t->state)) & TASK_RUNNING) {
-		unsigned short state;
-		t->rq.node.leaf_p = NULL;
-		__ha_barrier_full();
-
-		state = (volatile unsigned short)(t->state);
-		if (unlikely(state != 0 && !(state & TASK_RUNNING)))
-			goto redo;
-#ifdef USE_THREAD
-		if (root == &rqueue)
-			HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-#endif
-		return;
-	}
 	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 #ifdef USE_THREAD
 	if (root == &rqueue) {
@@ -443,12 +407,7 @@ void process_runnable_tasks()
 
 			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (state)
-#ifdef USE_THREAD
-				__task_wakeup(t, ((t->thread_mask & all_threads_mask) == tid_bit) ?
-				    &task_per_thread[tid].rqueue : &rqueue);
-#else
-				__task_wakeup(t, &task_per_thread[tid].rqueue);
-#endif
+				task_wakeup(t, 0);
 			else
 				task_queue(t);
 		}
