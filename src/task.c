@@ -388,7 +388,12 @@ void process_runnable_tasks()
 			t = process(TASK_IS_TASKLET(t) ? NULL : t, ctx, state);
 		else {
 			__task_free(t);
-			t = NULL;
+			curr_task = NULL;
+			/* We don't want max_processed to be decremented if
+			 * we're just freeing a destroyed task, we should only
+			 * do so if we really ran a task.
+			 */
+			continue;
 		}
 		curr_task = NULL;
 		/* If there is a pending state  we have to wake up the task
