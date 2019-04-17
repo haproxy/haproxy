@@ -122,7 +122,7 @@ static inline int task_in_rq(struct task *t)
 	/* Check if leaf_p is NULL, in case he's not in the runqueue, and if
 	 * it's not 0x1, which would mean it's in the tasklet list.
 	 */
-	return t->rq.node.leaf_p != NULL && t->rq.node.leaf_p != (void *)0x1;
+	return t->rq.node.leaf_p != NULL;
 }
 
 /* return 0 if task is in wait queue, otherwise non-zero */
@@ -250,14 +250,7 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 static inline void task_insert_into_tasklet_list(struct task *t)
 {
 	struct tasklet *tl;
-	void *expected = NULL;
 
-	/* Protect ourself against anybody trying to insert the task into
-	 * another runqueue. We set leaf_p to 0x1 to indicate that the node is
-	 * not in a tree but that it's in the tasklet list. See task_in_rq().
-	 */
-	if (unlikely(!_HA_ATOMIC_CAS(&t->rq.node.leaf_p, &expected, (void *)0x1)))
-		return;
 	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 	task_per_thread[tid].task_list_size++;
 	tl = (struct tasklet *)t;
@@ -271,8 +264,6 @@ static inline void __task_remove_from_tasklet_list(struct task *t)
 {
 	LIST_DEL_INIT(&((struct tasklet *)t)->list);
 	task_per_thread[tid].task_list_size--;
-	if (!TASK_IS_TASKLET(t))
-		_HA_ATOMIC_STORE(&t->rq.node.leaf_p, NULL); // was 0x1
 	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 }
 
