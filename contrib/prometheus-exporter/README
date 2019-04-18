@@ -123,7 +123,6 @@ Exported metrics
 | haproxy_frontend_max_sessions                   | Maximum observed number of active sessions.                                  |
 | haproxy_frontend_limit_sessions                 | Configured session limit.                                                    |
 | haproxy_frontend_sessions_total                 | Total number of sessions.                                                    |
-| haproxy_frontend_current_session_rate           | Current number of sessions per second over last elapsed second.              |
 | haproxy_frontend_limit_session_rate             | Configured limit on new sessions per second.                                 |
 | haproxy_frontend_max_session_rate               | Maximum observed number of sessions per second.                              |
 | haproxy_frontend_connections_rate_current       | Current number of connections per second over the last elapsed second.       |
@@ -137,7 +136,6 @@ Exported metrics
 | haproxy_frontend_denied_connections_total       | Total number of requests denied by "tcp-request connection" rules.           |
 | haproxy_frontend_denied_sessions_total          | Total number of requests denied by "tcp-request session" rules.              |
 | haproxy_frontend_failed_header_rewriting_total  | Total number of failed header rewriting warnings.                            |
-| haproxy_frontend_http_requests_rate_current     | Current number of HTTP requests per second over last elapsed second.         |
 | haproxy_frontend_http_requests_rate_max         | Maximum observed number of HTTP requests per second.                         |
 | haproxy_frontend_http_requests_total            | Total number of HTTP requests received.                                      |
 | haproxy_frontend_http_responses_total           | Total number of HTTP responses.                                              |
@@ -160,7 +158,6 @@ Exported metrics
 | haproxy_backend_max_sessions                        | Maximum observed number of active sessions.                              |
 | haproxy_backend_limit_sessions                      | Configured session limit.                                                |
 | haproxy_backend_sessions_total                      | Total number of sessions.                                                |
-| haproxy_backend_current_session_rate                | Current number of sessions per second over last elapsed second.          |
 | haproxy_backend_max_session_rate                    | Maximum observed number of sessions per second.                          |
 | haproxy_backend_last_session_seconds                | Number of seconds since last session assigned to server/backend.         |
 | haproxy_backend_current_queue                       | Current number of queued requests.                                       |
@@ -209,7 +206,6 @@ Exported metrics
 | haproxy_server_max_sessions                        | Maximum observed number of active sessions.                               |
 | haproxy_server_limit_sessions                      | Configured session limit.                                                 |
 | haproxy_server_sessions_total                      | Total number of sessions.                                                 |
-| haproxy_server_current_session_rate                | Current number of sessions per second over last elapsed second.           |
 | haproxy_server_max_session_rate                    | Maximum observed number of sessions per second.                           |
 | haproxy_server_last_session_seconds                | Number of seconds since last session assigned to server/backend.          |
 | haproxy_server_current_queue                       | Current number of queued requests.                                        |

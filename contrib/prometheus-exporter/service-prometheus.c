@@ -151,7 +151,7 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_SCUR]           = ST_F_SMAX,
 	[ST_F_SMAX]           = ST_F_SLIM,
 	[ST_F_SLIM]           = ST_F_STOT,
-	[ST_F_STOT]           = ST_F_RATE,
+	[ST_F_STOT]           = ST_F_RATE_LIM,
 	[ST_F_BIN]            = ST_F_BOUT,
 	[ST_F_BOUT]           = ST_F_DREQ,
 	[ST_F_DREQ]           = ST_F_DRESP,
@@ -177,9 +177,9 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_LBTOT]          = 0,
 	[ST_F_TRACKED]        = 0,
 	[ST_F_TYPE]           = 0,
-	[ST_F_RATE]           = ST_F_RATE_LIM,
+	[ST_F_RATE]           = 0,
 	[ST_F_RATE_LIM]       = ST_F_RATE_MAX,
-	[ST_F_RATE_MAX]       = ST_F_CONN_RATE,
+	[ST_F_RATE_MAX]       = ST_F_CONN_RATE_MAX,
 	[ST_F_CHECK_STATUS]   = 0,
 	[ST_F_CHECK_CODE]     = 0,
 	[ST_F_CHECK_DURATION] = 0,
@@ -190,7 +190,7 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_HRSP_5XX]       = ST_F_HRSP_OTHER,
 	[ST_F_HRSP_OTHER]     = ST_F_INTERCEPTED,
 	[ST_F_HANAFAIL]       = 0,
-	[ST_F_REQ_RATE]       = ST_F_REQ_RATE_MAX,
+	[ST_F_REQ_RATE]       = 0,
 	[ST_F_REQ_RATE_MAX]   = ST_F_REQ_TOT,
 	[ST_F_REQ_TOT]        = ST_F_HRSP_1XX,
 	[ST_F_CLI_ABRT]       = 0,
@@ -221,13 +221,13 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_COOKIE]         = 0,
 	[ST_F_MODE]           = 0,
 	[ST_F_ALGO]           = 0,
-	[ST_F_CONN_RATE]      = ST_F_CONN_RATE_MAX,
+	[ST_F_CONN_RATE]      = 0,
 	[ST_F_CONN_RATE_MAX]  = ST_F_CONN_TOT,
 	[ST_F_CONN_TOT]       = ST_F_BIN,
 	[ST_F_INTERCEPTED]    = ST_F_CACHE_LOOKUPS,
 	[ST_F_DCON]           = ST_F_DSES,
 	[ST_F_DSES]           = ST_F_WREW,
-	[ST_F_WREW]           = ST_F_REQ_RATE,
+	[ST_F_WREW]           = ST_F_REQ_RATE_MAX,
 	[ST_F_CONNECT]        = 0,
 	[ST_F_REUSE]          = 0,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
@@ -244,7 +244,7 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_SCUR]           = ST_F_SMAX,
 	[ST_F_SMAX]           = ST_F_SLIM,
 	[ST_F_SLIM]           = ST_F_STOT,
-	[ST_F_STOT]           = ST_F_RATE,
+	[ST_F_STOT]           = ST_F_RATE_MAX,
 	[ST_F_BIN]            = ST_F_BOUT,
 	[ST_F_BOUT]           = ST_F_QTIME,
 	[ST_F_DREQ]           = ST_F_DRESP,
@@ -270,7 +270,7 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_LBTOT]          = ST_F_REQ_TOT,
 	[ST_F_TRACKED]        = 9,
 	[ST_F_TYPE]           = 0,
-	[ST_F_RATE]           = ST_F_RATE_MAX,
+	[ST_F_RATE]           = 0,
 	[ST_F_RATE_LIM]       = 0,
 	[ST_F_RATE_MAX]       = ST_F_LASTSESS,
 	[ST_F_CHECK_STATUS]   = 0,
@@ -337,7 +337,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_SCUR]           = ST_F_SMAX,
 	[ST_F_SMAX]           = ST_F_SLIM,
 	[ST_F_SLIM]           = ST_F_STOT,
-	[ST_F_STOT]           = ST_F_RATE,
+	[ST_F_STOT]           = ST_F_RATE_MAX,
 	[ST_F_BIN]            = ST_F_BOUT,
 	[ST_F_BOUT]           = ST_F_QTIME,
 	[ST_F_DREQ]           = 0,
@@ -363,7 +363,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_LBTOT]          = ST_F_HRSP_1XX,
 	[ST_F_TRACKED]        = 0,
 	[ST_F_TYPE]           = 0,
-	[ST_F_RATE]           = ST_F_RATE_MAX,
+	[ST_F_RATE]           = 0,
 	[ST_F_RATE_LIM]       = 0,
 	[ST_F_RATE_MAX]       = ST_F_LASTSESS,
 	[ST_F_CHECK_STATUS]   = 0,
@@ -987,7 +987,7 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_LBTOT]          = IST("counter"),
 	[ST_F_TRACKED]        = IST("untyped"),
 	[ST_F_TYPE]           = IST("untyped"),
-	[ST_F_RATE]           = IST("gauge"),
+	[ST_F_RATE]           = IST("untyped"),
 	[ST_F_RATE_LIM]       = IST("gauge"),
 	[ST_F_RATE_MAX]       = IST("counter"),
 	[ST_F_CHECK_STATUS]   = IST("untyped"),
@@ -1000,7 +1000,7 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_HRSP_5XX]       = IST("counter"),
 	[ST_F_HRSP_OTHER]     = IST("counter"),
 	[ST_F_HANAFAIL]       = IST("counter"),
-	[ST_F_REQ_RATE]       = IST("gauge"),
+	[ST_F_REQ_RATE]       = IST("untyped"),
 	[ST_F_REQ_RATE_MAX]   = IST("counter"),
 	[ST_F_REQ_TOT]        = IST("counter"),
 	[ST_F_CLI_ABRT]       = IST("counter"),
@@ -1031,7 +1031,7 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_COOKIE]         = IST("untyped"),
 	[ST_F_MODE]           = IST("untyped"),
 	[ST_F_ALGO]           = IST("untyped"),
-	[ST_F_CONN_RATE]      = IST("gauge"),
+	[ST_F_CONN_RATE]      = IST("untyped"),
 	[ST_F_CONN_RATE_MAX]  = IST("counter"),
 	[ST_F_CONN_TOT]       = IST("counter"),
 	[ST_F_INTERCEPTED]    = IST("counter"),
@@ -1454,17 +1454,11 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_STOT:
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
 					break;
-				case ST_F_RATE:
-					metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_sess_per_sec));
-					break;
 				case ST_F_RATE_LIM:
 					metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 					break;
 				case ST_F_RATE_MAX:
 					metric = mkf_u32(FN_MAX, px->fe_counters.sps_max);
-					break;
-				case ST_F_CONN_RATE:
-					metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_conn_per_sec));
 					break;
 				case ST_F_CONN_RATE_MAX:
 					metric = mkf_u32(FN_MAX, px->fe_counters.cps_max);
@@ -1495,11 +1489,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 					break;
 				case ST_F_WREW:
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
-					break;
-				case ST_F_REQ_RATE:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
 					break;
 				case ST_F_REQ_RATE_MAX:
 					if (px->mode != PR_MODE_HTTP)
@@ -1643,9 +1632,6 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					break;
 				case ST_F_STOT:
 					metric = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
-					break;
-				case ST_F_RATE:
-					metric = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
 					break;
 				case ST_F_RATE_MAX:
 					metric = mkf_u32(0, px->be_counters.sps_max);
@@ -1868,9 +1854,6 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						break;
 					case ST_F_STOT:
 						metric = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
-						break;
-					case ST_F_RATE:
-						metric = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
 						break;
 					case ST_F_RATE_MAX:
 						metric = mkf_u32(FN_MAX, sv->counters.sps_max);
