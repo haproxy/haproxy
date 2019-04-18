@@ -9745,6 +9745,8 @@ tcp-request content <action> [{if | unless} <condition>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt0(<sc-id>) <int>
+    - set-dst <expr>
+    - set-dst-port <expr>
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
     - silent-drop
@@ -9777,6 +9779,9 @@ tcp-request content <action> [{if | unless} <condition>]
   are present when the rule is processed. The rule processing engine is able to
   wait until the inspect delay expires when the data to be tracked is not yet
   available.
+
+  The "set-dst" and "set-dst-port" are used to set respectively the destination
+  IP and port. More information on how to use it at "http-request set-dst".
 
   The "set-var" is used to set the content of a variable. The variable is
   declared inline. For "tcp-request session" rules, only session-level

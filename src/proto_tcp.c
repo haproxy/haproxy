@@ -1986,29 +1986,31 @@ static struct srv_kw_list srv_kws = { "TCP", { }, {
 INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
-	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_actions);
 
 static struct action_kw_list tcp_req_sess_actions = {ILH, {
-	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
-	{ "silent-drop", tcp_parse_silent_drop },
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
