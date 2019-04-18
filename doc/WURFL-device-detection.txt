@@ -17,6 +17,16 @@ Compile haproxy as shown :
 
 Optionally WURFL_DEBUG=1 may be set to increase logs verbosity
 
+For HAProxy developers who need to verify that their changes didn't accidently
+break the WURFL code, it is possible to build a dummy library provided in the
+contrib/wurfl directory and to use it as an alternative for the full library.
+This will not provide the full functionalities, it will just allow haproxy to
+start with a wurfl configuration, which generally is enough to validate API
+changes :
+
+    $ make -C contrib/wurfl
+    $ make TARGET=<target> USE_WURFL=1 WURFL_INC=$PWD/contrib/wurfl WURFL_LIB=$PWD/contrib/wurfl
+
 These are the supported WURFL directives (see doc/configuration.txt) :
 - wurfl-data-file <path to WURFL data file>
 - wurfl-information-list [<string>] (list of WURFL capabilities,
