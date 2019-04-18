@@ -82,3 +82,7 @@ Note: every change around the locking or synchronization point will require
       approval from one of these maintainers. Problems which only appear when
       nbthread is greater than 1 and which disappear otherwise are also
       relevant.
+
+ScientiaMobile WURFL Device Detection
+Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
+Files: src/wurfl.c
