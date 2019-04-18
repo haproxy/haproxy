@@ -430,10 +430,10 @@ const struct ist promex_inf_metric_names[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = IST("relative_process_id"),
 	[INF_PID]                            = IST("pid"),
 	[INF_UPTIME]                         = IST("uptime"),
-	[INF_UPTIME_SEC]                     = IST("uptime_seconds"),
-	[INF_MEMMAX_MB]                      = IST("max_memory"),
-	[INF_POOL_ALLOC_MB]                  = IST("pool_allocated_total"),
-	[INF_POOL_USED_MB]                   = IST("pool_used_total"),
+	[INF_UPTIME_SEC]                     = IST("start_time_seconds"),
+	[INF_MEMMAX_MB]                      = IST("max_memory_bytes"),
+	[INF_POOL_ALLOC_MB]                  = IST("pool_allocated_bytes"),
+	[INF_POOL_USED_MB]                   = IST("pool_used_bytes"),
 	[INF_POOL_FAILED]                    = IST("pool_failures_total"),
 	[INF_ULIMIT_N]                       = IST("max_fds"),
 	[INF_MAXSOCK]                        = IST("max_sockets"),
@@ -462,8 +462,8 @@ const struct ist promex_inf_metric_names[INF_TOTAL_FIELDS] = {
 	[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = IST("frontent_ssl_reuse"),
 	[INF_SSL_BACKEND_KEY_RATE]           = IST("current_backend_ssl_key_rate"),
 	[INF_SSL_BACKEND_MAX_KEY_RATE]       = IST("max_backend_ssl_key_rate"),
-	[INF_SSL_CACHE_LOOKUPS]              = IST("ssl_cache_lookups"),
-	[INF_SSL_CACHE_MISSES]               = IST("ssl_cache_misses"),
+	[INF_SSL_CACHE_LOOKUPS]              = IST("ssl_cache_lookups_total"),
+	[INF_SSL_CACHE_MISSES]               = IST("ssl_cache_misses_total"),
 	[INF_COMPRESS_BPS_IN]                = IST("http_comp_bytes_in_total"),
 	[INF_COMPRESS_BPS_OUT]               = IST("http_comp_bytes_out_total"),
 	[INF_COMPRESS_BPS_RATE_LIM]          = IST("limit_http_comp"),
@@ -586,17 +586,17 @@ const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = IST("Relative process id, starting at 1."),
 	[INF_PID]                            = IST("HAProxy PID."),
 	[INF_UPTIME]                         = IST("Uptime in a human readable format."),
-	[INF_UPTIME_SEC]                     = IST("Uptime in seconds."),
-	[INF_MEMMAX_MB]                      = IST("Per-process memory limit (in MB); 0=unset."),
-	[INF_POOL_ALLOC_MB]                  = IST("Total amount of memory allocated in pools (in MB)."),
-	[INF_POOL_USED_MB]                   = IST("Total amount of memory used in pools (in MB)."),
+	[INF_UPTIME_SEC]                     = IST("Start time in seconds."),
+	[INF_MEMMAX_MB]                      = IST("Per-process memory limit (in bytes); 0=unset."),
+	[INF_POOL_ALLOC_MB]                  = IST("Total amount of memory allocated in pools (in bytes)."),
+	[INF_POOL_USED_MB]                   = IST("Total amount of memory used in pools (in bytes)."),
 	[INF_POOL_FAILED]                    = IST("Total number of failed pool allocations."),
 	[INF_ULIMIT_N]                       = IST("Maximum number of open file descriptors; 0=unset."),
 	[INF_MAXSOCK]                        = IST("Maximum numer of open sockets."),
 	[INF_MAXCONN]                        = IST("Maximum number of concurrent connections."),
 	[INF_HARD_MAXCONN]                   = IST("Initial Maximum number of concurrent connections."),
 	[INF_CURR_CONN]                      = IST("Number of active sessions."),
-	[INF_CUM_CONN]                       = IST("Total number of terminated sessions."),
+	[INF_CUM_CONN]                       = IST("Total number of created sessions."),
 	[INF_CUM_REQ]                        = IST("Total number of requests (TCP or HTTP)."),
 	[INF_MAX_SSL_CONNS]                  = IST("Configured maximum number of concurrent SSL connections."),
 	[INF_CURR_SSL_CONNS]                 = IST("Number of opened SSL connections."),
@@ -1240,16 +1240,16 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				metric = mkf_u32(FO_KEY, relative_pid);
 				break;
 			case INF_UPTIME_SEC:
-				metric = mkf_u32(FN_DURATION, (now.tv_sec - start_date.tv_sec));
+				metric = mkf_u32(FN_DURATION, start_date.tv_sec);
 				break;
 			case INF_MEMMAX_MB:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+				metric = mkf_u64(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 				break;
 			case INF_POOL_ALLOC_MB:
-				metric = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+				metric = mkf_u64(0, pool_total_allocated());
 				break;
 			case INF_POOL_USED_MB:
-				metric = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+				metric = mkf_u64(0, pool_total_used());
 				break;
 			case INF_POOL_FAILED:
 				metric = mkf_u32(FN_COUNTER, pool_total_failures());

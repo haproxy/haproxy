@@ -61,17 +61,17 @@ Exported metrics
 | haproxy_process_nbthread                       | Configured number of threads.                                                 |
 | haproxy_process_nbproc                         | Configured number of processes.                                               |
 | haproxy_process_relative_process_id            | Relative process id, starting at 1.                                           |
-| haproxy_process_uptime_seconds                 | Uptime in seconds.                                                            |
-| haproxy_process_max_memory                     | Per-process memory limit (in MB); 0=unset.                                    |
-| haproxy_process_pool_allocated_total           | Total amount of memory allocated in pools (in MB).                            |
-| haproxy_process_pool_used_total                | Total amount of memory used in pools (in MB).                                 |
+| haproxy_process_start_time_seconds             | Start time in seconds.                                                        |
+| haproxy_process_max_memory_bytes               | Per-process memory limit (in bytes); 0=unset.                                 |
+| haproxy_process_pool_allocated_bytes           | Total amount of memory allocated in pools (in bytes).                         |
+| haproxy_process_pool_used_bytes                | Total amount of memory used in pools (in bytes).                              |
 | haproxy_process_pool_failures_total            | Total number of failed pool allocations.                                      |
 | haproxy_process_max_fds                        | Maximum number of open file descriptors; 0=unset.                             |
 | haproxy_process_max_sockets                    | Maximum numer of open sockets.                                                |
 | haproxy_process_max_connections                | Maximum number of concurrent connections.                                     |
 | haproxy_process_hard_max_connections           | Initial Maximum number of concurrent connections.                             |
 | haproxy_process_current_connections            | Number of active sessions.                                                    |
-| haproxy_process_connections_total              | Total number of terminated sessions.                                          |
+| haproxy_process_connections_total              | Total number of created sessions.                                             |
 | haproxy_process_requests_total                 | Total number of requests (TCP or HTTP).                                       |
 | haproxy_process_max_ssl_connections            | Configured maximum number of concurrent SSL connections.                      |
 | haproxy_process_current_ssl_connections        | Number of opened SSL connections.                                             |
@@ -93,8 +93,8 @@ Exported metrics
 | haproxy_process_frontent_ssl_reuse             | SSL session reuse ratio (percent).                                            |
 | haproxy_process_current_backend_ssl_key_rate   | Current backend SSL Key computation per second over last elapsed second.      |
 | haproxy_process_max_backend_ssl_key_rate       | Maximum observed backend SSL Key computation per second.                      |
-| haproxy_process_ssl_cache_lookups              | Total number of SSL session cache lookups.                                    |
-| haproxy_process_ssl_cache_misses               | Total number of SSL session cache misses.                                     |
+| haproxy_process_ssl_cache_lookups_total        | Total number of SSL session cache lookups.                                    |
+| haproxy_process_ssl_cache_misses_total         | Total number of SSL session cache misses.                                     |
 | haproxy_process_http_comp_bytes_in_total       | Number of bytes per second over last elapsed second, before http compression. |
 | haproxy_process_http_comp_bytes_out_total      | Number of bytes per second over last elapsed second, after http compression.  |
 | haproxy_process_limit_http_comp                | Configured maximum input compression rate in bytes.                           |
