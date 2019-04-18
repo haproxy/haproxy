@@ -19,8 +19,6 @@
 static struct {
 	char *data_file; /* the WURFL data file */
 	char *cache_size; /* the WURFL cache parameters */
-	int engine_mode; /* the WURFL engine mode */
-	int useragent_priority; /* the WURFL ua priority */
 	struct list patch_file_list; /* the list of WURFL patch file to use */
 	char information_list_separator; /* the separator used in request to separate values */
 	struct list information_list; /* the list of WURFL data to return into request */
@@ -29,8 +27,6 @@ static struct {
 } global_wurfl = {
 	.data_file = NULL,
 	.cache_size = NULL,
-	.engine_mode = -1,
-	.useragent_priority = -1,
 	.information_list_separator = ',',
 	.information_list = LIST_HEAD_INIT(global_wurfl.information_list),
 	.patch_file_list = LIST_HEAD_INIT(global_wurfl.patch_file_list),
@@ -75,11 +71,6 @@ typedef struct {
 static const char HA_WURFL_MODULE_VERSION[] = "1.0";
 static const char HA_WURFL_ISDEVROOT_FALSE[] = "FALSE";
 static const char HA_WURFL_ISDEVROOT_TRUE[] = "TRUE";
-static const char HA_WURFL_TARGET_ACCURACY[] = "accuracy";
-static const char HA_WURFL_TARGET_PERFORMANCE[] = "performance";
-static const char HA_WURFL_PRIORITY_PLAIN[] = "plain";
-static const char HA_WURFL_PRIORITY_SIDELOADED_BROWSER[] = "sideloaded_browser";
-static const char HA_WURFL_MIN_ENGINE_VERSION_MANDATORY[] = "1.8.0.0";
 
 static const char HA_WURFL_DATA_TYPE_UNKNOWN_STRING[] = "unknown";
 static const char HA_WURFL_DATA_TYPE_CAP_STRING[] = "capability";
@@ -105,14 +96,14 @@ static const struct {
 	const char *(*func)(wurfl_handle wHandle, wurfl_device_handle dHandle);
 } wurfl_properties_function_map [] = {
 	{"wurfl_api_version", ha_wurfl_get_wurfl_api_version},
-	{"wurfl_engine_target", ha_wurfl_get_wurfl_engine_target},
+	{"wurfl_engine_target", ha_wurfl_get_wurfl_engine_target}, // kept for backward conf file compat
 	{"wurfl_id", ha_wurfl_get_wurfl_id },
 	{"wurfl_info", ha_wurfl_get_wurfl_info },
 	{"wurfl_isdevroot", ha_wurfl_get_wurfl_isdevroot},
 	{"wurfl_last_load_time", ha_wurfl_get_wurfl_last_load_time},
 	{"wurfl_normalized_useragent", ha_wurfl_get_wurfl_normalized_useragent},
 	{"wurfl_useragent", ha_wurfl_get_wurfl_useragent},
-	{"wurfl_useragent_priority", ha_wurfl_get_wurfl_useragent_priority },
+	{"wurfl_useragent_priority", ha_wurfl_get_wurfl_useragent_priority }, // kept for backward conf file compat
 	{"wurfl_root_id", ha_wurfl_get_wurfl_root_id},
 };
 static const int HA_WURFL_PROPERTIES_NBR = 10;
@@ -166,23 +157,8 @@ static int ha_wurfl_cfg_engine_mode(char **args, int section_type, struct proxy 
                                     struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
-	if (*(args[1]) == 0) {
-		memprintf(err, "WURFL: %s expects a value.\n", args[0]);
-		return -1;
-	}
-
-	if (!strcmp(args[1],HA_WURFL_TARGET_ACCURACY)) {
-		global_wurfl.engine_mode = WURFL_ENGINE_TARGET_HIGH_ACCURACY;
-		return 0;
-	}
-
-	if (!strcmp(args[1],HA_WURFL_TARGET_PERFORMANCE)) {
-		global_wurfl.engine_mode = WURFL_ENGINE_TARGET_HIGH_PERFORMANCE;
-		return 0;
-	}
-
-	memprintf(err, "WURFL: %s valid values are %s or %s.\n", args[0], HA_WURFL_TARGET_PERFORMANCE, HA_WURFL_TARGET_ACCURACY);
-	return -1;
+	// kept for backward conf file compat
+	return 0;
 }
 
 static int ha_wurfl_cfg_information_list_separator(char **args, int section_type, struct proxy *curpx,
@@ -265,23 +241,9 @@ static int ha_wurfl_cfg_useragent_priority(char **args, int section_type, struct
                                            struct proxy *defpx, const char *file, int line,
                                            char **err)
 {
-	if (*(args[1]) == 0) {
-		memprintf(err, "WURFL: %s expects a value.\n", args[0]);
-		return -1;
-	}
-
-	if (!strcmp(args[1],HA_WURFL_PRIORITY_PLAIN)) {
-		global_wurfl.useragent_priority = WURFL_USERAGENT_PRIORITY_USE_PLAIN_USERAGENT;
-		return 0;
-	}
-
-	if (!strcmp(args[1],HA_WURFL_PRIORITY_SIDELOADED_BROWSER)) {
-		global_wurfl.useragent_priority = WURFL_USERAGENT_PRIORITY_OVERRIDE_SIDELOADED_BROWSER_USERAGENT;
-		return 0;
-	}
-
-	memprintf(err, "WURFL: %s valid values are %s or %s.\n", args[0], HA_WURFL_PRIORITY_PLAIN, HA_WURFL_PRIORITY_SIDELOADED_BROWSER);
-	return -1;
+	// this feature is deprecated, keeping only not to break compatibility
+	// with old configuration files.
+	return 0;
 }
 
 /*
@@ -393,32 +355,6 @@ static int ha_wurfl_init(void)
 
 	}
 
-	// filtering mandatory capabilities if engine version < 1.8.0.0
-	if (strcmp(wurfl_get_api_version(), HA_WURFL_MIN_ENGINE_VERSION_MANDATORY) < 0) {
-		wurfl_capability_enumerator_handle hmandatorycapabilityenumerator;
-		ha_wurfl_log("WURFL: Engine version %s < %s - Filtering mandatory capabilities\n", wurfl_get_api_version(), HA_WURFL_MIN_ENGINE_VERSION_MANDATORY);
-		hmandatorycapabilityenumerator = wurfl_get_mandatory_capability_enumerator(global_wurfl.handle);
-
-		while (wurfl_capability_enumerator_is_valid(hmandatorycapabilityenumerator)) {
-			char *name = (char *)wurfl_capability_enumerator_get_name(hmandatorycapabilityenumerator);
-
-			if (ebst_lookup(&global_wurfl.btree, name) == NULL) {
-				if (wurfl_add_requested_capability(global_wurfl.handle, name) != WURFL_OK) {
-					ha_warning("WURFL: Engine adding mandatory capability [%s] failed - %s\n", name, wurfl_get_error_message(global_wurfl.handle));
-					send_log(NULL, LOG_WARNING, "WURFL: Adding mandatory capability [%s] failed - %s\n", name, wurfl_get_error_message(global_wurfl.handle));
-					return ERR_WARN;
-				}
-
-				ha_wurfl_log("WURFL: Mandatory capability [%s] added\n", name);
-			} else {
-				ha_wurfl_log("WURFL: Mandatory capability [%s] already filtered\n", name);
-			}
-
-			wurfl_capability_enumerator_move_next(hmandatorycapabilityenumerator);
-		}
-
-		wurfl_capability_enumerator_destroy(hmandatorycapabilityenumerator);
-	}
 
 	// adding WURFL patches if needed
 	if (!LIST_ISEMPTY(&global_wurfl.patch_file_list)) {
@@ -456,30 +392,6 @@ static int ha_wurfl_init(void)
 
 		send_log(NULL, LOG_NOTICE, "WURFL: Cache set to [%s]\n", global_wurfl.cache_size);
 	}
-
-	// setting engine mode if specified in cfg, otherwise let engine choose
-	if (global_wurfl.engine_mode != -1) {
-		if (wurfl_set_engine_target(global_wurfl.handle, global_wurfl.engine_mode) != WURFL_OK ) {
-			ha_warning("WURFL: Setting engine target failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-			send_log(NULL, LOG_WARNING, "WURFL: Setting engine target failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-			return ERR_WARN;
-		}
-
-	}
-
-	send_log(NULL, LOG_NOTICE, "WURFL: Engine target set to [%s]\n", (global_wurfl.engine_mode == WURFL_ENGINE_TARGET_HIGH_PERFORMANCE) ? (HA_WURFL_TARGET_PERFORMANCE) : (HA_WURFL_TARGET_ACCURACY) );
-
-	// setting ua priority if specified in cfg, otherwise let engine choose
-	if (global_wurfl.useragent_priority != -1) {
-		if (wurfl_set_useragent_priority(global_wurfl.handle, global_wurfl.useragent_priority) != WURFL_OK ) {
-			ha_warning("WURFL: Setting engine useragent priority failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-			send_log(NULL, LOG_WARNING, "WURFL: Setting engine useragent priority failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-			return ERR_WARN;
-		}
-
-	}
-
-	send_log(NULL, LOG_NOTICE, "WURFL: Engine useragent priority set to [%s]\n", (global_wurfl.useragent_priority == WURFL_USERAGENT_PRIORITY_USE_PLAIN_USERAGENT) ? (HA_WURFL_PRIORITY_PLAIN) : (HA_WURFL_PRIORITY_SIDELOADED_BROWSER) );
 
 	// loading WURFL engine
 	if (wurfl_load(global_wurfl.handle) != WURFL_OK) {
@@ -722,7 +634,7 @@ static const char *ha_wurfl_get_wurfl_api_version (wurfl_handle wHandle, wurfl_d
 
 static const char *ha_wurfl_get_wurfl_engine_target (wurfl_handle wHandle, wurfl_device_handle dHandle)
 {
-	return wurfl_get_engine_target_as_string(wHandle);
+	return "default";
 }
 
 static const char *ha_wurfl_get_wurfl_info (wurfl_handle wHandle, wurfl_device_handle dHandle)
@@ -742,7 +654,7 @@ static const char *ha_wurfl_get_wurfl_normalized_useragent (wurfl_handle wHandle
 
 static const char *ha_wurfl_get_wurfl_useragent_priority (wurfl_handle wHandle, wurfl_device_handle dHandle)
 {
-	return wurfl_get_useragent_priority_as_string(wHandle);
+	return "default";
 }
 
 // call function for WURFL properties

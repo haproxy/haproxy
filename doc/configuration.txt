@@ -600,9 +600,7 @@ The following keywords are supported in the "global" section :
    - wurfl-data-file
    - wurfl-information-list
    - wurfl-information-list-separator
-   - wurfl-engine-mode
    - wurfl-cache-size
-   - wurfl-useragent-priority
 
  * Performance tuning
    - max-spread-checks
@@ -1266,10 +1264,6 @@ wurfl-information-list [<capability>]*
   - wurfl_api_version           Contains a string representing the currently
                                 used Libwurfl API version.
 
-  - wurfl_engine_target         Contains a string representing the currently
-                                set WURFL Engine Target. Possible values are
-                                "HIGH_ACCURACY", "HIGH_PERFORMANCE", "INVALID".
-
   - wurfl_info                  A string containing information on the parsed
                                 wurfl.xml and its full path.
 
@@ -1277,8 +1271,6 @@ wurfl-information-list [<capability>]*
                                 WURFL has been loaded successfully.
 
   - wurfl_normalized_useragent  The normalized useragent.
-
-  - wurfl_useragent_priority    The user agent priority used by WURFL.
 
   Please note that this option is only available when haproxy has been compiled
   with USE_WURFL=1.
@@ -1297,35 +1289,14 @@ wurfl-patch-file [<file path>]
   Please note that this option is only available when haproxy has been compiled
   with USE_WURFL=1.
 
-wurfl-engine-mode { accuracy | performance }
-  Sets the WURFL engine target. You can choose between 'accuracy' or
-  'performance' targets. In performance mode, desktop web browser detection is
-  done programmatically without referencing the WURFL data. As a result, most
-  desktop web browsers are returned as generic_web_browser WURFL ID for
-  performance. If either performance or accuracy are not defined, performance
-  mode is enabled by default.
-
-  Please note that this option is only available when haproxy has been compiled
-  with USE_WURFL=1.
-
-wurfl-cache-size <U>[,<D>]
-  Sets the WURFL caching strategy. Here <U> is the Useragent cache size, and
-  <D> is the internal device cache size. There are three possibilities here :
+wurfl-cache-size <size>
+  Sets the WURFL Useragent cache size. For faster lookups, already processed user
+  agents are kept in a LRU cache :
   - "0"     : no cache is used.
-  - <U>     : the Single LRU cache is used, the size is expressed in elements.
-  - <U>,<D> : the Double LRU cache is used, both sizes are in elements. This is
-              the highest performing option.
+  - <size>  : size of lru cache in elements.
 
   Please note that this option is only available when haproxy has been compiled
   with USE_WURFL=1.
-
-wurfl-useragent-priority { plain | sideloaded_browser }
-  Tells WURFL if it should prioritize use of the plain user agent ('plain')
-  over the default sideloaded browser user agent ('sideloaded_browser').
-
-  Please note that this option is only available when haproxy has been compiled
-  with USE_WURFL=1.
-
 
 3.2. Performance tuning
 -----------------------

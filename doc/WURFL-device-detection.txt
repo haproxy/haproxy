@@ -23,25 +23,18 @@ These are the supported WURFL directives (see doc/configuration.txt) :
    virtual capabilities, property names we plan to use in injected headers)
 - wurfl-information-list-separator <char> (character that will be
    used to separate values in a response header, ',' by default).
-- wurfl-engine-mode <string> (Sets the WURFL engine target. You can choose
-   between "accuracy" and "performance","performance" by default)
 - wurfl-cache-size <string> (Sets the WURFL caching strategy)
 - wurfl-patch-file [<file path>] (Sets the paths to custom WURFL patch files)
 
 Sample configuration :
 
     global
-	wurfl-data-file /usr/share/wurfl/wurfl-eval.xml
+	wurfl-data-file /usr/share/wurfl/wurfl.zip
 
 	wurfl-information-list wurfl_id model_name
 
 	#wurfl-information-list-separator |
 
-	wurfl-engine-mode performance
-	#wurfl-engine-mode accuracy
-
-	## double LRU cache
-	wurfl-cache-size 100000,30000
 	## single LRU cache
 	#wurfl-cache-size 100000
 	## no cache
