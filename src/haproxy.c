@@ -650,6 +650,8 @@ static void mworker_loop()
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notifyf(0, "READY=1\nMAINPID=%lu", (unsigned long)getpid());
 #endif
+	/* Busy polling makes no sense in the master :-) */
+	global.tune.options &= ~GTUNE_BUSY_POLLING;
 
 	master = 1;
 
