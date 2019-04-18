@@ -78,7 +78,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		global_tasks_mask |= t->thread_mask;
-		__ha_barrier_atomic_store();
+		__ha_barrier_store();
 	}
 #endif
 	_HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
