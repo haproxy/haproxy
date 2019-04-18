@@ -2762,7 +2762,7 @@ static int peers_dump_head(struct buffer *msg, struct stream_interface *si, stru
 	struct tm tm;
 
 	get_localtime(peers->last_change, &tm);
-	chunk_appendf(msg, "%p: [%02d/%s/%04d:%02d:%02d:%02d] id=%s state=%d flags=0x%x resync_timeout=%s\n",
+	chunk_appendf(msg, "%p: [%02d/%s/%04d:%02d:%02d:%02d] id=%s state=%d flags=0x%x resync_timeout=%s task_calls=%u\n",
 	              peers,
 	              tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 	              tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -2770,7 +2770,8 @@ static int peers_dump_head(struct buffer *msg, struct stream_interface *si, stru
 	              peers->resync_timeout ?
 			             tick_is_expired(peers->resync_timeout, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(peers->resync_timeout - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>");
+			                     TICKS_TO_MS(1000)) : "<NEVER>",
+	              peers->sync_task ? peers->sync_task->calls : 0);
 
 	if (ci_putchk(si_ic(si), msg) == -1) {
 		si_rx_room_blk(si);
@@ -2812,7 +2813,8 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	if (!appctx)
 		goto end;
 
-	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d", appctx, appctx->st0, appctx->st1);
+	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d task_calls=%u", appctx, appctx->st0, appctx->st1,
+	                                                                appctx->t ? appctx->t->calls : 0);
 
 	peer_si = peer->appctx->owner;
 	if (!peer_si)

@@ -2099,7 +2099,7 @@ show peers [<peers section>]
 
   $ echo "show peers" | socat - /tmp/hostA
   0x55deb0224320: [15/Apr/2019:11:28:01] id=sharedlb state=0 flags=0x3 \
-    resync_timeout=<PAST>
+    resync_timeout=<PAST> task_calls=45122
       0x55deb022b540: id=hostC(remote) addr=127.0.0.12:10002 status=CONN \
         reconnect=4s confirm=0
         flags=0x0
@@ -2108,7 +2108,8 @@ show peers [<peers section>]
         flags=0x0
       0x55deb0227d70: id=hostB(remote) addr=127.0.0.11:10001 status=ESTA
         reconnect=2s confirm=0
-        flags=0x20000200 appctx:0x55deb028fba0 st0=7 st1=0 state=EST
+        flags=0x20000200 appctx:0x55deb028fba0 st0=7 st1=0 task_calls=14456 \
+          state=EST
         xprt=RAW src=127.0.0.1:37257 addr=127.0.0.10:10000
         remote_table:0x55deb0224a10 id=stkt local_id=1 remote_id=1
         last_local_table:0x55deb0224a10 id=stkt local_id=1 remote_id=1
@@ -2120,7 +2121,7 @@ show peers [<peers section>]
 
   $ echo "show peers" | socat - /tmp/hostB
   0x55871b5ab320: [15/Apr/2019:11:28:03] id=sharedlb state=0 flags=0x3 \
-    resync_timeout=<PAST>
+    resync_timeout=<PAST> task_calls=3
       0x55871b5b2540: id=hostC(remote) addr=127.0.0.12:10002 status=CONN \
         reconnect=3s confirm=0
         flags=0x0
@@ -2129,7 +2130,8 @@ show peers [<peers section>]
         flags=0x0
       0x55871b5aed70: id=hostA(remote) addr=127.0.0.10:10000 status=ESTA \
         reconnect=2s confirm=0
-        flags=0x20000200 appctx:0x7fa46800ee00 st0=7 st1=0 state=EST
+        flags=0x20000200 appctx:0x7fa46800ee00 st0=7 st1=0 task_calls=62356 \
+          state=EST
         remote_table:0x55871b5ab960 id=stkt local_id=1 remote_id=1
         last_local_table:0x55871b5ab960 id=stkt local_id=1 remote_id=1
         shared tables:
