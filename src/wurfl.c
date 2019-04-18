@@ -277,11 +277,6 @@ static int ha_wurfl_init(void)
 		return ERR_WARN;
 	}
 
-	if (global.nbthread > 1) {
-		ha_alert("WURFL: multithreading is not supported for now.\n");
-		return (ERR_FATAL | ERR_ALERT);
-	}
-
 	if (wurfl_set_root(global_wurfl.handle, global_wurfl.data_file) != WURFL_OK) {
 		ha_warning("WURFL: Engine setting root file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 		send_log(NULL, LOG_WARNING, "WURFL: Engine setting root file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
