@@ -1,0 +1,68 @@
+Scientiamobile WURFL Device Detection
+-------------------------------------
+
+You can also include WURFL for inbuilt device detection enabling attributes.
+
+WURFL is a high-performance and low-memory footprint mobile device detection
+software component that can quickly and accurately detect over 500 capabilities
+of visiting devices. It can differentiate between portable mobile devices, desktop devices,
+SmartTVs and any other types of devices on which a web browser can be installed.
+
+In order to add WURFL device detection support, you would need to download Scientiamobile
+InFuze C API and install it on your system. Refer to www.scientiamobile.com to obtain a valid
+InFuze license.
+Compile haproxy as shown :
+
+    $ make TARGET=<target> USE_WURFL=1
+
+Optionally WURFL_DEBUG=1 may be set to increase logs verbosity
+
+These are the supported WURFL directives (see doc/configuration.txt) :
+- wurfl-data-file <path to WURFL data file>
+- wurfl-information-list [<string>] (list of WURFL capabilities,
+   virtual capabilities, property names we plan to use in injected headers)
+- wurfl-information-list-separator <char> (character that will be
+   used to separate values in a response header, ',' by default).
+- wurfl-engine-mode <string> (Sets the WURFL engine target. You can choose
+   between "accuracy" and "performance","performance" by default)
+- wurfl-cache-size <string> (Sets the WURFL caching strategy)
+- wurfl-patch-file [<file path>] (Sets the paths to custom WURFL patch files)
+
+Sample configuration :
+
+    global
+	wurfl-data-file /usr/share/wurfl/wurfl-eval.xml
+
+	wurfl-information-list wurfl_id model_name
+
+	#wurfl-information-list-separator |
+
+	wurfl-engine-mode performance
+	#wurfl-engine-mode accuracy
+
+	## double LRU cache
+	wurfl-cache-size 100000,30000
+	## single LRU cache
+	#wurfl-cache-size 100000
+	## no cache
+	#wurfl-cache-size 0
+
+	#wurfl-patch-file <paths to custom patch files>
+
+    ...
+    frontend
+	bind *:8888
+	default_backend servers
+
+There are two distinct methods available to transmit the WURFL data downstream
+to the target application:
+
+All data listed in wurfl-information-list
+
+    http-request set-header X-WURFL-All %[wurfl-get-all()]
+
+A subset of data listed in wurfl-information-list
+
+    http-request set-header X-WURFL-Properties %[wurfl-get(wurfl_id,is_tablet)]
+
+Please find more information about WURFL and the detection methods at https://www.scientiamobile.com
