@@ -412,7 +412,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 	 * Data type has to be reset to ensure the string output is processed
 	 * correctly.
 	 */
-	CHECK_HTTP_MESSAGE_FIRST();
+	CHECK_HTTP_MESSAGE_FIRST((smp->strm ? &smp->strm->req : NULL));
 	smp->data.type = SMP_T_STR;
 
 	/* Flags the sample to show it uses constant memory*/
