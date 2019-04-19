@@ -795,6 +795,17 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	return ((ha_wurfl_header_t *)wh)->header_value;
 }
 
+static void ha_wurfl_register_build_options()
+{
+	const char *ver = wurfl_get_api_version();
+	char *ptr = NULL;
+
+	memprintf(&ptr, "Built with WURFL support (%sversion %s)",
+		  strcmp(ver, "1.11.2.100") ? "" : "dummy library ",
+		  ver);
+	hap_register_build_opts(ptr, 1);
+}
+
 REGISTER_POST_CHECK(ha_wurfl_init);
 REGISTER_POST_DEINIT(ha_wurfl_deinit);
-REGISTER_BUILD_OPTS("Built with WURFL support.");
+INITCALL0(STG_REGISTER, ha_wurfl_register_build_options);
