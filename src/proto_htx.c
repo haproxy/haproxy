@@ -2977,13 +2977,14 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				value->area[value->data] = '\0';
 
 				/* perform update */
+				HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 				if (pat_ref_find_elt(ref, key->area) != NULL)
 					/* update entry if it exists */
 					pat_ref_set(ref, key->area, value->area, NULL);
 				else
 					/* insert a new entry */
 					pat_ref_add(ref, key->area, value->area, NULL);
-
+				HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 				free_trash_chunk(key);
 				free_trash_chunk(value);
 				break;
@@ -3272,9 +3273,10 @@ resume_execution:
 
 				/* perform update */
 				/* check if the entry already exists */
+				HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
 				if (pat_ref_find_elt(ref, key->area) == NULL)
 					pat_ref_add(ref, key->area, NULL, NULL);
-
+				HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
 				free_trash_chunk(key);
 				break;
 			}
