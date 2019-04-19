@@ -202,6 +202,9 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
 	const char *ptr = b_peek(buf, start);
 	int bytes = 1;
 
+	if (stop <= start)
+		return 0;
+
 	/* NB: we'll check data availability at the end. It's not a
 	 * problem because whatever we match first will be checked
 	 * against the correct length.
