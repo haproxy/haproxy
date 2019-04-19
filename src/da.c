@@ -298,7 +298,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 		return 1;
 	}
 
-	CHECK_HTTP_MESSAGE_FIRST();
+	CHECK_HTTP_MESSAGE_FIRST((smp->strm ? &smp->strm->req : NULL));
 	smp->data.type = SMP_T_STR;
 
 	/**
