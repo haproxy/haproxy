@@ -1374,18 +1374,21 @@ int connect_server(struct stream *s)
 	/* If we're really reusing the connection, remove it from the orphan
 	 * list and add it back to the idle list.
 	 */
-	if (reuse && reuse_orphan) {
-		srv_conn->idle_time = 0;
-		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
-		__ha_barrier_atomic_store();
-		srv->curr_idle_thr[tid]--;
-		LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
-	} else if (reuse) {
-		if (srv_conn->flags & CO_FL_SESS_IDLE) {
-			struct session *sess = srv_conn->owner;
+	if (reuse) {
+		if (reuse_orphan) {
+			srv_conn->idle_time = 0;
+			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+			__ha_barrier_atomic_store();
+			srv->curr_idle_thr[tid]--;
+			LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
+		}
+		else {
+			if (srv_conn->flags & CO_FL_SESS_IDLE) {
+				struct session *sess = srv_conn->owner;
 
-			srv_conn->flags &= ~CO_FL_SESS_IDLE;
-			sess->idle_conns--;
+				srv_conn->flags &= ~CO_FL_SESS_IDLE;
+				sess->idle_conns--;
+			}
 		}
 	}
 
