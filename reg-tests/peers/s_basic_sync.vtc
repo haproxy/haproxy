@@ -1,6 +1,8 @@
 vtest "Basic test for peers protocol"
 feature ignore_unknown_macro
 
+#REQUIRE_VERSION=2.0
+
 haproxy h1 -arg "-L A" -conf {
     defaults
         timeout client  1s

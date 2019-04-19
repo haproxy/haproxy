@@ -6,6 +6,7 @@ feature ignore_unknown_macro
 # The first health-checks passed tests are checked for all these servers
 # thanks to syslog messages.
 
+#REQUIRE_VERSION=1.8
 #EXCLUDE_TARGETS=freebsd
 
 # Note that the first syslog message received is: "Proxy <name> started."
