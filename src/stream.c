@@ -2267,7 +2267,7 @@ redo:
 	 *  - the CF_AUTO_CONNECT flag is set (active connection)
 	 */
 	if (si_b->state == SI_ST_INI) {
-		if (!(req->flags & CF_SHUTW)) {
+		if (!(req->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 			if ((req->flags & CF_AUTO_CONNECT) || !channel_is_empty(req)) {
 				/* If we have an appctx, there is no connect method, so we
 				 * immediately switch to the connected state, otherwise we
