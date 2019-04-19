@@ -573,7 +573,7 @@ fail_get:
 /*
  * openssl async fd handler
  */
-static void ssl_async_fd_handler(int fd)
+void ssl_async_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
 
@@ -594,7 +594,7 @@ static void ssl_async_fd_handler(int fd)
 /*
  * openssl async delayed SSL_free handler
  */
-static void ssl_async_fd_free(int fd)
+void ssl_async_fd_free(int fd)
 {
 	SSL *ssl = fdtab[fd].owner;
 	OSSL_ASYNC_FD all_fd[32];

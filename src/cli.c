@@ -69,6 +69,9 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/proto_udp.h>
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif
 
 #define PAYLOAD_PATTERN "<<"
 
@@ -998,6 +1001,12 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.iocb == listener_accept)  ? "listener_accept" :
 			     (fdt.iocb == poller_pipe_io_handler) ? "poller_pipe_io_handler" :
 			     (fdt.iocb == mworker_accept_wrapper) ? "mworker_accept_wrapper" :
+#ifdef USE_OPENSSL
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+			     (fdt.iocb == ssl_async_fd_free) ? "ssl_async_fd_free" :
+			     (fdt.iocb == ssl_async_fd_handler) ? "ssl_async_fd_handler" :
+#endif
+#endif
 			     "unknown");
 
 		if (fdt.iocb == conn_fd_handler) {

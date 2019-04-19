@@ -85,6 +85,10 @@ SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_co
 int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
 unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+void ssl_async_fd_handler(int fd);
+void ssl_async_fd_free(int fd);
+#endif
 
 /* ssl shctx macro */
 
