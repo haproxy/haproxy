@@ -332,7 +332,7 @@ if [ $(_version "$HAPROXY_VERSION") -lt $(_version "1.9") ]; then
 fi
 
 if [ -z "$REGTESTS" ]; then
-  _findtests ./
+  _findtests reg-tests/
 else
   for t in $REGTESTS; do
     _findtests $t
