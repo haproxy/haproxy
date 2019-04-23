@@ -310,6 +310,11 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->txn = NULL;
 	s->hlua = NULL;
 
+	s->dns_ctx.dns_requester = NULL;
+	s->dns_ctx.hostname_dn = NULL;
+	s->dns_ctx.hostname_dn_len = 0;
+	s->dns_ctx.parent = NULL;
+
 	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 	LIST_ADDQ(&streams, &s->list);
 	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
