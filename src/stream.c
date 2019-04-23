@@ -2140,6 +2140,19 @@ redo:
 				s->flags |= SF_ERR_SRVTO;
 			}
 			sess_set_term_flags(s);
+
+			/* Abort the request if a client error occurred while
+			 * the backend stream-interface is in the SI_ST_INI
+			 * state. It is switched into the SI_ST_CLO state and
+			 * the request channel is erased. */
+			if (si_b->state == SI_ST_INI) {
+				si_b->state = SI_ST_CLO;
+				channel_abort(req);
+				if (IS_HTX_STRM(s))
+					channel_htx_erase(req, htxbuf(&req->buf));
+				else
+					channel_erase(req);
+			}
 		}
 		else if (res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
@@ -2283,7 +2296,7 @@ redo:
 	 *  - the CF_AUTO_CONNECT flag is set (active connection)
 	 */
 	if (si_b->state == SI_ST_INI) {
-		if (!(req->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+		if (!(req->flags & CF_SHUTW)) {
 			if ((req->flags & CF_AUTO_CONNECT) || !channel_is_empty(req)) {
 				/* If we have an appctx, there is no connect method, so we
 				 * immediately switch to the connected state, otherwise we
