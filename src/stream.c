@@ -201,6 +201,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->buffer_wait.target = s;
 	s->buffer_wait.wakeup_cb = stream_buf_available;
 
+	s->call_rate.curr_sec = s->call_rate.curr_ctr = s->call_rate.prev_ctr = 0;
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
 	s->unique_id = NULL;
@@ -1724,6 +1725,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_sync_recv(si_b);
 
 redo:
+	update_freq_ctr(&s->call_rate, 1);
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
@@ -2991,10 +2993,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 
 		chunk_appendf(&trash,
-			     "  task=%p (state=0x%02x nice=%d calls=%u exp=%s tmask=0x%lx%s",
+			     "  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tmask=0x%lx%s",
 			     strm->task,
 			     strm->task->state,
-			     strm->task->nice, strm->task->calls,
+			     strm->task->nice, strm->task->calls, read_freq_ctr(&strm->call_rate),
 			     strm->task->expire ?
 			             tick_is_expired(strm->task->expire, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(strm->task->expire - now_ms),
@@ -3331,10 +3333,10 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			}
 
 			chunk_appendf(&trash,
-				     " ts=%02x age=%s calls=%u cpu=%llu lat=%llu",
+				     " ts=%02x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 				     curr_strm->task->state,
 				     human_time(now.tv_sec - curr_strm->logs.tv_accept.tv_sec, 1),
-			             curr_strm->task->calls,
+			             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 			             (unsigned long long)curr_strm->task->cpu_time, (unsigned long long)curr_strm->task->lat_time);
 
 			chunk_appendf(&trash,
