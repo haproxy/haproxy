@@ -1098,12 +1098,10 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 		int alpn_len = 0;
 		int mode;
 
-		if (bind_conf->frontend->mode == PR_MODE_TCP)
-			mode = PROTO_MODE_TCP;
-		else if (bind_conf->frontend->options2 & PR_O2_USE_HTX)
-			mode = PROTO_MODE_HTX;
+		if (bind_conf->frontend->mode == PR_MODE_HTTP)
+			mode = ((bind_conf->frontend->options2 & PR_O2_USE_HTX) ? PROTO_MODE_HTX : PROTO_MODE_HTTP);
 		else
-			mode = PROTO_MODE_HTTP;
+			mode = PROTO_MODE_TCP;
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
@@ -1138,12 +1136,10 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct
 		int alpn_len = 0;
 		int mode;
 
-		if (prx->mode == PR_MODE_TCP)
-			mode = PROTO_MODE_TCP;
-		else if (prx->options2 & PR_O2_USE_HTX)
-			mode = PROTO_MODE_HTX;
+		if (prx->mode == PR_MODE_HTTP)
+			mode = ((prx->options2 & PR_O2_USE_HTX) ? PROTO_MODE_HTX : PROTO_MODE_HTTP);
 		else
-			mode = PROTO_MODE_HTTP;
+			mode = PROTO_MODE_TCP;
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
