@@ -3,22 +3,46 @@ dist: xenial
 
 language: c
 
+addons:
+  apt:
+    packages: [ liblua5.3-dev ]
+
 matrix:
   include:
-#  - os: linux
-#    compiler: gcc
-#    env: TARGET=linux2628
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 FLAGS=
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_LUA=1 USE_OPENSSL=1"
   - os: linux
     compiler: clang
-    env: TARGET=linux2628 USE_THREAD=1 USE_OPENSSL=1 USE_PCRE=1 USE_ZLIB=1 USE_GETADDRINFO=1
-#  - os: osx
-#    compiler: clang
-#    env: TARGET=osx SSL_LIB=/usr/local/opt/openssl/lib SSL_INC=/usr/local/opt/openssl/include TMPDIR=/var/tmp
+    env: TARGET=linux2628 FLAGS=
+  - os: osx
+    compiler: clang
+    env: TARGET=generic FLAGS=
+  allow_failures:
+    - os: osx
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
-  - make -C ../vtest
+  # Special flags due to: https://github.com/vtest/VTest/issues/12
+  - make -C ../vtest FLAGS="-O2 -s -Wall"
+
+before_script:
+  # This is a fix for the super long TMPDIR on Mac making
+  # the unix socket path names exceed the maximum allowed
+  # length.
+  - sed -i'.original' '/TESTDIR=.*haregtests/s/haregtests-.*XXXXXX/regtest.XXX/' scripts/run-regtests.sh
 
 script:
-  - make CC=$CC V=1 TARGET=$TARGET USE_THREAD=${USE_THREAD} USE_OPENSSL=${USE_OPENSSL} USE_PCRE=${USE_PCRE} USE_ZLIB=${USE_ZLIB} USE_GETADDRINFO=${USE_GETADDRINFO}
-  - make reg-tests PATH=${PATH}:${PWD}/../vtest VTEST_PROGRAM="../vtest/vtest -v"
+  - make CC=$CC V=1 TARGET=$TARGET $FLAGS
+  - ./haproxy -vv
+  - env VTEST_PROGRAM=../vtest/vtest make reg-tests
+
+after_failure:
+  - |
+    for folder in ${TMPDIR:-/tmp}/*regtest*/vtc.*; do
+      cat $folder/INFO
+      cat $folder/LOG
+    done
