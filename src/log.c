@@ -692,6 +692,79 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 }
 
 /*
+ * Parse the first range of indexes from a string made of a list of comma seperated
+ * ranges of indexes. Note that an index may be considered as a particular range
+ * with a high limit to the low limit.
+ */
+int get_logsrv_smp_range(unsigned int *low, unsigned int *high, char **arg, char **err)
+{
+	char *end, *p;
+
+	*low = *high = 0;
+
+	p = *arg;
+	end = strchr(p, ',');
+	if (!end)
+		end = p + strlen(p);
+
+	*high = *low = read_uint((const char **)&p, end);
+	if (!*low || (p != end && *p != '-'))
+		goto err;
+
+	if (p == end)
+		goto done;
+
+	p++;
+	*high = read_uint((const char **)&p, end);
+	if (!*high || *high <= *low || p != end)
+		goto err;
+
+ done:
+	if (*end == ',')
+		end++;
+	*arg = end;
+	return 1;
+
+ err:
+	memprintf(err, "wrong sample range '%s'", *arg);
+	return 0;
+}
+
+/*
+ * Returns 1 if the range defined by <low> and <high> overlaps
+ * one of them in <rgs> array of ranges with <sz> the size of this
+ * array, 0 if not.
+ */
+int smp_log_ranges_overlap(struct smp_log_range *rgs, size_t sz,
+                           unsigned int low, unsigned int high, char **err)
+{
+	size_t i;
+
+	for (i = 0; i < sz; i++) {
+		if ((low  >= rgs[i].low && low  <= rgs[i].high) ||
+		    (high >= rgs[i].low && high <= rgs[i].high)) {
+			memprintf(err, "ranges are overlapping");
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+int smp_log_range_cmp(const void *a, const void *b)
+{
+	const struct smp_log_range *rg_a = a;
+	const struct smp_log_range *rg_b = b;
+
+	if (rg_a->high < rg_b->low)
+		return -1;
+	else if (rg_a->low > rg_b->high)
+		return 1;
+
+	return 0;
+}
+
+/*
  * Parse "log" keyword and update <logsrvs> list accordingly.
  *
  * When <do_del> is set, it means the "no log" line was parsed, so all log
@@ -808,6 +881,71 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		cur_arg += 2;
 	}
 
+	if (strcmp(args[cur_arg], "sample") == 0) {
+		unsigned low, high;
+		char *p, *beg, *end, *smp_sz_str;
+		struct smp_log_range *smp_rgs = NULL;
+		size_t smp_rgs_sz = 0, smp_sz = 0, new_smp_sz;
+
+		p = args[cur_arg+1];
+		smp_sz_str = strchr(p, ':');
+		if (!smp_sz_str) {
+			memprintf(err, "Missing sample size");
+			goto error;
+		}
+
+		*smp_sz_str++ = '\0';
+
+		end = p + strlen(p);
+
+		while (p != end) {
+			if (!get_logsrv_smp_range(&low, &high, &p, err))
+				goto error;
+
+			if (smp_rgs && smp_log_ranges_overlap(smp_rgs, smp_rgs_sz, low, high, err))
+				goto error;
+
+			smp_rgs = my_realloc2(smp_rgs, (smp_rgs_sz + 1) * sizeof *smp_rgs);
+			if (!smp_rgs) {
+				memprintf(err, "out of memory error");
+				goto error;
+			}
+
+			smp_rgs[smp_rgs_sz].low = low;
+			smp_rgs[smp_rgs_sz].high = high;
+			smp_rgs[smp_rgs_sz].sz = high - low + 1;
+			smp_rgs[smp_rgs_sz].curr_idx = 0;
+			if (smp_rgs[smp_rgs_sz].high > smp_sz)
+				smp_sz = smp_rgs[smp_rgs_sz].high;
+			smp_rgs_sz++;
+		}
+
+		beg = smp_sz_str;
+		end = beg + strlen(beg);
+		new_smp_sz = read_uint((const char **)&beg, end);
+		if (!new_smp_sz || beg != end) {
+			memprintf(err, "wrong sample size '%s' for sample range '%s'",
+						   smp_sz_str, args[cur_arg+1]);
+			goto error;
+		}
+
+		if (new_smp_sz < smp_sz) {
+			memprintf(err, "sample size %zu should be greater or equal to "
+						   "%zu the maximum of the high ranges limits",
+						   new_smp_sz, smp_sz);
+			goto error;
+		}
+		smp_sz = new_smp_sz;
+
+		/* Let's order <smp_rgs> array. */
+		qsort(smp_rgs, smp_rgs_sz, sizeof(struct smp_log_range), smp_log_range_cmp);
+
+		logsrv->lb.smp_rgs = smp_rgs;
+		logsrv->lb.smp_rgs_sz = smp_rgs_sz;
+		logsrv->lb.smp_sz = smp_sz;
+
+		cur_arg += 2;
+	}
 	/* parse the facility */
 	logsrv->facility = get_log_facility(args[cur_arg]);
 	if (logsrv->facility < 0) {

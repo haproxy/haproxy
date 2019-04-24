@@ -169,9 +169,33 @@ struct logformat_node {
 #define LW_FRTIP 	8192	/* frontend IP */
 #define LW_XPRT		16384	/* transport layer information (eg: SSL) */
 
+/* Range of indexes for log sampling. */
+struct smp_log_range {
+	unsigned int low;        /* Low limit of the indexes of this range. */
+	unsigned int high;       /* High limit of the indexes of this range. */
+	size_t sz;               /* The size of this range, or number of indexes in
+	                          * this range.
+	                          */
+	unsigned int curr_idx;   /* The current index used to sample this range of
+	                          *indexes.
+	                          */
+};
+
+/* Log sampling information. */
+struct smp_info {
+	struct smp_log_range *smp_rgs; /* Array of ranges for log sampling. */
+	size_t smp_rgs_sz;             /* The size of <smp_rgs> array. */
+	size_t smp_sz;             /* The total number of logs to be sampled. */
+	unsigned int curr_rg;      /* The current range to be sampled. */
+	unsigned int curr_idx;     /* A counter to store the current index of the log
+	                            * already sampled.
+	                            */
+};
+
 struct logsrv {
 	struct list list;
 	struct sockaddr_storage addr;
+	struct smp_info lb;
 	int format;
 	int facility;
 	int level;
