@@ -1087,6 +1087,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "\nstream:");       for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].stream);
 	chunk_appendf(&trash, "\nempty_rq:");     for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].empty_rq);
 	chunk_appendf(&trash, "\nlong_rq:");      for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].long_rq);
+	chunk_appendf(&trash, "\nctxsw_rate:");   for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr(&activity[thr].ctxsw_rate));
+	chunk_appendf(&trash, "\ntasks_rate:");   for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr(&activity[thr].tasks_rate));
 	chunk_appendf(&trash, "\ncpust_ms_tot:"); for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].cpust_total/2);
 	chunk_appendf(&trash, "\ncpust_ms_1s:");  for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr(&activity[thr].cpust_1s)/2);
 	chunk_appendf(&trash, "\ncpust_ms_15s:"); for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", read_freq_ctr_period(&activity[thr].cpust_15s, 15000)/2);

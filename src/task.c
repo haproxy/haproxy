@@ -20,10 +20,11 @@
 #include <eb32sctree.h>
 #include <eb32tree.h>
 
+#include <proto/fd.h>
+#include <proto/freq_ctr.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/task.h>
-#include <proto/fd.h>
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
 DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
@@ -278,6 +279,8 @@ void process_runnable_tasks()
 	struct eb32sc_node *lrq = NULL; // next local run queue entry
 	struct eb32sc_node *grq = NULL; // next global run queue entry
 	struct task *t;
+	int to_process;
+	int wakeups;
 	int max_processed;
 
 	if (!(active_tasks_mask & tid_bit)) {
@@ -291,6 +294,9 @@ void process_runnable_tasks()
 
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
+
+	to_process = max_processed;
+	wakeups = 0;
 
 	/* Note: the grq lock is always held when grq is not null */
 
@@ -344,6 +350,7 @@ void process_runnable_tasks()
 
 		/* And add it to the local task list */
 		task_insert_into_tasklet_list(t);
+		wakeups++;
 	}
 
 	/* release the rqueue lock */
@@ -419,6 +426,11 @@ void process_runnable_tasks()
 		_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 		activity[tid].long_rq++;
 	}
+
+	if (wakeups)
+		update_freq_ctr(&activity[tid].tasks_rate, wakeups);
+	if (to_process - max_processed)
+		update_freq_ctr(&activity[tid].ctxsw_rate, to_process - max_processed);
 }
 
 /*
