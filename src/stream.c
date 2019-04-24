@@ -3070,14 +3070,14 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u cpu=%llu lat=%llu\n",
+			              "  app0=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
 			              tmpctx->thread_mask,
-			              tmpctx->t->nice, tmpctx->t->calls,
+			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
@@ -3107,14 +3107,14 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 		else if ((tmpctx = objt_appctx(strm->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
-			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx, nice=%d, calls=%u, cpu=%llu, lat=%llu\n",
+			              "  app1=%p st0=%d st1=%d st2=%d applet=%s tmask=0x%lx nice=%d calls=%u rate=%u cpu=%llu lat=%llu\n",
 				      tmpctx,
 				      tmpctx->st0,
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
 			              tmpctx->thread_mask,
-			              tmpctx->t->nice, tmpctx->t->calls,
+			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 

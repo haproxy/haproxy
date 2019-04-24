@@ -73,6 +73,9 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	si_cant_get(si);
 	si_rx_endp_done(si);
 
+	/* measure the call rate */
+	update_freq_ctr(&app->call_rate, 1);
+
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
 	 * buffer was allocated or not. This leaves a chance for applets to do

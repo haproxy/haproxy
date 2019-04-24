@@ -22,6 +22,7 @@
 #ifndef _TYPES_APPLET_H
 #define _TYPES_APPLET_H
 
+#include <types/freq_ctr.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>
@@ -70,6 +71,7 @@ struct appctx {
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	unsigned long thread_mask;      /* mask of thread IDs authorized to process the applet */
 	struct task *t;                  /* task associated to the applet */
+	struct freq_ctr call_rate;       /* appctx call rate */
 
 	union {
 		struct {
