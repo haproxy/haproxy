@@ -894,28 +894,28 @@ static inline const char *conn_err_code_str(struct connection *c)
 
 static inline const char *conn_get_ctrl_name(const struct connection *conn)
 {
-	if (!conn_ctrl_ready(conn))
+	if (!conn || !conn_ctrl_ready(conn))
 		return "NONE";
 	return conn->ctrl->name;
 }
 
 static inline const char *conn_get_xprt_name(const struct connection *conn)
 {
-	if (!conn_xprt_ready(conn))
+	if (!conn || !conn_xprt_ready(conn))
 		return "NONE";
 	return conn->xprt->name;
 }
 
 static inline const char *conn_get_mux_name(const struct connection *conn)
 {
-	if (!conn->mux)
+	if (!conn || !conn->mux)
 		return "NONE";
 	return conn->mux->name;
 }
 
 static inline const char *cs_get_data_name(const struct conn_stream *cs)
 {
-	if (!cs->data_cb)
+	if (!cs || !cs->data_cb)
 		return "NONE";
 	return cs->data_cb->name;
 }
