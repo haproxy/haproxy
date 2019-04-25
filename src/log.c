@@ -946,6 +946,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 
 		cur_arg += 2;
 	}
+	HA_SPIN_INIT(&logsrv->lock);
 	/* parse the facility */
 	logsrv->facility = get_log_facility(args[cur_arg]);
 	if (logsrv->facility < 0) {
@@ -1722,12 +1723,32 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	/* Send log messages to syslog server. */
 	nblogger = 0;
 	list_for_each_entry(logsrv, logsrvs, list) {
+		static THREAD_LOCAL int in_range = 1;
+
 		/* we can filter the level of the messages that are sent to each logger */
 		if (level > logsrv->level)
 			continue;
 
-		__do_send_log(logsrv, ++nblogger, pid.area, pid.data, level,
-		              message, size, sd, sd_size, tag->area, tag->data);
+		if (logsrv->lb.smp_rgs) {
+			struct smp_log_range *curr_rg;
+
+			HA_SPIN_LOCK(LOGSRV_LOCK, &logsrv->lock);
+			curr_rg = &logsrv->lb.smp_rgs[logsrv->lb.curr_rg];
+			in_range = in_smp_log_range(curr_rg, logsrv->lb.curr_idx);
+			if (in_range) {
+				/* Let's consume this range. */
+				curr_rg->curr_idx = (curr_rg->curr_idx + 1) % curr_rg->sz;
+				if (!curr_rg->curr_idx) {
+					/* If consumed, let's select the next range. */
+					logsrv->lb.curr_rg = (logsrv->lb.curr_rg + 1) % logsrv->lb.smp_rgs_sz;
+				}
+			}
+			logsrv->lb.curr_idx = (logsrv->lb.curr_idx + 1) % logsrv->lb.smp_sz;
+			HA_SPIN_UNLOCK(LOGSRV_LOCK, &logsrv->lock);
+		}
+		if (in_range)
+			__do_send_log(logsrv, ++nblogger, pid.area, pid.data, level,
+			              message, size, sd, sd_size, tag->area, tag->data);
 	}
 }
 

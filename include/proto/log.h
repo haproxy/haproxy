@@ -54,6 +54,17 @@ extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
 
+/*
+ * Test if <idx> index numbered from 0 is in <rg> range with low and high
+ * limits of indexes numbered from 1.
+ */
+static inline int in_smp_log_range(struct smp_log_range *rg, unsigned int idx)
+{
+       if (idx + 1 <= rg->high && idx + 1 >= rg->low)
+               return 1;
+       return 0;
+}
+
 /* Initialize/Deinitialize log buffers used for syslog messages */
 int init_log_buffers();
 void deinit_log_buffers();
