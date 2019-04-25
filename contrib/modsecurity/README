@@ -88,15 +88,15 @@ HAProxy configuration. For example:
       balance roundrobin
       timeout connect 5s
       timeout server  3m
-      server iprep1 127.0.0.1:12345
+      server modsec1 127.0.0.1:12345
 
 The modsecurity action is returned in a variable called txn.modsec.code. It
 contains the HTTP returned code. If the variable contains 0, the request is
 clean.
 
-   tcp-request content reject if { var(txn.modsec.code) -m int gt 0 }
+   http-request deny if { var(txn.modsec.code) -m int gt 0 }
 
-With this rule, all the request not clean are reected.
+With this rule, all the request not clean are rejected.
 
 
   Known bugs, limitations and TODO list
