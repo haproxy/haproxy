@@ -1462,11 +1462,22 @@ noreuseport
   Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
   command line argument "-dR".
 
-profiling.tasks { on | off }
-  Enables ('on') or disables ('off') per-task CPU profiling. CPU profiling per
-  task can be very convenient to report where the time is spent and which
-  requests have what effect on which other request. It is not enabled by
-  default as it may consume a little bit extra CPU. This requires a system
+profiling.tasks { auto | on | off }
+  Enables ('on') or disables ('off') per-task CPU profiling. When set to 'auto'
+  the profiling automatically turns on a thread when it starts to suffer from
+  an average latency of 1000 microseconds or higher as reported in the
+  "avg_loop_us" activity field, and automatically turns off when the latency
+  reutnrs below 990 microseconds (this value is an average over the last 1024
+  loops so it does not vary quickly and tends to significantly smooth short
+  spikes). It may also spontaneously trigger from time to time on overloaded
+  systems, containers, or virtual machines, or when the system swaps (which
+  must absolutely never happen on a load balancer).
+
+  CPU profiling per task can be very convenient to report where the time is
+  spent and which requests have what effect on which other request. Enabling
+  it will typically affect the overall's performance by less than 1%, thus it
+  is recommended to leave it to the default 'auto' value so that it only
+  operates when a problem is identified. This feature requires a system
   supporting the clock_gettime(2) syscall with clock identifiers
   CLOCK_MONOTONIC and CLOCK_THREAD_CPUTIME_ID, otherwise the reported time will
   be zero. This option may be changed at run time using "set profiling" on the

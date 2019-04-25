@@ -1667,7 +1667,7 @@ set maxconn global <maxconn>
   delayed until the threshold is reached. A value of zero restores the initial
   setting.
 
-set profiling { tasks } { on | off }
+set profiling { tasks } { auto | on | off }
   Enables or disables CPU profiling for the indicated subsystem. This is
   equivalent to setting or clearing the "profiling" settings in the "global"
   section of the configuration file. Please also see "show profiling".

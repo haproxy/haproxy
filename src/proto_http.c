@@ -3449,7 +3449,7 @@ void http_end_txn_clean_session(struct stream *s)
 	s->task->calls     = 0;
 	s->task->cpu_time  = 0;
 	s->task->lat_time  = 0;
-	s->task->call_date = (profiling & HA_PROF_TASKS) ? now_mono_time() : 0;
+	s->task->call_date = ((profiling & HA_PROF_TASKS_MASK) >= HA_PROF_TASKS_AUTO) ? now_mono_time() : 0;
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */

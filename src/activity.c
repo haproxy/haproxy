@@ -23,7 +23,7 @@
 
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
-unsigned int profiling = 0;
+unsigned int profiling = HA_PROF_TASKS_AUTO;
 unsigned long task_profiling_mask = 0;
 
 /* One struct per thread containing all collected measurements */
@@ -49,11 +49,13 @@ static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *cur
 		return -1;
 
 	if (strcmp(args[1], "on") == 0)
-		profiling |=  HA_PROF_TASKS;
+		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON;
+	else if (strcmp(args[1], "auto") == 0)
+		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AUTO;
 	else if (strcmp(args[1], "off") == 0)
-		profiling &= ~HA_PROF_TASKS;
+		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF;
 	else {
-		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		memprintf(err, "'%s' expects either 'on', 'auto', or 'off' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
 	return 0;
@@ -62,27 +64,34 @@ static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *cur
 /* parse a "set profiling" command. It always returns 1. */
 static int cli_parse_set_profiling(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	unsigned int bit = 0;
-
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (strcmp(args[2], "tasks") == 0)
-		bit = HA_PROF_TASKS;
-	else {
+	if (strcmp(args[2], "tasks") != 0) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Expects 'tasks'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
 
-	if (strcmp(args[3], "on") == 0)
-		_HA_ATOMIC_OR(&profiling, bit);
-	else if (strcmp(args[3], "off") == 0)
-		_HA_ATOMIC_AND(&profiling, ~bit);
+	if (strcmp(args[3], "on") == 0) {
+		unsigned int old = profiling;
+		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
+			;
+	}
+	else if (strcmp(args[3], "auto") == 0) {
+		unsigned int old = profiling;
+		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AUTO))
+			;
+	}
+	else if (strcmp(args[3], "off") == 0) {
+		unsigned int old = profiling;
+		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF))
+			;
+	}
 	else {
 		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Expects either 'on' or 'off'.\n";
+		appctx->ctx.cli.msg = "Expects 'on', 'auto', or 'off'.\n";
 		appctx->st0 = CLI_ST_PRINT;
 		return 1;
 	}
@@ -95,14 +104,22 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
+	const char *str;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "Per-task CPU profiling              : %s      # set profiling tasks {on|off}\n",
-		     (profiling & HA_PROF_TASKS) ? "on" : "off");
+	switch (profiling & HA_PROF_TASKS_MASK) {
+	case HA_PROF_TASKS_AUTO: str="auto"; break;
+	case HA_PROF_TASKS_ON:   str="on"; break;
+	default:                 str="off"; break;
+	}
+
+	chunk_printf(&trash,
+	             "Per-task CPU profiling              : %s      # set profiling tasks {on|auto|off}\n",
+	             str);
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
 		/* failed, try again */
