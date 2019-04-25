@@ -23,7 +23,7 @@
 
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
-unsigned int profiling;
+unsigned int profiling = 0;
 
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
