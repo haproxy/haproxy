@@ -21,8 +21,6 @@ matrix:
   - os: osx
     compiler: clang
     env: TARGET=generic FLAGS=
-  allow_failures:
-    - os: osx
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
