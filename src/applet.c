@@ -60,6 +60,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 {
 	struct appctx *app = context;
 	struct stream_interface *si = app->owner;
+	unsigned int rate;
 
 	if (app->state & APPLET_WANT_DIE) {
 		__appctx_free(app);
@@ -74,7 +75,10 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	si_rx_endp_done(si);
 
 	/* measure the call rate */
-	update_freq_ctr(&app->call_rate, 1);
+	rate = update_freq_ctr(&app->call_rate, 1);
+	if (rate >= 100000 && app->call_rate.prev_ctr) { // make sure to wait at least a full second
+		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
+	}
 
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
