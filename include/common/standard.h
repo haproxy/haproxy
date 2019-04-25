@@ -446,7 +446,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
  * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
  * supported.
  */
-int addr_to_str(struct sockaddr_storage *addr, char *str, int size);
+int addr_to_str(const struct sockaddr_storage *addr, char *str, int size);
 
 /* Tries to convert a sockaddr_storage port to text form. Upon success, the
  * address family is returned so that it's easy for the caller to adapt to the
@@ -454,7 +454,7 @@ int addr_to_str(struct sockaddr_storage *addr, char *str, int size);
  * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
  * supported.
  */
-int port_to_str(struct sockaddr_storage *addr, char *str, int size);
+int port_to_str(const struct sockaddr_storage *addr, char *str, int size);
 
 /* check if the given address is local to the system or not. It will return
  * -1 when it's not possible to know, 0 when the address is not local, 1 when

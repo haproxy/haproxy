@@ -1427,10 +1427,10 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
  * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
  * supported.
  */
-int addr_to_str(struct sockaddr_storage *addr, char *str, int size)
+int addr_to_str(const struct sockaddr_storage *addr, char *str, int size)
 {
 
-	void *ptr;
+	const void *ptr;
 
 	if (size < 5)
 		return 0;
@@ -1463,7 +1463,7 @@ int addr_to_str(struct sockaddr_storage *addr, char *str, int size)
  * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
  * supported.
  */
-int port_to_str(struct sockaddr_storage *addr, char *str, int size)
+int port_to_str(const struct sockaddr_storage *addr, char *str, int size)
 {
 
 	uint16_t port;
