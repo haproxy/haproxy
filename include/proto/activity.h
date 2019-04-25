@@ -32,6 +32,7 @@
 #define HA_PROF_TASKS       0x00000001     /* enable per-task CPU profiling */
 
 extern unsigned int profiling;
+extern unsigned long task_profiling_mask;
 extern struct activity activity[MAX_THREADS];
 
 
@@ -67,6 +68,14 @@ static inline void activity_count_runtime()
 
 	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
 	swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);
+
+	if (!(task_profiling_mask & tid_bit)) {
+		if (unlikely(profiling & HA_PROF_TASKS))
+			_HA_ATOMIC_OR(&task_profiling_mask, tid_bit);
+	} else {
+		if (unlikely(!(profiling & HA_PROF_TASKS)))
+			_HA_ATOMIC_AND(&task_profiling_mask, ~tid_bit);
+	}
 }
 
 

@@ -93,7 +93,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 		t->rq.key += offset;
 	}
 
-	if (profiling & HA_PROF_TASKS)
+	if (task_profiling_mask & tid_bit)
 		t->call_date = now_mono_time();
 
 	eb32sc_insert(root, &t->rq, t->thread_mask);

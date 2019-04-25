@@ -24,6 +24,7 @@
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
 unsigned int profiling = 0;
+unsigned long task_profiling_mask = 0;
 
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
