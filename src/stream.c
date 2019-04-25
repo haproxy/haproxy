@@ -1712,6 +1712,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
 	unsigned int rate;
+	uint64_t cpu_time_before, cpu_time_after;
 
 	activity[tid].stream++;
 
@@ -1724,6 +1725,11 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	/* First, attempt to receive pending data from I/O layers */
 	si_sync_recv(si_f);
 	si_sync_recv(si_b);
+
+	/* measure only the analysers' time */
+	cpu_time_before = 0;
+	if (task_profiling_mask & tid_bit)
+		cpu_time_before = now_cpu_time();
 
 redo:
 	rate = update_freq_ctr(&s->call_rate, 1);
@@ -2602,6 +2608,19 @@ redo:
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 		/* We may have free'd some space in buffers, or have more to send/recv, try again */
+
+		if (cpu_time_before) {
+			cpu_time_after = now_cpu_time();
+			cpu_time_after -= cpu_time_before;
+			if (cpu_time_after >= 100000000U) {
+				/* more than 1 ms CPU time spent in analysers is already absolutely
+				 * insane, but on tiny machines where performance doesn't matter it
+				 * may happen when using tons of regex, so let's fix the threshold
+				 * to 100ms which must never ever be hit.
+				 */
+				stream_dump_and_crash(&s->obj_type, -(cpu_time_after / 1000));
+			}
+		}
 		return t; /* nothing more to do */
 	}
 
@@ -2648,6 +2667,19 @@ redo:
 
 	/* update time stats for this stream */
 	stream_update_time_stats(s);
+
+	if (cpu_time_before) {
+		cpu_time_after = now_cpu_time();
+		cpu_time_after -= cpu_time_before;
+		if (cpu_time_after >= 100000000U) {
+			/* more than 1 ms CPU time spent in analysers is already absolutely
+			 * insane, but on tiny machines where performance doesn't matter it
+			 * may happen when using tons of regex, so let's fix the threshold
+			 * to 100ms which must never ever be hit.
+			 */
+			stream_dump_and_crash(&s->obj_type, -(cpu_time_after / 1000));
+		}
+	}
 
 	/* the task MUST not be in the run queue anymore */
 	stream_free(s);
