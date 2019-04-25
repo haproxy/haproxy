@@ -1711,6 +1711,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	unsigned int req_ana_back;
 	struct channel *req, *res;
 	struct stream_interface *si_f, *si_b;
+	unsigned int rate;
 
 	activity[tid].stream++;
 
@@ -1725,7 +1726,10 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	si_sync_recv(si_b);
 
 redo:
-	update_freq_ctr(&s->call_rate, 1);
+	rate = update_freq_ctr(&s->call_rate, 1);
+	if (rate >= 100000 && s->call_rate.prev_ctr) { // make sure to wait at least a full second
+		stream_dump_and_crash(&s->obj_type, read_freq_ctr(&s->call_rate));
+	}
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
