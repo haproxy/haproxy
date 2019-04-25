@@ -1,0 +1,161 @@
+varnishtest "Basic log load-balancing test"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.0
+
+barrier b1 cond 2 -cyclic
+barrier b2 cond 2 -cyclic
+barrier b3 cond 2 -cyclic
+barrier b4 cond 2 -cyclic
+barrier b5 cond 2 -cyclic
+
+server s1 {
+    rxreq
+	txresp
+} -repeat 500 -start
+
+syslog Slg_1 -level info {
+    recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c1 HTTP/1.1\""
+    recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c2 HTTP/1.1\""
+    recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c3 HTTP/1.1\""
+    recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c4 HTTP/1.1\""
+    recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c5 HTTP/1.1\""
+} -repeat 50 -start
+
+# Here are the syslog messages received by Slg_2:
+syslog Slg_2 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c7 HTTP/1.1\""
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c10 HTTP/1.1\""
+} -repeat 50 -start
+
+haproxy h1 -conf {
+	global
+		nbthread 1
+
+	defaults
+		mode http
+		option httplog
+		timeout connect 1000
+		timeout client  1000
+		timeout server  1000
+
+	frontend fe1
+		bind "fd@${fe_1}"
+		log ${Slg_1_addr}:${Slg_1_port} local0
+		default_backend be
+
+	frontend fe2
+		bind "fd@${fe_2}"
+		log ${Slg_2_addr}:${Slg_2_port} sample 1,3:5 local0
+		default_backend be
+
+	backend be
+		server app1 ${s1_addr}:${s1_port}
+} -start
+
+# The following client are started in background and synchronized
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/client_c1"
+    rxresp
+    expect resp.status == 200
+    barrier b1 sync
+    barrier b5 sync
+} -repeat 50 -start
+
+client c2 -connect ${h1_fe_1_sock} {
+    barrier b1 sync
+    txreq -url "/client_c2"
+    rxresp
+    expect resp.status == 200
+    barrier b2 sync
+} -repeat 50 -start
+
+client c3 -connect ${h1_fe_1_sock} {
+    barrier b2 sync
+    txreq -url "/client_c3"
+    rxresp
+    expect resp.status == 200
+    barrier b3 sync
+} -repeat 50 -start
+
+client c4 -connect ${h1_fe_1_sock} {
+    barrier b3 sync
+    txreq -url "/client_c4"
+    rxresp
+    expect resp.status == 200
+    barrier b4 sync
+} -repeat 50 -start
+
+client c5 -connect ${h1_fe_1_sock} {
+    barrier b4 sync
+    txreq -url "/client_c5"
+    rxresp
+    expect resp.status == 200
+    barrier b5 sync
+} -repeat 50 -start
+
+syslog Slg_1 -wait
+
+client c1 -wait
+client c2 -wait
+client c3 -wait
+client c4 -wait
+client c5 -wait
+
+# Same test as before but with fe2 frontend.
+# The following client are started in background and synchronized
+client c6 -connect ${h1_fe_2_sock} {
+    txreq -url "/client_c6"
+    rxresp
+    expect resp.status == 200
+    barrier b1 sync
+    barrier b5 sync
+} -repeat 50 -start
+
+client c7 -connect ${h1_fe_2_sock} {
+    barrier b1 sync
+    txreq -url "/client_c7"
+    rxresp
+    expect resp.status == 200
+    barrier b2 sync
+} -repeat 50 -start
+
+client c8 -connect ${h1_fe_2_sock} {
+    barrier b2 sync
+    txreq -url "/client_c8"
+    rxresp
+    expect resp.status == 200
+    barrier b3 sync
+} -repeat 50 -start
+
+client c9 -connect ${h1_fe_2_sock} {
+    barrier b3 sync
+    txreq -url "/client_c9"
+    rxresp
+    expect resp.status == 200
+    barrier b4 sync
+} -repeat 50 -start
+
+client c10 -connect ${h1_fe_2_sock} {
+    barrier b4 sync
+    txreq -url "/client_c10"
+    rxresp
+    expect resp.status == 200
+    barrier b5 sync
+} -repeat 50 -start
+
+syslog Slg_2 -wait
+
+client c6 -wait
+client c7 -wait
+client c8 -wait
+client c9 -wait
+client c10 -wait
+
