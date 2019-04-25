@@ -823,7 +823,8 @@ group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
 
-log <address> [len <length>] [format <format>] <facility> [max level [min level]]
+log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+    <facility> [max level [min level]]
   Adds a global syslog server. Several global servers can be defined. They
   will receive logs for starts and exits, as well as all logs from proxies
   configured with "log global".
@@ -898,6 +899,19 @@ log <address> [len <length>] [format <format>] <facility> [max level [min level]
               process name and system name are omitted. This is designed to be
               used in containers or during development, where the severity only
               depends on the file descriptor used (stdout/stderr).
+
+  <ranges>   A list of comma-separated ranges to identify the logs to sample.
+             This is used to balance the load of the logs to send to the log
+             server. The limits of the ranges cannot be null. They are numbered
+             from 1. The size or period (in number of logs) of the sample must be
+             set with <sample_size> parameter.
+
+  <sample_size>
+             The size of the sample in number of logs to consider when balancing
+             their logging loads. It is used to balance the load of the logs to
+             send to the syslog server. This size must be greater or equal to the
+             maximum of the high limits of the ranges.
+             (see also <ranges> parameter).
 
   <facility> must be one of the 24 standard syslog facilities :
 
@@ -5314,7 +5328,8 @@ load-server-state-from-file { global | local | none }
 
 
 log global
-log <address> [len <length>] [format <format>] <facility> [<level> [<minlevel>]]
+log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+    <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
   May be used in sections :   defaults | frontend | listen | backend
@@ -5385,6 +5400,19 @@ no log
                values are 80 to 65535 inclusive. The default value of 1024 is
                generally fine for all standard usages. Some specific cases of
                long captures or JSON-formatted logs may require larger values.
+
+    <ranges>   A list of comma-separated ranges to identify the logs to sample.
+               This is used to balance the load of the logs to send to the log
+               server. The limits of the ranges cannot be null. They are numbered
+               from 1. The size or period (in number of logs) of the sample must
+               be set with <sample_size> parameter.
+
+    <sample_size>
+               The size of the sample in number of logs to consider when balancing
+               their logging loads. It is used to balance the load of the logs to
+               send to the syslog server. This size must be greater or equal to the
+               maximum of the high limits of the ranges.
+               (see also <ranges> parameter).
 
     <format> is the log format used when generating syslog messages. It may be
              one of the following :
