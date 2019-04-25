@@ -2789,6 +2789,89 @@ void stream_shutdown(struct stream *stream, int why)
 	task_wakeup(stream->task, TASK_WOKEN_OTHER);
 }
 
+/* dumps an error message for type <type> at ptr <ptr> related to stream <s>,
+ * having reached loop rate <rate>, then aborts hoping to retrieve a core. If
+ * <rate> is negative instead it reports a duration in microseconds.
+ */
+void stream_dump_and_crash(enum obj_type *obj, int rate)
+{
+	const struct conn_stream *csf, *csb;
+	const struct connection  *cof, *cob;
+	const struct appctx      *acf, *acb;
+	const struct server      *srv;
+	const struct stream *s;
+	const char *src = "unknown";
+	const char *dst = "unknown";
+	char pn[INET6_ADDRSTRLEN];
+	char *msg = NULL;
+	const char *fmt;
+	const struct channel *req, *res;
+	const struct stream_interface *si_f, *si_b;
+	const void *ptr;
+
+	ptr = s = objt_stream(obj);
+	if (!s) {
+		const struct appctx *appctx = objt_appctx(obj);
+		if (!appctx)
+			return;
+		ptr = appctx;
+		s = si_strm(appctx->owner);
+		if (!s)
+			return;
+	}
+
+	si_f = &s->si[0];
+	si_b = &s->si[1];
+	req = &s->req;
+	res = &s->res;
+
+	csf = objt_cs(si_f->end);
+	cof = cs_conn(csf);
+	acf = objt_appctx(si_f->end);
+	if (cof && addr_to_str(&cof->addr.from, pn, sizeof(pn)) >= 0)
+		src = pn;
+	else if (acf)
+		src = acf->applet->name;
+
+	csb = objt_cs(si_b->end);
+	cob = cs_conn(csb);
+	acb = objt_appctx(si_b->end);
+	srv = objt_server(s->target);
+	if (srv)
+		dst = srv->id;
+	else if (acb)
+		dst = acb->applet->name;
+
+	if (rate < 0) {
+		fmt = "A bogus %s [%p] halted the whole thread for at least %d microseconds "
+		      "resulting in a complete freeze of all other tasks, aborting now! Please "
+		      "report this error to developers "
+		      "[src=%s fe=%s be=%s dst=%s rqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x "
+		      "cof=%p,%x:%s/%s/%s/%d cob=%p,%x:%s/%s/%s/%d csf=%p,%x csb=%p,%x af=%p,%u ab=%p,%u]\n";
+		rate = -rate;
+	}
+	else {
+		fmt = "A bogus %s [%p] is spinning at %d calls per second and refuses to die, "
+		      "aborting now! Please report this error to developers "
+	              "[src=%s fe=%s be=%s dst=%s rqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x "
+		      "cof=%p,%x:%s/%s/%s/%d cob=%p,%x:%s/%s/%s/%d csf=%p,%x csb=%p,%x af=%p,%u ab=%p,%u]\n";
+	}
+
+	memprintf(&msg, fmt,
+	          obj_type_name(obj), ptr, rate, src, s->sess->fe->id, s->be->id, dst,
+	          req->flags, req->analysers, res->flags, res->analysers,
+	          si_state_str(si_f->state), si_f->flags,
+	          si_state_str(si_b->state), si_b->flags,
+	          cof, cof ? cof->flags : 0, conn_get_mux_name(cof), conn_get_xprt_name(cof), conn_get_ctrl_name(cof), cof?cof->handle.fd:0,
+	          cob, cob ? cob->flags : 0, conn_get_mux_name(cob), conn_get_xprt_name(cob), conn_get_ctrl_name(cob), cob?cob->handle.fd:0,
+	          csf, csf ? csf->flags : 0, csb, csb ? csb->flags : 0,
+	          acf, acf ? acf->st0   : 0, acb, acb ? acb->st0   : 0);
+
+	ha_alert("%s", msg);
+	send_log(NULL, LOG_EMERG, "%s", msg);
+	abort();
+}
+
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
