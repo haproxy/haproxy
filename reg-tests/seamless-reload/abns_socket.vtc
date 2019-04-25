@@ -14,7 +14,7 @@ feature ignore_unknown_macro
 # expose-fd is available starting at version 1.8
 #REQUIRE_VERSION=1.8
 # abns@ sockets are not available on freebsd
-#EXCLUDE_TARGETS=freebsd
+#EXCLUDE_TARGETS=freebsd,osx,generic
 #REGTEST_TYPE=bug
 
 haproxy h1 -W -conf {
