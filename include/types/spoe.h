@@ -323,6 +323,7 @@ struct spoe_context {
 		struct spoe_message *curmsg;      /* SPOE message from which to resume encoding */
 		struct spoe_arg     *curarg;      /* SPOE arg in <curmsg> from which to resume encoding */
 		unsigned int         curoff;      /* offset in <curarg> from which to resume encoding */
+		unsigned int         curlen;      /* length of <curarg> need to be encode, for SMP_F_MAY_CHANGE data */
 		unsigned int         flags;       /* SPOE_FRM_FL_* */
 	} frag_ctx; /* Info about fragmented frames, valid on if SPOE_CTX_FL_FRAGMENTED is set */
 
