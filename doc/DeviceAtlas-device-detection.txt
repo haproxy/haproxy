@@ -11,6 +11,15 @@ Optionally DEVICEATLAS_INC and DEVICEATLAS_LIB may be set to override the path
 to the include files and libraries respectively if they're not in the source
 directory.
 
+For HAProxy developers who need to verify that their changes didn't accidently
+break the DeviceAtlas code, it is possible to build a dummy library provided in
+the contrib/deviceatlas directory and to use it as an alternative for the full
+library. This will not provide the full functionalities, it will just allow
+haproxy to start with a deviceatlas configuration, which generally is enough to
+validate API changes :
+
+    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=$PWD/contrib/deviceatlas
+
 These are supported DeviceAtlas directives (see doc/configuration.txt) :
   - deviceatlas-json-file <path to the DeviceAtlas JSON data file>.
   - deviceatlas-log-level <number> (0 to 3, level of information returned by

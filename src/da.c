@@ -394,8 +394,20 @@ static struct sample_conv_kw_list conv_kws = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
+static void da_haproxy_register_build_options()
+{
+	char *ptr = NULL;
+
+#ifdef MOBI_DA_DUMMY_LIBRARY
+	memprintf(&ptr, "Built with DeviceAtlas support (dummy library only).");
+#else
+	memprintf(&ptr, "Built with DeviceAtlas support (library version %u.%u).", MOBI_DA_MAJOR, MOBI_DA_MINOR);
+#endif
+	hap_register_build_opts(ptr, 1);
+}
+
 INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 
 REGISTER_POST_CHECK(init_deviceatlas);
 REGISTER_POST_DEINIT(deinit_deviceatlas);
-REGISTER_BUILD_OPTS("Built with DeviceAtlas support.");
+INITCALL0(STG_REGISTER, da_haproxy_register_build_options);
