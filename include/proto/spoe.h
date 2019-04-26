@@ -117,11 +117,9 @@ spoe_decode_buffer(char **buf, char *end, char **str, uint64_t *len)
  *
  * If the value is too big to be encoded, depending on its type, then encoding
  * failed or the value is partially encoded. Only strings and binaries can be
- * partially encoded. In this case, the offset <*off> is updated to known how
- * many bytes has been encoded. If <*off> is zero at the end, it means that all
- * data has been encoded. */
+ * partially encoded. */
 static inline int
-spoe_encode_data(unsigned int *len, struct sample *smp, unsigned int *off, char **buf, char *end)
+spoe_encode_data(struct sample *smp, char **buf, char *end)
 {
 	char *p = *buf;
 	int   ret;
@@ -164,12 +162,16 @@ spoe_encode_data(unsigned int *len, struct sample *smp, unsigned int *off, char 
 
 		case SMP_T_STR:
 		case SMP_T_BIN: {
+			/* If defined, get length and offset of the sample by reading the sample
+			 * context. ctx.a[0] is the pointer to the length and ctx.a[1] is the
+			 * pointer to the offset. If the offset is greater than 0, it means the
+			 * sample is partially encoded. In this case, we only need to encode the
+			 * reamining. When all the sample is encoded, the offset is reset to 0.
+			 * So the caller know it can try to encode the next sample. */
 			struct buffer *chk = &smp->data.u.str;
+			unsigned int *len  = (smp->ctx.a[0] ? smp->ctx.a[0] : 0);
+			unsigned int *off  = (smp->ctx.a[1] ? smp->ctx.a[1] : 0);
 
-			/* Here, we need to know if the sample has already been
-			 * partially encoded. If yes, we only need to encode the
-			 * remaining, <*off> reprensenting the number of bytes
-			 * already encoded. */
 			if (!*off) {
 				/* First evaluation of the sample : encode the
 				 * type (string or binary), the buffer length
