@@ -25,8 +25,7 @@
 #include <netinet/in.h>
 
 struct port_range {
-	int size, get, put;		/* range size, and get/put positions */
-	int avail;			/* number of available ports left */
+	int size, get, put_h, put_t;	/* range size, and get/put positions */
 	uint16_t ports[0];		/* array of <size> ports, in host byte order */
 };
 
