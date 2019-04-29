@@ -2249,11 +2249,15 @@ void deinit(void)
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
 			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
 			free(lf);
 		}
 
 		list_for_each_entry_safe(lf, lfb, &p->logformat_sd, list) {
 			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
 			free(lf);
 		}
 

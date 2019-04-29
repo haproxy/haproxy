@@ -377,7 +377,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node, char **err
 int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions, char **err)
 {
 	int j;
-	struct logformat_node *node;
+	struct logformat_node *node = NULL;
 
 	for (j = 0; logformat_keywords[j].name; j++) { // search a log type
 		if (strlen(logformat_keywords[j].name) == var_len &&
@@ -386,14 +386,14 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 				node = calloc(1, sizeof(*node));
 				if (!node) {
 					memprintf(err, "out of memory error");
-					return 0;
+					goto error_free;
 				}
 				node->type = logformat_keywords[j].type;
 				node->options = *defoptions;
 				if (arg_len) {
 					node->arg = my_strndup(arg, arg_len);
 					if (!parse_logformat_var_args(node->arg, node, err))
-						return 0;
+						goto error_free;
 				}
 				if (node->type == LOG_FMT_GLOBAL) {
 					*defoptions = node->options;
@@ -402,7 +402,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 				} else {
 					if (logformat_keywords[j].config_callback &&
 					    logformat_keywords[j].config_callback(node, curproxy) != 0) {
-						return 0;
+						goto error_free;
 					}
 					curproxy->to_log |= logformat_keywords[j].lw;
 					LIST_ADDQ(list_format, &node->list);
@@ -415,7 +415,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 			} else {
 				memprintf(err, "format variable '%s' is reserved for HTTP mode",
 				          logformat_keywords[j].name);
-				return 0;
+				goto error_free;
 			}
 		}
 	}
@@ -424,6 +424,12 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 	var[var_len] = 0;
 	memprintf(err, "no such format variable '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%'", var);
 	var[var_len] = j;
+
+  error_free:
+	if (node) {
+		free(node->arg);
+		free(node);
+	}
 	return 0;
 }
 
@@ -476,8 +482,8 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err)
 {
 	char *cmd[2];
-	struct sample_expr *expr;
-	struct logformat_node *node;
+	struct sample_expr *expr = NULL;
+	struct logformat_node *node = NULL;
 	int cmd_arg;
 
 	cmd[0] = text;
@@ -487,13 +493,13 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	expr = sample_parse_expr(cmd, &cmd_arg, curpx->conf.args.file, curpx->conf.args.line, err, &curpx->conf.args);
 	if (!expr) {
 		memprintf(err, "failed to parse sample expression <%s> : %s", text, *err);
-		return 0;
+		goto error_free;
 	}
 
 	node = calloc(1, sizeof(*node));
 	if (!node) {
 		memprintf(err, "out of memory error");
-		return 0;
+		goto error_free;
 	}
 	node->type = LOG_FMT_EXPR;
 	node->expr = expr;
@@ -502,7 +508,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	if (arg_len) {
 		node->arg = my_strndup(arg, arg_len);
 		if (!parse_logformat_var_args(node->arg, node, err))
-			return 0;
+			goto error_free;
 	}
 	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
 		node->options |= LOG_OPT_REQ_CAP; /* fetch method is request-compatible */
@@ -511,11 +517,9 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
 
 	if (!(expr->fetch->val & cap)) {
-		free(node);
-		node = NULL;
 		memprintf(err, "sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here",
 		          text, sample_src_names(expr->fetch->use));
-		return 0;
+		goto error_free;
 	}
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
@@ -530,6 +534,14 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	curpx->to_log |= LW_REQ;
 	LIST_ADDQ(list_format, &node->list);
 	return 1;
+
+  error_free:
+	release_sample_expr(expr);
+	if (node) {
+		free(node->arg);
+		free(node);
+	}
+	return 0;
 }
 
 /*
@@ -567,6 +579,8 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 	/* flush the list first. */
 	list_for_each_entry_safe(tmplf, back, list_format, list) {
 		LIST_DEL(&tmplf->list);
+		release_sample_expr(tmplf->expr);
+		free(tmplf->arg);
 		free(tmplf);
 	}
 
