@@ -3579,7 +3579,7 @@ next_frame:
 		b_sub(&h2c->dbuf, hole);
 	}
 
-	if (b_full(&h2c->dbuf) && h2c->dfl > b_data(&h2c->dbuf)) {
+	if (b_full(&h2c->dbuf) && h2c->dfl >= b_data(&h2c->dbuf)) {
 		/* too large frames */
 		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
 		ret = -1;
