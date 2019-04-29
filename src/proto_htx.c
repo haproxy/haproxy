@@ -501,8 +501,10 @@ int htx_process_req_common(struct stream *s, struct channel *req, int an_bit, st
 
 	htx = htxbuf(&req->buf);
 
-	/* just in case we have some per-backend tracking */
-	stream_inc_be_http_req_ctr(s);
+	/* just in case we have some per-backend tracking. Only called the first
+	 * execution of the analyser. */
+	if (!s->current_rule || s->current_rule_list != &px->http_req_rules)
+		stream_inc_be_http_req_ctr(s);
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
