@@ -1,0 +1,14 @@
+FreeBSD_task:
+  freebsd_instance:
+    image: freebsd-12-0-release-amd64
+  env:
+    ASSUME_ALWAYS_YES: TRUE # required for unattended "pkg" invocation
+  script:
+    - pkg install openssl111 git gmake lua53
+    - git clone https://github.com/VTest/VTest.git ../vtest
+    - make -C ../vtest
+    - gmake CC=clang V=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua53 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.3
+    - ./haproxy -vv
+    - ldd haproxy
+    - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
+
