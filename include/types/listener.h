@@ -198,7 +198,7 @@ struct listener {
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
-	unsigned int maxaccept;         /* if set, max number of connections accepted at once */
+	int maxaccept;         /* if set, max number of connections accepted at once (-1 when disabled) */
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */

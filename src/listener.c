@@ -151,12 +151,16 @@ static struct task *accept_queue_process(struct task *t, void *context, unsigned
 	struct accept_queue_ring *ring = context;
 	struct listener *li;
 	struct sockaddr_storage addr;
-	int max_accept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+	unsigned int max_accept;
 	int addr_len;
 	int ret;
 	int fd;
 
-	while (max_accept--) {
+	/* if global.tune.maxaccept is -1, then max_accept is UINT_MAX. It
+	 * is not really illimited, but it is probably enough.
+	 */
+	max_accept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+	for (; max_accept; max_accept--) {
 		addr_len = sizeof(addr);
 		fd = accept_queue_pop_sc(ring, &li, &addr, &addr_len);
 		if (fd < 0)
@@ -183,7 +187,7 @@ static struct task *accept_queue_process(struct task *t, void *context, unsigned
 	}
 
 	/* ran out of budget ? Let's come here ASAP */
-	if (max_accept < 0)
+	if (!max_accept)
 		task_wakeup(t, TASK_WOKEN_IO);
 
 	return t;
@@ -598,7 +602,7 @@ void listener_accept(int fd)
 {
 	struct listener *l = fdtab[fd].owner;
 	struct proxy *p;
-	int max_accept;
+	unsigned int max_accept;
 	int next_conn = 0;
 	int next_feconn = 0;
 	int next_actconn = 0;
@@ -612,6 +616,10 @@ void listener_accept(int fd)
 	if (!l)
 		return;
 	p = l->bind_conf->frontend;
+
+	/* if l->maxaccept is -1, then max_accept is UINT_MAX. It is not really
+	 * illimited, but it is probably enough.
+	 */
 	max_accept = l->maxaccept ? l->maxaccept : 1;
 
 	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
@@ -672,7 +680,7 @@ void listener_accept(int fd)
 	 * worst case. If we fail due to system limits or temporary resource
 	 * shortage, we try again 100ms later in the worst case.
 	 */
-	for (; max_accept-- > 0; next_conn = next_feconn = next_actconn = 0) {
+	for (; max_accept; next_conn = next_feconn = next_actconn = 0, max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 		unsigned int count;
