@@ -86,6 +86,7 @@ enum { tid = 0 };
 			*__p_btr &= ~__b_btr;				\
 		__t_btr;						\
 	})
+#define HA_ATOMIC_LOAD(val)          *(val)
 #define HA_ATOMIC_STORE(val, new)    ({*(val) = new;})
 #define HA_ATOMIC_UPDATE_MAX(val, new)					\
 	({								\
@@ -267,6 +268,15 @@ static inline unsigned long thread_isolated()
 		__sync_fetch_and_and((val), ~__b_btr) & __b_btr;	\
 	})
 
+#define HA_ATOMIC_LOAD(val)                                             \
+        ({                                                              \
+	        typeof(*(val)) ret;                                     \
+		__sync_synchronize();                                   \
+		ret = *(volatile typeof(val))val;                       \
+		__sync_synchronize();                                   \
+		ret;                                                    \
+	})
+
 #define HA_ATOMIC_STORE(val, new)					\
 	({								\
 		typeof((val)) __val_store = (val);			\
@@ -297,6 +307,7 @@ static inline unsigned long thread_isolated()
 
 #define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_LOAD(val)          __atomic_load_n(val, __ATOMIC_SEQ_CST)
 
 /* Variants that don't generate any memory barrier.
  * If you're unsure how to deal with barriers, just use the HA_ATOMIC_* version,
@@ -312,6 +323,7 @@ static inline unsigned long thread_isolated()
 #define _HA_ATOMIC_OR(val, flags)     __atomic_or_fetch(val,  flags, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_LOAD(val)          __atomic_load_n(val, __ATOMIC_RELAXED)
 
 #endif /* gcc >= 4.7 */
 
@@ -1119,4 +1131,8 @@ int thread_get_default_count();
 #ifndef _HA_ATOMIC_STORE
 #define _HA_ATOMIC_STORE HA_ATOMIC_STORE
 #endif /* !_HA_ATOMIC_STORE */
+
+#ifndef _HA_ATOMIC_LOAD
+#define _HA_ATOMIC_LOAD HA_ATOMIC_LOAD
+#endif /* !_HA_ATOMIC_LOAD */
 #endif /* _COMMON_HATHREADS_H */
