@@ -57,6 +57,16 @@ struct notification {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 };
 
+/* force to split per-thread stuff into separate cache lines */
+struct task_per_thread {
+	struct eb_root timers;  /* tree constituting the per-thread wait queue */
+	struct eb_root rqueue;  /* tree constituting the per-thread run queue */
+	struct list task_list;  /* List of tasks to be run, mixing tasks and tasklets */
+	int task_list_size;     /* Number of tasks in the task_list */
+	int rqueue_size;        /* Number of elements in the per-thread run queue */
+	__attribute__((aligned(64))) char end[0];
+};
+
 /* This part is common between struct task and struct tasklet so that tasks
  * can be used as-is as tasklets.
  */
