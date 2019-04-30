@@ -3728,9 +3728,8 @@ out_uri_auth_compat:
 			 * is bound to. Rememeber that maxaccept = -1 must be kept as it is
 			 * used to disable the limit.
 			 */
-			if (listener->maxaccept > 0) {
-				if (nbproc > 1)
-					listener->maxaccept = (listener->maxaccept + 1) / 2;
+			if (listener->maxaccept > 0 && nbproc > 1) {
+				listener->maxaccept = (listener->maxaccept + 1) / 2;
 				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
 			}
 
