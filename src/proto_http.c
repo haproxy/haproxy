@@ -1581,7 +1581,7 @@ resume_execution:
 			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name,
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
-			                          &rule->arg.hdr_add.re, rule->action)) {
+			                          rule->arg.hdr_add.re, rule->action)) {
 				rule_ret = HTTP_RULE_RES_BADREQ;
 				goto end;
 			}
@@ -1939,7 +1939,7 @@ resume_execution:
 			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name,
 			                          rule->arg.hdr_add.name_len,
 			                          &rule->arg.hdr_add.fmt,
-			                          &rule->arg.hdr_add.re, rule->action)) {
+			                          rule->arg.hdr_add.re, rule->action)) {
 				rule_ret = HTTP_RULE_RES_BADREQ;
 				goto end;
 			}

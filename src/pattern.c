@@ -1142,7 +1142,6 @@ void pat_prune_reg(struct pattern_expr *expr)
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		regex_free(pat->pat.ptr.ptr);
-		free(pat->pat.ptr.ptr);
 		free(pat->pat.data);
 		free(pat);
 	}
@@ -1253,18 +1252,9 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 	/* duplicate pattern */
 	memcpy(&patl->pat, pat, sizeof(*pat));
 
-	/* allocate regex */
-	patl->pat.ptr.reg = calloc(1, sizeof(*patl->pat.ptr.reg));
-	if (!patl->pat.ptr.reg) {
-		free(patl);
-		memprintf(err, "out of memory while indexing pattern");
-		return 0;
-	}
-
 	/* compile regex */
-	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg,
-	                !(expr->mflags & PAT_MF_IGNORE_CASE), cap, err)) {
-		free(patl->pat.ptr.reg);
+	if (!(patl->pat.ptr.reg = regex_comp(pat->ptr.str, !(expr->mflags & PAT_MF_IGNORE_CASE),
+	                                     cap, err))) {
 		free(patl);
 		return 0;
 	}
@@ -1562,7 +1552,6 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
 		regex_free(pat->pat.ptr.ptr);
-		free(pat->pat.ptr.ptr);
 		free(pat->pat.data);
 		free(pat);
 	}

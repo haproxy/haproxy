@@ -5366,13 +5366,13 @@ __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 	const char *reg = MAY_LJMP(luaL_checkstring(L, 3));
 	const char *value = MAY_LJMP(luaL_checkstring(L, 4));
-	struct my_regex re;
+	struct my_regex *re;
 
-	if (!regex_comp(reg, &re, 1, 1, NULL))
+	if (!(re = regex_comp(reg, 1, 1, NULL)))
 		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
 
-	http_transform_header_str(htxn->s, msg, name, name_len, value, &re, action);
-	regex_free(&re);
+	http_transform_header_str(htxn->s, msg, name, name_len, value, re, action);
+	regex_free(re);
 	return 0;
 }
 

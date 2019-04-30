@@ -3193,8 +3193,7 @@ void email_alert_free(struct email_alert *alert)
 		LIST_DEL(&rule->list);
 		free(rule->comment);
 		free(rule->string);
-		if (rule->expect_regex)
-			regex_free(rule->expect_regex);
+		regex_free(rule->expect_regex);
 		pool_free(pool_head_tcpcheck_rule, rule);
 	}
 	pool_free(pool_head_email_alert, alert);

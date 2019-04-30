@@ -337,30 +337,13 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 #endif
 }
 
-int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err)
+struct my_regex *regex_comp(const char *str, int cs, int cap, char **err)
 {
+	struct my_regex *regex = NULL;
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	int flags = 0;
 	const char *error;
 	int erroffset;
-
-	if (!cs)
-		flags |= PCRE_CASELESS;
-	if (!cap)
-		flags |= PCRE_NO_AUTO_CAPTURE;
-
-	regex->reg = pcre_compile(str, flags, &error, &erroffset, NULL);
-	if (!regex->reg) {
-		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", str, error, erroffset);
-		return 0;
-	}
-
-	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
-	if (!regex->extra && error != NULL) {
-		pcre_free(regex->reg);
-		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
-		return 0;
-	}
 #elif defined(USE_PCRE2) || defined(USE_PCRE2_JIT)
 	int flags = 0;
 	int errn;
@@ -369,7 +352,35 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 #endif
 	PCRE2_UCHAR error[256];
 	PCRE2_SIZE erroffset;
+#else
+	int flags = REG_EXTENDED;
+#endif
 
+	regex = calloc(1, sizeof(*regex));
+	if (!regex) {
+		memprintf(err, "not enough memory to build regex");
+		goto out_fail_alloc;
+	}
+
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
+	if (!cs)
+		flags |= PCRE_CASELESS;
+	if (!cap)
+		flags |= PCRE_NO_AUTO_CAPTURE;
+
+	regex->reg = pcre_compile(str, flags, &error, &erroffset, NULL);
+	if (!regex->reg) {
+		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", str, error, erroffset);
+		goto out_fail_alloc;
+	}
+
+	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
+	if (!regex->extra && error != NULL) {
+		pcre_free(regex->reg);
+		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
+		goto out_fail_alloc;
+	}
+#elif defined(USE_PCRE2) || defined(USE_PCRE2_JIT)
 	if (!cs)
 		flags |= PCRE2_CASELESS;
 	if (!cap)
@@ -379,7 +390,7 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 	if (!regex->reg) {
 		pcre2_get_error_message(errn, error, sizeof(error));
 		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%zu)", str, error, erroffset);
-		return 0;
+		goto out_fail_alloc;
 	}
 
 #if defined(USE_PCRE2_JIT)
@@ -391,13 +402,11 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 	if (jit < 0 && jit != PCRE2_ERROR_JIT_BADOPTION) {
 		pcre2_code_free(regex->reg);
 		memprintf(err, "regex '%s' jit compilation failed", str);
-		return 0;
+		goto out_fail_alloc;
 	}
 #endif
 
 #else
-	int flags = REG_EXTENDED;
-
 	if (!cs)
 		flags |= REG_ICASE;
 	if (!cap)
@@ -405,10 +414,14 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 
 	if (regcomp(&regex->regex, str, flags) != 0) {
 		memprintf(err, "regex '%s' is invalid", str);
-		return 0;
+		goto out_fail_alloc;
 	}
 #endif
-	return 1;
+	return regex;
+
+  out_fail_alloc:
+	free(regex);
+	return NULL;
 }
 
 static void regex_register_build_options(void)

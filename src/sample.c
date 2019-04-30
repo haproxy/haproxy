@@ -1328,20 +1328,11 @@ int smp_resolve_args(struct proxy *p)
 				continue;
 			}
 
-			reg = calloc(1, sizeof(*reg));
-			if (!reg) {
-				ha_alert("parsing [%s:%d] : not enough memory to build regex in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
-					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
-				cfgerr++;
-				continue;
-			}
-
 			rflags = 0;
 			rflags |= (arg->type_flags & ARGF_REG_ICASE) ? REG_ICASE : 0;
 			err = NULL;
 
-			if (!regex_comp(arg->data.str.area, reg, !(rflags & REG_ICASE), 1 /* capture substr */, &err)) {
+			if (!(reg = regex_comp(arg->data.str.area, !(rflags & REG_ICASE), 1 /* capture substr */, &err))) {
 				ha_alert("parsing [%s:%d] : error in regex '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
 					 cur->file, cur->line,
 					 arg->data.str.area,
@@ -1425,11 +1416,8 @@ static void release_sample_arg(struct arg *p)
 			p->unresolved = 0;
 		}
 		else if (p->type == ARGT_REG) {
-			if (p->data.reg) {
-				regex_free(p->data.reg);
-				free(p->data.reg);
-				p->data.reg = NULL;
-			}
+			regex_free(p->data.reg);
+			p->data.reg = NULL;
 		}
 		p++;
 	}

@@ -275,17 +275,10 @@ static int create_cond_regex_rule(const char *file, int line,
 	                                  ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR),
 	                                  file, line);
 
-	preg = calloc(1, sizeof(*preg));
-	if (!preg) {
-		ha_alert("parsing [%s:%d] : '%s' : not enough memory to build regex.\n", file, line, cmd);
-		ret_code = ERR_ALERT | ERR_FATAL;
-		goto err;
-	}
-
 	cs = !(flags & REG_ICASE);
 	cap = !(flags & REG_NOSUB);
 	error = NULL;
-	if (!regex_comp(reg, preg, cs, cap, &error)) {
+	if (!(preg = regex_comp(reg, cs, cap, &error))) {
 		ha_alert("parsing [%s:%d] : '%s' : regular expression '%s' : %s\n", file, line, cmd, reg, error);
 		free(error);
 		ret_code = ERR_ALERT | ERR_FATAL;
@@ -309,7 +302,6 @@ static int create_cond_regex_rule(const char *file, int line,
  err_free:
 	regex_free(preg);
  err:
-	free(preg);
 	free(errmsg);
 	return ret_code;
 }
@@ -444,8 +436,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->expect_str = strdup(defproxy.expect_str);
 				if (defproxy.expect_regex) {
 					/* note: this regex is known to be valid */
-					curproxy->expect_regex = calloc(1, sizeof(*curproxy->expect_regex));
-					regex_comp(defproxy.expect_str, curproxy->expect_regex, 1, 1, NULL);
+					error = NULL;
+					if (!(curproxy->expect_regex = regex_comp(defproxy.expect_str, 1, 1, &error))) {
+						ha_alert("parsing [%s:%d] : regular expression '%s' : %s\n", file, linenum,
+						         defproxy.expect_str, error);
+						free(error);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
 				}
 			}
 
@@ -631,11 +629,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.server_id_hdr_name);
 		defproxy.server_id_hdr_len = 0;
 		free(defproxy.expect_str);
-		if (defproxy.expect_regex) {
-			regex_free(defproxy.expect_regex);
-			free(defproxy.expect_regex);
-			defproxy.expect_regex = NULL;
-		}
+		regex_free(defproxy.expect_regex);
+		defproxy.expect_regex = NULL;
 
 		if (defproxy.conf.logformat_string != default_http_log_format &&
 		    defproxy.conf.logformat_string != default_tcp_log_format &&
@@ -2927,16 +2922,11 @@ stats_error_parsing:
 				}
 				curproxy->options2 |= PR_O2_EXP_RSTS;
 				free(curproxy->expect_str);
-				if (curproxy->expect_regex) {
-					regex_free(curproxy->expect_regex);
-					free(curproxy->expect_regex);
-					curproxy->expect_regex = NULL;
-				}
+				regex_free(curproxy->expect_regex);
 				curproxy->expect_str = strdup(args[cur_arg + 1]);
-				curproxy->expect_regex = calloc(1, sizeof(*curproxy->expect_regex));
 				error = NULL;
-				if (!regex_comp(args[cur_arg + 1], curproxy->expect_regex, 1, 1, &error)) {
-					ha_alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s': %s.\n",
+				if (!(curproxy->expect_regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
+					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
 						 file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1], error);
 					free(error);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2952,16 +2942,11 @@ stats_error_parsing:
 				}
 				curproxy->options2 |= PR_O2_EXP_RSTR;
 				free(curproxy->expect_str);
-				if (curproxy->expect_regex) {
-					regex_free(curproxy->expect_regex);
-					free(curproxy->expect_regex);
-					curproxy->expect_regex = NULL;
-				}
+				regex_free(curproxy->expect_regex);
 				curproxy->expect_str = strdup(args[cur_arg + 1]);
-				curproxy->expect_regex = calloc(1, sizeof(*curproxy->expect_regex));
 				error = NULL;
-				if (!regex_comp(args[cur_arg + 1], curproxy->expect_regex, 1, 1, &error)) {
-					ha_alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s': %s.\n",
+				if (!(curproxy->expect_regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
+					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
 						 file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1], error);
 					free(error);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3258,10 +3243,9 @@ stats_error_parsing:
 				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				tcpcheck->string_len = 0;
 				tcpcheck->string = NULL;
-				tcpcheck->expect_regex = calloc(1, sizeof(*tcpcheck->expect_regex));
 				error = NULL;
-				if (!regex_comp(args[cur_arg + 1], tcpcheck->expect_regex, 1, 1, &error)) {
-					ha_alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s': %s.\n",
+				if (!(tcpcheck->expect_regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
+					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
 						 file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1], error);
 					free(error);
 					err_code |= ERR_ALERT | ERR_FATAL;

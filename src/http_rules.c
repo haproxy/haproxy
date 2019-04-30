@@ -263,7 +263,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		error = NULL;
-		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
+		if (!(rule->arg.hdr_add.re = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
 			ha_alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
 				 args[cur_arg + 1], error);
 			free(error);
@@ -713,7 +713,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		error = NULL;
-		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
+		if (!(rule->arg.hdr_add.re = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
 			ha_alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
 				 args[cur_arg + 1], error);
 			free(error);
@@ -1191,7 +1191,7 @@ void free_http_res_rules(struct list *r)
 
 	list_for_each_entry_safe(pr, tr, r, list) {
 		LIST_DEL(&pr->list);
-		regex_free(&pr->arg.hdr_add.re);
+		regex_free(pr->arg.hdr_add.re);
 		free(pr);
 	}
 }
@@ -1205,7 +1205,7 @@ void free_http_req_rules(struct list *r)
 		if (pr->action == ACT_HTTP_REQ_AUTH)
 			free(pr->arg.auth.realm);
 
-		regex_free(&pr->arg.hdr_add.re);
+		regex_free(pr->arg.hdr_add.re);
 		free(pr);
 	}
 }

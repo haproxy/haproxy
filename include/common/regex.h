@@ -88,7 +88,7 @@ extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
  *
  * The function return 1 is succes case, else return 0 and err is filled.
  */
-int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err);
+struct my_regex *regex_comp(const char *str, int cs, int cap, char **err);
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches);
 const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
@@ -161,6 +161,8 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
                       size_t nmatch, regmatch_t pmatch[], int flags);
 
 static inline void regex_free(struct my_regex *preg) {
+	if (!preg)
+		return;
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	pcre_free(preg->reg);
 /* PCRE < 8.20 requires pcre_free() while >= 8.20 requires pcre_study_free(),
@@ -176,6 +178,7 @@ static inline void regex_free(struct my_regex *preg) {
 #else
 	regfree(&preg->regex);
 #endif
+	free(preg);
 }
 
 #endif /* _COMMON_REGEX_H */

@@ -6,6 +6,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 
+#include <common/regex.h>
 #include <common/xref.h>
 
 #include <types/proto_http.h>

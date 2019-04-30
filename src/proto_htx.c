@@ -2901,7 +2901,7 @@ static enum rule_result htx_req_get_intercept_rule(struct proxy *px, struct list
 				if (htx_transform_header(s, &s->req, htx,
 							 ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
 							 &rule->arg.hdr_add.fmt,
-							 &rule->arg.hdr_add.re, rule->action)) {
+							 rule->arg.hdr_add.re, rule->action)) {
 					rule_ret = HTTP_RULE_RES_BADREQ;
 					goto end;
 				}
@@ -3243,7 +3243,7 @@ resume_execution:
 				if (htx_transform_header(s, &s->res, htx,
 							 ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
 							 &rule->arg.hdr_add.fmt,
-							 &rule->arg.hdr_add.re, rule->action)) {
+							 rule->arg.hdr_add.re, rule->action)) {
 					rule_ret = HTTP_RULE_RES_BADREQ;
 					goto end;
 				}
