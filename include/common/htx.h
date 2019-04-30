@@ -158,8 +158,7 @@ struct htx {
 	uint64_t extra;  /* known bytes amount remaining to receive */
 	uint32_t flags;  /* HTX_FL_* */
 
-	int32_t sl_off; /* Offset of the start-line of the HTTP message relatively to the beginning the
-			   data block. -1 if unset */
+	int32_t sl_pos; /* position of the start-line of the HTTP message. -1 if unset */
 
 	struct htx_blk blocks[0]; /* Blocks representing the HTTP message itself */
 };
@@ -271,17 +270,6 @@ static inline struct ist htx_sl_res_code(const struct htx_sl *sl)
 static inline struct ist htx_sl_res_reason(const struct htx_sl *sl)
 {
 	return htx_sl_p3(sl);
-}
-
-/* Returns the HTX start-line if set, otherwise it returns NULL. */
-static inline struct htx_sl *htx_get_stline(struct htx *htx)
-{
-	struct htx_sl *sl = NULL;
-
-	if (htx->used && htx->sl_off != -1)
-		sl = ((void *)htx->blocks + htx->sl_off);
-
-	return sl;
 }
 
 /* Returns the array index of a block given its position <pos> */
@@ -611,6 +599,21 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 	return ret;
 }
 
+/* Returns the HTX start-line if set, otherwise it returns NULL. */
+static inline struct htx_sl *htx_get_stline(struct htx *htx)
+{
+	struct htx_sl *sl = NULL;
+
+	if (htx->used && htx->sl_pos != -1) {
+		struct htx_blk *blk = htx_get_blk(htx, htx->sl_pos);
+
+		if (blk)
+			sl = htx_get_blk_ptr(htx, blk);
+	}
+	return sl;
+}
+
+
 /* Removes <n> bytes from the beginning of DATA block <blk>. The block's start
  * address and its length are adjusted, and the htx's total data count is
  * updated. This is used to mark that part of some data were transfered
@@ -677,7 +680,7 @@ static inline void htx_reset(struct htx *htx)
 	htx->data = htx->used = htx->tail = htx->head  = htx->front = 0;
 	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
-	htx->sl_off = -1;
+	htx->sl_pos = -1;
 }
 
 /* returns the available room for raw data in buffer <buf> once HTX overhead is
@@ -792,8 +795,8 @@ static inline void htx_dump(struct htx *htx)
 	fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%llu]\n",
 		htx, htx->size, htx->data, htx->used, (htx->tail >= htx->head) ? "NO" : "YES",
 		(unsigned long long)htx->extra);
-	fprintf(stderr, "\thead=%u, tail=%u - front=%u\n",
-		htx->head, htx->tail, htx->front);
+	fprintf(stderr, "\tsl_pos=%d - head=%u, tail=%u - front=%u\n",
+		htx->sl_pos, htx->head, htx->tail, htx->front);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_sl     *sl;

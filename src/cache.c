@@ -915,7 +915,7 @@ static size_t htx_cache_dump_headers(struct appctx *appctx, struct htx *htx)
 
 		/* Set the start-line offset */
 		if (type == HTX_BLK_RES_SL)
-			htx->sl_off = blk->addr;
+			htx->sl_pos = htx_get_blk_pos(htx, blk);
 
 		/* Copy info and data */
 		blk->info = info;

@@ -40,7 +40,7 @@ struct htx_sl *http_find_stline(struct htx *htx)
 
 		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
 			sl = htx_get_blk_ptr(htx, blk);
-			htx->sl_off = blk->addr;
+			htx->sl_pos = pos;
 			break;
 		}
 
@@ -194,7 +194,7 @@ int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		if (htx->sl_off == blk->addr) {
+		if (htx->sl_pos == pos) {
 			if (!htx_replace_stline(htx, blk, p1, p2, p3))
 				return 0;
 			return 1;
