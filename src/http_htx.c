@@ -68,12 +68,10 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	struct htx_blk *blk = ctx->blk;
 	struct ist n, v;
 	enum htx_blk_type type;
-	uint32_t pos;
 
 	if (blk) {
 		char *p;
 
-		pos = htx_get_blk_pos(htx, blk);
 		if (!ctx->value.ptr)
 			goto rescan_hdr;
 		if (full)
@@ -96,15 +94,13 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	if (!htx->used)
 		return 0;
 
-	pos = htx_get_head(htx);
-	while (1) {
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 	  rescan_hdr:
-		blk  = htx_get_blk(htx, pos);
 		type = htx_get_blk_type(blk);
 		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
 			break;
 		if (type != HTX_BLK_HDR)
-			goto next_blk;
+			continue;
 		if (name.len) {
 			/* If no name was passed, we want any header. So skip the comparison */
 			n = htx_get_blk_name(htx, blk);
@@ -128,17 +124,13 @@ int http_find_header(const struct htx *htx, const struct ist name,
 			ctx->lws_after++;
 		}
 		if (!v.len)
-			goto next_blk;
+			continue;
 		ctx->blk   = blk;
 		ctx->value = v;
 		return 1;
 
 	  next_blk:
-		if (pos == htx->tail)
-			break;
-		pos++;
-		if (pos >= htx->wrap)
-			pos = 0;
+		;
 	}
 
 	ctx->blk   = NULL;

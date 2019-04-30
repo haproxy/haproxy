@@ -42,10 +42,8 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	/* start from the head */
 	for (old = htx_get_head(htx); old != -1; old = htx_get_next(htx, old)) {
 		oldblk = htx_get_blk(htx, old);
-		if (htx_get_blk_type(oldblk) == HTX_BLK_UNUSED) {
-			htx->used--;
+		if (htx_get_blk_type(oldblk) == HTX_BLK_UNUSED)
 			continue;
-		}
 
 		newblk = htx_get_blk(tmp, new);
 		newblk->addr = addr;
@@ -66,8 +64,9 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 
 	}
 
+	htx->used = new;
 	htx->sl_off = sl_off;
-	htx->wrap = htx->used;
+	htx->head = 0;
 	htx->front = htx->tail = new - 1;
 	memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
@@ -95,8 +94,8 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 
 	if (!htx->used) {
 		/* Empty message */
-		htx->front = htx->tail = 0;
-		htx->wrap  = htx->used = 1;
+		htx->front = htx->head = htx->tail = 0;
+		htx->used = 1;
 		blk = htx_get_blk(htx, htx->tail);
 		blk->addr = 0;
 		htx->data = blksz;
@@ -104,10 +103,10 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	}
 
 	used = htx->used + 1;
-	tail = htx->tail + 1;
 	prev = htx->tail;
-	wrap = htx->wrap;
-	head = htx_get_head(htx);
+	head = htx->head;
+	tail = htx->tail + 1;
+	wrap = htx_get_wrap(htx);
 
 	if (tail == wrap) {
 		frtblk = htx_get_blk(htx, htx->front);
@@ -178,7 +177,6 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 			/* need to defragment the table before inserting upfront */
 			htx_defrag(htx, NULL);
 			frtblk = htx_get_blk(htx, htx->front);
-			wrap = htx->wrap + 1;
 			tail = htx->tail + 1;
 			used = htx->used + 1;
 			blk = htx_get_blk(htx, tail);
@@ -187,7 +185,6 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 		}
 	}
 
-	htx->wrap  = wrap;
 	htx->tail  = tail;
 	htx->used  = used;
 	htx->data += blksz;
@@ -216,7 +213,7 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 {
 	enum htx_blk_type type = htx_get_blk_type(blk);
-	uint32_t next, head, pos;
+	uint32_t next, pos, wrap;
 
 	if (type != HTX_BLK_UNUSED) {
 		/* Mark the block as unused, decrement allocated size */
@@ -228,28 +225,27 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 
 	/* This is the last block in use */
 	if (htx->used == 1/* || !htx->data */) {
-		htx->front = htx->tail = 0;
-		htx->wrap  = htx->used = 0;
+		htx->front = htx->head = htx->tail = 0;
+		htx->used = 0;
 		htx->data = 0;
 		return NULL;
 	}
 
 	/* There is at least 2 blocks, so tail is always >= 0 */
 	pos  = htx_get_blk_pos(htx, blk);
-	head = htx_get_head(htx);
 	blk  = NULL;
 	next = pos + 1; /* By default retrun the next block */
-	if (htx->tail + 1 == htx->wrap) {
+	wrap = htx_get_wrap(htx);
+	if (htx->tail + 1 == wrap) {
 		/* The HTTP message doesn't wrap */
-		if (pos == head) {
-			/* remove the head, so just return the new head */
+		if (pos == htx->head) {
+			/* move the head forward */
 			htx->used--;
-			next = htx_get_head(htx);
+			htx->head++;
 		}
 		else if (pos == htx->tail) {
 			/* remove the tail. this was the last inserted block so
 			 * return NULL. */
-			htx->wrap--;
 			htx->tail--;
 			htx->used--;
 			goto end;
@@ -260,17 +256,17 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		if (pos == htx->tail) {
 			/* remove the tail. try to unwrap the message (pos == 0)
 			 * and return NULL. */
-			htx->tail = ((pos == 0) ? htx->wrap-1 : htx->tail-1);
+			htx->tail = ((pos == 0) ? wrap-1 : htx->tail-1);
 			htx->used--;
 			goto end;
 		}
-		else if (pos == head) {
-			/* remove the head, try to unwrap the message (pos+1 ==
-			 * wrap) and return the new head */
+		else if (pos == htx->head) {
+			/* move the head forward and try to unwrap the message
+			 * (head+1 == wrap) */
 			htx->used--;
-			if (pos + 1 == htx->wrap)
-				htx->wrap = htx->tail + 1;
-			next = htx_get_head(htx);
+			htx->head++;
+			if (htx->head == wrap)
+				htx->head = next = 0;
 		}
 	}
 
