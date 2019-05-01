@@ -545,6 +545,7 @@ static inline void channel_check_timeouts(struct channel *chn)
 static inline void channel_erase(struct channel *chn)
 {
 	chn->to_forward = 0;
+	chn->output = 0;
 	b_reset(&chn->buf);
 }
 
