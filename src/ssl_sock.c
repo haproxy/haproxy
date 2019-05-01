@@ -271,10 +271,11 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	tmpbuf.data = num;
 	tmpbuf.head = 0;
 	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, 0);
-	if (ret == 0 && !(ctx->conn->flags & CO_FL_ERROR)) {
+	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		BIO_set_retry_write(h);
 		ret = -1;
-	}
+	} else if (ret == 0)
+		 BIO_clear_retry_flags(h);
 	return ret;
 }
 
@@ -306,10 +307,11 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	tmpbuf.data = 0;
 	tmpbuf.head = 0;
 	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, 0);
-	if (ret == 0 && !(ctx->conn->flags & CO_FL_ERROR)) {
+	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))) {
 		BIO_set_retry_read(h);
 		ret = -1;
-	}
+	} else if (ret == 0)
+		BIO_clear_retry_flags(h);
 
 	return ret;
 }
