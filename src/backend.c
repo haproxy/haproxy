@@ -1406,6 +1406,7 @@ int connect_server(struct stream *s)
 				session_unown_conn(s->sess, old_conn);
 				old_conn->owner = sess;
 				if (!session_add_conn(sess, old_conn, old_conn->target)) {
+					old_conn->flags &= ~CO_FL_SESS_IDLE;
 					old_conn->owner = NULL;
 					old_conn->mux->destroy(old_conn->ctx);
 				} else

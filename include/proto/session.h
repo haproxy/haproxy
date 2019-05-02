@@ -124,12 +124,12 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 		/* We can't keep the connection, let's try to add it to the server idle list */
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
+		conn->flags &= ~CO_FL_SESS_IDLE;
 		if (!srv_add_to_idle_list(objt_server(conn->target), conn)) {
 			/* The server doesn't want it, let's kill the connection right away */
 			conn->mux->destroy(conn->ctx);
 			return -1;
-		} else
-			conn->flags &= ~CO_FL_SESS_IDLE;
+		}
 		return 1;
 	} else {
 		conn->flags |= CO_FL_SESS_IDLE;
