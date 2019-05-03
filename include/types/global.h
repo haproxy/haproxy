@@ -245,6 +245,7 @@ extern int atexit_flag;
 
 extern struct thread_info {
 	__decl_hathreads(pthread_t pthread);
+	__decl_hathreads(clockid_t clock_id);
 } thread_info[MAX_THREADS];
 
 /* bit values to go with "warned" above */

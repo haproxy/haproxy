@@ -2497,6 +2497,11 @@ static void *run_thread_poll_loop(void *data)
 	struct per_thread_deinit_fct *ptdf;
 
 	ha_set_tid((unsigned long)data);
+
+#ifdef USE_THREAD
+	pthread_getcpuclockid(pthread_self(), &thread_info[tid].clock_id);
+#endif
+
 	tv_update_date(-1,-1);
 
 	/* per-thread init calls performed here are not allowed to snoop on
