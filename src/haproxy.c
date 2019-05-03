@@ -138,7 +138,7 @@ int  relative_pid = 1;		/* process id starting at 1 */
 unsigned long pid_bit = 1;      /* bit corresponding to the process id */
 unsigned long all_proc_mask = 1; /* mask of all processes */
 
-__decl_hathreads(pthread_t *threads = NULL);
+struct thread_info thread_info[MAX_THREADS] = { };
 
 volatile unsigned long sleeping_thread_mask; /* Threads that are about to sleep in poll() */
 /* global options */
@@ -3139,13 +3139,6 @@ int main(int argc, char **argv)
 		sigset_t     blocked_sig, old_sig;
 		int          i;
 
-		threads = calloc(global.nbthread, sizeof(*threads));
-		if (!threads) {
-			ha_alert("Cannot allocate memory for threads.\n");
-			protocol_unbind_all();
-			exit(1);
-		}
-
 		/* ensure the signals will be blocked in every thread */
 		sigfillset(&blocked_sig);
 		sigdelset(&blocked_sig, SIGPROF);
@@ -3162,9 +3155,9 @@ int main(int argc, char **argv)
 		threads_want_rdv_mask = all_threads_mask;
 
 		/* Create nbthread-1 thread. The first thread is the current process */
-		threads[0] = pthread_self();
+		thread_info[0].pthread = pthread_self();
 		for (i = 1; i < global.nbthread; i++)
-			pthread_create(&threads[i], NULL, &run_thread_poll_loop, (void *)(long)i);
+			pthread_create(&thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
 
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
@@ -3188,7 +3181,7 @@ int main(int argc, char **argv)
 					CPU_SET(j - 1, &cpuset);
 					cpu_map &= ~(1UL << (j - 1));
 				}
-				pthread_setaffinity_np(threads[i],
+				pthread_setaffinity_np(thread_info[i].pthread,
 						       sizeof(cpuset), &cpuset);
 			}
 		}
@@ -3202,10 +3195,7 @@ int main(int argc, char **argv)
 
 		/* Wait the end of other threads */
 		for (i = 1; i < global.nbthread; i++)
-			pthread_join(threads[i], NULL);
-
-		free(threads);
-		threads = NULL;
+			pthread_join(thread_info[i].pthread, NULL);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 		show_lock_stats();

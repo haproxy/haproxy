@@ -184,7 +184,7 @@ void ha_thread_dump_all_to_trash()
 #ifdef USE_THREAD
 	for (thr = 0; thr < global.nbthread; thr++) {
 		if (thr != tid)
-			pthread_kill(threads[thr], DEBUGSIG);
+			pthread_kill(thread_info[thr].pthread, DEBUGSIG);
 	}
 #endif
 	/* dump ourselves last */
