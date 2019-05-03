@@ -543,6 +543,8 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 			curpx->retry_type |= PR_RE_504;
 		else if (!strcmp(args[i], "0rtt-rejected"))
 			curpx->retry_type |= PR_RE_EARLY_ERROR;
+		else if (!strcmp(args[i], "junk-response"))
+			curpx->retry_type |= PR_RE_JUNK_REQUEST;
 		else if (!strcmp(args[i], "none")) {
 			if (i != 1 || *args[i + 1]) {
 				memprintf(err, "'%s' 'none' keyworld only usable alone", args[0]);

@@ -8027,6 +8027,14 @@ retry-on [list of keywords]
                         condition, or a server crash or restart while
                         processing the request.
 
+      junk-response     retry when the server returned something not looking
+                        like a complete HTTP response. This includes partial
+                        responses headers as well as non-HTTP contents. It
+                        usually is a bad idea to retry on such events, which
+                        may be caused a configuration issue (wrong server port)
+                        or by the request being harmful to the server (buffer
+                        overflow attack for example).
+
       response-timeout  the server timeout stroke while waiting for the server
                         to respond to the request. This may be caused by poor
                         network condition, the reuse of an idle connection

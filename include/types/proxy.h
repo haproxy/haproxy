@@ -222,6 +222,7 @@ enum PR_SRV_STATE_FILE {
  * reserved for eventual future status codes
  */
 #define PR_RE_EARLY_ERROR         0x00010000 /* Retry if we failed at sending early data */
+#define PR_RE_JUNK_REQUEST        0x00020000 /* We received an incomplete or garbage response */
 struct stream;
 
 struct http_snapshot {

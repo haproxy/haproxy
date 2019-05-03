@@ -1812,6 +1812,9 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 	}
+	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
+	    do_l7_retry(s, si_b) == 0)
+		return 0;
 	txn->status = 502;
 	s->si[1].flags |= SI_FL_NOLINGER;
 	htx_reply_and_close(s, txn->status, htx_error_message(s));
