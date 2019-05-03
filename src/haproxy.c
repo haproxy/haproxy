@@ -3152,17 +3152,17 @@ int main(int argc, char **argv)
 		/* Now the CPU affinity for all threads */
 		for (i = 0; i < global.nbthread; i++) {
 			if (global.cpu_map.proc[relative_pid-1])
-				global.cpu_map.thread[relative_pid-1][i] &= global.cpu_map.proc[relative_pid-1];
+				global.cpu_map.thread[i] &= global.cpu_map.proc[relative_pid-1];
 
 			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
-			    global.cpu_map.thread[relative_pid-1][i]) {/* only do this if the thread has a THREAD map */
+			    global.cpu_map.thread[i]) {/* only do this if the thread has a THREAD map */
 #if defined(__FreeBSD__) || defined(__NetBSD__)
 				cpuset_t cpuset;
 #else
 				cpu_set_t cpuset;
 #endif
 				int j;
-				unsigned long cpu_map = global.cpu_map.thread[relative_pid-1][i];
+				unsigned long cpu_map = global.cpu_map.thread[i];
 
 				CPU_ZERO(&cpuset);
 

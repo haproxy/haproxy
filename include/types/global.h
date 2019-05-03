@@ -179,8 +179,8 @@ struct global {
 	struct vars   vars;         /* list of variables for the process scope. */
 #ifdef USE_CPU_AFFINITY
 	struct {
-		unsigned long proc[MAX_PROCS];             /* list of CPU masks for the 32/64 first processes */
-		unsigned long thread[MAX_PROCS][MAX_THREADS]; /* list of CPU masks for the 32/64 first threads per process */
+		unsigned long proc[MAX_PROCS];      /* list of CPU masks for the 32/64 first processes */
+		unsigned long thread[MAX_THREADS];  /* list of CPU masks for the 32/64 first threads */
 	} cpu_map;
 #endif
 };
