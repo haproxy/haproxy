@@ -3,6 +3,12 @@ dist: xenial
 
 language: c
 
+env:
+  global:
+    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_LUA=1 USE_OPENSSL=1"
+    - SSL_LIB=${HOME}/opt/lib
+    - SSL_INC=${HOME}/opt/include
+
 addons:
   apt:
     packages: [ liblua5.3-dev ]
@@ -12,15 +18,33 @@ matrix:
   - os: linux
     compiler: gcc
     env: TARGET=linux2628 FLAGS=
+  - os: linux-ppc64le
+    compiler: gcc
+    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1b LABEL="linux-ppc64le"
   - os: linux
     compiler: gcc
-    env: TARGET=linux2628 FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_LUA=1 USE_OPENSSL=1"
+    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1b
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 OPENSSL_VERSION=1.1.0j
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 OPENSSL_VERSION=1.0.2r
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.9.1
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.8.3
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5
   - os: linux
     compiler: clang
     env: TARGET=linux2628 FLAGS=
   - os: osx
     compiler: clang
-    env: TARGET=generic FLAGS=
+    env: TARGET=generic FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1b
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
@@ -32,10 +56,15 @@ before_script:
   # the unix socket path names exceed the maximum allowed
   # length.
   - sed -i'.original' '/TESTDIR=.*haregtests/s/haregtests-.*XXXXXX/regtest.XXX/' scripts/run-regtests.sh
+  - scripts/build-ssl.sh > build-ssl.log 2>&1 || (cat build-ssl.log && exit 1)
 
 script:
   - make CC=$CC V=1 TARGET=$TARGET $FLAGS
+  - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then export LD_LIBRARY_PATH="${HOME}/opt/lib:${LD_LIBRARY_PATH:-}"; fi
+  - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export DYLD_LIBRARY_PATH="${HOME}/opt/lib:${DYLD_LIBRARY_PATH:-}"; fi
   - ./haproxy -vv
+  - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
+  - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
   - env VTEST_PROGRAM=../vtest/vtest make reg-tests
 
 after_failure:
