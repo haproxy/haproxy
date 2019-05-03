@@ -242,6 +242,7 @@ extern int master; /* 1 if in master, 0 otherwise */
 extern unsigned int rlim_fd_cur_at_boot;
 extern unsigned int rlim_fd_max_at_boot;
 extern int atexit_flag;
+__decl_hathreads(extern pthread_t *threads);
 
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001

@@ -139,6 +139,8 @@ int  relative_pid = 1;		/* process id starting at 1 */
 unsigned long pid_bit = 1;      /* bit corresponding to the process id */
 unsigned long all_proc_mask = 1; /* mask of all processes */
 
+__decl_hathreads(pthread_t *threads = NULL);
+
 volatile unsigned long sleeping_thread_mask; /* Threads that are about to sleep in poll() */
 /* global options */
 struct global global = {
@@ -3125,9 +3127,15 @@ int main(int argc, char **argv)
 	 */
 #ifdef USE_THREAD
 	{
-		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
-		int          i;
 		sigset_t     blocked_sig, old_sig;
+		int          i;
+
+		threads = calloc(global.nbthread, sizeof(*threads));
+		if (!threads) {
+			ha_alert("Cannot allocate memory for threads.\n");
+			protocol_unbind_all();
+			exit(1);
+		}
 
 		/* ensure the signals will be blocked in every thread */
 		sigfillset(&blocked_sig);
@@ -3182,6 +3190,7 @@ int main(int argc, char **argv)
 			pthread_join(threads[i], NULL);
 
 		free(threads);
+		threads = NULL;
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 		show_lock_stats();
