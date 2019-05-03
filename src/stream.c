@@ -667,7 +667,13 @@ static int sess_update_st_con_tcp(struct stream *s)
 			 */
 			si->state    = SI_ST_EST;
 			si->err_type = SI_ET_DATA_ERR;
-			req->flags |= CF_WRITE_ERROR;
+			/* Don't add CF_WRITE_ERROR if we're here because
+			 * early data were rejected by the server, or
+			 * http_wait_for_response() will never be called
+			 * to send a 425.
+			 */
+			if (conn->err_code != CO_ER_SSL_EARLY_FAILED)
+				req->flags |= CF_WRITE_ERROR;
 			rep->flags |= CF_READ_ERROR;
 			return 1;
 		}
