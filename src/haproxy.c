@@ -127,6 +127,7 @@
 #include <proto/vars.h>
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
+#include <openssl/rand.h>
 #endif
 
 /* array of init calls for older platforms */
@@ -589,6 +590,11 @@ void mworker_reload()
 		ptdf->fct();
 	if (fdtab)
 		deinit_pollers();
+#if defined(USE_OPENSSL) && (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	if (global.ssl_used_frontend || global.ssl_used_backend)
+		/* close random device FDs */
+		RAND_keep_random_devices_open(0);
+#endif
 
 	/* restore the initial FD limits */
 	limit.rlim_cur = rlim_fd_cur_at_boot;
