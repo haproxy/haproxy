@@ -690,7 +690,7 @@ static void mworker_loop()
 		leave */
 
 	fork_poller();
-	run_thread_poll_loop((int []){0});
+	run_thread_poll_loop(0);
 }
 
 /*
@@ -2492,7 +2492,7 @@ static void *run_thread_poll_loop(void *data)
 	struct per_thread_deinit_fct *ptdf;
 	__decl_hathreads(static HA_SPINLOCK_T start_lock);
 
-	ha_set_tid(*((unsigned int *)data));
+	ha_set_tid((unsigned long)data);
 	tv_update_date(-1,-1);
 
 	list_for_each_entry(ptif, &per_thread_init_list, list) {
@@ -3125,14 +3125,9 @@ int main(int argc, char **argv)
 	 */
 #ifdef USE_THREAD
 	{
-		unsigned int *tids    = calloc(global.nbthread, sizeof(unsigned int));
 		pthread_t    *threads = calloc(global.nbthread, sizeof(pthread_t));
 		int          i;
 		sigset_t     blocked_sig, old_sig;
-
-		/* Init tids array */
-		for (i = 0; i < global.nbthread; i++)
-			tids[i] = i;
 
 		/* ensure the signals will be blocked in every thread */
 		sigfillset(&blocked_sig);
@@ -3146,7 +3141,7 @@ int main(int argc, char **argv)
 		/* Create nbthread-1 thread. The first thread is the current process */
 		threads[0] = pthread_self();
 		for (i = 1; i < global.nbthread; i++)
-			pthread_create(&threads[i], NULL, &run_thread_poll_loop, &tids[i]);
+			pthread_create(&threads[i], NULL, &run_thread_poll_loop, (void *)(long)i);
 
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
@@ -3180,13 +3175,12 @@ int main(int argc, char **argv)
 		haproxy_unblock_signals();
 
 		/* Finally, start the poll loop for the first thread */
-		run_thread_poll_loop(&tids[0]);
+		run_thread_poll_loop(0);
 
 		/* Wait the end of other threads */
 		for (i = 1; i < global.nbthread; i++)
 			pthread_join(threads[i], NULL);
 
-		free(tids);
 		free(threads);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
@@ -3195,8 +3189,7 @@ int main(int argc, char **argv)
 	}
 #else /* ! USE_THREAD */
 	haproxy_unblock_signals();
-	run_thread_poll_loop((int []){0});
-
+	run_thread_poll_loop(0);
 #endif
 
 	/* Do some cleanup */
