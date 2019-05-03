@@ -8036,6 +8036,10 @@ retry-on [list of keywords]
                         heavy database processing (full scans, etc) as it may
                         amplify denial of service attacks.
 
+      0rtt-rejected     retry requests which were sent over early data and were
+                        rejected by the server. These requests are generally
+                        considered to be safe to retry.
+
       <status>          any HTTP status code among "404" (Not Found), "408"
                         (Request Timeout), "425" (Too Early), "500" (Server
                         Error), "501" (Not Implemented), "502" (Bad Gateway),

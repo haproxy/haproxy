@@ -218,6 +218,10 @@ enum PR_SRV_STATE_FILE {
 #define PR_RE_STATUS_MASK         (PR_RE_404 | PR_RE_408 | PR_RE_425 | \
                                    PR_RE_425 | PR_RE_500 | PR_RE_501 | \
                                    PR_RE_502 | PR_RE_503 | PR_RE_504)
+/* 0x00000800, 0x00001000, 0x00002000, 0x00004000 and 0x00008000 unused,
+ * reserved for eventual future status codes
+ */
+#define PR_RE_EARLY_ERROR         0x00010000 /* Retry if we failed at sending early data */
 struct stream;
 
 struct http_snapshot {

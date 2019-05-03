@@ -1490,10 +1490,16 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
+			struct connection *conn = NULL;
+
 			if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
-			if (si_b->flags & SI_FL_L7_RETRY) {
+			if (objt_cs(s->si[1].end))
+				conn = objt_cs(s->si[1].end)->conn;
+
+			if (si_b->flags & SI_FL_L7_RETRY &&
+			    (!conn || conn->err_code != CO_ER_SSL_EARLY_FAILED)) {
 				/* If we arrive here, then CF_READ_ERROR was
 				 * set by si_cs_recv() because we matched a
 				 * status, overwise it would have removed
@@ -1516,11 +1522,11 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			/* Check to see if the server refused the early data.
 			 * If so, just send a 425
 			 */
-			if (objt_cs(s->si[1].end)) {
-				struct connection *conn = objt_cs(s->si[1].end)->conn;
-
-				if (conn->err_code == CO_ER_SSL_EARLY_FAILED)
-					txn->status = 425;
+			if (conn->err_code == CO_ER_SSL_EARLY_FAILED) {
+				if ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
+				    do_l7_retry(s, si_b) == 0)
+					return 0;
+				txn->status = 425;
 			}
 
 			s->si[1].flags |= SI_FL_NOLINGER;
