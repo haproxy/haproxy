@@ -61,13 +61,6 @@ install:
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
 
-before_script:
-  # This is a fix for the super long TMPDIR on Mac making
-  # the unix socket path names exceed the maximum allowed
-  # length.
-  - sed -i'.original' '/TESTDIR=.*haregtests/s/haregtests-.*XXXXXX/regtest.XXX/' scripts/run-regtests.sh
-  - scripts/build-ssl.sh > build-ssl.log 2>&1 || (cat build-ssl.log && exit 1)
-
 script:
   - make CC=$CC V=1 TARGET=$TARGET $FLAGS
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then export LD_LIBRARY_PATH="${HOME}/opt/lib:${LD_LIBRARY_PATH:-}"; fi
@@ -75,7 +68,7 @@ script:
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
-  - env VTEST_PROGRAM=../vtest/vtest make reg-tests
+  - env TMPDIR=/tmp VTEST_PROGRAM=../vtest/vtest make reg-tests
 
 after_failure:
   - |
