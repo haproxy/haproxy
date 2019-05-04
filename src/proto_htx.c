@@ -1397,6 +1397,10 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	if (si->conn_retries < 0)
 		return -1;
 
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.retries, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
+
 	req = &s->req;
 	res = &s->res;
 	/* Remove any write error from the request, and read error from the response */
