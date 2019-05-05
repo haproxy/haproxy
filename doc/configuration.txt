@@ -2221,7 +2221,6 @@ specified in a previous "defaults" section.
  keyword                              defaults   frontend   listen    backend
 ------------------------------------+----------+----------+---------+---------
 acl                                       -          X         X         X
-appsession                                -          -         -         -
 backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
@@ -2432,59 +2431,6 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
         acl local_dst    hdr(host) -i localhost
 
   See section 7 about ACL usage.
-
-
-appsession <cookie> len <length> timeout <holdtime>
-           [request-learn] [prefix] [mode <path-parameters|query-string>]
-  Define session stickiness on an existing application cookie.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
-  Arguments :
-    <cookie>   this is the name of the cookie used by the application and which
-               HAProxy will have to learn for each new session.
-
-    <length>   this is the max number of characters that will be memorized and
-               checked in each cookie value.
-
-    <holdtime> this is the time after which the cookie will be removed from
-               memory if unused. If no unit is specified, this time is in
-               milliseconds.
-
-    request-learn
-               If this option is specified, then haproxy will be able to learn
-               the cookie found in the request in case the server does not
-               specify any in response. This is typically what happens with
-               PHPSESSID cookies, or when haproxy's session expires before
-               the application's session and the correct server is selected.
-               It is recommended to specify this option to improve reliability.
-
-    prefix     When this option is specified, haproxy will match on the cookie
-               prefix (or URL parameter prefix). The appsession value is the
-               data following this prefix.
-
-               Example :
-               appsession ASPSESSIONID len 64 timeout 3h prefix
-
-               This will match the cookie ASPSESSIONIDXXX=XXXX,
-               the appsession value will be XXX=XXXX.
-
-    mode       This option allows to change the URL parser mode.
-               2 modes are currently supported :
-               - path-parameters :
-                 The parser looks for the appsession in the path parameters
-                 part (each parameter is separated by a semi-colon), which is
-                 convenient for JSESSIONID for example.
-                 This is the default mode if the option is not set.
-               - query-string :
-                 In this mode, the parser will look for the appsession in the
-                 query string.
-
-  As of version 1.6, appsessions was removed. It is more flexible and more
-  convenient to use stick-tables instead, and stick-tables support multi-master
-  replication and data conservation across reloads, which appsessions did not.
-
-  See also : "cookie", "capture cookie", "balance", "stick", "stick-table",
-             "ignore-persist", "nbproc" and "bind-process".
 
 
 backlog <conns>
