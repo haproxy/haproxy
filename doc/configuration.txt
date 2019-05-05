@@ -2284,7 +2284,7 @@ option clitcpka                      (*)  X          X         X         -
 option contstats                     (*)  X          X         X         -
 option dontlog-normal                (*)  X          X         X         -
 option dontlognull                   (*)  X          X         X         -
-option forceclose      (deprectated) (*)  X          X         X         X
+option forceclose       (deprecated) (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
 option http-buffer-request           (*)  X          X         X         X
