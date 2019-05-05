@@ -232,11 +232,13 @@ unsigned int dropped_logs = 0;
  * update_log_hdr().
  */
 THREAD_LOCAL char *logheader = NULL;
+THREAD_LOCAL char *logheader_end = NULL;
 
 /* This is a global syslog header for messages in RFC5424 format. It is
  * updated by update_log_hdr_rfc5424().
  */
 THREAD_LOCAL char *logheader_rfc5424 = NULL;
+THREAD_LOCAL char *logheader_rfc5424_end = NULL;
 
 /* This is a global syslog message buffer, common to all outgoing
  * messages. It contains only the data part.
@@ -1363,11 +1365,10 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
 static char *update_log_hdr(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
-	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
 	static THREAD_LOCAL struct buffer host = { };
 	static THREAD_LOCAL int sep = 0;
 
-	if (unlikely(time != tvsec || dataptr == NULL)) {
+	if (unlikely(time != tvsec || logheader_end == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
 		int hdr_len;
@@ -1393,12 +1394,12 @@ static char *update_log_hdr(const time_t time)
 		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
 			hdr_len = global.max_syslog_len;
 
-		dataptr = logheader + hdr_len;
+		logheader_end = logheader + hdr_len;
 	}
 
-	dataptr[0] = 0; // ensure we get rid of any previous attempt
+	logheader_end[0] = 0; // ensure we get rid of any previous attempt
 
-	return dataptr;
+	return logheader_end;
 }
 
 /* Re-generate time-based part of the syslog header in RFC5424 format at
@@ -1408,10 +1409,9 @@ static char *update_log_hdr(const time_t time)
 static char *update_log_hdr_rfc5424(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
-	static THREAD_LOCAL char *dataptr = NULL; /* backup of last end of header, NULL first time */
 	const char *gmt_offset;
 
-	if (unlikely(time != tvsec || dataptr == NULL)) {
+	if (unlikely(time != tvsec || logheader_rfc5424_end == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
 		int hdr_len;
@@ -1433,12 +1433,12 @@ static char *update_log_hdr_rfc5424(const time_t time)
 		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
 			hdr_len = global.max_syslog_len;
 
-		dataptr = logheader_rfc5424 + hdr_len;
+		logheader_rfc5424_end = logheader_rfc5424 + hdr_len;
 	}
 
-	dataptr[0] = 0; // ensure we get rid of any previous attempt
+	logheader_rfc5424_end[0] = 0; // ensure we get rid of any previous attempt
 
-	return dataptr;
+	return logheader_rfc5424_end;
 }
 
 /*
@@ -1878,7 +1878,9 @@ static void deinit_log_buffers_per_thread()
 int init_log_buffers()
 {
 	logheader = my_realloc2(logheader, global.max_syslog_len + 1);
+	logheader_end = NULL;
 	logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
+	logheader_rfc5424_end = NULL;
 	logline = my_realloc2(logline, global.max_syslog_len + 1);
 	logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
 	if (!logheader || !logline_rfc5424 || !logline || !logline_rfc5424)
