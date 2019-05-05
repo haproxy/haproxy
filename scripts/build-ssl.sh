@@ -44,14 +44,6 @@ download_libressl () {
     fi
 }
 
-build_libressl() {
-    (
-        cd "libressl-${LIBRESSL_VERSION}/"
-        ./configure --prefix="${HOME}/opt"
-        make all install
-    )
-}
-
 build_libressl () {
     if [ "$(cat ${HOME}/opt/.libressl-version)" != "${LIBRESSL_VERSION}" ]; then
         tar zxf "download-cache/libressl-${LIBRESSL_VERSION}.tar.gz"
