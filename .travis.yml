@@ -44,7 +44,7 @@ matrix:
     env: TARGET=linux2628 FLAGS=
   - os: osx
     compiler: clang
-    env: TARGET=generic FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1b
+    env: TARGET=generic FLAGS=
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
