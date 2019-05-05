@@ -45,6 +45,16 @@ matrix:
   - os: osx
     compiler: clang
     env: TARGET=generic FLAGS=
+  allow_failures:
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.9.1
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.8.3
+  - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
