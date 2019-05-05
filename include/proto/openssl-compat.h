@@ -89,9 +89,9 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || defined(LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL))
 /*
- * Functions introduced in OpenSSL 1.1.0 and not yet present in LibreSSL
+ * Functions introduced in OpenSSL 1.1.0 and in LibreSSL 2.7.0
  */
 
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
