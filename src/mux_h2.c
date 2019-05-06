@@ -5377,7 +5377,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (htx) {
-		while (h2s->st < H2_SS_ERROR && !(h2s->flags & H2_SF_BLK_ANY) &&
+		while (h2s->st < H2_SS_HLOC && !(h2s->flags & H2_SF_BLK_ANY) &&
 		       count && !htx_is_empty(htx)) {
 			idx   = htx_get_head(htx);
 			blk   = htx_get_blk(htx, idx);
@@ -5481,7 +5481,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		total += ret;
 		count -= ret;
 
-		if (h2s->st >= H2_SS_ERROR)
+		if (h2s->st >= H2_SS_HLOC)
 			break;
 
 		if (h2s->flags & H2_SF_BLK_ANY)
@@ -5489,7 +5489,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
  done:
-	if (h2s->st >= H2_SS_ERROR) {
+	if (h2s->st >= H2_SS_HLOC) {
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
 		 */
