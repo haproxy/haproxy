@@ -1928,8 +1928,22 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_IDLE) {
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
-			if (h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len) <= 0)
+			error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len);
+			/* unrecoverable error ? */
+			if (h2c->st0 >= H2_CS_ERROR)
 				goto out;
+
+			if (error == 0)
+				goto out; // missing data
+
+			if (error < 0) {
+				/* Failed to decode this frame (e.g. too large request)
+				 * but the HPACK decompressor is still synchronized.
+				 */
+				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
+				h2c->st0 = H2_CS_FRAME_E;
+				goto out;
+			}
 			goto done;
 		}
 		/* the connection was already killed by an RST, let's consume
