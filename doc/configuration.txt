@@ -11756,7 +11756,8 @@ agent-port <port>
 
 allow-0rtt
   Allow sending early data to the server when using TLS 1.3.
-  Note that early data will be sent only if the client used early data.
+  Note that early data will be sent only if the client used early data, or
+  if the backend uses "retry-on" with the "0rtt-rejected" keyword.
 
 alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol
