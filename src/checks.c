@@ -1545,7 +1545,7 @@ static int connect_conn_chk(struct task *t)
 	struct protocol *proto;
 	struct tcpcheck_rule *tcp_rule = NULL;
 	int ret;
-	int quickack;
+	int connflags = 0;
 
 	/* we cannot have a connection here */
 	if (conn)
@@ -1637,14 +1637,15 @@ static int connect_conn_chk(struct task *t)
 	cs_attach(cs, check, &check_conn_cb);
 
 	/* only plain tcp-check supports quick ACK */
-	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
-
-	if (tcp_rule && tcp_rule->action == TCPCHK_ACT_EXPECT)
-		quickack = 0;
+	if (check->type != 0)
+		connflags |= CONNECT_HAS_DATA;
+	if ((check->type == 0 || check->type == PR_O2_TCPCHK_CHK) &&
+	    (!tcp_rule || tcp_rule->action != TCPCHK_ACT_EXPECT))
+		connflags |= CONNECT_DELACK_ALWAYS;
 
 	ret = SF_ERR_INTERNAL;
 	if (proto && proto->connect)
-		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
+		ret = proto->connect(conn, connflags);
 
 
 #ifdef USE_OPENSSL
@@ -2845,8 +2846,7 @@ static int tcpcheck_main(struct check *check)
 			ret = SF_ERR_INTERNAL;
 			if (proto && proto->connect)
 				ret = proto->connect(conn,
-						     1 /* I/O polling is always needed */,
-						     (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : 2);
+						     CONNECT_HAS_DATA /* I/O polling is always needed */ | (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : CONNECT_DELACK_ALWAYS);
 			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
 				conn->flags |= CO_FL_SEND_PROXY;

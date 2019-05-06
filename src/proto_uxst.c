@@ -48,7 +48,7 @@
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int uxst_unbind_listeners(struct protocol *proto);
-static int uxst_connect_server(struct connection *conn, int data, int delack);
+static int uxst_connect_server(struct connection *conn, int flags);
 static void uxst_add_listener(struct listener *listener, int port);
 static int uxst_pause_listener(struct listener *l);
 static int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
@@ -430,7 +430,7 @@ static int uxst_pause_listener(struct listener *l)
  * The connection's fd is inserted only when SF_ERR_NONE is returned, otherwise
  * it's invalid and the caller has nothing to do.
  */
-static int uxst_connect_server(struct connection *conn, int data, int delack)
+static int uxst_connect_server(struct connection *conn, int flags)
 {
 	int fd;
 	struct server *srv;
@@ -510,7 +510,8 @@ static int uxst_connect_server(struct connection *conn, int data, int delack)
 	}
 
 	/* if a send_proxy is there, there are data */
-	data |= conn->send_proxy_ofs;
+	if (conn->send_proxy_ofs)
+		flags |= CONNECT_HAS_DATA;
 
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
@@ -585,10 +586,10 @@ static int uxst_connect_server(struct connection *conn, int data, int delack)
 		 * layer when the connection is already OK otherwise we'll have
 		 * no other opportunity to do it later (eg: health checks).
 		 */
-		data = 1;
+		flags |= CONNECT_HAS_DATA;
 	}
 
-	if (data)
+	if (flags & CONNECT_HAS_DATA)
 		conn_xprt_want_send(conn);  /* prepare to send data if any */
 
 	return SF_ERR_NONE;  /* connection is OK */

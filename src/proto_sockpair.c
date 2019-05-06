@@ -49,7 +49,7 @@
 static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int sockpair_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
-static int sockpair_connect_server(struct connection *conn, int data, int delack);
+static int sockpair_connect_server(struct connection *conn, int flags);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_sockpair = {
@@ -237,7 +237,7 @@ int send_fd_uxst(int fd, int send_fd)
  * The connection's fd is inserted only when SF_ERR_NONE is returned, otherwise
  * it's invalid and the caller has nothing to do.
  */
-static int sockpair_connect_server(struct connection *conn, int data, int delack)
+static int sockpair_connect_server(struct connection *conn, int flags)
 {
 	int sv[2], fd, dst_fd = -1;
 
@@ -289,7 +289,8 @@ static int sockpair_connect_server(struct connection *conn, int data, int delack
 	}
 
 	/* if a send_proxy is there, there are data */
-	data |= conn->send_proxy_ofs;
+	if (conn->send_proxy_ofs)
+		flags |= CONNECT_HAS_DATA;
 
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
@@ -334,10 +335,10 @@ static int sockpair_connect_server(struct connection *conn, int data, int delack
 		 * layer when the connection is already OK otherwise we'll have
 		 * no other opportunity to do it later (eg: health checks).
 		 */
-		data = 1;
+		flags |= CONNECT_HAS_DATA;
 	}
 
-	if (data)
+	if (flags & CONNECT_HAS_DATA)
 		conn_xprt_want_send(conn);  /* prepare to send data if any */
 
 	return SF_ERR_NONE;  /* connection is OK */

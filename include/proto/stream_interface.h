@@ -489,7 +489,8 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		return SF_ERR_INTERNAL;
 
 	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
-		ret = conn->ctrl->connect(conn, !channel_is_empty(si_oc(si)), 0);
+		ret = conn->ctrl->connect(conn, channel_is_empty(si_oc(si)) ?
+		                          CONNECT_HAS_DATA : 0);
 		if (ret != SF_ERR_NONE)
 			return ret;
 

@@ -266,11 +266,11 @@ static int create_server_socket(struct connection *conn)
  * depending on conn->target. Only OBJ_TYPE_PROXY and OBJ_TYPE_SERVER are
  * supported. The <data> parameter is a boolean indicating whether there are data
  * waiting for being sent or not, in order to adjust data write polling and on
- * some platforms, the ability to avoid an empty initial ACK. The <delack> argument
- * allows the caller to force using a delayed ACK when establishing the connection :
+ * some platforms, the ability to avoid an empty initial ACK. The <flags> argument
+ * allows the caller to force using a delayed ACK when establishing the connection
  *   - 0 = no delayed ACK unless data are advertised and backend has tcp-smart-connect
- *   - 1 = delayed ACK if backend has tcp-smart-connect, regardless of data
- *   - 2 = delayed ACK regardless of backend options
+ *   - CONNECT_DELACK_SMART_CONNECT = delayed ACK if backend has tcp-smart-connect, regardless of data
+ *   - CONNECT_DELACK_ALWAYS = delayed ACK regardless of backend options
  *
  * Note that a pending send_proxy message accounts for data.
  *
@@ -287,7 +287,7 @@ static int create_server_socket(struct connection *conn)
  * it's invalid and the caller has nothing to do.
  */
 
-int tcp_connect_server(struct connection *conn, int data, int delack)
+int tcp_connect_server(struct connection *conn, int flags)
 {
 	int fd;
 	struct server *srv;
@@ -481,7 +481,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
-	if (delack == 2 || ((delack || data || conn->send_proxy_ofs) && (be->options2 & PR_O2_SMARTCON)))
+	if (flags & (CONNECT_DELACK_ALWAYS) ||
+	    ((flags & CONNECT_DELACK_SMART_CONNECT ||
+	      (flags & CONNECT_HAS_DATA) || conn->send_proxy_ofs) &&
+	     (be->options2 & PR_O2_SMARTCON)))
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
@@ -572,10 +575,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		 * layer when the connection is already OK otherwise we'll have
 		 * no other opportunity to do it later (eg: health checks).
 		 */
-		data = 1;
+		flags |= CONNECT_HAS_DATA;
 	}
 
-	if (data)
+	if (flags & CONNECT_HAS_DATA)
 		conn_xprt_want_send(conn);  /* prepare to send data if any */
 
 	return SF_ERR_NONE;  /* connection is OK */
