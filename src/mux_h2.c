@@ -4985,7 +4985,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
  * which might have happened subsequently to a successful send. The htx blocks
  * are automatically removed from the message. The htx message is assumed to be
  * valid since produced from the internal code. Processing stops when meeting
- * the EOM, which is also removed. All trailers are processed at once and sent
+ * the EOM, which is *not* removed. All trailers are processed at once and sent
  * as a single frame. The ES flag is always set.
  */
 static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
@@ -5029,11 +5029,8 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		if (type == HTX_BLK_UNUSED)
 			continue;
 
-		if (type != HTX_BLK_TLR) {
-			if (type == HTX_BLK_EOM)
-				blk_end = blk;
+		if (type != HTX_BLK_TLR)
 			break;
-		}
 
 		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
 			goto fail;
@@ -5063,8 +5060,8 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
-	if (!blk_end)
-		goto end; // end not found yet
+	if (list[hdr].n.len != 0)
+		goto fail; // empty trailer not found: internal error
 
 	chunk_reset(&outbuf);
 
@@ -5135,7 +5132,7 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 
 	/* OK we could properly deliver the response */
  done:
-	/* remove all header blocks including EOM and compute the corresponding size. */
+	/* remove all header blocks till the end and compute the corresponding size. */
 	ret = 0;
 	idx = htx_get_head(htx);
 	blk = htx_get_blk(htx, idx);
@@ -5143,7 +5140,6 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		ret += htx_get_blksz(blk);
 		blk = htx_remove_blk(htx, blk);
 	}
-	blk = htx_remove_blk(htx, blk);
  end:
 	return ret;
  full:
