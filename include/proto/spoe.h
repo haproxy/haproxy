@@ -169,8 +169,8 @@ spoe_encode_data(struct sample *smp, char **buf, char *end)
 			 * reamining. When all the sample is encoded, the offset is reset to 0.
 			 * So the caller know it can try to encode the next sample. */
 			struct buffer *chk = &smp->data.u.str;
-			unsigned int *len  = (smp->ctx.a[0] ? smp->ctx.a[0] : 0);
-			unsigned int *off  = (smp->ctx.a[1] ? smp->ctx.a[1] : 0);
+			unsigned int *len  = smp->ctx.a[0];
+			unsigned int *off  = smp->ctx.a[1];
 
 			if (!*off) {
 				/* First evaluation of the sample : encode the
