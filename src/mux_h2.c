@@ -5096,11 +5096,12 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
-	if (!hdr) {
-		/* here we have a problem, we've received an empty trailers
-		 * block followed by an EOM. Because of this we can't send a
-		 * HEADERS frame, so we have to cheat and instead send an empty
-		 * DATA frame conveying the ES flag.
+	if (outbuf.data == 9) {
+		/* here we have a problem, we have nothing to emit (either we
+		 * received an empty trailers block followed or we removed its
+		 * contents above). Because of this we can't send a HEADERS
+		 * frame, so we have to cheat and instead send an empty DATA
+		 * frame conveying the ES flag.
 		 */
 		outbuf.area[3] = H2_FT_DATA;
 		outbuf.area[4] = H2_F_DATA_END_STREAM;
