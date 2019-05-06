@@ -13,6 +13,11 @@ addons:
   apt:
     packages: [ liblua5.3-dev ]
 
+cache:
+  directories:
+  - download-cache
+  - ${HOME}/opt
+
 matrix:
   include:
   - os: linux
@@ -44,22 +49,13 @@ matrix:
     env: TARGET=linux2628 FLAGS=
   - os: osx
     compiler: clang
-    env: TARGET=generic FLAGS=
-  allow_failures:
-  - os: linux
-    compiler: gcc
-    env: TARGET=linux2628 LIBRESSL_VERSION=2.9.1
-  - os: linux
-    compiler: gcc
-    env: TARGET=linux2628 LIBRESSL_VERSION=2.8.3
-  - os: linux
-    compiler: gcc
-    env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5
+    env: TARGET=generic FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1b
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
+  - scripts/build-ssl.sh > build-ssl.log 2>&1 || (cat build-ssl.log && exit 1)
 
 script:
   - make CC=$CC V=1 TARGET=$TARGET $FLAGS
