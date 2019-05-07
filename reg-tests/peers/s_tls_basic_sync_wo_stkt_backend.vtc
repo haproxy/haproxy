@@ -3,6 +3,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=2.0
 #REQUIRE_OPTIONS=OPENSSL
+#REGTEST_TYPE=slow
 
 haproxy h1 -arg "-L A" -conf {
     defaults
