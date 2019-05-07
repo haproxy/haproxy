@@ -1644,12 +1644,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_DONE;
 				break;
 
-			case HTX_BLK_OOB:
-				v = htx_get_blk_value(chn_htx, blk);
-				if (!chunk_memcat(tmp, v.ptr, v.len))
-					goto copy;
-				break;
-
 			default:
 				h1m->flags |= errflag;
 				break;

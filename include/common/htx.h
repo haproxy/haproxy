@@ -111,8 +111,7 @@ enum htx_blk_type {
 	HTX_BLK_EOD    =  6, /* end-of-data block */
 	HTX_BLK_TLR    =  7, /* trailer name/value block */
 	HTX_BLK_EOM    =  8, /* end-of-message block */
-	/* 9 .. 13 unused */
-	HTX_BLK_OOB    = 14, /* Out of band block, don't alter the parser */
+	/* 9 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
 
@@ -194,7 +193,6 @@ struct htx_blk *htx_add_pseudo_header(struct htx *htx,  enum htx_phdr_type phdr,
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_blk *htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
-struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob);
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 
 int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk);
@@ -534,7 +532,6 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
 		case HTX_BLK_TLR:
-		case HTX_BLK_OOB:
 			blk->info = (type << 28) + vlen;
 			break;
 		default:
@@ -593,7 +590,6 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
 		case HTX_BLK_TLR:
-		case HTX_BLK_OOB:
 			ret.ptr = htx_get_blk_ptr(htx, blk);
 			ret.len = blk->info & 0xfffffff;
 			break;
@@ -765,7 +761,6 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_EOD:    return "HTX_BLK_EOD";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
 		case HTX_BLK_EOM:    return "HTX_BLK_EOM";
-		case HTX_BLK_OOB:    return "HTX_BLK_OOB";
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";
 		default:             return "HTX_BLK_???";
 	};

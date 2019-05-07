@@ -802,23 +802,6 @@ struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr)
 	return blk;
 }
 
-/* Adds an HTX block of type OOB in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
- */
-struct htx_blk *htx_add_oob(struct htx *htx, const struct ist oob)
-{
-	struct htx_blk *blk;
-
-	/* FIXME: check oob.len (< 256MB) */
-	blk = htx_add_blk(htx, HTX_BLK_OOB, oob.len);
-	if (!blk)
-		return NULL;
-
-	blk->info += oob.len;
-	memcpy(htx_get_blk_ptr(htx, blk), oob.ptr, oob.len);
-	return blk;
-}
-
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
 				    const struct ist data)
 {
