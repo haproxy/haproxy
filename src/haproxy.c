@@ -2780,6 +2780,10 @@ int main(int argc, char **argv)
 	if (nb_oldpids && !(global.mode & MODE_MWORKER_WAIT))
 		nb_oldpids = tell_old_pids(oldpids_sig);
 
+	/* send a SIGTERM to workers who have a too high reloads number  */
+	if ((global.mode & MODE_MWORKER) && !(global.mode & MODE_MWORKER_WAIT))
+		mworker_kill_max_reloads(SIGTERM);
+
 	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
 		nb_oldpids = 0;
 		free(oldpids);

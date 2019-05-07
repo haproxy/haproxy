@@ -571,6 +571,7 @@ The following keywords are supported in the "global" section :
    - log-tag
    - log-send-hostname
    - lua-load
+   - mworker-max-reloads
    - nbproc
    - nbthread
    - node
@@ -965,6 +966,13 @@ master-worker [no-exit-on-failure]
   this behavior, you must use the keyword "no-exit-on-failure".
 
   See also "-W" in the management guide.
+
+mworker-max-reloads <number>
+  In master-worker mode, this option limits the number of time a worker can
+  survive to a reload. If the worker did not left after a reload, once its
+  number of reloads is greater than this number, the worker will receive a
+  SIGTERM. This option helps to keep under control the number of workers.
+  See also "show proc" in the Management Guide.
 
 nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"

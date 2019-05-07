@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#include <common/cfgparse.h>
 #include <common/initcall.h>
 #include <common/mini-clist.h>
 
@@ -41,6 +42,7 @@
 #endif
 
 static int exitcode = -1;
+static int max_reloads = -1; /* number max of reloads a worker can have until they are killed */
 
 /* ----- children processes handling ----- */
 
@@ -59,6 +61,16 @@ static void mworker_kill(int sig)
 	}
 }
 
+void mworker_kill_max_reloads(int sig)
+{
+	struct mworker_proc *child;
+
+	list_for_each_entry(child, &proc_list, list) {
+		if (max_reloads != -1 && (child->options & PROC_O_TYPE_WORKER) &&
+		    (child->pid > 0) && (child->reloads > max_reloads))
+			kill(child->pid, sig);
+	}
+}
 
 /* return 1 if a pid is a current child otherwise 0 */
 int mworker_current_child(int pid)
@@ -513,6 +525,41 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 
 	return 1;
 }
+
+
+static int mworker_parse_global_max_reloads(char **args, int section_type, struct proxy *curpx,
+           struct proxy *defpx, const char *file, int linenum, char **err)
+{
+
+	int err_code = 0;
+
+	if (alertif_too_many_args(1, file, linenum, args, &err_code))
+		goto out;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "%sparsing [%s:%d] : '%s' expects an integer argument.\n", *err, file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	max_reloads = atol(args[1]);
+	if (max_reloads < 0) {
+		memprintf(err, "%sparsing [%s:%d] '%s' : invalid value %d, must be >= 0", *err, file, linenum, args[0], max_reloads);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	return err_code;
+}
+
+
+static struct cfg_kw_list mworker_kws = {{ }, {
+	{ CFG_GLOBAL, "mworker-max-reloads", mworker_parse_global_max_reloads },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &mworker_kws);
 
 
 /* register cli keywords */
