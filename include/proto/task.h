@@ -331,6 +331,9 @@ static inline void __task_free(struct task *t)
 
 static inline void task_destroy(struct task *t)
 {
+	if (!t)
+		return;
+
 	task_unlink_wq(t);
 	/* We don't have to explicitely remove from the run queue.
 	 * If we are in the runqueue, the test below will set t->process
