@@ -522,7 +522,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			sz = max;
 			info = (type << 28) + sz;
 			/* Headers and pseudo headers must be fully copied  */
-			if (type < HTX_BLK_DATA || !sz)
+			if (type != HTX_BLK_DATA || !sz)
 				break;
 		}
 
