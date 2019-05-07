@@ -3567,11 +3567,19 @@ next_frame:
 	if ((h2c->dff & H2_F_HEADERS_END_STREAM) || (msgf & H2_MSGF_RSP_1XX)) {
 		/* Mark the end of message, either using EOM in HTX or with the
 		 * trailing CRLF after the end of trailers. Note that DATA_CHNK
-		 * is not set during headers with END_STREAM.
+		 * is not set during headers with END_STREAM. For HTX trailers,
+		 * we must not leave an HTX trailers block not followed by an
+		 * EOM block, the two must be atomic. Thus if we fail to emit
+		 * the EOM block we must remove the TLR block we've just added.
 		 */
 		if (htx) {
-			if (!htx_add_endof(htx, HTX_BLK_EOM))
+			if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+				struct htx_blk *tail = htx_get_tail_blk(htx);
+
+				if (tail && htx_get_blk_type(tail) == HTX_BLK_TLR)
+					htx_remove_blk(htx, tail);
 				goto fail;
+			}
 		}
 		else if (*flags & H2_SF_DATA_CHNK) {
 			if (!b_putblk(rxbuf, "\r\n", 2))
