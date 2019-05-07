@@ -2008,8 +2008,6 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->flags |= H2_SF_ES_RCVD;
 
 	if (h2s->flags & H2_SF_ES_RCVD) {
-		if (h2s->cs)
-			h2s->cs->flags |= CS_FL_EOI;
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
 		else
@@ -2078,18 +2076,17 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		return NULL;
 	}
 
-	if (h2c->dff & H2_F_HEADERS_END_STREAM) {
+	if (h2c->dff & H2_F_HEADERS_END_STREAM)
 		h2s->flags |= H2_SF_ES_RCVD;
-		if (h2s->cs)
-			h2s->cs->flags |= CS_FL_EOI;
-	}
 
 	if (h2s->cs && h2s->cs->flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
-	else if (h2s->cs && (h2s->cs->flags & CS_FL_EOI) && h2s->st == H2_SS_OPEN)
-		h2s->st = H2_SS_HREM;
-	else if ((!h2s->cs || h2s->cs->flags & CS_FL_EOI) && h2s->st == H2_SS_HLOC)
-		h2s_close(h2s);
+	else if (h2s->flags & H2_SF_ES_RCVD) {
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HREM;
+		else if (h2s->st == H2_SS_HLOC)
+			h2s_close(h2s);
+	}
 
 	return h2s;
 }
@@ -2152,14 +2149,11 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 
 	/* last frame */
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		if (h2s->cs)
-			h2s->cs->flags |= CS_FL_EOI;
+		h2s->flags |= H2_SF_ES_RCVD;
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
 		else
 			h2s_close(h2s);
-
-		h2s->flags |= H2_SF_ES_RCVD;
 
 		if (h2s->flags & H2_SF_DATA_CLEN && h2s->body_len) {
 			/* RFC7540#8.1.2 */
@@ -2321,7 +2315,8 @@ static void h2_process_demux(struct h2c *h2c)
 		if (tmp_h2s != h2s && h2s && h2s->cs &&
 		    (b_data(&h2s->rxbuf) ||
 		     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
-		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_EOI)))) {
+		     (h2s->flags & H2_SF_ES_RCVD) ||
+		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			h2s_notify_recv(h2s);
@@ -2559,7 +2554,8 @@ static void h2_process_demux(struct h2c *h2c)
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
 	     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
-	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_EOI)))) {
+	     (h2s->flags & H2_SF_ES_RCVD) ||
+	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		h2s_notify_recv(h2s);
@@ -5315,6 +5311,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		if (h2s->flags & H2_SF_ES_RCVD)
+			cs->flags |= CS_FL_EOI;
 		if (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS)
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
