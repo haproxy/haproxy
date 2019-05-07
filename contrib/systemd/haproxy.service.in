@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 EnvironmentFile=-/etc/default/haproxy
+EnvironmentFile=-/etc/sysconfig/haproxy
 Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid" "EXTRAOPTS=-S /run/haproxy-master.sock"
 ExecStartPre=@SBINDIR@/haproxy -f $CONFIG -c -q $EXTRAOPTS
 ExecStart=@SBINDIR@/haproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
