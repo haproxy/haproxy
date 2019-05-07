@@ -448,11 +448,8 @@ static int conn_complete_session(struct connection *conn)
 		goto fail;
 
 	/* the embryonic session's task is not needed anymore */
-	if (sess->task) {
-		task_destroy(sess->task);
-		sess->task = NULL;
-	}
-
+	task_destroy(sess->task);
+	sess->task = NULL;
 	conn_set_owner(conn, sess, conn_session_free);
 
 	return 0;

@@ -1275,9 +1275,7 @@ spoe_release_appctx(struct appctx *appctx)
 	}
 
 	/* Destroy the task attached to this applet */
-	if (spoe_appctx->task) {
-		task_destroy(spoe_appctx->task);
-	}
+	task_destroy(spoe_appctx->task);
 
 	/* Notify all waiting streams */
 	list_for_each_entry_safe(ctx, back, &spoe_appctx->waiting_queue, list) {

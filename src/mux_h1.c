@@ -431,8 +431,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	return 0;
 
   fail:
-	if (t)
-		task_destroy(t);
+	task_destroy(t);
 	if (h1c->wait_event.task)
 		tasklet_free(h1c->wait_event.task);
 	pool_free(pool_head_h1c, h1c);

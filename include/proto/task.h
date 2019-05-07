@@ -329,6 +329,10 @@ static inline void __task_free(struct task *t)
 	_HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
+/* Destroys a task : it's unlinked from the wait queues and is freed if it's
+ * the current task or not queued otherwise it's marked to be freed by the
+ * scheduler. It does nothing if <t> is NULL.
+ */
 static inline void task_destroy(struct task *t)
 {
 	if (!t)

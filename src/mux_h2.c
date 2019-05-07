@@ -575,8 +575,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
   fail_stream:
 	hpack_dht_free(h2c->ddht);
   fail:
-	if (t)
-		task_destroy(t);
+	task_destroy(t);
 	if (h2c->wait_event.task)
 		tasklet_free(h2c->wait_event.task);
 	pool_free(pool_head_h2c, h2c);
