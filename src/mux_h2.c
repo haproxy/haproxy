@@ -1419,18 +1419,26 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	return ret;
 }
 
-/* wake a specific stream and assign its conn_stream the CS_FL_* flags <flags>
- * in addition to CS_FL_ERROR in case of error and CS_FL_REOS in case of close
- * connection. The stream's state is automatically updated accordingly. If the
- * stream is orphaned, it is destroyed.
+/* wake a specific stream and assign its conn_stream som CS_FL_* flags among
+ * CS_FL_REOS, CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state
+ * is automatically updated accordingly. If the stream is orphaned, it is
+ * destroyed.
  */
-static void h2s_wake_one_stream(struct h2s *h2s, uint32_t flags)
+static void h2s_wake_one_stream(struct h2s *h2s)
 {
+	uint32_t flags = 0;
+
 	if (!h2s->cs) {
 		/* this stream was already orphaned */
 		h2s_destroy(h2s);
 		return;
 	}
+
+	if (conn_xprt_read0_pending(h2s->h2c->conn))
+		flags |= CS_FL_REOS;
+
+	if (h2s->h2c->st0 >= H2_CS_ERROR || h2s->h2c->conn->flags & CO_FL_ERROR)
+		flags |= CS_FL_ERR_PENDING;
 
 	if (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))
 		flags |= CS_FL_ERR_PENDING;
@@ -1456,20 +1464,13 @@ static void h2_wake_some_streams(struct h2c *h2c, int last)
 {
 	struct eb32_node *node;
 	struct h2s *h2s;
-	uint32_t flags = 0;
-
-	if (h2c->st0 >= H2_CS_ERROR || h2c->conn->flags & CO_FL_ERROR)
-		flags |= CS_FL_ERR_PENDING;
-
-	if (conn_xprt_read0_pending(h2c->conn))
-		flags |= CS_FL_REOS;
 
 	/* Wake all streams with ID > last */
 	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
 		node = eb32_next(node);
-		h2s_wake_one_stream(h2s, flags);
+		h2s_wake_one_stream(h2s);
 	}
 
 	/* Wake all streams with unassigned ID (ID == 0) */
@@ -1479,7 +1480,7 @@ static void h2_wake_some_streams(struct h2c *h2c, int last)
 		if (h2s->id > 0)
 			break;
 		node = eb32_next(node);
-		h2s_wake_one_stream(h2s, flags);
+		h2s_wake_one_stream(h2s);
 	}
 }
 
