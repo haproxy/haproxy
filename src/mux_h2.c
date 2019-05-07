@@ -1426,35 +1426,32 @@ static int h2_send_empty_data_es(struct h2s *h2s)
  */
 static void h2s_wake_one_stream(struct h2s *h2s)
 {
-	uint32_t flags = 0;
-
 	if (!h2s->cs) {
 		/* this stream was already orphaned */
 		h2s_destroy(h2s);
 		return;
 	}
 
-	if (conn_xprt_read0_pending(h2s->h2c->conn))
-		flags |= CS_FL_REOS;
+	if (conn_xprt_read0_pending(h2s->h2c->conn)) {
+		h2s->cs->flags |= CS_FL_REOS;
 
-	if (h2s->h2c->st0 >= H2_CS_ERROR || h2s->h2c->conn->flags & CO_FL_ERROR)
-		flags |= CS_FL_ERR_PENDING;
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HREM;
+		else if (h2s->st == H2_SS_HLOC)
+			h2s_close(h2s);
+	}
 
-	if (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))
-		flags |= CS_FL_ERR_PENDING;
+	if ((h2s->h2c->st0 >= H2_CS_ERROR || h2s->h2c->conn->flags & CO_FL_ERROR) ||
+	    (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))) {
+		h2s->cs->flags |= CS_FL_ERR_PENDING;
+		if (h2s->cs->flags & CS_FL_EOS)
+			h2s->cs->flags |= CS_FL_ERROR;
 
-	h2s->cs->flags |= flags;
-	if ((flags & CS_FL_ERR_PENDING) && (h2s->cs->flags & CS_FL_EOS))
-		h2s->cs->flags |= CS_FL_ERROR;
+		if (h2s->st < H2_SS_ERROR)
+			h2s->st = H2_SS_ERROR;
+	}
 
 	h2s_alert(h2s);
-
-	if (flags & CS_FL_ERR_PENDING && h2s->st < H2_SS_ERROR)
-		h2s->st = H2_SS_ERROR;
-	else if ((flags & (CS_FL_EOI|CS_FL_REOS)) && h2s->st == H2_SS_OPEN)
-		h2s->st = H2_SS_HREM;
-	else if ((flags & (CS_FL_EOI|CS_FL_REOS)) && h2s->st == H2_SS_HLOC)
-		h2s_close(h2s);
 }
 
 /* wake the streams attached to the connection, whose id is greater than <last>
