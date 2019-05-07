@@ -57,7 +57,7 @@ backend be_app
 
 client c1 -connect ${h1_fe_1_sock} {
     txreq -url "/"
-    rxresp
+    expect_close
 } -run
 
 syslog Slg_1 -wait
