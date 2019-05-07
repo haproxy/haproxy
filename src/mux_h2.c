@@ -1464,8 +1464,6 @@ static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
 	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
-		if (h2s->id <= last)
-			break;
 		node = eb32_next(node);
 		h2s_wake_one_stream(h2s, flags);
 	}
