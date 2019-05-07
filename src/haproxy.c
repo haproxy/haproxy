@@ -2367,7 +2367,8 @@ void deinit(void)
 
 		pool_destroy(p->req_cap_pool);
 		pool_destroy(p->rsp_cap_pool);
-		pool_destroy(p->table->pool);
+		if (p->table)
+			pool_destroy(p->table->pool);
 
 		p0 = p;
 		p = p->next;

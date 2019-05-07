@@ -3588,7 +3588,8 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 		return 1;
 	}
 
-	if (!((struct proxy *)appctx->ctx.table.target)->table->data_ofs[appctx->ctx.table.data_type]) {
+	if (!((struct proxy *)appctx->ctx.table.target)->table ||
+	    !((struct proxy *)appctx->ctx.table.target)->table->data_ofs[appctx->ctx.table.data_type]) {
 		appctx->ctx.cli.severity = LOG_ERR;
 		appctx->ctx.cli.msg = "Data type not stored in this table\n";
 		appctx->st0 = CLI_ST_PRINT;
