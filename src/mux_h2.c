@@ -1432,6 +1432,9 @@ static void h2s_wake_one_stream(struct h2s *h2s, uint32_t flags)
 		return;
 	}
 
+	if (h2s->h2c->last_sid > 0 && (!h2s->id || h2s->id > h2s->h2c->last_sid))
+		flags |= CS_FL_ERR_PENDING;
+
 	h2s->cs->flags |= flags;
 	if ((flags & CS_FL_ERR_PENDING) && (h2s->cs->flags & CS_FL_EOS))
 		h2s->cs->flags |= CS_FL_ERROR;
@@ -1449,10 +1452,11 @@ static void h2s_wake_one_stream(struct h2s *h2s, uint32_t flags)
 /* wake the streams attached to the connection, whose id is greater than <last>
  * or unassigned.
  */
-static void h2_wake_some_streams(struct h2c *h2c, int last, uint32_t flags)
+static void h2_wake_some_streams(struct h2c *h2c, int last)
 {
 	struct eb32_node *node;
 	struct h2s *h2s;
+	uint32_t flags = 0;
 
 	if (h2c->st0 >= H2_CS_ERROR || h2c->conn->flags & CO_FL_ERROR)
 		flags |= CS_FL_ERR_PENDING;
@@ -1851,9 +1855,9 @@ static int h2c_handle_goaway(struct h2c *h2c)
 
 	last = h2_get_n32(&h2c->dbuf, 0);
 	h2c->errcode = h2_get_n32(&h2c->dbuf, 4);
-	h2_wake_some_streams(h2c, last, CS_FL_ERR_PENDING);
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
+	h2_wake_some_streams(h2c, last);
 	return 1;
 }
 
@@ -2882,7 +2886,7 @@ static int h2_process(struct h2c *h2c)
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
 	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
 	     h2c->max_id >= h2c->last_sid)) {
-		h2_wake_some_streams(h2c, 0, 0);
+		h2_wake_some_streams(h2c, 0);
 
 		if (eb_is_empty(&h2c->streams_by_id)) {
 			/* no more stream, kill the connection now */
@@ -2946,7 +2950,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 
 	h2c->task = NULL;
 	h2c_error(h2c, H2_ERR_NO_ERROR);
-	h2_wake_some_streams(h2c, 0, 0);
+	h2_wake_some_streams(h2c, 0);
 
 	if (b_data(&h2c->mbuf)) {
 		/* don't even try to send a GOAWAY, the buffer is stuck */
