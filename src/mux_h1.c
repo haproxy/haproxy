@@ -1219,7 +1219,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (h1s->flags & H1S_F_HAVE_I_TLR)
 					goto skip_tlr_parsing;
 
-				ret = h1_measure_trailers(buf, *ofs, *ofs + max);
+				ret = h1_measure_trailers(buf, *ofs, max);
 				if (ret > data_space)
 					ret = (htx_is_empty(htx) ? -1 : 0);
 				if (ret <= 0)
