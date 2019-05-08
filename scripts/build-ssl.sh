@@ -66,4 +66,23 @@ if [ ! -z ${OPENSSL_VERSION+x} ]; then
 	build_openssl
 fi
 
+if [ ! -z ${BORINGSSL+x} ]; then
+	(
+	git clone --depth=1 https://boringssl.googlesource.com/boringssl
+	cd boringssl
+	mkdir build
+	cd build
+	cmake -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
+	make
+
+	rm -rf ${SSL_LIB} || exit 0
+	rm -rf ${SSL_INC} || exit 0
+
+	mkdir -p ${SSL_LIB}
+	cp crypto/libcrypto.so ssl/libssl.so ${SSL_LIB}
+
+	mkdir -p ${SSL_INC}
+	mv ../include/* ${SSL_INC}
+	)
+fi
 

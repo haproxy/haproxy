@@ -45,6 +45,9 @@ matrix:
     compiler: gcc
     env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5
   - os: linux
+    compiler: gcc
+    env: TARGET=linux2628 BORINGSSL=yes
+  - os: linux
     compiler: clang
     env: TARGET=linux2628 FLAGS=
   - os: osx
