@@ -14,7 +14,10 @@
 #include <openssl/dh.h>
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x0090800fL)
+/* This is intended to reflect the ORIGINAL openssl version */
+#define HA_OPENSSL_VERSION_NUMBER OPENSSL_VERSION_NUMBER
+
+#if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
 /* Functions present in OpenSSL 0.9.8, older not tested */
 static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
 {
@@ -55,7 +58,7 @@ static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void 
 #endif // OpenSSL < 0.9.8
 
 
-#if (OPENSSL_VERSION_NUMBER < 0x1000000fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1000000fL)
 /* Functions introduced in OpenSSL 1.0.0 */
 static inline int EVP_PKEY_base_id(const EVP_PKEY *pkey)
 {
@@ -77,7 +80,7 @@ static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned ch
 
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1000100fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1000100fL)
 /*
  * Functions introduced in OpenSSL 1.0.1
  */
@@ -89,7 +92,7 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL))
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL))
 /*
  * Functions introduced in OpenSSL 1.1.0 and in LibreSSL 2.7.0
  */
@@ -146,7 +149,7 @@ static inline const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
 #define __OPENSSL_110_CONST__ const
 #else
 #define __OPENSSL_110_CONST__
@@ -165,7 +168,7 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
  * 1.1.0 and does nothing anymore. Let's simply silently kill
  * it.
  */
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
 #undef  ERR_remove_state
 #define ERR_remove_state(x)
 #endif
@@ -176,7 +179,7 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
  * key update) was already wrong, considering a non-cryptographic random as a
  * failure.
  */
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
 #undef  RAND_pseudo_bytes
 #define RAND_pseudo_bytes(x,y) RAND_bytes(x,y)
 #endif

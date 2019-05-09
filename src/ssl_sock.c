@@ -190,7 +190,7 @@ static struct {
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	char *listen_default_ciphersuites;
 	char *connect_default_ciphersuites;
 #endif
@@ -212,7 +212,7 @@ static struct {
 #ifdef CONNECT_DEFAULT_CIPHERS
 	.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS,
 #endif
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 #ifdef LISTEN_DEFAULT_CIPHERSUITES
 	.listen_default_ciphersuites = LISTEN_DEFAULT_CIPHERSUITES,
 #endif
@@ -261,7 +261,7 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	struct ssl_sock_ctx *ctx;
 	int ret;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
 	ctx = h->ptr;
 #else
 	ctx = BIO_get_data(h);
@@ -297,7 +297,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	struct ssl_sock_ctx *ctx;
 	int ret;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
 	ctx = h->ptr;
 #else
 	ctx = BIO_get_data(h);
@@ -330,7 +330,7 @@ static long ha_ssl_ctrl(BIO *h, int cmd, long arg1, void *arg2)
 
 static int ha_ssl_new(BIO *h)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
 	h->init = 1;
 	h->ptr = NULL;
 #else
@@ -348,7 +348,7 @@ static int ha_ssl_free(BIO *data)
 }
 
 
-#if defined(USE_THREAD) && ((OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(USE_THREAD) && ((HA_OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
 
 static HA_RWLOCK_T *ssl_rwlocks;
 
@@ -456,7 +456,7 @@ __decl_rwlock(ssl_ctx_lru_rwlock);
 
 static struct ssl_bind_kw ssl_bind_kws[];
 
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* The order here matters for picking a default context,
  * keep the most common keytype at the bottom of the list
  */
@@ -575,7 +575,7 @@ fail_get:
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 /*
  * openssl async fd handler
  */
@@ -1442,7 +1442,7 @@ static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_p
 }
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 
 #define CT_EXTENSION_TYPE 18
 
@@ -1893,7 +1893,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	int 	      key_type;
 
 	/* Get the private key of the default certificate and use it */
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined LIBRESSL_VERSION_NUMBER)
 	pkey = SSL_CTX_get0_privatekey(bind_conf->default_ctx);
 #else
 	tmp_ssl = SSL_new(bind_conf->default_ctx);
@@ -1968,7 +1968,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	else if (key_type == EVP_PKEY_EC)
 		digest = EVP_sha256();
 	else {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000000fL) && !defined(OPENSSL_IS_BORINGSSL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000000fL) && !defined(OPENSSL_IS_BORINGSSL)
 		int nid;
 
 		if (EVP_PKEY_get_default_digest_nid(capkey, &nid) <= 0)
@@ -2190,7 +2190,7 @@ ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 #define SSL_OP_PRIORITIZE_CHACHA 0
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
@@ -2297,7 +2297,7 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 	SSL_set_SSL_CTX(ssl, ctx);
 }
 
-#if ((OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_BORINGSSL)) && !defined(LIBRESSL_VERSION_NUMBER)
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_BORINGSSL)) && !defined(LIBRESSL_VERSION_NUMBER)
 
 static int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 {
@@ -2948,7 +2948,7 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 /* The following code is used for loading multiple crt files into
  * SSL_CTX's based on CN/SAN
  */
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined(LIBRESSL_VERSION_NUMBER)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined(LIBRESSL_VERSION_NUMBER)
 /* This is used to preload the certifcate, private key
  * and Cert Chain of a file passed in via the crt
  * argument
@@ -3410,7 +3410,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 	return 1;
 }
 
-#endif /* #if OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
+#endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
@@ -3603,7 +3603,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	ssl_sock_set_ocsp_response_from_file(ctx, path);
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (sctl_ex_index >= 0) {
 		ret = ssl_sock_load_sctl(ctx, path);
 		if (ret < 0) {
@@ -3639,7 +3639,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	char *end;
 	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	int is_bundle;
 	int j;
 #endif
@@ -3677,7 +3677,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				if (!S_ISREG(buf.st_mode))
 					goto ignore_entry;
 
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 				is_bundle = 0;
 				/* Check if current entry in directory is part of a multi-cert bundle */
 
@@ -3764,7 +3764,7 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 		conf->crl_file = NULL;
 		free(conf->ciphers);
 		conf->ciphers = NULL;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 		free(conf->ciphersuites);
 		conf->ciphersuites = NULL;
 #endif
@@ -4003,7 +4003,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	conf_ssl_methods->min = min;
 	conf_ssl_methods->max = max;
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
@@ -4029,7 +4029,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 	SSL_CTX_set_options(ctx, options);
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -4041,7 +4041,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 #ifdef OPENSSL_IS_BORINGSSL
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#elif (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#elif (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
 	if (bind_conf->ssl_conf.early_data) {
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
 		SSL_CTX_set_max_early_data(ctx, global.tune.bufsize - global.tune.maxrewrite);
@@ -4311,7 +4311,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	int verify = SSL_VERIFY_NONE;
 	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
 	const char *conf_ciphers;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	const char *conf_ciphersuites;
 #endif
 	const char *conf_curves = NULL;
@@ -4413,7 +4413,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		cfgerr++;
 	}
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	conf_ciphersuites = (ssl_conf && ssl_conf->ciphersuites) ? ssl_conf->ciphersuites : bind_conf->ssl_conf.ciphersuites;
 	if (conf_ciphersuites &&
 	    !SSL_CTX_set_ciphersuites(ctx, conf_ciphersuites)) {
@@ -4489,7 +4489,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #endif /* OPENSSL_NO_DH */
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+#if HA_OPENSSL_VERSION_NUMBER >= 0x00907000L
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
 #endif
 
@@ -4511,7 +4511,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	if (ssl_conf_cur)
 		SSL_CTX_set_alpn_select_cb(ctx, ssl_sock_advertise_alpn_protos, ssl_conf_cur);
 #endif
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
 	if (conf_curves) {
 		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
@@ -4528,7 +4528,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	if (!conf_curves) {
 		int i;
 		EC_KEY  *ecdh;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 		const char *ecdhe = (ssl_conf && ssl_conf->ecdhe) ? ssl_conf->ecdhe :
 			(bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe :
 			 NULL);
@@ -4671,7 +4671,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		for (i = 0; !ok && i < sk_GENERAL_NAME_num(alt_names); i++) {
 			GENERAL_NAME *name = sk_GENERAL_NAME_value(alt_names, i);
 			if (name->type == GEN_DNS) {
-#if OPENSSL_VERSION_NUMBER < 0x00907000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x00907000L
 				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.ia5) >= 0) {
 #else
 				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
@@ -4798,7 +4798,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr += 1;
 	}
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 	/* Keep force-xxx implementation as it is in older haproxy. It's a
 	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
@@ -4817,7 +4817,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		options |= SSL_OP_NO_TICKET;
 	SSL_CTX_set_options(ctx, options);
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -4907,7 +4907,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr++;
 	}
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (srv->ssl_ctx.ciphersuites &&
 		!SSL_CTX_set_ciphersuites(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
 		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
@@ -5248,7 +5248,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-#if OPENSSL_VERSION_NUMBER < 0x10100000
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
 		ctx->bio->ptr = ctx;
 #else
 		BIO_set_data(ctx->bio, ctx);
@@ -5313,7 +5313,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-#if OPENSSL_VERSION_NUMBER < 0x10100000
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
 		ctx->bio->ptr = ctx;
 #else
 		BIO_set_data(ctx->bio, ctx);
@@ -5336,7 +5336,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)) || \
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)) || \
     defined(OPENSSL_IS_BORINGSSL)
 		conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
@@ -5371,7 +5371,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!conn->xprt_ctx)
 		goto out_error;
 
-#if OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined (LIBRESSL_VERSION_NUMBER)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined (LIBRESSL_VERSION_NUMBER)
 	/*
 	 * Check if we have early data. If we do, we have to read them
 	 * before SSL_do_handshake() is called, And there's no way to
@@ -5428,7 +5428,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				fd_cant_recv(conn->handle.fd);
 				return 0;
 			}
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
 				ssl_async_process_fds(conn, ctx->ssl);
 				return 0;
@@ -5443,7 +5443,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 					int empty_handshake;
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 					OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)ctx->ssl);
 					empty_handshake = state == TLS_ST_BEFORE;
 #else
@@ -5512,7 +5512,7 @@ check_error:
 			fd_cant_recv(conn->handle.fd);
 			return 0;
 		}
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
 			ssl_async_process_fds(conn, ctx->ssl);
 			return 0;
@@ -5527,7 +5527,7 @@ check_error:
 				conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 				int empty_handshake;
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(LIBRESSL_VERSION_NUMBER)
 				OSSL_HANDSHAKE_STATE state = SSL_get_state(ctx->ssl);
 				empty_handshake = state == TLS_ST_BEFORE;
 #else
@@ -5571,7 +5571,7 @@ check_error:
 			goto out_error;
 		}
 	}
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
 	else {
 		/*
 		 * If the server refused the early data, we have to send a
@@ -5590,7 +5590,7 @@ check_error:
 
 reneg_ok:
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 	/* ASYNC engine API doesn't support moving read/write
 	 * buffers. So we disable ASYNC mode right after
 	 * the handshake to avoid buffer oveflows.
@@ -5699,7 +5699,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			continue;
 		}
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
 		if (conn->flags & CO_FL_EARLY_SSL_HS) {
 			size_t read_length;
 
@@ -5751,7 +5751,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_send(conn);
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5763,7 +5763,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_recv(conn);
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5840,7 +5840,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	 * in which case we accept to do it once again.
 	 */
 	while (count) {
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined (LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined (LIBRESSL_VERSION_NUMBER)
 		size_t written_data;
 #endif
 
@@ -5861,7 +5861,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			ctx->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
 		}
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined (LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined (LIBRESSL_VERSION_NUMBER)
 		if (!SSL_is_init_finished(ctx->ssl) && conn_is_back(conn)) {
 			unsigned int max_early;
 
@@ -5913,7 +5913,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_send(conn);
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5928,7 +5928,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_recv(conn);
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5956,7 +5956,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
 	if (ctx) {
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 		if (global_ssl.async) {
 			OSSL_ASYNC_FD all_fd[32], afd;
 			size_t num_all_fds = 0;
@@ -7264,7 +7264,7 @@ smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char
  * This function is also usable on backend conn if the fetch keyword 5th
  * char is 'b'.
  */
-#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER > 0x0090800fL
 static int
 smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -7294,7 +7294,7 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 #endif
 
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
 static int
 smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -7413,7 +7413,7 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 static int
 smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(LIBRESSL_VERSION_NUMBER)
 	struct buffer *data;
 	int i;
 
@@ -7447,7 +7447,7 @@ smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *
 #endif
 }
 
-#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER > 0x0090800fL
 static int
 smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -7655,7 +7655,7 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 	return ssl_bind_parse_ciphers(args, cur_arg, px, &conf->ssl_conf, err);
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 /* parse the "ciphersuites" bind keyword */
 static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
@@ -7748,7 +7748,7 @@ static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struc
 /* parse the "curves" bind keyword keyword */
 static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x1000200fL
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	if (!*args[cur_arg + 1]) {
 		if (err)
 			memprintf(err, "'%s' : missing curve suite", args[cur_arg]);
@@ -7770,7 +7770,7 @@ static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct 
 /* parse the "ecdhe" bind keyword keyword */
 static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
-#if OPENSSL_VERSION_NUMBER < 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER < 0x0090800fL
 	if (err)
 		memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
@@ -7909,7 +7909,7 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 
 static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL)
 	ha_warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
 #endif
 	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
@@ -8065,7 +8065,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.listen_default_ciphersuites && !conf->ssl_conf.ciphersuites)
 		conf->ssl_conf.ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
 #endif
@@ -8428,7 +8428,7 @@ static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, stru
 	newsrv->check.use_ssl = 1;
 	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
 		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
 #endif
@@ -8455,7 +8455,7 @@ static int srv_parse_ciphers(char **args, int *cur_arg, struct proxy *px, struct
 	return 0;
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 /* parse the "ciphersuites" server keyword */
 static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -8611,7 +8611,7 @@ static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct ser
 	newsrv->use_ssl = 1;
 	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
 		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
 #endif
@@ -8766,7 +8766,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
                                        struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
 	global_ssl.async = 1;
 	global.ssl_used_async_engines = nb_engines;
 	return 0;
@@ -8854,7 +8854,7 @@ static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy 
 	return 0;
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 /* parse the "ssl-default-bind-ciphersuites" / "ssl-default-server-ciphersuites" keywords
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -9330,7 +9330,7 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
 static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
@@ -9491,10 +9491,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_bc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
-#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER > 0x0090800fL
 	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
@@ -9536,14 +9536,14 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER > 0x0090800fL
 	{ "ssl_fc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
-#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+#if HA_OPENSSL_VERSION_NUMBER > 0x0090800fL
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L || defined(OPENSSL_IS_BORINGSSL)
 	{ "ssl_fc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -9581,7 +9581,7 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process verify on client cert */
 	{ "ciphers",               ssl_bind_parse_ciphers,          1 }, /* set SSL cipher suite */
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	{ "ciphersuites",          ssl_bind_parse_ciphersuites,     1 }, /* set TLS 1.3 cipher suite */
 #endif
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificat revocation list file use on client cert verify */
@@ -9605,7 +9605,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "ca-sign-file",          bind_parse_ca_sign_file,       1 }, /* set CAFile used to generate and sign server certs */
 	{ "ca-sign-pass",          bind_parse_ca_sign_pass,       1 }, /* set CAKey passphrase */
 	{ "ciphers",               bind_parse_ciphers,            1 }, /* set SSL cipher suite */
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	{ "ciphersuites",          bind_parse_ciphersuites,       1 }, /* set TLS 1.3 cipher suite */
 #endif
 	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificat revocation list file use on client cert verify */
@@ -9655,7 +9655,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "check-sni",               srv_parse_check_sni,          1, 1 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1 }, /* select the cipher suite */
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1 }, /* select the cipher suite */
 #endif
 	{ "crl-file",                srv_parse_crl_file,           1, 1 }, /* set certificate revocation list file use on server cert verify */
@@ -9716,7 +9716,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },
 	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },
 #endif
@@ -9727,7 +9727,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
-#if (OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
 	{ "aes_gcm_dec", sample_conv_aes_gcm_dec, ARG4(4,SINT,STR,STR,STR), check_aes_gcm, SMP_T_BIN, SMP_T_BIN },
 #endif
 	{ NULL, NULL, 0, 0, 0 },
@@ -9788,7 +9788,7 @@ static struct action_kw_list http_req_actions = {ILH, {
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 
 static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
@@ -9813,7 +9813,7 @@ static void __ssl_sock_init(void)
 		global_ssl.listen_default_ciphers = strdup(global_ssl.listen_default_ciphers);
 	if (global_ssl.connect_default_ciphers)
 		global_ssl.connect_default_ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (global_ssl.listen_default_ciphersuites)
 		global_ssl.listen_default_ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
 	if (global_ssl.connect_default_ciphersuites)
@@ -9821,15 +9821,15 @@ static void __ssl_sock_init(void)
 #endif
 
 	xprt_register(XPRT_SSL, &ssl_sock);
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
 	SSL_library_init();
 #endif
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);
-#if defined(USE_THREAD) && ((OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(USE_THREAD) && ((HA_OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER))
 	ssl_locking_init();
 #endif
-#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
@@ -9855,7 +9855,7 @@ static void __ssl_sock_init(void)
 #endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
 	ha_meth = malloc(sizeof(*ha_meth));
 	bzero(ha_meth, sizeof(*ha_meth));
 	ha_meth->bwrite = ha_ssl_write;
@@ -9890,10 +9890,10 @@ static void ssl_register_build_options()
 	        OPENSSL_VERSION_TEXT
 		"\nRunning on OpenSSL version : %s%s",
 	       OpenSSL_version(OPENSSL_VERSION),
-	       ((OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
+	       ((HA_OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
 #endif
 	memprintf(&ptr, "%s\nOpenSSL library supports TLS extensions : "
-#if OPENSSL_VERSION_NUMBER < 0x00907000L
+#if HA_OPENSSL_VERSION_NUMBER < 0x00907000L
 		"no (library version too old)"
 #elif defined(OPENSSL_NO_TLSEXT)
 		"no (disabled via OPENSSL_NO_TLSEXT)"
@@ -9969,17 +9969,17 @@ static void __ssl_sock_deinit(void)
 	}
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x10100000L) || defined(LIBRESSL_VERSION_NUMBER)
         ERR_remove_state(0);
         ERR_free_strings();
 
         EVP_cleanup();
 #endif
 
-#if ((OPENSSL_VERSION_NUMBER >= 0x00907000L) && (OPENSSL_VERSION_NUMBER < 0x10100000L)) || defined(LIBRESSL_VERSION_NUMBER)
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x00907000L) && (HA_OPENSSL_VERSION_NUMBER < 0x10100000L)) || defined(LIBRESSL_VERSION_NUMBER)
         CRYPTO_cleanup_all_ex_data();
 #endif
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x10100000L)
 	free(ha_meth);
 #else
 	BIO_meth_free(ha_meth);

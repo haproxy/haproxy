@@ -1544,7 +1544,7 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);
 	if (src->ssl_ctx.ciphers != NULL)
 		srv->ssl_ctx.ciphers = strdup(src->ssl_ctx.ciphers);
-#if (OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
 	if (src->ssl_ctx.ciphersuites != NULL)
 		srv->ssl_ctx.ciphersuites = strdup(src->ssl_ctx.ciphersuites);
 #endif

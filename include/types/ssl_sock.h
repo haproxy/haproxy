@@ -26,6 +26,7 @@
 #include <ebmbtree.h>
 
 #include <common/hathreads.h>
+#include <proto/openssl-compat.h>
 
 struct pkey_info {
 	uint8_t sig;          /* TLSEXT_signature_[rsa,ecdsa,...] */
