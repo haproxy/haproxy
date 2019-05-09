@@ -3052,6 +3052,19 @@ static void h2_detach(struct conn_stream *cs)
 	    h2s->send_wait != &h2s->wait_event) {
 		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 		LIST_DEL_INIT(&h2s->sending_list);
+		/*
+		 * At this point, the stream_interface is supposed to have called
+		 * h2_unsubscribe(), so the only way there's still a
+		 * subscription that came from the stream_interface (as we
+		 * can subscribe ourself, in h2_do_shutw() and h2_do_shutr(),
+		 * without the stream_interface involved) is that we subscribed
+		 * for sending, we woke the tasklet up and removed the
+		 * SUB_RETRY_SEND flag, so the stream_interface would not
+		 * know it has to unsubscribe for send, but the tasklet hasn't
+		 * run yet. Make sure to handle that by explicitely setting
+		 * send_wait to NULL, as nothing else will do it for us.
+		 */
+		h2s->send_wait = NULL;
 	}
 
 	sess = h2s->sess;
