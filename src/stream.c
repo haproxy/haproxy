@@ -711,6 +711,16 @@ static int sess_update_st_con_tcp(struct stream *s)
 		return 1;
 	}
 
+	/* If the request channel is waiting for the connect(), we mark the read
+	 * side as attached on the response channel and we wake up it once. So
+	 * it will have a chance to forward data now.
+	 */
+	if (req->flags & CF_WAKE_CONNECT) {
+		rep->flags |= CF_READ_ATTACHED;
+		req->flags |= CF_WAKE_ONCE;
+		req->flags &= ~CF_WAKE_CONNECT;
+	}
+
 	/* we need to wait a bit more if there was no activity either */
 	if (!(req->flags & CF_WRITE_ACTIVITY))
 		return 1;
@@ -900,10 +910,6 @@ static void sess_establish(struct stream *s)
 
 	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
-	if (req->flags & CF_WAKE_CONNECT) {
-		req->flags |= CF_WAKE_ONCE;
-		req->flags &= ~CF_WAKE_CONNECT;
-	}
 	if (objt_cs(si->end)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
@@ -1179,6 +1185,17 @@ static void sess_prepare_conn_req(struct stream *s)
 			if (s->srv_error)
 				s->srv_error(s, si);
 			return;
+		}
+
+		/* For applets, there is no connection establishment, but if the
+		 * request channel is waiting for it, we mark the read side as
+		 * attached on the response channel and we wake up it once. So
+		 * it will have a chance to forward data now.
+		 */
+		if (s->req.flags & CF_WAKE_CONNECT) {
+			s->res.flags |= CF_READ_ATTACHED;
+			s->req.flags |= CF_WAKE_ONCE;
+			s->req.flags &= ~CF_WAKE_CONNECT;
 		}
 
 		if (tv_iszero(&s->logs.tv_request))
