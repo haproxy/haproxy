@@ -9329,7 +9329,7 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 
 }
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
 static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
@@ -9726,7 +9726,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list conv_kws = {ILH, {
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL && !defined LIBRESSL_VERSION_NUMBER)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
 	{ "aes_gcm_dec", sample_conv_aes_gcm_dec, ARG4(4,SINT,STR,STR,STR), check_aes_gcm, SMP_T_BIN, SMP_T_BIN },
 #endif
 	{ NULL, NULL, 0, 0, 0 },
