@@ -590,7 +590,7 @@ void mworker_reload()
 		ptdf->fct();
 	if (fdtab)
 		deinit_pollers();
-#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(LIBRESSL_VERSION_NUMBER)
+#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	if (global.ssl_used_frontend || global.ssl_used_backend)
 		/* close random device FDs */
 		RAND_keep_random_devices_open(0);
