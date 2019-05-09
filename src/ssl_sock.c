@@ -9890,7 +9890,7 @@ static void ssl_register_build_options()
 	        OPENSSL_VERSION_TEXT
 		"\nRunning on OpenSSL version : %s%s",
 	       OpenSSL_version(OPENSSL_VERSION),
-	       ((HA_OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
+	       ((OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
 #endif
 	memprintf(&ptr, "%s\nOpenSSL library supports TLS extensions : "
 #if HA_OPENSSL_VERSION_NUMBER < 0x00907000L

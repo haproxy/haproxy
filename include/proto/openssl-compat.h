@@ -14,8 +14,16 @@
 #include <openssl/dh.h>
 #endif
 
-/* This is intended to reflect the ORIGINAL openssl version */
+#if defined(LIBRESSL_VERSION_NUMBER)
+/* LibreSSL is a fork of OpenSSL 1.0.1g but pretends to be 2.0.0, thus
+ * systematically breaking when some code is written for a specific version
+ * of OpenSSL. Let's make it appear like what it really is and deal with
+ * extra features with ORs and not with AND NOT.
+ */
+#define HA_OPENSSL_VERSION_NUMBER 0x1000107fL
+#else /* this is for a real OpenSSL or a truly compatible derivative */
 #define HA_OPENSSL_VERSION_NUMBER OPENSSL_VERSION_NUMBER
+#endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
 /* Functions present in OpenSSL 0.9.8, older not tested */
@@ -92,7 +100,7 @@ static inline int SSL_SESSION_set1_id_context(SSL_SESSION *s, const unsigned cha
 }
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL))
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL)
 /*
  * Functions introduced in OpenSSL 1.1.0 and in LibreSSL 2.7.0
  */
@@ -149,7 +157,7 @@ static inline const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
 #define __OPENSSL_110_CONST__ const
 #else
 #define __OPENSSL_110_CONST__
