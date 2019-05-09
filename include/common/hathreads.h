@@ -153,6 +153,11 @@ static inline void __ha_barrier_full(void)
 {
 }
 
+static inline int __ha_cas_dw(void *target, void *compare, void *set)
+{
+	return HA_ATOMIC_CAS(target, compare, set);
+}
+
 static inline void thread_harmless_now()
 {
 }
