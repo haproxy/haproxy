@@ -1,5 +1,5 @@
-#ifndef _PROTO_OPENSSL_COMPAT_H
-#define _PROTO_OPENSSL_COMPAT_H
+#ifndef _COMMON_OPENSSL_COMPAT_H
+#define _COMMON_OPENSSL_COMPAT_H
 #include <openssl/crypto.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -201,4 +201,4 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define TLSEXT_signature_ecdsa      3
 #endif
 
-#endif /* _PROTO_OPENSSL_COMPAT_H */
+#endif /* _COMMON_OPENSSL_COMPAT_H */

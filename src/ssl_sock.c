@@ -87,6 +87,7 @@
 #include <common/debug.h>
 #include <common/errors.h>
 #include <common/initcall.h>
+#include <common/openssl-compat.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
@@ -111,7 +112,6 @@
 #include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
-#include <proto/openssl-compat.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>

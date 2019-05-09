@@ -126,6 +126,7 @@
 #include <proto/dns.h>
 #include <proto/vars.h>
 #ifdef USE_OPENSSL
+#include <common/openssl-compat.h>
 #include <proto/ssl_sock.h>
 #include <openssl/rand.h>
 #endif
