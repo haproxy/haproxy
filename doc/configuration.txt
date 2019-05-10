@@ -8062,6 +8062,12 @@ retry-on [list of keywords]
                         Error), "501" (Not Implemented), "502" (Bad Gateway),
                         "503" (Service Unavailable), "504" (Gateway Timeout).
 
+      all-retryable-errors
+                        retry request for any error that are considered
+			retryable. This currently activates "conn-failure",
+			"empty-response", "junk-response", "response-timeout",
+			"0rtt-rejected", "500", "502", "503", and "504".
+
   Using this directive replaces any previous settings with the new ones; it is
   not cumulative.
 

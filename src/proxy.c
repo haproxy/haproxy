@@ -545,6 +545,11 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 			curpx->retry_type |= PR_RE_EARLY_ERROR;
 		else if (!strcmp(args[i], "junk-response"))
 			curpx->retry_type |= PR_RE_JUNK_REQUEST;
+		else if (!(strcmp(args[i], "all-retryable-errors")))
+			curpx->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED |
+			                     PR_RE_TIMEOUT | PR_RE_500 | PR_RE_502 |
+					     PR_RE_503 | PR_RE_504 | PR_RE_EARLY_ERROR |
+					     PR_RE_JUNK_REQUEST;
 		else if (!strcmp(args[i], "none")) {
 			if (i != 1 || *args[i + 1]) {
 				memprintf(err, "'%s' 'none' keyworld only usable alone", args[0]);
