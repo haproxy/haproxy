@@ -4297,6 +4297,11 @@ http-request deny [deny_status <status>] [ { if | unless } <condition> ]
   those that can be overridden by the "errorfile" directive.
   No further "http-request" rules are evaluated.
 
+http-request disable-l7-retry [ { if | unless } <condition> ]
+  This disables any attempt to retry the request if it fails for any other
+  reason than a connection failure. This can be useful for example to make
+  sure POST requests aren't retried on failure.
+
 http-request do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr> :
 
   This action performs a DNS resolution of the output of <expr> and stores

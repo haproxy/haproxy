@@ -84,6 +84,7 @@ enum {
 	SI_FL_RXBLK_ANY  = 0x001F0000,  /* any of the RXBLK flags above */
 	SI_FL_RX_WAIT_EP = 0x00200000,  /* stream-int waits for more data from the end point */
 	SI_FL_L7_RETRY   = 0x01000000,  /* The stream interface may attempt L7 retries */
+	SI_FL_D_L7_RETRY = 0x02000000,  /* Disable L7 retries on this stream interface, even if configured to do it */
 };
 
 /* A stream interface has 3 parts :

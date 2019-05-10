@@ -217,6 +217,38 @@ static enum act_parse_ret parse_http_action_reject(const char **args, int *orig_
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes the "disable-l7-retry" HTTP action.
+ * It disables L7 retries (all retry except for a connection failure). This
+ * can be useful for example to avoid retrying on POST requests.
+ * It just removes the L7 retry flag on the stream_interface, and always
+ * return ACT_RET_CONT;
+ */
+static enum act_return http_req_disable_l7_retry(struct act_rule *rule, struct proxy *px,
+                                          struct session *sess, struct stream *s, int flags)
+{
+	struct stream_interface *si = &s->si[1];
+
+	/* In theory, the SI_FL_L7_RETRY flags isn't set at this point, but
+	 * let's be future-proof and remove it anyway.
+	 */
+	si->flags &= ~SI_FL_L7_RETRY;
+	si->flags |= SI_FL_D_L7_RETRY;
+	return ACT_RET_CONT;
+}
+
+/* parse the "disable-l7-retry" action:
+ * This action takes no argument and returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_req_disable_l7_retry(const char **args,
+							  int *orig_args, struct proxy *px,
+							  struct act_rule *rule, char **err)
+{
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = http_req_disable_l7_retry;
+	return ACT_RET_PRS_OK;
+}
+
 /* This function executes the "capture" action. It executes a fetch expression,
  * turns the result into a string and puts it in a capture slot. It always
  * returns 1. If an error occurs the action is cancelled, but the rule
@@ -575,6 +607,7 @@ static struct action_kw_list http_req_actions = {
 	.kw = {
 		{ "capture",    parse_http_req_capture },
 		{ "reject",     parse_http_action_reject },
+		{ "disable-l7-retry", parse_http_req_disable_l7_retry },
 		{ "set-method", parse_set_req_line },
 		{ "set-path",   parse_set_req_line },
 		{ "set-query",  parse_set_req_line },
