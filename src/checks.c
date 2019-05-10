@@ -60,10 +60,7 @@
 #include <proto/log.h>
 #include <proto/dns.h>
 #include <proto/proto_udp.h>
-
-#ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
-#endif /* USE_OPENSSL */
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);

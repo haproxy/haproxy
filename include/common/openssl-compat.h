@@ -1,5 +1,6 @@
 #ifndef _COMMON_OPENSSL_COMPAT_H
 #define _COMMON_OPENSSL_COMPAT_H
+#ifdef USE_OPENSSL
 
 #include <openssl/bn.h>
 #include <openssl/crypto.h>
@@ -233,4 +234,5 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define TLS_TICKET_HASH_FUNCT EVP_sha256
 #endif /* OPENSSL_NO_SHA256 */
 
+#endif /* USE_OPENSSL */
 #endif /* _COMMON_OPENSSL_COMPAT_H */

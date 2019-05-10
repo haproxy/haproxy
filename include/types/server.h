@@ -25,14 +25,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#ifdef USE_OPENSSL
-#include <common/openssl-compat.h>
-#include <types/ssl_sock.h>
-#endif
-
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
+#include <common/openssl-compat.h>
 
 #include <eb32tree.h>
 
@@ -43,6 +39,7 @@
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/queue.h>
+#include <types/ssl_sock.h>
 #include <types/task.h>
 #include <types/checks.h>
 

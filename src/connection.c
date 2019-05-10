@@ -25,10 +25,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>
 #include <proto/sample.h>
-
-#ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
-#endif
 
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));

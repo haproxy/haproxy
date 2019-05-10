@@ -39,11 +39,9 @@
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/sample.h>
+#include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#ifdef USE_OPENSSL
-#include <proto/ssl_sock.h>
-#endif
 
 struct log_fmt {
 	char *name;

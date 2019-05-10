@@ -83,6 +83,7 @@
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/namespace.h>
+#include <common/openssl-compat.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -125,10 +126,7 @@
 #include <proto/task.h>
 #include <proto/dns.h>
 #include <proto/vars.h>
-#ifdef USE_OPENSSL
-#include <common/openssl-compat.h>
 #include <proto/ssl_sock.h>
-#endif
 
 /* array of init calls for older platforms */
 DECLARE_INIT_STAGES;

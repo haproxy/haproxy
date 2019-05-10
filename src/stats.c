@@ -66,16 +66,12 @@
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>
+#include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-
-#ifdef USE_OPENSSL
-#include <proto/ssl_sock.h>
-#include <types/ssl_sock.h>
-#endif
 
 
 /* status codes available for the stats admin page (strictly 4 chars length) */

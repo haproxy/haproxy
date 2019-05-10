@@ -21,12 +21,16 @@
 
 #ifndef _PROTO_SSL_SOCK_H
 #define _PROTO_SSL_SOCK_H
+#ifdef USE_OPENSSL
+
 #include <common/openssl-compat.h>
 
 #include <types/connection.h>
 #include <types/listener.h>
 #include <types/proxy.h>
 #include <types/stream_interface.h>
+
+#include <proto/connection.h>
 
 extern int sslconns;
 extern int totalsslconns;
@@ -99,6 +103,7 @@ void ssl_async_fd_free(int fd);
 
 #define sh_ssl_sess_tree_lookup(k)     (struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
                                                                     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
+#endif /* USE_OPENSSL */
 #endif /* _PROTO_SSL_SOCK_H */
 
 /*

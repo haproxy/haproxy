@@ -21,6 +21,7 @@
 
 #ifndef _TYPES_SSL_SOCK_H
 #define _TYPES_SSL_SOCK_H
+#ifdef USE_OPENSSL
 
 #include <ebmbtree.h>
 
@@ -84,4 +85,5 @@ struct sh_ssl_sess_hdr {
 	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
 };
 
+#endif /* USE_OPENSSL */
 #endif /* _TYPES_SSL_SOCK_H */

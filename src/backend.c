@@ -57,11 +57,8 @@
 #include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
-
-#ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
-#endif /* USE_OPENSSL */
+#include <proto/task.h>
 
 int be_lastsession(const struct proxy *be)
 {
