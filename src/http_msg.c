@@ -832,7 +832,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	enum h1_state state;       /* updated only when leaving the FSM */
 	register const char *ptr, *end; /* request pointers, to avoid dereferences */
 	struct buffer *buf = &msg->chn->buf;
-	char *input = b_head(buf);
+	char *input = ci_head(msg->chn);
 
 	state = msg->msg_state;
 	ptr = input + msg->next;
