@@ -8,6 +8,7 @@ env:
     - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_LUA=1 USE_OPENSSL=1"
     - SSL_LIB=${HOME}/opt/lib
     - SSL_INC=${HOME}/opt/include
+    - TMPDIR=/tmp
 
 addons:
   apt:
@@ -67,11 +68,11 @@ script:
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
-  - env TMPDIR=/tmp VTEST_PROGRAM=../vtest/vtest make reg-tests
+  - env VTEST_PROGRAM=../vtest/vtest make reg-tests
 
 after_failure:
   - |
-    for folder in ${TMPDIR:-/tmp}/*regtest*/vtc.*; do
+    for folder in ${TMPDIR}/*regtest*/vtc.*; do
       cat $folder/INFO
       cat $folder/LOG
     done
