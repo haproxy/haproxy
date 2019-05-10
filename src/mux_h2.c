@@ -4160,10 +4160,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 	if (size <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (h2s->send_wait) {
-			LIST_DEL(&h2s->list);
-			LIST_INIT(&h2s->list);
-		}
+		if (!LIST_ISEMPTY(&h2s->list))
+			LIST_DEL_INIT(&h2s->list);
 		goto end;
 	}
 
@@ -4907,10 +4905,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 	if (h2s->mws <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (h2s->send_wait) {
-			LIST_DEL(&h2s->list);
-			LIST_INIT(&h2s->list);
-		}
+		if (!LIST_ISEMPTY(&h2s->list))
+			LIST_DEL_INIT(&h2s->list);
 		goto end;
 	}
 
