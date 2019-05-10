@@ -22,7 +22,6 @@
 #ifndef _TYPES_SSL_SOCK_H
 #define _TYPES_SSL_SOCK_H
 
-#include <openssl/ssl.h>
 #include <ebmbtree.h>
 
 #include <common/hathreads.h>

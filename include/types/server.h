@@ -26,7 +26,7 @@
 #include <arpa/inet.h>
 
 #ifdef USE_OPENSSL
-#include <openssl/ssl.h>
+#include <common/openssl-compat.h>
 #include <types/ssl_sock.h>
 #endif
 

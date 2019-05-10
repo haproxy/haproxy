@@ -23,6 +23,7 @@
  *
  */
 
+/* Note: do NOT include openssl/xxx.h here, do it in openssl-compat.h */
 #define _GNU_SOURCE
 #include <ctype.h>
 #include <dirent.h>
@@ -38,28 +39,6 @@
 #include <sys/types.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
-
-#include <openssl/bn.h>
-#include <openssl/crypto.h>
-#include <openssl/ssl.h>
-#include <openssl/x509.h>
-#include <openssl/x509v3.h>
-#include <openssl/err.h>
-#include <openssl/rand.h>
-#include <openssl/hmac.h>
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-#include <openssl/ocsp.h>
-#endif
-#ifndef OPENSSL_NO_DH
-#include <openssl/dh.h>
-#endif
-#ifndef OPENSSL_NO_ENGINE
-#include <openssl/engine.h>
-#endif
-
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
-#include <openssl/async.h>
-#endif
 
 #include <import/lru.h>
 #include <import/xxhash.h>

@@ -21,7 +21,7 @@
 
 #ifndef _PROTO_SSL_SOCK_H
 #define _PROTO_SSL_SOCK_H
-#include <openssl/ssl.h>
+#include <common/openssl-compat.h>
 
 #include <types/connection.h>
 #include <types/listener.h>

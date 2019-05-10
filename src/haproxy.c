@@ -128,7 +128,6 @@
 #ifdef USE_OPENSSL
 #include <common/openssl-compat.h>
 #include <proto/ssl_sock.h>
-#include <openssl/rand.h>
 #endif
 
 /* array of init calls for older platforms */
