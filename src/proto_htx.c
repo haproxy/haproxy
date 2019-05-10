@@ -1528,6 +1528,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			 */
 			if (conn->err_code == CO_ER_SSL_EARLY_FAILED) {
 				if ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
+				    (si_b->flags & SI_FL_L7_RETRY) &&
 				    do_l7_retry(s, si_b) == 0)
 					return 0;
 				txn->status = 425;
@@ -1817,6 +1818,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
+	    (si_b->flags & SI_FL_L7_RETRY) &&
 	    do_l7_retry(s, si_b) == 0)
 		return 0;
 	txn->status = 502;
