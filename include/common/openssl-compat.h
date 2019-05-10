@@ -25,6 +25,12 @@
 #define HA_OPENSSL_VERSION_NUMBER OPENSSL_VERSION_NUMBER
 #endif
 
+#ifndef OPENSSL_VERSION
+#define OPENSSL_VERSION         SSLEAY_VERSION
+#define OpenSSL_version(x)      SSLeay_version(x)
+#define OpenSSL_version_num     SSLeay
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
 /* Functions present in OpenSSL 0.9.8, older not tested */
 static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
@@ -200,5 +206,22 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define TLSEXT_signature_dsa        2
 #define TLSEXT_signature_ecdsa      3
 #endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || (LIBRESSL_VERSION_NUMBER < 0x20700000L)
+#define X509_getm_notBefore     X509_get_notBefore
+#define X509_getm_notAfter      X509_get_notAfter
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL || defined LIBRESSL_VERSION_NUMBER)
+#define EVP_CTRL_AEAD_SET_IVLEN EVP_CTRL_GCM_SET_IVLEN
+#define EVP_CTRL_AEAD_SET_TAG   EVP_CTRL_GCM_SET_TAG
+#endif
+
+/* Supported hash function for TLS tickets */
+#ifdef OPENSSL_NO_SHA256
+#define TLS_TICKET_HASH_FUNCT EVP_sha1
+#else
+#define TLS_TICKET_HASH_FUNCT EVP_sha256
+#endif /* OPENSSL_NO_SHA256 */
 
 #endif /* _COMMON_OPENSSL_COMPAT_H */

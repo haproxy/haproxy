@@ -61,22 +61,6 @@
 #include <openssl/async.h>
 #endif
 
-#ifndef OPENSSL_VERSION
-#define OPENSSL_VERSION         SSLEAY_VERSION
-#define OpenSSL_version(x)      SSLeay_version(x)
-#define OpenSSL_version_num     SSLeay
-#endif
-
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || (LIBRESSL_VERSION_NUMBER < 0x20700000L)
-#define X509_getm_notBefore     X509_get_notBefore
-#define X509_getm_notAfter      X509_get_notAfter
-#endif
-
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL || defined LIBRESSL_VERSION_NUMBER)
-#define EVP_CTRL_AEAD_SET_IVLEN EVP_CTRL_GCM_SET_IVLEN
-#define EVP_CTRL_AEAD_SET_TAG   EVP_CTRL_GCM_SET_TAG
-#endif
-
 #include <import/lru.h>
 #include <import/xxhash.h>
 
@@ -125,6 +109,17 @@
 #include <proto/task.h>
 #include <proto/vars.h>
 
+/* ***** READ THIS before adding code here! *****
+ *
+ * Due to API incompatibilities between multiple OpenSSL versions and their
+ * derivatives, it's often tempting to add macros to (re-)define certain
+ * symbols. Please do not do this here, and do it in common/openssl-compat.h
+ * exclusively so that the whole code consistently uses the same macros.
+ *
+ * Whenever possible if a macro is missing in certain versions, it's better
+ * to conditionally define it in openssl-compat.h than using lots of ifdefs.
+ */
+
 /* Warning, these are bits, not integers! */
 #define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
 #define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
@@ -141,13 +136,6 @@
 #define SSL_SOCK_ST_TO_CA_ERROR(s) ((s >> (16)) & 63)
 #define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (6+16)) & 15)
 #define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+6+16)) & 63)
-
-/* Supported hash function for TLS tickets */
-#ifdef OPENSSL_NO_SHA256
-#define HASH_FUNCT EVP_sha1
-#else
-#define HASH_FUNCT EVP_sha256
-#endif /* OPENSSL_NO_SHA256 */
 
 /* ssl_methods flags for ssl options */
 #define MC_SSL_O_ALL            0x0000
@@ -989,7 +977,7 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 			if(!EVP_EncryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[head].key_128.aes_key, iv))
 				goto end;
 
-			HMAC_Init_ex(hctx, keys[head].key_128.hmac_key, 16, HASH_FUNCT(), NULL);
+			HMAC_Init_ex(hctx, keys[head].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT(), NULL);
 			ret = 1;
 		}
 		else if (ref->key_size_bits == 256 ) {
@@ -997,7 +985,7 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 			if(!EVP_EncryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[head].key_256.aes_key, iv))
 				goto end;
 
-			HMAC_Init_ex(hctx, keys[head].key_256.hmac_key, 32, HASH_FUNCT(), NULL);
+			HMAC_Init_ex(hctx, keys[head].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT(), NULL);
 			ret = 1;
 		}
 	} else {
@@ -1010,14 +998,14 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 
 	  found:
 		if (ref->key_size_bits == 128) {
-			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_128.hmac_key, 16, HASH_FUNCT(), NULL);
+			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_128.hmac_key, 16, TLS_TICKET_HASH_FUNCT(), NULL);
 			if(!EVP_DecryptInit_ex(ectx, EVP_aes_128_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_128.aes_key, iv))
 				goto end;
 			/* 2 for key renewal, 1 if current key is still valid */
 			ret = i ? 2 : 1;
 		}
 		else if (ref->key_size_bits == 256) {
-			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_256.hmac_key, 32, HASH_FUNCT(), NULL);
+			HMAC_Init_ex(hctx, keys[(head + i) % TLS_TICKETS_NO].key_256.hmac_key, 32, TLS_TICKET_HASH_FUNCT(), NULL);
 			if(!EVP_DecryptInit_ex(ectx, EVP_aes_256_cbc(), NULL, keys[(head + i) % TLS_TICKETS_NO].key_256.aes_key, iv))
 				goto end;
 			/* 2 for key renewal, 1 if current key is still valid */
