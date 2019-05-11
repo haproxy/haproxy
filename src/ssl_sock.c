@@ -1224,11 +1224,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 		goto out;
 
 	/* Try to lookup for issuer in certificate extra chain */
-#ifdef SSL_CTRL_GET_EXTRA_CHAIN_CERTS
 	SSL_CTX_get_extra_chain_certs(ctx, &chain);
-#else
-	chain = ctx->extra_certs;
-#endif
 	for (i = 0; i < sk_X509_num(chain); i++) {
 		issuer = sk_X509_value(chain, i);
 		if (X509_check_issued(issuer, x) == X509_V_OK)

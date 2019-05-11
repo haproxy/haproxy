@@ -292,5 +292,9 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define SSL_OP_PRIORITIZE_CHACHA 0
 #endif
 
+#ifndef SSL_CTRL_GET_EXTRA_CHAIN_CERTS
+#define SSL_CTX_get_extra_chain_certs(ctx, chain) do { *(chain) = (ctx)->extra_certs; } while (0)
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _COMMON_OPENSSL_COMPAT_H */
