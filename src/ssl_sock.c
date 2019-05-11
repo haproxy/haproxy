@@ -2110,53 +2110,6 @@ ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 }
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
-
-#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
-#endif
-
-#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION   /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
-#define SSL_renegotiate_pending(arg) 0
-#endif
-#ifndef SSL_OP_SINGLE_ECDH_USE                          /* needs OpenSSL >= 0.9.8 */
-#define SSL_OP_SINGLE_ECDH_USE 0
-#endif
-#ifndef SSL_OP_NO_TICKET                                /* needs OpenSSL >= 0.9.8 */
-#define SSL_OP_NO_TICKET 0
-#endif
-#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifdef OPENSSL_NO_SSL3                                  /* SSLv3 support removed */
-#undef  SSL_OP_NO_SSLv3
-#define SSL_OP_NO_SSLv3 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_1                               /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_1 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_2 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_3                               /* needs OpenSSL >= 1.1.1 */
-#define SSL_OP_NO_TLSv1_3 0
-#endif
-#ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
-#define SSL_OP_SINGLE_DH_USE 0
-#endif
-#ifndef SSL_OP_SINGLE_ECDH_USE                            /* needs OpenSSL >= 1.0.0 */
-#define SSL_OP_SINGLE_ECDH_USE 0
-#endif
-#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
-#define SSL_MODE_RELEASE_BUFFERS 0
-#endif
-#ifndef SSL_MODE_SMALL_BUFFERS                          /* needs small_records.patch */
-#define SSL_MODE_SMALL_BUFFERS 0
-#endif
-#ifndef SSL_OP_PRIORITIZE_CHACHA                        /* needs OpenSSL >= 1.1.1 */
-#define SSL_OP_PRIORITIZE_CHACHA 0
-#endif
-
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
