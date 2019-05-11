@@ -252,7 +252,7 @@ void pool_gc(struct pool_head *pool_ctx)
 				break;
 			new.free_list = *POOL_LINK(entry, cmp.free_list);
 			new.seq = cmp.seq + 1;
-			if (__ha_cas_dw(&entry->free_list, &cmp, &new) == 0)
+			if (HA_ATOMIC_DWCAS(&entry->free_list, &cmp, &new) == 0)
 				continue;
 			free(cmp.free_list);
 			_HA_ATOMIC_SUB(&entry->allocated, 1);

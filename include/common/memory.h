@@ -228,7 +228,7 @@ static inline void *__pool_get_first(struct pool_head *pool)
 		new.seq = cmp.seq + 1;
 		__ha_barrier_load();
 		new.free_list = *POOL_LINK(pool, cmp.free_list);
-	} while (__ha_cas_dw((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
+	} while (HA_ATOMIC_DWCAS((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
 	__ha_barrier_atomic_store();
 
 	_HA_ATOMIC_ADD(&pool->used, 1);

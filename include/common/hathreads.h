@@ -51,6 +51,7 @@ enum { tid = 0 };
 #define __decl_aligned_rwlock(lock)
 
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
+#define HA_ATOMIC_DWCAS(val, o, n)   ({((*val) == (*o))   ? (*(val) = (n)   , 1) : (*(o)   = *(val), 0);})
 #define HA_ATOMIC_ADD(val, i)        ({*(val) += (i);})
 #define HA_ATOMIC_SUB(val, i)        ({*(val) -= (i);})
 #define HA_ATOMIC_XADD(val, i)						\
@@ -153,11 +154,6 @@ static inline void __ha_barrier_full(void)
 {
 }
 
-static inline int __ha_cas_dw(void *target, void *compare, void *set)
-{
-	return HA_ATOMIC_CAS(target, compare, set);
-}
-
 static inline void thread_harmless_now()
 {
 }
@@ -251,6 +247,8 @@ static inline unsigned long thread_isolated()
 		__ret_cas;						\
 	})
 
+#define HA_ATOMIC_DWCAS(val, o, n) __ha_cas_dw(val, o, n)
+
 #define HA_ATOMIC_XCHG(val, new)					\
 	({								\
 		typeof((val)) __val_xchg = (val);			\
@@ -293,6 +291,7 @@ static inline unsigned long thread_isolated()
 #else
 /* gcc >= 4.7 */
 #define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
 #define HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, __ATOMIC_SEQ_CST)
@@ -321,6 +320,7 @@ static inline unsigned long thread_isolated()
  * ie updating a counter. Otherwise a barrier is required.
  */
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
 #define _HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_SUB(val, i)        __atomic_sub_fetch(val, i, __ATOMIC_RELAXED)
@@ -1107,6 +1107,10 @@ int thread_get_default_count();
 
 #ifndef _HA_ATOMIC_CAS
 #define _HA_ATOMIC_CAS HA_ATOMIC_CAS
+#endif /* !_HA_ATOMIC_CAS */
+
+#ifndef _HA_ATOMIC_DWCAS
+#define _HA_ATOMIC_DWCAS HA_ATOMIC_DWCAS
 #endif /* !_HA_ATOMIC_CAS */
 
 #ifndef _HA_ATOMIC_ADD
