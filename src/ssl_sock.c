@@ -228,11 +228,7 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	struct ssl_sock_ctx *ctx;
 	int ret;
 
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
-	ctx = h->ptr;
-#else
 	ctx = BIO_get_data(h);
-#endif
 	tmpbuf.size = num;
 	tmpbuf.area = (void *)(uintptr_t)buf;
 	tmpbuf.data = num;
@@ -264,11 +260,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	struct ssl_sock_ctx *ctx;
 	int ret;
 
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
-	ctx = h->ptr;
-#else
 	ctx = BIO_get_data(h);
-#endif
 	tmpbuf.size = size;
 	tmpbuf.area = buf;
 	tmpbuf.data = 0;
@@ -297,13 +289,8 @@ static long ha_ssl_ctrl(BIO *h, int cmd, long arg1, void *arg2)
 
 static int ha_ssl_new(BIO *h)
 {
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
-	h->init = 1;
-	h->ptr = NULL;
-#else
 	BIO_set_init(h, 1);
 	BIO_set_data(h, NULL);
-#endif
 	BIO_clear_flags(h, ~0);
 	return 1;
 }
@@ -5164,11 +5151,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
-		ctx->bio->ptr = ctx;
-#else
 		BIO_set_data(ctx->bio, ctx);
-#endif
 		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
 
 		/* set connection pointer */
@@ -5229,11 +5212,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000
-		ctx->bio->ptr = ctx;
-#else
 		BIO_set_data(ctx->bio, ctx);
-#endif
 		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
 
 		/* set connection pointer */
@@ -9770,17 +9749,6 @@ static void __ssl_sock_init(void)
 #endif
 	/* Load SSL string for the verbose & debug mode. */
 	ERR_load_SSL_strings();
-#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
-	ha_meth = malloc(sizeof(*ha_meth));
-	bzero(ha_meth, sizeof(*ha_meth));
-	ha_meth->bwrite = ha_ssl_write;
-	ha_meth->bread = ha_ssl_read;
-	ha_meth->ctrl = ha_ssl_ctrl;
-	ha_meth->create = ha_ssl_new;
-	ha_meth->destroy = ha_ssl_free;
-	ha_meth->bputs = ha_ssl_puts;
-	ha_meth->bgets = ha_ssl_gets;
-#else
 	ha_meth = BIO_meth_new(0x666, "ha methods");
 	BIO_meth_set_write(ha_meth, ha_ssl_write);
 	BIO_meth_set_read(ha_meth, ha_ssl_read);
@@ -9789,7 +9757,6 @@ static void __ssl_sock_init(void)
 	BIO_meth_set_destroy(ha_meth, ha_ssl_free);
 	BIO_meth_set_puts(ha_meth, ha_ssl_puts);
 	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
-#endif
 }
 
 /* Compute and register the version string */
@@ -9894,11 +9861,7 @@ static void __ssl_sock_deinit(void)
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x00907000L) && (HA_OPENSSL_VERSION_NUMBER < 0x10100000L)
         CRYPTO_cleanup_all_ex_data();
 #endif
-#if (HA_OPENSSL_VERSION_NUMBER < 0x10100000L)
-	free(ha_meth);
-#else
 	BIO_meth_free(ha_meth);
-#endif
 }
 
 

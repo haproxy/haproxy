@@ -296,5 +296,21 @@ static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
 #define SSL_CTX_get_extra_chain_certs(ctx, chain) do { *(chain) = (ctx)->extra_certs; } while (0)
 #endif
 
+#if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
+#define BIO_get_data(b)            (b)->ptr
+#define BIO_set_data(b, v)         do { (b)->ptr  = (v); } while (0)
+#define BIO_set_init(b, v)         do { (b)->init = (v); } while (0)
+
+#define BIO_meth_free(m)           free(m)
+#define BIO_meth_new(type, name)   calloc(1, sizeof(BIO_METHOD))
+#define BIO_meth_set_gets(m, f)    do { (m)->bgets   = (f); } while (0)
+#define BIO_meth_set_puts(m, f)    do { (m)->bputs   = (f); } while (0)
+#define BIO_meth_set_read(m, f)    do { (m)->bread   = (f); } while (0)
+#define BIO_meth_set_write(m, f)   do { (m)->bwrite  = (f); } while (0)
+#define BIO_meth_set_create(m, f)  do { (m)->create  = (f); } while (0)
+#define BIO_meth_set_ctrl(m, f)    do { (m)->ctrl    = (f); } while (0)
+#define BIO_meth_set_destroy(m, f) do { (m)->destroy = (f); } while (0)
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _COMMON_OPENSSL_COMPAT_H */
