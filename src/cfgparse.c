@@ -616,7 +616,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		static int kws_dumped;
 		struct bind_conf *bind_conf;
 		struct bind_kw *kw;
-		char *kws;
 
 		cur_arg = 1;
 
@@ -693,13 +692,14 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 			cur_arg += 1 + kw->skip;
 		}
-		kws = NULL;
-		if (!kws_dumped) {
-			kws_dumped = 1;
-			bind_dump_kws(&kws);
-			indent_msg(&kws, 4);
-		}
 		if (*args[cur_arg] != 0) {
+			char *kws = NULL;
+
+			if (!kws_dumped) {
+				kws_dumped = 1;
+				bind_dump_kws(&kws);
+				indent_msg(&kws, 4);
+			}
 			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.%s%s\n",
 			         file, linenum, args[cur_arg], cursection,
 			         kws ? " Registered keywords :" : "", kws ? kws: "");
