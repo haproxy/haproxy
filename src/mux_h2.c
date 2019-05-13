@@ -1498,9 +1498,8 @@ static void h2c_update_all_ws(struct h2c *h2c, int diff)
 
 		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait)
+			if (h2s->send_wait && LIST_ISEMPTY(&h2s->list))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
-
 		}
 
 		node = eb32_next(node);
@@ -1805,9 +1804,8 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		h2s->mws += inc;
 		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait)
+			if (h2s->send_wait && LIST_ISEMPTY(&h2s->list))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
-
 		}
 	}
 	else {
