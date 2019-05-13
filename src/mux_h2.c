@@ -178,6 +178,10 @@ enum h2_ss {
 
 #define H2_SF_HEADERS_RCVD      0x00004000  // a HEADERS frame was received for this stream
 
+#define H2_SF_WANT_SHUTR        0x00008000  // a stream couldn't shutr() (mux full/busy)
+#define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
+
+
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (H1 for now).
  */
@@ -3203,7 +3207,7 @@ add_to_list:
 		}
 	}
 	/* Let the handler know we want shutr */
-	sw->handle = (void *)((long)sw->handle | 1);
+	h2s->flags |= H2_SF_WANT_SHUTR;
 	return 1;
 }
 
@@ -3270,9 +3274,9 @@ static int h2_do_shutw(struct h2s *h2s)
 			LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 	}
-       /* let the handler know we want to shutw */
-       sw->handle = (void *)((long)(sw->handle) | 2);
-       return 1;
+	/* let the handler know we want to shutw */
+	h2s->flags |= H2_SF_WANT_SHUTW;
+	return 1;
 }
 
 /* This is the tasklet referenced in h2s->wait_event.task, it is used for
@@ -3282,13 +3286,12 @@ static int h2_do_shutw(struct h2s *h2s)
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct h2s *h2s = ctx;
-	long reason = (long)h2s->wait_event.handle;
 	int ret = 0;
 
 	LIST_DEL_INIT(&h2s->sending_list);
-	if (reason & 2)
+	if (h2s->flags & H2_SF_WANT_SHUTW)
 		ret |= h2_do_shutw(h2s);
-	if (reason & 1)
+	if (h2s->flags & H2_SF_WANT_SHUTR)
 		ret |= h2_do_shutr(h2s);
 
 	if (!ret) {
