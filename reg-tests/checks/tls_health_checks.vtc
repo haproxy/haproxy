@@ -79,7 +79,7 @@ haproxy h2 -conf {
         timeout client 20
         timeout server 20
         timeout connect 20
-        default-server downinter 1s inter 40 rise 1 fall 1
+        default-server downinter 1s inter 100 rise 1 fall 1
 
     backend be2
         option log-health-checks
