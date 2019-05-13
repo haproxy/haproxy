@@ -2788,7 +2788,7 @@ static int stats_process_http_post(struct stream_interface *si)
 		}
 
 		/* The request was fully received. Copy data */
-		blk = htx_get_head_blk(htx);
+		blk = htx_get_first_blk(htx);
 		while (blk) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
 

@@ -422,7 +422,7 @@ trace_http_headers(struct stream *s, struct filter *filter,
 			   HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 			   HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			struct ist n, v;

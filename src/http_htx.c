@@ -80,7 +80,7 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	if (!htx->used)
 		return 0;
 
-	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 	  rescan_hdr:
 		type = htx_get_blk_type(blk);
 		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
@@ -143,7 +143,7 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
 	/* <blk> is the head, swap it iteratively with its predecessor to place
 	 * it just before the end-of-header block. So blocks remains ordered. */
-	for (prev = htx_get_prev(htx, htx->tail); prev != -1; prev = htx_get_prev(htx, prev)) {
+	for (prev = htx_get_prev(htx, htx->tail); prev != htx->sl_pos; prev = htx_get_prev(htx, prev)) {
 		struct htx_blk   *pblk = htx_get_blk(htx, prev);
 		enum htx_blk_type type = htx_get_blk_type(pblk);
 

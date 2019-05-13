@@ -715,7 +715,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		}
 
 		chunk_reset(&trash);
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			uint32_t sz = htx_get_blksz(blk);

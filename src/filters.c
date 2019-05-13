@@ -933,7 +933,7 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 		struct htx *htx = htxbuf(&chn->buf);
 		int32_t pos;
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			c_adv(chn, htx_get_blksz(blk));
 			if (htx_get_blk_type(blk) == HTX_BLK_EOH)

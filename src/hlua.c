@@ -3993,7 +3993,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 			lua_settable(L, -3);
 		}
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -4210,7 +4210,7 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 
 	htx = htx_from_buf(&req->buf);
 	count = co_data(req);
-	blk = htx_get_head_blk(htx);
+	blk = htx_get_first_blk(htx);
 
 	while (count && !stop && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
@@ -4366,7 +4366,7 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 	htx = htx_from_buf(&req->buf);
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
 	count = co_data(req);
-	blk = htx_get_head_blk(htx);
+	blk = htx_get_first_blk(htx);
 	while (count && len && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
@@ -5197,7 +5197,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 		struct htx *htx = htxbuf(&msg->chn->buf);
 		int32_t pos;
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			struct ist n, v;
@@ -7213,7 +7213,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 		 * the Lua.
 		 */
 		req_htx = htx_from_buf(&req->buf);
-		blk = htx_get_head_blk(req_htx);
+		blk = htx_get_first_blk(req_htx);
 		while (count && blk) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			uint32_t sz = htx_get_blksz(blk);

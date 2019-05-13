@@ -347,7 +347,7 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 
 		p = params = NULL;
 		len = 0;
-		for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			struct ist v;
 

@@ -300,7 +300,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 		htx_debug_stline("clireq", s, sl);
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -1655,7 +1655,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		htx_debug_stline("srvrep", s, sl);
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -3531,7 +3531,7 @@ static int htx_apply_filter_to_req_headers(struct stream *s, struct channel *req
 
 	htx = htxbuf(&req->buf);
 
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type;
 		struct ist n, v;
@@ -3749,7 +3749,7 @@ static int htx_apply_filter_to_resp_headers(struct stream *s, struct channel *re
 
 	htx = htxbuf(&res->buf);
 
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type;
 		struct ist n, v;
@@ -4643,7 +4643,7 @@ void htx_check_request_for_cacheability(struct stream *s, struct channel *req)
 
 	htx = htxbuf(&req->buf);
 	pragma_found = cc_found = 0;
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
                 struct htx_blk *blk = htx_get_blk(htx, pos);
                 enum htx_blk_type type = htx_get_blk_type(blk);
 		struct ist n, v;
@@ -4731,7 +4731,7 @@ void htx_check_response_for_cacheability(struct stream *s, struct channel *res)
 	}
 
 	htx = htxbuf(&res->buf);
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
                 struct htx_blk *blk  = htx_get_blk(htx, pos);
                 enum htx_blk_type type = htx_get_blk_type(blk);
 		struct ist n, v;
@@ -5564,7 +5564,7 @@ static void htx_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap
 	struct cap_hdr *h;
 	int32_t pos;
 
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		struct ist n, v;

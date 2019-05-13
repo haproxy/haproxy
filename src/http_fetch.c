@@ -615,7 +615,7 @@ static int smp_fetch_hdrs(const struct arg *args, struct sample *smp, const char
 		if (!htx)
 			return 0;
 		temp = get_trash_chunk();
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -687,7 +687,7 @@ static int smp_fetch_hdrs_bin(const struct arg *args, struct sample *smp, const 
 		temp = get_trash_chunk();
 		p = temp->area;
 		end = temp->area + temp->size;
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			struct ist n, v;
@@ -844,7 +844,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 			return 0;
 
 		temp = get_trash_chunk();
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -915,7 +915,7 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 		if (!htx)
 			return 0;
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -963,7 +963,7 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 		if (!htx)
 			return 0;
 
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
@@ -1281,7 +1281,7 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
 			del = *args[0].data.str.area;
 
 		temp = get_trash_chunk();
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			struct ist n;
@@ -2590,7 +2590,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				return 0;
 
 			temp   = get_trash_chunk();
-			for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 				struct htx_blk   *blk  = htx_get_blk(htx, pos);
 				enum htx_blk_type type = htx_get_blk_type(blk);
 
