@@ -111,6 +111,11 @@ struct cond_wordlist {
 /* checks if the list head <lh> is empty or not */
 #define LIST_ISEMPTY(lh) ((lh)->n == (lh))
 
+/* checks if the list element <el> was added to a list or not. This only
+ * works when detached elements are reinitialized (using LIST_DEL_INIT)
+ */
+#define LIST_ADDED(el) ((el)->n != (el))
+
 /* returns a pointer of type <pt> to a structure following the element
  * which contains list head <lh>, which is known as element <el> in
  * struct pt.
