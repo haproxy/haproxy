@@ -1735,7 +1735,7 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
 		struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-		struct ssl_sock_ctx *ctx = conn->ctx;
+		struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 		const unsigned char *p = buf;
 		unsigned int payload;
 
