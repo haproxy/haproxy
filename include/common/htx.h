@@ -410,6 +410,41 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
+/* Returns the position of the first block in the HTX message <htx>. It is the
+ * sl_pos if set, otherwise it is the head.
+ *
+ * An signed 32-bits integer is returned to handle -1 case. Blocks position are
+ * store on unsigned 32-bits integer, but it is impossible to have so much
+ * blocks to overflow a 32-bits signed integer !
+ */
+static inline int32_t htx_get_first(const struct htx *htx)
+{
+	if (htx->sl_pos != -1)
+		return htx->sl_pos;
+	return htx->head;
+}
+
+/* Returns the first HTX block in the HTX message <htx>. If <blk> is the head,
+ * NULL returned.
+ */
+static inline struct htx_blk *htx_get_first_blk(const struct htx *htx)
+{
+	int32_t pos;
+
+	pos = htx_get_first(htx);
+	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+}
+
+/* Returns the type of the first block in the HTX message <htx>. If unset or if
+ * <htx> is empty, HTX_BLK_UNUSED is returned.
+ */
+static inline enum htx_blk_type htx_get_first_type(const struct htx *htx)
+{
+	struct htx_blk *blk = htx_get_first_blk(htx);
+
+	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
+}
+
 /* Returns the position of block immediately before the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the head, -1 returned.
  *
