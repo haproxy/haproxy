@@ -511,6 +511,9 @@ int vars_check_arg(struct arg *arg, char **err)
 	if (!name)
 		return 0;
 
+	/* properly destroy the chunk */
+	chunk_destroy(&arg->data.str);
+
 	/* Use the global variable name pointer. */
 	arg->type = ARGT_VAR;
 	arg->data.var.name = name;
