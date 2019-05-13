@@ -99,6 +99,7 @@ static inline void conn_xprt_close(struct connection *conn)
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
 		if (conn->xprt->close)
 			conn->xprt->close(conn, conn->xprt_ctx);
+		conn->xprt_ctx = NULL;
 		conn->flags &= ~CO_FL_XPRT_READY;
 	}
 }
