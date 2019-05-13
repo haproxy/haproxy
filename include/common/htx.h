@@ -634,21 +634,6 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 	return ret;
 }
 
-/* Returns the HTX start-line if set, otherwise it returns NULL. */
-static inline struct htx_sl *htx_get_stline(struct htx *htx)
-{
-	struct htx_sl *sl = NULL;
-
-	if (htx->used && htx->sl_pos != -1) {
-		struct htx_blk *blk = htx_get_blk(htx, htx->sl_pos);
-
-		if (blk)
-			sl = htx_get_blk_ptr(htx, blk);
-	}
-	return sl;
-}
-
-
 /* Removes <n> bytes from the beginning of DATA block <blk>. The block's start
  * address and its length are adjusted, and the htx's total data count is
  * updated. This is used to mark that part of some data were transfered
