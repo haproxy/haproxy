@@ -3157,16 +3157,14 @@ static void h2_detach(struct conn_stream *cs)
 	}
 }
 
-/* Performs a synchronous or asynchronous shutr().
- * FIXME: guess what the return code tries to indicate!
- */
-static int h2_do_shutr(struct h2s *h2s)
+/* Performs a synchronous or asynchronous shutr(). */
+static void h2_do_shutr(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
-		return 0;
+		goto done;
 
 	/* a connstream may require us to immediately kill the whole connection
 	 * for example because of a "tcp-request content reject" rule that is
@@ -3193,8 +3191,9 @@ static int h2_do_shutr(struct h2s *h2s)
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
 	h2s_close(h2s);
-
-	return 0;
+ done:
+	h2s->flags &= ~H2_SF_WANT_SHUTR;
+	return;
 add_to_list:
 	if (!LIST_ADDED(&h2s->list)) {
 		sw->events |= SUB_RETRY_SEND;
@@ -3208,19 +3207,17 @@ add_to_list:
 	}
 	/* Let the handler know we want shutr */
 	h2s->flags |= H2_SF_WANT_SHUTR;
-	return 1;
+	return;
 }
 
-/* Performs a synchronous or asynchronous shutw().
- * FIXME: guess what the return code tries to indicate!
- */
-static int h2_do_shutw(struct h2s *h2s)
+/* Performs a synchronous or asynchronous shutw(). */
+static void h2_do_shutw(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
-		return 0;
+		goto done;
 
 	if (h2s->flags & H2_SF_HEADERS_SENT) {
 		/* we can cleanly close using an empty data frame only after headers */
@@ -3261,7 +3258,9 @@ static int h2_do_shutw(struct h2s *h2s)
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.task);
-	return 0;
+ done:
+	h2s->flags &= ~H2_SF_WANT_SHUTW;
+	return;
 
  add_to_list:
 	if (!LIST_ADDED(&h2s->list)) {
@@ -3276,7 +3275,7 @@ static int h2_do_shutw(struct h2s *h2s)
 	}
 	/* let the handler know we want to shutw */
 	h2s->flags |= H2_SF_WANT_SHUTW;
-	return 1;
+	return;
 }
 
 /* This is the tasklet referenced in h2s->wait_event.task, it is used for
@@ -3286,25 +3285,24 @@ static int h2_do_shutw(struct h2s *h2s)
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct h2s *h2s = ctx;
-	int ret = 0;
+	struct h2c *h2c = h2s->h2c;
 
 	LIST_DEL_INIT(&h2s->sending_list);
 	if (h2s->flags & H2_SF_WANT_SHUTW)
-		ret |= h2_do_shutw(h2s);
-	if (h2s->flags & H2_SF_WANT_SHUTR)
-		ret |= h2_do_shutr(h2s);
+		h2_do_shutw(h2s);
 
-	if (!ret) {
+	if (h2s->flags & H2_SF_WANT_SHUTR)
+		h2_do_shutr(h2s);
+
+	if (!(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
 		/* We're done trying to send, remove ourself from the send_list */
 		LIST_DEL_INIT(&h2s->list);
-	}
-	/* We're no longer trying to send anything, let's destroy the h2s */
-	if (!ret && (h2s->cs == NULL)) {
-		struct h2c *h2c = h2s->h2c;
-		h2s_destroy(h2s);
 
-		if (h2c_is_dead(h2c))
-			h2_release(h2c);
+		if (!h2s->cs) {
+			h2s_destroy(h2s);
+			if (h2c_is_dead(h2c))
+				h2_release(h2c);
+		}
 	}
 
 	return NULL;
