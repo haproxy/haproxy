@@ -510,8 +510,6 @@ int vars_check_arg(struct arg *arg, char **err)
 			     err);
 	if (!name)
 		return 0;
-	free(arg->data.str.area);
-	arg->data.str.area = NULL;
 
 	/* Use the global variable name pointer. */
 	arg->type = ARGT_VAR;
