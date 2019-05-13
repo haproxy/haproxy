@@ -270,6 +270,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol)
 		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
 		if (!sl || !htx_add_all_headers(htx, hdrs))
 			return NULL;
+		sl->info.req.meth = h1sl.rq.meth;
 	}
 
 	/* OK we just got a valid HTTP message. If not already done by
