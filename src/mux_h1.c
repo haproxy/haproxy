@@ -2207,7 +2207,6 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 			sw = param;
 			if (!(sw->events & SUB_RETRY_RECV)) {
 				sw->events |= SUB_RETRY_RECV;
-				sw->handle = h1s;
 				h1s->recv_wait = sw;
 			}
 			return 0;
@@ -2215,7 +2214,6 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 			sw = param;
 			if (!(sw->events & SUB_RETRY_SEND)) {
 				sw->events |= SUB_RETRY_SEND;
-				sw->handle = h1s;
 				h1s->send_wait = sw;
 			}
 			return 0;

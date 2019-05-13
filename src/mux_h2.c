@@ -909,7 +909,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->recv_wait = NULL;
 	h2s->wait_event.task->process = h2_deferred_shut;
 	h2s->wait_event.task->context = h2s;
-	h2s->wait_event.handle = NULL;
 	h2s->wait_event.events = 0;
 	LIST_INIT(&h2s->list);
 	LIST_INIT(&h2s->sending_list);
@@ -5188,7 +5187,6 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 		sw = param;
 		if (!(sw->events & SUB_RETRY_RECV)) {
 			sw->events |= SUB_RETRY_RECV;
-			sw->handle = h2s;
 			h2s->recv_wait = sw;
 		}
 		event_type &= ~SUB_RETRY_RECV;
@@ -5197,7 +5195,6 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 		sw = param;
 		if (!(sw->events & SUB_RETRY_SEND)) {
 			sw->events |= SUB_RETRY_SEND;
-			sw->handle = h2s;
 			h2s->send_wait = sw;
 			if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
 			    !LIST_ADDED(&h2s->list)) {

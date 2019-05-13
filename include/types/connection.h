@@ -57,7 +57,6 @@ enum sub_event_type {
 
 struct wait_event {
 	struct tasklet *task;
-	void *handle;           /* To be used by the callee */
 	int events;             /* set of enum sub_event_type above */
 };
 
