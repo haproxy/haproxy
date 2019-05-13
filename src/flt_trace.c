@@ -414,7 +414,7 @@ trace_http_headers(struct stream *s, struct filter *filter,
 
 	if (IS_HTX_STRM(s)) {
 		struct htx *htx = htxbuf(&msg->chn->buf);
-		struct htx_sl *sl = http_find_stline(htx);
+		struct htx_sl *sl = http_get_stline(htx);
 		int32_t pos;
 
 		STRM_TRACE(conf, s, "\t%.*s %.*s %.*s",

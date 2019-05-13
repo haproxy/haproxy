@@ -30,7 +30,7 @@
 
 extern struct buffer htx_err_chunks[HTTP_ERR_SIZE];
 
-struct htx_sl *http_find_stline(struct htx *htx);
+struct htx_sl *http_get_stline(struct htx *htx);
 int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);
 int http_add_header(struct htx *htx, const struct ist n, const struct ist v);
 int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3);

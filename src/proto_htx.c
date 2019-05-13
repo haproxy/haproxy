@@ -291,7 +291,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	txn->flags &= ~TX_WAIT_NEXT_RQ;
 	req->analyse_exp = TICK_ETERNITY;
 
-	sl = http_find_stline(htx);
+	sl = http_get_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
@@ -801,7 +801,7 @@ int htx_process_request(struct stream *s, struct channel *req, int an_bit)
 
 			return 0;
 		}
-		sl = http_find_stline(htx);
+		sl = http_get_stline(htx);
 		uri = htx_sl_req_uri(sl);
 		path = http_get_path(uri);
 		if (url2sa(uri.ptr, uri.len - path.len, &conn->addr.to, NULL) == -1)
@@ -1646,7 +1646,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 
 	msg->msg_state = HTTP_MSG_BODY;
-	sl = http_find_stline(htx);
+	sl = http_get_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
@@ -2414,7 +2414,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 			if (http_find_header(htx, ist("Host"), &ctx, 0))
 				host = ctx.value;
 
-			sl = http_find_stline(htx);
+			sl = http_get_stline(htx);
 			path = http_get_path(htx_sl_req_uri(sl));
 			/* build message using path */
 			if (path.ptr) {
@@ -2462,7 +2462,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 		case REDIRECT_TYPE_PREFIX: {
 			struct ist path;
 
-			sl = http_find_stline(htx);
+			sl = http_get_stline(htx);
 			path = http_get_path(htx_sl_req_uri(sl));
 			/* build message using path */
 			if (path.ptr) {
@@ -3639,11 +3639,11 @@ static int htx_apply_filter_to_req_line(struct stream *s, struct channel *req, s
 
 	done = 0;
 
-	reqline->data = htx_fmt_req_line(http_find_stline(htx), reqline->area, reqline->size);
+	reqline->data = htx_fmt_req_line(http_get_stline(htx), reqline->area, reqline->size);
 
 	/* Now we have the request line between cur_ptr and cur_end */
 	if (regex_exec_match2(exp->preg, reqline->area, reqline->data, MAX_MATCH, pmatch, 0)) {
-		struct htx_sl *sl = http_find_stline(htx);
+		struct htx_sl *sl = http_get_stline(htx);
 		struct ist meth, uri, vsn;
 		int len;
 
@@ -3850,11 +3850,11 @@ static int htx_apply_filter_to_sts_line(struct stream *s, struct channel *res, s
 		return 0;
 
 	done = 0;
-	resline->data = htx_fmt_res_line(http_find_stline(htx), resline->area, resline->size);
+	resline->data = htx_fmt_res_line(http_get_stline(htx), resline->area, resline->size);
 
 	/* Now we have the status line between cur_ptr and cur_end */
 	if (regex_exec_match2(exp->preg, resline->area, resline->data, MAX_MATCH, pmatch, 0)) {
-		struct htx_sl *sl = http_find_stline(htx);
+		struct htx_sl *sl = http_get_stline(htx);
 		struct ist vsn, code, reason;
 		int len;
 
@@ -4847,7 +4847,7 @@ static int htx_stats_check_uri(struct stream *s, struct http_txn *txn, struct pr
 		return 0;
 
 	htx = htxbuf(&s->req.buf);
-	sl = http_find_stline(htx);
+	sl = http_get_stline(htx);
 	uri = htx_sl_req_uri(sl);
 
 	/* check URI size */
@@ -4890,7 +4890,7 @@ static int htx_handle_stats(struct stream *s, struct channel *req)
 		appctx->ctx.stats.flags |= STAT_CHUNKED;
 
 	htx = htxbuf(&req->buf);
-	sl = http_find_stline(htx);
+	sl = http_get_stline(htx);
 	lookup = HTX_SL_REQ_UPTR(sl) + uri_auth->uri_len;
 	end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
 
@@ -5043,7 +5043,7 @@ void htx_perform_server_redirect(struct stream *s, struct stream_interface *si)
 
 	/* 2: add the request Path */
 	htx = htxbuf(&req->buf);
-	sl = http_find_stline(htx);
+	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
 	if (!path.ptr)
 		return;

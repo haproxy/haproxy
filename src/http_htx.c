@@ -20,35 +20,21 @@
 
 struct buffer htx_err_chunks[HTTP_ERR_SIZE];
 
-/* Finds the start line in the HTX message stopping at the first
- * end-of-message. It returns NULL when not found, otherwise, it returns the
- * pointer on the htx_sl structure. The HTX message may be updated if the
- * start-line is returned following a lookup.
+/* Returns the next unporocessed start line in the HTX message. It returns NULL
+ * is the start-line is undefined (sl_pos == 1). Otherwise, it returns the
+ * pointer on the htx_sl structure.
  */
-struct htx_sl *http_find_stline(struct htx *htx)
+struct htx_sl *http_get_stline(struct htx *htx)
 {
-	struct htx_sl *sl = NULL;
-	int32_t pos;
+	struct htx_blk *blk;
 
-	sl = htx_get_stline(htx);
-	if (sl)
-		return sl;
+	if (htx->sl_pos == -1)
+		return NULL;
 
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk    *blk  = htx_get_blk(htx, pos);
-		enum htx_blk_type  type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
-			sl = htx_get_blk_ptr(htx, blk);
-			htx->sl_pos = pos;
-			break;
-		}
-
-		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
-			break;
-	}
-
-	return sl;
+	blk = htx_get_blk(htx, htx->sl_pos);
+	if (!blk)
+		return NULL;
+	return htx_get_blk_ptr(htx, blk);
 }
 
 /* Finds the first or next occurrence of header <name> in the HTX message <htx>
@@ -213,7 +199,7 @@ int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p
 int http_replace_req_meth(struct htx *htx, const struct ist meth)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist uri, vsn;
 
 	if (!sl)
@@ -237,7 +223,7 @@ int http_replace_req_meth(struct htx *htx, const struct ist meth)
 int http_replace_req_uri(struct htx *htx, const struct ist uri)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist meth, vsn;
 
 	if (!sl)
@@ -260,7 +246,7 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 int http_replace_req_path(struct htx *htx, const struct ist path)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist meth, uri, vsn, p;
 	size_t plen = 0;
 
@@ -297,7 +283,7 @@ int http_replace_req_path(struct htx *htx, const struct ist path)
 int http_replace_req_query(struct htx *htx, const struct ist query)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist meth, uri, vsn, q;
 	int offset = 1;
 
@@ -342,7 +328,7 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 int http_replace_res_status(struct htx *htx, const struct ist status)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist vsn, reason;
 
 	if (!sl)
@@ -366,7 +352,7 @@ int http_replace_res_status(struct htx *htx, const struct ist status)
 int http_replace_res_reason(struct htx *htx, const struct ist reason)
 {
 	struct buffer *temp = get_trash_chunk();
-	struct htx_sl *sl = http_find_stline(htx);
+	struct htx_sl *sl = http_get_stline(htx);
 	struct ist vsn, status;
 
 	if (!sl)

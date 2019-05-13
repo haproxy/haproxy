@@ -3944,7 +3944,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	if (IS_HTX_STRM(s)) {
 		/* HTX version */
 		struct htx *htx = htxbuf(&s->req.buf);
-		struct htx_sl *sl = http_find_stline(htx);
+		struct htx_sl *sl = http_get_stline(htx);
 		struct ist path;
 		unsigned long long len = 0;
 		int32_t pos;

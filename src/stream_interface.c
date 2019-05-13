@@ -1305,7 +1305,7 @@ int si_cs_recv(struct conn_stream *cs)
 
 			htx = htxbuf(&ic->buf);
 			if (htx) {
-				sl = http_find_stline(htx);
+				sl = http_get_stline(htx);
 				if (sl && l7_status_match(si_strm(si)->be,
 				    sl->info.res.status)) {
 					/* If we got a status for which we would

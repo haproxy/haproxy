@@ -743,7 +743,7 @@ int assign_server(struct stream *s)
 				else {
 					struct ist uri;
 
-					uri = htx_sl_req_uri(http_find_stline(htxbuf(&s->req.buf)));
+					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 					srv = get_server_uh(s->be, uri.ptr, uri.len, prev_srv);
 				}
 				break;
@@ -760,7 +760,7 @@ int assign_server(struct stream *s)
 				else {
 					struct ist uri;
 
-					uri = htx_sl_req_uri(http_find_stline(htxbuf(&s->req.buf)));
+					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 					srv = get_server_ph(s->be, uri.ptr, uri.len, prev_srv);
 				}
 

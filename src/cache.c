@@ -1351,7 +1351,7 @@ int sha1_hosturi(struct stream *s)
 			return 0;
 		chunk_memcat(trash, ctx.value.ptr, ctx.value.len);
 
-		sl = http_find_stline(htx);
+		sl = http_get_stline(htx);
                 path = http_get_path(htx_sl_req_uri(sl));
                 if (!path.ptr)
                         return 0;

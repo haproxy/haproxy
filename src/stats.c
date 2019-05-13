@@ -277,7 +277,7 @@ static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interfac
 	if (IS_HTX_STRM(si_strm(si))) {
 		struct channel *req = si_oc(si);
 		struct htx *htx = htxbuf(&req->buf);
-		struct ist uri = htx_sl_req_uri(http_find_stline(htx));
+		struct ist uri = htx_sl_req_uri(http_get_stline(htx));
 
 		p = uri.ptr;
 	}
