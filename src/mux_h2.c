@@ -390,7 +390,7 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(LIST_ISEMPTY(&h2c->buf_wait.list)) &&
+	if (likely(!LIST_ADDED(&h2c->buf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		h2c->buf_wait.target = h2c;
 		h2c->buf_wait.wakeup_cb = h2_buf_available;
@@ -722,7 +722,7 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 {
 	struct wait_event *sw;
 
-	if (h2s->send_wait && LIST_ISEMPTY(&h2s->sending_list)) {
+	if (h2s->send_wait && !LIST_ADDED(&h2s->sending_list)) {
 		sw = h2s->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
@@ -874,7 +874,7 @@ static void h2s_destroy(struct h2s *h2s)
 	 * we're in it, we're getting out anyway
 	 */
 	LIST_DEL_INIT(&h2s->list);
-	if (!LIST_ISEMPTY(&h2s->sending_list)) {
+	if (LIST_ADDED(&h2s->sending_list)) {
 		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 		LIST_DEL_INIT(&h2s->sending_list);
 	}
@@ -1498,7 +1498,7 @@ static void h2c_update_all_ws(struct h2c *h2c, int diff)
 
 		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait && LIST_ISEMPTY(&h2s->list))
+			if (h2s->send_wait && !LIST_ADDED(&h2s->list))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 
@@ -1804,7 +1804,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		h2s->mws += inc;
 		if (h2s->mws > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait && LIST_ISEMPTY(&h2s->list))
+			if (h2s->send_wait && !LIST_ADDED(&h2s->list))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 	}
@@ -2594,7 +2594,7 @@ static int h2_process_mux(struct h2c *h2c)
 		    h2c->st0 >= H2_CS_ERROR)
 			break;
 
-		if (!LIST_ISEMPTY(&h2s->sending_list))
+		if (LIST_ADDED(&h2s->sending_list))
 			continue;
 
 		h2s->flags &= ~H2_SF_BLK_ANY;
@@ -2614,7 +2614,7 @@ static int h2_process_mux(struct h2c *h2c)
 		if (h2c->st0 >= H2_CS_ERROR || h2c->flags & H2_CF_MUX_BLOCK_ANY)
 			break;
 
-		if (!LIST_ISEMPTY(&h2s->sending_list))
+		if (LIST_ADDED(&h2s->sending_list))
 			continue;
 
 		/* For some reason, the upper layer failed to subsribe again,
@@ -2786,7 +2786,7 @@ static int h2_send(struct h2c *h2c)
 			if (h2c->st0 >= H2_CS_ERROR || h2c->flags & H2_CF_MUX_BLOCK_ANY)
 				break;
 
-			if (!LIST_ISEMPTY(&h2s->sending_list))
+			if (LIST_ADDED(&h2s->sending_list))
 				continue;
 
 			/* For some reason, the upper layer failed to subsribe again,
@@ -3046,7 +3046,7 @@ static void h2_detach(struct conn_stream *cs)
 		return;
 
 	/* The stream is about to die, so no need to attempt to run its task */
-	if (!LIST_ISEMPTY(&h2s->sending_list) &&
+	if (LIST_ADDED(&h2s->sending_list) &&
 	    h2s->send_wait != &h2s->wait_event) {
 		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 		LIST_DEL_INIT(&h2s->sending_list);
@@ -3120,7 +3120,7 @@ static void h2_detach(struct conn_stream *cs)
 			/* Never ever allow to reuse a connection from a non-reuse backend */
 			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 				h2c->conn->flags |= CO_FL_PRIVATE;
-			if (LIST_ISEMPTY(&h2c->conn->list) && h2c->nb_streams < h2c->streams_limit) {
+			if (!LIST_ADDED(&h2c->conn->list) && h2c->nb_streams < h2c->streams_limit) {
 				struct server *srv = objt_server(h2c->conn->target);
 
 				if (srv) {
@@ -3192,7 +3192,7 @@ static int h2_do_shutr(struct h2s *h2s)
 
 	return 0;
 add_to_list:
-	if (LIST_ISEMPTY(&h2s->list)) {
+	if (!LIST_ADDED(&h2s->list)) {
 		sw->events |= SUB_RETRY_SEND;
 		if (h2s->flags & H2_SF_BLK_MFCTL) {
 			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
@@ -3260,7 +3260,7 @@ static int h2_do_shutw(struct h2s *h2s)
 	return 0;
 
  add_to_list:
-	if (LIST_ISEMPTY(&h2s->list)) {
+	if (!LIST_ADDED(&h2s->list)) {
 		sw->events |= SUB_RETRY_SEND;
 		if (h2s->flags & H2_SF_BLK_MFCTL) {
 			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
@@ -4158,7 +4158,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 
 	if (size <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (!LIST_ISEMPTY(&h2s->list))
+		if (LIST_ADDED(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
 		goto end;
 	}
@@ -4903,7 +4903,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 	if (h2s->mws <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (!LIST_ISEMPTY(&h2s->list))
+		if (LIST_ADDED(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
 		goto end;
 	}
@@ -5199,7 +5199,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 			sw->handle = h2s;
 			h2s->send_wait = sw;
 			if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
-			    LIST_ISEMPTY(&h2s->list)) {
+			    !LIST_ADDED(&h2s->list)) {
 				if (h2s->flags & H2_SF_BLK_MFCTL)
 					LIST_ADDQ(&h2c->fctl_list, &h2s->list);
 				else
@@ -5237,7 +5237,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 			LIST_INIT(&h2s->list);
 			sw->events &= ~SUB_RETRY_SEND;
 			/* We were about to send, make sure it does not happen */
-			if (!LIST_ISEMPTY(&h2s->sending_list) &&
+			if (LIST_ADDED(&h2s->sending_list) &&
 			    h2s->send_wait != &h2s->wait_event) {
 				task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
 				LIST_DEL_INIT(&h2s->sending_list);
@@ -5352,7 +5352,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
 	 */
-	if (LIST_ISEMPTY(&h2s->sending_list) &&
+	if (!LIST_ADDED(&h2s->sending_list) &&
 	    (!LIST_ISEMPTY(&h2s->h2c->send_list) || !LIST_ISEMPTY(&h2s->h2c->fctl_list)))
 		return 0;
 	LIST_DEL_INIT(&h2s->sending_list);
