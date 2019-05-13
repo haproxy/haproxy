@@ -174,23 +174,15 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
  */
 int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3)
 {
-	int32_t pos;
+	struct htx_blk *blk;
 
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type = htx_get_blk_type(blk);
+	if (htx->sl_pos == -1)
+		return 0;
 
-		if (htx->sl_pos == pos) {
-			if (!htx_replace_stline(htx, blk, p1, p2, p3))
-				return 0;
-			return 1;
-		}
-
-		if (type == HTX_BLK_EOM)
-			break;
-	}
-
-	return 0;
+	blk = htx_get_blk(htx, htx->sl_pos);
+	if (!htx_replace_stline(htx, blk, p1, p2, p3))
+		return 0;
+	return 1;
 }
 
 /* Replace the request method in the HTX message <htx> by <meth>. It returns 1
