@@ -38,6 +38,7 @@
 #include <types/stream.h>
 #include <types/stream_interface.h>
 
+#include <proto/stream.h>
 #include <proto/task.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -778,6 +779,17 @@ static inline int channel_htx_full(const struct channel *c, const struct htx *ht
 }
 
 
+/* HTX version of channel_recv_max(). */
+static inline int channel_htx_recv_max(const struct channel *chn, const struct htx *htx)
+{
+	int ret;
+
+	ret = channel_htx_recv_limit(chn, htx) - htx_used_space(htx);
+	if (ret < 0)
+		ret = 0;
+	return ret;
+}
+
 /* Returns the amount of space available at the input of the buffer, taking the
  * reserved space into account if ->to_forward indicates that an end of transfer
  * is close to happen. The test is optimized to avoid as many operations as
@@ -787,18 +799,10 @@ static inline int channel_recv_max(const struct channel *chn)
 {
 	int ret;
 
+	if (IS_HTX_STRM(chn_strm(chn)))
+		return channel_htx_recv_max(chn, htxbuf(&chn->buf));
+
 	ret = channel_recv_limit(chn) - b_data(&chn->buf);
-	if (ret < 0)
-		ret = 0;
-	return ret;
-}
-
-/* HTX version of channel_recv_max(). */
-static inline int channel_htx_recv_max(const struct channel *chn, const struct htx *htx)
-{
-	int ret;
-
-	ret = channel_htx_recv_limit(chn, htx) - htx->data;
 	if (ret < 0)
 		ret = 0;
 	return ret;
