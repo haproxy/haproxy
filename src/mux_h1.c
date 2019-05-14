@@ -2178,17 +2178,15 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (h1s->recv_wait == sw) {
-			sw->events &= ~SUB_RETRY_RECV;
-			h1s->recv_wait = NULL;
-		}
+		BUG_ON(h1s->recv_wait != sw);
+		sw->events &= ~SUB_RETRY_RECV;
+		h1s->recv_wait = NULL;
 	}
 	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (h1s->send_wait == sw) {
-			sw->events &= ~SUB_RETRY_SEND;
-			h1s->send_wait = NULL;
-		}
+		BUG_ON(h1s->send_wait != sw);
+		sw->events &= ~SUB_RETRY_SEND;
+		h1s->send_wait = NULL;
 	}
 	return 0;
 }
@@ -2205,17 +2203,15 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 	switch (event_type) {
 		case SUB_RETRY_RECV:
 			sw = param;
-			if (!(sw->events & SUB_RETRY_RECV)) {
-				sw->events |= SUB_RETRY_RECV;
-				h1s->recv_wait = sw;
-			}
+			BUG_ON(h1s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
+			sw->events |= SUB_RETRY_RECV;
+			h1s->recv_wait = sw;
 			return 0;
 		case SUB_RETRY_SEND:
 			sw = param;
-			if (!(sw->events & SUB_RETRY_SEND)) {
-				sw->events |= SUB_RETRY_SEND;
-				h1s->send_wait = sw;
-			}
+			BUG_ON(h1s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
+			sw->events |= SUB_RETRY_SEND;
+			h1s->send_wait = sw;
 			return 0;
 		default:
 			break;
