@@ -1250,9 +1250,9 @@ resolv_out:
 		curr_resolvers->accepted_payload_size = i;
 	}
 	else if (strcmp(args[0], "resolution_pool_size") == 0) {
-		ha_warning("parsing [%s:%d] : '%s' directive is now deprecated and ignored.\n",
+		ha_alert("parsing [%s:%d] : '%s' directive is not supported anymore (it never appeared in a stable release).\n",
 			   file, linenum, args[0]);
-		err_code |= ERR_WARN;
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 	else if (strcmp(args[0], "resolve_retries") == 0) {

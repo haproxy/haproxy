@@ -12759,11 +12759,6 @@ hold <status> <period>
 
   Default value is 10s for "valid", 0s for "obsolete" and 30s for others.
 
-resolution_pool_size <nb>  (deprecated)
-  Defines the number of resolutions available in the pool for this resolvers.
-  If not defines, it defaults to 64. If your configuration requires more than
-  <nb>, then HAProxy will return an error when parsing the configuration.
-
 resolve_retries <nb>
   Defines the number <nb> of queries to send to resolve a server name before
   giving up.
