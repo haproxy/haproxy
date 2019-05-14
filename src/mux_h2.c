@@ -180,6 +180,7 @@ enum h2_ss {
 
 #define H2_SF_WANT_SHUTR        0x00008000  // a stream couldn't shutr() (mux full/busy)
 #define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
+#define H2_SF_KILL_CONN         0x00020000  // kill the whole connection with this stream
 
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
@@ -3170,7 +3171,7 @@ static void h2_do_shutr(struct h2s *h2s)
 	 * normally used to limit abuse. In this case we schedule a goaway to
 	 * close the connection.
 	 */
-	if ((h2s->cs && h2s->cs->flags & CS_FL_KILL_CONN) &&
+	if ((h2s->flags & H2_SF_KILL_CONN) &&
 	    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 		h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
@@ -3236,7 +3237,7 @@ static void h2_do_shutw(struct h2s *h2s)
 		 * normally used to limit abuse. In this case we schedule a goaway to
 		 * close the connection.
 		 */
-		if ((h2s->cs && h2s->cs->flags & CS_FL_KILL_CONN) &&
+		if ((h2s->flags & H2_SF_KILL_CONN) &&
 		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
@@ -3313,6 +3314,9 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
 
+	if (cs->flags & CS_FL_KILL_CONN)
+		h2s->flags |= H2_SF_KILL_CONN;
+
 	if (!mode)
 		return;
 
@@ -3323,6 +3327,9 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
+
+	if (cs->flags & CS_FL_KILL_CONN)
+		h2s->flags |= H2_SF_KILL_CONN;
 
 	h2_do_shutw(h2s);
 }
