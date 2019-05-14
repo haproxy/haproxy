@@ -251,6 +251,7 @@ __decl_hathreads(extern pthread_t *threads);
 #define WARN_CLITO_DEPRECATED       0x00000008
 #define WARN_SRVTO_DEPRECATED       0x00000010
 #define WARN_CONTO_DEPRECATED       0x00000020
+#define WARN_FORCECLOSE_DEPRECATED  0x00000040
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)

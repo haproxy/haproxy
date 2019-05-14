@@ -2160,6 +2160,12 @@ stats_error_parsing:
 		 * sections).
 		 */
 		if (strcmp(args[1], "httpclose") == 0 || strcmp(args[1], "forceclose") == 0) {
+			if (strcmp(args[1], "forceclose") == 0) {
+				if (!already_warned(WARN_FORCECLOSE_DEPRECATED))
+					ha_warning("parsing [%s:%d]: keyword '%s' is deprecated in favor of 'httpclose', and will not be supported by future versions.\n",
+					  file, linenum, args[1]);
+				err_code |= ERR_WARN;
+			}
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD) {

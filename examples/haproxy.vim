@@ -82,7 +82,7 @@ syn keyword hapBalance   contained roundrobin source
 syn keyword hapLen       contained len
 syn keyword hapGLog      contained global
 syn keyword hapMode      contained http tcp health
-syn keyword hapOption    contained abortonclose allbackups checkcache clitcpka dontlognull forceclose forwardfor
+syn keyword hapOption    contained abortonclose allbackups checkcache clitcpka dontlognull forwardfor
 syn keyword hapOption    contained httpchk httpclose httplog keepalive logasap persist srvtcpka ssl-hello-chk
 syn keyword hapOption    contained tcplog tcpka tcpsplice
 syn keyword hapOption    contained except skipwhite nextgroup=hapIPv4Mask
