@@ -5383,7 +5383,6 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	/* transfer possibly pending data to the upper layer */
 	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
-		/* in HTX mode we ignore the count argument */
 		h2s_htx = htx_from_buf(&h2s->rxbuf);
 		if (htx_is_empty(h2s_htx)) {
 			/* Here htx_to_buf() will set buffer data to 0 because
@@ -5395,12 +5394,6 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 		ret = h2s_htx->data;
 		buf_htx = htx_from_buf(buf);
-		count = htx_free_data_space(buf_htx);
-		if (flags & CO_RFL_KEEP_RSV) {
-			if (count <= global.tune.maxrewrite)
-				goto end;
-			count -= global.tune.maxrewrite;
-		}
 
 		htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
