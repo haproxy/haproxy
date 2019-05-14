@@ -1483,7 +1483,6 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	time_t time = date.tv_sec;
 	char *hdr, *hdr_ptr;
 	size_t hdr_size;
-	struct buffer *tag = &global.log_tag;
 	int fac_level;
 	int *plogfd;
 	char *pid_sep1 = "", *pid_sep2 = "";
@@ -1493,6 +1492,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	int hdr_max = 0;
 	int tag_max = 0;
 	int pid_sep1_max = 0;
+	int pid_max = 0;
 	int pid_sep2_max = 0;
 	int sd_max = 0;
 	int max = 0;
@@ -1605,7 +1605,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	maxlen = logsrv->maxlen - hdr_max;
 
 	/* tag */
-	tag_max = tag->data;
+	tag_max = tag_size;
 	if (unlikely(tag_max >= maxlen)) {
 		tag_max = maxlen - 1;
 		sd_max = 0;
@@ -1626,6 +1626,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	maxlen -= pid_sep1_max;
 
 	/* pid */
+	pid_max = pid_size;
 	if (unlikely(pid_size >= maxlen)) {
 		pid_size = maxlen - 1;
 		sd_max = 0;
@@ -1656,11 +1657,11 @@ send:
 	iovec[0].iov_base = hdr_ptr;
 	iovec[0].iov_len  = hdr_max;
 	iovec[1].iov_base = tag_str;
-	iovec[1].iov_len  = tag_size;
+	iovec[1].iov_len  = tag_max;
 	iovec[2].iov_base = pid_sep1;
 	iovec[2].iov_len  = pid_sep1_max;
 	iovec[3].iov_base = pid_str;
-	iovec[3].iov_len  = pid_size;
+	iovec[3].iov_len  = pid_max;
 	iovec[4].iov_base = pid_sep2;
 	iovec[4].iov_len  = pid_sep2_max;
 	iovec[5].iov_base = sd;
