@@ -1546,33 +1546,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->server_id_hdr_name = strdup(args[1]);
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 	}
-	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
-		struct act_rule *rule;
+	else if (!strcmp(args[0], "block")) {
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. Use 'http-request deny' which uses the exact same syntax.\n", file, linenum, args[0]);
 
-		if (curproxy == &defproxy) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* emulate "block" using "http-request block". Since these rules are supposed to
-		 * be processed before all http-request rules, we put them into their own list
-		 * and will insert them at the end.
-		 */
-		rule = parse_http_req_cond((const char **)args, file, linenum, curproxy);
-		if (!rule) {
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-		err_code |= warnif_misplaced_block(curproxy, file, linenum, args[0]);
-		err_code |= warnif_cond_conflicts(rule->cond,
-	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
-	                                          file, linenum);
-		LIST_ADDQ(&curproxy->block_rules, &rule->list);
-
-		if (!already_warned(WARN_BLOCK_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of 'http-request deny' which uses the exact same syntax. The rules are translated but support might disappear in a future version.\n", file, linenum, args[0]);
-
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		struct redirect_rule *rule;

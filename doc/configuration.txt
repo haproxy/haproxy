@@ -2342,7 +2342,6 @@ backlog                                   X          X         X         -
 balance                                   X          -         X         X
 bind                                      -          X         X         -
 bind-process                              X          X         X         X
-block                       (deprecated)  -          X         X         X
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
@@ -2992,35 +2991,6 @@ bind-process [ all | odd | even | <process_num>[-[<process_num>]] ] ...
 
   See also : "nbproc" in global section, and "process" in section 5.1.
 
-
-block { if | unless } <condition> (deprecated)
-  Block a layer 7 request if/unless a condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-
-  The HTTP request will be blocked very early in the layer 7 processing
-  if/unless <condition> is matched. A 403 error will be returned if the request
-  is blocked. The condition has to reference ACLs (see section 7). This is
-  typically used to deny access to certain sensitive resources if some
-  conditions are met or not met. There is no fixed limit to the number of
-  "block" statements per instance. To block connections at layer 4 (without
-  sending a 403 error) see "tcp-request connection reject" and
-  "tcp-request content reject" rules.
-
-  This form is deprecated, do not use it in any new configuration, use the new
-  "http-request deny" instead.
-
-  Example:
-        acl invalid_src  src          0.0.0.0/7 224.0.0.0/3
-        acl invalid_src  src_port     0:1023
-        acl local_dst    hdr(host) -i localhost
-        # block is deprecated. Use http-request deny instead:
-        #block if invalid_src || local_dst
-        http-request deny if invalid_src || local_dst
-
-  See also : section 7 about ACL usage, "http-request deny",
-            "http-response deny", "tcp-request connection reject" and
-            "tcp-request content reject".
 
 capture cookie <name> len <length>
   Capture and log a cookie in the request and in the response.

@@ -249,7 +249,7 @@ extern unsigned int rlim_fd_max_at_boot;
 extern int atexit_flag;
 
 /* bit values to go with "warned" above */
-#define WARN_BLOCK_DEPRECATED       0x00000001
+/* unassigned : 0x00000001 (previously: WARN_BLOCK_DEPRECATED) */
 /* unassigned : 0x00000002 */
 #define WARN_REDISPATCH_DEPRECATED  0x00000004
 #define WARN_CLITO_DEPRECATED       0x00000008
