@@ -55,7 +55,7 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	smp->data.type = SMP_T_SINT;
-	if (IS_HTX_SMP(smp)) {
+	if (IS_HTX_STRM(smp->strm)) {
 		struct htx *htx = htxbuf(&chn->buf);
 		smp->data.u.sint = htx->data - co_data(chn);
 	}
