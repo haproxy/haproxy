@@ -5199,24 +5199,22 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (!(sw->events & SUB_RETRY_RECV)) {
-			sw->events |= SUB_RETRY_RECV;
-			h2s->recv_wait = sw;
-		}
+		BUG_ON(h2s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
+		sw->events |= SUB_RETRY_RECV;
+		h2s->recv_wait = sw;
 		event_type &= ~SUB_RETRY_RECV;
 	}
 	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (!(sw->events & SUB_RETRY_SEND)) {
-			sw->events |= SUB_RETRY_SEND;
-			h2s->send_wait = sw;
-			if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
-			    !LIST_ADDED(&h2s->list)) {
-				if (h2s->flags & H2_SF_BLK_MFCTL)
-					LIST_ADDQ(&h2c->fctl_list, &h2s->list);
-				else
-					LIST_ADDQ(&h2c->send_list, &h2s->list);
-			}
+		BUG_ON(h2s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
+		sw->events |= SUB_RETRY_SEND;
+		h2s->send_wait = sw;
+		if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
+		    !LIST_ADDED(&h2s->list)) {
+			if (h2s->flags & H2_SF_BLK_MFCTL)
+				LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+			else
+				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 		event_type &= ~SUB_RETRY_SEND;
 	}
@@ -5237,26 +5235,23 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (h2s->recv_wait == sw) {
-			sw->events &= ~SUB_RETRY_RECV;
-			h2s->recv_wait = NULL;
-		}
+		BUG_ON(h2s->recv_wait != sw);
+		sw->events &= ~SUB_RETRY_RECV;
+		h2s->recv_wait = NULL;
 	}
 	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (h2s->send_wait == sw) {
-			LIST_DEL(&h2s->list);
-			LIST_INIT(&h2s->list);
-			sw->events &= ~SUB_RETRY_SEND;
-			/* We were about to send, make sure it does not happen */
-			if (LIST_ADDED(&h2s->sending_list) &&
-			    h2s->send_wait != &h2s->wait_event) {
-				task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
-				LIST_DEL_INIT(&h2s->sending_list);
-			}
-			h2s->send_wait = NULL;
-
+		BUG_ON(h2s->send_wait != sw);
+		LIST_DEL(&h2s->list);
+		LIST_INIT(&h2s->list);
+		sw->events &= ~SUB_RETRY_SEND;
+		/* We were about to send, make sure it does not happen */
+		if (LIST_ADDED(&h2s->sending_list) &&
+		    h2s->send_wait != &h2s->wait_event) {
+			task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+			LIST_DEL_INIT(&h2s->sending_list);
 		}
+		h2s->send_wait = NULL;
 	}
 	return 0;
 }
