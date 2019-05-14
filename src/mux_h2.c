@@ -2078,9 +2078,9 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s->cs && h2s->cs->flags & CS_FL_ERROR && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
-	else if (h2s->cs && (h2s->cs->flags & (CS_FL_EOI|CS_FL_REOS)) && h2s->st == H2_SS_OPEN)
+	else if (h2s->cs && (h2s->cs->flags & CS_FL_EOI) && h2s->st == H2_SS_OPEN)
 		h2s->st = H2_SS_HREM;
-	else if ((!h2s->cs || h2s->cs->flags & (CS_FL_EOI|CS_FL_REOS)) && h2s->st == H2_SS_HLOC)
+	else if ((!h2s->cs || h2s->cs->flags & CS_FL_EOI) && h2s->st == H2_SS_HLOC)
 		h2s_close(h2s);
 
 	return h2s;
