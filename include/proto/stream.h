@@ -31,6 +31,8 @@
 #include <proto/stick_table.h>
 #include <proto/task.h>
 
+#define IS_HTX_STRM(strm) ((strm)->flags & SF_HTX)
+
 extern struct pool_head *pool_head_stream;
 extern struct list streams;
 

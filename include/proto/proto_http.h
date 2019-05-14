@@ -29,8 +29,6 @@
 #include <proto/channel.h>
 #include <proto/stream.h>
 
-#define IS_HTX_STRM(strm) ((strm)->flags & SF_HTX)
-
 extern struct pool_head *pool_head_uniqueid;
 
 int process_cli(struct stream *s);
