@@ -319,18 +319,16 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, vo
 
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (sw->events & SUB_RETRY_RECV) {
-			conn->recv_wait = NULL;
-			sw->events &= ~SUB_RETRY_RECV;
-		}
+		BUG_ON(conn->recv_wait != sw);
+		conn->recv_wait = NULL;
+		sw->events &= ~SUB_RETRY_RECV;
 		__conn_xprt_stop_recv(conn);
 	}
 	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (sw->events & SUB_RETRY_SEND) {
-			conn->send_wait = NULL;
-			sw->events &= ~SUB_RETRY_SEND;
-		}
+		BUG_ON(conn->send_wait != sw);
+		conn->send_wait = NULL;
+		sw->events &= ~SUB_RETRY_SEND;
 		__conn_xprt_stop_send(conn);
 	}
 	conn_update_xprt_polling(conn);
@@ -343,19 +341,17 @@ int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void
 
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
-		if (!(sw->events & SUB_RETRY_RECV)) {
-			sw->events |= SUB_RETRY_RECV;
-			conn->recv_wait = sw;
-		}
+		BUG_ON(conn->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
+		sw->events |= SUB_RETRY_RECV;
+		conn->recv_wait = sw;
 		event_type &= ~SUB_RETRY_RECV;
 		__conn_xprt_want_recv(conn);
 	}
 	if (event_type & SUB_RETRY_SEND) {
 		sw = param;
-		if (!(sw->events & SUB_RETRY_SEND)) {
-			sw->events |= SUB_RETRY_SEND;
-			conn->send_wait = sw;
-		}
+		BUG_ON(conn->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
+		sw->events |= SUB_RETRY_SEND;
+		conn->send_wait = sw;
 		event_type &= ~SUB_RETRY_SEND;
 		__conn_xprt_want_send(conn);
 	}
