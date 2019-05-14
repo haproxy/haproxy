@@ -144,6 +144,17 @@ enum h2_ss {
 	H2_SS_ENTRIES   // must be last
 } __attribute__((packed));
 
+#define H2_SS_MASK(state) (1UL << (state))
+#define H2_SS_IDLE_BIT    (1UL << H2_SS_IDLE)
+#define H2_SS_RLOC_BIT    (1UL << H2_SS_RLOC)
+#define H2_SS_RREM_BIT    (1UL << H2_SS_RREM)
+#define H2_SS_OPEN_BIT    (1UL << H2_SS_OPEN)
+#define H2_SS_HREM_BIT    (1UL << H2_SS_HREM)
+#define H2_SS_HLOC_BIT    (1UL << H2_SS_HLOC)
+#define H2_SS_ERROR_BIT   (1UL << H2_SS_ERROR)
+#define H2_SS_CLOSED_BIT  (1UL << H2_SS_CLOSED)
+#define H2_SS_EOS_BITS    (H2_SS_CLOSED_BIT|H2_SS_ERROR_BIT|H2_SS_HREM_BIT)
+
 /* HTTP/2 stream flags (32 bit), in h2s->flags */
 #define H2_SF_NONE              0x00000000
 #define H2_SF_ES_RCVD           0x00000001
