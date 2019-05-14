@@ -180,14 +180,15 @@ void mworker_env_to_proc_list()
 			}
 		}
 		if (child->pid) {
+			/* this is a process inherited from a reload that should be leaving */
+			child->options |= PROC_O_LEAVING;
+
 			LIST_ADDQ(&proc_list, &child->list);
 		} else {
 			free(child->id);
 			free(child);
 
 		}
-		/* this is a process inherited from a reload that should be leaving */
-		child->options |= PROC_O_LEAVING;
 	}
 
 	unsetenv("HAPROXY_PROCESSES");
