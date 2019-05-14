@@ -6600,10 +6600,6 @@ no option independent-streams
   data sent to the server. Doing so will typically break large HTTP posts from
   slow lines, so use it with caution.
 
-  Note: older versions used to call this setting "option independant-streams"
-        with a spelling mistake. This spelling is still supported but
-        deprecated.
-
   See also : "timeout client", "timeout server" and "timeout tunnel"
 
 
