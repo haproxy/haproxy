@@ -42,6 +42,32 @@
  */
 #define ABORT_NOW() (*(volatile int*)1=0)
 
+/* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
+ * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
+ * crashes using ABORT_NOW() above.
+ */
+#if defined(DEBUG_STRICT) || defined(DEBUG_STRICT_NOCRASH)
+#if defined(DEBUG_STRICT)
+#define CRASH_NOW() ABORT_NOW()
+#else
+#define CRASH_NOW()
+#endif
+
+#define BUG_ON(cond) _BUG_ON(cond, __FILE__, __LINE__)
+#define _BUG_ON(cond, file, line) __BUG_ON(cond, file, line)
+#define __BUG_ON(cond, file, line)                                             \
+	do {                                                                   \
+		if (unlikely(cond)) {					       \
+			const char msg[] = "\nFATAL: bug condition \"" #cond "\" matched at " file ":" #line "\n"; \
+			(void)write(2, msg, strlen(msg));                      \
+			CRASH_NOW();                                           \
+		}                                                              \
+	} while (0)
+#else
+#undef CRASH_NOW
+#define BUG_ON(cond)
+#endif
+
 /* this one is provided for easy code tracing.
  * Usage: TRACE(strm||0, fmt, args...);
  *        TRACE(strm, "");
