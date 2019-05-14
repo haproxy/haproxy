@@ -864,7 +864,6 @@ static inline void h2s_close(struct h2s *h2s)
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
 		if (h2s->cs) {
-			h2s->cs->flags |= CS_FL_REOS;
 			if (!(h2s->cs->flags & CS_FL_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
@@ -1432,7 +1431,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 }
 
 /* wake a specific stream and assign its conn_stream som CS_FL_* flags among
- * CS_FL_REOS, CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state
+ * CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state
  * is automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
  */
@@ -1445,8 +1444,6 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 	}
 
 	if (conn_xprt_read0_pending(h2s->h2c->conn)) {
-		h2s->cs->flags |= CS_FL_REOS;
-
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
 		else if (h2s->st == H2_SS_HLOC)
@@ -2323,7 +2320,8 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (tmp_h2s != h2s && h2s && h2s->cs &&
 		    (b_data(&h2s->rxbuf) ||
-		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS|CS_FL_EOI)))) {
+		     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
+		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_EOI)))) {
 			/* we may have to signal the upper layers */
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			h2s_notify_recv(h2s);
@@ -2560,7 +2558,8 @@ static void h2_process_demux(struct h2c *h2c)
 	/* we can go here on missing data, blocked response or error */
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
-	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_REOS|CS_FL_EOI)))) {
+	     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
+	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS|CS_FL_EOI)))) {
 		/* we may have to signal the upper layers */
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		h2s_notify_recv(h2s);
@@ -5316,7 +5315,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (cs->flags & CS_FL_REOS)
+		if (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS)
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
 			cs->flags |= CS_FL_ERROR;
