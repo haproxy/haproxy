@@ -2345,9 +2345,7 @@ bind-process                              X          X         X         X
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
-clitimeout                  (deprecated)  X          X         X         -
 compression                               X          X         X         X
-contimeout                  (deprecated)  X          -         X         X
 cookie                                    X          -         X         X
 declare capture                           -          X         X         -
 default-server                            X          -         X         X
@@ -2476,7 +2474,6 @@ server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
 server-template                           -          -         X         X
 source                                    X          -         X         X
-srvtimeout                  (deprecated)  X          -         X         X
 stats admin                               -          X         X         X
 stats auth                                X          X         X         X
 stats enable                              X          X         X         X
@@ -2508,15 +2505,12 @@ tcp-response inspect-delay                -          -         X         X
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout client-fin                        X          X         X         -
-timeout clitimeout          (deprecated)  X          X         X         -
 timeout connect                           X          -         X         X
-timeout contimeout          (deprecated)  X          -         X         X
 timeout http-keep-alive                   X          X         X         X
 timeout http-request                      X          X         X         X
 timeout queue                             X          -         X         X
 timeout server                            X          -         X         X
 timeout server-fin                        X          -         X         X
-timeout srvtimeout          (deprecated)  X          -         X         X
 timeout tarpit                            X          X         X         X
 timeout tunnel                            X          -         X         X
 transparent                 (deprecated)  X          -         X         X
@@ -3112,40 +3106,6 @@ capture response header <name> len <length>
              about logging.
 
 
-clitimeout <timeout> (deprecated)
-  Set the maximum inactivity time on the client side.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   no
-  Arguments :
-    <timeout> is the timeout value is specified in milliseconds by default, but
-              can be in any other unit if the number is suffixed by the unit,
-              as explained at the top of this document.
-
-  The inactivity timeout applies when the client is expected to acknowledge or
-  send data. In HTTP mode, this timeout is particularly important to consider
-  during the first phase, when the client sends the request, and during the
-  response while it is reading data sent by the server. The value is specified
-  in milliseconds by default, but can be in any other unit if the number is
-  suffixed by the unit, as specified at the top of this document. In TCP mode
-  (and to a lesser extent, in HTTP mode), it is highly recommended that the
-  client timeout remains equal to the server timeout in order to avoid complex
-  situations to debug. It is a good practice to cover one or several TCP packet
-  losses by specifying timeouts that are slightly above multiples of 3 seconds
-  (e.g. 4 or 5 seconds).
-
-  This parameter is specific to frontends, but can be specified once for all in
-  "defaults" sections. This is in fact one of the easiest solutions not to
-  forget about it. An unspecified timeout results in an infinite timeout, which
-  is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of expired sessions in
-  the system if the system's timeouts are not configured either.
-
-  This parameter is provided for compatibility but is currently deprecated.
-  Please use "timeout client" instead.
-
-  See also : "timeout client", "timeout http-request", "timeout server", and
-             "srvtimeout".
-
 compression algo <algorithm> ...
 compression type <mime type> ...
 compression offload
@@ -3224,38 +3184,6 @@ compression offload
   Examples :
         compression algo gzip
         compression type text/html text/plain
-
-
-contimeout <timeout> (deprecated)
-  Set the maximum time to wait for a connection attempt to a server to succeed.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments :
-    <timeout> is the timeout value is specified in milliseconds by default, but
-              can be in any other unit if the number is suffixed by the unit,
-              as explained at the top of this document.
-
-  If the server is located on the same LAN as haproxy, the connection should be
-  immediate (less than a few milliseconds). Anyway, it is a good practice to
-  cover one or several TCP packet losses by specifying timeouts that are
-  slightly above multiples of 3 seconds (e.g. 4 or 5 seconds). By default, the
-  connect timeout also presets the queue timeout to the same value if this one
-  has not been specified. Historically, the contimeout was also used to set the
-  tarpit timeout in a listen section, which is not possible in a pure frontend.
-
-  This parameter is specific to backends, but can be specified once for all in
-  "defaults" sections. This is in fact one of the easiest solutions not to
-  forget about it. An unspecified timeout results in an infinite timeout, which
-  is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of failed sessions in
-  the system if the system's timeouts are not configured either.
-
-  This parameter is provided for backwards compatibility but is currently
-  deprecated. Please use "timeout connect", "timeout queue" or "timeout tarpit"
-  instead.
-
-  See also : "timeout connect", "timeout queue", "timeout tarpit",
-             "timeout server", "contimeout".
 
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
@@ -8521,46 +8449,6 @@ source <addr>[:<port>] [interface <name>]
              the Linux kernel on www.balabit.com, the "bind" keyword.
 
 
-srvtimeout <timeout> (deprecated)
-  Set the maximum inactivity time on the server side.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments :
-    <timeout> is the timeout value specified in milliseconds by default, but
-              can be in any other unit if the number is suffixed by the unit,
-              as explained at the top of this document.
-
-  The inactivity timeout applies when the server is expected to acknowledge or
-  send data. In HTTP mode, this timeout is particularly important to consider
-  during the first phase of the server's response, when it has to send the
-  headers, as it directly represents the server's processing time for the
-  request. To find out what value to put there, it's often good to start with
-  what would be considered as unacceptable response times, then check the logs
-  to observe the response time distribution, and adjust the value accordingly.
-
-  The value is specified in milliseconds by default, but can be in any other
-  unit if the number is suffixed by the unit, as specified at the top of this
-  document. In TCP mode (and to a lesser extent, in HTTP mode), it is highly
-  recommended that the client timeout remains equal to the server timeout in
-  order to avoid complex situations to debug. Whatever the expected server
-  response times, it is a good practice to cover at least one or several TCP
-  packet losses by specifying timeouts that are slightly above multiples of 3
-  seconds (e.g. 4 or 5 seconds minimum).
-
-  This parameter is specific to backends, but can be specified once for all in
-  "defaults" sections. This is in fact one of the easiest solutions not to
-  forget about it. An unspecified timeout results in an infinite timeout, which
-  is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of expired sessions in
-  the system if the system's timeouts are not configured either.
-
-  This parameter is provided for compatibility but is currently deprecated.
-  Please use "timeout server" instead.
-
-  See also : "timeout server", "timeout tunnel", "timeout client" and
-             "clitimeout".
-
-
 stats admin { if | unless } <cond>
   Enable statistics admin level if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
@@ -10499,7 +10387,6 @@ timeout check <timeout>
 
 
 timeout client <timeout>
-timeout clitimeout <timeout> (deprecated)
   Set the maximum inactivity time on the client side.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
@@ -10534,12 +10421,7 @@ timeout clitimeout <timeout> (deprecated)
 
   This also applies to HTTP/2 connections, which will be closed with GOAWAY.
 
-  This parameter replaces the old, deprecated "clitimeout". It is recommended
-  to use it to write new configurations. The form "timeout clitimeout" is
-  provided only by backwards compatibility but its use is strongly discouraged.
-
-  See also : "clitimeout", "timeout server", "timeout tunnel",
-             "timeout http-request".
+  See also : "timeout server", "timeout tunnel", "timeout http-request".
 
 
 timeout client-fin <timeout>
@@ -10570,7 +10452,6 @@ timeout client-fin <timeout>
 
 
 timeout connect <timeout>
-timeout contimeout <timeout> (deprecated)
   Set the maximum time to wait for a connection attempt to a server to succeed.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -10593,12 +10474,7 @@ timeout contimeout <timeout> (deprecated)
   during startup because it may results in accumulation of failed sessions in
   the system if the system's timeouts are not configured either.
 
-  This parameter replaces the old, deprecated "contimeout". It is recommended
-  to use it to write new configurations. The form "timeout contimeout" is
-  provided only by backwards compatibility but its use is strongly discouraged.
-
-  See also: "timeout check", "timeout queue", "timeout server", "contimeout",
-            "timeout tarpit".
+  See also: "timeout check", "timeout queue", "timeout server", "timeout tarpit".
 
 
 timeout http-keep-alive <timeout>
@@ -10712,11 +10588,10 @@ timeout queue <timeout>
   connection timeout ("timeout connect") is used, for backwards compatibility
   with older versions with no "timeout queue" parameter.
 
-  See also : "timeout connect", "contimeout".
+  See also : "timeout connect".
 
 
 timeout server <timeout>
-timeout srvtimeout <timeout> (deprecated)
   Set the maximum inactivity time on the server side.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -10752,11 +10627,7 @@ timeout srvtimeout <timeout> (deprecated)
   during startup because it may results in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
-  This parameter replaces the old, deprecated "srvtimeout". It is recommended
-  to use it to write new configurations. The form "timeout srvtimeout" is
-  provided only by backwards compatibility but its use is strongly discouraged.
-
-  See also : "srvtimeout", "timeout client" and "timeout tunnel".
+  See also : "timeout client" and "timeout tunnel".
 
 
 timeout server-fin <timeout>
@@ -10805,7 +10676,7 @@ timeout tarpit <timeout>
   ("timeout connect") is used, for backwards compatibility with older versions
   with no "timeout tarpit" parameter.
 
-  See also : "timeout connect", "contimeout".
+  See also : "timeout connect".
 
 
 timeout tunnel <timeout>

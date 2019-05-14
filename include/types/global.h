@@ -252,9 +252,9 @@ extern int atexit_flag;
 /* unassigned : 0x00000001 (previously: WARN_BLOCK_DEPRECATED) */
 /* unassigned : 0x00000002 */
 /* unassigned : 0x00000004 (previously: WARN_REDISPATCH_DEPRECATED) */
-#define WARN_CLITO_DEPRECATED       0x00000008
-#define WARN_SRVTO_DEPRECATED       0x00000010
-#define WARN_CONTO_DEPRECATED       0x00000020
+/* unassigned : 0x00000008 (previously: WARN_CLITO_DEPRECATED) */
+/* unassigned : 0x00000010 (previously: WARN_SRVTO_DEPRECATED) */
+/* unassigned : 0x00000020 (previously: WARN_CONTO_DEPRECATED) */
 #define WARN_FORCECLOSE_DEPRECATED  0x00000040
 
 #define WARN_REQREP_DEPRECATED      0x00000080
