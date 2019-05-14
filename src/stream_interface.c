@@ -1281,10 +1281,7 @@ int si_cs_recv(struct conn_stream *cs)
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max,
-		          flags |
-		          (co_data(ic) ? CO_RFL_BUF_WET : 0) |
-		          ((channel_recv_limit(ic) < b_size(&ic->buf)) ? CO_RFL_KEEP_RSV : 0));
+		ret = cs->conn->mux->rcv_buf(cs, &ic->buf, max, flags | (co_data(ic) ? CO_RFL_BUF_WET : 0));
 
 		if (cs->flags & CS_FL_WANT_ROOM)
 			si_rx_room_blk(si);
