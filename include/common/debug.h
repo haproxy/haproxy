@@ -40,7 +40,7 @@
 /* This abort is more efficient than abort() because it does not mangle the
  * stack and stops at the exact location we need.
  */
-#define ABORT_NOW() (*(volatile int*)0=0)
+#define ABORT_NOW() (*(volatile int*)1=0)
 
 /* this one is provided for easy code tracing.
  * Usage: TRACE(strm||0, fmt, args...);
