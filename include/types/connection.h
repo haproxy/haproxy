@@ -272,7 +272,6 @@ enum {
 enum {
 	CO_RFL_BUF_WET     = 0x0001,    /* Buffer still has some output data present */
 	CO_RFL_BUF_FLUSH   = 0x0002,    /* Flush mux's buffers but don't read more data */
-	CO_RFL_KEEP_RSV    = 0x0004,    /* Don't fill the reserved space */
 };
 
 /* flags that can be passed to xprt->snd_buf() and mux->snd_buf() */
