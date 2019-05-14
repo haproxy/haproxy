@@ -251,7 +251,7 @@ extern int atexit_flag;
 /* bit values to go with "warned" above */
 /* unassigned : 0x00000001 (previously: WARN_BLOCK_DEPRECATED) */
 /* unassigned : 0x00000002 */
-#define WARN_REDISPATCH_DEPRECATED  0x00000004
+/* unassigned : 0x00000004 (previously: WARN_REDISPATCH_DEPRECATED) */
 #define WARN_CLITO_DEPRECATED       0x00000008
 #define WARN_SRVTO_DEPRECATED       0x00000010
 #define WARN_CONTO_DEPRECATED       0x00000020

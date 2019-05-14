@@ -2822,18 +2822,10 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
+		ha_alert("parsing [%s:%d] : keyword '%s' directive is not supported anymore since HAProxy 2.1. Use 'option redispatch'.\n", file, linenum, args[0]);
 
-		if (!already_warned(WARN_REDISPATCH_DEPRECATED))
-			ha_warning("parsing [%s:%d]: keyword '%s' is deprecated in favor of 'option redispatch', and will not be supported by future versions.\n",
-				   file, linenum, args[0]);
-		err_code |= ERR_WARN;
-		/* enable reconnections to dispatch */
-		curproxy->options |= PR_O_REDISP;
-
-		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
-			goto out;
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "http-reuse")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
