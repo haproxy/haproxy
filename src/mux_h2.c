@@ -4481,8 +4481,10 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		blk = htx_remove_blk(htx, blk);
 	}
 
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM) {
+		ret += htx_get_blksz(blk_end);
 		htx_remove_blk(htx, blk_end);
+	}
  end:
 	return ret;
  full:
@@ -4721,8 +4723,10 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		blk = htx_remove_blk(htx, blk);
 	}
 
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM) {
+		ret += htx_get_blksz(blk_end);
 		htx_remove_blk(htx, blk_end);
+	}
 
  end:
 	return ret;
