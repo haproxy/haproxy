@@ -5395,6 +5395,15 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		ret = h2s_htx->data;
 		buf_htx = htx_from_buf(buf);
 
+		/* <buf> is empty and the message is small enough, swap the
+		 * buffers. */
+		if (htx_is_empty(buf_htx) && htx_used_space(h2s_htx) <= count) {
+			htx_to_buf(buf_htx, buf);
+			htx_to_buf(h2s_htx, &h2s->rxbuf);
+			b_xfer(buf, &h2s->rxbuf, b_data(&h2s->rxbuf));
+			goto end;
+		}
+
 		htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
 		if (h2s_htx->flags & HTX_FL_PARSING_ERROR)
