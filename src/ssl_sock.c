@@ -3318,20 +3318,22 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 				   char **sni_filter, int fcount, char **err)
 {
 	SSL_CTX *ctx;
-	BIO *in;
-	X509 *x = NULL, *ca;
 	int i;
 	int ret = -1;
 	int order = 0;
 	X509_NAME *xname;
 	char *str;
-	pem_password_cb *passwd_cb;
-	void *passwd_cb_userdata;
 	EVP_PKEY *pkey;
 	struct pkey_info kinfo = { .sig = TLSEXT_signature_anonymous, .bits = 0 };
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
+	struct cert_key_and_chain ckch;
+
+	memset(&ckch, 0, sizeof(ckch));
+
+	if (ssl_sock_load_crt_file_into_ckch(path, &ckch, err) == 1)
+		return 1;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
@@ -3340,29 +3342,12 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 		return 1;
 	}
 
-	if (SSL_CTX_use_PrivateKey_file(ctx, path, SSL_FILETYPE_PEM) <= 0) {
-		memprintf(err, "%sunable to load SSL private key from PEM file '%s'.\n",
-		          err && *err ? *err : "", path);
+	if (ssl_sock_put_ckch_into_ctx(path, &ckch, ctx, err) != 0) {
 		SSL_CTX_free(ctx);
 		return 1;
 	}
 
-	in = BIO_new(BIO_s_file());
-	if (in == NULL)
-		goto end;
-
-	if (BIO_read_filename(in, path) <= 0)
-		goto end;
-
-
-	passwd_cb = SSL_CTX_get_default_passwd_cb(ctx);
-	passwd_cb_userdata = SSL_CTX_get_default_passwd_cb_userdata(ctx);
-
-	x = PEM_read_bio_X509_AUX(in, NULL, passwd_cb, passwd_cb_userdata);
-	if (x == NULL)
-		goto end;
-
-	pkey = X509_get_pubkey(x);
+	pkey = X509_get_pubkey(ckch.cert);
 	if (pkey) {
 		kinfo.bits = EVP_PKEY_bits(pkey);
 		switch(EVP_PKEY_base_id(pkey)) {
@@ -3385,7 +3370,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		names = X509_get_ext_d2i(x, NID_subject_alt_name, NULL, NULL);
+		names = X509_get_ext_d2i(ckch.cert, NID_subject_alt_name, NULL, NULL);
 		if (names) {
 			for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
@@ -3399,7 +3384,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 			sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 		}
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
-		xname = X509_get_subject_name(x);
+		xname = X509_get_subject_name(ckch.cert);
 		i = -1;
 		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
 			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
@@ -3414,37 +3399,6 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 
 	ret = 0; /* the caller must not free the SSL_CTX argument anymore */
-	if (!SSL_CTX_use_certificate(ctx, x))
-		goto end;
-
-#ifdef SSL_CTX_clear_extra_chain_certs
-	SSL_CTX_clear_extra_chain_certs(ctx);
-#else
-	if (ctx->extra_certs != NULL) {
-		sk_X509_pop_free(ctx->extra_certs, X509_free);
-		ctx->extra_certs = NULL;
-	}
-#endif
-
-	while ((ca = PEM_read_bio_X509(in, NULL, passwd_cb, passwd_cb_userdata))) {
-		if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
-			X509_free(ca);
-			goto end;
-		}
-	}
-
-	i = ERR_get_error();
-	if (!i || (ERR_GET_LIB(i) == ERR_LIB_PEM && ERR_GET_REASON(i) == PEM_R_NO_START_LINE)) {
-		/* we successfully reached the last cert in the file */
-		ret = 1;
-	}
-	ERR_clear_error();
-
-	if (SSL_CTX_check_private_key(ctx) <= 0) {
-		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
-		          err && *err ? *err : "", path);
-		return 1;
-	}
 
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
@@ -3502,14 +3456,6 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 
 	return 0;
-end:
-	if (x)
-		X509_free(x);
-
-	if (in)
-		BIO_free(in);
-
-	return ret;
 }
 
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
