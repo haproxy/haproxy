@@ -633,6 +633,8 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	sl = htx_get_blk_ptr(htx, blk);
 	sl->info = tmp.info;
 	sl->flags = tmp.flags;
+	if (sl->hdrs_bytes != -1)
+		sl->hdrs_bytes += delta;
 
 	HTX_SL_P1_LEN(sl) = p1.len;
 	HTX_SL_P2_LEN(sl) = p2.len;
@@ -669,7 +671,7 @@ struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned 
 	sl = htx_get_blk_ptr(htx, blk);
 	if (htx->sl_pos == -1)
 		htx->sl_pos = htx_get_blk_pos(htx, blk);
-
+	sl->hdrs_bytes = -1;
 	sl->flags = flags;
 
 	HTX_SL_P1_LEN(sl) = p1.len;
