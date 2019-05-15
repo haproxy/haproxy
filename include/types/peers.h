@@ -34,7 +34,7 @@
 #include <eb32tree.h>
 
 struct shared_table {
-	struct stktable *table;		    /* stick table to sync */
+	struct stktable *table;       /* stick table to sync */
 	int local_id;
 	int remote_id;
 	int flags;
@@ -44,25 +44,25 @@ struct shared_table {
 	unsigned int last_get;
 	unsigned int teaching_origin;
 	unsigned int update;
-	struct shared_table *next;	    /* next shared table in list */
+	struct shared_table *next;    /* next shared table in list */
 };
 
 struct peer {
-	int local;		  /* proxy state */
+	int local;                    /* proxy state */
 	char *id;
 	struct {
-		const char *file; /* file where the section appears */
-		int line;	  /* line where the section appears */
-	} conf;		  	  /* config information */
+		const char *file;         /* file where the section appears */
+		int line;                 /* line where the section appears */
+	} conf;                       /* config information */
 	time_t last_change;
-	struct sockaddr_storage addr;  /* peer address */
-	struct protocol *proto;	       /* peer address protocol */
-	struct xprt_ops *xprt;         /* peer socket operations at transport layer */
-	void *sock_init_arg;           /* socket operations's opaque init argument if needed */
-	unsigned int flags; 	      /* peer session flags */
+	struct sockaddr_storage addr; /* peer address */
+	struct protocol *proto;       /* peer address protocol */
+	struct xprt_ops *xprt;        /* peer socket operations at transport layer */
+	void *sock_init_arg;          /* socket operations's opaque init argument if needed */
+	unsigned int flags;           /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
-	unsigned int reconnect;	      /* next connect timer */
-	unsigned int heartbeat;	      /* next heartbeat timer */
+	unsigned int reconnect;       /* next connect timer */
+	unsigned int heartbeat;       /* next heartbeat timer */
 	unsigned int confirm;         /* confirm message counter */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
@@ -70,27 +70,27 @@ struct peer {
 	struct shared_table *tables;
 	struct server *srv;
 	__decl_hathreads(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
-	struct peer *next;	  /* next peer in the list */
+	struct peer *next;            /* next peer in the list */
 };
 
 
 struct peers {
-	int state;			 /* proxy state */
-	char *id;			 /* peer section name */
-	struct task *sync_task;		 /* main sync task */
-	struct sig_handler *sighandler;	 /* signal handler */
-	struct peer *remote;		 /* remote peers list */
-	struct peer *local;		 /* local peer list */
-	struct proxy *peers_fe;		 /* peer frontend */
+	int state;                      /* proxy state */
+	char *id;                       /* peer section name */
+	struct task *sync_task;         /* main sync task */
+	struct sig_handler *sighandler; /* signal handler */
+	struct peer *remote;            /* remote peers list */
+	struct peer *local;             /* local peer list */
+	struct proxy *peers_fe;         /* peer frontend */
 	struct {
-		const char *file;	 /* file where the section appears */
-		int line;		 /* line where the section appears */
-	} conf;				 /* config information */
+		const char *file;           /* file where the section appears */
+		int line;                   /* line where the section appears */
+	} conf;                         /* config information */
 	time_t last_change;
-	struct peers *next;		 /* next peer section */
-	unsigned int flags;		 /* current peers section resync state */
-	unsigned int resync_timeout;	 /* resync timeout timer */
-	int count;			 /* total of peers */
+	struct peers *next;             /* next peer section */
+	unsigned int flags;             /* current peers section resync state */
+	unsigned int resync_timeout;    /* resync timeout timer */
+	int count;                      /* total of peers */
 };
 
 
