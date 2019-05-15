@@ -956,9 +956,11 @@ static void h1_handle_1xx_response(struct h1s *h1s, struct h1m *h1m)
 static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				 struct buffer *buf, size_t *ofs, size_t max)
 {
+	struct htx_sl *sl;
 	struct http_hdr hdrs[MAX_HTTP_HDR];
 	union h1_sl h1sl;
 	unsigned int flags = HTX_SL_F_NONE;
+	size_t used;
 	int ret = 0;
 
 	if (!max || !b_data(buf))
@@ -1065,9 +1067,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			flags |= HTX_SL_F_BODYLESS;
 	}
 
+	used = htx_used_space(htx);
 	if (!(h1m->flags & H1_MF_RESP)) {
-		struct htx_sl *sl;
-
 		if (h1_eval_htx_req_size(h1m, &h1sl, hdrs) > max)
 			goto error;
 
@@ -1077,8 +1078,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		sl->info.req.meth = h1s->meth;
 	}
 	else {
-		struct htx_sl *sl;
-
 		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max)
 			goto error;
 
@@ -1088,6 +1087,10 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			goto error;
 		sl->info.res.status = h1s->status;
 	}
+
+	/* Set bytes used in the HTX mesage for the headers now */
+	sl->hdrs_bytes = htx_used_space(htx) - used;
+
 
 	if (h1m->state == H1_MSG_DONE) {
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
