@@ -3314,15 +3314,13 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 #endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
-/* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
- * an early error happens and the caller must call SSL_CTX_free() by itelf.
- */
-static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s,
-					 struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount)
+static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+				   char **sni_filter, int fcount, char **err)
 {
+	SSL_CTX *ctx;
 	BIO *in;
 	X509 *x = NULL, *ca;
-	int i, err;
+	int i;
 	int ret = -1;
 	int order = 0;
 	X509_NAME *xname;
@@ -3331,16 +3329,29 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 	void *passwd_cb_userdata;
 	EVP_PKEY *pkey;
 	struct pkey_info kinfo = { .sig = TLSEXT_signature_anonymous, .bits = 0 };
-
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
+
+	ctx = SSL_CTX_new(SSLv23_server_method());
+	if (!ctx) {
+		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+		          err && *err ? *err : "", path);
+		return 1;
+	}
+
+	if (SSL_CTX_use_PrivateKey_file(ctx, path, SSL_FILETYPE_PEM) <= 0) {
+		memprintf(err, "%sunable to load SSL private key from PEM file '%s'.\n",
+		          err && *err ? *err : "", path);
+		SSL_CTX_free(ctx);
+		return 1;
+	}
 
 	in = BIO_new(BIO_s_file());
 	if (in == NULL)
 		goto end;
 
-	if (BIO_read_filename(in, file) <= 0)
+	if (BIO_read_filename(in, path) <= 0)
 		goto end;
 
 
@@ -3370,7 +3381,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 	if (fcount) {
 		while (fcount--)
-			order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, sni_filter[fcount], order);
+			order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -3380,7 +3391,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, str, order);
+						order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, str, order);
 						OPENSSL_free(str);
 					}
 				}
@@ -3396,7 +3407,7 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-				order = ssl_sock_add_cert_sni(ctx, s, ssl_conf, kinfo, str, order);
+				order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, str, order);
 				OPENSSL_free(str);
 			}
 		}
@@ -3422,51 +3433,12 @@ static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct 
 		}
 	}
 
-	err = ERR_get_error();
-	if (!err || (ERR_GET_LIB(err) == ERR_LIB_PEM && ERR_GET_REASON(err) == PEM_R_NO_START_LINE)) {
+	i = ERR_get_error();
+	if (!i || (ERR_GET_LIB(i) == ERR_LIB_PEM && ERR_GET_REASON(i) == PEM_R_NO_START_LINE)) {
 		/* we successfully reached the last cert in the file */
 		ret = 1;
 	}
 	ERR_clear_error();
-
-end:
-	if (x)
-		X509_free(x);
-
-	if (in)
-		BIO_free(in);
-
-	return ret;
-}
-
-static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-				   char **sni_filter, int fcount, char **err)
-{
-	int ret;
-	SSL_CTX *ctx;
-
-	ctx = SSL_CTX_new(SSLv23_server_method());
-	if (!ctx) {
-		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
-		          err && *err ? *err : "", path);
-		return 1;
-	}
-
-	if (SSL_CTX_use_PrivateKey_file(ctx, path, SSL_FILETYPE_PEM) <= 0) {
-		memprintf(err, "%sunable to load SSL private key from PEM file '%s'.\n",
-		          err && *err ? *err : "", path);
-		SSL_CTX_free(ctx);
-		return 1;
-	}
-
-	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf, ssl_conf, sni_filter, fcount);
-	if (ret <= 0) {
-		memprintf(err, "%sunable to load SSL certificate from PEM file '%s'.\n",
-		          err && *err ? *err : "", path);
-		if (ret < 0) /* serious error, must do that ourselves */
-			SSL_CTX_free(ctx);
-		return 1;
-	}
 
 	if (SSL_CTX_check_private_key(ctx) <= 0) {
 		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
@@ -3530,6 +3502,14 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 
 	return 0;
+end:
+	if (x)
+		X509_free(x);
+
+	if (in)
+		BIO_free(in);
+
+	return ret;
 }
 
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
