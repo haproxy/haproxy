@@ -84,6 +84,7 @@
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
 extern volatile unsigned long active_tasks_mask; /* Mask of threads with active tasks */
+extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
 extern unsigned int tasks_run_queue;    /* run queue size */
 extern unsigned int tasks_run_queue_cur;
 extern unsigned int nb_tasks_cur;
