@@ -5406,8 +5406,11 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 		htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
-		if (h2s_htx->flags & HTX_FL_PARSING_ERROR)
+		if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
 			buf_htx->flags |= HTX_FL_PARSING_ERROR;
+			if (htx_is_empty(buf_htx))
+				cs->flags |= CS_FL_EOI;
+		}
 
 		buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 		htx_to_buf(buf_htx, buf);

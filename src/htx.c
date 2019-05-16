@@ -502,6 +502,19 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		if (type == HTX_BLK_UNUSED)
 			goto next;
 
+		/* Be sure to have enough space to xfer all headers in one
+		 * time. If not while <dst> is empty, we report a parsing error
+		 * on <src>.
+		 */
+		if (mark >= HTX_BLK_EOH && (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)) {
+			struct htx_sl *sl = htx_get_blk_ptr(src, blk);
+
+			if (sl->hdrs_bytes != -1 && sl->hdrs_bytes > count) {
+				if (htx_is_empty(dst))
+					src->flags |= HTX_FL_PARSING_ERROR;
+				break;
+			}
+		}
 
 		sz = htx_get_blksz(blk);
 		info = blk->info;
