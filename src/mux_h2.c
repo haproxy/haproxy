@@ -5379,7 +5379,6 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	struct h2c *h2c = h2s->h2c;
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
-	struct htx_ret htx_ret;
 	size_t ret = 0;
 
 	/* transfer possibly pending data to the upper layer */
@@ -5394,6 +5393,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			goto end;
 		}
 
+		ret = h2s_htx->data;
 		buf_htx = htx_from_buf(buf);
 		count = htx_free_data_space(buf_htx);
 		if (flags & CO_RFL_KEEP_RSV) {
@@ -5402,7 +5402,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			count -= global.tune.maxrewrite;
 		}
 
-		htx_ret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
+		htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
 
 		if (h2s_htx->flags & HTX_FL_PARSING_ERROR)
 			buf_htx->flags |= HTX_FL_PARSING_ERROR;
@@ -5410,7 +5410,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(h2s_htx, &h2s->rxbuf);
-		ret = htx_ret.ret;
+		ret -= h2s_htx->data;
 	}
 	else {
 		ret = b_xfer(buf, &h2s->rxbuf, count);

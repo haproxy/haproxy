@@ -480,9 +480,9 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 }
 
 /* Transfer HTX blocks from <src> to <dst>, stopping on the first block of the
- * type <mark> (typically EOH, EOD or EOM) or when <count> bytes of data were
- * moved. It returns the number of bytes of data moved and the last HTX block
- * inserted in <dst>.
+ * type <mark> (typically EOH, EOD or EOM) or when <count> bytes were moved
+ * (including payload and meta-data). It returns the number of bytes moved and
+ * the last HTX block inserted in <dst>.
  */
 struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			     enum htx_blk_type mark)
@@ -491,35 +491,29 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	enum htx_blk_type type;
 	uint32_t	  info, max, sz, ret;
 
-	ret = 0;
+	ret = htx_used_space(dst);
 	blk = htx_get_blk(src, htx_get_head(src));
 	dstblk = NULL;
-	while (blk && ret <= count) {
+
+	while (blk && count) {
 		type = htx_get_blk_type(blk);
 
 		/* Ingore unused block */
 		if (type == HTX_BLK_UNUSED)
 			goto next;
 
-		sz = htx_get_blksz(blk);
-		if (!sz) {
-			dstblk = htx_reserve_nxblk(dst, 0);
-			if (!dstblk)
-				break;
-			dstblk->info = blk->info;
-			goto next;
-		}
 
+		sz = htx_get_blksz(blk);
 		info = blk->info;
-		max = htx_free_data_space(dst);
-		if (max > count - ret)
-			max = count - ret;
+		max = htx_get_max_blksz(dst, count);
+		if (!max)
+			break;
 		if (sz > max) {
+			/* Headers and pseudo headers must be fully copied  */
+			if (type != HTX_BLK_DATA)
+				break;
 			sz = max;
 			info = (type << 28) + sz;
-			/* Headers and pseudo headers must be fully copied  */
-			if (type != HTX_BLK_DATA || !sz)
-				break;
 		}
 
 		dstblk = htx_reserve_nxblk(dst, sz);
@@ -528,13 +522,11 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		dstblk->info = info;
 		memcpy(htx_get_blk_ptr(dst, dstblk), htx_get_blk_ptr(src, blk), sz);
 
-		ret += sz;
+		count -= sizeof(dstblk) + sz;
 		if (blk->info != info) {
 			/* Partial move: don't remove <blk> from <src> but
 			 * resize its content */
-			blk->addr += sz;
-			htx_set_blk_value_len(blk, htx_get_blksz(blk) - sz);
-			src->data -= sz;
+			htx_cut_data_blk(src, blk, sz);
 			break;
 		}
 
@@ -547,6 +539,8 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 
 	}
 
+  end:
+	ret = htx_used_space(dst) - ret;
 	return (struct htx_ret){.ret = ret, .blk = dstblk};
 }
 
