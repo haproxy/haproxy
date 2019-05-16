@@ -81,6 +81,11 @@
 		##args);                                           \
         } while (0)
 
+
+struct task;
+void ha_task_dump(const struct task *task, const char *pfx);
+void ha_thread_dump(int thr);
+
 /* This one is useful to automatically apply poisonning on an area returned
  * by malloc(). Only "p_" is required to make it work, and to define a poison
  * byte using -dM.

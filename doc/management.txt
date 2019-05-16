@@ -2512,6 +2512,15 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
 
+show threads
+  Dumps some internal states and structures for each thread, that may be useful
+  to help developers understand a problem. The output tries to be readable by
+  showing one block per thread, with a bit more info for the current thread.
+  The output format is purposely not documented so that it can easily evolve
+  as new needs are identified, without having to maintain any backwards
+  compatibility, and just like with "show activity", the values are only
+  meaningful with the code at hand.
+
 show tls-keys [id|*]
   Dump all loaded TLS ticket keys references. The TLS ticket key reference ID
   and the file from which the keys have been loaded is shown. Both of those
