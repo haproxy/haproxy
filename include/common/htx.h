@@ -687,6 +687,20 @@ static inline uint32_t htx_free_data_space(const struct htx *htx)
 	return (free - sizeof(htx->blocks[0]));
 }
 
+/* Returns the maximum size for a block, not exceeding <max> bytes. <max> may be
+ * set to -1 to have no limit.
+ */
+static inline uint32_t htx_get_max_blksz(const struct htx *htx, int32_t max)
+{
+	uint32_t free = htx_free_space(htx);
+
+	if (max != -1 && free > max)
+		free = max;
+	if (free < sizeof(htx->blocks[0]))
+		return 0;
+	return (free - sizeof(htx->blocks[0]));
+}
+
 /* Returns 1 if the message has less than 1/4 of its capacity free, otherwise 0 */
 static inline int htx_almost_full(const struct htx *htx)
 {
