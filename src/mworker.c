@@ -185,9 +185,7 @@ void mworker_env_to_proc_list()
 
 			LIST_ADDQ(&proc_list, &child->list);
 		} else {
-			free(child->id);
-			free(child);
-
+			mworker_free_child(child);
 		}
 	}
 
@@ -245,7 +243,6 @@ void mworker_catch_sigchld(struct sig_handler *sh)
 {
 	int exitpid = -1;
 	int status = 0;
-	struct mworker_proc *child, *it;
 	int childfound;
 
 restart_wait:
@@ -254,6 +251,8 @@ restart_wait:
 
 	exitpid = waitpid(-1, &status, WNOHANG);
 	if (exitpid > 0) {
+		struct mworker_proc *child, *it;
+
 		if (WIFEXITED(status))
 			status = WEXITSTATUS(status);
 		else if (WIFSIGNALED(status))
@@ -301,7 +300,8 @@ restart_wait:
 					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				}
 			}
-			free(child);
+			mworker_free_child(child);
+			child = NULL;
 		}
 
 		/* do it again to check if it was the last worker */
@@ -561,6 +561,29 @@ out:
 	return err_code;
 }
 
+void mworker_free_child(struct mworker_proc *child)
+{
+	if (child == NULL)
+		return;
+
+	if (child->command) {
+		int i;
+
+		for (i = 0; child->command[i]; i++) {
+			if (child->command[i]) {
+				free(child->command[i]);
+				child->command[i] = NULL;
+			}
+		}
+		free(child->command);
+		child->command = NULL;
+	}
+	if (child->id) {
+		free(child->id);
+		child->id = NULL;
+	}
+	free(child);
+}
 
 static struct cfg_kw_list mworker_kws = {{ }, {
 	{ CFG_GLOBAL, "mworker-max-reloads", mworker_parse_global_max_reloads },

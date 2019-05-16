@@ -3035,7 +3035,8 @@ int main(int argc, char **argv)
 					continue;
 				}
 				LIST_DEL(&child->list);
-				free(child);
+				mworker_free_child(child);
+				child = NULL;
 			}
 		}
 

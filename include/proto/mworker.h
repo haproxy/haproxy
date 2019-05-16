@@ -36,4 +36,6 @@ int mworker_ext_launch_all();
 
 void mworker_kill_max_reloads(int sig);
 
+void mworker_free_child(struct mworker_proc *);
+
 #endif /* PROTO_MWORKER_H_ */

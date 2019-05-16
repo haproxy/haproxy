@@ -69,24 +69,7 @@ int mworker_ext_launch_all()
 
 
 				LIST_DEL(&child->list);
-				if (child->command) {
-					int i;
-
-					for (i = 0; child->command[i]; i++) {
-						if (child->command[i]) {
-							free(child->command[i]);
-							child->command[i] = NULL;
-						}
-					}
-					free(child->command);
-					child->command = NULL;
-				}
-				if (child->id) {
-					free(child->id);
-					child->id = NULL;
-				}
-
-				free(child);
+				mworker_free_child(child);
 				child = NULL;
 
 				continue;
