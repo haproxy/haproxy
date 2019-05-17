@@ -364,6 +364,12 @@ static void stream_free(struct stream *s)
 	int must_free_sess;
 	int i;
 
+	/* detach the stream from its own task before even releasing it so
+	 * that walking over a task list never exhibits a dying stream.
+	 */
+	s->task->context = NULL;
+	__ha_barrier_store();
+
 	pendconn_free(s);
 
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
