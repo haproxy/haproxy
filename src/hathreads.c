@@ -52,11 +52,7 @@ void thread_harmless_till_end()
 {
 		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
 		while (threads_want_rdv_mask & all_threads_mask) {
-#if _POSIX_PRIORITY_SCHEDULING
-			sched_yield();
-#else
-			pl_cpu_relax();
-#endif
+			ha_thread_relax();
 		}
 }
 
@@ -81,11 +77,7 @@ void thread_isolate()
 		else if (_HA_ATOMIC_CAS(&threads_harmless_mask, &old, old & ~tid_bit))
 			break;
 
-#if _POSIX_PRIORITY_SCHEDULING
-		sched_yield();
-#else
-		pl_cpu_relax();
-#endif
+		ha_thread_relax();
 	}
 	/* one thread gets released at a time here, with its harmess bit off.
 	 * The loss of this bit makes the other one continue to spin while the

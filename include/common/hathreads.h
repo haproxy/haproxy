@@ -22,6 +22,11 @@
 #ifndef _COMMON_HATHREADS_H
 #define _COMMON_HATHREADS_H
 
+#include <unistd.h>
+#ifdef _POSIX_PRIORITY_SCHEDULING
+#include <sched.h>
+#endif
+
 #include <common/config.h>
 #include <common/initcall.h>
 
@@ -128,6 +133,13 @@ enum { tid = 0 };
 
 static inline void ha_set_tid(unsigned int tid)
 {
+}
+
+static inline void ha_thread_relax(void)
+{
+#if _POSIX_PRIORITY_SCHEDULING
+	sched_yield();
+#endif
 }
 
 static inline void __ha_barrier_atomic_load(void)
@@ -389,6 +401,15 @@ static inline void ha_set_tid(unsigned int data)
 {
 	tid     = data;
 	tid_bit = (1UL << tid);
+}
+
+static inline void ha_thread_relax(void)
+{
+#if _POSIX_PRIORITY_SCHEDULING
+	sched_yield();
+#else
+	pl_cpu_relax();
+#endif
 }
 
 /* Marks the thread as harmless. Note: this must be true, i.e. the thread must
