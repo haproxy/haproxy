@@ -1496,9 +1496,6 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (rep->flags & CF_READ_ERROR) {
 			struct connection *conn = NULL;
 
-			if (txn->flags & TX_NOT_FIRST)
-				goto abort_keep_alive;
-
 			if (objt_cs(s->si[1].end))
 				conn = objt_cs(s->si[1].end)->conn;
 
@@ -1513,6 +1510,9 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
 					return 0;
 			}
+
+			if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
@@ -1591,14 +1591,14 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 4: close from server, capture the response if the server has started to respond */
 		else if (rep->flags & CF_SHUTR) {
-			if (txn->flags & TX_NOT_FIRST)
-				goto abort_keep_alive;
-
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
 				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
 					return 0;
 			}
+
+			if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
