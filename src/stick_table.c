@@ -1036,6 +1036,7 @@ struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_BYTES_OUT_RATE]= { .name = "bytes_out_rate", .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY },
 	[STKTABLE_DT_GPC1]          = { .name = "gpc1",           .std_type = STD_T_UINT  },
 	[STKTABLE_DT_GPC1_RATE]     = { .name = "gpc1_rate",      .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_SERVER_NAME]   = { .name = "server_name",    .std_type = STD_T_DICT  },
 };
 
 /* Registers stick-table extra data type with index <idx>, name <name>, type

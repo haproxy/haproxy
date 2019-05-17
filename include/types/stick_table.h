@@ -30,6 +30,7 @@
 #include <ebmbtree.h>
 #include <eb32tree.h>
 #include <common/memory.h>
+#include <types/dict.h>
 #include <types/freq_ctr.h>
 #include <types/peers.h>
 #include <types/sample.h>
@@ -55,6 +56,7 @@ enum {
 	STKTABLE_DT_BYTES_OUT_RATE,/* bytes rate from servers to client */
 	STKTABLE_DT_GPC1,         /* General Purpose Counter 1 (unsigned 32-bit integer) */
 	STKTABLE_DT_GPC1_RATE,    /* General Purpose Counter 1's event rate */
+	STKTABLE_DT_SERVER_NAME,  /* The server name */
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always
 	 * followed by the number of data types, must always be last.
@@ -68,6 +70,7 @@ enum {
 	STD_T_UINT,               /* data is of type unsigned int */
 	STD_T_ULL,                /* data is of type unsigned long long */
 	STD_T_FRQP,               /* data is of type freq_ctr_period */
+	STD_T_DICT,               /* data is of type key of dictionary entry */
 };
 
 /* The types of optional arguments to stored data */
@@ -84,9 +87,11 @@ union stktable_data {
 	unsigned int std_t_uint;
 	unsigned long long std_t_ull;
 	struct freq_ctr_period std_t_frqp;
+	struct dict_entry *std_t_dict;
 
 	/* types of each storable data */
 	int server_id;
+	struct dict_entry *server_name;
 	unsigned int gpt0;
 	unsigned int gpc0;
 	struct freq_ctr_period gpc0_rate;

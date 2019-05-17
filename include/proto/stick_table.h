@@ -27,6 +27,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 #include <types/stick_table.h>
+#include <types/dict.h>
 
 extern struct stktable *stktables_list;
 
@@ -75,6 +76,8 @@ static inline int stktable_type_size(int type)
 		return sizeof(unsigned long long);
 	case STD_T_FRQP:
 		return sizeof(struct freq_ctr_period);
+	case STD_T_DICT:
+		return sizeof(struct dict_entry *);
 	}
 	return 0;
 }
