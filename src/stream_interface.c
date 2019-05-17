@@ -688,6 +688,7 @@ int si_cs_send(struct conn_stream *cs)
 			send_flag |= CO_SFL_STREAMER;
 
 		if ((si->flags & SI_FL_L7_RETRY) && !b_data(&si->l7_buffer)) {
+			struct stream *s = si_strm(si);
 			/* If we want to be able to do L7 retries, copy
 			 * the data we're about to send, so that we are able
 			 * to resend them if needed
@@ -697,7 +698,7 @@ int si_cs_send(struct conn_stream *cs)
 			 * disable the l7 retries by setting
 			 * l7_conn_retries to 0.
 			 */
-			if (!(oc->flags & CF_EOI))
+			if (!s->txn || (s->txn->req.msg_state != HTTP_MSG_DONE))
 				si->flags &= ~SI_FL_L7_RETRY;
 			else {
 				if (b_is_null(&si->l7_buffer))
