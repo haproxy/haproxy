@@ -597,7 +597,7 @@ static int si_cs_process(struct conn_stream *cs)
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
 	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI))
-		ic->flags |= CF_EOI;
+		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
 
 	/* Second step : update the stream-int and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new

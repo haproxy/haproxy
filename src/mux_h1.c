@@ -1073,7 +1073,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
   h2c_upgrade:
 	h1s->h1c->flags |= H1C_F_UPG_H2C;
-	h1s->cs->flags |= CS_FL_REOS;
+	h1s->cs->flags |= CS_FL_EOI;
 	htx->flags |= HTX_FL_UPGRADE;
 	ret = 0;
 	goto end;
@@ -1386,7 +1386,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	b_reset(&h1c->ibuf);
 	htx->flags |= HTX_FL_PARSING_ERROR;
 	htx_to_buf(htx, buf);
-	h1s->cs->flags |= CS_FL_EOS;
+	h1s->cs->flags |= CS_FL_EOI;
 	return 0;
 }
 
