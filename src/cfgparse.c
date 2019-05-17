@@ -2715,6 +2715,7 @@ int check_config_validity()
 				free((void *)mrule->table.name);
 				mrule->table.t = target;
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_NAME, NULL);
 			}
 		}
 
@@ -2748,6 +2749,7 @@ int check_config_validity()
 				free((void *)mrule->table.name);
 				mrule->table.t = target;
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_NAME, NULL);
 			}
 		}
 
