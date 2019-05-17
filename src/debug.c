@@ -14,6 +14,7 @@
 #include <time.h>
 #include <stdio.h>
 
+#include <common/buf.h>
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
@@ -27,18 +28,20 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-/* Dumps to the trash some known information for the desired thread, and
- * optionally extra info for the current thread.
+/* Dumps to the buffer some known information for the desired thread, and
+ * optionally extra info for the current thread. The dump will be appended to
+ * the buffer, so the caller is responsible for preliminary initializing it.
+ * The calling thread ID needs to be passed in <calling_tid> to display a star
+ * in front of the calling thread's line (usually it's tid).
  */
-void ha_thread_dump(int thr)
+void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
 	unsigned long thr_bit = 1UL << thr;
 
-	chunk_reset(&trash);
-	chunk_appendf(&trash,
+	chunk_appendf(buf,
 	              "%c Thread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "             fdcache=%d prof=%d",
-	              (thr == tid) ? '*' : ' ', thr + 1,
+	              (thr == calling_tid) ? '*' : ' ', thr + 1,
 	              !!(active_tasks_mask & thr_bit),
 	              !!(global_tasks_mask & thr_bit),
 	              !eb_is_empty(&task_per_thread[thr].timers),
@@ -50,44 +53,45 @@ void ha_thread_dump(int thr)
 	              !!(task_profiling_mask & thr_bit));
 
 #ifdef USE_THREAD
-	chunk_appendf(&trash,
+	chunk_appendf(buf,
 	              " harmless=%d wantrdv=%d",
 	              !!(threads_harmless_mask & thr_bit),
 	              !!(threads_want_rdv_mask & thr_bit));
 #endif
 
-	chunk_appendf(&trash, "\n");
+	chunk_appendf(buf, "\n");
 
 	/* this is the end of what we can dump from outside the thread */
 
 	if (thr != tid)
 		return;
 
-	chunk_appendf(&trash, "             curr_task=");
-	ha_task_dump(curr_task, "             ");
+	chunk_appendf(buf, "             curr_task=");
+	ha_task_dump(buf, curr_task, "             ");
 }
 
 
-/* dumps into the trash some information related to task <task> (which may
+/* dumps into the buffer some information related to task <task> (which may
  * either be a task or a tasklet, and prepend each line except the first one
- * with <pfx>. The trash is only appended and the first output starts by the
- * pointer itself.
+ * with <pfx>. The buffer is only appended and the first output starts by the
+ * pointer itself. The caller is responsible for making sure the task is not
+ * going to vanish during the dump.
  */
-void ha_task_dump(const struct task *task, const char *pfx)
+void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 {
 	if (!task) {
-		chunk_appendf(&trash, "0\n");
+		chunk_appendf(buf, "0\n");
 		return;
 	}
 
-	chunk_appendf(&trash,
+	chunk_appendf(buf,
 	              "%p (%s) calls=%u last=%llu%s\n",
 	              task, TASK_IS_TASKLET(task) ? "tasklet" : "task",
 	              task->calls,
 	              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
 	              task->call_date ? " ns ago" : "");
 
-	chunk_appendf(&trash, "%s"
+	chunk_appendf(buf, "%s"
 	              "  fct=%p (%s) ctx=%p\n",
 	              pfx,
 	              task->process,
@@ -97,7 +101,6 @@ void ha_task_dump(const struct task *task, const char *pfx)
 		      "?",
 	              task->context);
 }
-
 
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
@@ -115,16 +118,17 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	else
 		thr = 0;
 
+	chunk_reset(&trash);
 	while (thr < global.nbthread) {
-		ha_thread_dump(thr);
-
-		if (ci_putchk(si_ic(si), &trash) == -1) {
-			/* failed, try again */
-			si_rx_room_blk(si);
-			appctx->st1 = thr;
-			return 0;
-		}
+		ha_thread_dump(&trash, thr, tid);
 		thr++;
+	}
+
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		/* failed, try again */
+		si_rx_room_blk(si);
+		appctx->st1 = thr;
+		return 0;
 	}
 	return 1;
 }
