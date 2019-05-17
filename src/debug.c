@@ -84,12 +84,18 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		return;
 	}
 
-	chunk_appendf(buf,
-	              "%p (%s) calls=%u last=%llu%s\n",
-	              task, TASK_IS_TASKLET(task) ? "tasklet" : "task",
-	              task->calls,
-	              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
-	              task->call_date ? " ns ago" : "");
+	if (TASK_IS_TASKLET(task))
+		chunk_appendf(buf,
+		              "%p (tasklet) calls=%u\n",
+		              task,
+		              task->calls);
+	else
+		chunk_appendf(buf,
+		              "%p (task) calls=%u last=%llu%s\n",
+		              task,
+		              task->calls,
+		              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
+		              task->call_date ? " ns ago" : "");
 
 	chunk_appendf(buf, "%s"
 	              "  fct=%p (%s) ctx=%p\n",
