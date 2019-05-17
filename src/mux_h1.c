@@ -886,6 +886,52 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 	}
 }
 
+/* Estimate the size of the HTX request after the parsing. */
+static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
+{
+	size_t sz;
+	int i;
+
+	/* size of the HTX start-line */
+	sz = sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
+
+	/* size of all HTX headers */
+	for (i = 0; hdrs[i].n.len; i++)
+		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
+
+	/* size of the EOH */
+	sz += sizeof(struct htx_blk) + 1;
+
+	/* size of the EOM */
+	if (h1m->state == H1_MSG_DONE)
+		sz += sizeof(struct htx_blk) + 1;
+
+	return sz;
+}
+
+/* Estimate the size of the HTX response after the parsing. */
+static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
+{
+	size_t sz;
+	int i;
+
+	/* size of the HTX start-line */
+	sz = sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
+
+	/* size of all HTX headers */
+	for (i = 0; hdrs[i].n.len; i++)
+		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
+
+	/* size of the EOH */
+	sz += sizeof(struct htx_blk) + 1;
+
+	/* size of the EOM */
+	if (h1m->state == H1_MSG_DONE)
+		sz += sizeof(struct htx_blk) + 1;
+
+	return sz;
+}
+
 /*
  * Handle 100-Continue responses or any other informational 1xx responses which
  * is non-final. In such case, this function reset the response parser. It is
@@ -915,7 +961,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	unsigned int flags = HTX_SL_F_NONE;
 	int ret = 0;
 
-	if (!max)
+	if (!max || !b_data(buf))
 		goto end;
 
 	/* Realing input buffer if necessary */
@@ -929,7 +975,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			goto h2c_upgrade;
 	}
 
-	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_peek(buf, *ofs) + max,
+	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &h1sl);
 	if (ret <= 0) {
 		/* Incomplete or invalid message. If the buffer is full, it's an
@@ -943,10 +989,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	/* messages headers fully parsed, do some checks to prepare the body
 	 * parsing.
 	 */
-
-	/* Be sure to keep some space to do headers rewritting */
-	if (ret > (b_size(buf) - global.tune.maxrewrite))
-		goto error;
 
 	/* Save the request's method or the response's status, check if the body
 	 * length is known and check the VSN validity */
@@ -1026,6 +1068,9 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	if (!(h1m->flags & H1_MF_RESP)) {
 		struct htx_sl *sl;
 
+		if (h1_eval_htx_req_size(h1m, &h1sl, hdrs) > max)
+			goto error;
+
 		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
 		if (!sl || !htx_add_all_headers(htx, hdrs))
 			goto error;
@@ -1033,6 +1078,9 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	}
 	else {
 		struct htx_sl *sl;
+
+		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max)
+			goto error;
 
 		flags |= HTX_SL_F_IS_RESP;
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
@@ -1053,11 +1101,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	 * ULLONG_MAX. This value is impossible in other cases.
 	 */
 	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : ULLONG_MAX);
-
-	/* Recheck there is enough space to do headers rewritting */
-	if (htx_used_space(htx) > b_size(buf) - global.tune.maxrewrite)
-		goto error;
-
 	*ofs += ret;
   end:
 	return ret;
@@ -1087,27 +1130,20 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  */
 static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			      struct buffer *buf, size_t *ofs, size_t max,
-			      struct buffer *htxbuf, size_t reserve)
+			      struct buffer *htxbuf)
 {
-	uint32_t data_space;
 	size_t total = 0;
-	int ret = 0;
-
-	data_space = htx_free_data_space(htx);
-	if (data_space <= reserve)
-		goto end;
-	data_space -= reserve;
+	int32_t ret = 0;
 
 	if (h1m->flags & H1_MF_XFER_LEN) {
 		if (h1m->flags & H1_MF_CLEN) {
 			/* content-length: read only h2m->body_len */
-			ret = max;
-			if (ret > data_space)
-				ret = data_space;
+			ret = htx_get_max_blksz(htx, max);
 			if ((uint64_t)ret > h1m->curr_len)
 				ret = h1m->curr_len;
 			if (ret > b_contig_data(buf, *ofs))
 				ret = b_contig_data(buf, *ofs);
+
 			if (ret) {
 				/* very often with large files we'll face the following
 				 * situation :
@@ -1139,12 +1175,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				else if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
 					goto end;
 				h1m->curr_len -= ret;
+				max -= sizeof(struct htx_blk) + ret;
 				*ofs += ret;
 				total += ret;
 			}
 
 			if (!h1m->curr_len) {
-				if (!htx_add_endof(htx, HTX_BLK_EOM))
+				if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
 					goto end;
 				h1m->state = H1_MSG_DONE;
 				h1s->cs->flags |= CS_FL_EOI;
@@ -1154,12 +1191,11 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 		  new_chunk:
 			/* te:chunked : parse chunks */
 			if (h1m->state == H1_MSG_CHUNK_CRLF) {
-				ret = h1_skip_chunk_crlf(buf, *ofs, *ofs + max);
+				ret = h1_skip_chunk_crlf(buf, *ofs, b_data(buf));
 				if (ret <= 0)
 					goto end;
 				h1m->state = H1_MSG_CHUNK_SIZE;
 
-				max -= ret;
 				*ofs += ret;
 				total += ret;
 			}
@@ -1167,47 +1203,42 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			if (h1m->state == H1_MSG_CHUNK_SIZE) {
 				unsigned int chksz;
 
-				ret = h1_parse_chunk_size(buf, *ofs, *ofs + max, &chksz);
+				ret = h1_parse_chunk_size(buf, *ofs, b_data(buf), &chksz);
 				if (ret <= 0)
 					goto end;
 				if (!chksz) {
-					if (!htx_add_endof(htx, HTX_BLK_EOD))
+					if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOD))
 						goto end;
 					h1s->flags |= H1S_F_HAVE_I_EOD;
 					h1m->state = H1_MSG_TRAILERS;
+					max -= sizeof(struct htx_blk) + 1;
 				}
 				else
 					h1m->state = H1_MSG_DATA;
 
 				h1m->curr_len  = chksz;
 				h1m->body_len += chksz;
-				max -= ret;
 				*ofs += ret;
 				total += ret;
 			}
 
 			if (h1m->state == H1_MSG_DATA) {
-				ret = max;
-				if (ret > data_space)
-					ret = data_space;
+				ret = htx_get_max_blksz(htx, max);
 				if ((uint64_t)ret > h1m->curr_len)
 					ret = h1m->curr_len;
 				if (ret > b_contig_data(buf, *ofs))
 					ret = b_contig_data(buf, *ofs);
+
 				if (ret) {
 					if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
 						goto end;
 					h1m->curr_len -= ret;
-					max -= ret;
+					max -= sizeof(struct htx_blk) + ret;
 					*ofs += ret;
 					total += ret;
 				}
 				if (!h1m->curr_len) {
 					h1m->state = H1_MSG_CHUNK_CRLF;
-					data_space = htx_free_data_space(htx);
-					if (data_space <= reserve)
-						goto end;
-					data_space -= reserve;
 					goto new_chunk;
 				}
 				goto end;
@@ -1219,11 +1250,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (h1s->flags & H1S_F_HAVE_I_TLR)
 					goto skip_tlr_parsing;
 
-				ret = h1_measure_trailers(buf, *ofs, max);
-				if (ret > data_space)
-					ret = (htx_is_empty(htx) ? -1 : 0);
-				if (ret <= 0)
+				ret = htx_get_max_blksz(htx, max);
+				ret = h1_measure_trailers(buf, *ofs, ret);
+				if (ret <= 0) {
+					if (!ret && b_full(buf))
+						ret = -1;
 					goto end;
+				}
 
 				/* Realing input buffer if tailers wrap. For now
 				 * this is a workaroung. Because trailers are
@@ -1238,13 +1271,14 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (!htx_add_trailer(htx, ist2(b_peek(buf, *ofs), ret)))
 					goto end;
 				h1s->flags |= H1S_F_HAVE_I_TLR;
-				max -= ret;
+				max -= sizeof(struct htx_blk) + ret;
 				*ofs += ret;
 				total += ret;
 
 			  skip_tlr_parsing:
-				if (!htx_add_endof(htx, HTX_BLK_EOM))
+				if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
 					goto end;
+				max -= sizeof(struct htx_blk) + 1;
 				h1m->state = H1_MSG_DONE;
 				h1s->cs->flags |= CS_FL_EOI;
 			}
@@ -1253,19 +1287,19 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			/* XFER_LEN is set but not CLEN nor CHNK, it means there
 			 * is no body. Switch the message in DONE state
 			 */
-			if (!htx_add_endof(htx, HTX_BLK_EOM))
+			if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
 				goto end;
+			max -= sizeof(struct htx_blk) + 1;
 			h1m->state = H1_MSG_DONE;
 			h1s->cs->flags |= CS_FL_EOI;
 		}
 	}
 	else {
 		/* no content length, read till SHUTW */
-		ret = max;
-		if (ret > data_space)
-			ret = data_space;
+		ret = htx_get_max_blksz(htx, max);
 		if (ret > b_contig_data(buf, *ofs))
 			ret = b_contig_data(buf, *ofs);
+
 		if (ret) {
 			if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
 				goto end;
@@ -1294,15 +1328,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
  * <buf>. It returns the number of bytes parsed and transferred if > 0, or 0 if
  * it couldn't proceed.
  */
-static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
+static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count)
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
 	struct htx *htx;
-	size_t data = 0;
+	size_t ret, data;
 	size_t total = 0;
-	size_t ret = 0;
-	size_t count, rsv;
 	int errflag;
 
 	htx = htx_from_buf(buf);
@@ -1317,20 +1349,16 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 	}
 
 	data = htx->data;
-	count = b_data(&h1c->ibuf);
-	rsv = ((flags & CO_RFL_KEEP_RSV) ? global.tune.maxrewrite : 0);
-
-	if (htx_is_empty(htx))
-		h1_handle_1xx_response(h1s, h1m);
-
 	do {
+		size_t used = htx_used_space(htx);
+
 		if (h1m->state <= H1_MSG_LAST_LF) {
 			ret = h1_process_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (!ret)
 				break;
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf, rsv);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
 			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
@@ -1341,7 +1369,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf, rsv);
+			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
 			htx = htx_from_buf(buf);
 			if (!ret)
 				break;
@@ -1351,7 +1379,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 			break;
 		}
 
-		count -= ret;
+		count -= htx_used_space(htx) - used;
 	} while (!(h1s->flags & errflag) && count);
 
 	if (h1s->flags & errflag)
@@ -1361,7 +1389,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 
   end:
 	htx_to_buf(htx, buf);
-	data = (htx->data - data);
+	ret = htx->data - data;
 	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		tasklet_wakeup(h1c->wait_event.task);
@@ -1380,7 +1408,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, int flags)
 			h1s->cs->flags |= CS_FL_ERROR;
 	}
 
-	return data;
+	return ret;
 
   parsing_err:
 	b_reset(&h1c->ibuf);
@@ -2227,7 +2255,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	size_t ret = 0;
 
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
-		ret = h1_process_input(h1c, buf, flags);
+		ret = h1_process_input(h1c, buf, count);
 
 	if (flags & CO_RFL_BUF_FLUSH) {
 		struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
