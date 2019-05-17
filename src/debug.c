@@ -75,6 +75,11 @@ void ha_thread_dump(int thr)
  */
 void ha_task_dump(const struct task *task, const char *pfx)
 {
+	if (!curr_task) {
+		chunk_appendf(&trash, "0\n");
+		return;
+	}
+
 	chunk_appendf(&trash,
 	              "%p (%s) calls=%u last=%llu%s\n",
 	              curr_task, TASK_IS_TASKLET(curr_task) ? "tasklet" : "task",
