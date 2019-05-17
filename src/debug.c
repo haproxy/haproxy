@@ -75,27 +75,27 @@ void ha_thread_dump(int thr)
  */
 void ha_task_dump(const struct task *task, const char *pfx)
 {
-	if (!curr_task) {
+	if (!task) {
 		chunk_appendf(&trash, "0\n");
 		return;
 	}
 
 	chunk_appendf(&trash,
 	              "%p (%s) calls=%u last=%llu%s\n",
-	              curr_task, TASK_IS_TASKLET(curr_task) ? "tasklet" : "task",
-	              curr_task->calls,
-	              curr_task->call_date ? (unsigned long long)(now_mono_time() - curr_task->call_date) : 0,
-	              curr_task->call_date ? " ns ago" : "");
+	              task, TASK_IS_TASKLET(task) ? "tasklet" : "task",
+	              task->calls,
+	              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
+	              task->call_date ? " ns ago" : "");
 
 	chunk_appendf(&trash, "%s"
 	              "  fct=%p (%s) ctx=%p\n",
 	              pfx,
-	              curr_task->process,
-	              curr_task->process == process_stream ? "process_stream" :
-	              curr_task->process == task_run_applet ? "task_run_applet" :
-	              curr_task->process == si_cs_io_cb ? "si_cs_io_cb" :
+	              task->process,
+	              task->process == process_stream ? "process_stream" :
+	              task->process == task_run_applet ? "task_run_applet" :
+	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
 		      "?",
-	              curr_task->context);
+	              task->context);
 }
 
 
