@@ -1716,8 +1716,17 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	if (txn->status < 200 &&
 	    (txn->status == 100 || txn->status >= 102)) {
+		int32_t pos;
+
 		FLT_STRM_CB(s, flt_http_reset(s, msg));
-		c_adv(rep, htx->data);
+		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
+
+			c_adv(rep, htx_get_blksz(blk));
+			if (type == HTX_BLK_EOM)
+				break;
+		}
 		msg->msg_state = HTTP_MSG_RPBEFORE;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
