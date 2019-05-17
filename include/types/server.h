@@ -320,6 +320,7 @@ struct server {
 	struct {
 		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
+		struct ebpt_node name;		/* place in the tree of used names */
 		int line;			/* line where the section appears */
 	} conf;					/* config information */
 	/* Template information used only for server objects which
