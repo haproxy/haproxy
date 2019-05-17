@@ -385,6 +385,7 @@ void process_runnable_tasks()
 		}
 
 		curr_task = (struct task *)t;
+		__ha_barrier_store();
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
 		else if (process != NULL)
@@ -392,6 +393,7 @@ void process_runnable_tasks()
 		else {
 			__task_free(t);
 			curr_task = NULL;
+			__ha_barrier_store();
 			/* We don't want max_processed to be decremented if
 			 * we're just freeing a destroyed task, we should only
 			 * do so if we really ran a task.
@@ -399,6 +401,7 @@ void process_runnable_tasks()
 			continue;
 		}
 		curr_task = NULL;
+		__ha_barrier_store();
 		/* If there is a pending state  we have to wake up the task
 		 * immediately, else we defer it into wait queue
 		 */
