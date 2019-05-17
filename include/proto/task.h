@@ -319,11 +319,15 @@ static inline struct task *task_new(unsigned long thread_mask)
 }
 
 /*
- * Free a task. Its context must have been freed since it will be lost.
- * The task count is decremented.
+ * Free a task. Its context must have been freed since it will be lost. The
+ * task count is decremented. It it is the current task, this one is reset.
  */
 static inline void __task_free(struct task *t)
 {
+	if (t == curr_task) {
+		curr_task = NULL;
+		__ha_barrier_store();
+	}
 	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
@@ -363,6 +367,10 @@ static inline void tasklet_free(struct tasklet *tl)
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
 
+	if ((struct task *)tl == curr_task) {
+		curr_task = NULL;
+		__ha_barrier_store();
+	}
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
 		pool_flush(pool_head_tasklet);
