@@ -3670,7 +3670,7 @@ next_frame:
 	if (!(msgf & H2_MSGF_RSP_1XX))
 		*flags |= H2_SF_HEADERS_RCVD;
 
-	if ((h2c->dff & H2_F_HEADERS_END_STREAM) || (msgf & H2_MSGF_RSP_1XX)) {
+	if ((h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* Mark the end of message, either using EOM in HTX or with the
 		 * trailing CRLF after the end of trailers. Note that DATA_CHNK
 		 * is not set during headers with END_STREAM. For HTX trailers,

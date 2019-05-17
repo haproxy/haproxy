@@ -132,19 +132,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a timeout or connection reset is not counted as an error. However
 	 * a bad request is.
 	 */
-	if (unlikely(htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
-		/*
-		 * First catch invalid request because only part of headers have
-		 * been transfered. Multiplexers have the responsibility to emit
-		 * all headers at once.
-		 */
-		if (htx_is_not_empty(htx) || (s->si[0].flags & SI_FL_RXBLK_ROOM)) {
-			stream_inc_http_req_ctr(s);
-			stream_inc_http_err_ctr(s);
-			proxy_inc_fe_req_ctr(sess->fe);
-			goto return_bad_req;
-		}
-
+	if (unlikely(htx_is_empty(htx) || htx->sl_pos == -1)) {
 		if (htx->flags & HTX_FL_UPGRADE)
 			goto failed_keep_alive;
 
@@ -1481,17 +1469,8 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * we should only check for HTTP status there, and check I/O
 	 * errors somewhere else.
 	 */
-	if (unlikely(co_data(rep) || htx_is_empty(htx) || htx_get_tail_type(htx) < HTX_BLK_EOH)) {
-		/*
-		 * First catch invalid response because of a parsing error or
-		 * because only part of headers have been transfered.
-		 * Multiplexers have the responsibility to emit all headers at
-		 * once. We must be sure to have forwarded all outgoing data
-		 * first.
-		 */
-		if (!co_data(rep) && (htx_is_not_empty(htx) || (s->si[1].flags & SI_FL_RXBLK_ROOM)))
-			goto return_bad_res;
-
+  next_one:
+	if (unlikely(htx_is_empty(htx) || htx->sl_pos == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
 			struct connection *conn = NULL;
@@ -1719,18 +1698,20 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		int32_t pos;
 
 		FLT_STRM_CB(s, flt_http_reset(s, msg));
-		for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
 			c_adv(rep, htx_get_blksz(blk));
-			if (type == HTX_BLK_EOM)
+			if (type == HTX_BLK_EOH) {
+				htx->sl_pos = htx_get_next(htx, pos);
 				break;
+			}
 		}
 		msg->msg_state = HTTP_MSG_RPBEFORE;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
-		return 0;
+		goto next_one;
 	}
 
 	/*

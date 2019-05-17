@@ -933,21 +933,6 @@ static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 }
 
 /*
- * Handle 100-Continue responses or any other informational 1xx responses which
- * is non-final. In such case, this function reset the response parser. It is
- * the caller responsibility to call this function when appropriate.
- */
-static void h1_handle_1xx_response(struct h1s *h1s, struct h1m *h1m)
-{
-	if ((h1m->flags & H1_MF_RESP) && h1m->state == H1_MSG_DONE &&
-	    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
-		h1m_init_res(&h1s->res);
-		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
-	}
-}
-
-/*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
@@ -1004,10 +989,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			/* Switch CONNECT requests to tunnel mode */
 			h1_set_req_tunnel_mode(h1s);
 		}
-		else if (!(h1m->flags & H1_MF_CHNK) && !h1m->body_len) {
-			/* Switch requests with no body to done. */
-			h1m->state = H1_MSG_DONE;
-		}
 
 		if (!h1_process_req_vsn(h1s, h1m, h1sl)) {
 			h1m->err_pos = h1sl.rq.v.ptr - b_head(buf);
@@ -1027,18 +1008,14 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		else if ((h1s->meth == HTTP_METH_HEAD) ||
 			 (h1s->status >= 100 && h1s->status < 200) ||
 			 (h1s->status == 204) || (h1s->status == 304)) {
-			/* Switch responses without body to done. */
+			/* Responses known to have no body. */
 			h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 			h1m->flags |= H1_MF_XFER_LEN;
 			h1m->curr_len = h1m->body_len = 0;
-			h1m->state = H1_MSG_DONE;
 		}
 		else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
-			/* Responses with a known body length. Switch requests
-			 * with no body to done. */
+			/* Responses with a known body length. */
 			h1m->flags |= H1_MF_XFER_LEN;
-			if ((h1m->flags & H1_MF_CLEN) && !h1m->body_len)
-				h1m->state = H1_MSG_DONE;
 		}
 		else {
 			/* Responses with an unknown body length */
@@ -1061,16 +1038,25 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		flags |= HTX_SL_F_XFER_LEN;
 		if (h1m->flags & H1_MF_CHNK)
 			flags |= HTX_SL_F_CHNK;
-		else if (h1m->flags & H1_MF_CLEN)
+		else if (h1m->flags & H1_MF_CLEN) {
 			flags |= HTX_SL_F_CLEN;
-		if (h1m->state == H1_MSG_DONE)
+			if (h1m->body_len == 0)
+				flags |= HTX_SL_F_BODYLESS;
+		}
+		else
 			flags |= HTX_SL_F_BODYLESS;
 	}
 
 	used = htx_used_space(htx);
 	if (!(h1m->flags & H1_MF_RESP)) {
-		if (h1_eval_htx_req_size(h1m, &h1sl, hdrs) > max)
-			goto error;
+		if (h1_eval_htx_req_size(h1m, &h1sl, hdrs) > max) {
+			if (htx_is_empty(htx))
+				goto error;
+			h1m_init_req(h1m);
+			h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+			ret = 0;
+			goto end;
+		}
 
 		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
 		if (!sl || !htx_add_all_headers(htx, hdrs))
@@ -1078,8 +1064,14 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		sl->info.req.meth = h1s->meth;
 	}
 	else {
-		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max)
-			goto error;
+		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max) {
+			if (htx_is_empty(htx))
+				goto error;
+			h1m_init_res(h1m);
+			h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+			ret = 0;
+			goto end;
+		}
 
 		flags |= HTX_SL_F_IS_RESP;
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
@@ -1090,13 +1082,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
 	/* Set bytes used in the HTX mesage for the headers now */
 	sl->hdrs_bytes = htx_used_space(htx) - used;
-
-
-	if (h1m->state == H1_MSG_DONE) {
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
-			goto error;
-		h1s->cs->flags |= CS_FL_EOI;
-	}
 
 	h1_process_input_conn_mode(h1s, h1m, htx);
 
@@ -1113,6 +1098,8 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	h1m->err_pos = h1m->next;
   vsn_error:
 	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+	h1s->cs->flags |= CS_FL_EOI;
+	htx->flags |= HTX_FL_PARSING_ERROR;
 	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 	ret = 0;
 	goto end;
@@ -1315,6 +1302,8 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
   end:
 	if (ret < 0) {
 		h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+		h1s->cs->flags |= CS_FL_EOI;
+		htx->flags |= HTX_FL_PARSING_ERROR;
 		h1m->err_state = h1m->state;
 		h1m->err_pos = *ofs + max + ret;
 		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
@@ -1359,6 +1348,11 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			ret = h1_process_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (!ret)
 				break;
+			if ((h1m->flags & H1_MF_RESP) &&
+			    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
+				h1m_init_res(&h1s->res);
+				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+			}
 		}
 		else if (h1m->state <= H1_MSG_TRAILERS) {
 			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
@@ -1415,9 +1409,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
   parsing_err:
 	b_reset(&h1c->ibuf);
-	htx->flags |= HTX_FL_PARSING_ERROR;
 	htx_to_buf(htx, buf);
-	h1s->cs->flags |= CS_FL_EOI;
 	return 0;
 }
 
@@ -1628,6 +1620,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					 * to the client . Switch the response to tunnel mode. */
 					h1_set_res_tunnel_mode(h1s);
 				}
+				else if ((h1m->flags & H1_MF_RESP) &&
+					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
+					h1m_init_res(&h1s->res);
+					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+				}
 				else
 					h1m->state = H1_MSG_DATA;
 				break;
@@ -1688,9 +1685,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			break;
 		}
 	}
-
-	if (htx_is_empty(chn_htx))
-		h1_handle_1xx_response(h1s, h1m);
 
   copy:
 	/* when the output buffer is empty, tmp shares the same area so that we
