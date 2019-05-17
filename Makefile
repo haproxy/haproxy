@@ -50,6 +50,7 @@
 #   USE_WURFL            : enable WURFL detection library from Scientiamobile
 #   USE_SYSTEMD          : enable sd_notify() support.
 #   USE_OBSOLETE_LINKER  : use when the linker fails to emit __start_init/__stop_init
+#   USE_THREAD_DUMP      : use the more advanced thread state dump system. Automatic.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -284,7 +285,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL
+           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -343,7 +344,7 @@ ifeq ($(TARGET),linux2628)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
-    USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL ASSUME_SPLICE_WORKS)
+    USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL ASSUME_SPLICE_WORKS USE_THREAD_DUMP)
 endif
 
 # Solaris 8 and above

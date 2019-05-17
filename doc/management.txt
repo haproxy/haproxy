@@ -2515,9 +2515,13 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
 show threads
   Dumps some internal states and structures for each thread, that may be useful
   to help developers understand a problem. The output tries to be readable by
-  showing one block per thread, with a bit more info for the current thread.
-  The output format is purposely not documented so that it can easily evolve
-  as new needs are identified, without having to maintain any backwards
+  showing one block per thread. When haproxy is built with USE_THREAD_DUMP=1,
+  an advanced dump mechanism involving thread signals is used so that each
+  thread can dump its own state in turn. Without this option, the thread
+  processing the command shows all its details but the other ones are less
+  detailed. A stat ('*') is displayed in front of the thread handling the
+  command. The output format is purposely not documented so that it can easily
+  evolve as new needs are identified, without having to maintain any backwards
   compatibility, and just like with "show activity", the values are only
   meaningful with the code at hand.
 

@@ -86,6 +86,7 @@ struct task;
 struct buffer;
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx);
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid);
+void ha_thread_dump_all_to_trash();
 
 /* This one is useful to automatically apply poisonning on an area returned
  * by malloc(). Only "p_" is required to make it work, and to define a poison
