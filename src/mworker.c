@@ -357,21 +357,28 @@ void mworker_accept_wrapper(int fd)
 }
 
 /*
- * This function register the accept wrapper for the sockpair of the master worker
+ * This function registers the accept wrapper for the sockpair of the master
+ * worker. It's only handled by worker thread #0. Other threads and master do
+ * nothing here. It always returns 1 (success).
  */
-void mworker_pipe_register()
+static int mworker_pipe_register_per_thread()
 {
-	/* The iocb should be already initialized with listener_accept */
-	if (fdtab[proc_self->ipc_fd[1]].iocb == mworker_accept_wrapper)
-		return;
+	if (!(global.mode & MODE_MWORKER) || master)
+		return 1;
+
+	if (tid != 0)
+		return 1;
 
 	fcntl(proc_self->ipc_fd[1], F_SETFL, O_NONBLOCK);
 	/* In multi-tread, we need only one thread to process
 	 * events on the pipe with master
 	 */
-	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, 1);
+	fd_insert(proc_self->ipc_fd[1], fdtab[proc_self->ipc_fd[1]].owner, mworker_accept_wrapper, tid_bit);
 	fd_want_recv(proc_self->ipc_fd[1]);
+	return 1;
 }
+
+REGISTER_PER_THREAD_INIT(mworker_pipe_register_per_thread);
 
 /* ----- proxies ----- */
 /*

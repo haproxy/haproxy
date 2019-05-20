@@ -2495,7 +2495,6 @@ static void *run_thread_poll_loop(void *data)
 {
 	struct per_thread_init_fct   *ptif;
 	struct per_thread_deinit_fct *ptdf;
-	__decl_hathreads(static HA_SPINLOCK_T start_lock);
 
 	ha_set_tid((unsigned long)data);
 	tv_update_date(-1,-1);
@@ -2509,12 +2508,6 @@ static void *run_thread_poll_loop(void *data)
 			ha_alert("failed to initialize thread %u.\n", tid);
 			exit(1);
 		}
-	}
-
-	if ((global.mode & MODE_MWORKER) && master == 0) {
-		HA_SPIN_LOCK(START_LOCK, &start_lock);
-		mworker_pipe_register();
-		HA_SPIN_UNLOCK(START_LOCK, &start_lock);
 	}
 
 	/* broadcast that we are ready and wait for other threads to finish
