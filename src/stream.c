@@ -2634,11 +2634,6 @@ redo:
 			now_ms, t->expire, req->rex, req->wex, req->analyse_exp,
 			res->rex, res->wex, si_f->exp, si_b->exp, si_f->state, si_b->state);
 
-#ifdef DEBUG_DEV
-		/* this may only happen when no timeout is set or in case of an FSM bug */
-		if (!tick_isset(t->expire))
-			ABORT_NOW();
-#endif
 		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
 		stream_release_buffers(s);
 		/* We may have free'd some space in buffers, or have more to send/recv, try again */
