@@ -929,7 +929,7 @@ http_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg
 			goto fail;
 
 	/* limit cpu usage */
-	if (idle_pct < compress_min_idle)
+	if (ti->idle_pct < compress_min_idle)
 		goto fail;
 
 	/* initialize compression */
@@ -1040,7 +1040,7 @@ htx_select_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg 
 			goto fail;
 
 	/* limit cpu usage */
-	if (idle_pct < compress_min_idle)
+	if (ti->idle_pct < compress_min_idle)
 		goto fail;
 
 	/* initialize compression */

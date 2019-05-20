@@ -23,14 +23,11 @@ THREAD_LOCAL unsigned int   ms_left_scaled;  /* milliseconds left for current se
 THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 THREAD_LOCAL unsigned int   samp_time;       /* total elapsed time over current sample */
 THREAD_LOCAL unsigned int   idle_time;       /* total idle time over current sample */
-THREAD_LOCAL unsigned int   idle_pct;        /* idle to total ratio over last sample (percent) */
 THREAD_LOCAL struct timeval now;             /* internal date is a monotonic function of real clock */
 THREAD_LOCAL struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
 THREAD_LOCAL struct timeval before_poll;     /* system date before calling poll() */
 THREAD_LOCAL struct timeval after_poll;      /* system date after leaving poll() */
-THREAD_LOCAL uint64_t prev_cpu_time = 0;     /* previous per thread CPU time */
-THREAD_LOCAL uint64_t prev_mono_time = 0;    /* previous system wide monotonic time */
 
 static THREAD_LOCAL struct timeval tv_offset;  /* per-thread time ofsset relative to global time */
 volatile unsigned long long global_now;        /* common date between all threads (32:32) */
@@ -188,7 +185,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 		adjusted = date;
 		after_poll = date;
 		samp_time = idle_time = 0;
-		idle_pct = 100;
+		ti->idle_pct = 100;
 		global_now = (((unsigned long long)adjusted.tv_sec) << 32) +
 		             (unsigned int)adjusted.tv_usec;
 		goto to_ms;

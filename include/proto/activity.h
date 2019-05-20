@@ -63,9 +63,9 @@ static inline void activity_count_runtime()
 	new_cpu_time   = now_cpu_time();
 	new_mono_time  = now_mono_time();
 
-	if (prev_cpu_time && prev_mono_time) {
-		new_cpu_time  -= prev_cpu_time;
-		new_mono_time -= prev_mono_time;
+	if (ti->prev_cpu_time && ti->prev_mono_time) {
+		new_cpu_time  -= ti->prev_cpu_time;
+		new_mono_time -= ti->prev_mono_time;
 		stolen = new_mono_time - new_cpu_time;
 		if (unlikely(stolen >= 500000)) {
 			stolen /= 500000;
