@@ -213,6 +213,9 @@ struct ssl_sock_ctx {
 	BIO *bio;
 	struct xprt_ops *xprt;
 	void *xprt_ctx;
+	struct wait_event wait_event;
+	struct wait_event *recv_wait;
+	struct wait_event *send_wait;
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	int tmp_early_data;           /* 1st byte of early data, if any */
 	int sent_early_data;          /* Amount of early data we sent so far */
@@ -220,6 +223,8 @@ struct ssl_sock_ctx {
 };
 
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
+
+static struct task *ssl_sock_io_cb(struct task *, void *, unsigned short);
 
 /* Methods to implement OpenSSL BIO */
 static int ha_ssl_write(BIO *h, const char *buf, int num)
@@ -535,7 +540,8 @@ fail_get:
  */
 void ssl_async_fd_handler(int fd)
 {
-	struct connection *conn = fdtab[fd].owner;
+	struct ssl_sock_ctx *ctx = fdtab[fd].owner;
+	struct connection *conn = ctx->conn;
 
 	/* fd is an async enfine fd, we must stop
 	 * to poll this fd until it is requested
@@ -585,10 +591,12 @@ void ssl_async_fd_free(int fd)
  * function used to manage a returned SSL_ERROR_WANT_ASYNC
  * and enable/disable polling for async fds
  */
-static inline void ssl_async_process_fds(struct connection *conn, SSL *ssl)
+static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 {
 	OSSL_ASYNC_FD add_fd[32];
 	OSSL_ASYNC_FD del_fd[32];
+	SSL *ssl = ctx->ssl;
+	struct connection *conn = ctx->conn;
 	size_t num_add_fds = 0;
 	size_t num_del_fds = 0;
 	int i;
@@ -608,7 +616,7 @@ static inline void ssl_async_process_fds(struct connection *conn, SSL *ssl)
 
 	/* We add new fds to the fdtab */
 	for (i=0 ; i < num_add_fds ; i++) {
-		fd_insert(add_fd[i], conn, ssl_async_fd_handler, tid_bit);
+		fd_insert(add_fd[i], ctx, ssl_async_fd_handler, tid_bit);
 	}
 
 	num_add_fds = 0;
@@ -5110,6 +5118,15 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		return -1;
 	}
+	ctx->wait_event.task = tasklet_new();
+	if (!ctx->wait_event.task) {
+		conn->err_code = CO_ER_SSL_NO_MEM;
+		pool_free(ssl_sock_ctx_pool, ctx);
+		return -1;
+	}
+	ctx->wait_event.task->process = ssl_sock_io_cb;
+	ctx->wait_event.task->context = ctx;
+	ctx->wait_event.events = 0;
 	ctx->sent_early_data = 0;
 	ctx->tmp_early_data = -1;
 	ctx->conn = conn;
@@ -5119,15 +5136,13 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	 */
 	ctx->xprt = xprt_get(XPRT_RAW);
 	if (ctx->xprt->init) {
-		if (ctx->xprt->init(conn, &ctx->xprt_ctx) != 0) {
-			pool_free(ssl_sock_ctx_pool, ctx);
-			return -1;
-		}
+		if (ctx->xprt->init(conn, &ctx->xprt_ctx) != 0)
+			goto err;
 	}
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
-		return -1;
+		goto err;
 	}
 
 	/* If it is in client mode initiate SSL session
@@ -5190,6 +5205,10 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
+		/* Start the handshake */
+		tasklet_wakeup(ctx->wait_event.task);
+		if (conn->flags & CO_FL_ERROR)
+			goto err;
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5242,11 +5261,17 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
+		/* Start the handshake */
+		tasklet_wakeup(ctx->wait_event.task);
+		if (conn->flags & CO_FL_ERROR)
+			goto err;
 		return 0;
 	}
 	/* don't know how to handle such a target */
 	conn->err_code = CO_ER_SSL_NO_TARGET;
 err:
+	if (ctx && ctx->wait_event.task)
+		tasklet_free(ctx->wait_event.task);
 	pool_free(ssl_sock_ctx_pool, ctx);
 	return -1;
 }
@@ -5305,9 +5330,10 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* SSL handshake needs to write, L4 connection may not be ready */
-				__conn_sock_stop_recv(conn);
-				__conn_sock_want_send(conn);
-				fd_cant_send(conn->handle.fd);
+				if (!(ctx->wait_event.events & SUB_RETRY_SEND)) {
+						__conn_sock_want_send(conn);
+					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
+				}
 				return 0;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -5319,16 +5345,15 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					goto reneg_ok;
 				}
 				/* SSL handshake needs to read, L4 connection is ready */
-				if (conn->flags & CO_FL_WAIT_L4_CONN)
-					conn->flags &= ~CO_FL_WAIT_L4_CONN;
-				__conn_sock_stop_send(conn);
-				__conn_sock_want_recv(conn);
-				fd_cant_recv(conn->handle.fd);
+				if (!(ctx->wait_event.events & SUB_RETRY_RECV)) {
+						__conn_sock_want_recv(conn);
+					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
+				}
 				return 0;
 			}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
-				ssl_async_process_fds(conn, ctx->ssl);
+				ssl_async_process_fds(ctx);
 				return 0;
 			}
 #endif
@@ -5396,23 +5421,25 @@ check_error:
 
 		if (ret == SSL_ERROR_WANT_WRITE) {
 			/* SSL handshake needs to write, L4 connection may not be ready */
-			__conn_sock_stop_recv(conn);
-			__conn_sock_want_send(conn);
-			fd_cant_send(conn->handle.fd);
+			if (!(ctx->wait_event.events & SUB_RETRY_SEND)) {
+				__conn_sock_want_send(conn);
+				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
+			}
 			return 0;
 		}
 		else if (ret == SSL_ERROR_WANT_READ) {
 			/* SSL handshake needs to read, L4 connection is ready */
-			if (conn->flags & CO_FL_WAIT_L4_CONN)
-				conn->flags &= ~CO_FL_WAIT_L4_CONN;
-			__conn_sock_stop_send(conn);
-			__conn_sock_want_recv(conn);
-			fd_cant_recv(conn->handle.fd);
+			if (!(ctx->wait_event.events & SUB_RETRY_RECV))
+			{
+				__conn_sock_want_recv(conn);
+				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
+				    SUB_RETRY_RECV, &ctx->wait_event);
+			}
 			return 0;
 		}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
-			ssl_async_process_fds(conn, ctx->ssl);
+			ssl_async_process_fds(ctx);
 			return 0;
 		}
 #endif
@@ -5538,14 +5565,115 @@ reneg_ok:
 
 static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
+	struct wait_event *sw;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 
-	return conn_subscribe(conn, NULL, event_type, param);
+	if (event_type & SUB_RETRY_RECV) {
+		sw = param;
+		BUG_ON(ctx->recv_wait !=  NULL || (sw->events & SUB_RETRY_RECV));
+		sw->events |= SUB_RETRY_RECV;
+		ctx->recv_wait = sw;
+		if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
+		    !(ctx->wait_event.events & SUB_RETRY_RECV))
+			ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
+		event_type &= ~SUB_RETRY_RECV;
+	}
+	if (event_type & SUB_RETRY_SEND) {
+sw = param;
+		BUG_ON(ctx->send_wait !=  NULL || (sw->events & SUB_RETRY_SEND));
+		sw->events |= SUB_RETRY_SEND;
+		ctx->send_wait = sw;
+		if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
+		    !(ctx->wait_event.events & SUB_RETRY_SEND))
+			ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
+		event_type &= ~SUB_RETRY_SEND;
+
+	}
+	if (event_type != 0)
+		return -1;
+	return 0;
 }
 
 static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
+	struct wait_event *sw;
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 
-	return conn_unsubscribe(conn, NULL, event_type, param);
+	if (event_type & SUB_RETRY_RECV) {
+		sw = param;
+		BUG_ON(ctx->recv_wait != sw);
+		ctx->recv_wait = NULL;
+		sw->events &= ~SUB_RETRY_RECV;
+		/* If we subscribed, and we're not doing the handshake,
+		 * then we subscribed because the upper layer asked for it,
+		 * as the upper layer is no longer interested, we can
+		 * unsubscribe too.
+		 */
+		if (!(ctx->conn->flags & CO_FL_SSL_WAIT_HS) &&
+		    (ctx->wait_event.events & SUB_RETRY_RECV))
+			conn_unsubscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV,
+			                 &ctx->wait_event);
+	}
+	if (event_type & SUB_RETRY_SEND) {
+		sw = param;
+		BUG_ON(ctx->send_wait != sw);
+		ctx->send_wait = NULL;
+		sw->events &= ~SUB_RETRY_SEND;
+		if (!(ctx->conn->flags & CO_FL_SSL_WAIT_HS) &&
+		    (ctx->wait_event.events & SUB_RETRY_SEND))
+			conn_unsubscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND,
+			                 &ctx->wait_event);
+
+	}
+
+	return 0;
+}
+
+static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
+{
+	struct ssl_sock_ctx *ctx = context;
+
+	/* First if we're doing an handshake, try that */
+	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS)
+		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
+	/* If we had an error, or the handshake is done and I/O is available,
+	 * let the upper layer know.
+	 * If no mux was set up yet, and nobody subscribed, then call
+	 * xprt_done_cb() ourself if it's set, or destroy the connection,
+	 * we can't be sure conn_fd_handler() will be called again.
+	 */
+	if ((ctx->conn->flags & CO_FL_ERROR) ||
+	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)) {
+		int ret = 0;
+		int woke = 0;
+
+		/* On error, wake any waiter */
+		if (ctx->recv_wait) {
+			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
+			tasklet_wakeup(ctx->recv_wait->task);
+			ctx->recv_wait = NULL;
+			woke = 1;
+		}
+		if (ctx->send_wait) {
+			ctx->send_wait->events &= ~SUB_RETRY_SEND;
+			tasklet_wakeup(ctx->send_wait->task);
+			ctx->send_wait = NULL;
+			woke = 1;
+		}
+		/* If we're the first xprt for the connection, let the
+		 * upper layers know. If xprt_done_cb() is set, call it,
+		 * otherwise, we should have a mux, so call its wake
+		 * method if we didn't woke a tasklet already.
+		 */
+		if (ctx->conn->xprt_ctx == ctx) {
+			if (ctx->conn->xprt_done_cb)
+				ret = ctx->conn->xprt_done_cb(ctx->conn);
+			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
+				ctx->conn->mux->wake(ctx->conn);
+			return NULL;
+		}
+	}
+	return NULL;
 }
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them
@@ -5649,6 +5777,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_send(conn);
+				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
@@ -5658,6 +5787,9 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
 				if (SSL_renegotiate_pending(ctx->ssl)) {
+					ctx->xprt->subscribe(conn, ctx->xprt_ctx,
+					                     SUB_RETRY_RECV,
+							     &ctx->wait_event);
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_recv(conn);
@@ -5668,8 +5800,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 #endif
 					break;
 				}
-				/* we need to poll for retry a read later */
-				fd_cant_recv(conn->handle.fd);
 				break;
 			} else if (ret == SSL_ERROR_ZERO_RETURN)
 				goto read0;
@@ -5811,6 +5941,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					__conn_sock_want_send(conn);
+					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
@@ -5818,14 +5949,16 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 #endif
 					break;
 				}
-				/* we need to poll to retry a write later */
-				fd_cant_send(conn->handle.fd);
+
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
 				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				__conn_sock_want_recv(conn);
+				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
+				                     SUB_RETRY_RECV,
+						     &ctx->wait_event);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
@@ -5853,7 +5986,20 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
+
 	if (ctx) {
+		if (ctx->wait_event.events != 0)
+			ctx->xprt->unsubscribe(ctx->conn, ctx->xprt_ctx,
+			                       ctx->wait_event.events,
+					       &ctx->wait_event);
+		if (ctx->send_wait) {
+			ctx->send_wait->events &= ~SUB_RETRY_SEND;
+			tasklet_wakeup(ctx->send_wait->task);
+		}
+		if (ctx->recv_wait) {
+			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
+			tasklet_wakeup(ctx->recv_wait->task);
+		}
 		if (ctx->xprt->close)
 			ctx->xprt->close(conn, ctx->xprt_ctx);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
@@ -5887,6 +6033,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 					 */
 					fd_cant_recv(afd);
 				}
+				tasklet_free(ctx->wait_event.task);
 				pool_free(ssl_sock_ctx_pool, ctx);
 				_HA_ATOMIC_ADD(&jobs, 1);
 				return;
@@ -5902,6 +6049,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		}
 #endif
 		SSL_free(ctx->ssl);
+		tasklet_free(ctx->wait_event.task);
 		pool_free(ssl_sock_ctx_pool, ctx);
 		_HA_ATOMIC_SUB(&sslconns, 1);
 	}

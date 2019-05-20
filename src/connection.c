@@ -90,11 +90,16 @@ void conn_fd_handler(int fd)
 		if (conn->flags & CO_FL_SEND_PROXY)
 			if (!conn_si_send_proxy(conn, CO_FL_SEND_PROXY))
 				goto leave;
-#ifdef USE_OPENSSL
-		if (conn->flags & CO_FL_SSL_WAIT_HS)
-			if (!ssl_sock_handshake(conn, CO_FL_SSL_WAIT_HS))
-				goto leave;
-#endif
+		/* sock polling may have been activated by the connection,
+		 * so remove it if we don't want it.
+		 */
+		if (conn->flags & CO_FL_SSL_WAIT_HS) {
+			if (!conn->send_wait)
+				__conn_sock_stop_send(conn);
+			if (!conn->recv_wait)
+				__conn_sock_stop_recv(conn);
+			break;
+		}
 	}
 
 	/* Once we're purely in the data phase, we disable handshake polling */
@@ -108,7 +113,8 @@ void conn_fd_handler(int fd)
 	 * leave instead. The caller must immediately unregister itself once
 	 * called.
 	 */
-	if (conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
+	if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
+	    conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
 		return;
 
 	if (conn->xprt && fd_send_ready(fd)) {
@@ -148,7 +154,7 @@ void conn_fd_handler(int fd)
 	/* It may happen during the data phase that a handshake is
 	 * enabled again (eg: SSL)
 	 */
-	if (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR)))
+	if (unlikely(conn->flags & (CO_FL_HANDSHAKE_NOSSL | CO_FL_ERROR)))
 		goto process_handshake;
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
