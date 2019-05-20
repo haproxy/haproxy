@@ -2500,6 +2500,10 @@ static void *run_thread_poll_loop(void *data)
 	ha_set_tid((unsigned long)data);
 	tv_update_date(-1,-1);
 
+	/* per-thread init calls performed here are not allowed to snoop on
+	 * other threads, so they are free to initialize at their own rhythm
+	 * as long as they act as if they were alone.
+	 */
 	list_for_each_entry(ptif, &per_thread_init_list, list) {
 		if (!ptif->fct()) {
 			ha_alert("failed to initialize thread %u.\n", tid);
@@ -2512,6 +2516,11 @@ static void *run_thread_poll_loop(void *data)
 		mworker_pipe_register();
 		HA_SPIN_UNLOCK(START_LOCK, &start_lock);
 	}
+
+	/* broadcast that we are ready and wait for other threads to finish
+	 * their initialization.
+	 */
+	thread_release();
 
 	protocol_enable_all();
 	run_poll_loop();
@@ -3152,6 +3161,12 @@ int main(int argc, char **argv)
 		sigdelset(&blocked_sig, SIGILL);
 		sigdelset(&blocked_sig, SIGSEGV);
 		pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
+
+		/* mark the fact that threads must wait for each other
+		 * during startup. Once initialized, they just have to
+		 * call thread_release().
+		 */
+		threads_want_rdv_mask = all_threads_mask;
 
 		/* Create nbthread-1 thread. The first thread is the current process */
 		threads[0] = pthread_self();
