@@ -325,7 +325,7 @@ static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx
 		len = ((start + 128) & -16) - start;
 
 	chunk_reset(&trash);
-	dump_hex(&trash, "  ", (const void *)start, len);
+	dump_hex(&trash, "  ", (const void *)start, len, 1);
 	trash.area[trash.data] = 0;
 	appctx->ctx.cli.severity = LOG_INFO;
 	appctx->ctx.cli.msg = trash.area;

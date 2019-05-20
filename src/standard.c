@@ -20,6 +20,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -4009,6 +4011,26 @@ fail_wl:
 	return 0;
 }
 
+/* indicates if a memory location may safely be read or not. The trick consists
+ * in performing a harmless syscall using this location as an input and letting
+ * the operating system report whether it's OK or not. For this we have the
+ * stat() syscall, which will return EFAULT when the memory location supposed
+ * to contain the file name is not readable. If it is readable it will then
+ * either return 0 if the area contains an existing file name, or -1 with
+ * another code. This must not be abused, and some audit systems might detect
+ * this as abnormal activity. It's used only for unsafe dumps.
+ */
+int may_access(const void *ptr)
+{
+	struct stat buf;
+
+	if (stat(ptr, &buf) == 0)
+		return 1;
+	if (errno == EFAULT)
+		return 0;
+	return 1;
+}
+
 /* print a string of text buffer to <out>. The format is :
  * Non-printable chars \t, \n, \r and \e are * encoded in C format.
  * Other non-printable chars are encoded "\xHH". Space, '\', and '=' are also escaped.
@@ -4081,9 +4103,10 @@ int dump_binary(struct buffer *out, const char *buf, int bsize)
  * The output will not wrap pas the buffer's end so it is more optimal if the
  * caller makes sure the buffer is aligned first. A trailing zero will always
  * be appended (and not counted) if there is room for it. The caller must make
- * sure that the area is dumpable first.
+ * sure that the area is dumpable first. If <unsafe> is non-null, the memory
+ * locations are checked first for being readable.
  */
-void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len)
+void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe)
 {
 	const unsigned char *d = buf;
 	int i, j, start;
@@ -4094,25 +4117,32 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len)
 	for (i = 0; i < start + len; i += 16) {
 		chunk_appendf(out, (sizeof(void *) == 4) ? "%s%8p: " : "%s%16p: ", pfx, d + i);
 
+		// 0: unchecked, 1: checked safe, 2: danger
+		unsafe = !!unsafe;
+		if (unsafe && !may_access(d + i))
+			unsafe = 2;
+
 		for (j = 0; j < 16; j++) {
-			if ((i + j >= start) && (i + j < start + len))
-				chunk_appendf(out, "%02x ", d[i + j]);
-			else
+			if ((i + j < start) || (i + j >= start + len))
 				chunk_strcat(out, "'' ");
+			else if (unsafe > 1)
+				chunk_strcat(out, "** ");
+			else
+				chunk_appendf(out, "%02x ", d[i + j]);
 
 			if (j == 7)
 				chunk_strcat(out, "- ");
 		}
 		chunk_strcat(out, "  ");
 		for (j = 0; j < 16; j++) {
-			if ((i + j >= start) && (i + j < start + len)) {
-				if (isprint(d[i + j]))
-					chunk_appendf(out, "%c", d[i + j]);
-				else
-					chunk_strcat(out, ".");
-			}
-			else
+			if ((i + j < start) || (i + j >= start + len))
 				chunk_strcat(out, "'");
+			else if (unsafe > 1)
+				chunk_strcat(out, "*");
+			else if (isprint(d[i + j]))
+				chunk_appendf(out, "%c", d[i + j]);
+			else
+				chunk_strcat(out, ".");
 		}
 		chunk_strcat(out, "\n");
 	}
