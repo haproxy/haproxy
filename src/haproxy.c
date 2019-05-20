@@ -1571,6 +1571,7 @@ static void init(int argc, char **argv)
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
+		struct buffer *trash = get_trash_chunk();
 
 		/* handle cfgfiles that are actually directories */
 		cfgfiles_expand_directories();
@@ -1581,6 +1582,11 @@ static void init(int argc, char **argv)
 
 		list_for_each_entry(wl, &cfg_cfgfiles, list) {
 			int ret;
+
+			if (trash->data)
+				chunk_appendf(trash, ";");
+
+			chunk_appendf(trash, "%s", wl->s);
 
 			ret = readcfgfile(wl->s);
 			if (ret == -1) {
@@ -1603,6 +1609,9 @@ static void init(int argc, char **argv)
 			ha_alert("Fatal errors found in configuration.\n");
 			exit(1);
 		}
+		if (trash->data)
+			setenv("HAPROXY_CFGFILES", trash->area, 1);
+
 	}
 	if (global.mode & MODE_MWORKER) {
 		int proc;
