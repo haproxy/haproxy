@@ -23,6 +23,8 @@
 #define _COMMON_COMPAT_H
 
 #include <limits.h>
+#include <time.h>
+#include <unistd.h>
 /* This is needed on Linux for Netfilter includes */
 #include <sys/param.h>
 #include <sys/types.h>
@@ -94,6 +96,17 @@
 /* On Linux, allows pipes to be resized */
 #ifndef F_SETPIPE_SZ
 #define F_SETPIPE_SZ (1024 + 7)
+#endif
+
+/* systems without such defines do not know clockid_t */
+#if !defined(_POSIX_TIMERS) || (_POSIX_C_SOURCE < 199309L)
+#define clockid_t int
+#undef CLOCK_REALTIME
+#undef CLOCK_MONOTONIC
+#undef CLOCK_THREAD_CPUTIME_ID
+#define CLOCK_REALTIME           0
+#define CLOCK_MONOTONIC          1
+#define CLOCK_THREAD_CPUTIME_ID  2
 #endif
 
 #if defined(TPROXY) && defined(NETFILTER)
