@@ -540,6 +540,18 @@ static inline uint64_t now_cpu_time()
 #endif
 }
 
+/* returns another thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
+static inline uint64_t now_cpu_time_thread(const struct thread_info *thr)
+{
+#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
+	struct timespec ts;
+	clock_gettime(thr->clock_id, &ts);
+	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+#else
+	return 0;
+#endif
+}
+
 /* Update the idle time value twice a second, to be called after
  * tv_update_date() when called after poll(). It relies on <before_poll> to be
  * updated to the system time before calling poll().
