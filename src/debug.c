@@ -141,7 +141,7 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 void ha_panic()
 {
 	chunk_reset(&trash);
-	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid);
+	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
 	ha_thread_dump_all_to_trash();
 	write(2, trash.area, trash.data);
 	for (;;)
