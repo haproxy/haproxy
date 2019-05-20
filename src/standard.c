@@ -4076,6 +4076,48 @@ int dump_binary(struct buffer *out, const char *buf, int bsize)
 	return ptr;
 }
 
+/* Appends into buffer <out> a hex dump of memory area <buf> for <len> bytes,
+ * prepending each line with prefix <pfx>. The output is *not* initialized.
+ * The output will not wrap pas the buffer's end so it is more optimal if the
+ * caller makes sure the buffer is aligned first. A trailing zero will always
+ * be appended (and not counted) if there is room for it. The caller must make
+ * sure that the area is dumpable first.
+ */
+void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len)
+{
+	const unsigned char *d = buf;
+	int i, j, start;
+
+	d = (const unsigned char *)(((unsigned long)buf) & -16);
+	start = ((unsigned long)buf) & 15;
+
+	for (i = 0; i < start + len; i += 16) {
+		chunk_appendf(out, (sizeof(void *) == 4) ? "%s%8p: " : "%s%16p: ", pfx, d + i);
+
+		for (j = 0; j < 16; j++) {
+			if ((i + j >= start) && (i + j < start + len))
+				chunk_appendf(out, "%02x ", d[i + j]);
+			else
+				chunk_strcat(out, "'' ");
+
+			if (j == 7)
+				chunk_strcat(out, "- ");
+		}
+		chunk_strcat(out, "  ");
+		for (j = 0; j < 16; j++) {
+			if ((i + j >= start) && (i + j < start + len)) {
+				if (isprint(d[i + j]))
+					chunk_appendf(out, "%c", d[i + j]);
+				else
+					chunk_strcat(out, ".");
+			}
+			else
+				chunk_strcat(out, "'");
+		}
+		chunk_strcat(out, "\n");
+	}
+}
+
 /* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
  * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
  * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are
