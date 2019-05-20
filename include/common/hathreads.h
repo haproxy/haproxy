@@ -478,7 +478,6 @@ enum lock_label {
 	PID_LIST_LOCK,
 	EMAIL_ALERTS_LOCK,
 	PIPES_LOCK,
-	START_LOCK,
 	TLSKEYS_REF_LOCK,
 	AUTH_LOCK,
 	LOGSRV_LOCK,
@@ -595,7 +594,6 @@ static inline const char *lock_label(enum lock_label label)
 	case PID_LIST_LOCK:        return "PID_LIST";
 	case EMAIL_ALERTS_LOCK:    return "EMAIL_ALERTS";
 	case PIPES_LOCK:           return "PIPES";
-	case START_LOCK:           return "START";
 	case TLSKEYS_REF_LOCK:     return "TLSKEYS_REF";
 	case AUTH_LOCK:            return "AUTH";
 	case LOGSRV_LOCK:          return "LOGSRV";
