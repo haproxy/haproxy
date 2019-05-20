@@ -3960,7 +3960,7 @@ out_uri_auth_compat:
 						bind_conf->xprt->prepare_bind_conf(bind_conf) < 0)
 						cfgerr++;
 				}
-				if (!peers_init_sync(curpeers)) {
+				if (!peers_init_sync(curpeers) || !peers_alloc_dcache(curpeers)) {
 					ha_alert("Peers section '%s': out of memory, giving up on peers.\n",
 						 curpeers->id);
 					cfgerr++;

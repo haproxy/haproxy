@@ -71,6 +71,7 @@ struct peer {
 	struct shared_table *last_local_table;
 	struct shared_table *tables;
 	struct server *srv;
+	struct dcache *dcache;        /* dictionary cache */
 	__decl_hathreads(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
 	struct peer *next;            /* next peer in the list */
 };
