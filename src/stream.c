@@ -39,6 +39,7 @@
 #include <proto/checks.h>
 #include <proto/cli.h>
 #include <proto/connection.h>
+#include <proto/dict.h>
 #include <proto/dns.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
@@ -1483,6 +1484,49 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 	return 1;
 }
 
+static inline void sticking_rule_find_target(struct stream *s,
+                                             struct stktable *t, struct stksess *ts)
+{
+	struct proxy *px = s->be;
+	struct eb32_node *node;
+	struct dict_entry *de;
+	void *ptr;
+	struct server *srv;
+
+	/* Look for the server name previously stored in <t> stick-table */
+	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_NAME);
+	de = stktable_data_cast(ptr, server_name);
+	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	if (de) {
+		struct ebpt_node *name;
+
+		name = ebis_lookup(&px->conf.used_server_name, de->value.key);
+		if (name) {
+			srv = container_of(name, struct server, conf.name);
+			goto found;
+		}
+	}
+
+	/* Look for the server ID */
+	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
+	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
+	node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
+	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	if (!node)
+		return;
+
+	srv = container_of(node, struct server, conf.id);
+ found:
+	if ((srv->cur_state != SRV_ST_STOPPED) ||
+	    (px->options & PR_O_PERSIST) || (s->flags & SF_FORCE_PRST)) {
+		s->flags |= SF_DIRECT | SF_ASSIGNED;
+		s->target = &srv->obj_type;
+	}
+}
+
 /* This stream analyser works on a request. It applies all sticking rules on
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
@@ -1539,27 +1583,8 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 				struct stksess *ts;
 
 				if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
-					if (!(s->flags & SF_ASSIGNED)) {
-						struct eb32_node *node;
-						void *ptr;
-
-						/* srv found in table */
-						HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-						ptr = __stktable_data_ptr(rule->table.t, ts, STKTABLE_DT_SERVER_ID);
-						node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
-						HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-						if (node) {
-							struct server *srv;
-
-							srv = container_of(node, struct server, conf.id);
-							if ((srv->cur_state != SRV_ST_STOPPED) ||
-							    (px->options & PR_O_PERSIST) ||
-							    (s->flags & SF_FORCE_PRST)) {
-								s->flags |= SF_DIRECT | SF_ASSIGNED;
-								s->target = &srv->obj_type;
-							}
-						}
-					}
+					if (!(s->flags & SF_ASSIGNED))
+						sticking_rule_find_target(s, rule->table.t, ts);
 					stktable_touch_local(rule->table.t, ts, 1);
 				}
 			}
@@ -1657,6 +1682,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	for (i = 0; i < s->store_count; i++) {
 		struct stksess *ts;
 		void *ptr;
+		struct dict_entry *de;
 
 		if (objt_server(s->target) && objt_server(s->target)->flags & SRV_F_NON_STICK) {
 			stksess_free(s->store[i].table, s->store[i].ts);
@@ -1675,6 +1701,15 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		ptr = __stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
 		stktable_data_cast(ptr, server_id) = __objt_server(s->target)->puid;
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+		de = dict_insert(&server_name_dict, __objt_server(s->target)->id);
+		if (de) {
+			ptr = __stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_NAME);
+			stktable_data_cast(ptr, server_name) = de;
+		}
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
 		stktable_touch_local(s->store[i].table, ts, 1);
 	}
 	s->store_count = 0; /* everything is stored */
