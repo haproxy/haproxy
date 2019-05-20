@@ -136,6 +136,17 @@ static int cli_io_handler_show_threads(struct appctx *appctx)
 	return 1;
 }
 
+/* dumps a state of all threads into the trash and on fd #2, then aborts. */
+void ha_panic()
+{
+	chunk_reset(&trash);
+	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid);
+	ha_thread_dump_all_to_trash();
+	write(2, trash.area, trash.data);
+	for (;;)
+		abort();
+}
+
 #ifndef USE_THREAD_DUMP
 
 /* This function dumps all threads' state to the trash. This version is the
