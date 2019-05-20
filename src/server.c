@@ -25,6 +25,7 @@
 
 #include <types/applet.h>
 #include <types/cli.h>
+#include <types/dict.h>
 #include <types/global.h>
 #include <types/cli.h>
 #include <types/dns.h>
@@ -61,6 +62,12 @@ struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
 struct task *idle_conn_cleanup[MAX_THREADS] = { NULL };
 struct list toremove_connections[MAX_THREADS];
+
+/* The server names dictionary */
+struct dict server_name_dict = {
+	.name = "server names",
+	.values = EB_ROOT_UNIQUE,
+};
 
 int srv_downtime(const struct server *s)
 {

@@ -175,6 +175,9 @@ enum srv_initaddr {
 #define SRV_SSL_O_EARLY_DATA   0x400  /* Allow using early data */
 #endif
 
+/* The server names dictionary */
+extern struct dict server_name_dict;
+
 struct pid_list {
 	struct list list;
 	pid_t pid;
