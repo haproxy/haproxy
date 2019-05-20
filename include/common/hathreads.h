@@ -49,6 +49,12 @@ enum { all_threads_mask = 1UL };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 
+extern struct thread_info {
+	/* pad to cache line (64B) */
+	char __pad[0];            /* unused except to check remaining room */
+	char __end[0] __attribute__((aligned(64)));
+} thread_info[MAX_THREADS];
+
 #define __decl_hathreads(decl)
 #define __decl_spinlock(lock)
 #define __decl_aligned_spinlock(lock)
@@ -368,6 +374,14 @@ static inline unsigned long thread_isolated()
 void thread_harmless_till_end();
 void thread_isolate();
 void thread_release();
+
+extern struct thread_info {
+	pthread_t pthread;
+	clockid_t clock_id;
+	/* pad to cache line (64B) */
+	char __pad[0];            /* unused except to check remaining room */
+	char __end[0] __attribute__((aligned(64)));
+} thread_info[MAX_THREADS];
 
 extern THREAD_LOCAL unsigned int tid;     /* The thread id */
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */

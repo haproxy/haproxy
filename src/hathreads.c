@@ -29,6 +29,7 @@
 #include <types/global.h>
 #include <proto/fd.h>
 
+struct thread_info thread_info[MAX_THREADS];
 
 #ifdef USE_THREAD
 

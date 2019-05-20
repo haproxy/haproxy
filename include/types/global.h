@@ -243,11 +243,6 @@ extern unsigned int rlim_fd_cur_at_boot;
 extern unsigned int rlim_fd_max_at_boot;
 extern int atexit_flag;
 
-extern struct thread_info {
-	__decl_hathreads(pthread_t pthread);
-	__decl_hathreads(clockid_t clock_id);
-} thread_info[MAX_THREADS];
-
 /* bit values to go with "warned" above */
 #define WARN_BLOCK_DEPRECATED       0x00000001
 /* unassigned : 0x00000002 */
