@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <time.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <common/buf.h>
 #include <common/config.h>
@@ -147,6 +148,228 @@ void ha_panic()
 		abort();
 }
 
+#if defined(DEBUG_DEV)
+/* parse a "debug dev exit" command. It always returns 1, though it should never return. */
+static int debug_parse_cli_exit(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int code = atoi(args[3]);
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	exit(code);
+	return 1;
+}
+
+/* parse a "debug dev close" command. It always returns 1. */
+static int debug_parse_cli_close(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int fd;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3]) {
+		appctx->ctx.cli.msg = "Missing file descriptor number.\n";
+		goto reterr;
+	}
+
+	fd = atoi(args[3]);
+	if (fd < 0 || fd >= global.maxsock) {
+		appctx->ctx.cli.msg = "File descriptor out of range.\n";
+		goto reterr;
+	}
+
+	if (!fdtab[fd].owner) {
+		appctx->ctx.cli.msg = "File descriptor was already closed.\n";
+		goto retinfo;
+	}
+
+	fd_delete(fd);
+	return 1;
+ retinfo:
+	appctx->ctx.cli.severity = LOG_INFO;
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+ reterr:
+	appctx->ctx.cli.severity = LOG_ERR;
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+}
+
+/* parse a "debug dev delay" command. It always returns 1. */
+static int debug_parse_cli_delay(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int delay = atoi(args[3]);
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	usleep((long)delay * 1000);
+	return 1;
+}
+
+/* parse a "debug dev log" command. It always returns 1. */
+static int debug_parse_cli_log(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int arg;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	chunk_reset(&trash);
+	for (arg = 3; *args[arg]; arg++) {
+		if (arg > 3)
+			chunk_strcat(&trash, " ");
+		chunk_strcat(&trash, args[arg]);
+	}
+
+	send_log(NULL, LOG_INFO, "%s\n", trash.area);
+	return 1;
+}
+
+/* parse a "debug dev loop" command. It always returns 1. */
+static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct timeval deadline, curr;
+	int loop = atoi(args[3]);
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	gettimeofday(&curr, NULL);
+	tv_ms_add(&deadline, &curr, loop);
+
+	while (tv_ms_cmp(&curr, &deadline) < 0)
+		gettimeofday(&curr, NULL);
+
+	return 1;
+}
+
+/* parse a "debug dev panic" command. It always returns 1, though it should never return. */
+static int debug_parse_cli_panic(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	ha_panic();
+	return 1;
+}
+
+/* parse a "debug dev exec" command. It always returns 1. */
+static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	FILE *f;
+	int arg;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	chunk_reset(&trash);
+	for (arg = 3; *args[arg]; arg++) {
+		if (arg > 3)
+			chunk_strcat(&trash, " ");
+		chunk_strcat(&trash, args[arg]);
+	}
+
+	f = popen(trash.area, "re");
+	if (!f) {
+		appctx->ctx.cli.severity = LOG_ERR;
+		appctx->ctx.cli.msg = "Failed to execute command.\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return 1;
+	}
+
+	chunk_reset(&trash);
+	while (1) {
+		size_t ret = fread(trash.area + trash.data, 1, trash.size - 20 - trash.data, f);
+		if (!ret)
+			break;
+		trash.data += ret;
+		if (trash.data + 20 == trash.size) {
+			chunk_strcat(&trash, "\n[[[TRUNCATED]]]\n");
+			break;
+		}
+	}
+
+	fclose(f);
+	trash.area[trash.data] = 0;
+	appctx->ctx.cli.severity = LOG_INFO;
+	appctx->ctx.cli.msg = trash.area;
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+}
+
+/* parse a "debug dev hex" command. It always returns 1. */
+static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	unsigned long start, len;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3]) {
+		appctx->ctx.cli.msg = "Missing memory address to dump from.\n";
+		goto reterr;
+	}
+
+	start = strtoul(args[3], NULL, 0);
+	if (!start) {
+		appctx->ctx.cli.msg = "Will not dump from NULL address.\n";
+		goto reterr;
+	}
+
+	/* by default, dump ~128 till next block of 16 */
+	len = strtoul(args[4], NULL, 0);
+	if (!len)
+		len = ((start + 128) & -16) - start;
+
+	chunk_reset(&trash);
+	dump_hex(&trash, "  ", (const void *)start, len);
+	trash.area[trash.data] = 0;
+	appctx->ctx.cli.severity = LOG_INFO;
+	appctx->ctx.cli.msg = trash.area;
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+ reterr:
+	appctx->ctx.cli.severity = LOG_ERR;
+	appctx->st0 = CLI_ST_PRINT;
+	return 1;
+}
+
+/* parse a "debug dev tkill" command. It always returns 1. */
+static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int thr = 0;
+	int sig = SIGABRT;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (*args[3])
+		thr = atoi(args[3]);
+
+	if (thr < 0 || thr > global.nbthread) {
+		appctx->ctx.cli.severity = LOG_ERR;
+		appctx->ctx.cli.msg = "Thread number out of range (use 0 for current).\n";
+		appctx->st0 = CLI_ST_PRINT;
+		return 1;
+	}
+
+	if (*args[4])
+		sig = atoi(args[4]);
+
+#if defined(USE_THREAD)
+	if (thr)
+		pthread_kill(thread_info[thr-1].pthread, sig);
+	else
+#endif
+		raise(sig);
+	return 1;
+}
+
+#endif
+
 #ifndef USE_THREAD_DUMP
 
 /* This function dumps all threads' state to the trash. This version is the
@@ -271,6 +494,17 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+#if defined(DEBUG_DEV)
+	{{ "debug", "dev", "close", NULL }, "debug dev close <fd>        : close this file descriptor",      debug_parse_cli_close, NULL },
+	{{ "debug", "dev", "delay", NULL }, "debug dev delay [ms]        : sleep this long",                 debug_parse_cli_delay, NULL },
+	{{ "debug", "dev", "exec",  NULL }, "debug dev exec  [cmd] ...   : show this command's output",      debug_parse_cli_exec,  NULL },
+	{{ "debug", "dev", "exit",  NULL }, "debug dev exit  [code]      : immediately exit the process",    debug_parse_cli_exit,  NULL },
+	{{ "debug", "dev", "hex",   NULL }, "debug dev hex   <addr> [len]: dump a memory area",              debug_parse_cli_hex,   NULL },
+	{{ "debug", "dev", "log",   NULL }, "debug dev log   [msg] ...   : send this msg to global logs",    debug_parse_cli_log,   NULL },
+	{{ "debug", "dev", "loop",  NULL }, "debug dev loop  [ms]        : loop this long",                  debug_parse_cli_loop,  NULL },
+	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL },
+	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL },
+#endif
 	{ { "show", "threads", NULL },    "show threads   : show some threads debugging information",   NULL, cli_io_handler_show_threads, NULL },
 	{{},}
 }};
