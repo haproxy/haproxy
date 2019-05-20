@@ -64,7 +64,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		new++;
 		addr += blksz;
 
-	} while (new < htx->used);
+	}
 
 	htx->sl_off = sl_off;
 	htx->wrap = htx->used;
