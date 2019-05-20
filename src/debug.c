@@ -38,6 +38,8 @@
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
 	unsigned long thr_bit = 1UL << thr;
+	unsigned long long p = thread_info[thr].prev_cpu_time;
+	unsigned long long n = now_cpu_time_thread(&thread_info[thr]);
 
 	chunk_appendf(buf,
 	              "%c Thread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
@@ -61,6 +63,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 #endif
 
 	chunk_appendf(buf, "\n");
+	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
 
 	/* this is the end of what we can dump from outside the thread */
 
