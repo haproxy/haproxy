@@ -2500,6 +2500,8 @@ static void *run_thread_poll_loop(void *data)
 
 #ifdef USE_THREAD
 	pthread_getcpuclockid(pthread_self(), &thread_info[tid].clock_id);
+#else
+	thread_info[tid].clock_id = CLOCK_THREAD_CPUTIME_ID;
 #endif
 
 	tv_update_date(-1,-1);

@@ -50,6 +50,7 @@ enum { tid_bit = 1UL };
 enum { tid = 0 };
 
 extern struct thread_info {
+	clockid_t clock_id;
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
