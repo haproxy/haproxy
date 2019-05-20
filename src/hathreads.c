@@ -30,6 +30,7 @@
 #include <proto/fd.h>
 
 struct thread_info thread_info[MAX_THREADS];
+THREAD_LOCAL struct thread_info *ti = &thread_info[0];
 
 #ifdef USE_THREAD
 

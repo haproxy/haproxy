@@ -56,6 +56,8 @@ extern struct thread_info {
 	char __end[0] __attribute__((aligned(64)));
 } thread_info[MAX_THREADS];
 
+extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
+
 #define __decl_hathreads(decl)
 #define __decl_spinlock(lock)
 #define __decl_aligned_spinlock(lock)
@@ -140,6 +142,7 @@ extern struct thread_info {
 
 static inline void ha_set_tid(unsigned int tid)
 {
+	ti = &thread_info[tid];
 }
 
 static inline void ha_thread_relax(void)
@@ -386,6 +389,7 @@ extern struct thread_info {
 
 extern THREAD_LOCAL unsigned int tid;     /* The thread id */
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
+extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long threads_want_rdv_mask;
 extern volatile unsigned long threads_harmless_mask;
@@ -416,6 +420,7 @@ static inline void ha_set_tid(unsigned int data)
 {
 	tid     = data;
 	tid_bit = (1UL << tid);
+	ti      = &thread_info[tid];
 }
 
 static inline void ha_thread_relax(void)
