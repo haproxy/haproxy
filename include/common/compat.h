@@ -31,6 +31,20 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+// Redefine some limits that are not present everywhere
+#ifndef LLONG_MAX
+# define LLONG_MAX 9223372036854775807LL
+# define LLONG_MIN (-LLONG_MAX - 1LL)
+#endif
+
+#ifndef ULLONG_MAX
+# define ULLONG_MAX	(LLONG_MAX * 2ULL + 1)
+#endif
+
+#ifndef LONGBITS
+#define LONGBITS  ((unsigned int)sizeof(long) * 8)
+#endif
+
 #ifndef BITS_PER_INT
 #define BITS_PER_INT    (8*sizeof(int))
 #endif

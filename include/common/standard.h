@@ -40,19 +40,6 @@
 #include <eb32sctree.h>
 #include <types/protocol.h>
 
-#ifndef LLONG_MAX
-# define LLONG_MAX 9223372036854775807LL
-# define LLONG_MIN (-LLONG_MAX - 1LL)
-#endif
-
-#ifndef ULLONG_MAX
-# define ULLONG_MAX	(LLONG_MAX * 2ULL + 1)
-#endif
-
-#ifndef LONGBITS
-#define LONGBITS  ((unsigned int)sizeof(long) * 8)
-#endif
-
 /* size used for max length of decimal representation of long long int. */
 #define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
 
