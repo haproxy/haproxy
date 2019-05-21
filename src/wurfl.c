@@ -102,9 +102,9 @@ static const struct {
 	{"wurfl_isdevroot", ha_wurfl_get_wurfl_isdevroot},
 	{"wurfl_last_load_time", ha_wurfl_get_wurfl_last_load_time},
 	{"wurfl_normalized_useragent", ha_wurfl_get_wurfl_normalized_useragent},
+	{"wurfl_root_id", ha_wurfl_get_wurfl_root_id},
 	{"wurfl_useragent", ha_wurfl_get_wurfl_useragent},
 	{"wurfl_useragent_priority", ha_wurfl_get_wurfl_useragent_priority }, // kept for backward conf file compat
-	{"wurfl_root_id", ha_wurfl_get_wurfl_root_id},
 };
 static const int HA_WURFL_PROPERTIES_NBR = 10;
 
@@ -602,7 +602,10 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 // WURFL properties wrapper functions
 static const char *ha_wurfl_get_wurfl_root_id (wurfl_handle wHandle, wurfl_device_handle dHandle)
 {
-	return wurfl_device_get_root_id(dHandle);
+	if (wurfl_device_get_root_id(dHandle))
+		return wurfl_device_get_root_id(dHandle);
+	else
+		return "";
 }
 
 static const char *ha_wurfl_get_wurfl_id (wurfl_handle wHandle, wurfl_device_handle dHandle)
