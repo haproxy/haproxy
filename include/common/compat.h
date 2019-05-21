@@ -106,13 +106,8 @@ typedef struct { } empty_t;
 
 /* systems without such defines do not know clockid_t */
 #if !(_POSIX_TIMERS > 0) || (_POSIX_C_SOURCE < 199309L)
-#define clockid_t int
-#undef CLOCK_REALTIME
-#undef CLOCK_MONOTONIC
-#undef CLOCK_THREAD_CPUTIME_ID
-#define CLOCK_REALTIME           0
-#define CLOCK_MONOTONIC          1
-#define CLOCK_THREAD_CPUTIME_ID  2
+#undef clockid_t
+#define clockid_t empty_t
 #endif
 
 #if defined(TPROXY) && defined(NETFILTER)
