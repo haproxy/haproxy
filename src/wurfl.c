@@ -442,7 +442,6 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 	chunk_reset(temp);
 
 	list_for_each_entry(wi, &global_wurfl.information_list, list) {
-		chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
 
 		switch(wi->data.type) {
 		case HA_WURFL_DATA_TYPE_UNKNOWN :
@@ -478,11 +477,20 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 			break;
 		}
 
+		// append wurfl-information-list-separator
+		chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
 	}
 
 	wurfl_device_destroy(dHandle);
 	smp->data.u.str.area = temp->area;
 	smp->data.u.str.data = temp->data;
+
+	// remove trailing wurfl-information-list-separator
+	if (temp->data) {
+		temp->area[temp->data] = '\0';
+		--smp->data.u.str.data;
+	}
+
 	return 1;
 }
 
@@ -508,7 +516,6 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	chunk_reset(temp);
 
 	while (args[i].data.str.area) {
-		chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
 		node = ebst_lookup(&global_wurfl.btree, args[i].data.str.area);
 
 		if (node) {
@@ -549,6 +556,9 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 				break;
 			}
 
+			// append wurfl-information-list-separator
+			chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
+
 		} else {
 			ha_wurfl_log("WURFL: %s not in wurfl-information-list \n",
 				     args[i].data.str.area);
@@ -560,6 +570,13 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	wurfl_device_destroy(dHandle);
 	smp->data.u.str.area = temp->area;
 	smp->data.u.str.data = temp->data;
+
+	// remove trailing wurfl-information-list-separator
+	if (temp->data) {
+		temp->area[temp->data] = '\0';
+		--smp->data.u.str.data;
+	}
+
 	return 1;
 }
 
