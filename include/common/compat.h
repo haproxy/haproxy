@@ -104,10 +104,17 @@ typedef struct { } empty_t;
 #define F_SETPIPE_SZ (1024 + 7)
 #endif
 
-/* systems without such defines do not know clockid_t */
+/* systems without such defines do not know clockid_t or timer_t */
 #if !(_POSIX_TIMERS > 0) || (_POSIX_C_SOURCE < 199309L)
 #undef clockid_t
 #define clockid_t empty_t
+#undef timer_t
+#define timer_t empty_t
+#endif
+
+/* define a dummy value to designate "no timer". Use only 32 bits. */
+#ifndef TIMER_INVALID
+#define TIMER_INVALID ((timer_t)(unsigned long)(0xfffffffful))
 #endif
 
 #if defined(TPROXY) && defined(NETFILTER)

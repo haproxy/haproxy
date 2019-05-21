@@ -58,6 +58,7 @@ enum { tid = 0 };
 
 extern struct thread_info {
 	clockid_t clock_id;
+	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
@@ -407,6 +408,7 @@ void ha_tkillall(int sig);
 extern struct thread_info {
 	pthread_t pthread;
 	clockid_t clock_id;
+	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
