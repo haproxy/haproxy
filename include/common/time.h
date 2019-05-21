@@ -519,7 +519,7 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
 /* returns the system's monotonic time in nanoseconds if supported, otherwise zero */
 static inline uint64_t now_mono_time()
 {
-#if defined(_POSIX_TIMERS) && defined(_POSIX_MONOTONIC_CLOCK)
+#if (_POSIX_TIMERS > 0) && defined(_POSIX_MONOTONIC_CLOCK)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
@@ -531,7 +531,7 @@ static inline uint64_t now_mono_time()
 /* returns the current thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
 static inline uint64_t now_cpu_time()
 {
-#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
+#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
 	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
 	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
@@ -543,7 +543,7 @@ static inline uint64_t now_cpu_time()
 /* returns another thread's cumulated CPU time in nanoseconds if supported, otherwise zero */
 static inline uint64_t now_cpu_time_thread(const struct thread_info *thr)
 {
-#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
+#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 	struct timespec ts;
 	clock_gettime(thr->clock_id, &ts);
 	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;

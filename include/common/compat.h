@@ -99,7 +99,7 @@
 #endif
 
 /* systems without such defines do not know clockid_t */
-#if !defined(_POSIX_TIMERS) || (_POSIX_C_SOURCE < 199309L)
+#if !(_POSIX_TIMERS > 0) || (_POSIX_C_SOURCE < 199309L)
 #define clockid_t int
 #undef CLOCK_REALTIME
 #undef CLOCK_MONOTONIC

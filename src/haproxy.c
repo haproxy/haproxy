@@ -2511,7 +2511,7 @@ static void *run_thread_poll_loop(void *data)
 
 	ha_set_tid((unsigned long)data);
 
-#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
+#if (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 #ifdef USE_THREAD
 	pthread_getcpuclockid(pthread_self(), &ti->clock_id);
 #else
