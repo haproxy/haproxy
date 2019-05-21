@@ -70,7 +70,7 @@ typedef struct {
 	struct ebmb_node nd;
 } wurfl_data_t;
 
-static const char HA_WURFL_MODULE_VERSION[] = "1.0";
+static const char HA_WURFL_MODULE_VERSION[] = "2.0";
 static const char HA_WURFL_ISDEVROOT_FALSE[] = "FALSE";
 static const char HA_WURFL_ISDEVROOT_TRUE[] = "TRUE";
 
