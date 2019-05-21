@@ -433,13 +433,13 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 	wh.wsmp = smp;
 	dHandle = wurfl_lookup(global_wurfl.handle, &ha_wurfl_retrieve_header, &wh);
 
-	if (!dHandle) {
-		ha_wurfl_log("WURFL: unable to retrieve device from request %s\n", wurfl_get_error_message(global_wurfl.handle));
-		return 1;
-	}
-
 	temp = get_trash_chunk();
 	chunk_reset(temp);
+
+	if (!dHandle) {
+		ha_wurfl_log("WURFL: unable to retrieve device from request %s\n", wurfl_get_error_message(global_wurfl.handle));
+		goto wurfl_get_all_completed;
+	}
 
 	list_for_each_entry(wi, &global_wurfl.information_list, list) {
 
@@ -481,6 +481,8 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 		chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
 	}
 
+wurfl_get_all_completed:
+
 	wurfl_device_destroy(dHandle);
 	smp->data.u.str.area = temp->area;
 	smp->data.u.str.data = temp->data;
@@ -507,13 +509,13 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	wh.wsmp = smp;
 	dHandle = wurfl_lookup(global_wurfl.handle, &ha_wurfl_retrieve_header, &wh);
 
-	if (!dHandle) {
-		ha_wurfl_log("WURFL: unable to retrieve device from request %s\n", wurfl_get_error_message(global_wurfl.handle));
-		return 1;
-	}
-
 	temp = get_trash_chunk();
 	chunk_reset(temp);
+
+	if (!dHandle) {
+		ha_wurfl_log("WURFL: unable to retrieve device from request %s\n", wurfl_get_error_message(global_wurfl.handle));
+		goto wurfl_get_completed;
+	}
 
 	while (args[i].data.str.area) {
 		node = ebst_lookup(&global_wurfl.btree, args[i].data.str.area);
@@ -566,6 +568,8 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 
 		i++;
 	}
+
+wurfl_get_completed:
 
 	wurfl_device_destroy(dHandle);
 	smp->data.u.str.area = temp->area;
