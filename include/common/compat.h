@@ -33,6 +33,12 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+/* set any optional field in a struct to this type to save ifdefs. Its address
+ * will still be valid but it will not reserve any room nor require any
+ * initialization.
+ */
+typedef struct { } empty_t;
+
 // Redefine some limits that are not present everywhere
 #ifndef LLONG_MAX
 # define LLONG_MAX 9223372036854775807LL
