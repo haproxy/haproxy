@@ -880,6 +880,11 @@ static int sess_update_st_cer(struct stream *s)
  * This function handles the transition between the SI_ST_CON state and the
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
  * SI_ST_INI) to SI_ST_EST, but only when a ->proto is defined.
+ * Note that it will switch the interface to SI_ST_DIS if we already have
+ * the CF_SHUTR flag, it means we were able to forward the request, and
+ * receive the response, before process_stream() had the opportunity to
+ * make the switch from SI_ST_CON to SI_ST_EST. When that happens, we want
+ * to go through sess_establish() anyway, to make sure the analysers run.
  */
 static void sess_establish(struct stream *s)
 {
@@ -928,6 +933,9 @@ static void sess_establish(struct stream *s)
 		si_chk_rcv(si);
 	}
 	req->wex = TICK_ETERNITY;
+	/* If we managed to get the whole response, switch to SI_ST_DIS now. */
+	if (rep->flags & CF_SHUTR)
+		si->state = SI_ST_DIS;
 }
 
 /* Check if the connection request is in such a state that it can be aborted. */

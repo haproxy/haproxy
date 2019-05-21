@@ -1486,7 +1486,12 @@ static void stream_int_read0(struct stream_interface *si)
 
 	si_done_get(si);
 
-	si->state = SI_ST_DIS;
+	/* Don't change the state to SI_ST_DIS yet if we're still
+	 * in SI_ST_CON, otherwise it means sess_establish() hasn't
+	 * been called yet, and so the analysers would not run.
+	 */
+	if (si->state == SI_ST_EST)
+		si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
 	return;
 }
