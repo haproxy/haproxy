@@ -514,9 +514,10 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	while (args[i].data.str.area) {
 		chunk_appendf(temp, "%c", global_wurfl.information_list_separator);
 		node = ebst_lookup(&global_wurfl.btree, args[i].data.str.area);
-		wn = container_of(node, wurfl_data_t, nd);
 
-		if (wn) {
+		if (node) {
+
+			wn = container_of(node, wurfl_data_t, nd);
 
 			switch(wn->type) {
 			case HA_WURFL_DATA_TYPE_UNKNOWN :
