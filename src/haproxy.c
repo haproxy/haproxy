@@ -2498,10 +2498,12 @@ static void *run_thread_poll_loop(void *data)
 
 	ha_set_tid((unsigned long)data);
 
+#if defined(_POSIX_TIMERS) && defined(_POSIX_THREAD_CPUTIME)
 #ifdef USE_THREAD
 	pthread_getcpuclockid(pthread_self(), &ti->clock_id);
 #else
 	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
+#endif
 #endif
 
 	tv_update_date(-1,-1);
