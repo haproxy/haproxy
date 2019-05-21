@@ -67,6 +67,11 @@ wurfl_error wurfl_load(wurfl_handle hwurfl)
 
 wurfl_device_handle wurfl_lookup(wurfl_handle hwurfl, wurfl_header_retrieve_callback header_retrieve_callback, const void *header_retrieve_callback_data)
 {
+  // call callback, on a probably existing header
+  const char *hvalue = header_retrieve_callback("User-Agent", header_retrieve_callback_data);
+  // and on a non existing one
+  hvalue = header_retrieve_callback("Non-Existing-Header", header_retrieve_callback_data);
+
   return (void *) 0xdeffa;
 }
 
