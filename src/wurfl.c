@@ -258,39 +258,35 @@ static int ha_wurfl_init(void)
 	int wurfl_result_code = WURFL_OK;
 	int len;
 
-	send_log(NULL, LOG_NOTICE, "WURFL: Loading module v.%s\n", HA_WURFL_MODULE_VERSION);
+	ha_notice("WURFL: Loading module v.%s\n", HA_WURFL_MODULE_VERSION);
 	// creating WURFL handler
 	global_wurfl.handle = wurfl_create();
 
 	if (global_wurfl.handle == NULL) {
-		ha_warning("WURFL: Engine handler creation failed");
-		send_log(NULL, LOG_WARNING, "WURFL: Engine handler creation failed\n");
+		ha_warning("WURFL: Engine handler creation failed\n");
 		return ERR_WARN;
 	}
 
-	send_log(NULL, LOG_NOTICE, "WURFL: Engine handler created - API version %s\n", wurfl_get_api_version() );
+	ha_notice("WURFL: Engine handler created - API version %s\n", wurfl_get_api_version() );
 
 	// set wurfl data file
 	if (global_wurfl.data_file == NULL) {
 		ha_warning("WURFL: missing wurfl-data-file parameter in global configuration\n");
-		send_log(NULL, LOG_WARNING, "WURFL: missing wurfl-data-file parameter in global configuration\n");
 		return ERR_WARN;
 	}
 
 	if (wurfl_set_root(global_wurfl.handle, global_wurfl.data_file) != WURFL_OK) {
 		ha_warning("WURFL: Engine setting root file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-		send_log(NULL, LOG_WARNING, "WURFL: Engine setting root file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 		return ERR_WARN;
 	}
 
-	send_log(NULL, LOG_NOTICE, "WURFL: Engine root file set to %s\n", global_wurfl.data_file);
+	ha_notice("WURFL: Engine root file set to %s\n", global_wurfl.data_file);
 	// just a log to inform which separator char has to be used
-	send_log(NULL, LOG_NOTICE, "WURFL: Information list separator set to '%c'\n", global_wurfl.information_list_separator);
+	ha_notice("WURFL: Information list separator set to '%c'\n", global_wurfl.information_list_separator);
 
 	// load wurfl data needed ( and filter whose are supposed to be capabilities )
 	if (LIST_ISEMPTY(&global_wurfl.information_list)) {
 		ha_warning("WURFL: missing wurfl-information-list parameter in global configuration\n");
-		send_log(NULL, LOG_WARNING, "WURFL: missing wurfl-information-list parameter in global configuration\n");
 		return ERR_WARN;
 	} else {
 		// ebtree initialization
@@ -302,21 +298,24 @@ static int ha_wurfl_init(void)
 			if (ebst_lookup(&global_wurfl.btree, wi->data.name) == NULL) {
 				if ((wi->data.func_callback = (PROP_CALLBACK_FUNC) ha_wurfl_get_property_callback(wi->data.name)) != NULL) {
 					wi->data.type = HA_WURFL_DATA_TYPE_PROPERTY;
-					ha_wurfl_log("WURFL: [%s] is a valid wurfl data [property]\n",wi->data.name);
+#ifdef WURFL_DEBUG
+					ha_notice("WURFL: [%s] is a valid wurfl data [property]\n",wi->data.name);
+#endif
 				} else if (wurfl_has_virtual_capability(global_wurfl.handle, wi->data.name)) {
 					wi->data.type = HA_WURFL_DATA_TYPE_VCAP;
-					ha_wurfl_log("WURFL: [%s] is a valid wurfl data [virtual capability]\n",wi->data.name);
+#ifdef WURFL_DEBUG
+					ha_notice("WURFL: [%s] is a valid wurfl data [virtual capability]\n",wi->data.name);
+#endif
 				} else {
 					// by default a cap type is assumed to be and we control it on engine load
 					wi->data.type = HA_WURFL_DATA_TYPE_CAP;
 
 					if (wurfl_add_requested_capability(global_wurfl.handle, wi->data.name) != WURFL_OK) {
 						ha_warning("WURFL: capability filtering failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-						send_log(NULL, LOG_WARNING, "WURFL: capability filtering failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 						return ERR_WARN;
 					}
 
-					ha_wurfl_log("WURFL: [%s] treated as wurfl capability. Will check its validity later, on engine load\n",wi->data.name);
+					ha_notice("WURFL: [%s] treated as wurfl capability. Will check its validity later, on engine load\n",wi->data.name);
 				}
 
 				// ebtree insert here
@@ -326,7 +325,6 @@ static int ha_wurfl_init(void)
 
 				if (wn == NULL) {
 					ha_warning("WURFL: Error allocating memory for information tree element.\n");
-					send_log(NULL, LOG_WARNING, "WURFL: Error allocating memory for information tree element.\n");
 					return ERR_WARN;
 				}
 
@@ -338,12 +336,13 @@ static int ha_wurfl_init(void)
 
 				if (!ebst_insert(&global_wurfl.btree, &wn->nd)) {
 					ha_warning("WURFL: [%s] not inserted in btree\n",wn->name);
-					send_log(NULL, LOG_WARNING, "WURFL: [%s] not inserted in btree\n",wn->name);
 					return ERR_WARN;
 				}
 
 			} else {
-				ha_wurfl_log("WURFL: [%s] already loaded\n",wi->data.name);
+#ifdef WURFL_DEBUG
+				ha_notice("WURFL: [%s] already loaded\n",wi->data.name);
+#endif
 			}
 
 		}
@@ -357,10 +356,9 @@ static int ha_wurfl_init(void)
 		list_for_each_entry(wp, &global_wurfl.patch_file_list, list) {
 			if (wurfl_add_patch(global_wurfl.handle, wp->patch_file_path) != WURFL_OK) {
 				ha_warning("WURFL: Engine adding patch file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-				send_log(NULL, LOG_WARNING, "WURFL: Adding engine patch file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 				return ERR_WARN;
 			}
-			send_log(NULL, LOG_NOTICE, "WURFL: Engine patch file added %s\n", wp->patch_file_path);
+			ha_notice("WURFL: Engine patch file added %s\n", wp->patch_file_path);
 
 		}
 
@@ -381,22 +379,20 @@ static int ha_wurfl_init(void)
 
 		if (wurfl_result_code != WURFL_OK) {
 			ha_warning("WURFL: Setting cache to [%s] failed - %s\n", global_wurfl.cache_size, wurfl_get_error_message(global_wurfl.handle));
-			send_log(NULL, LOG_WARNING, "WURFL: Setting cache to [%s] failed - %s\n", global_wurfl.cache_size, wurfl_get_error_message(global_wurfl.handle));
 			return ERR_WARN;
 		}
 
-		send_log(NULL, LOG_NOTICE, "WURFL: Cache set to [%s]\n", global_wurfl.cache_size);
+		ha_notice("WURFL: Cache set to [%s]\n", global_wurfl.cache_size);
 	}
 
 	// loading WURFL engine
 	if (wurfl_load(global_wurfl.handle) != WURFL_OK) {
 		ha_warning("WURFL: Engine load failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
-		send_log(NULL, LOG_WARNING, "WURFL: Engine load failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 		return ERR_WARN;
 	}
 
-	send_log(NULL, LOG_NOTICE, "WURFL: Engine loaded\n");
-	send_log(NULL, LOG_NOTICE, "WURFL: Module load completed\n");
+	ha_notice("WURFL: Engine loaded\n");
+	ha_notice("WURFL: Module load completed\n");
 	return 0;
 }
 
