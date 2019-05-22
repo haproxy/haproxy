@@ -55,12 +55,10 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              !!(fd_cache_mask & thr_bit),
 	              !!(task_profiling_mask & thr_bit));
 
-#ifdef USE_THREAD
 	chunk_appendf(buf,
 	              " harmless=%d wantrdv=%d",
 	              !!(threads_harmless_mask & thr_bit),
 	              !!(threads_want_rdv_mask & thr_bit));
-#endif
 
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
