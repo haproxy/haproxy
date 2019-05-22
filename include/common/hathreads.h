@@ -46,6 +46,8 @@
  * at build time.
  */
 enum { all_threads_mask = 1UL };
+enum { threads_harmless_mask = 0 };
+enum { threads_want_rdv_mask = 0 };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 
