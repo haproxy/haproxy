@@ -77,7 +77,7 @@ const struct cfg_opt cfg_opts[] =
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0, 0 },
 	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0, 0 },
-#ifdef TPROXY
+#ifdef USE_TPROXY
 	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0, 0 },
 #else
 	{ "transparent",  0, 0, 0, 0 },
@@ -89,7 +89,7 @@ const struct cfg_opt cfg_opts[] =
 /* proxy->options2 */
 const struct cfg_opt cfg_opts2[] =
 {
-#ifdef CONFIG_HAP_LINUX_SPLICE
+#ifdef USE_LINUX_SPLICE
 	{ "splice-request",  PR_O2_SPLIC_REQ, PR_CAP_FE|PR_CAP_BE, 0, 0 },
 	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0, 0 },
 	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0, 0 },

@@ -694,7 +694,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 						goto bad_header;
 					break;
 				}
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 				case PP2_TYPE_NETNS: {
 					const struct netns_entry *ns;
 					ns = netns_store_lookup((char*)tlv_packet->value, tlv_len);
@@ -1228,7 +1228,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	}
 #endif
 
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 	if (remote && (remote->proxy_netns)) {
 		if ((buf_len - ret) < sizeof(struct tlv))
 			return 0;

@@ -1654,7 +1654,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 				memcpy(&tmpfd[i % MAX_SEND_FD], &l->fd, sizeof(l->fd));
 				if (!l->netns)
 					tmpbuf[curoff++] = 0;
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 				else {
 					char *name = l->netns->node.key;
 					unsigned char len = l->netns->name_len;

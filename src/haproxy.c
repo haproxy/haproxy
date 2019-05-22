@@ -502,19 +502,19 @@ static void usage(char *name)
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
 		"        -L set local peer name (default to hostname)\n"
 		"        -p writes pids of all children to this file\n"
-#if defined(ENABLE_EPOLL)
+#if defined(USE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
-#if defined(ENABLE_KQUEUE)
+#if defined(USE_KQUEUE)
 		"        -dk disables kqueue() usage even when available\n"
 #endif
-#if defined(ENABLE_EVPORTS)
+#if defined(USE_EVPORTS)
 		"        -dv disables event ports usage even when available\n"
 #endif
-#if defined(ENABLE_POLL)
+#if defined(USE_POLL)
 		"        -dp disables poll() usage even when available\n"
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 		"        -dS disables splice usage (broken on old kernels)\n"
 #endif
 #if defined(USE_GETADDRINFO)
@@ -1394,19 +1394,19 @@ static void init(int argc, char **argv)
 	vars_init(&global.vars, SCOPE_PROC);
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
-#if defined(ENABLE_POLL)
+#if defined(USE_POLL)
 	global.tune.options |= GTUNE_USE_POLL;
 #endif
-#if defined(ENABLE_EPOLL)
+#if defined(USE_EPOLL)
 	global.tune.options |= GTUNE_USE_EPOLL;
 #endif
-#if defined(ENABLE_KQUEUE)
+#if defined(USE_KQUEUE)
 	global.tune.options |= GTUNE_USE_KQUEUE;
 #endif
-#if defined(ENABLE_EVPORTS)
+#if defined(USE_EVPORTS)
 	global.tune.options |= GTUNE_USE_EVPORTS;
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 	global.tune.options |= GTUNE_USE_SPLICE;
 #endif
 #if defined(USE_GETADDRINFO)
@@ -1438,23 +1438,23 @@ static void init(int argc, char **argv)
 					display_build_opts();
 				exit(0);
 			}
-#if defined(ENABLE_EPOLL)
+#if defined(USE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
 				global.tune.options &= ~GTUNE_USE_EPOLL;
 #endif
-#if defined(ENABLE_POLL)
+#if defined(USE_POLL)
 			else if (*flag == 'd' && flag[1] == 'p')
 				global.tune.options &= ~GTUNE_USE_POLL;
 #endif
-#if defined(ENABLE_KQUEUE)
+#if defined(USE_KQUEUE)
 			else if (*flag == 'd' && flag[1] == 'k')
 				global.tune.options &= ~GTUNE_USE_KQUEUE;
 #endif
-#if defined(ENABLE_EVPORTS)
+#if defined(USE_EVPORTS)
 			else if (*flag == 'd' && flag[1] == 'v')
 				global.tune.options &= ~GTUNE_USE_EVPORTS;
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 			else if (*flag == 'd' && flag[1] == 'S')
 				global.tune.options &= ~GTUNE_USE_SPLICE;
 #endif
@@ -1770,7 +1770,7 @@ static void init(int argc, char **argv)
 #endif
 	}
 
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
         err_code |= netns_init();
         if (err_code & (ERR_ABORT|ERR_FATAL)) {
                 ha_alert("Failed to initialize namespace support.\n");

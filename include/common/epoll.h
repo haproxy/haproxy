@@ -29,7 +29,7 @@
 #ifndef _COMMON_EPOLL_H
 #define _COMMON_EPOLL_H
 
-#if defined (__linux__) && defined(ENABLE_EPOLL)
+#if defined (__linux__) && defined(USE_EPOLL)
 
 #ifndef USE_MY_EPOLL
 #include <sys/epoll.h>
@@ -70,7 +70,7 @@ struct epoll_event {
 	} data;
 };
 
-#if defined(CONFIG_HAP_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
+#if defined(USE_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
 /* Those are our self-defined functions */
 extern int epoll_create(int size);
 extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
@@ -94,7 +94,7 @@ static inline _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, event
 
 #endif /* USE_MY_EPOLL */
 
-#endif /* __linux__ && ENABLE_EPOLL */
+#endif /* __linux__ && USE_EPOLL */
 
 #endif /* _COMMON_EPOLL_H */
 

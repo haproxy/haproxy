@@ -297,7 +297,7 @@ static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, void *para
 	return (cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx, event_type, param));
 }
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 /* Send and get, using splicing */
 static int mux_pt_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
 {
@@ -325,7 +325,7 @@ const struct mux_ops mux_pt_ops = {
 	.snd_buf = mux_pt_snd_buf,
 	.subscribe = mux_pt_subscribe,
 	.unsubscribe = mux_pt_unsubscribe,
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 	.rcv_pipe = mux_pt_rcv_pipe,
 	.snd_pipe = mux_pt_snd_pipe,
 #endif

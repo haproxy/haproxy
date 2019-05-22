@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <ebistree.h>
 
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 
 struct netns_entry
 {
@@ -28,6 +28,6 @@ static inline int my_socketat(const struct netns_entry *ns, int domain, int type
 	return socket(domain, type, protocol);
 }
 
-#endif /* CONFIG_HAP_NS */
+#endif /* USE_NS */
 
 #endif /* _NAMESPACE_H */

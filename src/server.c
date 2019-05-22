@@ -454,7 +454,7 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 static int srv_parse_namespace(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
 {
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 	char *arg;
 
 	arg = args[*cur_arg + 1];

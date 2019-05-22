@@ -2273,7 +2273,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	return total;
 }
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 /* Send and get, using splicing */
 static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int count)
 {
@@ -2379,7 +2379,7 @@ static const struct mux_ops mux_h1_ops = {
 	.used_streams = h1_used_streams,
 	.rcv_buf     = h1_rcv_buf,
 	.snd_buf     = h1_snd_buf,
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 	.rcv_pipe    = h1_rcv_pipe,
 	.snd_pipe    = h1_snd_pipe,
 #endif

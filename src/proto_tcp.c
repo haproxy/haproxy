@@ -246,7 +246,7 @@ static int create_server_socket(struct connection *conn)
 {
 	const struct netns_entry *ns = NULL;
 
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 	if (objt_server(conn->target)) {
 		if (__objt_server(conn->target)->flags & SRV_F_USE_NS_FROM_PP)
 			ns = conn->proxy_netns;
@@ -632,7 +632,7 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 		if (ret < 0)
 			return ret;
 
-#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
+#if defined(USE_TPROXY) && defined(SO_ORIGINAL_DST)
 		/* For TPROXY and Netfilter's NAT, we can retrieve the original
 		 * IPv4 address before DNAT/REDIRECT. We must not do that with
 		 * other families because v6-mapped IPv4 addresses are still
@@ -778,7 +778,7 @@ static int tcp_find_compatible_fd(struct listener *l)
 				    (xfer_sock->options & LI_MANDATORY_FLAGS)) {
 					if ((xfer_sock->namespace == NULL &&
 					    l->netns == NULL)
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 					    || (xfer_sock->namespace != NULL &&
 					    l->netns != NULL &&
 					    !strcmp(xfer_sock->namespace,
@@ -1862,7 +1862,7 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 }
 #endif
 
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 /* parse the "namespace" bind keyword */
 static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1979,7 +1979,7 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ "v4v6",          bind_parse_v4v6,         0 }, /* force socket to bind to IPv4+IPv6 */
 	{ "v6only",        bind_parse_v6only,       0 }, /* force socket to bind to IPv6 only */
 #endif
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 	{ "namespace",     bind_parse_namespace,    1 },
 #endif
 	/* the versions with the NULL parse function*/

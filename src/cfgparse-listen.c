@@ -3320,7 +3320,7 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-#ifdef TPROXY
+#ifdef USE_TPROXY
 	else if (!strcmp(args[0], "transparent")) {
 		/* enable transparent proxy connections */
 		curproxy->options |= PR_O_TRANSP;

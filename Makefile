@@ -464,25 +464,8 @@ BUILD_FEATURES := $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt
 # possibly be unused though)
 OPTIONS_CFLAGS += $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
 
-ifneq ($(USE_LINUX_SPLICE),)
-OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
-endif
-
-ifneq ($(USE_TPROXY),)
-OPTIONS_CFLAGS += -DTPROXY
-endif
-
-ifneq ($(USE_LINUX_TPROXY),)
-OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_TPROXY
-endif
-
 ifneq ($(USE_LIBCRYPT),)
-OPTIONS_CFLAGS  += -DCONFIG_HAP_CRYPT
 OPTIONS_LDFLAGS += -lcrypt
-endif
-
-ifneq ($(USE_CRYPT_H),)
-OPTIONS_CFLAGS  += -DNEED_CRYPT_H
 endif
 
 ifneq ($(USE_SLZ),)
@@ -502,36 +485,27 @@ OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
 ifneq ($(USE_POLL),)
-OPTIONS_CFLAGS += -DENABLE_POLL
 OPTIONS_OBJS   += src/ev_poll.o
 endif
 
 ifneq ($(USE_EPOLL),)
-OPTIONS_CFLAGS += -DENABLE_EPOLL
 OPTIONS_OBJS   += src/ev_epoll.o
 endif
 
 ifneq ($(USE_KQUEUE),)
-OPTIONS_CFLAGS += -DENABLE_KQUEUE
 OPTIONS_OBJS   += src/ev_kqueue.o
 endif
 
 ifneq ($(USE_EVPORTS),)
-OPTIONS_CFLAGS += -DENABLE_EVPORTS
 OPTIONS_OBJS   += src/ev_evports.o
 endif
 
 ifneq ($(USE_VSYSCALL),)
 OPTIONS_OBJS   += src/i386-linux-vsys.o
-OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
 endif
 
 ifneq ($(ASSUME_SPLICE_WORKS),)
 OPTIONS_CFLAGS += -DASSUME_SPLICE_WORKS
-endif
-
-ifneq ($(USE_NETFILTER),)
-OPTIONS_CFLAGS += -DNETFILTER
 endif
 
 ifneq ($(USE_REGPARM),)
@@ -755,7 +729,6 @@ COPTS += -finstrument-functions
 endif
 
 ifneq ($(USE_NS),)
-OPTIONS_CFLAGS += -DCONFIG_HAP_NS
 OPTIONS_OBJS  += src/namespace.o
 endif
 

@@ -151,7 +151,7 @@
 #include <sys/types.h>
 #include <sys/resource.h>
 
-#if defined(ENABLE_POLL)
+#if defined(USE_POLL)
 #include <poll.h>
 #include <errno.h>
 #endif
@@ -477,7 +477,7 @@ void my_closefrom(int start)
 	closefrom(start);
 }
 
-#elif defined(ENABLE_POLL)
+#elif defined(USE_POLL)
 /* This is a portable implementation of closefrom(). It closes all open file
  * descriptors starting at <start> and above. It relies on the fact that poll()
  * will return POLLNVAL for each invalid (hence close) file descriptor passed
@@ -534,7 +534,7 @@ void my_closefrom(int start)
 	}
 }
 
-#else // defined(ENABLE_POLL)
+#else // defined(USE_POLL)
 
 /* This is a portable implementation of closefrom(). It closes all open file
  * descriptors starting at <start> and above. This is a naive version for use
@@ -556,7 +556,7 @@ void my_closefrom(int start)
 	while (start < nbfds)
 		close(start++);
 }
-#endif // defined(ENABLE_POLL)
+#endif // defined(USE_POLL)
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name)

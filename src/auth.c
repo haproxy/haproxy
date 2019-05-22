@@ -10,15 +10,15 @@
  *
  */
 
-#ifdef CONFIG_HAP_CRYPT
+#ifdef USE_LIBCRYPT
 /* This is to have crypt() defined on Linux */
 #define _GNU_SOURCE
 
-#ifdef NEED_CRYPT_H
+#ifdef USE_CRYPT_H
 /* some platforms such as Solaris need this */
 #include <crypt.h>
 #endif
-#endif /* CONFIG_HAP_CRYPT */
+#endif /* USE_LIBCRYPT */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */
 
-#ifdef CONFIG_HAP_CRYPT
+#ifdef USE_LIBCRYPT
 #ifdef HA_HAVE_CRYPT_R
 /* context for crypt_r() */
 static THREAD_LOCAL struct crypt_data crypt_data = { .initialized = 0 };
@@ -256,7 +256,7 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 #endif
 
 	if (!(u->flags & AU_O_INSECURE)) {
-#ifdef CONFIG_HAP_CRYPT
+#ifdef USE_LIBCRYPT
 #ifdef HA_HAVE_CRYPT_R
 		ep = crypt_r(pass, u->pass, &crypt_data);
 #else

@@ -10,15 +10,15 @@
  *
  */
 
-#ifdef CONFIG_HAP_CRYPT
+#ifdef USE_LIBCRYPT
 /* This is to have crypt() defined on Linux */
 #define _GNU_SOURCE
 
-#ifdef NEED_CRYPT_H
+#ifdef USE_CRYPT_H
 /* some platforms such as Solaris need this */
 #include <crypt.h>
 #endif
-#endif /* CONFIG_HAP_CRYPT */
+#endif /* USE_LIBCRYPT */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1505,7 +1505,7 @@ void free_email_alert(struct proxy *p)
 int
 cfg_parse_netns(const char *file, int linenum, char **args, int kwm)
 {
-#ifdef CONFIG_HAP_NS
+#ifdef USE_NS
 	const char *err;
 	const char *item = args[0];
 
@@ -1701,7 +1701,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "password")) {
-#ifdef CONFIG_HAP_CRYPT
+#ifdef USE_LIBCRYPT
 				if (!crypt("", args[cur_arg + 1])) {
 					ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
 						 file, linenum, newuser->user);

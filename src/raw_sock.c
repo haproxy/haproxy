@@ -42,7 +42,7 @@
 #include <types/global.h>
 
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 #include <common/splice.h>
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
@@ -237,7 +237,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	return done;
 }
 
-#endif /* CONFIG_HAP_LINUX_SPLICE */
+#endif /* USE_LINUX_SPLICE */
 
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them
@@ -435,7 +435,7 @@ static struct xprt_ops raw_sock = {
 	.rcv_buf  = raw_sock_to_buf,
 	.subscribe = raw_sock_subscribe,
 	.unsubscribe = raw_sock_unsubscribe,
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(USE_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,
 #endif

@@ -23,7 +23,7 @@
 #ifndef _COMMON_SPLICE_H
 #define _COMMON_SPLICE_H
 
-#if defined (__linux__) && defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined (__linux__) && defined(USE_LINUX_SPLICE)
 
 #include <errno.h>
 #include <unistd.h>
@@ -49,7 +49,7 @@
 
 #if defined(USE_MY_SPLICE)
 
-#if defined(CONFIG_HAP_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
+#if defined(USE_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
 /* The syscall is redefined somewhere else */
 extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t len, unsigned long flags);
 #else
@@ -71,7 +71,7 @@ static inline _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, lo
 
 #endif /* USE_MY_SPLICE */
 
-#endif /* __linux__ && CONFIG_HAP_LINUX_SPLICE */
+#endif /* __linux__ && USE_LINUX_SPLICE */
 
 #endif /* _COMMON_SPLICE_H */
 
