@@ -1,6 +1,91 @@
 ChangeLog :
 ===========
 
+2019/05/22 : 2.0-dev4
+    - BUILD: enable freebsd builds on cirrus-ci
+    - BUG/MINOR: http_fetch: Rely on the smp direction for "cookie()" and "hdr()"
+    - MEDIUM: Make 'option forceclose' actually warn
+    - MEDIUM: Make 'resolution_pool_size' directive fatal
+    - DOC: management: place "show activity" at the right place
+    - MINOR: cli/activity: show the dumping thread ID starting at 1
+    - MINOR: task: export global_task_mask
+    - MINOR: cli/debug: add a thread dump function
+    - BUG/MEDIUM: streams: Don't use CF_EOI to decide if the request is complete.
+    - BUG/MEDIUM: streams: Try to L7 retry before aborting the connection.
+    - BUG/MINOR: debug: make ha_task_dump() always check the task before dumping it
+    - BUG/MINOR: debug: make ha_task_dump() actually dump the requested task
+    - MINOR: debug: make ha_thread_dump() and ha_task_dump() take a buffer
+    - BUG/MINOR: debug: don't check the call date on tasklets
+    - MINOR: thread: implement ha_thread_relax()
+    - MINOR: task: put barriers after each write to curr_task
+    - MINOR: task: always reset curr_task when freeing a task or tasklet
+    - MINOR: stream: detach the stream from its own task on stream_free()
+    - MEDIUM: debug/threads: implement an advanced thread dump system
+    - REGTEST: extend the check duration on tls_health_checks and mark it slow
+    - DOC: fix "successful" typo
+    - MINOR: init: setenv HAPROXY_CFGFILES
+    - MINOR: threads/init: synchronize the threads startup
+    - MEDIUM: init/mworker: make the pipe register function a regular initcall
+    - CLEANUP: memory: make the fault injection code use the OTHER_LOCK label
+    - CLEANUP: threads: remove the now unused START_LOCK label
+    - MINOR: init/threads: make the global threads an array of structs
+    - MINOR: threads: add each thread's clockid into the global thread_info
+    - CLEANUP: stream: remove an obsolete debugging test
+    - MINOR: tools: add dump_hex()
+    - MINOR: debug: implement ha_panic()
+    - MINOR: debug/cli: add some debugging commands for developers
+    - MINOR: tools: provide a may_access() function and make dump_hex() use it
+    - MINOR: debug: make ha_panic() report threads starting at 1
+    - REORG: compat: move some integer limit definitions from standard.h to compat.h
+    - REORG: threads: move the struct thread_info from global.h to hathreads.h
+    - MINOR: compat: make sure to always define clockid_t
+    - MINOR: threads: always place the clockid in the struct thread_info
+    - MINOR: threads: add a thread-local thread_info pointer "ti"
+    - MINOR: time: move the cpu, mono, and idle time to thread_info
+    - MINOR: time: add a function to retrieve another thread's cputime
+    - MINOR: debug: report each thread's cpu usage in "show thread"
+    - BUILD: threads: only assign the clock_id when supported
+    - BUILD: makefile: use USE_OBSOLETE_LINKER for solaris
+    - BUILD: makefile: remove -fomit-frame-pointer optimisation (solaris)
+    - MAJOR: polling: add event ports support (Solaris)
+    - BUG/MEDIUM: streams: Don't switch from SI_ST_CON to SI_ST_DIS on read0.
+    - CLEANUP: time: refine the test on _POSIX_TIMERS
+    - MINOR: compat: define a new empty type empty_t for non-implemented fields
+    - CLEANUP: time: switch clockid_t to empty_t when not available
+    - BUG/MINOR: mworker: Fix memory leak of mworker_proc members
+    - CLEANUP: objtype: make obj_type() and obj_type_name() take consts
+    - MINOR: debug: switch to SIGURG for thread dumps
+    - CLEANUP: threads: really move thread_info to hathreads.c
+    - MINOR: threads: make threads_{harmless|want_rdv}_mask constant 0 without threads
+    - CLEANUP: debug: always report harmless/want_rdv even without threads
+    - MINOR: threads: implement ha_tkill() and ha_tkillall()
+    - CLEANUP: debug: make use of ha_tkill() and remove ifdefs
+    - MINOR: stream: introduce a stream_dump() function and use it in stream_dump_and_crash()
+    - MINOR: debug: dump streams when an applet, iocb or stream is known
+    - MINOR: threads: add a "stuck" flag to the thread_info struct
+    - MINOR: threads: add a timer_t per thread in thread_info
+    - MAJOR: watchdog: implement a thread lockup detection mechanism
+    - MINOR: stream: remove the cpu time detection from process_stream()
+    - MINOR: connection: report the mux names in "haproxy -vv"
+    - CLEANUP: mux-h1: use "H1" and not "h1" as the mux's name
+    - BUG/MEDIUM: WURFL: segfault in wurfl-get() with missing info.
+    - MINOR: WURFL: call header_retireve_callback() in dummy library
+    - MINOR: WURFL: fixed Engine load failed error when wurfl-information-list contains wurfl_root_id
+    - MINOR: WURFL: shows log messages during module initialization
+    - MINOR: WURFL: removes heading wurfl-information-separator from wurfl-get-all() and wurfl-get() results
+    - MINOR: WURFL: wurfl_get() and wurfl_get_all() now return an empty string if device detection fails
+    - MEDIUM: WURFL: HTX awareness.
+    - MINOR: WURFL: module version bump to 2.0
+    - MINOR: WURFL: do not emit warnings when not configured
+    - CONTRIB: wurfl: address 3 build issues in the wurfl dummy library
+    - BUG/MEDIUM: init/threads: provide per-thread alloc/free function callbacks
+    - BUILD: travis: add sanitizers to travis-ci builds
+    - BUILD: time: remove the test on _POSIX_C_SOURCE
+    - CLEANUP: build: rename some build macros to use the USE_* ones
+    - CLEANUP: raw_sock: remove support for very old linux splice bug workaround
+    - BUG/MEDIUM: dns: make the port numbers unsigned
+    - MEDIUM: config: deprecate the antique req* and rsp* commands
+
 2019/05/15 : 2.0-dev3
     - BUG/MINOR: peers: Really close the sessions with no heartbeat.
     - CLEANUP: peers: remove useless annoying tabulations.
