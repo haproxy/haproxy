@@ -105,7 +105,7 @@ typedef struct { } empty_t;
 #endif
 
 /* systems without such defines do not know clockid_t or timer_t */
-#if !(_POSIX_TIMERS > 0) || (_POSIX_C_SOURCE < 199309L)
+#if !(_POSIX_TIMERS > 0)
 #undef clockid_t
 #define clockid_t empty_t
 #undef timer_t
