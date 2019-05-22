@@ -1612,6 +1612,11 @@ static int connect_conn_chk(struct task *t)
 		conn->addr.to = s->addr;
 	}
 
+	if (s->check.via_socks4 &&  (s->flags & SRV_F_SOCKS4_PROXY)) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SOCKS4;
+	}
+
 	proto = protocol_by_family(conn->addr.to.ss_family);
 	conn->target = &s->obj_type;
 

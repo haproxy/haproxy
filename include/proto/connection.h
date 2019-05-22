@@ -60,6 +60,10 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 /* drains any pending bytes from the socket */
 int conn_sock_drain(struct connection *conn);
 
+/* scoks4 proxy handshake */
+int conn_send_socks4_proxy_request(struct connection *conn);
+int conn_recv_socks4_proxy_response(struct connection *conn);
+
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
 {
@@ -889,6 +893,11 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
 	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
 	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
+
+	case CO_ER_SOCKS4_SEND:    return "SOCKS4 Proxy write error during handshake";
+	case CO_ER_SOCKS4_RECV:    return "SOCKS4 Proxy read error during handshake";
+	case CO_ER_SOCKS4_DENY:    return "SOCKS4 Proxy deny the request";
+	case CO_ER_SOCKS4_ABORT:   return "SOCKS4 Proxy handshake aborted by server";
 	}
 	return NULL;
 }

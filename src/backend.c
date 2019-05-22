@@ -1533,12 +1533,18 @@ int connect_server(struct stream *s)
 
 		if (srv && srv->pp_opts) {
 			srv_conn->flags |= CO_FL_PRIVATE;
+			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			if (cli_conn)
 				conn_get_to_addr(cli_conn);
 		}
 
 		assign_tproxy_address(s);
+
+		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY)) {
+			srv_conn->send_proxy_ofs = 1;
+			srv_conn->flags |= CO_FL_SOCKS4;
+		}
 	}
 	else if (!conn_xprt_ready(srv_conn)) {
 		if (srv_conn->mux->reset)

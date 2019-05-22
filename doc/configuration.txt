@@ -11900,6 +11900,11 @@ check-ssl
   See the "ssl" option for more information and "no-check-ssl" to disable
   this option.
 
+check-via-socks4
+  This option enables outgoinng health checks using upstream socks4 proxy. By
+  default, the health checks won't go through socks tunnel even it was enabled
+  for normal traffic.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. This
   option sets the string describing the list of cipher algorithms that is
@@ -12559,6 +12564,11 @@ stick
   default value.
   It may also be used as "default-server" setting to reset any previous
   "default-server" "non-stick" setting.
+
+socks4 <addr>:<port>
+  This option enables upstream socks4 tunnel for outgoinng connections to the
+  server. Using this option won't force the health check to go via socks4 by
+  default. You will have to use the keyword "check-via-socks4" to enable it.
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all outgoing connections to this server. This

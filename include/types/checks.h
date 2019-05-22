@@ -189,6 +189,8 @@ struct check {
 	char *sni;				/* Server name */
 	char *alpn_str;                         /* ALPN to use for checks */
 	int alpn_len;                           /* ALPN string length */
+
+	int via_socks4;                         /* check the connection via socks4 proxy */
 };
 
 struct check_status {

@@ -141,6 +141,7 @@ enum srv_initaddr {
 #define SRV_F_AGENTADDR    0x0080        /* this server has a agent addr configured */
 #define SRV_F_COOKIESET    0x0100        /* this server has a cookie configured, so don't generate dynamic cookies */
 #define SRV_F_FASTOPEN     0x0200        /* Use TCP Fast Open to connect to server */
+#define SRV_F_SOCKS4_PROXY 0x0400        /* this server uses SOCKS4 proxy */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
@@ -336,6 +337,8 @@ struct server {
 		char reason[128];
 	} op_st_chg;				/* operational status change's reason */
 	char adm_st_chg_cause[48];		/* administrative status change's cause */
+
+	struct sockaddr_storage socks4_addr;	/* the address of the SOCKS4 Proxy, including the port */
 };
 
 /* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of

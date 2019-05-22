@@ -294,6 +294,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	struct proxy *be;
 	struct conn_src *src;
 	int use_fastopen = 0;
+	struct sockaddr_storage *addr;
 
 	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
@@ -514,7 +515,8 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if (connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) == -1) {
+	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : &conn->addr.to;
+	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
 		if (errno == EINPROGRESS || errno == EALREADY) {
 			/* common case, let's wait for connect status */
 			conn->flags |= CO_FL_WAIT_L4_CONN;
@@ -566,10 +568,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	}
 
 	conn->flags |= CO_FL_ADDR_TO_SET;
-
-	/* Prepare to send a few handshakes related to the on-wire protocol. */
-	if (conn->send_proxy_ofs)
-		conn->flags |= CO_FL_SEND_PROXY;
 
 	conn_ctrl_init(conn);       /* registers the FD */
 	fdtab[fd].linger_risk = 1;  /* close hard if needed */
@@ -663,6 +661,7 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
  */
 int tcp_connect_probe(struct connection *conn)
 {
+	struct sockaddr_storage *addr;
 	int fd = conn->handle.fd;
 	socklen_t lskerr;
 	int skerr;
@@ -701,7 +700,11 @@ int tcp_connect_probe(struct connection *conn)
 	 *  - connecting (EALREADY, EINPROGRESS)
 	 *  - connected (EISCONN, 0)
 	 */
-	if (connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) < 0) {
+	addr = &conn->addr.to;
+	if ((conn->flags & CO_FL_SOCKS4) && obj_type(conn->target) == OBJ_TYPE_SERVER)
+		addr = &objt_server(conn->target)->socks4_addr;
+
+	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
 		if (errno == EALREADY || errno == EINPROGRESS) {
 			__conn_sock_stop_recv(conn);
 			fd_cant_send(fd);

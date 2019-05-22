@@ -27,6 +27,8 @@
 #include <proto/sample.h>
 #include <proto/ssl_sock.h>
 
+#include <common/debug.h>
+
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 
@@ -68,6 +70,14 @@ void conn_fd_handler(int fd)
 	while (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR))) {
 		if (unlikely(conn->flags & CO_FL_ERROR))
 			goto leave;
+
+		if (conn->flags & CO_FL_SOCKS4_SEND)
+			if (!conn_send_socks4_proxy_request(conn))
+				goto leave;
+
+		if (conn->flags & CO_FL_SOCKS4_RECV)
+			if (!conn_recv_socks4_proxy_response(conn))
+				goto leave;
 
 		if (conn->flags & CO_FL_ACCEPT_CIP)
 			if (!conn_recv_netscaler_cip(conn, CO_FL_ACCEPT_CIP))
@@ -951,6 +961,209 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
  recv_abort:
 	conn->err_code = CO_ER_CIP_ABORT;
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+	goto fail;
+
+ fail:
+	__conn_sock_stop_both(conn);
+	conn->flags |= CO_FL_ERROR;
+	return 0;
+}
+
+
+int conn_send_socks4_proxy_request(struct connection *conn)
+{
+	struct socks4_request req_line;
+
+	/* we might have been called just after an asynchronous shutw */
+	if (conn->flags & CO_FL_SOCK_WR_SH)
+		goto out_error;
+
+	if (!conn_ctrl_ready(conn))
+		goto out_error;
+
+	req_line.version = 0x04;
+	req_line.command = 0x01;
+	req_line.port    = get_net_port(&(conn->addr.to));
+	req_line.ip      = is_inet_addr(&(conn->addr.to));
+	memcpy(req_line.user_id, "HAProxy\0", 8);
+
+	if (conn->send_proxy_ofs > 0) {
+		/*
+		 * This is the first call to send the request
+		 */
+		conn->send_proxy_ofs = -(int)sizeof(req_line);
+	}
+
+	if (conn->send_proxy_ofs < 0) {
+		int ret = 0;
+
+		/* we are sending the socks4_req_line here. If the data layer
+		 * has a pending write, we'll also set MSG_MORE.
+		 */
+		ret = conn_sock_send(
+				conn,
+				((char *)(&req_line)) + (sizeof(req_line)+conn->send_proxy_ofs),
+				-conn->send_proxy_ofs,
+				(conn->flags & CO_FL_XPRT_WR_ENA) ? MSG_MORE : 0);
+
+		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Before send remain is [%d], sent [%d]\n",
+				conn->handle.fd, -conn->send_proxy_ofs, ret);
+
+		if (ret < 0) {
+			goto out_error;
+		}
+
+		conn->send_proxy_ofs += ret; /* becomes zero once complete */
+		if (conn->send_proxy_ofs != 0) {
+			goto out_wait;
+		}
+	}
+
+	/* OK we've the whole request sent */
+	conn->flags &= ~CO_FL_SOCKS4_SEND;
+	__conn_sock_stop_send(conn);
+
+	/* The connection is ready now, simply return and let the connection
+	 * handler notify upper layers if needed.
+	 */
+	if (conn->flags & CO_FL_WAIT_L4_CONN)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+	if (conn->flags & CO_FL_SEND_PROXY) {
+		/*
+		 * Get the send_proxy_ofs ready for the send_proxy due to we are
+		 * reusing the "send_proxy_ofs", and SOCKS4 handshake should be done
+		 * before sending PROXY Protocol.
+		 */
+		conn->send_proxy_ofs = 1;
+	}
+	return 1;
+
+ out_error:
+	/* Write error on the file descriptor */
+	conn->flags |= CO_FL_ERROR;
+	if (conn->err_code == CO_ER_NONE) {
+		conn->err_code = CO_ER_SOCKS4_SEND;
+	}
+	return 0;
+
+ out_wait:
+	__conn_sock_stop_recv(conn);
+	return 0;
+}
+
+int conn_recv_socks4_proxy_response(struct connection *conn)
+{
+	char line[SOCKS4_HS_RSP_LEN];
+	int ret;
+
+	/* we might have been called just after an asynchronous shutr */
+	if (conn->flags & CO_FL_SOCK_RD_SH)
+		goto fail;
+
+	if (!conn_ctrl_ready(conn))
+		goto fail;
+
+	if (!fd_recv_ready(conn->handle.fd))
+		return 0;
+
+	do {
+		/* SOCKS4 Proxy will response with 8 bytes, 0x00 | 0x5A | 0x00 0x00 | 0x00 0x00 0x00 0x00
+		 * Try to peek into it, before all 8 bytes ready.
+		 */
+		ret = recv(conn->handle.fd, line, SOCKS4_HS_RSP_LEN, MSG_PEEK);
+
+		if (ret == 0) {
+			/* the socket has been closed or shutdown for send */
+			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Received ret[%d], errno[%d], looks like the socket has been closed or shutdown for send\n",
+					conn->handle.fd, ret, errno);
+			if (conn->err_code == CO_ER_NONE) {
+				conn->err_code = CO_ER_SOCKS4_RECV;
+			}
+			goto fail;
+		}
+
+		if (ret > 0) {
+			if (ret == SOCKS4_HS_RSP_LEN) {
+				DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Received 8 bytes, the response is [%02X|%02X|%02X %02X|%02X %02X %02X %02X]\n",
+						conn->handle.fd, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
+			}else{
+				DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Received ret[%d], first byte is [%02X], last bye is [%02X]\n", conn->handle.fd, ret, line[0], line[ret-1]);
+			}
+		} else {
+			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Received ret[%d], errno[%d]\n", conn->handle.fd, ret, errno);
+		}
+
+		if (ret < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			if (errno == EAGAIN) {
+				fd_cant_recv(conn->handle.fd);
+				__conn_sock_want_recv(conn);
+				return 0;
+			}
+			goto recv_abort;
+		}
+	} while (0);
+
+	if (ret < SOCKS4_HS_RSP_LEN) {
+		/* Missing data. Since we're using MSG_PEEK, we can only poll again if
+		 * we are not able to read enough data.
+		 */
+		fd_cant_recv(conn->handle.fd);
+		__conn_sock_want_recv(conn);
+		return 0;
+	}
+
+	/*
+	 * Base on the SOCSK4 protocol:
+	 *
+	 *			+----+----+----+----+----+----+----+----+
+	 *			| VN | CD | DSTPORT |      DSTIP        |
+	 *			+----+----+----+----+----+----+----+----+
+	 *	# of bytes:	   1    1      2              4
+	 *	VN is the version of the reply code and should be 0. CD is the result
+	 *	code with one of the following values:
+	 *	90: request granted
+	 *	91: request rejected or failed
+	 *	92: request rejected becasue SOCKS server cannot connect to identd on the client
+	 *	93: request rejected because the client program and identd report different user-ids
+	 *	The remaining fields are ignored.
+	 */
+	if (line[1] != 90) {
+		conn->flags &= ~CO_FL_SOCKS4_RECV;
+
+		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: FAIL, the response is [%02X|%02X|%02X %02X|%02X %02X %02X %02X]\n",
+				conn->handle.fd, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
+		if (conn->err_code == CO_ER_NONE) {
+			conn->err_code = CO_ER_SOCKS4_DENY;
+		}
+		goto fail;
+	}
+
+	/* remove the 8 bytes response from the stream */
+	do {
+		ret = recv(conn->handle.fd, line, SOCKS4_HS_RSP_LEN, 0);
+		if (ret < 0 && errno == EINTR) {
+			continue;
+		}
+		if (ret != SOCKS4_HS_RSP_LEN) {
+			if (conn->err_code == CO_ER_NONE) {
+				conn->err_code = CO_ER_SOCKS4_RECV;
+			}
+			goto fail;
+		}
+	} while (0);
+
+	conn->flags &= ~CO_FL_SOCKS4_RECV;
+	return 1;
+
+ recv_abort:
+	if (conn->err_code == CO_ER_NONE) {
+		conn->err_code = CO_ER_SOCKS4_ABORT;
+	}
+	conn->flags |= (CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
 	goto fail;
 
  fail:
