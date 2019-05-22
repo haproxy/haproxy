@@ -260,6 +260,11 @@ static int ha_wurfl_init(void)
 	int wurfl_result_code = WURFL_OK;
 	int len;
 
+	// wurfl-data-file not configured, WURFL is not used so don't try to
+	// configure it.
+	if (global_wurfl.data_file == NULL)
+		return 0;
+
 	ha_notice("WURFL: Loading module v.%s\n", HA_WURFL_MODULE_VERSION);
 	// creating WURFL handler
 	global_wurfl.handle = wurfl_create();
@@ -272,11 +277,6 @@ static int ha_wurfl_init(void)
 	ha_notice("WURFL: Engine handler created - API version %s\n", wurfl_get_api_version() );
 
 	// set wurfl data file
-	if (global_wurfl.data_file == NULL) {
-		ha_warning("WURFL: missing wurfl-data-file parameter in global configuration\n");
-		return ERR_WARN;
-	}
-
 	if (wurfl_set_root(global_wurfl.handle, global_wurfl.data_file) != WURFL_OK) {
 		ha_warning("WURFL: Engine setting root file failed - %s\n", wurfl_get_error_message(global_wurfl.handle));
 		return ERR_WARN;
