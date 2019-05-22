@@ -97,6 +97,29 @@ void thread_release()
 	thread_harmless_end();
 }
 
+/* send signal <sig> to thread <thr> */
+void ha_tkill(unsigned int thr, int sig)
+{
+	pthread_kill(thread_info[thr].pthread, sig);
+}
+
+/* send signal <sig> to all threads. The calling thread is signaled last in
+ * order to allow all threads to synchronize in the handler.
+ */
+void ha_tkillall(int sig)
+{
+	unsigned int thr;
+
+	for (thr = 0; thr < global.nbthread; thr++) {
+		if (!(all_threads_mask & (1UL << thr)))
+			continue;
+		if (thr == tid)
+			continue;
+		pthread_kill(thread_info[thr].pthread, sig);
+	}
+	raise(sig);
+}
+
 /* these calls are used as callbacks at init time */
 void ha_spin_init(HA_SPINLOCK_T *l)
 {

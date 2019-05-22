@@ -22,6 +22,7 @@
 #ifndef _COMMON_HATHREADS_H
 #define _COMMON_HATHREADS_H
 
+#include <signal.h>
 #include <unistd.h>
 #ifdef _POSIX_PRIORITY_SCHEDULING
 #include <sched.h>
@@ -155,6 +156,18 @@ static inline void ha_thread_relax(void)
 #if _POSIX_PRIORITY_SCHEDULING
 	sched_yield();
 #endif
+}
+
+/* send signal <sig> to thread <thr> */
+static inline void ha_tkill(unsigned int thr, int sig)
+{
+	raise(sig);
+}
+
+/* send signal <sig> to all threads */
+static inline void ha_tkillall(int sig)
+{
+	raise(sig);
 }
 
 static inline void __ha_barrier_atomic_load(void)
@@ -383,6 +396,8 @@ static inline unsigned long thread_isolated()
 void thread_harmless_till_end();
 void thread_isolate();
 void thread_release();
+void ha_tkill(unsigned int thr, int sig);
+void ha_tkillall(int sig);
 
 extern struct thread_info {
 	pthread_t pthread;
