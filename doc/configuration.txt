@@ -2401,29 +2401,29 @@ rate-limit sessions                       X          X         X         -
 redirect                                  -          X         X         X
 redisp                      (deprecated)  X          -         X         X
 redispatch                  (deprecated)  X          -         X         X
-reqadd                                    -          X         X         X
-reqallow                                  -          X         X         X
-reqdel                                    -          X         X         X
-reqdeny                                   -          X         X         X
-reqiallow                                 -          X         X         X
-reqidel                                   -          X         X         X
-reqideny                                  -          X         X         X
-reqipass                                  -          X         X         X
-reqirep                                   -          X         X         X
-reqitarpit                                -          X         X         X
-reqpass                                   -          X         X         X
-reqrep                                    -          X         X         X
+reqadd                      (deprecated)  -          X         X         X
+reqallow                    (deprecated)  -          X         X         X
+reqdel                      (deprecated)  -          X         X         X
+reqdeny                     (deprecated)  -          X         X         X
+reqiallow                   (deprecated)  -          X         X         X
+reqidel                     (deprecated)  -          X         X         X
+reqideny                    (deprecated)  -          X         X         X
+reqipass                    (deprecated)  -          X         X         X
+reqirep                     (deprecated)  -          X         X         X
+reqitarpit                  (deprecated)  -          X         X         X
+reqpass                     (deprecated)  -          X         X         X
+reqrep                      (deprecated)  -          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
-reqtarpit                                 -          X         X         X
+reqtarpit                   (deprecated)  -          X         X         X
 retries                                   X          -         X         X
 retry-on                                  X          -         X         X
-rspadd                                    -          X         X         X
-rspdel                                    -          X         X         X
-rspdeny                                   -          X         X         X
-rspidel                                   -          X         X         X
-rspideny                                  -          X         X         X
-rspirep                                   -          X         X         X
-rsprep                                    -          X         X         X
+rspadd                      (deprecated)  -          X         X         X
+rspdel                      (deprecated)  -          X         X         X
+rspdeny                     (deprecated)  -          X         X         X
+rspidel                     (deprecated)  -          X         X         X
+rspideny                    (deprecated)  -          X         X         X
+rspirep                     (deprecated)  -          X         X         X
+rsprep                      (deprecated)  -          X         X         X
 server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
 server-template                           -          -         X         X
@@ -7734,7 +7734,7 @@ redispatch (deprecated)
   See also : "option redispatch"
 
 
-reqadd  <string> [{if | unless} <cond>]
+reqadd  <string> [{if | unless} <cond>] (deprecated)
   Add a header at the end of the HTTP request
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7761,8 +7761,8 @@ reqadd  <string> [{if | unless} <cond>]
             and section 7 about ACLs.
 
 
-reqallow  <search> [{if | unless} <cond>]
-reqiallow <search> [{if | unless} <cond>] (ignore case)
+reqallow  <search> [{if | unless} <cond>] (deprecated)
+reqiallow <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Definitely allow an HTTP request if a line matches a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7796,8 +7796,8 @@ reqiallow <search> [{if | unless} <cond>] (ignore case)
             manipulation, and section 7 about ACLs.
 
 
-reqdel  <search> [{if | unless} <cond>]
-reqidel <search> [{if | unless} <cond>]  (ignore case)
+reqdel  <search> [{if | unless} <cond>] (deprecated)
+reqidel <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Delete all headers matching a regular expression in an HTTP request
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7830,8 +7830,8 @@ reqidel <search> [{if | unless} <cond>]  (ignore case)
             HTTP header manipulation, and section 7 about ACLs.
 
 
-reqdeny  <search> [{if | unless} <cond>]
-reqideny <search> [{if | unless} <cond>]  (ignore case)
+reqdeny  <search> [{if | unless} <cond>] (deprecated)
+reqideny <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Deny an HTTP request if a line matches a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7869,8 +7869,8 @@ reqideny <search> [{if | unless} <cond>]  (ignore case)
             HTTP header manipulation, and section 7 about ACLs.
 
 
-reqpass  <search> [{if | unless} <cond>]
-reqipass <search> [{if | unless} <cond>]  (ignore case)
+reqpass  <search> [{if | unless} <cond>] (deprecated)
+reqipass <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Ignore any HTTP request line matching a regular expression in next rules
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7904,8 +7904,8 @@ reqipass <search> [{if | unless} <cond>]  (ignore case)
             HTTP header manipulation, and section 7 about ACLs.
 
 
-reqrep  <search> <string> [{if | unless} <cond>]
-reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
+reqrep  <search> <string> [{if | unless} <cond>] (deprecated)
+reqirep <search> <string> [{if | unless} <cond>] (ignore case) (deprecated)
   Replace a regular expression with a string in an HTTP request line
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -7946,8 +7946,8 @@ reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
             section 6 about HTTP header manipulation, and section 7 about ACLs.
 
 
-reqtarpit  <search> [{if | unless} <cond>]
-reqitarpit <search> [{if | unless} <cond>]  (ignore case)
+reqtarpit  <search> [{if | unless} <cond>] (deprecated)
+reqitarpit <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Tarpit an HTTP request containing a line matching a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -8096,7 +8096,7 @@ retry-on [list of keywords]
 
   See also: "retries", "option redispatch", "tune.bufsize"
 
-rspadd <string> [{if | unless} <cond>]
+rspadd <string> [{if | unless} <cond>] (deprecated)
   Add a header at the end of the HTTP response
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -8119,8 +8119,8 @@ rspadd <string> [{if | unless} <cond>]
             manipulation, and section 7 about ACLs.
 
 
-rspdel  <search> [{if | unless} <cond>]
-rspidel <search> [{if | unless} <cond>]  (ignore case)
+rspdel  <search> [{if | unless} <cond>] (deprecated)
+rspidel <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Delete all headers matching a regular expression in an HTTP response
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -8153,8 +8153,8 @@ rspidel <search> [{if | unless} <cond>]  (ignore case)
             HTTP header manipulation, and section 7 about ACLs.
 
 
-rspdeny  <search> [{if | unless} <cond>]
-rspideny <search> [{if | unless} <cond>]  (ignore case)
+rspdeny  <search> [{if | unless} <cond>] (deprecated)
+rspideny <search> [{if | unless} <cond>] (ignore case) (deprecated)
   Block an HTTP response if a line matches a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -8191,8 +8191,8 @@ rspideny <search> [{if | unless} <cond>]  (ignore case)
             HTTP header manipulation and section 7 about ACLs.
 
 
-rsprep  <search> <string> [{if | unless} <cond>]
-rspirep <search> <string> [{if | unless} <cond>]  (ignore case)
+rsprep  <search> <string> [{if | unless} <cond>] (deprecated)
+rspirep <search> <string> [{if | unless} <cond>] (ignore case) (deprecated)
   Replace a regular expression with a string in an HTTP response line
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes

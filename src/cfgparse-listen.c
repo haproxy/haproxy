@@ -3816,6 +3816,9 @@ stats_error_parsing:
 		goto out;
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
+		if (!already_warned(WARN_REQREP_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		if (*(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 				 file, linenum, args[0]);
@@ -3830,6 +3833,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
+		if (!already_warned(WARN_REQDEL_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request del-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_REMOVE, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3837,6 +3843,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
+		if (!already_warned(WARN_REQDENY_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request deny' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_DENY, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3844,6 +3853,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
+		if (!already_warned(WARN_REQPASS_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_PASS, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3851,6 +3863,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+		if (!already_warned(WARN_REQALLOW_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request allow' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_ALLOW, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3858,6 +3873,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
+		if (!already_warned(WARN_REQTARPIT_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request tarpit' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_TARPIT, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3865,6 +3883,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
+		if (!already_warned(WARN_REQREP_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		if (*(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 				 file, linenum, args[0]);
@@ -3879,6 +3900,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
+		if (!already_warned(WARN_REQDEL_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request del-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_REMOVE, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3886,6 +3910,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
+		if (!already_warned(WARN_REQDENY_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request deny' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_DENY, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3893,6 +3920,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
+		if (!already_warned(WARN_REQPASS_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_PASS, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3900,6 +3930,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
+		if (!already_warned(WARN_REQALLOW_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request allow' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_ALLOW, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3907,6 +3940,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
+		if (!already_warned(WARN_REQTARPIT_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request tarpit' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_REQ, ACT_TARPIT, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3915,6 +3951,9 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 		struct cond_wordlist *wl;
+
+		if (!already_warned(WARN_REQADD_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request add-header' and will be removed in next version.\n", file, linenum, args[0]);
 
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3955,6 +3994,9 @@ stats_error_parsing:
 		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
+		if (!already_warned(WARN_RSPREP_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response replace-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		if (*(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 				 file, linenum, args[0]);
@@ -3969,6 +4011,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
+		if (!already_warned(WARN_RSPDEL_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response del-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_RES, ACT_REMOVE, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3976,6 +4021,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
+		if (!already_warned(WARN_RSPDENY_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response deny' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_RES, ACT_DENY, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -3983,6 +4031,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
+		if (!already_warned(WARN_RSPREP_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response replace-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		if (*(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 				 file, linenum, args[0]);
@@ -3997,6 +4048,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
+		if (!already_warned(WARN_RSPDEL_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response del-header' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_RES, ACT_REMOVE, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -4004,6 +4058,9 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
+		if (!already_warned(WARN_RSPDENY_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response deny' and will be removed in next version.\n", file, linenum, args[0]);
+
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   SMP_OPT_DIR_RES, ACT_DENY, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
@@ -4012,6 +4069,9 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 		struct cond_wordlist *wl;
+
+		if (!already_warned(WARN_RSPADD_DEPRECATED))
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response add-header' and will be removed in next version.\n", file, linenum, args[0]);
 
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
