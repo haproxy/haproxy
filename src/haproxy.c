@@ -268,15 +268,14 @@ struct post_check_fct {
 	int (*fct)();
 };
 
-/* These functions are called when freeing the global sections at the end
- * of deinit, after everything is stopped. They don't return anything, and
- * they work in best effort mode as their sole goal is to make valgrind
- * mostly happy.
- */
-struct list post_deinit_list = LIST_HEAD_INIT(post_deinit_list);
-struct post_deinit_fct {
+/* These functions are called for each thread just after the thread creation
+ * and before running the init functions. They should be used to do per-thread
+ * (re-)allocations that are needed by subsequent functoins. They must return 0
+ * if an error occurred. */
+struct list per_thread_alloc_list = LIST_HEAD_INIT(per_thread_alloc_list);
+struct per_thread_alloc_fct {
 	struct list list;
-	void (*fct)();
+	int (*fct)();
 };
 
 /* These functions are called for each thread just after the thread creation
@@ -284,6 +283,29 @@ struct post_deinit_fct {
  * initializations. They must return 0 if an error occurred. */
 struct list per_thread_init_list = LIST_HEAD_INIT(per_thread_init_list);
 struct per_thread_init_fct {
+	struct list list;
+	int (*fct)();
+};
+
+/* These functions are called when freeing the global sections at the end of
+ * deinit, after everything is stopped. They don't return anything. They should
+ * not release shared resources that are possibly used by other deinit
+ * functions, only close/release what is private. Use the per_thread_free_list
+ * to release shared resources.
+ */
+struct list post_deinit_list = LIST_HEAD_INIT(post_deinit_list);
+struct post_deinit_fct {
+	struct list list;
+	void (*fct)();
+};
+
+/* These functions are called when freeing the global sections at the end of
+ * deinit, after the thread deinit functions, to release unneeded memory
+ * allocations. They don't return anything, and they work in best effort mode
+ * as their sole goal is to make valgrind mostly happy.
+ */
+struct list per_thread_free_list = LIST_HEAD_INIT(per_thread_free_list);
+struct per_thread_free_fct {
 	struct list list;
 	int (*fct)();
 };
@@ -349,6 +371,20 @@ void hap_register_post_deinit(void (*fct)())
 	LIST_ADDQ(&post_deinit_list, &b->list);
 }
 
+/* used to register some allocation functions to call for each thread. */
+void hap_register_per_thread_alloc(int (*fct)())
+{
+	struct per_thread_alloc_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&per_thread_alloc_list, &b->list);
+}
+
 /* used to register some initialization functions to call for each thread. */
 void hap_register_per_thread_init(int (*fct)())
 {
@@ -375,6 +411,20 @@ void hap_register_per_thread_deinit(void (*fct)())
 	}
 	b->fct = fct;
 	LIST_ADDQ(&per_thread_deinit_list, &b->list);
+}
+
+/* used to register some free functions to call for each thread. */
+void hap_register_per_thread_free(int (*fct)())
+{
+	struct per_thread_free_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&per_thread_free_list, &b->list);
 }
 
 static void display_version()
@@ -2504,8 +2554,10 @@ static void run_poll_loop()
 
 static void *run_thread_poll_loop(void *data)
 {
+	struct per_thread_alloc_fct  *ptaf;
 	struct per_thread_init_fct   *ptif;
 	struct per_thread_deinit_fct *ptdf;
+	struct per_thread_free_fct   *ptff;
 
 	ha_set_tid((unsigned long)data);
 
@@ -2518,6 +2570,18 @@ static void *run_thread_poll_loop(void *data)
 #endif
 
 	tv_update_date(-1,-1);
+
+	/* per-thread alloc calls performed here are not allowed to snoop on
+	 * other threads, so they are free to initialize at their own rhythm
+	 * as long as they act as if they were alone. None of them may rely
+	 * on resources initialized by the other ones.
+	 */
+	list_for_each_entry(ptaf, &per_thread_alloc_list, list) {
+		if (!ptaf->fct()) {
+			ha_alert("failed to allocate resources for thread %u.\n", tid);
+			exit(1);
+		}
+	}
 
 	/* per-thread init calls performed here are not allowed to snoop on
 	 * other threads, so they are free to initialize at their own rhythm
@@ -2540,6 +2604,9 @@ static void *run_thread_poll_loop(void *data)
 
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
 		ptdf->fct();
+
+	list_for_each_entry(ptff, &per_thread_free_list, list)
+		ptff->fct();
 
 #ifdef USE_THREAD
 	_HA_ATOMIC_AND(&all_threads_mask, ~tid_bit);

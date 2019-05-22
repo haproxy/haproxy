@@ -576,17 +576,23 @@ void poller_pipe_io_handler(int fd)
 	fd_cant_recv(fd);
 }
 
-/* Initialize the pollers per thread */
+/* allocate the per-thread fd_updt thus needs to be called early after
+ * thread creation.
+ */
+static int alloc_pollers_per_thread()
+{
+	fd_updt = calloc(global.maxsock, sizeof(*fd_updt));
+	return fd_updt != NULL;
+}
+
+/* Initialize the pollers per thread.*/
 static int init_pollers_per_thread()
 {
 	int mypipe[2];
-	if ((fd_updt = calloc(global.maxsock, sizeof(*fd_updt))) == NULL)
+
+	if (pipe(mypipe) < 0)
 		return 0;
-	if (pipe(mypipe) < 0) {
-		free(fd_updt);
-		fd_updt = NULL;
-		return 0;
-	}
+
 	poller_rd_pipe = mypipe[0];
 	poller_wr_pipe[tid] = mypipe[1];
 	fcntl(poller_rd_pipe, F_SETFL, O_NONBLOCK);
@@ -599,9 +605,6 @@ static int init_pollers_per_thread()
 /* Deinitialize the pollers per thread */
 static void deinit_pollers_per_thread()
 {
-	free(fd_updt);
-	fd_updt = NULL;
-
 	/* rd and wr are init at the same place, but only rd is init to -1, so
 	  we rely to rd to close.   */
 	if (poller_rd_pipe > -1) {
@@ -610,6 +613,13 @@ static void deinit_pollers_per_thread()
 		close(poller_wr_pipe[tid]);
 		poller_wr_pipe[tid] = -1;
 	}
+}
+
+/* Release the pollers per thread, to be called late */
+static void free_pollers_per_thread()
+{
+	free(fd_updt);
+	fd_updt = NULL;
 }
 
 /*
@@ -769,8 +779,10 @@ int fork_poller()
 	return 1;
 }
 
+REGISTER_PER_THREAD_ALLOC(alloc_pollers_per_thread);
 REGISTER_PER_THREAD_INIT(init_pollers_per_thread);
 REGISTER_PER_THREAD_DEINIT(deinit_pollers_per_thread);
+REGISTER_PER_THREAD_FREE(free_pollers_per_thread);
 
 /*
  * Local variables:

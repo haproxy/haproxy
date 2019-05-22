@@ -75,12 +75,12 @@ static int alloc_trash_buffers(int bufsize)
 	return trash.area && trash_buf1 && trash_buf2;
 }
 
-static int init_trash_buffers_per_thread()
+static int alloc_trash_buffers_per_thread()
 {
 	return alloc_trash_buffers(global.tune.bufsize);
 }
 
-static void deinit_trash_buffers_per_thread()
+static void free_trash_buffers_per_thread()
 {
 	chunk_destroy(&trash);
 	free(trash_buf2);
@@ -308,8 +308,8 @@ int chunk_strcasecmp(const struct buffer *chk, const char *str)
 	return diff;
 }
 
-REGISTER_PER_THREAD_INIT(init_trash_buffers_per_thread);
-REGISTER_PER_THREAD_DEINIT(deinit_trash_buffers_per_thread);
+REGISTER_PER_THREAD_ALLOC(alloc_trash_buffers_per_thread);
+REGISTER_PER_THREAD_FREE(free_trash_buffers_per_thread);
 
 /*
  * Local variables:

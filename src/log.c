@@ -1863,16 +1863,6 @@ static void init_log()
 
 INITCALL0(STG_PREPARE, init_log);
 
-static int init_log_buffers_per_thread()
-{
-	return init_log_buffers();
-}
-
-static void deinit_log_buffers_per_thread()
-{
-	deinit_log_buffers();
-}
-
 /* Initialize log buffers used for syslog messages */
 int init_log_buffers()
 {
@@ -3021,8 +3011,8 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
-REGISTER_PER_THREAD_INIT(init_log_buffers_per_thread);
-REGISTER_PER_THREAD_DEINIT(deinit_log_buffers_per_thread);
+REGISTER_PER_THREAD_ALLOC(init_log_buffers);
+REGISTER_PER_THREAD_FREE(deinit_log_buffers);
 
 /*
  * Local variables:

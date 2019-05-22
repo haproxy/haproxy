@@ -283,8 +283,10 @@ void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
 void hap_register_post_deinit(void (*fct)());
 
+void hap_register_per_thread_alloc(int (*fct)());
 void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
+void hap_register_per_thread_free(int (*fct)());
 
 void mworker_accept_wrapper(int fd);
 void mworker_reload();
@@ -301,6 +303,10 @@ void mworker_reload();
 #define REGISTER_POST_DEINIT(fct) \
 	INITCALL1(STG_REGISTER, hap_register_post_deinit, (fct))
 
+/* simplified way to declare a per-thread allocation callback in a file */
+#define REGISTER_PER_THREAD_ALLOC(fct) \
+	INITCALL1(STG_REGISTER, hap_register_per_thread_alloc, (fct))
+
 /* simplified way to declare a per-thread init callback in a file */
 #define REGISTER_PER_THREAD_INIT(fct) \
 	INITCALL1(STG_REGISTER, hap_register_per_thread_init, (fct))
@@ -308,6 +314,10 @@ void mworker_reload();
 /* simplified way to declare a per-thread deinit callback in a file */
 #define REGISTER_PER_THREAD_DEINIT(fct) \
 	INITCALL1(STG_REGISTER, hap_register_per_thread_deinit, (fct))
+
+/* simplified way to declare a per-thread free callback in a file */
+#define REGISTER_PER_THREAD_FREE(fct) \
+	INITCALL1(STG_REGISTER, hap_register_per_thread_free, (fct))
 
 #endif /* _TYPES_GLOBAL_H */
 
