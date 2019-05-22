@@ -81,6 +81,8 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
  */
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 {
+	const struct stream *s = NULL;
+
 	if (!task) {
 		chunk_appendf(buf, "0\n");
 		return;
@@ -108,6 +110,16 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
 		      "?",
 	              task->context);
+
+	if (task->process == process_stream && task->context)
+		s = (struct stream *)task->context;
+	else if (task->process == task_run_applet && task->context)
+		s = si_strm(((struct appctx *)task->context)->owner);
+	else if (task->process == si_cs_io_cb && task->context)
+		s = si_strm((struct stream_interface *)task->context);
+
+	if (s)
+		stream_dump(buf, s, pfx, '\n');
 }
 
 /* This function dumps all profiling settings. It returns 0 if the output
