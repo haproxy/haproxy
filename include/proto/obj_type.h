@@ -33,14 +33,14 @@
 #include <types/stream.h>
 #include <types/stream_interface.h>
 
-static inline enum obj_type obj_type(enum obj_type *t)
+static inline enum obj_type obj_type(const enum obj_type *t)
 {
 	if (!t || *t >= OBJ_TYPE_ENTRIES)
 		return OBJ_TYPE_NONE;
 	return *t;
 }
 
-static inline const char *obj_type_name(enum obj_type *t)
+static inline const char *obj_type_name(const enum obj_type *t)
 {
 	switch (obj_type(t)) {
 	case OBJ_TYPE_NONE:     return "NONE";
