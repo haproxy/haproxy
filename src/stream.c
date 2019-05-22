@@ -2862,35 +2862,31 @@ void stream_shutdown(struct stream *stream, int why)
 	task_wakeup(stream->task, TASK_WOKEN_OTHER);
 }
 
-/* dumps an error message for type <type> at ptr <ptr> related to stream <s>,
- * having reached loop rate <rate>, then aborts hoping to retrieve a core. If
- * <rate> is negative instead it reports a duration in microseconds.
+/* Appends a dump of the state of stream <s> into buffer <buf> which must have
+ * preliminary be prepared by its caller, with each line prepended by prefix
+ * <pfx>, and each line terminated by character <eol>.
  */
-void stream_dump_and_crash(enum obj_type *obj, int rate)
+void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, char eol)
 {
 	const struct conn_stream *csf, *csb;
 	const struct connection  *cof, *cob;
 	const struct appctx      *acf, *acb;
 	const struct server      *srv;
-	const struct stream *s;
 	const char *src = "unknown";
 	const char *dst = "unknown";
 	char pn[INET6_ADDRSTRLEN];
-	char *msg = NULL;
-	const char *fmt;
 	const struct channel *req, *res;
 	const struct stream_interface *si_f, *si_b;
-	const void *ptr;
 
-	ptr = s = objt_stream(obj);
 	if (!s) {
-		const struct appctx *appctx = objt_appctx(obj);
-		if (!appctx)
-			return;
-		ptr = appctx;
-		s = si_strm(appctx->owner);
-		if (!s)
-			return;
+		chunk_appendf(buf, "%sstrm=%p%c", pfx, s, eol);
+		return;
+	}
+
+	if (s->obj_type != OBJ_TYPE_STREAM) {
+		chunk_appendf(buf, "%sstrm=%p [invalid type=%d(%s)]%c",
+		              pfx, s, s->obj_type, obj_type_name(&s->obj_type), eol);
+		return;
 	}
 
 	si_f = &s->si[0];
@@ -2915,30 +2911,65 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 	else if (acb)
 		dst = acb->applet->name;
 
+	chunk_appendf(buf,
+	              "%sstrm=%p src=%s fe=%s be=%s dst=%s%c"
+	              "%srqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x%c"
+	              "%saf=%p,%u csf=%p,%x%c"
+	              "%sab=%p,%u csb=%p,%x%c"
+	              "%scof=%p,%x:%s(%p)/%s(%p)/%s(%d)%c"
+	              "%scob=%p,%x:%s(%p)/%s(%p)/%s(%d)%c"
+	              "",
+	              pfx, s, src, s->sess->fe->id, s->be->id, dst, eol,
+	              pfx, req->flags, req->analysers, res->flags, res->analysers,
+	                   si_state_str(si_f->state), si_f->flags,
+	                   si_state_str(si_b->state), si_b->flags, eol,
+	              pfx, acf, acf ? acf->st0   : 0, csf, csf ? csf->flags : 0, eol,
+	              pfx, acb, acb ? acb->st0   : 0, csb, csb ? csb->flags : 0, eol,
+	              pfx, cof, cof ? cof->flags : 0, conn_get_mux_name(cof), cof?cof->ctx:0, conn_get_xprt_name(cof),
+	                   cof ? cof->xprt_ctx : 0, conn_get_ctrl_name(cof), cof ? cof->handle.fd : 0, eol,
+	              pfx, cob, cob ? cob->flags : 0, conn_get_mux_name(cob), cob?cob->ctx:0, conn_get_xprt_name(cob),
+	                   cob ? cob->xprt_ctx : 0, conn_get_ctrl_name(cob), cob ? cob->handle.fd : 0, eol);
+}
+
+/* dumps an error message for type <type> at ptr <ptr> related to stream <s>,
+ * having reached loop rate <rate>, then aborts hoping to retrieve a core. If
+ * <rate> is negative instead it reports a duration in microseconds.
+ */
+void stream_dump_and_crash(enum obj_type *obj, int rate)
+{
+	const struct stream *s;
+	const char *fmt;
+	char *msg = NULL;
+	const void *ptr;
+
+	ptr = s = objt_stream(obj);
+	if (!s) {
+		const struct appctx *appctx = objt_appctx(obj);
+		if (!appctx)
+			return;
+		ptr = appctx;
+		s = si_strm(appctx->owner);
+		if (!s)
+			return;
+	}
+
 	if (rate < 0) {
 		fmt = "A bogus %s [%p] halted the whole thread for at least %d microseconds "
 		      "resulting in a complete freeze of all other tasks, aborting now! Please "
 		      "report this error to developers "
-		      "[src=%s fe=%s be=%s dst=%s rqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x "
-		      "cof=%p,%x:%s/%s/%s/%d cob=%p,%x:%s/%s/%s/%d csf=%p,%x csb=%p,%x af=%p,%u ab=%p,%u]\n";
+		      "[%s]\n";
 		rate = -rate;
 	}
 	else {
 		fmt = "A bogus %s [%p] is spinning at %d calls per second and refuses to die, "
 		      "aborting now! Please report this error to developers "
-	              "[src=%s fe=%s be=%s dst=%s rqf=%x rqa=%x rpf=%x rpa=%x sif=%s,%x sib=%s,%x "
-		      "cof=%p,%x:%s/%s/%s/%d cob=%p,%x:%s/%s/%s/%d csf=%p,%x csb=%p,%x af=%p,%u ab=%p,%u]\n";
+		      "[%s]\n";
 	}
 
+	chunk_reset(&trash);
+	stream_dump(&trash, s, "", ' ');
 	memprintf(&msg, fmt,
-	          obj_type_name(obj), ptr, rate, src, s->sess->fe->id, s->be->id, dst,
-	          req->flags, req->analysers, res->flags, res->analysers,
-	          si_state_str(si_f->state), si_f->flags,
-	          si_state_str(si_b->state), si_b->flags,
-	          cof, cof ? cof->flags : 0, conn_get_mux_name(cof), conn_get_xprt_name(cof), conn_get_ctrl_name(cof), cof?cof->handle.fd:0,
-	          cob, cob ? cob->flags : 0, conn_get_mux_name(cob), conn_get_xprt_name(cob), conn_get_ctrl_name(cob), cob?cob->handle.fd:0,
-	          csf, csf ? csf->flags : 0, csb, csb ? csb->flags : 0,
-	          acf, acf ? acf->st0   : 0, acb, acb ? acb->st0   : 0);
+	          obj_type_name(obj), ptr, rate, trash.area);
 
 	ha_alert("%s", msg);
 	send_log(NULL, LOG_EMERG, "%s", msg);
