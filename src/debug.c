@@ -360,11 +360,9 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	if (*args[4])
 		sig = atoi(args[4]);
 
-#if defined(USE_THREAD)
 	if (thr)
-		pthread_kill(thread_info[thr-1].pthread, sig);
+		ha_tkill(thr - 1, sig);
 	else
-#endif
 		raise(sig);
 	return 1;
 }
@@ -406,7 +404,6 @@ struct buffer *thread_dump_buffer = NULL;
 
 void ha_thread_dump_all_to_trash()
 {
-	__maybe_unused unsigned int thr;
 	unsigned long old;
 
 	while (1) {
@@ -418,15 +415,7 @@ void ha_thread_dump_all_to_trash()
 
 	thread_dump_buffer = &trash;
 	thread_dump_tid = tid;
-
-#ifdef USE_THREAD
-	for (thr = 0; thr < global.nbthread; thr++) {
-		if (thr != tid)
-			pthread_kill(thread_info[thr].pthread, DEBUGSIG);
-	}
-#endif
-	/* dump ourselves last */
-	raise(DEBUGSIG);
+	ha_tkillall(DEBUGSIG);
 }
 
 /* handles DEBUGSIG to dump the state of the thread it's working on */
