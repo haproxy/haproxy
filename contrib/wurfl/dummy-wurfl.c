@@ -71,7 +71,7 @@ wurfl_device_handle wurfl_lookup(wurfl_handle hwurfl, wurfl_header_retrieve_call
   const char *hvalue = header_retrieve_callback("User-Agent", header_retrieve_callback_data);
   // and on a non existing one
   hvalue = header_retrieve_callback("Non-Existing-Header", header_retrieve_callback_data);
-
+  (void)hvalue;
   return (void *) 0xdeffa;
 }
 
@@ -102,11 +102,11 @@ const char *wurfl_device_get_root_id(wurfl_device_handle hwurfldevice)
 
 const char *wurfl_device_get_original_useragent(wurfl_device_handle hwurfldevice)
 {
-
+  return "original_useragent";
 }
 const char *wurfl_device_get_normalized_useragent(wurfl_device_handle hwurfldevice)
 {
-
+  return "normalized_useragent";
 }
 int wurfl_device_is_actual_device_root(wurfl_device_handle hwurfldevice)
 {
