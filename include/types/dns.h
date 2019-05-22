@@ -146,7 +146,7 @@ struct dns_answer_item {
 	int32_t         ttl;                         /* response TTL */
 	int16_t         priority;                    /* SRV type priority */
 	uint16_t        weight;                      /* SRV type weight */
-	int16_t         port;                        /* SRV type port */
+	uint16_t        port;                        /* SRV type port */
 	uint16_t        data_len;                    /* number of bytes in target below */
 	struct sockaddr address;                     /* IPv4 or IPv6, network format */
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
