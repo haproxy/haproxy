@@ -1002,8 +1002,8 @@ static inline void list_mux_proto(FILE *out)
 		else
 			side = "NONE";
 
-		fprintf(out, " %15s : mode=%-10s side=%s\n",
-			(proto.len ? proto.ptr : "<default>"), mode, side);
+		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%s\n",
+			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
 	}
 }
 
