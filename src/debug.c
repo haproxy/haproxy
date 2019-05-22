@@ -33,18 +33,20 @@
  * optionally extra info for the current thread. The dump will be appended to
  * the buffer, so the caller is responsible for preliminary initializing it.
  * The calling thread ID needs to be passed in <calling_tid> to display a star
- * in front of the calling thread's line (usually it's tid).
+ * in front of the calling thread's line (usually it's tid). Any stuck thread
+ * is also prefixed with a '>'.
  */
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
 	unsigned long thr_bit = 1UL << thr;
 	unsigned long long p = thread_info[thr].prev_cpu_time;
 	unsigned long long n = now_cpu_time_thread(&thread_info[thr]);
+	int stuck = !!(thread_info[thr].flags & TI_FL_STUCK);
 
 	chunk_appendf(buf,
-	              "%c Thread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
-	              "             fdcache=%d prof=%d",
-	              (thr == calling_tid) ? '*' : ' ', thr + 1,
+	              "%c%cThread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
+	              "             stuck=%d fdcache=%d prof=%d",
+	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 	              !!(active_tasks_mask & thr_bit),
 	              !!(global_tasks_mask & thr_bit),
 	              !eb_is_empty(&task_per_thread[thr].timers),
@@ -52,6 +54,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              !LIST_ISEMPTY(&task_per_thread[thr].task_list),
 	              task_per_thread[thr].task_list_size,
 	              task_per_thread[thr].rqueue_size,
+	              stuck,
 	              !!(fd_cache_mask & thr_bit),
 	              !!(task_profiling_mask & thr_bit));
 
@@ -467,6 +470,12 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 		else
 			ha_thread_relax();
 	}
+
+	/* mark the current thread as stuck to detect it upon next invocation
+	 * if it didn't move.
+	 */
+	if (!((threads_harmless_mask|sleeping_thread_mask) & tid_bit))
+		ti->flags |= TI_FL_STUCK;
 }
 
 static int init_debug_per_thread()

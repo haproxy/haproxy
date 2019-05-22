@@ -38,6 +38,10 @@
  *      only one thread is enabled, it equals 1.
  */
 
+/* thread info flags, for thread_info[].flags */
+#define TI_FL_STUCK             0x00000001
+
+
 #ifndef USE_THREAD
 
 #define MAX_THREADS 1
@@ -57,6 +61,7 @@ extern struct thread_info {
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
+	unsigned int flags;        /* thread info flags, TI_FL_* */
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));
@@ -405,6 +410,7 @@ extern struct thread_info {
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
+	unsigned int flags;        /* thread info flags, TI_FL_* */
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));

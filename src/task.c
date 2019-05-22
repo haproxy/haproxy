@@ -281,6 +281,8 @@ void process_runnable_tasks()
 	struct task *t;
 	int max_processed;
 
+	ti->flags &= ~TI_FL_STUCK; // this thread is still running
+
 	if (!(active_tasks_mask & tid_bit)) {
 		activity[tid].empty_rq++;
 		return;
@@ -372,6 +374,7 @@ void process_runnable_tasks()
 		__ha_barrier_atomic_store();
 		__task_remove_from_tasklet_list(t);
 
+		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
 		ctx = t->context;
 		process = t->process;

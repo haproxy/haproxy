@@ -2525,11 +2525,18 @@ show threads
   an advanced dump mechanism involving thread signals is used so that each
   thread can dump its own state in turn. Without this option, the thread
   processing the command shows all its details but the other ones are less
-  detailed. A stat ('*') is displayed in front of the thread handling the
-  command. The output format is purposely not documented so that it can easily
-  evolve as new needs are identified, without having to maintain any backwards
-  compatibility, and just like with "show activity", the values are only
-  meaningful with the code at hand.
+  detailed. A star ('*') is displayed in front of the thread handling the
+  command. A right angle bracket ('>') may also be displayed in front of
+  threads which didn't make any progress since last invocation of this command,
+  indicating a bug in the code which must absolutely be reported. When this
+  happens between two threads it usually indicates a deadlock. If a thread is
+  alone, it's a different bug like a corrupted list. In all cases the process
+  needs is not fully functional anymore and needs to be restarted.
+
+  The output format is purposely not documented so that it can easily evolve as
+  new needs are identified, without having to maintain any form of backwards
+  compatibility, and just like with "show activity", the values are meaningless
+  without the code at hand.
 
 show tls-keys [id|*]
   Dump all loaded TLS ticket keys references. The TLS ticket key reference ID
