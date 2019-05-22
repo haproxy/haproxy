@@ -388,8 +388,11 @@ void ha_thread_dump_all_to_trash()
 
 #else /* below USE_THREAD_DUMP is set */
 
-/* The signal to trigger a debug dump on a thread is SIGPWR */
-#define DEBUGSIG SIGPWR
+/* The signal to trigger a debug dump on a thread is SIGURG. It has the benefit
+ * of not stopping gdb by default, so that issuing "show threads" in a process
+ * being debugged has no adverse effect.
+ */
+#define DEBUGSIG SIGURG
 
 /* mask of threads still having to dump, used to respect ordering */
 static volatile unsigned long threads_to_dump;
