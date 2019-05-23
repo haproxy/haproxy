@@ -309,6 +309,12 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 	struct htx_blk *blk;
 	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
 
+	if (count == htx->data) {
+		htx_reset(htx);
+		htxret.ret = count;
+		return htxret;
+	}
+
 	blk = htx_get_head_blk(htx);
 	while (count && blk) {
 		uint32_t sz = htx_get_blksz(blk);
