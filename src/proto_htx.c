@@ -2385,6 +2385,7 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	struct ist status, reason, location;
 	unsigned int flags;
 	size_t data;
+	int close = 0; /* Try to keep the connection alive byt default */
 
 	chunk = alloc_trash_chunk();
 	if (!chunk)
@@ -2544,6 +2545,9 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 			break;
 	}
 
+	if (!(txn->req.flags & HTTP_MSGF_BODYLESS) && txn->req.msg_state != HTTP_MSG_DONE)
+		close = 1;
+
 	htx = htx_from_buf(&res->buf);
 	flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), status, reason);
@@ -2552,8 +2556,10 @@ int htx_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct
 	sl->info.res.status = rule->code;
 	s->txn->status = rule->code;
 
-	if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
-	    !htx_add_header(htx, ist("Content-length"), ist("0")) ||
+	if (close && !htx_add_header(htx, ist("Connection"), ist("close")))
+		goto fail;
+
+	if (!htx_add_header(htx, ist("Content-length"), ist("0")) ||
 	    !htx_add_header(htx, ist("Location"), location))
 		goto fail;
 
