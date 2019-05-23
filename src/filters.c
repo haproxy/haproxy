@@ -929,17 +929,8 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 		}
 	} RESUME_FILTER_END;
 
-	if (IS_HTX_STRM(s)) {
-		struct htx *htx = htxbuf(&chn->buf);
-		int32_t pos;
-
-		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-			struct htx_blk *blk = htx_get_blk(htx, pos);
-			c_adv(chn, htx_get_blksz(blk));
-			if (htx_get_blk_type(blk) == HTX_BLK_EOH)
-				break;
-		}
-	}
+	if (IS_HTX_STRM(s))
+		channel_htx_fwd_headers(chn, htxbuf(&chn->buf));
 	else {
 		/* We increase next offset of all "data" filters after all processing on
 		 * headers because any filter can alter them. So the definitive size of
