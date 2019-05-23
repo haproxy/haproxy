@@ -336,7 +336,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	struct cache_st *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_blk *blk;
-	struct htx_ret htx_ret;
 	struct cache_entry *object;
 	int ret, to_forward = 0;
 
@@ -349,15 +348,16 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	}
 	object = (struct cache_entry *)st->first_block->data;
 
-	htx_ret = htx_find_blk(htx, offset);
-	blk = htx_ret.blk;
-	offset = htx_ret.ret;
-
-	while (blk && len) {
+	for (blk = htx_get_first_blk(htx); blk && len; blk = htx_get_next_blk(htx, blk)) {
 		struct shared_block *fb;
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
+
+		if (offset >= sz) {
+			offset -= sz;
+			continue;
+		}
 
 		switch (type) {
 			case HTX_BLK_UNUSED:
@@ -400,7 +400,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		}
 
 		offset = 0;
-		blk  = htx_get_next_blk(htx, blk);
 	}
 
 	return to_forward;

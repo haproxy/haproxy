@@ -131,16 +131,17 @@ trace_raw_hexdump(struct buffer *buf, int len, int out)
 static void
 trace_htx_hexdump(struct htx *htx, unsigned int offset, unsigned int len)
 {
-	struct htx_ret htx_ret;
 	struct htx_blk *blk;
 
-	htx_ret = htx_find_blk(htx, offset);
-	blk = htx_ret.blk;
-	offset = htx_ret.ret;
-
-	while (blk) {
+	for (blk = htx_get_first_blk(htx); blk && len; blk = htx_get_next_blk(htx, blk)) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
+		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
+
+		if (offset >= sz) {
+			offset -= sz;
+			continue;
+		}
 
 		v = htx_get_blk_value(htx, blk);
 		v.ptr += offset;
@@ -152,7 +153,6 @@ trace_htx_hexdump(struct htx *htx, unsigned int offset, unsigned int len)
 		len -= v.len;
 		if (type == HTX_BLK_DATA || type == HTX_BLK_TLR)
 			trace_hexdump(v);
-		blk = htx_get_next_blk(htx, blk);
 	}
 }
 

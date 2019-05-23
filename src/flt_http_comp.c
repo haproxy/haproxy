@@ -202,17 +202,17 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	struct comp_state *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_blk *blk;
-	struct htx_ret htx_ret;
 	int ret, consumed = 0, to_forward = 0;
 
-	htx_ret = htx_find_blk(htx, offset);
-	blk = htx_ret.blk;
-	offset = htx_ret.ret;
-
-	while (blk && len) {
+	for (blk = htx_get_first_blk(htx); blk && len; blk = htx_get_next_blk(htx, blk)) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
+
+		if (offset >= sz) {
+			offset -= sz;
+			continue;
+		}
 
 		switch (type) {
 			case HTX_BLK_UNUSED:
@@ -277,7 +277,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		}
 
 		offset = 0;
-		blk  = htx_get_next_blk(htx, blk);
 	}
 
   end:

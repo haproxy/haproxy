@@ -782,8 +782,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 {
 	struct filter *filter;
 	unsigned long long *strm_off = &FLT_STRM_OFF(s, msg->chn);
-	unsigned int out = co_data(msg->chn);
-	int ret = len - out;
+	int ret = len - co_data(msg->chn);
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		/* Call "data" filters only */
@@ -793,7 +792,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
 			unsigned int offset = *flt_off - *strm_off;
 
-			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, ret - offset);
+			ret = FLT_OPS(filter)->http_payload(s, filter, msg, offset, ret - offset);
 			if (ret < 0)
 				goto end;
 			*flt_off += ret;
@@ -801,7 +800,6 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 		}
 	}
 	*strm_off += ret;
-
  end:
 	return ret;
 }

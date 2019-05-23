@@ -1220,7 +1220,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		ret  = flt_http_payload(s, msg, htx->data);
 		if (ret < 0)
 			goto return_bad_req;
-		c_adv(req, ret);
+		channel_htx_fwd_payload(req, htx, ret);
 		if (htx->data != co_data(req) || htx->extra)
 			goto missing_data_or_waiting;
 	}
@@ -2217,7 +2217,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		ret  = flt_http_payload(s, msg, htx->data);
 		if (ret < 0)
 			goto return_bad_res;
-		c_adv(res, ret);
+		channel_htx_fwd_payload(res, htx, ret);
 		if (htx->data != co_data(res) || htx->extra)
 			goto missing_data_or_waiting;
 	}
