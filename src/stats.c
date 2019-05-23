@@ -277,8 +277,13 @@ static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interfac
 	if (IS_HTX_STRM(si_strm(si))) {
 		struct channel *req = si_oc(si);
 		struct htx *htx = htxbuf(&req->buf);
-		struct ist uri = htx_sl_req_uri(http_get_stline(htx));
+		struct htx_blk *blk;
+		struct ist uri;
 
+		blk = htx_get_head_blk(htx);
+		BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
+		ALREADY_CHECKED(blk);
+		uri = htx_sl_req_uri(htx_get_blk_ptr(htx, blk));
 		p = uri.ptr;
 	}
 	else
@@ -2788,7 +2793,7 @@ static int stats_process_http_post(struct stream_interface *si)
 		}
 
 		/* The request was fully received. Copy data */
-		blk = htx_get_first_blk(htx);
+		blk = htx_get_head_blk(htx);
 		while (blk) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
