@@ -5118,8 +5118,12 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	 * add QUIC support.
 	 */
 	ctx->xprt = xprt_get(XPRT_RAW);
-	if (ctx->xprt->init)
-		ctx->xprt->init(conn, &ctx->xprt_ctx);
+	if (ctx->xprt->init) {
+		if (ctx->xprt->init(conn, &ctx->xprt_ctx) != 0) {
+			pool_free(ssl_sock_ctx_pool, ctx);
+			return -1;
+		}
+	}
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
