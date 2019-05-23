@@ -211,7 +211,7 @@ struct ssl_sock_ctx {
 	struct connection *conn;
 	SSL *ssl;
 	BIO *bio;
-	struct xprt_ops *xprt;
+	const struct xprt_ops *xprt;
 	void *xprt_ctx;
 	struct wait_event wait_event;
 	struct wait_event *recv_wait;
@@ -5630,6 +5630,22 @@ static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_ty
 	return 0;
 }
 
+/* Remove the specified xprt. If if it our underlying XPRT, remove it and
+ * return 0, otherwise just call the remove_xprt method from the underlying
+ * XPRT.
+ */
+static int ssl_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (ctx->xprt_ctx == toremove_ctx) {
+		ctx->xprt_ctx = newctx;
+		ctx->xprt = newops;
+		return 0;
+	}
+	return (ctx->xprt->remove_xprt(conn, ctx->xprt_ctx, toremove_ctx, newops, newctx));
+}
+
 static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
 {
 	struct ssl_sock_ctx *ctx = context;
@@ -9825,6 +9841,7 @@ static struct xprt_ops ssl_sock = {
 	.rcv_buf  = ssl_sock_to_buf,
 	.subscribe = ssl_subscribe,
 	.unsubscribe = ssl_unsubscribe,
+	.remove_xprt = ssl_remove_xprt,
 	.rcv_pipe = NULL,
 	.snd_pipe = NULL,
 	.shutr    = NULL,

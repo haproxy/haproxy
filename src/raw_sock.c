@@ -415,12 +415,23 @@ static int raw_sock_unsubscribe(struct connection *conn, void *xprt_ctx, int eve
 	return conn_unsubscribe(conn, xprt_ctx, event_type, param);
 }
 
+/* We can't have an underlying XPRT, so just return -1 to signify failure */
+static int raw_sock_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx)
+{
+	/* This is the lowest xprt we can have, so if we get there we didn't
+	 * find the xprt we wanted to remove, that's a bug
+	 */
+	BUG_ON(1);
+	return -1;
+}
+
 /* transport-layer operations for RAW sockets */
 static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
 	.rcv_buf  = raw_sock_to_buf,
 	.subscribe = raw_sock_subscribe,
 	.unsubscribe = raw_sock_unsubscribe,
+	.remove_xprt = raw_sock_remove_xprt,
 #if defined(USE_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,
