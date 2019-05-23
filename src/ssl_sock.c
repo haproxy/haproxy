@@ -5854,6 +5854,8 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
 	if (ctx) {
+		if (ctx->xprt->close)
+			ctx->xprt->close(conn, ctx->xprt_ctx);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 		if (global_ssl.async) {
 			OSSL_ASYNC_FD all_fd[32], afd;
