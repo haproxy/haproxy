@@ -3347,6 +3347,12 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 				     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 							  t->data_arg[dt].u));
 			break;
+		case STD_T_DICT: {
+			struct dict_entry *de;
+			de = stktable_data_cast(ptr, std_t_dict);
+			chunk_appendf(msg, "%s", de ? (char *)de->value.key : "-");
+			break;
+		}
 		}
 	}
 	chunk_appendf(msg, "\n");
