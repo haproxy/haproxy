@@ -1,0 +1,293 @@
+vtest "A reg test for stickiness"
+feature ignore_unknown_macro
+
+
+# The aim of this test is to check that "stick on" rules
+# do the job they are supposed to do.
+# If we remove one of the "stick on" rule, this script fails.
+
+#REQUIRE_VERSION=2.0
+
+server s_not_used_1 {}
+server s_not_used_2 {}
+server s_not_used_3 {}
+server s_not_used_4 {}
+server s_not_used_5 {}
+server s_not_used_6 {}
+server s_not_used_7 {}
+server s_not_used_8 {}
+server s_not_used_9 {}
+server s_not_used_10 {}
+server s_not_used_11 {}
+server s_not_used_12 {}
+
+# h1/be1 servers
+server s1 {
+    rxreq
+    txresp -hdr "Server: be1/s1"
+} -repeat 2 -start
+
+server s2 {
+    rxreq
+    txresp -hdr "Server: be1/s2"
+} -repeat 2 -start
+
+# h1/be2 servers
+server s3 {
+    rxreq
+    txresp -hdr "Server: be2/s3"
+} -repeat 2 -start
+
+server s4 {
+    rxreq
+    txresp -hdr "Server: be2/s4"
+} -repeat 2 -start
+
+haproxy h1 -arg "-L A" -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout server 1s
+        timeout connect 1s
+        timeout client 1s
+        log stdout format raw local0  debug
+
+    peers mypeers
+        bind "fd@${A}"
+        server A
+        server B ${h2_B_addr}:${h2_B_port}
+        table mytable type string size 10m
+
+    backend be1
+        balance roundrobin
+        stick on urlp(client) table mypeers/mytable
+        server srv1 ${s1_addr}:${s1_port}
+        server srv2 ${s2_addr}:${s2_port}
+
+    backend be2
+        balance roundrobin
+        stick on urlp(client) table mypeers/mytable
+        server s_not_used_1 ${s_not_used_1_addr}:${s_not_used_1_port}
+        server s_not_used_2 ${s_not_used_2_addr}:${s_not_used_2_port}
+        server s_not_used_3 ${s_not_used_3_addr}:${s_not_used_3_port}
+        server srv2 ${s4_addr}:${s4_port}
+        server s_not_used_4 ${s_not_used_4_addr}:${s_not_used_4_port}
+        server s_not_used_5 ${s_not_used_5_addr}:${s_not_used_5_port}
+        server s_not_used_6 ${s_not_used_6_addr}:${s_not_used_6_port}
+        server srv1 ${s3_addr}:${s3_port}
+
+    frontend fe
+        acl acl_be1 path_beg /be1
+        acl acl_be2 path_beg /be2
+        use_backend be1 if acl_be1
+        use_backend be2 if acl_be2
+        bind "fd@${fe}"
+} -start
+
+# h2/be1 servers
+server s5 {
+    rxreq
+    txresp -hdr "Server: be1/s5"
+} -repeat 2 -start
+
+server s6 {
+    rxreq
+    txresp -hdr "Server: be1/s6"
+} -repeat 2 -start
+
+# h2/be2 servers
+server s7 {
+    rxreq
+    txresp -hdr "Server: be2/s7"
+} -repeat 2 -start
+
+server s8 {
+    rxreq
+    txresp -hdr "Server: be2/s8"
+} -repeat 2 -start
+
+
+haproxy h2 -arg "-L B" -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout server 1s
+        timeout connect 1s
+        timeout client 1s
+
+    peers mypeers
+        bind "fd@${B}"
+        server A ${h1_A_addr}:${h1_A_port}
+        server B
+        table mytable type string size 10m
+
+    backend be1
+        balance roundrobin
+        stick on urlp(client) table mypeers/mytable
+        server s_not_used_7 ${s_not_used_7_addr}:${s_not_used_7_port}
+        server s_not_used_8 ${s_not_used_8_addr}:${s_not_used_8_port}
+        server s_not_used_9 ${s_not_used_9_addr}:${s_not_used_9_port}
+        server srv1 ${s5_addr}:${s5_port}
+        server s_not_used_10 ${s_not_used_10_addr}:${s_not_used_10_port}
+        server s_not_used_11 ${s_not_used_11_addr}:${s_not_used_11_port}
+        server s_not_used_12 ${s_not_used_12_addr}:${s_not_used_12_port}
+        server srv2 ${s6_addr}:${s6_port}
+
+    backend be2
+        balance roundrobin
+        stick on urlp(client) table mypeers/mytable
+        server s_not_used_1 ${s_not_used_1_addr}:${s_not_used_1_port}
+        server s_not_used_2 ${s_not_used_2_addr}:${s_not_used_2_port}
+        server s_not_used_3 ${s_not_used_3_addr}:${s_not_used_3_port}
+        server s_not_used_4 ${s_not_used_4_addr}:${s_not_used_4_port}
+        server s_not_used_5 ${s_not_used_5_addr}:${s_not_used_5_port}
+        server s_not_used_6 ${s_not_used_6_addr}:${s_not_used_6_port}
+        server srv1 ${s7_addr}:${s7_port}
+        server srv2 ${s8_addr}:${s8_port}
+
+    frontend fe
+        acl acl_be1 path_beg /be1
+        acl acl_be2 path_beg /be2
+        use_backend be1 if acl_be1
+        use_backend be2 if acl_be2
+        bind "fd@${fe}"
+} -start
+
+delay 0.2
+
+client cx -connect ${h1_fe_sock} {
+    txreq -url "/be1?client=c1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be1/s1
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cy -connect ${h1_fe_sock} {
+    txreq -url "/be2?client=c1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be2/s3
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cx -connect ${h2_fe_sock} {
+    txreq -url "/be1?client=c1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be1/s5
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cy -connect ${h2_fe_sock} {
+    txreq -url "/be2?client=c1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be2/s7
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cX -connect ${h1_fe_sock} {
+    txreq -url "/be1?client=c2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be1/s2
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cY -connect ${h1_fe_sock} {
+    txreq -url "/be2?client=c2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be2/s4
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cX -connect ${h2_fe_sock} {
+    txreq -url "/be1?client=c2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be1/s6
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+client cY -connect ${h2_fe_sock} {
+    txreq -url "/be2?client=c2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ be2/s8
+} -repeat 2 -run
+
+haproxy h1 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
+haproxy h2 -cli {
+    send "show table mypeers/mytable"
+    expect ~ .*
+}
+
