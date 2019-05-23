@@ -23,6 +23,7 @@
 #define _COMMON_COMPAT_H
 
 #include <limits.h>
+#include <signal.h>
 #include <time.h>
 #include <unistd.h>
 /* This is needed on Linux for Netfilter includes */
@@ -102,6 +103,11 @@ typedef struct { } empty_t;
 /* On Linux, allows pipes to be resized */
 #ifndef F_SETPIPE_SZ
 #define F_SETPIPE_SZ (1024 + 7)
+#endif
+
+/* On FreeBSD we don't have SI_TKILL but SI_LWP instead */
+#if !defined(SI_TKILL) && defined(SI_LWP)
+#define SI_TKILL SI_LWP
 #endif
 
 /* systems without such defines do not know clockid_t or timer_t */
