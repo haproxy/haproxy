@@ -284,15 +284,20 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 void htx_truncate(struct htx *htx, uint32_t offset)
 {
 	struct htx_blk *blk;
-	struct htx_ret htxret;
 
-	htxret = htx_find_blk(htx, offset);
-	blk = htxret.blk;
-	if (blk && htxret.ret) {
+	for (blk = htx_get_head_blk(htx); blk && offset; blk = htx_get_next_blk(htx, blk)) {
 		uint32_t sz = htx_get_blksz(blk);
+		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		htx_set_blk_value_len(blk, sz - htxret.ret);
-		blk = htx_get_next_blk(htx, blk);
+		if (offset >= sz) {
+			offset -= sz;
+			continue;
+		}
+		if (type == HTX_BLK_DATA || type == HTX_BLK_TLR) {
+			htx_set_blk_value_len(blk, offset);
+			htx->data -= (sz - offset);
+		}
+		offset = 0;
 	}
 	while (blk)
 		blk = htx_remove_blk(htx, blk);
