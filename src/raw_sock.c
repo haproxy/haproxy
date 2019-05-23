@@ -158,6 +158,14 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 
  leave:
 	conn_cond_update_sock_polling(conn);
+	if (retval > 0) {
+		/* we count the total bytes sent, and the send rate for 32-byte
+		 * blocks. The reason for the latter is that freq_ctr are
+		 * limited to 4GB and that it's not enough per second.
+		 */
+		_HA_ATOMIC_ADD(&global.out_bytes, retval);
+		update_freq_ctr(&global.out_32bps, (retval + 16) / 32);
+	}
 	return retval;
 
  out_read0:
@@ -386,6 +394,14 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	conn_cond_update_sock_polling(conn);
+	if (done > 0) {
+		/* we count the total bytes sent, and the send rate for 32-byte
+		 * blocks. The reason for the latter is that freq_ctr are
+		 * limited to 4GB and that it's not enough per second.
+		 */
+		_HA_ATOMIC_ADD(&global.out_bytes, done);
+		update_freq_ctr(&global.out_32bps, (done + 16) / 32);
+	}
 	return done;
 }
 

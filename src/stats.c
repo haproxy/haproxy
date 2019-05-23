@@ -152,6 +152,8 @@ const char *info_field_names[INF_TOTAL_FIELDS] = {
 	[INF_DROPPED_LOGS]                   = "DroppedLogs",
 	[INF_BUSY_POLLING]                   = "BusyPolling",
 	[INF_FAILED_RESOLUTIONS]             = "FailedResolutions",
+	[INF_TOTAL_BYTES_OUT]                = "TotalBytesOut",
+	[INF_BYTES_OUT_RATE]                 = "BytesOutRate",
 };
 
 const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
@@ -3656,6 +3658,8 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
 	info[INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
 	info[INF_FAILED_RESOLUTIONS]             = mkf_u32(0, dns_failed_resolutions);
+	info[INF_TOTAL_BYTES_OUT]                = mkf_u64(0, global.out_bytes);
+	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
 
 	return 1;
 }

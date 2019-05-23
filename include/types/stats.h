@@ -313,6 +313,8 @@ enum info_field {
 	INF_DROPPED_LOGS,
 	INF_BUSY_POLLING,
 	INF_FAILED_RESOLUTIONS,
+	INF_TOTAL_BYTES_OUT,
+	INF_BYTES_OUT_RATE,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS

@@ -115,6 +115,8 @@ struct global {
 	struct freq_ctr ssl_be_keys_per_sec;
 	struct freq_ctr comp_bps_in;	/* bytes per second, before http compression */
 	struct freq_ctr comp_bps_out;	/* bytes per second, after http compression */
+	struct freq_ctr out_32bps;      /* #of 32-byte blocks emitted per second */
+	unsigned long long out_bytes;   /* total #of bytes emitted */
 	int cps_lim, cps_max;
 	int sps_lim, sps_max;
 	int ssl_lim, ssl_max;
