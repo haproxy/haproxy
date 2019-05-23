@@ -910,6 +910,26 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
 	return b_slow_realign(&chn->buf, swap, co_data(chn));
 }
 
+
+/* Forward all headers of an HTX message, starting from the SL to the EOH. This
+ * function also updates the start-line position.
+ */
+static inline void channel_htx_fwd_headers(struct channel *chn, struct htx *htx)
+{
+	int32_t pos;
+	size_t  data = 0;
+
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+		data += htx_get_blksz(blk);
+		if (htx_get_blk_type(blk) == HTX_BLK_EOH) {
+			htx->sl_pos = htx_get_next(htx, pos);
+			break;
+		}
+	}
+	c_adv(chn, data);
+}
+
 /*
  * Advance the channel buffer's read pointer by <len> bytes. This is useful
  * when data have been read directly from the buffer. It is illegal to call
