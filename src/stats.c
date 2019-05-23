@@ -2381,6 +2381,18 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 	const char *scope_ptr = stats_scope_ptr(appctx, si);
+	unsigned long long bps = (unsigned long long)read_freq_ctr(&global.out_32bps) * 32;
+
+	/* Turn the bytes per second to bits per second and take care of the
+	 * usual ethernet overhead in order to help figure how far we are from
+	 * interface saturation since it's the only case which usually matters.
+	 * For this we count the total size of an Ethernet frame on the wire
+	 * including preamble and IFG (1538) for the largest TCP segment it
+	 * transports (1448 with TCP timestamps). This is not valid for smaller
+	 * packets (under-estimated), but it gives a reasonably accurate
+	 * estimation of how far we are from uplink saturation.
+	 */
+	bps = bps * 8 * 1538 / 1448;
 
 	/* WARNING! this has to fit the first packet too.
 	 * We are around 3.5 kB, add adding entries will
@@ -2397,7 +2409,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
-	              "current conns = %d; current pipes = %d/%d; conn rate = %d/sec<br>\n"
+	              "current conns = %d; current pipes = %d/%d; conn rate = %d/sec; bit rate = %.3f %cbps<br>\n"
 	              "Running tasks: %d/%d; idle = %d %%<br>\n"
 	              "</td><td align=\"center\" nowrap>\n"
 	              "<table class=\"lgd\"><tr>\n"
@@ -2435,6 +2447,8 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              global.rlimit_nofile,
 	              global.maxsock, global.maxconn, global.maxpipes,
 	              actconn, pipes_used, pipes_used+pipes_free, read_freq_ctr(&global.conn_per_sec),
+		      bps >= 1000000000UL ? (bps / 1000000000.0) : bps >= 1000000UL ? (bps / 1000000.0) : (bps / 1000.0),
+		      bps >= 1000000000UL ? 'G' : bps >= 1000000UL ? 'M' : 'k',
 	              tasks_run_queue_cur, nb_tasks_cur, ti->idle_pct
 	              );
 
