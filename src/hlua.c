@@ -3944,10 +3944,15 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	if (IS_HTX_STRM(s)) {
 		/* HTX version */
 		struct htx *htx = htxbuf(&s->req.buf);
-		struct htx_sl *sl = http_get_stline(htx);
+		struct htx_blk *blk;
+		struct htx_sl *sl;
 		struct ist path;
 		unsigned long long len = 0;
 		int32_t pos;
+
+		blk = htx_get_first_blk(htx);
+		BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
+		sl = htx_get_blk_ptr(htx, blk);
 
 		/* Stores the request method. */
 		lua_pushstring(L, "method");
@@ -4366,7 +4371,7 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 	htx = htx_from_buf(&req->buf);
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
 	count = co_data(req);
-	blk = htx_get_first_blk(htx);
+	blk = htx_get_head_blk(htx);
 	while (count && len && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);

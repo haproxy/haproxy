@@ -11,6 +11,7 @@
  */
 
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/cfgparse.h>
 #include <common/h1.h>
 #include <common/http.h>
@@ -21,19 +22,18 @@
 struct buffer htx_err_chunks[HTTP_ERR_SIZE];
 
 /* Returns the next unporocessed start line in the HTX message. It returns NULL
- * is the start-line is undefined (sl_pos == 1). Otherwise, it returns the
+ * if the start-line is undefined (first == -1). Otherwise, it returns the
  * pointer on the htx_sl structure.
  */
 struct htx_sl *http_get_stline(struct htx *htx)
 {
 	struct htx_blk *blk;
 
-	if (htx->sl_pos == -1)
-		return NULL;
-
-	blk = htx_get_blk(htx, htx->sl_pos);
+	BUG_ON(htx->first == -1);
+	blk = htx_get_first_blk(htx);
 	if (!blk)
 		return NULL;
+	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL && htx_get_blk_type(blk) != HTX_BLK_RES_SL);
 	return htx_get_blk_ptr(htx, blk);
 }
 
@@ -143,7 +143,7 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
 	/* <blk> is the head, swap it iteratively with its predecessor to place
 	 * it just before the end-of-header block. So blocks remains ordered. */
-	for (prev = htx_get_prev(htx, htx->tail); prev != htx->sl_pos; prev = htx_get_prev(htx, prev)) {
+	for (prev = htx_get_prev(htx, htx->tail); prev != htx->first; prev = htx_get_prev(htx, prev)) {
 		struct htx_blk   *pblk = htx_get_blk(htx, prev);
 		enum htx_blk_type type = htx_get_blk_type(pblk);
 
@@ -169,18 +169,14 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 }
 
 /* Replaces parts of the start-line of the HTX message <htx>. It returns 1 on
- * success, otherwise it returns 0. The right block is search in the HTX
- * message.
+ * success, otherwise it returns 0.
  */
 int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3)
 {
 	struct htx_blk *blk;
 
-	if (htx->sl_pos == -1)
-		return 0;
-
-	blk = htx_get_blk(htx, htx->sl_pos);
-	if (!htx_replace_stline(htx, blk, p1, p2, p3))
+	blk = htx_get_first_blk(htx);
+	if (!blk || !htx_replace_stline(htx, blk, p1, p2, p3))
 		return 0;
 	return 1;
 }

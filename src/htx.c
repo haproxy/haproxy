@@ -28,7 +28,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	struct htx_blk *newblk, *oldblk;
 	uint32_t new, old, blkpos;
 	uint32_t addr, blksz;
-	int32_t sl_pos = -1;
+	int32_t first = -1;
 
 	if (!htx->used)
 		return NULL;
@@ -51,8 +51,8 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		blksz = htx_get_blksz(oldblk);
 
 		/* update the start-line position */
-		if (htx->sl_pos == old)
-			sl_pos = new;
+		if (htx->first == old)
+			first = new;
 
 		/* if <blk> is defined, set its new position */
 		if (blk != NULL && blk == oldblk)
@@ -65,7 +65,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	}
 
 	htx->used = new;
-	htx->sl_pos = sl_pos;
+	htx->first = first;
 	htx->head = 0;
 	htx->front = htx->tail = new - 1;
 	memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
@@ -94,7 +94,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 
 	if (!htx->used) {
 		/* Empty message */
-		htx->front = htx->head = htx->tail = 0;
+		htx->front = htx->head = htx->tail = htx->first = 0;
 		htx->used = 1;
 		blk = htx_get_blk(htx, htx->tail);
 		blk->addr = 0;
@@ -188,6 +188,9 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	htx->tail  = tail;
 	htx->used  = used;
 	htx->data += blksz;
+	/* Set first position if not already set */
+	if (htx->first == -1)
+		htx->first = tail;
 	return blk;
 }
 
@@ -220,15 +223,11 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		/* Mark the block as unused, decrement allocated size */
 		htx->data -= htx_get_blksz(blk);
 		blk->info = ((uint32_t)HTX_BLK_UNUSED << 28);
-		if (htx->sl_pos == pos)
-			htx->sl_pos = -1;
 	}
 
 	/* This is the last block in use */
-	if (htx->used == 1/* || !htx->data */) {
-		htx->front = htx->head = htx->tail = 0;
-		htx->used = 0;
-		htx->data = 0;
+	if (htx->used == 1) {
+		htx_reset(htx);
 		return NULL;
 	}
 
@@ -271,13 +270,9 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	}
 
 	blk = htx_get_blk(htx, next);
-	if (htx->sl_pos == -1) {
-		/* Try to update the start-line payload addr, if possible */
-		type = htx_get_blk_type(blk);
-		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)
-			htx->sl_pos = htx_get_blk_pos(htx, blk);
-	}
   end:
+	if (pos == htx->first)
+		htx->first = (blk ? htx_get_blk_pos(htx, blk) : -1);
 	if (pos == htx->front)
 		htx->front = htx_find_front(htx);
 	return blk;
@@ -542,9 +537,6 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			htx_cut_data_blk(src, blk, sz);
 			break;
 		}
-
-		if (dst->sl_pos == -1 && src->sl_pos == htx_get_blk_pos(src, blk))
-			dst->sl_pos = htx_get_blk_pos(dst, dstblk);
 	  next:
 		blk = htx_remove_blk(src, blk);
 		if (type == mark)
@@ -682,8 +674,6 @@ struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned 
 	blk->info += size;
 
 	sl = htx_get_blk_ptr(htx, blk);
-	if (htx->sl_pos == -1)
-		htx->sl_pos = htx_get_blk_pos(htx, blk);
 	sl->hdrs_bytes = -1;
 	sl->flags = flags;
 

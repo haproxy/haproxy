@@ -132,7 +132,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a timeout or connection reset is not counted as an error. However
 	 * a bad request is.
 	 */
-	if (unlikely(htx_is_empty(htx) || htx->sl_pos == -1)) {
+	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		if (htx->flags & HTX_FL_UPGRADE)
 			goto failed_keep_alive;
 
@@ -279,6 +279,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	txn->flags &= ~TX_WAIT_NEXT_RQ;
 	req->analyse_exp = TICK_ETERNITY;
 
+	BUG_ON(htx_get_first_type(htx) != HTX_BLK_REQ_SL);
 	sl = http_get_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */
@@ -1470,7 +1471,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * errors somewhere else.
 	 */
   next_one:
-	if (unlikely(htx_is_empty(htx) || htx->sl_pos == -1)) {
+	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
 		/* 1: have we encountered a read error ? */
 		if (rep->flags & CF_READ_ERROR) {
 			struct connection *conn = NULL;
@@ -1625,6 +1626,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 
 	msg->msg_state = HTTP_MSG_BODY;
+	BUG_ON(htx_get_first_type(htx) != HTX_BLK_RES_SL);
 	sl = http_get_stline(htx);
 
 	/* 0: we might have to print this header in debug mode */

@@ -203,7 +203,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol)
 
 		if (msg->msg_state < HTTP_MSG_BODY) {
 			/* Analyse not yet started */
-			if (htx_is_empty(htx) || htx->sl_pos == -1) {
+			if (htx_is_empty(htx) || htx->first == -1) {
 				/* Parsing is done by the mux, just wait */
 				smp->flags |= SMP_F_MAY_CHANGE;
 				return NULL;

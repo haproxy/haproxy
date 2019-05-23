@@ -923,7 +923,7 @@ static inline void channel_htx_fwd_headers(struct channel *chn, struct htx *htx)
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		data += htx_get_blksz(blk);
 		if (htx_get_blk_type(blk) == HTX_BLK_EOH) {
-			htx->sl_pos = htx_get_next(htx, pos);
+			htx->first = htx_get_next(htx, pos);
 			break;
 		}
 	}

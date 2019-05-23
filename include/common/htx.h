@@ -161,7 +161,7 @@ struct htx {
 	uint64_t extra;  /* known bytes amount remaining to receive */
 	uint32_t flags;  /* HTX_FL_* */
 
-	int32_t sl_pos; /* position of the start-line of the HTTP message. -1 if unset */
+	int32_t  first;  /* position of the first block to (re)start the analyse. -1 if unset. */
 
 	struct htx_blk blocks[0]; /* Blocks representing the HTTP message itself */
 };
@@ -413,8 +413,8 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns the position of the first block in the HTX message <htx>. It is the
- * sl_pos if set, otherwise it is the head.
+/* Returns the position of the first block in the HTX message <htx>. If unset,
+ * or if <htx> is empty, -1 is returned.
  *
  * An signed 32-bits integer is returned to handle -1 case. Blocks position are
  * store on unsigned 32-bits integer, but it is impossible to have so much
@@ -422,13 +422,13 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
  */
 static inline int32_t htx_get_first(const struct htx *htx)
 {
-	if (htx->sl_pos != -1)
-		return htx->sl_pos;
-	return htx->head;
+	if (!htx->used)
+		return -1;
+	return htx->first;
 }
 
-/* Returns the first HTX block in the HTX message <htx>. If <blk> is the head,
- * NULL returned.
+/* Returns the first HTX block in the HTX message <htx>. If unset or if <htx> is
+ * empty, NULL returned.
  */
 static inline struct htx_blk *htx_get_first_blk(const struct htx *htx)
 {
@@ -717,7 +717,7 @@ static inline void htx_reset(struct htx *htx)
 	htx->data = htx->used = htx->tail = htx->head  = htx->front = 0;
 	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
-	htx->sl_pos = -1;
+	htx->first = -1;
 }
 
 /* returns the available room for raw data in buffer <buf> once HTX overhead is
@@ -832,8 +832,8 @@ static inline void htx_dump(struct htx *htx)
 	fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%llu]\n",
 		htx, htx->size, htx->data, htx->used, (htx->tail >= htx->head) ? "NO" : "YES",
 		(unsigned long long)htx->extra);
-	fprintf(stderr, "\tsl_pos=%d - head=%u, tail=%u - front=%u\n",
-		htx->sl_pos, htx->head, htx->tail, htx->front);
+	fprintf(stderr, "\tfirst=%d - head=%u, tail=%u - front=%u\n",
+		htx->first, htx->head, htx->tail, htx->front);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_sl     *sl;
