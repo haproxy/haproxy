@@ -60,7 +60,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 * the thread number from there. Note: this thread might
 		 * continue to execute in parallel.
 		 */
-		thr = si->si_int;
+		thr = si->si_value.sival_int;
 
 		/* cannot happen unless an unknown timer tries to play with our
 		 * nerves. Let's die for now if this happens.
