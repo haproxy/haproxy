@@ -1225,7 +1225,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			goto missing_data_or_waiting;
 	}
 	else {
-		c_adv(req, htx->data - co_data(req));
+		channel_htx_fwd_all(req, htx);
 		if (msg->flags & HTTP_MSGF_XFER_LEN)
 			channel_htx_forward_forever(req, htx);
 	}
@@ -2222,7 +2222,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 			goto missing_data_or_waiting;
 	}
 	else {
-		c_adv(res, htx->data - co_data(res));
+		channel_htx_fwd_all(res, htx);
 		if (msg->flags & HTTP_MSGF_XFER_LEN)
 			channel_htx_forward_forever(res, htx);
 	}
