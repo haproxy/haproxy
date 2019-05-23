@@ -225,6 +225,7 @@ struct ssl_sock_ctx {
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
 
 static struct task *ssl_sock_io_cb(struct task *, void *, unsigned short);
+static int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 
 /* Methods to implement OpenSSL BIO */
 static int ha_ssl_write(BIO *h, const char *buf, int num)
@@ -5283,7 +5284,7 @@ err:
  * otherwise it returns non-zero and removes itself from the connection's
  * flags (the bit is provided in <flag> by the caller).
  */
-int ssl_sock_handshake(struct connection *conn, unsigned int flag)
+static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 	int ret;
