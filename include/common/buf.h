@@ -32,6 +32,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <common/debug.h>
+
 /* Structure defining a buffer's head */
 struct buffer {
 	size_t size;                /* buffer size in bytes */
@@ -52,6 +54,7 @@ struct buffer {
  */
 #define BUF_NULL   ((struct buffer){ })
 #define BUF_WANTED ((struct buffer){ .area = (char *)1 })
+#define BUF_RING   ((struct buffer){ .area = (char *)2 })
 
 
 /***************************************************************************/
@@ -670,6 +673,181 @@ static inline int b_rep_blk(struct buffer *b, char *pos, char *end, const char *
 	return delta;
 }
 
+
+/*
+ * Buffer ring management.
+ *
+ * A buffer ring is a circular list of buffers, with a head buffer (the oldest,
+ * being read from) and a tail (the newest, being written to). Such a ring is
+ * declared as an array of buffers. The first element in the array is the root
+ * and is used differently. It stores the following elements :
+ *  - size : number of allocated elements in the array, including the root
+ *  - area : magic value BUF_RING (just to help debugging)
+ *  - head : position of the head in the array (starts at one)
+ *  - data : position of the tail in the array (starts at one).
+ *
+ * Note that contrary to a linear buffer, head and tail may be equal with room
+ * available, since the producer is expected to fill the tail. Also, the tail
+ * might pretty much be equal to BUF_WANTED if an allocation is pending, in
+ * which case it's illegal to try to allocate past this point (only one entry
+ * may be subscribed for allocation). It is illegal to allocate a buffer after
+ * an empty one, so that BUF_NULL is always the last buffer. It is also illegal
+ * to remove elements without freeing the buffers. Buffers between <tail> and
+ * <head> are in an undefined state, but <tail> and <head> are always valid.
+ * A ring may not contain less than 2 elements, since the root is mandatory,
+ * and at least one entry is required to always present a valid buffer.
+ *
+ * Given that buffers are 16- or 32- bytes long, it's convenient to set the
+ * size of the array to 2^N in order to keep (2^N)-1 elements, totalizing
+ * 2^N*16(or 32) bytes. For example on a 64-bit system, a ring of 31 usable
+ * buffers takes 1024 bytes.
+ */
+
+/* Initialization of a ring, the size argument contains the number of allocated
+ * elements, including the root. There must always be at least 2 elements, one
+ * for the root and one for storage.
+ */
+static inline void br_init(struct buffer *r, size_t size)
+{
+	BUG_ON(size < 2);
+
+	r->size = size;
+	r->area = BUF_RING.area;
+	r->head = r->data = 1;
+	r[1]    = BUF_NULL;
+}
+
+/* Returns number of elements in the ring, root included */
+static inline unsigned int br_size(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r->size;
+}
+
+/* Returns true if no more buffers may be added */
+static inline unsigned int br_full(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r->data + 1 == r->head || r->data + 1 == r->head - 1 + r->size;
+}
+
+/* Returns the index of the ring's head buffer */
+static inline unsigned int br_head_idx(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r->head;
+}
+
+/* Returns the index of the ring's tail buffer */
+static inline unsigned int br_tail_idx(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r->data;
+}
+
+/* Returns a pointer to the ring's head buffer */
+static inline struct buffer *br_head(struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r + br_head_idx(r);
+}
+
+/* Returns a pointer to the ring's tail buffer */
+static inline struct buffer *br_tail(struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return r + br_tail_idx(r);
+}
+
+/* Returns the amount of data of the ring's HEAD buffer */
+static inline unsigned int br_data(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	return b_data(r + br_head_idx(r));
+}
+
+/* Returns non-zero if the ring is non-full or its tail has some room */
+static inline unsigned int br_has_room(const struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	if (!br_full(r))
+		return 1;
+	return b_room(r + br_tail_idx(r));
+}
+
+/* Advances the ring's tail if it points to a non-empty buffer, and returns the
+ * buffer, or NULL if the ring is full or the tail buffer is already empty. A
+ * new buffer is initialized to BUF_NULL before being returned. This is to be
+ * used after failing to append data, in order to decide to retry or not.
+ */
+static inline struct buffer *br_tail_add(struct buffer *r)
+{
+	struct buffer *b;
+
+	BUG_ON(r->area != BUF_RING.area);
+
+	b = br_tail(r);
+	if (!b_size(b))
+		return NULL;
+
+	if (br_full(r))
+		return NULL;
+
+	r->data++;
+	if (r->data >= r->size)
+		r->data = 1;
+
+	b = br_tail(r);
+	*b = BUF_NULL;
+	return b;
+}
+
+/* Extracts the ring's head buffer and returns it. The last buffer (tail) is
+ * never removed but it is returned. This guarantees that we stop on BUF_WANTED
+ * or BUF_EMPTY and that at the end a valid buffer remains present. This is
+ * used for pre-extraction during a free() loop for example. The caller is
+ * expected to detect the end (e.g. using bsize() since b_free() voids the
+ * buffer).
+ */
+static inline struct buffer *br_head_pick(struct buffer *r)
+{
+	struct buffer *b;
+
+	BUG_ON(r->area != BUF_RING.area);
+
+	b = br_head(r);
+	if (r->head != r->data) {
+		r->head++;
+		if (r->head >= r->size)
+			r->head = 1;
+	}
+	return b;
+}
+
+/* Advances the ring's head and returns the next buffer, unless it's already
+ * the tail, in which case the tail itself is returned. This is used for post-
+ * parsing deletion. The caller is expected to detect the end (e.g. a parser
+ * will typically purge the head before proceeding).
+ */
+static inline struct buffer *br_del_head(struct buffer *r)
+{
+	BUG_ON(r->area != BUF_RING.area);
+
+	if (r->head != r->data) {
+		r->head++;
+		if (r->head >= r->size)
+			r->head = 1;
+	}
+	return br_head(r);
+}
 
 #endif /* _COMMON_BUF_H */
 
