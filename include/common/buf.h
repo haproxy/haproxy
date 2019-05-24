@@ -399,6 +399,18 @@ static inline void b_reset(struct buffer *b)
 	b->data = 0;
 }
 
+/* b_make() : make a buffer from all parameters */
+static inline struct buffer b_make(char *area, size_t size, size_t head, size_t data)
+{
+	struct buffer b;
+
+	b.area = area;
+	b.size = size;
+	b.head = head;
+	b.data = data;
+	return b;
+}
+
 /* b_sub() : decreases the buffer length by <count> */
 static inline void b_sub(struct buffer *b, size_t count)
 {
