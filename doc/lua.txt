@@ -412,7 +412,7 @@ The max amount of memory is configured with the option:
    tune.lua.maxmem
 
 As many other script languages, Lua uses a garbage collector for reusing its
-memory. The Lua developper can work without memory preoccupation. Usually, the
+memory. The Lua developer can work without memory preoccupation. Usually, the
 garbage collector is controlled by the Lua core, but sometimes it will be useful
 to run when the user/developer requires. So the garbage collector can be called
 from C part or Lua part.
@@ -885,7 +885,7 @@ The task entry point
 
 The function "core.register_task(fcn)" executes once the function "fcn" when the
 scheduler starts. This way is used for executing background task. For example,
-you can use this functionnality for periodically checking the health of another
+you can use this functionality for periodically checking the health of another
 service, and giving the result to each proxy needing it.
 
 The task is started once, if you want periodic actions, you can use the

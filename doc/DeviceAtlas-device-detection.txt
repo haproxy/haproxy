@@ -11,7 +11,7 @@ Optionally DEVICEATLAS_INC and DEVICEATLAS_LIB may be set to override the path
 to the include files and libraries respectively if they're not in the source
 directory.
 
-For HAProxy developers who need to verify that their changes didn't accidently
+For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in
 the contrib/deviceatlas directory and to use it as an alternative for the full
 library. This will not provide the full functionalities, it will just allow
@@ -48,7 +48,7 @@ All HTTP headers via the sample / fetch
 
     http-request set-header X-DeviceAtlas-Data %[da-csv-fetch(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 
-Single HTTP header (e.g. User-Agent) via the convertor
+Single HTTP header (e.g. User-Agent) via the converter
 
     http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv-conv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 

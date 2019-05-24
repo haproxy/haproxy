@@ -2067,7 +2067,7 @@ peer <peername> <ip>:<port> [param*]
   "server" keyword explanation below).
 
 server <peername> [<ip>:<port>] [param*]
-  As previously mentionned, "peer" keyword may be replaced by "server" keyword
+  As previously mentioned, "peer" keyword may be replaced by "server" keyword
   with a support for all "server" parameters found in 5.2 paragraph.
   If the underlying peer is local, <ip>:<port> parameters must not be present.
   These parameters must  be provided on a "bind" line (see "bind" keyword
@@ -3274,7 +3274,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
               already have a cookie that would have permitted it to access this
               server. When used without the "preserve" option, if the server
-              emits a cookie with the same name, it will be remove before
+              emits a cookie with the same name, it will be removed before
               processing. For this reason, this mode can be used to upgrade
               existing configurations running in the "rewrite" mode. The cookie
               will only be a session cookie and will not be stored on the
@@ -5162,7 +5162,7 @@ http-reuse { never | safe | aggressive | always }
                  proving that the server correctly supports connection reuse.
                  It should only be used when it's sure that the client can
                  retry a failed request once in a while and where the benefit
-                 of aggressive connection reuse significantly outweights the
+                 of aggressive connection reuse significantly outweighs the
                  downsides of rare connection failures.
 
     - "always" : this mode is only recommended when the path to the server is
@@ -15408,7 +15408,7 @@ ssl_bc_alg_keysize : integer
 ssl_bc_alpn : string
   This extracts the Application Layer Protocol Negotiation field from an
   outgoing connection made via a TLS transport layer.
-  The result is a string containing the protocol name negociated with the
+  The result is a string containing the protocol name negotiated with the
   server. The SSL library must have been built with support for TLS
   extensions enabled (check haproxy -vv). Note that the TLS ALPN extension is
   not advertised unless the "alpn" keyword on the "server" line specifies a
@@ -15428,7 +15428,7 @@ ssl_bc_is_resumed : boolean
 ssl_bc_npn : string
   This extracts the Next Protocol Negotiation field from an outgoing connection
   made via a TLS transport layer. The result is a string containing the
-  protocol name negociated with the server . The SSL library must have been
+  protocol name negotiated with the server . The SSL library must have been
   built with support for TLS extensions enabled (check haproxy -vv). Note that
   the TLS NPN extension is not advertised unless the "npn" keyword on the
   "server" line specifies a protocol list. Also, nothing forces the server to

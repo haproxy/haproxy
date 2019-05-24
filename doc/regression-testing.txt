@@ -40,7 +40,7 @@ After having compiled these sources, the vtest executable location is at the
 root of the vtest sources directory.
 
 
-vtest exectution
+vtest execution
 ---------------------
 
 vtest is able to search for the haproxy executable file it is supposed to
@@ -131,7 +131,7 @@ instance.
     #   BUG/MINOR: spoe: Initialize variables used during conf parsing before any check
 
     #   Some initializations must be done at the beginning of parse_spoe_flt to avoid
-    #   segmentaion fault when first errors are catched, when the "filter spoe" line is
+    #   segmentaion fault when first errors are caught, when the "filter spoe" line is
     #   parsed.
 
     haproxy h1 -conf-BAD {} {

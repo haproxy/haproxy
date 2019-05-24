@@ -17,7 +17,7 @@ Compile haproxy as shown :
 
 Optionally WURFL_DEBUG=1 may be set to increase logs verbosity
 
-For HAProxy developers who need to verify that their changes didn't accidently
+For HAProxy developers who need to verify that their changes didn't accidentally
 break the WURFL code, it is possible to build a dummy library provided in the
 contrib/wurfl directory and to use it as an alternative for the full library.
 This will not provide the full functionalities, it will just allow haproxy to

@@ -520,7 +520,7 @@ Wrong :
   | bit = ! ! (~len++ ^ - (unsigned char) * x) ;
 
 Note that "sizeof" is a unary operator which is sometimes considered as a
-langage keyword, but in no case it is a function. It does not require
+language keyword, but in no case it is a function. It does not require
 parenthesis so it is sometimes followed by spaces and sometimes not when
 there are no parenthesis. Most people do not really care as long as what
 is written is unambiguous.
@@ -814,7 +814,7 @@ common to see such a thing :
 This is wrong. The man page says that -1 is returned if an error occurred. It
 does not suggest that any other negative value will be an error. It is possible
 that a few such issues have been left in existing code. They are bugs for which
-fixes are accepted, eventhough they're currently harmless since open() is not
+fixes are accepted, even though they're currently harmless since open() is not
 known for returning negative values at the moment.
 
 

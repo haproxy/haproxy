@@ -1,4 +1,4 @@
-When NetScaler application switch is used as L3+ switch, informations
+When NetScaler application switch is used as L3+ switch, information
 regarding the original IP and TCP headers are lost as a new TCP
 connection is created between the NetScaler and the backend server.
 

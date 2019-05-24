@@ -1481,7 +1481,7 @@ they are mentioned here even if not directly related to HAProxy.
 
 Apache is the de-facto standard HTTP server. It's a very complete and modular
 project supporting both file serving and dynamic contents. It can serve as a
-frontend for some application servers. In can even proxy requests and cache
+frontend for some application servers. It can even proxy requests and cache
 responses. In all of these use cases, a front load balancer is commonly needed.
 Apache can work in various modes, some being heavier than others. Certain
 modules still require the heavier pre-forked model and will prevent Apache from

@@ -277,11 +277,11 @@ if no available remote peers are found.
 
 The chosen remote peer will push its all known data ending with a Resync Finished Message or a Resync Partial Message (if it it does not consider itself as full updated).
 
-If it receive a Resync Finished Message it will consider itself as fully updated and stops to ask for resync.
+If it receives a Resync Finished Message it will consider itself as fully updated and stops to ask for resync.
 
-If it receive a Resync Partial Message, the current peer will be flagged to anymore be requested and any other connected peer will be randomly chosen for a resync request (5s).
+If it receives a Resync Partial Message, the current peer will be flagged to anymore be requested and any other connected peer will be randomly chosen for a resync request (5s).
 
-If the session is broken before receiving any ot these messages any other connected peer will be randomly chosen for a resync request (5s).
+If the session is broken before receiving any of these messages any other connected peer will be randomly chosen for a resync request (5s).
 
 If the timeout expire, the process will consider itself as fully updated
 

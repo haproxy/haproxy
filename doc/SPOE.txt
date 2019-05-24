@@ -97,7 +97,7 @@ for several engines. If no name is provided, the SPOE configuration must not
 contain any scope directive.
 
 We use a separate configuration file on purpose. By commenting SPOE filter
-line, you completly disable the feature, including the parsing of sections
+line, you completely disable the feature, including the parsing of sections
 reserved to SPOE. This is also a way to keep the HAProxy configuration clean.
 
 A SPOE configuration file must contains, at least, the SPOA configuration
@@ -313,7 +313,7 @@ option set-on-error <var name>
 
     * 1       a timeout occurred during the event processing.
 
-    * 2       an error was triggered during the ressources allocation.
+    * 2       an error was triggered during the resources allocation.
 
     * 3       the frame payload exceeds the frame size and it cannot be
               fragmented.
@@ -1029,7 +1029,7 @@ For more information about known errors, see section "Errors & timeouts"
 -------------------------------
 
 If an error occurs, at anytime, from the agent size, a AGENT-DISCONNECT frame
-is sent, with information desribing the error. such frame is also sent in reply
+is sent, with information describing the error. such frame is also sent in reply
 to a HAPROXY-DISCONNECT. The agent must close the socket just after sending
 this frame.
 
