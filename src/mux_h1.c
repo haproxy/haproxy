@@ -900,21 +900,26 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 	}
 }
 
+/* Estimate the size of the HTX headers after the parsing, including the EOH. */
+static size_t h1_eval_htx_hdrs_size(struct http_hdr *hdrs)
+{
+	size_t sz = 0;
+	int i;
+
+	for (i = 0; hdrs[i].n.len; i++)
+		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
+	sz += sizeof(struct htx_blk) + 1;
+	return sz;
+}
+
 /* Estimate the size of the HTX request after the parsing. */
 static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
 {
 	size_t sz;
-	int i;
 
 	/* size of the HTX start-line */
 	sz = sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
-
-	/* size of all HTX headers */
-	for (i = 0; hdrs[i].n.len; i++)
-		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
-
-	/* size of the EOH */
-	sz += sizeof(struct htx_blk) + 1;
+	sz += h1_eval_htx_hdrs_size(hdrs);
 
 	/* size of the EOM */
 	if (h1m->state == H1_MSG_DONE)
@@ -927,17 +932,10 @@ static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
 {
 	size_t sz;
-	int i;
 
 	/* size of the HTX start-line */
 	sz = sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
-
-	/* size of all HTX headers */
-	for (i = 0; hdrs[i].n.len; i++)
-		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
-
-	/* size of the EOH */
-	sz += sizeof(struct htx_blk) + 1;
+	sz += h1_eval_htx_hdrs_size(hdrs);
 
 	/* size of the EOM */
 	if (h1m->state == H1_MSG_DONE)
