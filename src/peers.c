@@ -406,7 +406,7 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 	use_identifier = p->updt.use_identifier;
 	use_timed = p->updt.use_timed;
 
-	cursor = datamsg = msg + 1 + 5;
+	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
 
 	/* construct message */
 
