@@ -70,6 +70,7 @@
 #define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
 #define H1S_F_HAVE_O_EOD     0x00001000 /* Set during output process to know the last empty chunk was processed */
 #define H1S_F_HAVE_O_TLR     0x00002000 /* Set during output process to know the trailers were processed */
+#define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
 /* H1 connection descriptor */
 struct h1c {
@@ -1450,7 +1451,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct htx_blk *blk;
 	struct buffer *tmp;
 	size_t total = 0;
-	int process_conn_mode = 1; /* If still 1 on EOH, process the connection mode */
 	int errflag;
 
 	if (!count)
@@ -1570,7 +1570,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1m->flags |= H1_MF_XFER_LEN;
 				if (sl->info.res.status < 200 &&
 				    (sl->info.res.status == 100 || sl->info.res.status >= 102))
-					process_conn_mode = 0;
+					h1s->flags |= H1S_F_HAVE_O_CONN;
 				h1m->state = H1_MSG_HDR_FIRST;
 				break;
 
@@ -1608,7 +1608,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (type != HTX_BLK_EOH)
 					goto error;
 			  last_lf:
-				if (h1m->state != H1_MSG_LAST_LF && process_conn_mode) {
+				h1m->state = H1_MSG_LAST_LF;
+				if (!(h1s->flags & H1S_F_HAVE_O_CONN)) {
 					/* There is no "Connection:" header and
 					 * it the conn_mode must be
 					 * processed. So do it */
@@ -1619,10 +1620,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						if (!htx_hdr_to_h1(n, v, tmp))
 							goto copy;
 					}
-					process_conn_mode = 0;
+					h1s->flags |= H1S_F_HAVE_O_CONN;
 				}
 
-				h1m->state = H1_MSG_LAST_LF;
 				if ((h1s->meth != HTTP_METH_CONNECT &&
 				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
@@ -1652,6 +1652,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 					h1m_init_res(&h1s->res);
 					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+					h1s->flags &= ~H1S_F_HAVE_O_CONN;
 				}
 				else
 					h1m->state = H1_MSG_DATA;
