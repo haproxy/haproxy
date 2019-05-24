@@ -1456,7 +1456,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	if (!count)
 		goto end;
 
-	chn_htx = htx_from_buf(buf);
+	chn_htx = htxbuf(buf);
 	if (htx_is_empty(chn_htx))
 		goto end;
 
@@ -1540,13 +1540,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			vlen = count;
 		}
 
-		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
+		if (type == HTX_BLK_UNUSED)
+			goto nextblk;
 
-			case HTX_BLK_REQ_SL:
-				h1m_init_req(h1m);
-				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+		switch (h1m->state) {
+			case H1_MSG_RQBEFORE:
+				if (type != HTX_BLK_REQ_SL)
+					goto error;
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
@@ -1558,9 +1558,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_HDR_FIRST;
 				break;
 
-			case HTX_BLK_RES_SL:
-				h1m_init_res(h1m);
-				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+			case H1_MSG_RPBEFORE:
+				if (type != HTX_BLK_RES_SL)
+					goto error;
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
@@ -1574,7 +1574,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_HDR_FIRST;
 				break;
 
-			case HTX_BLK_HDR:
+			case H1_MSG_HDR_FIRST:
+			case H1_MSG_HDR_NAME:
+			case H1_MSG_HDR_L2_LWS:
+				if (type == HTX_BLK_EOH)
+					goto last_lf;
+				if (type != HTX_BLK_HDR)
+					goto error;
 				h1m->state = H1_MSG_HDR_NAME;
 				n = htx_get_blk_name(chn_htx, blk);
 				v = htx_get_blk_value(chn_htx, blk);
@@ -1598,7 +1604,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_HDR_L2_LWS;
 				break;
 
-			case HTX_BLK_EOH:
+			case H1_MSG_LAST_LF:
+				if (type != HTX_BLK_EOH)
+					goto error;
+			  last_lf:
 				if (h1m->state != H1_MSG_LAST_LF && process_conn_mode) {
 					/* There is no "Connection:" header and
 					 * it the conn_mode must be
@@ -1613,6 +1622,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					process_conn_mode = 0;
 				}
 
+				h1m->state = H1_MSG_LAST_LF;
 				if ((h1s->meth != HTTP_METH_CONNECT &&
 				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
@@ -1626,7 +1636,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1m->flags |= H1_MF_CHNK;
 				}
 
-				h1m->state = H1_MSG_LAST_LF;
 				if (!chunk_memcat(tmp, "\r\n", 2))
 					goto copy;
 
@@ -1648,21 +1657,33 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1m->state = H1_MSG_DATA;
 				break;
 
-			case HTX_BLK_DATA:
+			case H1_MSG_DATA:
+				if (type == HTX_BLK_EOD) {
+					if (!chunk_memcat(tmp, "0\r\n", 3))
+						goto copy;
+					h1s->flags |= H1S_F_HAVE_O_EOD;
+					h1m->state = H1_MSG_TRAILERS;
+					break;
+				}
+				if (type == HTX_BLK_TLR)
+					goto trailers;
+				else if (type == HTX_BLK_EOM)
+					goto done;
+				else if (type != HTX_BLK_DATA)
+					goto error;
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
 				if (!htx_data_to_h1(v, tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto copy;
 				break;
 
-			case HTX_BLK_EOD:
-				if (!chunk_memcat(tmp, "0\r\n", 3))
-					goto copy;
-				h1s->flags |= H1S_F_HAVE_O_EOD;
+			case H1_MSG_TRAILERS:
+				if (type == HTX_BLK_EOM)
+					goto done;
+				else if (type != HTX_BLK_TLR)
+					goto error;
+			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
-				break;
-
-			case HTX_BLK_TLR:
 				if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
 					if (!chunk_memcat(tmp, "0\r\n", 3))
 						goto copy;
@@ -1675,7 +1696,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1s->flags |= H1S_F_HAVE_O_TLR;
 				break;
 
-			case HTX_BLK_EOM:
+			case H1_MSG_DONE:
+				if (type != HTX_BLK_EOM)
+					goto error;
+			  done:
+				h1m->state = H1_MSG_DONE;
 				if ((h1m->flags & H1_MF_CHNK)) {
 					if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
 						if (!chunk_memcat(tmp, "0\r\n", 3))
@@ -1688,13 +1713,15 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						h1s->flags |= H1S_F_HAVE_O_TLR;
 					}
 				}
-				h1m->state = H1_MSG_DONE;
 				break;
 
 			default:
+			  error:
 				h1s->flags |= errflag;
 				break;
 		}
+
+	  nextblk:
 		total += vlen;
 		count -= vlen;
 		if (sz == vlen)
