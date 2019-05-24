@@ -239,6 +239,9 @@ DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
  */
 #define H2_INITIAL_WINDOW_INCREMENT ((1U<<31)-1 - 65535)
 
+/* maximum amount of data we're OK with re-aligning for buffer optimizations */
+#define MAX_DATA_REALIGN 1024
+
 /* a few settings from the global section */
 static int h2_settings_header_table_size      =  4096; /* initial value */
 static int h2_settings_initial_window_size    = 65535; /* initial value */
@@ -3749,9 +3752,12 @@ try_again:
 		}
 		goto try_again;
 	}
-	else if (unlikely(b_space_wraps(csbuf))) {
-		/* it doesn't fit and the buffer is fragmented,
-		 * so let's defragment it and try again.
+	else if (unlikely(b_space_wraps(csbuf) &&
+	                  flen + chklen <= b_room(csbuf) &&
+	                  b_data(csbuf) <= MAX_DATA_REALIGN)) {
+		/* it doesn't fit in a single block and the buffer is fragmented, if there are
+		 * not too many data in the buffer, let's defragment it and try
+		 * again.
 		 */
 		b_slow_realign(csbuf, trash.area, 0);
 	}
@@ -4181,10 +4187,13 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		size = h2c->mfs;
 
 	if (size + 9 > outbuf.size) {
-		/* we have an opportunity for enlarging the too small
-		 * available space, let's try.
+		/* It doesn't fit at once. If it at least fits once split and
+		 * the amount of data to move is low, let's defragment the
+		 * buffer now.
 		 */
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(&h2c->mbuf) &&
+		    (size + 9 <= b_room(&h2c->mbuf)) &&
+		    b_data(&h2c->mbuf) <= MAX_DATA_REALIGN)
 			goto realign_again;
 		size = outbuf.size - 9;
 	}
@@ -4936,13 +4945,13 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		fsize = h2c->mfs; // >0
 
 	if (fsize + 9 > outbuf.size) {
-		/* we have an opportunity for enlarging the too small
-		 * available space, let's try.
-		 * FIXME: is this really interesting to do? Maybe we'll
-		 * spend lots of time realigning instead of using two
-		 * frames.
+		/* It doesn't fit at once. If it at least fits once split and
+		 * the amount of data to move is low, let's defragment the
+		 * buffer now.
 		 */
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(&h2c->mbuf) &&
+		    (fsize + 9 <= b_room(&h2c->mbuf)) &&
+		    b_data(&h2c->mbuf) <= MAX_DATA_REALIGN)
 			goto realign_again;
 		fsize = outbuf.size - 9;
 
