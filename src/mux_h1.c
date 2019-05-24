@@ -920,11 +920,6 @@ static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 	/* size of the HTX start-line */
 	sz = sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
 	sz += h1_eval_htx_hdrs_size(hdrs);
-
-	/* size of the EOM */
-	if (h1m->state == H1_MSG_DONE)
-		sz += sizeof(struct htx_blk) + 1;
-
 	return sz;
 }
 
@@ -936,11 +931,6 @@ static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 	/* size of the HTX start-line */
 	sz = sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
 	sz += h1_eval_htx_hdrs_size(hdrs);
-
-	/* size of the EOM */
-	if (h1m->state == H1_MSG_DONE)
-		sz += sizeof(struct htx_blk) + 1;
-
 	return sz;
 }
 
