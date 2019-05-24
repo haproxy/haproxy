@@ -94,24 +94,17 @@
 #define HTX_FL_UPGRADE           0x00000002
 
 
-/* Pseudo header types (max 255). */
-enum htx_phdr_type {
-	HTX_PHDR_UNKNOWN =  0,
-	HTX_PHDR_SIZE,
-};
-
 /* HTTP block's type (max 15). */
 enum htx_blk_type {
 	HTX_BLK_REQ_SL =  0, /* Request start-line */
 	HTX_BLK_RES_SL =  1, /* Response start-line */
 	HTX_BLK_HDR    =  2, /* header name/value block */
-	HTX_BLK_PHDR   =  3, /* pseudo header block */
-	HTX_BLK_EOH    =  4, /* end-of-headers block */
-	HTX_BLK_DATA   =  5, /* data block */
-	HTX_BLK_EOD    =  6, /* end-of-data block */
-	HTX_BLK_TLR    =  7, /* trailer name/value block */
-	HTX_BLK_EOM    =  8, /* end-of-message block */
-	/* 9 .. 14 unused */
+	HTX_BLK_EOH    =  3, /* end-of-headers block */
+	HTX_BLK_DATA   =  4, /* data block */
+	HTX_BLK_EOD    =  5, /* end-of-data block */
+	HTX_BLK_TLR    =  6, /* trailer name/value block */
+	HTX_BLK_EOM    =  7, /* end-of-message block */
+	/* 8 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
 
@@ -191,7 +184,6 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 struct htx_blk *htx_add_header(struct htx *htx, const struct ist name, const struct ist value);
 struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
-struct htx_blk *htx_add_pseudo_header(struct htx *htx,  enum htx_phdr_type phdr, const struct ist value);
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_blk *htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
@@ -299,25 +291,6 @@ static inline enum htx_blk_type htx_get_blk_type(const struct htx_blk *blk)
 	return (blk->info >> 28);
 }
 
-/* Returns the pseudo-header type of the block <blk>. If it's not a
- * pseudo-header, HTX_PHDR_UNKNOWN is returned.
- */
-static inline enum htx_phdr_type htx_get_blk_phdr(const struct htx_blk *blk)
-{
-	enum htx_blk_type type = htx_get_blk_type(blk);
-	enum htx_phdr_type phdr;
-
-	switch (type) {
-		case HTX_BLK_PHDR:
-			phdr = (blk->info & 0xff);
-			return phdr;
-
-		default:
-			/* Not a pseudo-header */
-			return HTX_PHDR_UNKNOWN;
-	}
-}
-
 /* Returns the size of the block <blk>, depending of its type */
 static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 {
@@ -327,9 +300,6 @@ static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 		case HTX_BLK_HDR:
 			/*       name.length       +        value.length        */
 			return ((blk->info & 0xff) + ((blk->info >> 8) & 0xfffff));
-		case HTX_BLK_PHDR:
-			/*          value.length          */
-			return ((blk->info >> 8) & 0xfffff);
 		default:
 			/*         value.length      */
 			return (blk->info & 0xfffffff);
@@ -542,7 +512,6 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 
 	switch (type) {
 		case HTX_BLK_HDR:
-		case HTX_BLK_PHDR:
 			blk->info = (type << 28) + (vlen << 8) + (blk->info & 0xff);
 			break;
 		case HTX_BLK_REQ_SL:
@@ -595,11 +564,6 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 	switch (type) {
 		case HTX_BLK_HDR:
 			ret.ptr = htx_get_blk_ptr(htx, blk) + (blk->info & 0xff);
-			ret.len = (blk->info >> 8) & 0xfffff;
-			break;
-
-		case HTX_BLK_PHDR:
-			ret.ptr = htx_get_blk_ptr(htx, blk);
 			ret.len = (blk->info >> 8) & 0xfffff;
 			break;
 
@@ -786,7 +750,6 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_REQ_SL: return "HTX_BLK_REQ_SL";
 		case HTX_BLK_RES_SL: return "HTX_BLK_RES_SL";
 		case HTX_BLK_HDR:    return "HTX_BLK_HDR";
-		case HTX_BLK_PHDR:   return "HTX_BLK_PHDR";
 		case HTX_BLK_EOH:    return "HTX_BLK_EOH";
 		case HTX_BLK_DATA:   return "HTX_BLK_DATA";
 		case HTX_BLK_EOD:    return "HTX_BLK_EOD";
@@ -795,14 +758,6 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";
 		default:             return "HTX_BLK_???";
 	};
-}
-
-static inline const char *htx_blk_phdr_str(enum htx_phdr_type phdr)
-{
-	switch (phdr) {
-		case HTX_PHDR_UNKNOWN: return "HTX_PHDR_UNKNOWN";
-		default:               return "HTX_PHDR_???";
-	}
 }
 
 static inline void htx_dump(struct htx *htx)
@@ -819,7 +774,6 @@ static inline void htx_dump(struct htx *htx)
 		struct htx_sl     *sl;
 		struct htx_blk    *blk  = htx_get_blk(htx, pos);
 		enum htx_blk_type  type = htx_get_blk_type(blk);
-		enum htx_phdr_type phdr = htx_get_blk_phdr(blk);
 		uint32_t           sz   = htx_get_blksz(blk);
 		struct ist         n, v;
 
@@ -838,11 +792,6 @@ static inline void htx_dump(struct htx *htx)
 			fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s: %.*s\n",
 				pos, htx_blk_type_str(type), sz, blk->addr,
 				(int)n.len, n.ptr,
-				(int)v.len, v.ptr);
-
-		else if (type == HTX_BLK_PHDR)
-			fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s\n",
-				pos, htx_blk_phdr_str(phdr), sz, blk->addr,
 				(int)v.len, v.ptr);
 		else
 			fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u%s\n",

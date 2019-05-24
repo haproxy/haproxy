@@ -1574,11 +1574,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_HDR_L2_LWS;
 				break;
 
-			case HTX_BLK_PHDR:
-				/* not implemented yet */
-				h1m->flags |= errflag;
-				break;
-
 			case HTX_BLK_EOH:
 				if (h1m->state != H1_MSG_LAST_LF && process_conn_mode) {
 					/* There is no "Connection:" header and

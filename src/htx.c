@@ -528,7 +528,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		if (!max)
 			break;
 		if (sz > max) {
-			/* Headers and pseudo headers must be fully copied  */
+			/* Headers must be fully copied  */
 			if (type != HTX_BLK_DATA)
 				break;
 			sz = max;
@@ -743,23 +743,6 @@ struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs
 			return NULL;
 	}
 	return htx_add_endof(htx, HTX_BLK_EOH);
-}
-/* Adds an HTX block of type PHDR in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
- */
-struct htx_blk *htx_add_pseudo_header(struct htx *htx,  enum htx_phdr_type phdr,
-				      const struct ist value)
-{
-	struct htx_blk *blk;
-
-	/* FIXME: check value.len ( < 1MB) */
-	blk = htx_add_blk(htx, HTX_BLK_PHDR, value.len);
-	if (!blk)
-		return NULL;
-
-	blk->info += (value.len << 8) + phdr;
-	memcpy(htx_get_blk_ptr(htx, blk), value.ptr, value.len);
-	return blk;
 }
 
 /* Adds an HTX block of type EOH,EOD or EOM in <htx>. It returns the new block
