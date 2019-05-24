@@ -167,6 +167,11 @@ struct peer_prep_params {
 #define PEER_MSG_STKT_UPDATE_TIMED     0x85
 #define PEER_MSG_STKT_INCUPDATE_TIMED  0x86
 
+/* The maximum length of an encoded data length. */
+#define PEER_MSG_ENC_LENGTH_MAXLEN    5
+
+#define PEER_MSG_HEADER_LEN               2
+
 /**********************************/
 /* Peer Session IO handler states */
 /**********************************/
@@ -516,7 +521,7 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 	struct shared_table *st;
 
 	st = params->swtch.shared_table;
-	cursor = datamsg = msg + 2 + 5;
+	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
 
 	/* Encode data */
 
@@ -596,7 +601,7 @@ static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *
 	uint32_t netinteger;
 	struct shared_table *st;
 
-	cursor = datamsg = msg + 2 + 5;
+	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
 
 	st = p->ack.shared_table;
 	intencode(st->remote_id, &cursor);
