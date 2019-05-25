@@ -35,20 +35,31 @@
 static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
 {
 	int elapsed;
-	unsigned int tot_inc;
 	unsigned int curr_sec;
+
+
+	/* we manipulate curr_ctr using atomic ops out of the lock, since
+	 * it's the most frequent access. However if we detect that a change
+	 * is needed, it's done under the date lock. We don't care whether
+	 * the value we're adding is considered as part of the current or
+	 * new period if another thread starts to rotate the period while
+	 * we operate, since timing variations would have resulted in the
+	 * same uncertainty as well.
+	 */
+	curr_sec = ctr->curr_sec;
+	if (curr_sec == (now.tv_sec & 0x7fffffff))
+		return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
 
 	do {
 		/* remove the bit, used for the lock */
-		curr_sec = ctr->curr_sec & 0x7fffffff;
-	}
-	while (!_HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x80000000));
+		curr_sec &= 0x7fffffff;
+	} while (!_HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x80000000));
 	__ha_barrier_atomic_store();
 
 	elapsed = (now.tv_sec & 0x7fffffff)- curr_sec;
 	if (unlikely(elapsed > 0)) {
 		ctr->prev_ctr = ctr->curr_ctr;
-		ctr->curr_ctr = 0;
+		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
 		if (likely(elapsed != 1)) {
 			/* we missed more than one second */
 			ctr->prev_ctr = 0;
@@ -56,13 +67,10 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 		curr_sec = now.tv_sec;
 	}
 
-	ctr->curr_ctr += inc;
-	tot_inc = ctr->curr_ctr;
-
 	/* release the lock and update the time in case of rotate. */
 	_HA_ATOMIC_STORE(&ctr->curr_sec, curr_sec & 0x7fffffff);
-	return tot_inc;
-	/* Note: later we may want to propagate the update to other counters */
+
+	return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
 }
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
@@ -73,33 +81,34 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 						  unsigned int period, unsigned int inc)
 {
-	unsigned int tot_inc;
 	unsigned int curr_tick;
+
+	curr_tick = ctr->curr_tick;
+	if (now_ms - curr_tick < period)
+		return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
 
 	do {
 		/* remove the bit, used for the lock */
-		curr_tick = (ctr->curr_tick >> 1) << 1;
-	}
-	while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1));
+		curr_tick &= ~1;
+	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1));
 	__ha_barrier_atomic_store();
 
 	if (now_ms - curr_tick >= period) {
 		ctr->prev_ctr = ctr->curr_ctr;
-		ctr->curr_ctr = 0;
+		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
 		curr_tick += period;
 		if (likely(now_ms - curr_tick >= period)) {
 			/* we missed at least two periods */
 			ctr->prev_ctr = 0;
 			curr_tick = now_ms;
 		}
+		curr_tick &= ~1;
 	}
 
-	ctr->curr_ctr += inc;
-	tot_inc = ctr->curr_ctr;
 	/* release the lock and update the time in case of rotate. */
-	_HA_ATOMIC_STORE(&ctr->curr_tick, (curr_tick >> 1) << 1);
-	return tot_inc;
-	/* Note: later we may want to propagate the update to other counters */
+	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick);
+
+	return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
 }
 
 /* Read a frequency counter taking history into account for missing time in
