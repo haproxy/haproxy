@@ -78,6 +78,10 @@ enum h2_cs {
 	H2_CS_ENTRIES    // must be last
 } __attribute__((packed));
 
+
+/* 2 buffers: one for the ring's root, one for the mbuf itself */
+#define H2C_MBUF_CNT 2
+
 /* H2 connection descriptor */
 struct h2c {
 	struct connection *conn;
@@ -105,7 +109,7 @@ struct h2c {
 	int32_t last_sid; /* last processed stream ID for GOAWAY, <0 before preface */
 
 	/* states for the mux direction */
-	struct buffer mbuf;    /* mux buffer */
+	struct buffer mbuf[H2C_MBUF_CNT];   /* mux buffers (ring) */
 	int32_t msi; /* mux stream ID (<0 = idle) */
 	int32_t mfl; /* mux frame length (if dsi >= 0) */
 	int8_t  mft; /* mux frame type   (if dsi >= 0) */
@@ -306,13 +310,12 @@ h2c_is_dead(struct h2c *h2c)
 	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
 	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
-	     (!b_data(&h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
+	     (!b_data(br_tail(h2c->mbuf)) &&  /* mux buffer empty, also process clean events below */
 	      (conn_xprt_read0_pending(h2c->conn) ||
 	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
 		return 1;
 
 	return 0;
-
 }
 
 /*****************************************************/
@@ -384,7 +387,7 @@ static int h2_buf_available(void *target)
 		return 1;
 	}
 
-	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc_margin(&h2c->mbuf, 0)) {
+	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc_margin(br_tail(h2c->mbuf), 0)) {
 		h2c->flags &= ~H2_CF_MUX_MALLOC;
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
@@ -560,7 +563,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	h2c->last_sid = -1;
 
-	h2c->mbuf = BUF_NULL;
+	br_init(h2c->mbuf, sizeof(h2c->mbuf) / sizeof(h2c->mbuf[0]));
 	h2c->miw = 65535; /* mux initial window size */
 	h2c->mws = 65535; /* mux window size */
 	h2c->mfs = 16384; /* initial max frame size */
@@ -651,7 +654,7 @@ static void h2_release(struct h2c *h2c)
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
 		h2_release_buf(h2c, &h2c->dbuf);
-		h2_release_buf(h2c, &h2c->mbuf);
+		h2_release_buf(h2c, br_tail(h2c->mbuf));
 
 		if (h2c->task) {
 			h2c->task->context = NULL;
@@ -1061,7 +1064,7 @@ static int h2c_send_settings(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1178,7 +1181,7 @@ static int h2c_bck_send_preface(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1219,7 +1222,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		if (h2s)
@@ -1291,7 +1294,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -1351,7 +1354,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1407,7 +1410,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -1607,7 +1610,7 @@ static int h2c_ack_settings(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1662,7 +1665,7 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1753,7 +1756,7 @@ static int h2c_ack_ping(struct h2c *h2c)
 		return 0;
 	}
 
-	res = h2_get_buf(h2c, &h2c->mbuf);
+	res = h2_get_buf(h2c, br_tail(h2c->mbuf));
 	if (!res) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -2772,13 +2775,13 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (b_data(&h2c->mbuf)) {
-			int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h2c->mbuf, b_data(&h2c->mbuf), flags);
+		if (b_data(br_tail(h2c->mbuf))) {
+			int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), flags);
 			if (!ret)
 				break;
 			sent = 1;
-			b_del(&h2c->mbuf, ret);
-			b_realign_if_empty(&h2c->mbuf);
+			b_del(br_tail(h2c->mbuf), ret);
+			b_realign_if_empty(br_tail(h2c->mbuf));
 		}
 
 		/* wrote at least one byte, the buffer is not full anymore */
@@ -2787,7 +2790,7 @@ static int h2_send(struct h2c *h2c)
 
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* output closed, nothing to send, clear the buffer to release it */
-		b_reset(&h2c->mbuf);
+		b_reset(br_tail(h2c->mbuf));
 	}
 	/* We're not full anymore, so we can wake any task that are waiting
 	 * for us.
@@ -2816,7 +2819,7 @@ static int h2_send(struct h2c *h2c)
 		}
 	}
 	/* We're done, no more to send */
-	if (!b_data(&h2c->mbuf))
+	if (!b_data(br_tail(h2c->mbuf)))
 		return sent;
 schedule:
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
@@ -2909,13 +2912,13 @@ static int h2_process(struct h2c *h2c)
 	if ((conn->flags & CO_FL_SOCK_WR_SH) ||
 	    h2c->st0 == H2_CS_ERROR2 || (h2c->flags & H2_CF_GOAWAY_FAILED) ||
 	    (h2c->st0 != H2_CS_ERROR &&
-	     !b_data(&h2c->mbuf) &&
+	     !b_data(br_tail(h2c->mbuf)) &&
 	     (h2c->mws <= 0 || LIST_ISEMPTY(&h2c->fctl_list)) &&
 	     ((h2c->flags & H2_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&h2c->send_list))))
-		h2_release_buf(h2c, &h2c->mbuf);
+		h2_release_buf(h2c, br_tail(h2c->mbuf));
 
 	if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || b_data(&h2c->mbuf)) {
+		if (eb_is_empty(&h2c->streams_by_id) || b_data(br_tail(h2c->mbuf))) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -2960,7 +2963,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	h2c_error(h2c, H2_ERR_NO_ERROR);
 	h2_wake_some_streams(h2c, 0);
 
-	if (b_data(&h2c->mbuf)) {
+	if (b_data(br_tail(h2c->mbuf))) {
 		/* don't even try to send a GOAWAY, the buffer is stuck */
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 	}
@@ -2970,11 +2973,11 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (h2c_send_goaway_error(h2c, NULL) <= 0)
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
-	if (b_data(&h2c->mbuf) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
-		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, &h2c->mbuf, b_data(&h2c->mbuf), 0);
+	if (b_data(br_tail(h2c->mbuf)) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
+		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), 0);
 		if (ret > 0) {
-			b_del(&h2c->mbuf, ret);
-			b_realign_if_empty(&h2c->mbuf);
+			b_del(br_tail(h2c->mbuf), ret);
+			b_realign_if_empty(br_tail(h2c->mbuf));
 		}
 	}
 
@@ -3157,7 +3160,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2_release(h2c);
 	}
 	else if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || b_data(&h2c->mbuf)) {
+		if (eb_is_empty(&h2c->streams_by_id) || b_data(br_tail(h2c->mbuf))) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -3888,7 +3891,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 		return 0;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
@@ -3934,14 +3937,14 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9)
@@ -3961,7 +3964,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 
 	if (!hpack_encode_str_status(&outbuf, h2s->status, list[0].v)) {
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(br_tail(h2c->mbuf)))
 			goto realign_again;
 		goto full;
 	}
@@ -3981,7 +3984,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 
 		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -4001,7 +4004,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	max -= ret;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, outbuf.data);
+	b_add(br_tail(h2c->mbuf), outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 
 	if (es_now) {
@@ -4059,7 +4062,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		goto end;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -4072,11 +4075,11 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
 		/* If there are pending data in the output buffer, and we have
@@ -4084,13 +4087,13 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		 * still perform a copy anyway. Otherwise we'll pretend the mbuf
 		 * is full and wait, to save some slow realign calls.
 		 */
-		if ((max + 9 > b_room(&h2c->mbuf) || max >= b_size(&h2c->mbuf) / 4)) {
+		if ((max + 9 > b_room(br_tail(h2c->mbuf)) || max >= b_size(br_tail(h2c->mbuf)) / 4)) {
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
 			goto end;
 		}
 
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9) {
@@ -4191,9 +4194,9 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		 * the amount of data to move is low, let's defragment the
 		 * buffer now.
 		 */
-		if (b_space_wraps(&h2c->mbuf) &&
-		    (size + 9 <= b_room(&h2c->mbuf)) &&
-		    b_data(&h2c->mbuf) <= MAX_DATA_REALIGN)
+		if (b_space_wraps(br_tail(h2c->mbuf)) &&
+		    (size + 9 <= b_room(br_tail(h2c->mbuf))) &&
+		    b_data(br_tail(h2c->mbuf)) <= MAX_DATA_REALIGN)
 			goto realign_again;
 		size = outbuf.size - 9;
 	}
@@ -4266,7 +4269,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		outbuf.area[4] |= H2_F_DATA_END_STREAM;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, size + 9);
+	b_add(br_tail(h2c->mbuf), size + 9);
 
 	/* consume incoming H1 response */
 	if (size > 0) {
@@ -4334,7 +4337,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		return 0;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
@@ -4395,14 +4398,14 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9)
@@ -4415,7 +4418,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	/* encode status, which necessarily is the first one */
 	if (!hpack_encode_int_status(&outbuf, h2s->status)) {
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(br_tail(h2c->mbuf)))
 			goto realign_again;
 		goto full;
 	}
@@ -4435,7 +4438,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -4459,7 +4462,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, outbuf.data);
+	b_add(br_tail(h2c->mbuf), outbuf.data);
 
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
 	 * 1xx responses, another HEADERS frame is expected.
@@ -4539,7 +4542,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		return 0;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
@@ -4594,14 +4597,14 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9)
@@ -4614,7 +4617,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	/* encode the method, which necessarily is the first one */
 	if (!hpack_encode_method(&outbuf, sl->info.req.meth, meth)) {
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(br_tail(h2c->mbuf)))
 			goto realign_again;
 		goto full;
 	}
@@ -4628,7 +4631,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		/* encode the scheme which is always "https" (or 0x86 for "http") */
 		if (!hpack_encode_scheme(&outbuf, ist("https"))) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -4636,7 +4639,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		/* encode the path, which necessarily is the second one */
 		if (!hpack_encode_path(&outbuf, path)) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -4660,7 +4663,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	if (auth.ptr && !hpack_encode_header(&outbuf, ist(":authority"), auth)) {
 		/* output full */
-		if (b_space_wraps(&h2c->mbuf))
+		if (b_space_wraps(br_tail(h2c->mbuf)))
 			goto realign_again;
 		goto full;
 	}
@@ -4681,7 +4684,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -4709,7 +4712,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, outbuf.data);
+	b_add(br_tail(h2c->mbuf), outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
 
@@ -4777,7 +4780,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		goto end;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -4842,18 +4845,18 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 	if (unlikely(fsize == count &&
 	             htx->used == 1 && type == HTX_BLK_DATA &&
 	             fsize <= h2s->mws && fsize <= h2c->mws && fsize <= h2c->mfs)) {
-		void *old_area = h2c->mbuf.area;
+		void *old_area = br_tail(h2c->mbuf)->area;
 
-		if (b_data(&h2c->mbuf)) {
+		if (b_data(br_tail(h2c->mbuf))) {
 			/* Too bad there are data left there. We're willing to memcpy/memmove
 			 * up to 1/4 of the buffer, which means that it's OK to copy a large
 			 * frame into a buffer containing few data if it needs to be realigned,
 			 * and that it's also OK to copy few data without realigning. Otherwise
 			 * we'll pretend the mbuf is full and wait for it to become empty.
 			 */
-			if (fsize + 9 <= b_room(&h2c->mbuf) &&
-			    (b_data(&h2c->mbuf) <= b_size(&h2c->mbuf) / 4 ||
-			     (fsize <= b_size(&h2c->mbuf) / 4 && fsize + 9 <= b_contig_space(&h2c->mbuf))))
+			if (fsize + 9 <= b_room(br_tail(h2c->mbuf)) &&
+			    (b_data(br_tail(h2c->mbuf)) <= b_size(br_tail(h2c->mbuf)) / 4 ||
+			     (fsize <= b_size(br_tail(h2c->mbuf)) / 4 && fsize + 9 <= b_contig_space(br_tail(h2c->mbuf)))))
 				goto copy;
 
 			h2c->flags |= H2_CF_MUX_MFULL;
@@ -4864,10 +4867,10 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		/* map an H2 frame to the HTX block so that we can put the
 		 * frame header there.
 		 */
-		h2c->mbuf.area = buf->area;
-		h2c->mbuf.head = sizeof(struct htx) + blk->addr - 9;
-		h2c->mbuf.data = fsize + 9;
-		outbuf.area    = b_head(&h2c->mbuf);
+		br_tail(h2c->mbuf)->area = buf->area;
+		br_tail(h2c->mbuf)->head = sizeof(struct htx) + blk->addr - 9;
+		br_tail(h2c->mbuf)->data = fsize + 9;
+		outbuf.area    = b_head(br_tail(h2c->mbuf));
 
 		/* prepend an H2 DATA frame header just before the DATA block */
 		memcpy(outbuf.area, "\x00\x00\x00\x00\x00", 5);
@@ -4889,14 +4892,14 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 	/* for DATA and EOM we'll have to emit a frame, even if empty */
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9) {
@@ -4949,9 +4952,9 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		 * the amount of data to move is low, let's defragment the
 		 * buffer now.
 		 */
-		if (b_space_wraps(&h2c->mbuf) &&
-		    (fsize + 9 <= b_room(&h2c->mbuf)) &&
-		    b_data(&h2c->mbuf) <= MAX_DATA_REALIGN)
+		if (b_space_wraps(br_tail(h2c->mbuf)) &&
+		    (fsize + 9 <= b_room(br_tail(h2c->mbuf))) &&
+		    b_data(br_tail(h2c->mbuf)) <= MAX_DATA_REALIGN)
 			goto realign_again;
 		fsize = outbuf.size - 9;
 
@@ -4994,7 +4997,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 		outbuf.area[4] |= H2_F_DATA_END_STREAM;
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, fsize + 9);
+	b_add(br_tail(h2c->mbuf), fsize + 9);
 
 	/* consume incoming HTX block, including EOM */
 	total += fsize;
@@ -5049,7 +5052,7 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		goto end;
 	}
 
-	if (!h2_get_buf(h2c, &h2c->mbuf)) {
+	if (!h2_get_buf(h2c, br_tail(h2c->mbuf))) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -5107,14 +5110,14 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	chunk_reset(&outbuf);
 
 	while (1) {
-		outbuf.area  = b_tail(&h2c->mbuf);
-		outbuf.size = b_contig_space(&h2c->mbuf);
+		outbuf.area  = b_tail(br_tail(h2c->mbuf));
+		outbuf.size = b_contig_space(br_tail(h2c->mbuf));
 		outbuf.data = 0;
 
-		if (outbuf.size >= 9 || !b_space_wraps(&h2c->mbuf))
+		if (outbuf.size >= 9 || !b_space_wraps(br_tail(h2c->mbuf)))
 			break;
 	realign_again:
-		b_slow_realign(&h2c->mbuf, trash.area, b_data(&h2c->mbuf));
+		b_slow_realign(br_tail(h2c->mbuf), trash.area, b_data(br_tail(h2c->mbuf)));
 	}
 
 	if (outbuf.size < 9)
@@ -5142,7 +5145,7 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 
 		if (!hpack_encode_header(&outbuf, list[idx].n, list[idx].v)) {
 			/* output full */
-			if (b_space_wraps(&h2c->mbuf))
+			if (b_space_wraps(br_tail(h2c->mbuf)))
 				goto realign_again;
 			goto full;
 		}
@@ -5163,7 +5166,7 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
 	/* commit the H2 response */
-	b_add(&h2c->mbuf, outbuf.data);
+	b_add(br_tail(h2c->mbuf), outbuf.data);
 	h2s->flags |= H2_SF_ES_SENT;
 
 	if (h2s->st == H2_SS_OPEN)
@@ -5618,8 +5621,8 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_data(&h2c->dbuf), b_orig(&h2c->dbuf),
 		      (unsigned int)b_head_ofs(&h2c->dbuf), (unsigned int)b_size(&h2c->dbuf),
 		      h2c->msi,
-		      (unsigned int)b_data(&h2c->mbuf), b_orig(&h2c->mbuf),
-		      (unsigned int)b_head_ofs(&h2c->mbuf), (unsigned int)b_size(&h2c->mbuf));
+		      (unsigned int)b_data(br_tail(h2c->mbuf)), b_orig(br_tail(h2c->mbuf)),
+		      (unsigned int)b_head_ofs(br_tail(h2c->mbuf)), (unsigned int)b_size(br_tail(h2c->mbuf)));
 
 	if (h2s) {
 		chunk_appendf(msg, " last_h2s=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
