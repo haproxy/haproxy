@@ -310,7 +310,7 @@ h2c_is_dead(struct h2c *h2c)
 	    ((h2c->conn->flags & CO_FL_ERROR) ||    /* errors close immediately */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
 	     (!(h2c->conn->owner)) || /* Nobody's left to take care of the connection, drop it now */
-	     (!b_data(br_tail(h2c->mbuf)) &&  /* mux buffer empty, also process clean events below */
+	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      (conn_xprt_read0_pending(h2c->conn) ||
 	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
 		return 1;
@@ -2775,7 +2775,7 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (b_data(br_tail(h2c->mbuf))) {
+		if (br_data(h2c->mbuf)) {
 			int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), flags);
 			if (!ret)
 				break;
@@ -2819,7 +2819,7 @@ static int h2_send(struct h2c *h2c)
 		}
 	}
 	/* We're done, no more to send */
-	if (!b_data(br_tail(h2c->mbuf)))
+	if (!br_data(h2c->mbuf))
 		return sent;
 schedule:
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
@@ -2912,13 +2912,13 @@ static int h2_process(struct h2c *h2c)
 	if ((conn->flags & CO_FL_SOCK_WR_SH) ||
 	    h2c->st0 == H2_CS_ERROR2 || (h2c->flags & H2_CF_GOAWAY_FAILED) ||
 	    (h2c->st0 != H2_CS_ERROR &&
-	     !b_data(br_tail(h2c->mbuf)) &&
+	     !br_data(h2c->mbuf) &&
 	     (h2c->mws <= 0 || LIST_ISEMPTY(&h2c->fctl_list)) &&
 	     ((h2c->flags & H2_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&h2c->send_list))))
 		h2_release_buf(h2c, br_tail(h2c->mbuf));
 
 	if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || b_data(br_tail(h2c->mbuf))) {
+		if (eb_is_empty(&h2c->streams_by_id) || br_data(h2c->mbuf)) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
@@ -2963,7 +2963,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	h2c_error(h2c, H2_ERR_NO_ERROR);
 	h2_wake_some_streams(h2c, 0);
 
-	if (b_data(br_tail(h2c->mbuf))) {
+	if (br_data(h2c->mbuf)) {
 		/* don't even try to send a GOAWAY, the buffer is stuck */
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 	}
@@ -2973,7 +2973,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (h2c_send_goaway_error(h2c, NULL) <= 0)
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
-	if (b_data(br_tail(h2c->mbuf)) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
+	if (br_data(h2c->mbuf) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
 		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), 0);
 		if (ret > 0) {
 			b_del(br_tail(h2c->mbuf), ret);
@@ -3160,7 +3160,7 @@ static void h2_detach(struct conn_stream *cs)
 		h2_release(h2c);
 	}
 	else if (h2c->task) {
-		if (eb_is_empty(&h2c->streams_by_id) || b_data(br_tail(h2c->mbuf))) {
+		if (eb_is_empty(&h2c->streams_by_id) || br_data(h2c->mbuf)) {
 			h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 			task_queue(h2c->task);
 		}
