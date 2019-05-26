@@ -79,8 +79,8 @@ enum h2_cs {
 } __attribute__((packed));
 
 
-/* 2 buffers: one for the ring's root, one for the mbuf itself */
-#define H2C_MBUF_CNT 2
+/* 32 buffers: one for the ring's root, rest for the mbuf itself */
+#define H2C_MBUF_CNT 32
 
 /* H2 connection descriptor */
 struct h2c {
@@ -1077,13 +1077,6 @@ static int h2c_send_settings(struct h2c *h2c)
 		return 0;
 	}
 
-	res = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, res)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
-	}
-
 	chunk_init(&buf, buf_data, sizeof(buf_data));
 	chunk_memcpy(&buf,
 	       "\x00\x00\x00"      /* length    : 0 for now */
@@ -1139,9 +1132,20 @@ static int h2c_send_settings(struct h2c *h2c)
 	}
 
 	h2_set_frame_size(buf.area, buf.data - 9);
+
+	res = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, res)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
 	ret = b_istput(res, ist2(buf.area, buf.data));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
 			return 0;
@@ -1188,6 +1192,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 static int h2c_bck_send_preface(struct h2c *h2c)
 {
 	struct buffer *res;
+	int ret;
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
@@ -1195,6 +1200,7 @@ static int h2c_bck_send_preface(struct h2c *h2c)
 	}
 
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
@@ -1203,9 +1209,21 @@ static int h2c_bck_send_preface(struct h2c *h2c)
 
 	if (!b_data(res)) {
 		/* preface not yet sent */
-		b_istput(res, ist(H2_CONN_PREFACE));
+		ret = b_istput(res, ist(H2_CONN_PREFACE));
+		if (unlikely(ret <= 0)) {
+			if (!ret) {
+				if ((res = br_tail_add(h2c->mbuf)) != NULL)
+					goto retry;
+				h2c->flags |= H2_CF_MUX_MFULL;
+				h2c->flags |= H2_CF_DEM_MROOM;
+				return 0;
+			}
+			else {
+				h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
+				return 0;
+			}
+		}
 	}
-
 	return h2c_send_settings(h2c);
 }
 
@@ -1235,7 +1253,17 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
+	/* len: 8, type: 7, flags: none, sid: 0 */
+	memcpy(str, "\x00\x00\x08\x07\x00\x00\x00\x00\x00", 9);
+
+	if (h2c->last_sid < 0)
+		h2c->last_sid = h2c->max_id;
+
+	write_n32(str + 9, h2c->last_sid);
+	write_n32(str + 13, h2c->errcode);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		if (h2s)
@@ -1245,17 +1273,11 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
-	/* len: 8, type: 7, flags: none, sid: 0 */
-	memcpy(str, "\x00\x00\x08\x07\x00\x00\x00\x00\x00", 9);
-
-	if (h2c->last_sid < 0)
-		h2c->last_sid = h2c->max_id;
-
-	write_n32(str + 9, h2c->last_sid);
-	write_n32(str + 13, h2c->errcode);
 	ret = b_istput(res, ist2(str, 17));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			if (h2s)
 				h2s->flags |= H2_SF_BLK_MROOM;
@@ -1307,21 +1329,24 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
+	/* len: 4, type: 3, flags: none */
+	memcpy(str, "\x00\x00\x04\x03\x00", 5);
+	write_n32(str + 5, h2s->id);
+	write_n32(str + 9, h2s->errcode);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
 	}
 
-	/* len: 4, type: 3, flags: none */
-	memcpy(str, "\x00\x00\x04\x03\x00", 5);
-	write_n32(str + 5, h2s->id);
-	write_n32(str + 9, h2s->errcode);
 	ret = b_istput(res, ist2(str, 13));
-
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
 			return 0;
@@ -1367,22 +1392,25 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
+	/* len: 4, type: 3, flags: none */
+	memcpy(str, "\x00\x00\x04\x03\x00", 5);
+
+	write_n32(str + 5, h2c->dsi);
+	write_n32(str + 9, h2s->errcode);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
 		return 0;
 	}
 
-	/* len: 4, type: 3, flags: none */
-	memcpy(str, "\x00\x00\x04\x03\x00", 5);
-
-	write_n32(str + 5, h2c->dsi);
-	write_n32(str + 9, h2s->errcode);
 	ret = b_istput(res, ist2(str, 13));
-
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
 			return 0;
@@ -1423,21 +1451,25 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 		return 0;
 	}
 
+	/* len: 0x000000, type: 0(DATA), flags: ES=1 */
+	memcpy(str, "\x00\x00\x00\x00\x01", 5);
+	write_n32(str + 5, h2s->id);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
 	}
 
-	/* len: 0x000000, type: 0(DATA), flags: ES=1 */
-	memcpy(str, "\x00\x00\x00\x00\x01", 5);
-	write_n32(str + 5, h2s->id);
 	ret = b_istput(res, ist2(str, 9));
 	if (likely(ret > 0)) {
 		h2s->flags |= H2_SF_ES_SENT;
 	}
 	else if (!ret) {
+		if ((res = br_tail_add(h2c->mbuf)) != NULL)
+			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
@@ -1623,21 +1655,24 @@ static int h2c_ack_settings(struct h2c *h2c)
 		return 0;
 	}
 
+	memcpy(str,
+	       "\x00\x00\x00"     /* length : 0 (no data)  */
+	       "\x04" "\x01"      /* type   : 4, flags : ACK */
+	       "\x00\x00\x00\x00" /* stream ID */, 9);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
 		return 0;
 	}
 
-	memcpy(str,
-	       "\x00\x00\x00"     /* length : 0 (no data)  */
-	       "\x04" "\x01"      /* type   : 4, flags : ACK */
-	       "\x00\x00\x00\x00" /* stream ID */, 9);
-
 	ret = b_istput(res, ist2(str, 9));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
 			return 0;
@@ -1678,22 +1713,24 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 		return 0;
 	}
 
+	/* length: 4, type: 8, flags: none */
+	memcpy(str, "\x00\x00\x04\x08\x00", 5);
+	write_n32(str + 5, sid);
+	write_n32(str + 9, increment);
+
 	res = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
 		return 0;
 	}
 
-	/* length: 4, type: 8, flags: none */
-	memcpy(str, "\x00\x00\x04\x08\x00", 5);
-	write_n32(str + 5, sid);
-	write_n32(str + 9, increment);
-
 	ret = b_istput(res, ist2(str, 13));
-
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
 			return 0;
@@ -1769,13 +1806,6 @@ static int h2c_ack_ping(struct h2c *h2c)
 		return 0;
 	}
 
-	res = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, res)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
-	}
-
 	memcpy(str,
 	       "\x00\x00\x08"     /* length : 8 (same payload) */
 	       "\x06" "\x01"      /* type   : 6, flags : ACK   */
@@ -1784,9 +1814,19 @@ static int h2c_ack_ping(struct h2c *h2c)
 	/* copy the original payload */
 	h2_get_buf_bytes(str + 9, 8, &h2c->dbuf, 0);
 
+	res = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, res)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2c->flags |= H2_CF_DEM_MROOM;
+		return 0;
+	}
+
 	ret = b_istput(res, ist2(str, 17));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
+			if ((res = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
 			return 0;
@@ -3966,6 +4006,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	}
 
 	mbuf = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -4067,6 +4108,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *bu
 	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1m_state_str(h1m->err_state));
 	return ret;
  full:
+	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+		goto retry;
 	h1m_init_res(h1m);
 	h1m->err_pos = -1; // don't care about errors on the response path
 	h2c->flags |= H2_CF_MUX_MFULL;
@@ -4099,6 +4142,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
 	mbuf = br_tail(h2c->mbuf);
+ retry:
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
@@ -4122,6 +4166,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 		 * is full and wait, to save some slow realign calls.
 		 */
 		if ((max + 9 > b_room(mbuf) || max >= b_size(mbuf) / 4)) {
+			if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
 			goto end;
@@ -4131,6 +4177,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
 	if (outbuf.size < 9) {
+		if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -4236,6 +4284,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
 	}
 
 	if (size <= 0) {
+		if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -4372,13 +4422,6 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		return 0;
 	}
 
-	mbuf = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		return 0;
-	}
-
 	/* determine the first block which must not be deleted, blk_end may
 	 * be NULL if all blocks have to be deleted.
 	 */
@@ -4429,6 +4472,14 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	if (h2s->status == 204 || h2s->status == 304) {
 		/* no contents, claim c-len is present and set to zero */
 		es_now = 1;
+	}
+
+	mbuf = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, mbuf)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
 	}
 
 	chunk_reset(&outbuf);
@@ -4533,6 +4584,8 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
  end:
 	return ret;
  full:
+	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+		goto retry;
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
@@ -4573,13 +4626,6 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
-		return 0;
-	}
-
-	mbuf = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
 		return 0;
 	}
 
@@ -4628,6 +4674,14 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	/* marker for end of headers */
 	list[hdr].n = ist("");
+
+	mbuf = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, mbuf)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		return 0;
+	}
 
 	chunk_reset(&outbuf);
 
@@ -4775,6 +4829,8 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
  end:
 	return ret;
  full:
+	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+		goto retry;
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
@@ -4810,13 +4866,6 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
-		goto end;
-	}
-
-	mbuf = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
 	}
 
@@ -4859,6 +4908,14 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 	else if (type != HTX_BLK_DATA)
 		goto end;
 
+	mbuf = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, mbuf)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		goto end;
+	}
+
 	/* Perform some optimizations to reduce the number of buffer copies.
 	 * First, if the mux's buffer is empty and the htx area contains
 	 * exactly one data block of the same size as the requested count, and
@@ -4892,6 +4949,9 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 			    (b_data(mbuf) <= b_size(mbuf) / 4 ||
 			     (fsize <= b_size(mbuf) / 4 && fsize + 9 <= b_contig_space(mbuf))))
 				goto copy;
+
+			if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
@@ -4932,6 +4992,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 	}
 
 	if (outbuf.size < 9) {
+		if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
 		goto end;
@@ -4989,6 +5051,8 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 		if (fsize <= 0) {
 			/* no need to send an empty frame here */
+			if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
 			goto end;
@@ -5082,13 +5146,6 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		goto end;
 	}
 
-	mbuf = br_tail(h2c->mbuf);
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		goto end;
-	}
-
 	/* The principle is that we parse each and every trailers block using
 	 * the H1 headers parser, and append it to the list. We don't proceed
 	 * until EOM is met. blk_end will point to the EOM block.
@@ -5137,6 +5194,14 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 
 	if (list[hdr].n.len != 0)
 		goto fail; // empty trailer not found: internal error
+
+	mbuf = br_tail(h2c->mbuf);
+ retry:
+	if (!h2_get_buf(h2c, mbuf)) {
+		h2c->flags |= H2_CF_MUX_MALLOC;
+		h2s->flags |= H2_SF_BLK_MROOM;
+		goto end;
+	}
 
 	chunk_reset(&outbuf);
 
@@ -5215,6 +5280,8 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
  end:
 	return ret;
  full:
+	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
+		goto retry;
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
