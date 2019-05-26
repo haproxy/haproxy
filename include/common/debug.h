@@ -68,20 +68,6 @@
 #define BUG_ON(cond)
 #endif
 
-/* this one is provided for easy code tracing.
- * Usage: TRACE(strm||0, fmt, args...);
- *        TRACE(strm, "");
- */
-#define TRACE(strm, fmt, args...) do {                            \
-	fprintf(stderr,                                           \
-		"%d.%06d [%s:%d %s] [strm %p(%x)] " fmt "\n",      \
-		(int)now.tv_sec, (int)now.tv_usec,                \
-		__FILE__, __LINE__, __FUNCTION__,                 \
-		strm, strm?((struct stream *)strm)->uniq_id:~0U, \
-		##args);                                           \
-        } while (0)
-
-
 struct task;
 struct buffer;
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx);
