@@ -432,6 +432,19 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 	}
 }
 
+static inline void h2_release_mbuf(struct h2c *h2c)
+{
+	struct buffer *buf;
+	unsigned int count = 0;
+
+	while (b_size(buf = br_head_pick(h2c->mbuf))) {
+		b_free(buf);
+		count++;
+	}
+	if (count)
+		offer_buffers(h2c->buf_wait.target, tasks_run_queue);
+}
+
 /* returns the number of allocatable outgoing streams for the connection taking
  * the last_sid and the reserved ones into account.
  */
@@ -654,7 +667,7 @@ static void h2_release(struct h2c *h2c)
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 
 		h2_release_buf(h2c, &h2c->dbuf);
-		h2_release_buf(h2c, br_tail(h2c->mbuf));
+		h2_release_mbuf(h2c);
 
 		if (h2c->task) {
 			h2c->task->context = NULL;
@@ -2915,7 +2928,7 @@ static int h2_process(struct h2c *h2c)
 	     !br_data(h2c->mbuf) &&
 	     (h2c->mws <= 0 || LIST_ISEMPTY(&h2c->fctl_list)) &&
 	     ((h2c->flags & H2_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&h2c->send_list))))
-		h2_release_buf(h2c, br_tail(h2c->mbuf));
+		h2_release_mbuf(h2c);
 
 	if (h2c->task) {
 		if (eb_is_empty(&h2c->streams_by_id) || br_data(h2c->mbuf)) {
