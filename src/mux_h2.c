@@ -2774,6 +2774,8 @@ static int h2_send(struct h2c *h2c)
 	done = 0;
 	while (!done) {
 		unsigned int flags = 0;
+		unsigned int released = 0;
+		struct buffer *buf;
 
 		/* fill as much as we can into the current buffer */
 		while (((h2c->flags & (H2_CF_MUX_MFULL|H2_CF_MUX_MALLOC)) == 0) && !done)
@@ -2788,14 +2790,22 @@ static int h2_send(struct h2c *h2c)
 		if (h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))
 			flags |= CO_SFL_MSG_MORE;
 
-		if (br_data(h2c->mbuf)) {
-			int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), flags);
-			if (!ret)
-				break;
-			sent = 1;
-			b_del(br_tail(h2c->mbuf), ret);
-			b_realign_if_empty(br_tail(h2c->mbuf));
+		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
+			if (b_data(buf)) {
+				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
+				if (!ret)
+					break;
+				sent = 1;
+				b_del(buf, ret);
+				if (b_data(buf))
+					break;
+			}
+			b_free(buf);
+			released++;
 		}
+
+		if (released)
+			offer_buffers(h2c->buf_wait.target, tasks_run_queue);
 
 		/* wrote at least one byte, the buffer is not full anymore */
 		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
@@ -2987,11 +2997,24 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		h2c->flags |= H2_CF_GOAWAY_FAILED;
 
 	if (br_data(h2c->mbuf) && !(h2c->flags & H2_CF_GOAWAY_FAILED) && conn_xprt_ready(h2c->conn)) {
-		int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, br_tail(h2c->mbuf), b_data(br_tail(h2c->mbuf)), 0);
-		if (ret > 0) {
-			b_del(br_tail(h2c->mbuf), ret);
-			b_realign_if_empty(br_tail(h2c->mbuf));
+		unsigned int released = 0;
+		struct buffer *buf;
+
+		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
+			if (b_data(buf)) {
+				int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, buf, b_data(buf), 0);
+				if (!ret)
+					break;
+				b_del(buf, ret);
+				if (b_data(buf))
+					break;
+				b_free(buf);
+				released++;
+			}
 		}
+
+		if (released)
+			offer_buffers(h2c->buf_wait.target, tasks_run_queue);
 	}
 
 	/* either we can release everything now or it will be done later once
