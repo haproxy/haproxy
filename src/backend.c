@@ -1354,6 +1354,13 @@ int connect_server(struct stream *s)
 			for (i = 0; i < global.nbthread; i++) {
 				if (i == tid)
 					continue;
+
+				// just silence stupid gcc which reports an absurd
+				// out-of-bounds warning for <i> which is always
+				// exactly zero without threads, but it seems to
+				// see it possibly larger.
+				ALREADY_CHECKED(i);
+
 				tokill_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i],
 				    struct connection *, list);
 				if (tokill_conn) {
