@@ -5630,6 +5630,22 @@ static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_ty
 	return 0;
 }
 
+/* Use the provided XPRT as an underlying XPRT, and provide the old one.
+ * Returns 0 on success, and non-zero on failure.
+ */
+static int ssl_add_xprt(struct connection *conn, void *xprt_ctx, void *toadd_ctx, const struct xprt_ops *toadd_ops, void **oldxprt_ctx, const struct xprt_ops **oldxprt_ops)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (oldxprt_ops != NULL)
+		*oldxprt_ops = ctx->xprt;
+	if (oldxprt_ctx != NULL)
+		*oldxprt_ctx = ctx->xprt_ctx;
+	ctx->xprt = toadd_ops;
+	ctx->xprt_ctx = toadd_ctx;
+	return 0;
+}
+
 /* Remove the specified xprt. If if it our underlying XPRT, remove it and
  * return 0, otherwise just call the remove_xprt method from the underlying
  * XPRT.
@@ -9842,6 +9858,7 @@ static struct xprt_ops ssl_sock = {
 	.subscribe = ssl_subscribe,
 	.unsubscribe = ssl_unsubscribe,
 	.remove_xprt = ssl_remove_xprt,
+	.add_xprt = ssl_add_xprt,
 	.rcv_pipe = NULL,
 	.snd_pipe = NULL,
 	.shutr    = NULL,
