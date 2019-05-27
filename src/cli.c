@@ -1078,9 +1078,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "\npoll_drop:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].poll_drop);
 	chunk_appendf(&trash, "\npoll_dead:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].poll_dead);
 	chunk_appendf(&trash, "\npoll_skip:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].poll_skip);
-	chunk_appendf(&trash, "\nfd_skip:");      for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].fd_skip);
 	chunk_appendf(&trash, "\nfd_lock:");      for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].fd_lock);
-	chunk_appendf(&trash, "\nfd_del:");       for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].fd_del);
 	chunk_appendf(&trash, "\nconn_dead:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].conn_dead);
 	chunk_appendf(&trash, "\nstream:");       for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].stream);
 	chunk_appendf(&trash, "\nempty_rq:");     for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].empty_rq);
