@@ -552,7 +552,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			if (switched) {
 				if (avoided) {
 					srv = avoided;
-					break;
+					goto take_this_one;
 				}
 				goto requeue_servers;
 			}
@@ -582,6 +582,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		full = srv;
 	}
 
+ take_this_one:
 	/* OK, we got the best server, let's update it */
 	fwrr_queue_srv(srv);
 
