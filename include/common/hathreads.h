@@ -77,7 +77,19 @@ extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current threa
 #define __decl_aligned_rwlock(lock)
 
 #define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
-#define HA_ATOMIC_DWCAS(val, o, n)   ({((*val) == (*o))   ? (*(val) = (n)   , 1) : (*(o)   = *(val), 0);})
+
+/* warning, n is a pointer to the double value for dwcas */
+#define HA_ATOMIC_DWCAS(val, o, n)				       \
+	({                                                             \
+		long *_v = (long*)(val);                               \
+		long *_o = (long*)(o);				       \
+		long *_n = (long*)(n);				       \
+		long _v0 = _v[0], _v1 = _v[1];			       \
+		(_v0 == _o[0] && _v1 == _o[1]) ?                       \
+			(_v[0] = _n[0], _v[1] = _n[1], 1) :	       \
+			(_o[0] = _v0,   _o[1] = _v1,   0);	       \
+	})
+
 #define HA_ATOMIC_ADD(val, i)        ({*(val) += (i);})
 #define HA_ATOMIC_SUB(val, i)        ({*(val) -= (i);})
 #define HA_ATOMIC_XADD(val, i)						\
@@ -293,6 +305,7 @@ static inline unsigned long thread_isolated()
 		__ret_cas;						\
 	})
 
+/* warning, n is a pointer to the double value for dwcas */
 #define HA_ATOMIC_DWCAS(val, o, n) __ha_cas_dw(val, o, n)
 
 #define HA_ATOMIC_XCHG(val, new)					\
@@ -337,6 +350,7 @@ static inline unsigned long thread_isolated()
 #else
 /* gcc >= 4.7 */
 #define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+/* warning, n is a pointer to the double value for dwcas */
 #define HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
 #define HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
@@ -366,6 +380,7 @@ static inline unsigned long thread_isolated()
  * ie updating a counter. Otherwise a barrier is required.
  */
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
+/* warning, n is a pointer to the double value for dwcas */
 #define _HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
 #define _HA_ATOMIC_ADD(val, i)        __atomic_add_fetch(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_RELAXED)

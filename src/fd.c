@@ -272,7 +272,7 @@ lock_self:
 #ifdef HA_CAS_IS_8B
 	    unlikely(!_HA_ATOMIC_CAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
 #else
-	    unlikely(!_HA_ATOMIC_DWCAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
+	    unlikely(!_HA_ATOMIC_DWCAS(((void *)&_GET_NEXT(fd, off)), ((void *)&cur_list), ((void *)&next_list))))
 #endif
 	    ;
 	next = cur_list.next;
