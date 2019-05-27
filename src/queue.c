@@ -397,7 +397,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 int pendconn_redistribute(struct server *s)
 {
 	struct pendconn *p;
-	struct eb32_node *node;
+	struct eb32_node *node, *nodeb;
 	int xferred = 0;
 
 	/* The REDISP option was specified. We will ignore cookie and force to
@@ -405,8 +405,10 @@ int pendconn_redistribute(struct server *s)
 	if ((s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
 		return 0;
 
-	for (node = eb32_first(&s->pendconns); node; node = eb32_next(node)) {
-		p = eb32_entry(&node, struct pendconn, node);
+	for (node = eb32_first(&s->pendconns); node; node = nodeb) {
+		nodeb =	eb32_next(node);
+
+		p = eb32_entry(node, struct pendconn, node);
 		if (p->strm_flags & SF_FORCE_PRST)
 			continue;
 
