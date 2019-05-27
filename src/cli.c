@@ -1096,6 +1096,12 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "\naccq_ring:");    for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", (accept_queue_rings[thr].tail - accept_queue_rings[thr].head + ACCEPT_QUEUE_SIZE)%ACCEPT_QUEUE_SIZE);
 #endif
 
+#if defined(DEBUG_DEV)
+	/* keep these ones at the end */
+	chunk_appendf(&trash, "\nctr0:");         for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].ctr0);
+	chunk_appendf(&trash, "\nctr1:");         for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].ctr1);
+	chunk_appendf(&trash, "\nctr2:");         for (thr = 0; thr < global.nbthread; thr++) chunk_appendf(&trash, " %u", activity[thr].ctr2);
+#endif
 	chunk_appendf(&trash, "\n");
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
