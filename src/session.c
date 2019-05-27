@@ -165,21 +165,22 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	conn_ctrl_init(cli_conn);
 
 	/* wait for a PROXY protocol header */
-	if (l->options & LI_O_ACC_PROXY) {
+	if (l->options & LI_O_ACC_PROXY)
 		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
-		conn_sock_want_recv(cli_conn);
-	}
 
 	/* wait for a NetScaler client IP insertion protocol header */
-	if (l->options & LI_O_ACC_CIP) {
+	if (l->options & LI_O_ACC_CIP)
 		cli_conn->flags |= CO_FL_ACCEPT_CIP;
-		conn_sock_want_recv(cli_conn);
-	}
 
 	conn_xprt_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_conn;
 
+	/* Add the handshake pseudo-XPRT */
+	if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
+		if (xprt_add_hs(cli_conn) != 0)
+			goto out_free_conn;
+	}
 	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;

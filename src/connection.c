@@ -58,51 +58,12 @@ void conn_fd_handler(int fd)
 
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
- process_handshake:
-	/* The handshake callbacks are called in sequence. If either of them is
-	 * missing something, it must enable the required polling at the socket
-	 * layer of the connection. Polling state is not guaranteed when entering
-	 * these handlers, so any handshake handler which does not complete its
-	 * work must explicitly disable events it's not interested in. Error
-	 * handling is also performed here in order to reduce the number of tests
-	 * around.
-	 */
-	while (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR))) {
-		if (unlikely(conn->flags & CO_FL_ERROR))
-			goto leave;
-
-		if (conn->flags & CO_FL_SOCKS4_SEND)
-			if (!conn_send_socks4_proxy_request(conn))
-				goto leave;
-
-		if (conn->flags & CO_FL_SOCKS4_RECV)
-			if (!conn_recv_socks4_proxy_response(conn))
-				goto leave;
-
-		if (conn->flags & CO_FL_ACCEPT_CIP)
-			if (!conn_recv_netscaler_cip(conn, CO_FL_ACCEPT_CIP))
-				goto leave;
-
-		if (conn->flags & CO_FL_ACCEPT_PROXY)
-			if (!conn_recv_proxy(conn, CO_FL_ACCEPT_PROXY))
-				goto leave;
-
-		if (conn->flags & CO_FL_SEND_PROXY)
-			if (!conn_si_send_proxy(conn, CO_FL_SEND_PROXY))
-				goto leave;
-		/* sock polling may have been activated by the connection,
-		 * so remove it if we don't want it.
-		 */
-		if (conn->flags & CO_FL_SSL_WAIT_HS) {
-			if (!conn->send_wait)
-				__conn_sock_stop_send(conn);
-			if (!conn->recv_wait)
-				__conn_sock_stop_recv(conn);
-			break;
-		}
+	if (conn->flags & CO_FL_HANDSHAKE) {
+		if (!conn->send_wait)
+			__conn_sock_stop_send(conn);
+		if (!conn->recv_wait)
+			__conn_sock_stop_recv(conn);
 	}
-
-	/* Once we're purely in the data phase, we disable handshake polling */
 	if (!(conn->flags & CO_FL_POLL_SOCK))
 		__conn_sock_stop_both(conn);
 
@@ -113,7 +74,7 @@ void conn_fd_handler(int fd)
 	 * leave instead. The caller must immediately unregister itself once
 	 * called.
 	 */
-	if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
+	if (!(conn->flags & CO_FL_HANDSHAKE) &&
 	    conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
 		return;
 
@@ -150,12 +111,6 @@ void conn_fd_handler(int fd)
 			io_available = 1;
 		__conn_xprt_stop_recv(conn);
 	}
-
-	/* It may happen during the data phase that a handshake is
-	 * enabled again (eg: SSL)
-	 */
-	if (unlikely(conn->flags & (CO_FL_HANDSHAKE_NOSSL | CO_FL_ERROR)))
-		goto process_handshake;
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
 		/* still waiting for a connection to establish and nothing was
@@ -198,7 +153,7 @@ void conn_fd_handler(int fd)
 	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
-	    conn->mux->wake && conn->mux->wake(conn) < 0)
+	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
 
 	/* commit polling changes */

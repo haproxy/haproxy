@@ -455,12 +455,22 @@ int tcp_exec_l4_rules(struct session *sess)
 					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
 			}
 			else if (rule->action == ACT_TCP_EXPECT_PX) {
+				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
+					if (xprt_add_hs(conn) < 0) {
+						result = 0;
+						break;
+					}
+				}
 				conn->flags |= CO_FL_ACCEPT_PROXY;
-				conn_sock_want_recv(conn);
 			}
 			else if (rule->action == ACT_TCP_EXPECT_CIP) {
+				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
+					if (xprt_add_hs(conn) < 0) {
+						result = 0;
+						break;
+					}
+				}
 				conn->flags |= CO_FL_ACCEPT_CIP;
-				conn_sock_want_recv(conn);
 			}
 			else {
 				/* Custom keywords. */

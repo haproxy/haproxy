@@ -1662,6 +1662,8 @@ static int connect_conn_chk(struct task *t)
 	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
+		if (xprt_add_hs(conn) < 0)
+			ret = SF_ERR_RESOURCE;
 	}
 
 	return ret;
@@ -2885,6 +2887,8 @@ static int tcpcheck_main(struct check *check)
 			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
 				conn->flags |= CO_FL_SEND_PROXY;
+				if (xprt_add_hs(conn) < 0)
+					ret = SF_ERR_RESOURCE;
 			}
 
 			/* It can return one of :

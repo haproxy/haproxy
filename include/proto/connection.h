@@ -946,6 +946,41 @@ static inline struct xprt_ops *xprt_get(int id)
 	return registered_xprt[id];
 }
 
+/* Try to add a handshake pseudo-XPRT. If the connection's first XPRT is
+ * raw_sock, then just use the new XPRT as the connection XPRT, otherwise
+ * call the xprt's add_xprt() method.
+ * Returns 0 on success, or non-zero on failure.
+ */
+static inline int xprt_add_hs(struct connection *conn)
+{
+	void *xprt_ctx = NULL;
+	const struct xprt_ops *ops = xprt_get(XPRT_HANDSHAKE);
+	void *nextxprt_ctx = NULL;
+	const struct xprt_ops *nextxprt_ops = NULL;
+
+	if (conn->flags & CO_FL_ERROR)
+		return -1;
+	if (ops->init(conn, &xprt_ctx) < 0)
+		return -1;
+	if (conn->xprt == xprt_get(XPRT_RAW)) {
+		nextxprt_ctx = conn->xprt_ctx;
+		nextxprt_ops = conn->xprt;
+		conn->xprt_ctx = xprt_ctx;
+		conn->xprt = ops;
+	} else {
+		if (conn->xprt->add_xprt(conn, conn->xprt_ctx, xprt_ctx, ops,
+		                         &nextxprt_ctx, &nextxprt_ops) != 0) {
+			ops->close(conn, xprt_ctx);
+			return -1;
+		}
+	}
+	if (ops->add_xprt(conn, xprt_ctx, nextxprt_ctx, nextxprt_ops, NULL, NULL) != 0) {
+		ops->close(conn, xprt_ctx);
+		return -1;
+	}
+	return 0;
+}
+
 static inline int conn_get_alpn(const struct connection *conn, const char **str, int *len)
 {
 	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)
