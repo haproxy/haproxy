@@ -3120,10 +3120,11 @@ out_uri_auth_compat:
 
 			for (other_srv = curproxy->srv; other_srv && other_srv != newsrv; other_srv = other_srv->next) {
 				if (!other_srv->puid && strcmp(other_srv->id, newsrv->id) == 0) {
-					ha_warning("parsing [%s:%d] : %s '%s', another server named '%s' was defined without an explicit ID at line %d, this is not recommended.\n",
+					ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
 						   newsrv->conf.file, newsrv->conf.line,
 						   proxy_type_str(curproxy), curproxy->id,
 						   newsrv->id, other_srv->conf.line);
+					cfgerr++;
 					break;
 				}
 			}
