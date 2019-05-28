@@ -74,7 +74,7 @@ static int _update_fd(int fd, int start)
 /*
  * kqueue() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int exp)
+REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int count, fd, wait_time;
@@ -132,7 +132,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	fd_nbupdt = 0;
 
 	/* now let's wait for events */
-	wait_time = compute_poll_timeout(exp);
+	wait_time = wake ? 0 : compute_poll_timeout(exp);
 	fd = global.tune.maxpollevents;
 	tv_entering_poll();
 	activity_count_runtime();
@@ -155,7 +155,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			break;
 		if (timeout || !wait_time)
 			break;
-		if (signal_queue_len)
+		if (signal_queue_len || wake)
 			break;
 		if (tick_isset(exp) && tick_is_expired(exp, now_ms))
 			break;

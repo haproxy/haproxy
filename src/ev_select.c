@@ -79,7 +79,7 @@ static void _update_fd(int fd, int *max_add_fd)
 /*
  * Select() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int exp)
+REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int fd, i;
@@ -162,7 +162,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 
 	/* now let's wait for events */
-	delta_ms = compute_poll_timeout(exp);
+	delta_ms = wake ? 0 : compute_poll_timeout(exp);
 	delta.tv_sec  = (delta_ms / 1000);
 	delta.tv_usec = (delta_ms % 1000) * 1000;
 	tv_entering_poll();

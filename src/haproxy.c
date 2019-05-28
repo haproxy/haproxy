@@ -2505,7 +2505,7 @@ void deinit(void)
 /* Runs the polling loop */
 static void run_poll_loop()
 {
-	int next, exp;
+	int next, wake;
 
 	tv_update_date(0,1);
 	while (1) {
@@ -2525,7 +2525,7 @@ static void run_poll_loop()
 			break;
 
 		/* expire immediately if events are pending */
-		exp = now_ms;
+		wake = 1;
 		if (fd_cache_mask & tid_bit)
 			activity[tid].wake_cache++;
 		else if (active_tasks_mask & tid_bit)
@@ -2539,11 +2539,11 @@ static void run_poll_loop()
 				activity[tid].wake_tasks++;
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 			} else
-				exp = next;
+				wake = 0;
 		}
 
 		/* The poller will ensure it returns around <next> */
-		cur_poller.poll(&cur_poller, exp);
+		cur_poller.poll(&cur_poller, next, wake);
 		if (sleeping_thread_mask & tid_bit)
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 		fd_process_cached_events();

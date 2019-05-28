@@ -96,7 +96,7 @@ static void _update_fd(int fd)
  * "src/fd.c" for more information.
  */
 
-REGPRM2 static void _do_poll(struct poller *p, int exp)
+REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int i;
 	int wait_time;
@@ -144,7 +144,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/*
 	 * Determine how long to wait for events to materialise on the port.
 	 */
-	wait_time = compute_poll_timeout(exp);
+	wait_time = wake ? 0 : compute_poll_timeout(exp);
 	tv_entering_poll();
 	activity_count_runtime();
 
@@ -183,7 +183,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			break;
 		if (timeout || !wait_time)
 			break;
-		if (signal_queue_len)
+		if (signal_queue_len || wake)
 			break;
 		if (tick_isset(exp) && tick_is_expired(exp, now_ms))
 			break;

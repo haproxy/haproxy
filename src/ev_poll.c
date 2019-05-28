@@ -88,7 +88,7 @@ static void _update_fd(int fd, int *max_add_fd)
 /*
  * Poll() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int exp)
+REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int fd;
@@ -194,7 +194,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 
 	/* now let's wait for events */
-	wait_time = compute_poll_timeout(exp);
+	wait_time = wake ? 0 : compute_poll_timeout(exp);
 	tv_entering_poll();
 	activity_count_runtime();
 	status = poll(poll_events, nbfd, wait_time);

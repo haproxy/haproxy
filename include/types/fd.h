@@ -142,7 +142,7 @@ struct fdinfo {
  *  - <private> is initialized by the poller's init() function, and cleaned by
  *    the term() function.
  *  - clo() should be used to do indicate the poller that fd will be closed.
- *  - poll() calls the poller, expiring at <exp>
+ *  - poll() calls the poller, expiring at <exp>, or immediately if <wake> is set
  *  - flags indicate what the poller supports (HAP_POLL_F_*)
  */
 
@@ -151,7 +151,7 @@ struct fdinfo {
 struct poller {
 	void   *private;                                     /* any private data for the poller */
 	void REGPRM1   (*clo)(const int fd);                 /* mark <fd> as closed */
-    	void REGPRM2   (*poll)(struct poller *p, int exp);   /* the poller itself */
+	void REGPRM3   (*poll)(struct poller *p, int exp, int wake);  /* the poller itself */
 	int  REGPRM1   (*init)(struct poller *p);            /* poller initialization */
 	void REGPRM1   (*term)(struct poller *p);            /* termination of this poller */
 	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */
