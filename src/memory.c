@@ -25,6 +25,8 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 
+#include <types/activity.h>
+
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/channel.h>
@@ -160,14 +162,17 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	while (1) {
 		if (limit && allocated >= limit) {
 			_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
+			activity[tid].pool_fail++;
 			return NULL;
 		}
 
 		ptr = malloc(size + POOL_EXTRA);
 		if (!ptr) {
 			_HA_ATOMIC_ADD(&pool->failed, 1);
-			if (failed)
+			if (failed) {
+				activity[tid].pool_fail++;
 				return NULL;
+			}
 			failed++;
 			pool_gc(pool);
 			continue;
@@ -317,14 +322,18 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	avail += pool->used;
 
 	while (1) {
-		if (pool->limit && pool->allocated >= pool->limit)
+		if (pool->limit && pool->allocated >= pool->limit) {
+			activity[tid].pool_fail++;
 			return NULL;
+		}
 
 		ptr = pool_alloc_area(pool->size + POOL_EXTRA);
 		if (!ptr) {
 			pool->failed++;
-			if (failed)
+			if (failed) {
+				activity[tid].pool_fail++;
 				return NULL;
+			}
 			failed++;
 			pool_gc(pool);
 			continue;

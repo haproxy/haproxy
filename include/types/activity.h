@@ -54,6 +54,8 @@ struct activity {
 	unsigned int accepted;     // accepted incoming connections
 	unsigned int accq_pushed;  // accept queue connections pushed
 	unsigned int accq_full;    // accept queue connection not pushed because full
+	unsigned int pool_fail;    // failed a pool allocation
+	unsigned int buf_wait;     // waited on a buffer allocation
 #if defined(DEBUG_DEV)
 	/* keep these ones at the end */
 	unsigned int ctr0;         // general purposee debug counter

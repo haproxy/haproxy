@@ -1117,6 +1117,8 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "fd_lock:");      SHOW_TOT(thr, activity[thr].fd_lock);
 	chunk_appendf(&trash, "conn_dead:");    SHOW_TOT(thr, activity[thr].conn_dead);
 	chunk_appendf(&trash, "stream:");       SHOW_TOT(thr, activity[thr].stream);
+	chunk_appendf(&trash, "pool_fail:");    SHOW_TOT(thr, activity[thr].pool_fail);
+	chunk_appendf(&trash, "buf_wait:");     SHOW_TOT(thr, activity[thr].buf_wait);
 	chunk_appendf(&trash, "empty_rq:");     SHOW_TOT(thr, activity[thr].empty_rq);
 	chunk_appendf(&trash, "long_rq:");      SHOW_TOT(thr, activity[thr].long_rq);
 	chunk_appendf(&trash, "ctxsw:");        SHOW_TOT(thr, activity[thr].ctxsw);
