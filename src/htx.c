@@ -347,13 +347,13 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 }
 
 /* Tries to append data to the last inserted block, if the type matches and if
- * there is enough non-wrapping space. Only DATA content can be appended. If the
- * append fails, a new block is inserted. If an error occurred, NULL is
+ * there is enough space to take it all. If the space wraps, the buffer is
+ * defragmented and a new block is inserted. If an error occurred, NULL is
  * returned. Otherwise, on success, the updated block (or the new one) is
- * returned.
-*/
-static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type type,
-					    const struct ist data)
+ * returned. Due to its nature this function can be expensive and should be
+ * avoided whenever possible.
+ */
+struct htx_blk *htx_add_data_atonce(struct htx *htx, const struct ist data)
 {
 	struct htx_blk *blk, *tailblk, *headblk, *frtblk;
 	struct ist v;
@@ -366,10 +366,6 @@ static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type t
 	if (data.len > htx_free_data_space(htx))
 		return NULL;
 
-	/* Append only DATA */
-	if (type != HTX_BLK_DATA)
-		goto add_new_block;
-
 	/* get the tail and head block */
 	tailblk = htx_get_tail_blk(htx);
 	headblk = htx_get_head_blk(htx);
@@ -378,7 +374,7 @@ static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type t
 
 	/* Don't try to append data if the last inserted block is not of the
 	 * same type */
-	if (type != htx_get_blk_type(tailblk))
+	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
 		goto add_new_block;
 
 	/*
@@ -412,7 +408,7 @@ static struct htx_blk *htx_append_blk_value(struct htx *htx, enum htx_blk_type t
 
   add_new_block:
 	/* FIXME: check tlr.len (< 256MB) */
-	blk = htx_add_blk(htx, type, data.len);
+	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
 	if (!blk)
 		return NULL;
 
@@ -766,7 +762,7 @@ struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
  */
 struct htx_blk *htx_add_data(struct htx *htx, const struct ist data)
 {
-	return htx_append_blk_value(htx, HTX_BLK_DATA, data);
+	return htx_add_data_atonce(htx, data);
 }
 
 /* Adds an HTX block of type TLR in <htx>. It returns the new block on
