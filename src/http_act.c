@@ -202,7 +202,7 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	return ACT_RET_CONT;
+	return ACT_RET_STOP;
 }
 
 /* parse the "reject" action:
