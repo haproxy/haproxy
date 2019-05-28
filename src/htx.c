@@ -763,13 +763,69 @@ struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
  */
 size_t htx_add_data(struct htx *htx, const struct ist data)
 {
-	struct htx_blk *blk;
+	struct htx_blk *blk, *tailblk, *headblk, *frtblk;
+	struct ist v;
+	int32_t room;
+	int32_t len = data.len;
 
-	blk = htx_add_data_atonce(htx, data);
-	if (blk)
-		return data.len;
-	else
+	if (!htx->used)
+		goto add_new_block;
+
+	/* Not enough space to store data */
+	if (len > htx_free_data_space(htx))
+		len = htx_free_data_space(htx);
+
+	if (!len)
 		return 0;
+
+	/* get the tail and head block */
+	tailblk = htx_get_tail_blk(htx);
+	headblk = htx_get_head_blk(htx);
+	if (tailblk == NULL || headblk == NULL)
+		goto add_new_block;
+
+	/* Don't try to append data if the last inserted block is not of the
+	 * same type */
+	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
+		goto add_new_block;
+
+	/*
+	 * Same type and enough space: append data
+	 */
+	frtblk = htx_get_blk(htx, htx->front);
+	if (tailblk->addr >= headblk->addr) {
+		if (htx->tail != htx->front)
+			goto add_new_block;
+		room = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - (frtblk->addr + htx_get_blksz(frtblk));
+	}
+	else
+		room = headblk->addr - (tailblk->addr + htx_get_blksz(tailblk));
+
+	if (room < len)
+		len = room;
+
+  append_data:
+	/* get the value of the tail block */
+	/* FIXME: check v.len + len < 256MB */
+	v = htx_get_blk_value(htx, tailblk);
+
+	/* Append data and update the block itself */
+	memcpy(v.ptr + v.len, data.ptr, len);
+	htx_set_blk_value_len(tailblk, v.len + len);
+
+	/* Update HTTP message */
+	htx->data += len;
+	return len;
+
+  add_new_block:
+	/* FIXME: check tlr.len (< 256MB) */
+	blk = htx_add_blk(htx, HTX_BLK_DATA, len);
+	if (!blk)
+		return 0;
+
+	blk->info += len;
+	memcpy(htx_get_blk_ptr(htx, blk), data.ptr, len);
+	return len;
 }
 
 /* Adds an HTX block of type TLR in <htx>. It returns the new block on
