@@ -957,8 +957,7 @@ static size_t htx_cache_dump_data(struct appctx *appctx, struct htx *htx,
 		sz = MIN(len, shctx->block_size - offset);
 		data = ist2((const char *)shblk->data + offset, sz);
 		if (type == HTX_BLK_DATA) {
-			if (!htx_add_data(htx, data))
-				break;
+			sz = htx_add_data(htx, data);
 		}
 		else { /* HTX_BLK_TLR */
 			if (!htx_add_trailer(htx, data))
@@ -968,7 +967,7 @@ static size_t htx_cache_dump_data(struct appctx *appctx, struct htx *htx,
 		offset += sz;
 		len -= sz;
 		total += sz;
-		if (!len)
+		if (!len || sz < data.len)
 			break;
 		offset = 0;
 	}

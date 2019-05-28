@@ -258,7 +258,7 @@ static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk
 	if (htx) {
 		if (chk->data >= channel_htx_recv_max(chn, htx))
 			return 0;
-		if (!htx_add_data(htx, ist2(chk->area, chk->data)))
+		if (!htx_add_data_atonce(htx, ist2(chk->area, chk->data)))
 			return 0;
 		channel_add_input(chn, chk->data);
 		chk->data = 0;

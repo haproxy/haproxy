@@ -3802,6 +3802,8 @@ try_again:
 	}
 
 	if (htx) {
+		unsigned int sent;
+
 		block1 = htx_free_data_space(htx);
 		if (!block1) {
 			h2c->flags |= H2_CF_DEM_SFULL;
@@ -3815,10 +3817,7 @@ try_again:
 		if (flen > block1)
 			flen = block1;
 
-		if (!htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen))) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
-		}
+		sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
 
 		b_del(&h2c->dbuf, flen);
 		h2c->dfl    -= flen;
@@ -3829,6 +3828,12 @@ try_again:
 			h2s->body_len -= flen;
 			htx->extra = h2s->body_len;
 		}
+
+		if (sent < flen) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto fail;
+		}
+
 		goto try_again;
 	}
 	else if (unlikely(b_space_wraps(csbuf) &&

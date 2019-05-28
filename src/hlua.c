@@ -4568,8 +4568,7 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 		max = len - l;
 
 	/* Copy data. */
-	if (!htx_add_data(htx, ist2(data + l, max)))
-		goto snd_yield;
+	max = htx_add_data(htx, ist2(data + l, max));
 	channel_add_input(res, max);
 
 	/* update counters. */

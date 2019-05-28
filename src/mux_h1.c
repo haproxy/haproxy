@@ -1143,6 +1143,8 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				 *   => we can swap the buffers and place an htx header into
 				 *      the target buffer instead
 				 */
+				int32_t try = ret;
+
 				if (unlikely(htx_is_empty(htx) && ret == b_data(buf) &&
 					     !*ofs && b_head_ofs(buf) == sizeof(struct htx))) {
 					void *raw_area = buf->area;
@@ -1162,12 +1164,15 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 					 * empty pre-initialized HTX header
 					 */
 				}
-				else if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
-					goto end;
+				else {
+					ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
+				}
 				h1m->curr_len -= ret;
 				max -= sizeof(struct htx_blk) + ret;
 				*ofs += ret;
 				total += ret;
+				if (ret < try)
+					goto end;
 			}
 
 			if (!h1m->curr_len) {
@@ -1220,12 +1225,15 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 					ret = b_contig_data(buf, *ofs);
 
 				if (ret) {
-					if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
-						goto end;
+					int32_t try = ret;
+
+					ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
 					h1m->curr_len -= ret;
 					max -= sizeof(struct htx_blk) + ret;
 					*ofs += ret;
 					total += ret;
+					if (ret < try)
+						goto end;
 				}
 				if (!h1m->curr_len) {
 					h1m->state = H1_MSG_CHUNK_CRLF;
@@ -1291,11 +1299,14 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			ret = b_contig_data(buf, *ofs);
 
 		if (ret) {
-			if (!htx_add_data(htx, ist2(b_peek(buf, *ofs), ret)))
-				goto end;
+			int32_t try = ret;
+
+			ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
 
 			*ofs += ret;
 			total = ret;
+			if (ret < try)
+				goto end;
 		}
 	}
 

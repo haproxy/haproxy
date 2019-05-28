@@ -758,11 +758,18 @@ struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
 
 
 /* Adds an HTX block of type DATA in <htx>. It first tries to append data if
- * possible. It returns the new block on success. Otherwise, it returns NULL.
+ * possible. It returns the number of bytes consumed from <data>, which may be
+ * zero if nothing could be copied.
  */
-struct htx_blk *htx_add_data(struct htx *htx, const struct ist data)
+size_t htx_add_data(struct htx *htx, const struct ist data)
 {
-	return htx_add_data_atonce(htx, data);
+	struct htx_blk *blk;
+
+	blk = htx_add_data_atonce(htx, data);
+	if (blk)
+		return data.len;
+	else
+		return 0;
 }
 
 /* Adds an HTX block of type TLR in <htx>. It returns the new block on

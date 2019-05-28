@@ -186,7 +186,7 @@ struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, u
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_blk *htx_add_data_atonce(struct htx *htx, const struct ist data);
-struct htx_blk *htx_add_data(struct htx *htx, const struct ist data);
+size_t htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 

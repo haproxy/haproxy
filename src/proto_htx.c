@@ -5502,7 +5502,18 @@ static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 		goto fail;
 	if (status == 407 && !htx_add_header(htx, ist("Proxy-Authenticate"), ist2(trash.area, trash.data)))
 		goto fail;
-	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_data(htx, body) || !htx_add_endof(htx, HTX_BLK_EOM))
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
+		goto fail;
+
+	while (body.len) {
+		size_t sent = htx_add_data(htx, body);
+		if (!sent)
+			goto fail;
+		body.ptr += sent;
+		body.len -= sent;
+	}
+
+	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto fail;
 
 	data = htx->data - co_data(res);

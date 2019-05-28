@@ -657,9 +657,11 @@ static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 		goto error;
 	sl->info.res.status = h1sl.st.status;
 
-	if (raw.len > ret) {
-		if (!htx_add_data(htx, ist2(raw.ptr + ret, raw.len - ret)))
+	while (raw.len > ret) {
+		int sent = htx_add_data(htx, ist2(raw.ptr + ret, raw.len - ret));
+		if (!sent)
 			goto error;
+		ret += sent;
 	}
 	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto error;
