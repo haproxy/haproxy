@@ -33,6 +33,8 @@
 #include <common/tools.h>
 #include <eb32tree.h>
 
+#include <types/dict.h>
+
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
 	int local_id;
@@ -93,6 +95,37 @@ struct peers {
 	int count;                      /* total of peers */
 };
 
+/* LRU cache for dictionaies */
+struct dcache_tx {
+	/* The last recently used key */
+	unsigned int lru_key;
+	/* The maximum number of entries in this cache */
+	size_t max_entries;
+	/* ebtree for keys (eb32_nodes from 0 included up to <max_entries> excluded) */
+	struct eb_root keys;
+	/* ebtree for values (ebpt_node, pointers to dict struct entries) */
+	struct eb_root values;
+};
+
+struct dcache_rx {
+	unsigned int id;
+	struct dict_entry *de;
+};
+
+struct dcache_tx_entry {
+	struct eb32_node key;
+	struct ebpt_node value;
+};
+
+/* stick-table data type cache */
+struct dcache {
+	/* Cache used upon transmission */
+	struct dcache_tx *tx;
+	/* Cache used upon receipt */
+	struct dcache_rx *rx;
+	/* Maximum number of entries in this cache */
+	size_t max_entries;
+};
 
 extern struct peers *cfg_peers;
 

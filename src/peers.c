@@ -2701,7 +2701,206 @@ int peers_init_sync(struct peers *peers)
 	return 1;
 }
 
+/*
+ * Allocate a cache a dictionary entries used upon transmission.
+ */
+struct dcache_tx *new_dcache_tx(size_t max_entries)
+{
+	struct dcache_tx *d;
 
+	d = malloc(sizeof *d);
+	if (!d)
+		return NULL;
+
+	d->lru_key = 0;
+	d->keys = EB_ROOT_UNIQUE;
+	d->values = EB_ROOT_UNIQUE;
+	d->max_entries = max_entries;
+
+	return d;
+}
+
+/*
+ * Allocate a cache of dictionary entries with <name> as name and <max_entries>
+ * as maximum of entries.
+ * Return the dictionay cache if succeeded, NULL if not.
+ * Must be deallocated calling free_dcache().
+ */
+struct dcache *new_dcache(size_t max_entries)
+{
+	struct dcache_tx *dc_tx;
+	struct dcache *dc;
+	struct dcache_rx *dc_rx;
+
+	dc = calloc(1, sizeof *dc);
+	dc_tx = new_dcache_tx(max_entries);
+	dc_rx = calloc(max_entries, sizeof *dc_rx);
+	if (!dc || !dc_tx || !dc_rx)
+		goto err;
+
+	dc->tx = dc_tx;
+	dc->rx = dc_rx;
+	dc->max_entries = max_entries;
+
+	return dc;
+
+ err:
+	free(dc);
+	free(dc_tx);
+	free(dc_rx);
+	return NULL;
+}
+
+/*
+ * Deallocate a cache of dictionary entries.
+ */
+void free_dcache(struct dcache *dc)
+{
+	free(dc->tx); dc->tx = NULL;
+	free(dc->rx); dc->rx = NULL;
+	free(dc);
+}
+
+/*
+ * Look for the dictionary entry with <k> as key in <d> cache of dictionary entries
+ * used upon transmission.
+ * Return the entry if found, NULL if not.
+ */
+struct dcache_tx_entry *dcache_tx_lookup_key(struct dcache_tx *d, unsigned int k)
+{
+	struct dcache_tx_entry *de;
+	struct eb32_node *node;
+
+	de = NULL;
+	node = eb32_lookup(&d->keys, k);
+	if (node)
+		de = container_of(node, struct dcache_tx_entry, key);
+
+	return de;
+}
+
+/*
+ * Look for the dictionary entry with the value of <i> in <d> cache of dictionary
+ * entries used upon transmission.
+ * Return the entry if found, NULL if not.
+ */
+struct dcache_tx_entry *dcache_tx_lookup_value(struct dcache_tx *d,
+                                               struct dcache_tx_entry *i)
+{
+	struct dcache_tx_entry *de;
+	struct ebpt_node *node;
+
+	de = NULL;
+	node = ebpt_lookup(&d->values, i->value.key);
+	if (node)
+		de = container_of(node, struct dcache_tx_entry, value);
+
+	return de;
+}
+
+/*
+ * Release the memory allocated for the cached dictionary entry <dce>.
+ */
+
+static inline void free_dcache_tx_entry(struct dcache_tx_entry *dce)
+{
+	dce->value.key = NULL;
+	dce->key.key = 0;
+	free(dce);
+}
+
+/*
+ * Allocate a new dictionary entry with <s> as string value which is strdup()'ed.
+ * Returns the new allocated entry if succeeded, NULL if not.
+ */
+struct dcache_tx_entry *new_dcache_tx_entry(unsigned int k, struct dict_entry *de)
+{
+	struct dcache_tx_entry *dce;
+
+	dce = calloc(1, sizeof *dce);
+	if (!dce)
+		return NULL;
+
+	dce->value.key = de;
+	dce->key.key = k;
+
+	return dce;
+}
+
+/*
+ * Flush <dc> cache.
+ * Always succeeds.
+ */
+static inline void flush_dcache(struct peer *peer)
+{
+	int i;
+	struct dcache *dc = peer_stkt_dict_cache(peer, st);
+
+	if (!eb_is_empty(&dc->tx->keys)) {
+		struct eb32_node *node, *next;
+
+		for (node = eb32_first(&dc->tx->keys); node; node = next) {
+			next = eb32_next(node);
+			eb32_delete(node);
+		}
+	}
+
+	if (!eb_is_empty(&dc->tx->values)) {
+		struct ebpt_node *node, *next;
+
+		for (node = ebpt_first(&dc->tx->values); node; node = next) {
+			struct dcache_tx_entry *de;
+
+			next = ebpt_next(node);
+			ebpt_delete(node);
+			de = container_of(node, struct dcache_tx_entry, value);
+			free_dcache_tx_entry(de);
+		}
+	}
+
+	for (i = 0; i < dc->max_entries; i++) {
+		dc->rx[i].id = 0;
+		dc->rx[i].de = NULL;
+	}
+}
+
+/*
+ * Insert a dictionary entry in <dc> cache part used upon transmission (->tx)
+ * with information provided by <i> dictionary cache entry (especially the value
+ * to be inserted if not already). Return <i> if already present in the cache
+ * or something different of <i> if not already in the cache, or NULL if something
+ * failed.
+ */
+struct dcache_tx_entry *dcache_tx_insert(struct dcache *dc,
+                                         struct dcache_tx_entry *i)
+{
+	struct dcache_tx *dc_tx;
+	struct dcache_tx_entry *o;
+
+	dc_tx = dc->tx;
+	o = dcache_tx_lookup_value(dc_tx, i);
+	if (o) {
+		/* Copy the key. */
+		i->key.key = o->key.key;
+		return i;
+	}
+
+	o = dcache_tx_lookup_key(dc_tx, dc_tx->lru_key);
+	if (o) {
+		o->value.key = i->value.key;
+		return o;
+	}
+
+	o = new_dcache_tx_entry(dc_tx->lru_key, i->value.key);
+	if (!o)
+		return NULL;
+
+	dc_tx->lru_key = (dc_tx->lru_key + 1) & (dc_tx->max_entries - 1);
+	eb32_insert(&dc_tx->keys, &o->key);
+	ebpt_insert(&dc_tx->values, &o->value);
+
+	return o;
+}
 
 /*
  * Function used to register a table for sync on a group of peers
