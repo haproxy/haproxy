@@ -1692,7 +1692,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			default:
-				h1m->flags |= errflag;
+				h1s->flags |= errflag;
 				break;
 		}
 		total += vlen;
