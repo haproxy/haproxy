@@ -327,20 +327,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		return SF_ERR_RESOURCE;
 	}
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN)) {
-		conn_sock_want_send(conn);  /* for connect status, proxy protocol or SSL */
-	}
-	else {
-		/* If there's no more handshake, we need to notify the data
-		 * layer when the connection is already OK otherwise we'll have
-		 * no other opportunity to do it later (eg: health checks).
-		 */
-		flags |= CONNECT_HAS_DATA;
-	}
-
-	if (flags & CONNECT_HAS_DATA)
-		conn_xprt_want_send(conn);  /* prepare to send data if any */
-
+	conn_xprt_want_send(conn);  /* for connect status, proxy protocol or SSL */
 	return SF_ERR_NONE;  /* connection is OK */
 }
 

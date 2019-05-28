@@ -160,14 +160,6 @@ static inline void conn_stop_tracking(struct connection *conn)
 
 /* Update polling on connection <c>'s file descriptor depending on its current
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
- * The connection flags are updated with the new flags at the end of the
- * operation. Polling is totally disabled if an error was reported.
- */
-void conn_update_sock_polling(struct connection *c);
-
-/* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
  * in CO_FL_WAIT_*, and the upper layer expectations indicated by CO_FL_XPRT_*.
  * The connection flags are updated with the new flags at the end of the
  * operation. Polling is totally disabled if an error was reported.
@@ -216,49 +208,15 @@ static inline unsigned int conn_xprt_polling_changes(const struct connection *c)
 	return f & (CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
 }
 
-/* inspects c->flags and returns non-zero if SOCK ENA changes from the CURR ENA
- * or if the WAIT flags are set with their respective ENA flags. Additionally,
- * non-zero is also returned if an error was reported on the connection. This
- * function is used quite often and is inlined. In order to proceed optimally
- * with very little code and CPU cycles, the bits are arranged so that a change
- * can be detected by a few left shifts, a xor, and a mask. These operations
- * detect when W&S are both enabled for either direction, when C&S differ for
- * either direction and when Error is set. The trick consists in first keeping
- * only the bits we're interested in, since they don't collide when shifted,
- * and to perform the AND at the end. In practice, the compiler is able to
- * replace the last AND with a TEST in boolean conditions. This results in
- * checks that are done in 4-6 cycles and less than 30 bytes.
- */
-static inline unsigned int conn_sock_polling_changes(const struct connection *c)
-{
-	unsigned int f = c->flags;
-	f &= CO_FL_SOCK_WR_ENA | CO_FL_SOCK_RD_ENA | CO_FL_CURR_WR_ENA |
-	     CO_FL_CURR_RD_ENA | CO_FL_ERROR;
-
-	f = (f ^ (f << 2)) & (CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_ENA);    /* test C ^ S */
-	return f & (CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
-}
-
-/* Automatically updates polling on connection <c> depending on the XPRT flags
- * if no handshake is in progress. It does nothing if CO_FL_WILL_UPDATE is
- * present, indicating that an upper caller is going to do it again later.
+/* Automatically updates polling on connection <c> depending on the XPRT flags.
+ * It does nothing if CO_FL_WILL_UPDATE is present, indicating that an upper
+ * caller is going to do it again later.
  */
 static inline void conn_cond_update_xprt_polling(struct connection *c)
 {
 	if (!(c->flags & CO_FL_WILL_UPDATE))
-		if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+		if (conn_xprt_polling_changes(c))
 			conn_update_xprt_polling(c);
-}
-
-/* Automatically updates polling on connection <c> depending on the SOCK flags
- * if a handshake is in progress. It does nothing if CO_FL_WILL_UPDATE is
- * present, indicating that an upper caller is going to do it again later.
- */
-static inline void conn_cond_update_sock_polling(struct connection *c)
-{
-	if (!(c->flags & CO_FL_WILL_UPDATE))
-		if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
-			conn_update_sock_polling(c);
 }
 
 /* Stop all polling on the fd. This might be used when an error is encountered
@@ -269,7 +227,6 @@ static inline void conn_cond_update_sock_polling(struct connection *c)
 static inline void conn_stop_polling(struct connection *c)
 {
 	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
-		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
 		      CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
 	if (!(c->flags & CO_FL_WILL_UPDATE) && conn_ctrl_ready(c))
 		fd_stop_both(c->handle.fd);
@@ -287,10 +244,8 @@ static inline void conn_cond_update_polling(struct connection *c)
 	if (unlikely(c->flags & CO_FL_ERROR))
 		conn_stop_polling(c);
 	else if (!(c->flags & CO_FL_WILL_UPDATE)) {
-		if (!(c->flags & CO_FL_POLL_SOCK) && conn_xprt_polling_changes(c))
+		if (conn_xprt_polling_changes(c))
 			conn_update_xprt_polling(c);
-		else if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
-			conn_update_sock_polling(c);
 	}
 }
 
@@ -368,73 +323,13 @@ static inline void conn_xprt_stop_both(struct connection *c)
 	conn_cond_update_xprt_polling(c);
 }
 
-/***** Event manipulation primitives for use by handshake I/O callbacks *****/
-/* The __conn_* versions do not propagate to lower layers and are only meant
- * to be used by handlers called by the connection handler. The other ones
- * may be used anywhere.
- */
-static inline void __conn_sock_want_recv(struct connection *c)
-{
-	c->flags |= CO_FL_SOCK_RD_ENA;
-}
-
-static inline void __conn_sock_stop_recv(struct connection *c)
-{
-	c->flags &= ~CO_FL_SOCK_RD_ENA;
-}
-
-static inline void __conn_sock_want_send(struct connection *c)
-{
-	c->flags |= CO_FL_SOCK_WR_ENA;
-}
-
-static inline void __conn_sock_stop_send(struct connection *c)
-{
-	c->flags &= ~CO_FL_SOCK_WR_ENA;
-}
-
-static inline void __conn_sock_stop_both(struct connection *c)
-{
-	c->flags &= ~(CO_FL_SOCK_WR_ENA | CO_FL_SOCK_RD_ENA);
-}
-
-static inline void conn_sock_want_recv(struct connection *c)
-{
-	__conn_sock_want_recv(c);
-	conn_cond_update_sock_polling(c);
-}
-
-static inline void conn_sock_stop_recv(struct connection *c)
-{
-	__conn_sock_stop_recv(c);
-	conn_cond_update_sock_polling(c);
-}
-
-static inline void conn_sock_want_send(struct connection *c)
-{
-	__conn_sock_want_send(c);
-	conn_cond_update_sock_polling(c);
-}
-
-static inline void conn_sock_stop_send(struct connection *c)
-{
-	__conn_sock_stop_send(c);
-	conn_cond_update_sock_polling(c);
-}
-
-static inline void conn_sock_stop_both(struct connection *c)
-{
-	__conn_sock_stop_both(c);
-	conn_cond_update_sock_polling(c);
-}
-
 /* read shutdown, called from the rcv_buf/rcv_pipe handlers when
  * detecting an end of connection.
  */
 static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
-	__conn_sock_stop_recv(c);
+	__conn_xprt_stop_recv(c);
 	/* we don't risk keeping ports unusable if we found the
 	 * zero from the other side.
 	 */
@@ -451,8 +346,8 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	conn_refresh_polling_flags(c);
-	__conn_sock_stop_send(c);
-	conn_cond_update_sock_polling(c);
+	__conn_xprt_stop_send(c);
+	conn_cond_update_xprt_polling(c);
 
 	/* don't perform a clean shutdown if we're going to reset or
 	 * if the shutr was already received.

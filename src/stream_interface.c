@@ -422,7 +422,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	if (conn->flags & CO_FL_WAIT_L4_CONN)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	conn->flags &= ~flag;
-	__conn_sock_stop_send(conn);
 	return 1;
 
  out_error:
@@ -431,8 +430,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	return 0;
 
  out_wait:
-	__conn_sock_stop_recv(conn);
-	__conn_sock_want_send(conn);
 	return 0;
 }
 

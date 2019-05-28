@@ -157,7 +157,6 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
  leave:
-	conn_cond_update_sock_polling(conn);
 	if (retval > 0) {
 		/* we count the total bytes sent, and the send rate for 32-byte
 		 * blocks. The reason for the latter is that freq_ctr are
@@ -211,7 +210,6 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-	conn_cond_update_sock_polling(conn);
 	return done;
 }
 
@@ -310,7 +308,6 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
  leave:
-	conn_cond_update_sock_polling(conn);
 	return done;
 
  read0:
@@ -393,7 +390,6 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-	conn_cond_update_sock_polling(conn);
 	if (done > 0) {
 		/* we count the total bytes sent, and the send rate for 32-byte
 		 * blocks. The reason for the latter is that freq_ctr are

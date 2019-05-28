@@ -542,7 +542,6 @@ fail_get:
 void ssl_async_fd_handler(int fd)
 {
 	struct ssl_sock_ctx *ctx = fdtab[fd].owner;
-	struct connection *conn = ctx->conn;
 
 	/* fd is an async enfine fd, we must stop
 	 * to poll this fd until it is requested
@@ -553,9 +552,7 @@ void ssl_async_fd_handler(int fd)
 	/* crypto engine is available, let's notify the associated
 	 * connection that it can pursue its processing.
 	 */
-	__conn_sock_want_recv(conn);
-	__conn_sock_want_send(conn);
-	conn_update_sock_polling(conn);
+	ssl_sock_io_cb(NULL, ctx, 0);
 }
 
 /*
@@ -597,7 +594,6 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 	OSSL_ASYNC_FD add_fd[32];
 	OSSL_ASYNC_FD del_fd[32];
 	SSL *ssl = ctx->ssl;
-	struct connection *conn = ctx->conn;
 	size_t num_add_fds = 0;
 	size_t num_del_fds = 0;
 	int i;
@@ -640,11 +636,6 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 		fd_cant_recv(add_fd[i]);
 	}
 
-	/* We must also prevent the conn_handler
-	 * to be called until a read event was
-	 * polled on an async fd
-	 */
-	__conn_sock_stop_both(conn);
 }
 #endif
 
@@ -5331,10 +5322,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* SSL handshake needs to write, L4 connection may not be ready */
-				if (!(ctx->wait_event.events & SUB_RETRY_SEND)) {
-						__conn_sock_want_send(conn);
+				if (!(ctx->wait_event.events & SUB_RETRY_SEND))
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
-				}
 				return 0;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -5346,10 +5335,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					goto reneg_ok;
 				}
 				/* SSL handshake needs to read, L4 connection is ready */
-				if (!(ctx->wait_event.events & SUB_RETRY_RECV)) {
-						__conn_sock_want_recv(conn);
+				if (!(ctx->wait_event.events & SUB_RETRY_RECV))
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-				}
 				return 0;
 			}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
@@ -5422,20 +5409,15 @@ check_error:
 
 		if (ret == SSL_ERROR_WANT_WRITE) {
 			/* SSL handshake needs to write, L4 connection may not be ready */
-			if (!(ctx->wait_event.events & SUB_RETRY_SEND)) {
-				__conn_sock_want_send(conn);
+			if (!(ctx->wait_event.events & SUB_RETRY_SEND))
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
-			}
 			return 0;
 		}
 		else if (ret == SSL_ERROR_WANT_READ) {
 			/* SSL handshake needs to read, L4 connection is ready */
 			if (!(ctx->wait_event.events & SUB_RETRY_RECV))
-			{
-				__conn_sock_want_recv(conn);
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
 				    SUB_RETRY_RECV, &ctx->wait_event);
-			}
 			return 0;
 		}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
@@ -5809,7 +5791,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
-				__conn_sock_want_send(conn);
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 				/* Async mode can be re-enabled, because we're leaving data state.*/
@@ -5825,7 +5806,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 							     &ctx->wait_event);
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
-					__conn_sock_want_recv(conn);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
@@ -5848,7 +5828,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			break;
 	}
  leave:
-	conn_cond_update_sock_polling(conn);
 	return done;
 
  clear_ssl_error:
@@ -5973,7 +5952,6 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				if (SSL_renegotiate_pending(ctx->ssl)) {
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
-					__conn_sock_want_send(conn);
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 					/* Async mode can be re-enabled, because we're leaving data state.*/
@@ -5988,7 +5966,6 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			else if (ret == SSL_ERROR_WANT_READ) {
 				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
-				__conn_sock_want_recv(conn);
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
 				                     SUB_RETRY_RECV,
 						     &ctx->wait_event);
@@ -6003,7 +5980,6 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		}
 	}
  leave:
-	conn_cond_update_sock_polling(conn);
 	return done;
 
  out_error:

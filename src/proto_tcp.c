@@ -578,22 +578,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 		return SF_ERR_RESOURCE;
 	}
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_EARLY_SSL_HS)) {
-		conn_sock_want_send(conn);  /* for connect status, proxy protocol or SSL */
-		if (conn->flags & CO_FL_EARLY_SSL_HS)
-			conn_xprt_want_send(conn);
-	}
-	else {
-		/* If there's no more handshake, we need to notify the data
-		 * layer when the connection is already OK otherwise we'll have
-		 * no other opportunity to do it later (eg: health checks).
-		 */
-		flags |= CONNECT_HAS_DATA;
-	}
-
-	if (flags & CONNECT_HAS_DATA)
-		conn_xprt_want_send(conn);  /* prepare to send data if any */
-
+	conn_xprt_want_send(conn);  /* for connect status, proxy protocol or SSL */
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
@@ -706,7 +691,7 @@ int tcp_connect_probe(struct connection *conn)
 
 	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
 		if (errno == EALREADY || errno == EINPROGRESS) {
-			__conn_sock_stop_recv(conn);
+			__conn_xprt_stop_recv(conn);
 			fd_cant_send(fd);
 			return 0;
 		}
@@ -730,7 +715,7 @@ int tcp_connect_probe(struct connection *conn)
 	 */
 	fdtab[fd].linger_risk = 0;
 	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-	__conn_sock_stop_both(conn);
+	__conn_xprt_stop_both(conn);
 	return 0;
 }
 

@@ -58,15 +58,6 @@ void conn_fd_handler(int fd)
 
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		if (!conn->send_wait)
-			__conn_sock_stop_send(conn);
-		if (!conn->recv_wait)
-			__conn_sock_stop_recv(conn);
-	}
-	if (!(conn->flags & CO_FL_POLL_SOCK))
-		__conn_sock_stop_both(conn);
-
 	/* The connection owner might want to be notified about an end of
 	 * handshake indicating the connection is ready, before we proceed with
 	 * any data exchange. The callback may fail and cause the connection to
@@ -191,41 +182,6 @@ void conn_update_xprt_polling(struct connection *c)
 		f |= CO_FL_CURR_WR_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_XPRT_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
-		fd_stop_send(c->handle.fd);
-		f &= ~CO_FL_CURR_WR_ENA;
-	}
-	c->flags = f;
-}
-
-/* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
- * The connection flags are updated with the new flags at the end of the
- * operation. Polling is totally disabled if an error was reported.
- */
-void conn_update_sock_polling(struct connection *c)
-{
-	unsigned int f = c->flags;
-
-	if (!conn_ctrl_ready(c))
-		return;
-
-	/* update read status if needed */
-	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_SOCK_RD_ENA)) {
-		fd_want_recv(c->handle.fd);
-		f |= CO_FL_CURR_RD_ENA;
-	}
-	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
-		fd_stop_recv(c->handle.fd);
-		f &= ~CO_FL_CURR_RD_ENA;
-	}
-
-	/* update write status if needed */
-	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_SOCK_WR_ENA)) {
-		fd_want_send(c->handle.fd);
-		f |= CO_FL_CURR_WR_ENA;
-	}
-	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
 		fd_stop_send(c->handle.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
@@ -704,12 +660,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 	conn->flags &= ~flag;
 	conn->flags |= CO_FL_RCVD_PROXY;
-	__conn_sock_stop_recv(conn);
 	return 1;
 
  not_ready:
-	__conn_sock_want_recv(conn);
-	__conn_sock_stop_send(conn);
 	return 0;
 
  missing:
@@ -731,7 +684,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	goto fail;
 
  fail:
-	__conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -908,12 +860,9 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	} while (0);
 
 	conn->flags &= ~flag;
-	__conn_sock_stop_recv(conn);
 	return 1;
 
  not_ready:
-	__conn_sock_want_recv(conn);
-	__conn_sock_stop_send(conn);
 	return 0;
 
  missing:
@@ -934,7 +883,6 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	goto fail;
 
  fail:
-	__conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -991,7 +939,6 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 
 	/* OK we've the whole request sent */
 	conn->flags &= ~CO_FL_SOCKS4_SEND;
-	__conn_sock_stop_send(conn);
 
 	/* The connection is ready now, simply return and let the connection
 	 * handler notify upper layers if needed.
@@ -1018,8 +965,6 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	return 0;
 
  out_wait:
-	__conn_sock_stop_recv(conn);
-	__conn_sock_want_send(conn);
 	return 0;
 }
 
@@ -1125,12 +1070,9 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	} while (0);
 
 	conn->flags &= ~CO_FL_SOCKS4_RECV;
-	__conn_sock_stop_recv(conn);
 	return 1;
 
  not_ready:
-	__conn_sock_want_recv(conn);
-	__conn_sock_stop_send(conn);
 	return 0;
 
  recv_abort:
@@ -1141,7 +1083,6 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	goto fail;
 
  fail:
-	__conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }

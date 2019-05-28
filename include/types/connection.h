@@ -136,12 +136,12 @@ enum {
 	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
 	/* Do not change these values without updating conn_*_poll_changes() ! */
-	CO_FL_SOCK_RD_ENA   = 0x00000001,  /* receiving handshakes is allowed */
+	/* unusued : 0x00000001 */
 	CO_FL_XPRT_RD_ENA   = 0x00000002,  /* receiving data is allowed */
 	CO_FL_CURR_RD_ENA   = 0x00000004,  /* receiving is currently allowed */
 	/* unused : 0x00000008 */
 
-	CO_FL_SOCK_WR_ENA   = 0x00000010,  /* sending handshakes is desired */
+	/* unused : 0x00000010 */
 	CO_FL_XPRT_WR_ENA   = 0x00000020,  /* sending data is desired */
 	CO_FL_CURR_WR_ENA   = 0x00000040,  /* sending is currently desired */
 	/* unused : 0x00000080 */
@@ -193,13 +193,6 @@ enum {
 	/* below we have all handshake flags grouped into one */
 	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP | CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
 	CO_FL_HANDSHAKE_NOSSL = CO_FL_SEND_PROXY | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP | CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
-
-	/* when any of these flags is set, polling is defined by socket-layer
-	 * operations, as opposed to data-layer. Transport is explicitly not
-	 * mentionned here to avoid any confusion, since it can be the same
-	 * as DATA or SOCK on some implementations.
-	 */
-	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
 	/* This connection may not be shared between clients */
 	CO_FL_PRIVATE       = 0x10000000,
