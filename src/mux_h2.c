@@ -662,9 +662,11 @@ static void h2_release(struct h2c *h2c)
 
 		hpack_dht_free(h2c->ddht);
 
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&h2c->buf_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		if (LIST_ADDED(&h2c->buf_wait.list)) {
+			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+			LIST_DEL(&h2c->buf_wait.list);
+			HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		}
 
 		h2_release_buf(h2c, &h2c->dbuf);
 		h2_release_mbuf(h2c);
