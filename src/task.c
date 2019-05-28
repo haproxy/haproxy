@@ -45,7 +45,7 @@ unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
 
 __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
-__decl_aligned_spinlock(wq_lock); /* spin lock related to wait queue */
+__decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global */
@@ -211,7 +211,7 @@ int wake_expired_tasks()
 
 #ifdef USE_THREAD
 	while (1) {
-		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
   lookup_next:
 		eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
@@ -253,10 +253,10 @@ int wake_expired_tasks()
 			goto lookup_next;
 		}
 		task_wakeup(task, TASK_WOKEN_TIMER);
-		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 
-	HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 #endif
 	return ret;
 }

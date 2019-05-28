@@ -102,7 +102,7 @@ extern int global_rqueue_size; /* Number of element sin the global runqueue */
 extern struct task_per_thread task_per_thread[MAX_THREADS];
 
 __decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
-__decl_hathreads(extern HA_SPINLOCK_T wq_lock);  /* spin lock related to wait queue */
+__decl_hathreads(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
 
 static inline void task_insert_into_tasklet_list(struct task *t);
@@ -180,10 +180,10 @@ static inline struct task *task_unlink_wq(struct task *t)
 	if (likely(task_in_wq(t))) {
 		locked = atleast2(t->thread_mask);
 		if (locked)
-			HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
 		if (locked)
-			HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+			HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 	return t;
 }
@@ -400,10 +400,10 @@ static inline void task_queue(struct task *task)
 
 #ifdef USE_THREAD
 	if (atleast2(task->thread_mask)) {
-		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &timers);
-		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	} else
 #endif
 	{
@@ -424,14 +424,15 @@ static inline void task_schedule(struct task *task, int when)
 
 #ifdef USE_THREAD
 	if (atleast2(task->thread_mask)) {
-		HA_SPIN_LOCK(TASK_WQ_LOCK, &wq_lock);
+		/* FIXME: is it really needed to lock the WQ during the check ? */
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (task_in_wq(task))
 			when = tick_first(when, task->expire);
 
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &timers);
-		HA_SPIN_UNLOCK(TASK_WQ_LOCK, &wq_lock);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	} else
 #endif
 	{
