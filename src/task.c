@@ -163,6 +163,7 @@ int wake_expired_tasks()
 {
 	struct task *task;
 	struct eb32_node *eb;
+	__decl_hathreads(int key);
 	int ret = TICK_ETERNITY;
 
 	while (1) {
@@ -210,6 +211,29 @@ int wake_expired_tasks()
 	}
 
 #ifdef USE_THREAD
+	if (eb_is_empty(&timers))
+		goto leave;
+
+	HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &wq_lock);
+	eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
+	if (!eb) {
+		eb = eb32_first(&timers);
+		if (likely(!eb)) {
+			HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
+			goto leave;
+		}
+	}
+	key = eb->key;
+	HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
+
+	if (tick_is_lt(now_ms, key)) {
+		/* timer not expired yet, revisit it later */
+		ret = tick_first(ret, key);
+		goto leave;
+	}
+
+	/* There's really something of interest here, let's visit the queue */
+
 	while (1) {
 		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
   lookup_next:
@@ -258,6 +282,7 @@ int wake_expired_tasks()
 
 	HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 #endif
+leave:
 	return ret;
 }
 
