@@ -2528,14 +2528,14 @@ static void run_poll_loop()
 		wake = 1;
 		if (fd_cache_mask & tid_bit)
 			activity[tid].wake_cache++;
-		else if (active_tasks_mask & tid_bit)
+		else if (thread_has_tasks())
 			activity[tid].wake_tasks++;
 		else if (signal_queue_len && tid == 0)
 			activity[tid].wake_signal++;
 		else {
 			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
 			__ha_barrier_atomic_store();
-			if (active_tasks_mask & tid_bit) {
+			if (global_tasks_mask & tid_bit) {
 				activity[tid].wake_tasks++;
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 			} else

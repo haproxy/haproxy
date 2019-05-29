@@ -47,7 +47,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              "%c%cThread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "             stuck=%d fdcache=%d prof=%d",
 	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
-	              !!(active_tasks_mask & thr_bit),
+		      thread_has_tasks(),
 	              !!(global_tasks_mask & thr_bit),
 	              !eb_is_empty(&task_per_thread[thr].timers),
 	              !eb_is_empty(&task_per_thread[thr].rqueue),

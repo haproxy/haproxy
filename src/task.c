@@ -35,7 +35,6 @@ DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
 DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
 unsigned int nb_tasks = 0;
-volatile unsigned long active_tasks_mask = 0; /* Mask of threads with active tasks */
 volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
 unsigned int tasks_run_queue = 0;
 unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
@@ -82,7 +81,6 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 		__ha_barrier_store();
 	}
 #endif
-	_HA_ATOMIC_OR(&active_tasks_mask, t->thread_mask);
 	t->rq.key = _HA_ATOMIC_ADD(&rqueue_ticks, 1);
 
 	if (likely(t->nice)) {
@@ -308,7 +306,7 @@ void process_runnable_tasks()
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
-	if (!(active_tasks_mask & tid_bit)) {
+	if (!thread_has_tasks()) {
 		activity[tid].empty_rq++;
 		return;
 	}
@@ -381,13 +379,6 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	if (!(global_tasks_mask & tid_bit) && task_per_thread[tid].rqueue_size == 0) {
-		_HA_ATOMIC_AND(&active_tasks_mask, ~tid_bit);
-		__ha_barrier_atomic_load();
-		if (global_tasks_mask & tid_bit)
-			_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
-	}
-
 	while (max_processed > 0 && !LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
 		struct task *t;
 		unsigned short state;
@@ -449,10 +440,8 @@ void process_runnable_tasks()
 		max_processed--;
 	}
 
-	if (!LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
-		_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
+	if (!LIST_ISEMPTY(&task_per_thread[tid].task_list))
 		activity[tid].long_rq++;
-	}
 }
 
 /*

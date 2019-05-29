@@ -83,7 +83,6 @@
 
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
-extern volatile unsigned long active_tasks_mask; /* Mask of threads with active tasks */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
 extern unsigned int tasks_run_queue;    /* run queue size */
 extern unsigned int tasks_run_queue_cur;
@@ -233,7 +232,6 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 		return;
 	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
 	task_per_thread[tid].task_list_size++;
-	_HA_ATOMIC_OR(&active_tasks_mask, tid_bit);
 	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 
 }
@@ -539,6 +537,13 @@ static inline void notification_wake(struct list *wake)
 static inline int notification_registered(struct list *wake)
 {
 	return !LIST_ISEMPTY(wake);
+}
+
+static inline int thread_has_tasks(void)
+{
+	return (!!(global_tasks_mask & tid_bit) |
+	        (task_per_thread[tid].rqueue_size > 0) |
+	        !LIST_ISEMPTY(&task_per_thread[tid].task_list));
 }
 
 /*
