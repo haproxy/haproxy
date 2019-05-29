@@ -1027,6 +1027,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
  out_free_cs:
 	h2c->nb_cs--;
 	cs_free(cs);
+	h2s->cs = NULL;
  out_close:
 	h2s_destroy(h2s);
  out:
