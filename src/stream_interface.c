@@ -360,6 +360,21 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
 					      remote_cs ? remote_cs->conn : NULL);
+			/* We may not have a conn_stream yet, if we don't
+			 * know which mux to use, because it will be decided
+			 * during the SSL handshake. In this case, there should
+			 * be a session associated to the connection in
+			 * conn->owner, and we know it is the session that
+			 * initiated that connection, so we can just use
+			 * its origin, which should contain the client
+			 * connection.
+			 */
+		} else if (!cs && conn->owner) {
+			struct session *sess = conn->owner;
+
+			ret = make_proxy_line(trash.area, trash.size,
+			                      objt_server(conn->target),
+					      objt_conn(sess->origin));
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
