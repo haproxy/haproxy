@@ -2825,7 +2825,7 @@ static int h2_send(struct h2c *h2c)
 			done = h2_process_mux(h2c);
 
 		if (h2c->flags & H2_CF_MUX_MALLOC)
-			break;
+			done = 1; // we won't go further without extra buffers
 
 		if (conn->flags & CO_FL_ERROR)
 			break;
@@ -2836,12 +2836,16 @@ static int h2_send(struct h2c *h2c)
 		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
 			if (b_data(buf)) {
 				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
-				if (!ret)
+				if (!ret) {
+					done = 1;
 					break;
+				}
 				sent = 1;
 				b_del(buf, ret);
-				if (b_data(buf))
+				if (b_data(buf)) {
+					done = 1;
 					break;
+				}
 			}
 			b_free(buf);
 			released++;
@@ -2888,8 +2892,9 @@ static int h2_send(struct h2c *h2c)
 	if (!br_data(h2c->mbuf))
 		return sent;
 schedule:
-	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
+	if (!(conn->flags & CO_FL_ERROR) && !(h2c->wait_event.events & SUB_RETRY_SEND))
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h2c->wait_event);
+
 	return sent;
 }
 
