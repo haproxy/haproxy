@@ -428,7 +428,7 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	if (bptr->size) {
 		b_free(bptr);
-		offer_buffers(h2c->buf_wait.target, tasks_run_queue);
+		offer_buffers(NULL, tasks_run_queue);
 	}
 }
 
@@ -442,7 +442,7 @@ static inline void h2_release_mbuf(struct h2c *h2c)
 		count++;
 	}
 	if (count)
-		offer_buffers(h2c->buf_wait.target, tasks_run_queue);
+		offer_buffers(NULL, tasks_run_queue);
 }
 
 /* returns the number of allocatable outgoing streams for the connection taking
@@ -2852,7 +2852,7 @@ static int h2_send(struct h2c *h2c)
 		}
 
 		if (released)
-			offer_buffers(h2c->buf_wait.target, tasks_run_queue);
+			offer_buffers(NULL, tasks_run_queue);
 
 		/* wrote at least one byte, the buffer is not full anymore */
 		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
@@ -3062,7 +3062,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		}
 
 		if (released)
-			offer_buffers(h2c->buf_wait.target, tasks_run_queue);
+			offer_buffers(NULL, tasks_run_queue);
 	}
 
 	/* either we can release everything now or it will be done later once
