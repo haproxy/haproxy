@@ -3184,8 +3184,13 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	if (peer->tables) {
 		chunk_appendf(&trash, "\n        shared tables:");
 		for (st = peer->tables; st; st = st->next) {
+			int i, count;
 			struct stktable *t;
+			struct dcache *dcache;
+
 			t = st->table;
+			dcache = peer->dcache;
+
 			chunk_appendf(&trash, "\n          %p local_id=%d remote_id=%d "
 			              "flags=0x%x remote_data=0x%llx",
 			              st, st->local_id, st->remote_id,
@@ -3197,6 +3202,31 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u"
 			              " commitupdate=%u syncing=%u",
 			              t, t->id, t->update, t->localupdate, t->commitupdate, t->syncing);
+			if (!eb_is_empty(&dcache->tx->keys)) {
+				struct eb32_node *node;
+				struct dcache_tx_entry *de;
+
+				chunk_appendf(&trash, "\n        TX dictionary cache:");
+				count = 0;
+				for (node = eb32_first(&dcache->tx->keys); node; node = eb32_next(node)) {
+					if (!count++)
+						chunk_appendf(&trash, "\n        ");
+					de = container_of(node, struct dcache_tx_entry, key);
+					chunk_appendf(&trash, "  %3u -> %s", node->key,
+					              (char *)((struct dict_entry *)(de->value.key))->value.key);
+					count &= 0x3;
+				}
+			}
+			chunk_appendf(&trash, "\n        RX dictionary cache:");
+			count = 0;
+			for (i = 0; i < dcache->max_entries; i++) {
+				if (!count++)
+					chunk_appendf(&trash, "\n        ");
+				chunk_appendf(&trash, "  %3u -> %s", i,
+				              dcache->rx[i].de ?
+				                  (char *)dcache->rx[i].de->value.key : "-");
+				count &= 0x3;
+			}
 		}
 	}
 
