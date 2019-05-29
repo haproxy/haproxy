@@ -383,20 +383,21 @@ static inline void channel_add_input(struct channel *chn, unsigned int len)
 
 static inline unsigned long long channel_htx_forward(struct channel *chn, struct htx *htx, unsigned long long bytes)
 {
-	unsigned long long ret;
+	unsigned long long ret = 0;
 
-	b_set_data(&chn->buf, htx->data);
-	ret = channel_forward(chn, bytes);
-	b_set_data(&chn->buf, b_size(&chn->buf));
+	if (htx->data) {
+		b_set_data(&chn->buf, htx->data);
+		ret = channel_forward(chn, bytes);
+		b_set_data(&chn->buf, b_size(&chn->buf));
+	}
 	return ret;
 }
 
 
 static inline void channel_htx_forward_forever(struct channel *chn, struct htx *htx)
 {
-	b_set_data(&chn->buf, htx->data);
-	channel_forward_forever(chn);
-	b_set_data(&chn->buf, b_size(&chn->buf));
+	c_adv(chn, htx->data - co_data(chn));
+	chn->to_forward = CHN_INFINITE_FORWARD;
 }
 /*********************************************************************/
 /* These functions are used to compute various channel content sizes */
