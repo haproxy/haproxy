@@ -1777,8 +1777,10 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		ctx.blk = NULL;
 		while (http_find_header(htx, hdr, &ctx, 0)) {
 			if ((ctx.value.len >= 9 && word_match(ctx.value.ptr, ctx.value.len, "Negotiate", 9)) ||
-			    (ctx.value.len >= 4 && word_match(ctx.value.ptr, ctx.value.len, "NTLM", 4)))
+			    (ctx.value.len >= 4 && word_match(ctx.value.ptr, ctx.value.len, "NTLM", 4))) {
+				sess->flags |= SESS_FL_PREFER_LAST;
 				srv_conn->flags |= CO_FL_PRIVATE;
+			}
 		}
 	}
 

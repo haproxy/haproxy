@@ -275,7 +275,6 @@ void show_txn_flags(unsigned int f)
 	SHOW_FLAG(f, TX_HDR_CONN_PRS);
 	SHOW_FLAG(f, TX_WAIT_NEXT_RQ);
 	SHOW_FLAG(f, TX_HDR_CONN_UPG);
-	SHOW_FLAG(f, TX_PREFER_LAST);
 	SHOW_FLAG(f, TX_CON_KAL_SET);
 	SHOW_FLAG(f, TX_CON_CLO_SET);
 

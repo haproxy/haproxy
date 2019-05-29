@@ -647,14 +647,14 @@ int assign_server(struct stream *s)
 	s->target = NULL;
 
 	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
-	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
+	    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
 	     (s->be->options & PR_O_PREF_LAST))) {
 		struct sess_srv_list *srv_list;
 		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
 			struct server *tmpsrv = objt_server(srv_list->target);
 
 			if (tmpsrv && tmpsrv->proxy == s->be &&
-			    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
+			    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
 			     (!s->be->max_ka_queue ||
 			      server_has_room(tmpsrv) || (
 			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&

@@ -59,6 +59,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		_HA_ATOMIC_ADD(&jobs, 1);
 		LIST_INIT(&sess->srv_list);
 		sess->idle_conns = 0;
+		sess->flags = SESS_FL_NONE;
 	}
 	return sess;
 }
