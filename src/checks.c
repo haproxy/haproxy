@@ -2243,6 +2243,16 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 
 		/* here, we have seen a synchronous error, no fd was allocated */
 		if (cs) {
+			if (check->wait_list.events)
+				cs->conn->xprt->unsubscribe(cs->conn,
+				                            cs->conn->xprt_ctx,
+							    check->wait_list.events,
+							    &check->wait_list);
+			/* We may have been scheduled to run, and the
+			 * I/O handler expects to have a cs, so remove
+			 * the tasklet
+			 */
+			task_remove_from_tasklet_list((struct task *)check->wait_list.task);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2297,6 +2307,16 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		}
 
 		if (cs) {
+			if (check->wait_list.events)
+				cs->conn->xprt->unsubscribe(cs->conn,
+				    cs->conn->xprt_ctx,
+				    check->wait_list.events,
+				    &check->wait_list);
+			/* We may have been scheduled to run, and the
+                         * I/O handler expects to have a cs, so remove
+                         * the tasklet
+                         */
+                        task_remove_from_tasklet_list((struct task *)check->wait_list.task);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2803,8 +2823,21 @@ static int tcpcheck_main(struct check *check)
 				goto out;
 			}
 
-			if (check->cs)
+			if (check->cs) {
+				if (check->wait_list.events)
+					cs->conn->xprt->unsubscribe(cs->conn,
+					                            cs->conn->xprt_ctx,
+								    check->wait_list.events,
+								    &check->wait_list);
+			/* We may have been scheduled to run, and the
+                         * I/O handler expects to have a cs, so remove
+                         * the tasklet
+                         */
+                        task_remove_from_tasklet_list((struct task *)check->wait_list.task);
+
+
 				cs_destroy(check->cs);
+			}
 
 			check->cs = cs;
 			conn = cs->conn;
