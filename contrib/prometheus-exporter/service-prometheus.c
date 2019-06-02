@@ -1369,7 +1369,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				metric = mkf_u32(0, tasks_run_queue_cur);
 				break;
 			case INF_IDLE_PCT:
-				metric = mkf_u32(FN_AVG, idle_pct);
+				metric = mkf_u32(FN_AVG, ti->idle_pct);
 				break;
 			case INF_STOPPING:
 				metric = mkf_u32(0, stopping);
