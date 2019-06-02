@@ -1,6 +1,100 @@
 ChangeLog :
 ===========
 
+2019/06/02 : 2.0-dev5
+    - BUILD: watchdog: use si_value.sival_int, not si_int for the timer's value
+    - BUILD: signals: FreeBSD has SI_LWP instead of SI_TKILL
+    - BUILD: watchdog: condition it to USE_RT
+    - MINOR: raw_sock: report global traffic statistics
+    - MINOR: stats: report the global output bit rate in human readable form
+    - BUG/MINOR: proto-htx: Try to keep connections alive on redirect
+    - BUG/MEDIUM: spoe: Don't use the SPOE applet after releasing it
+    - BUG/MINOR: lua: Set right direction and flags on new HTTP objects
+    - BUG/MINOR: mux-h2: Count EOM in bytes sent when a HEADERS frame is formatted
+    - BUG/MINOR: mux-h1: Report EOI instead EOS on parsing error or H2 upgrade
+    - BUG/MEDIUM: proto-htx: Not forward too much data when 1xx reponses are handled
+    - BUG/MINOR: htx: Remove a forgotten while loop in htx_defrag()
+    - DOC: fix typos
+    - BUG/MINOR: ssl_sock: Fix memory leak when disabling compression
+    - OPTIM: freq-ctr: don't take the date lock for most updates
+    - MEDIUM: mux-h2: avoid doing expensive buffer realigns when not absolutely needed
+    - CLEANUP: debug: remove the TRACE() macro
+    - MINOR: buffer: introduce b_make() to make a buffer from its parameters
+    - MINOR: buffer: add a new buffer ring API to manipulate rings of buffers
+    - MEDIUM: mux-h2: replace all occurrences of mbuf with a buffer ring
+    - MEDIUM: mux-h2: make the conditions to send based on mbuf, not just its tail
+    - MINOR: mux-h2: introduce h2_release_mbuf() to release all buffers in the mbuf ring
+    - MEDIUM: mux-h2: make the send() function iterate over all mux buffers
+    - CLEANUP: mux-h2: consistently use a local variable for the mbuf
+    - MINOR: mux-h2: report the mbuf's head and tail in "show fd"
+    - MAJOR: mux-h2: switch to next mux buffer on buffer full condition.
+    - BUILD: connections: shut up gcc about impossible out-of-bounds warning
+    - BUILD: ssl: fix latest LibreSSL reg-test error
+    - MINOR: cli/activity: remove "fd_del" and "fd_skip" from show activity
+    - MINOR: cli/activity: add 3 general purpose counters in development mode
+    - BUG/MAJOR: lb/threads: make sure the avoided server is not full on second pass
+    - BUG/MEDIUM: queue: fix the tree walk in pendconn_redistribute.
+    - BUG/MEDIUM: threads: fix double-word CAS on non-optimized 32-bit platforms
+    - MEDIUM: config: now alert when two servers have the same name
+    - MINOR: htx: Remove the macro IS_HTX_SMP() and always use IS_HTX_STRM() instead
+    - MINOR: htx: Move the macro IS_HTX_STRM() in proto/stream.h
+    - MINOR: htx: Store the head position instead of the wrap one
+    - MINOR: htx: Store start-line block's position instead of address of its payload
+    - MINOR: htx: Add functions to get the first block of an HTX message
+    - MINOR: mux-h2/htx: Get the start-line from the head when HEADERS frame is built
+    - MINOR: htx: Replace the function http_find_stline() by http_get_stline()
+    - CLEANUP: htx: Remove unused function htx_get_stline()
+    - MINOR: http/htx: Use sl_pos directly to replace the start-line
+    - MEDIUM: http/htx: Perform analysis relatively to the first block
+    - MINOR: channel/htx: Call channel_htx_recv_max() from channel_recv_max()
+    - MINOR: htx: Add function htx_get_max_blksz()
+    - BUG/MINOR: htx: Change htx_xfer_blk() to also count metadata
+    - MEDIUM: mux-h1: Use the count value received from the SI in h1_rcv_buf()
+    - MINOR: mux-h2: Use the count value received from the SI in h2_rcv_buf()
+    - MINOR: stream-int: Don't use the flag CO_RFL_KEEP_RSV anymore in si_cs_recv()
+    - MINOR: connection: Remove the unused flag CO_RFL_KEEP_RSV
+    - MINOR: mux-h2/htx: Support zero-copy when possible in h2_rcv_buf()
+    - MINOR: htx: Add a field to set the memory used by headers in the HTX start-line
+    - MINOR: h2/htx: Set hdrs_bytes on the SL when an HTX message is produced
+    - MINOR: mux-h1: Set hdrs_bytes on the SL when an HTX message is produced
+    - MINOR: htx: Be sure to xfer all headers in one time in htx_xfer_blks()
+    - MEDIUM: htx: 1xx messages are now part of the final reponses
+    - MINOR: channel/htx: Add function to forward headers of an HTX message
+    - MINOR: filters/htx: Use channel_htx_fwd_headers() after headers filtering
+    - MINOR: proto-htx: Use channel_htx_fwd_headers() to forward 1xx responses
+    - MEDIUM: htx: Store the first block position instead of the start-line one
+    - MINOR: stats/htx: don't use the first block position but the head one
+    - MINOR: channel/htx: Add functions to forward a part or all HTX payload
+    - MINOR: proto-htx: Use channel_htx_fwd_all() when unfiltered body are forwarded
+    - MEDIUM: filters/htx: Filter body relatively to the first block
+    - MINOR: htx: Optimize htx_drain() when all data are drained
+    - MINOR: htx: don't rely on htx_find_blk() anymore in the function htx_truncate()
+    - MINOR: htx: remove the unused function htx_find_blk()
+    - MINOR: htx: Remove support of pseudo headers because it is unused
+    - BUG/MEDIUM: http: fix "http-request reject" when not final
+    - MINOR: ssl: Make sure the underlying xprt's init method doesn't fail.
+    - MINOR: ssl: Don't forget to call the close method of the underlying xprt.
+    - MINOR: htx: rename htx_append_blk_value() to htx_add_data_atonce()
+    - MINOR: htx: make htx_add_data() return the transmitted byte count
+    - MEDIUM: htx: make htx_add_data() never defragment the buffer
+    - MINOR: activity: write totals on the "show activity" output
+    - MINOR: activity: report totals and average separately
+    - MEDIUM: poller: separate the wait time from the wake events
+    - MINOR: activity: report the number of failed pool/buffer allocations
+    - MEDIUM: buffers: relax the buffer lock a little bit
+    - MINOR: task: turn the WQ lock to an RW_LOCK
+    - MEDIUM: task: don't grab the WR lock just to check the WQ
+    - BUG/MEDIUM: mux-h1: Don't skip the TCP splicing when there is no more data to read
+    - MEDIUM: sessions: Introduce session flags.
+    - BUG/MEDIUM: h2: Don't forget to set h2s->cs to NULL after having free'd cs.
+    - BUG/MEDIUM: mux-h2: fix the conditions to end the h2_send() loop
+    - BUG/MEDIUM: mux-h2: don't refrain from offering oneself a used buffer
+    - BUG/MEDIUM: connection: Use the session to get the origin address if needed.
+    - MEDIUM: tasks: Get rid of active_tasks_mask.
+    - MEDIUM: connection: Upstream SOCKS4 proxy support
+    - BUILD: contrib/prometheus: fix build breakage caused by move of idle_pct
+    - BUG/MINOR: deinit/threads: make hard-stop-after perform a clean exit
+
 2019/05/22 : 2.0-dev4
     - BUILD: enable freebsd builds on cirrus-ci
     - BUG/MINOR: http_fetch: Rely on the smp direction for "cookie()" and "hdr()"
