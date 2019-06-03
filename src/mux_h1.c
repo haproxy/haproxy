@@ -58,7 +58,7 @@
 #define H1S_F_ERROR          0x00000001 /* An error occurred on the H1 stream */
 #define H1S_F_REQ_ERROR      0x00000002 /* An error occurred during the request parsing/xfer */
 #define H1S_F_RES_ERROR      0x00000004 /* An error occurred during the response parsing/xfer */
-/* 0x00000008 unused */
+#define H1S_F_REOS           0x00000008 /* End of input stream seen even if not delivered yet */
 #define H1S_F_WANT_KAL       0x00000010
 #define H1S_F_WANT_TUN       0x00000020
 #define H1S_F_WANT_CLO       0x00000040
@@ -1423,7 +1423,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	else if (h1s_data_pending(h1s) && !htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
-	if ((h1s->cs->flags & CS_FL_REOS) && (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
+	if ((h1s->flags & H1S_F_REOS) && (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
 		if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 			h1s->cs->flags |= CS_FL_ERROR;
@@ -1817,8 +1817,8 @@ static int h1_recv(struct h1c *h1c)
 	if (ret > 0 || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn))
 		h1_wake_stream_for_recv(h1s);
 
-	if (conn_xprt_read0_pending(conn) && h1s && h1s->cs) {
-		h1s->cs->flags |= CS_FL_REOS;
+	if (conn_xprt_read0_pending(conn) && h1s) {
+		h1s->flags |= H1S_F_REOS;
 		rcvd = 1;
 	}
 
@@ -1920,16 +1920,14 @@ static int h1_process(struct h1c * h1c)
 	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
 		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 
-	if (!h1s_data_pending(h1s) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
-	    (conn_xprt_read0_pending(conn) || h1c->flags & H1C_F_CS_ERROR ||
-	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
-		int flags = 0;
+	if (conn_xprt_read0_pending(conn))
+		h1s->flags |= H1S_F_REOS;
 
+	if (!h1s_data_pending(h1s) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
+	    (h1s->flags & H1S_F_REOS || h1c->flags & H1C_F_CS_ERROR ||
+	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		if (h1c->flags & H1C_F_CS_ERROR || conn->flags & CO_FL_ERROR)
-			flags |= CS_FL_ERROR;
-		if (conn_xprt_read0_pending(conn))
-			flags |= CS_FL_REOS;
-		h1s->cs->flags |= flags;
+			h1s->cs->flags |= CS_FL_ERROR;
 		h1s->cs->data_cb->wake(h1s->cs);
 	}
   end:
@@ -2358,7 +2356,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
   end:
 	if (conn_xprt_read0_pending(cs->conn)) {
-		cs->flags |= CS_FL_REOS;
+		h1s->flags |= H1S_F_REOS;
 		if (!pipe->data)
 			cs->flags |= CS_FL_EOS;
 	}
