@@ -2582,14 +2582,24 @@ redo:
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
+		/* take the exact same flags si_update_both() will have before
+		 * trying to update again.
+		 */
+		rqf_last = req->flags & ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+		rpf_last = res->flags & ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
+
 		si_update_both(si_f, si_b);
 
+		/* changes requiring immediate attention are processed right now */
 		if (si_f->state == SI_ST_DIS || si_f->state != si_f_prev_state ||
 		    si_b->state == SI_ST_DIS || si_b->state != si_b_prev_state ||
 		    ((si_f->flags & SI_FL_ERR) && si_f->state != SI_ST_CLO) ||
-		    ((si_b->flags & SI_FL_ERR) && si_b->state != SI_ST_CLO) ||
-		    (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER))
+		    ((si_b->flags & SI_FL_ERR) && si_b->state != SI_ST_CLO))
 			goto redo;
+
+		/* I/O events (mostly CF_WRITE_PARTIAL) are aggregated with other I/Os */
+		if (((req->flags ^ rqf_last) | (res->flags ^ rpf_last)) & CF_MASK_ANALYSER)
+			task_wakeup(s->task, TASK_WOKEN_IO);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout
