@@ -172,6 +172,32 @@ struct peer_prep_params {
 /* The maximum length of an encoded data length. */
 #define PEER_MSG_ENC_LENGTH_MAXLEN    5
 
+/* Minimum 64-bits value encoded with 2 bytes */
+#define PEER_ENC_2BYTES_MIN                                  0xf0 /*               0xf0 (or 240) */
+/* 3 bytes */
+#define PEER_ENC_3BYTES_MIN  ((1ULL << 11) | PEER_ENC_2BYTES_MIN) /*              0x8f0 (or 2288) */
+/* 4 bytes */
+#define PEER_ENC_4BYTES_MIN  ((1ULL << 18) | PEER_ENC_3BYTES_MIN) /*            0x408f0 (or 264432) */
+/* 5 bytes */
+#define PEER_ENC_5BYTES_MIN  ((1ULL << 25) | PEER_ENC_4BYTES_MIN) /*          0x20408f0 (or 33818864) */
+/* 6 bytes */
+#define PEER_ENC_6BYTES_MIN  ((1ULL << 32) | PEER_ENC_5BYTES_MIN) /*        0x1020408f0 (or 4328786160) */
+/* 7 bytes */
+#define PEER_ENC_7BYTES_MIN  ((1ULL << 39) | PEER_ENC_6BYTES_MIN) /*       0x81020408f0 (or 554084600048) */
+/* 8 bytes */
+#define PEER_ENC_8BYTES_MIN  ((1ULL << 46) | PEER_ENC_7BYTES_MIN) /*     0x4081020408f0 (or 70922828777712) */
+/* 9 bytes */
+#define PEER_ENC_9BYTES_MIN  ((1ULL << 53) | PEER_ENC_8BYTES_MIN) /*   0x204081020408f0 (or 9078122083518704) */
+/* 10 bytes */
+#define PEER_ENC_10BYTES_MIN ((1ULL << 60) | PEER_ENC_9BYTES_MIN) /* 0x10204081020408f0 (or 1161999626690365680) */
+
+/* #7 bit used to detect the last byte to be encoded */
+#define PEER_ENC_STOP_BIT         7
+/* The byte minimum value with #7 bit set */
+#define PEER_ENC_STOP_BYTE        (1 << PEER_ENC_STOP_BIT)
+/* The left most number of bits set for PEER_ENC_2BYTES_MIN */
+#define PEER_ENC_2BYTES_MIN_BITS  4
+
 #define PEER_MSG_HEADER_LEN               2
 
 #define PEER_STKT_CACHE_MAX_ENTRIES       128
@@ -260,17 +286,17 @@ int intencode(uint64_t i, char **str) {
 	unsigned char *msg;
 
 	msg = (unsigned char *)*str;
-	if (i < 240) {
+	if (i < PEER_ENC_2BYTES_MIN) {
 		msg[0] = (unsigned char)i;
 		*str = (char *)&msg[idx+1];
 		return (idx+1);
 	}
 
-	msg[idx] =(unsigned char)i | 240;
-	i = (i - 240) >> 4;
-	while (i >= 128) {
-		msg[++idx] = (unsigned char)i | 128;
-		i = (i - 128) >> 7;
+	msg[idx] =(unsigned char)i | PEER_ENC_2BYTES_MIN;
+	i = (i - PEER_ENC_2BYTES_MIN) >> PEER_ENC_2BYTES_MIN_BITS;
+	while (i >= PEER_ENC_STOP_BYTE) {
+		msg[++idx] = (unsigned char)i | PEER_ENC_STOP_BYTE;
+		i = (i - PEER_ENC_STOP_BYTE) >> PEER_ENC_STOP_BIT;
 	}
 	msg[++idx] = (unsigned char)i;
 	*str = (char *)&msg[idx+1];
@@ -297,14 +323,14 @@ uint64_t intdecode(char **str, char *end)
 		goto fail;
 
 	i = *(msg++);
-	if (i >= 240) {
-		shift = 4;
+	if (i >= PEER_ENC_2BYTES_MIN) {
+		shift = PEER_ENC_2BYTES_MIN_BITS;
 		do {
 			if (msg >= (unsigned char *)end)
 				goto fail;
 			i += (uint64_t)*msg << shift;
-			shift += 7;
-		} while (*(msg++) >= 128);
+			shift += PEER_ENC_STOP_BIT;
+		} while (*(msg++) >= PEER_ENC_STOP_BYTE);
 	}
 	*str = (char *)msg;
 	return i;
@@ -1652,7 +1678,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 
 	*totl += reql;
 
-	if ((unsigned int)msg_head[2] < 240) {
+	if ((unsigned int)msg_head[2] < PEER_ENC_2BYTES_MIN) {
 		*msg_len = msg_head[2];
 	}
 	else {
