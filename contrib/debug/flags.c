@@ -130,6 +130,8 @@ void show_conn_flags(unsigned int f)
 	SHOW_FLAG(f, CO_FL_ERROR);
 	SHOW_FLAG(f, CO_FL_SOCK_WR_SH);
 	SHOW_FLAG(f, CO_FL_SOCK_RD_SH);
+	SHOW_FLAG(f, CO_FL_SOCKS4_RECV);
+	SHOW_FLAG(f, CO_FL_SOCKS4_SEND);
 	SHOW_FLAG(f, CO_FL_EARLY_DATA);
 	SHOW_FLAG(f, CO_FL_EARLY_SSL_HS);
 	SHOW_FLAG(f, CO_FL_ADDR_TO_SET);
@@ -157,7 +159,9 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
+	SHOW_FLAG(f, CS_FL_READ_PARTIAL);
 	SHOW_FLAG(f, CS_FL_NOT_FIRST);
+	SHOW_FLAG(f, CS_FL_KILL_CONN);
 	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
 	SHOW_FLAG(f, CS_FL_EOI);
 	SHOW_FLAG(f, CS_FL_EOS);
