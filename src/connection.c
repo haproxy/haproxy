@@ -1166,6 +1166,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	} while (0);
 
 	conn->flags &= ~CO_FL_SOCKS4_RECV;
+	__conn_sock_stop_recv(conn);
 	return 1;
 
  not_ready:
