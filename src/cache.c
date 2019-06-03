@@ -85,9 +85,6 @@ struct cache_entry {
 	unsigned int age;         /* Origin server "Age" header value */
 	unsigned int eoh;         /* Origin server end of headers offset. */ // field used in legacy mode only
 
-	unsigned int hdrs_len; // field used in HTX mode only
-	unsigned int data_len; // field used in HTX mode only
-
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
 	unsigned char data[0];
@@ -336,8 +333,9 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	struct cache_st *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_blk *blk;
-	struct cache_entry *object;
-	int ret, to_forward = 0;
+	struct shared_block *fb;
+	unsigned int orig_len, to_forward;
+	int ret;
 
 	if (!len)
 		return len;
@@ -346,12 +344,13 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		unregister_data_filter(s, msg->chn, filter);
 		return len;
 	}
-	object = (struct cache_entry *)st->first_block->data;
 
+	chunk_reset(&trash);
+	orig_len = len;
+	to_forward = 0;
 	for (blk = htx_get_first_blk(htx); blk && len; blk = htx_get_next_blk(htx, blk)) {
-		struct shared_block *fb;
 		enum htx_blk_type type = htx_get_blk_type(blk);
-		uint32_t sz = htx_get_blksz(blk);
+		uint32_t info, sz = htx_get_blksz(blk);
 		struct ist v;
 
 		if (offset >= sz) {
@@ -364,36 +363,29 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 				break;
 
 			case HTX_BLK_DATA:
-			case HTX_BLK_TLR:
 				v = htx_get_blk_value(htx, blk);
 				v.ptr += offset;
 				v.len -= offset;
 				if (v.len > len)
 					v.len = len;
 
-				shctx_lock(shctx);
-				fb = shctx_row_reserve_hot(shctx, st->first_block, v.len);
-				if (!fb) {
-					shctx_unlock(shctx);
-					goto no_cache;
-				}
-				shctx_unlock(shctx);
-
-				ret = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
-							    (unsigned char *)v.ptr, v.len);
-				if (ret < 0)
-					goto no_cache;
-
-				if (type == HTX_BLK_DATA)
-					object->data_len += v.len;
+				info = (type << 28) + v.len;
+				chunk_memcat(&trash, (char *)&info, sizeof(info));
+				chunk_memcat(&trash, v.ptr, v.len);
 				to_forward += v.len;
 				len -= v.len;
 				break;
 
 			default:
-				sz -= offset;
+				/* Here offset must always be 0 because only
+				 * DATA blocks can be partially transferred. */
+				if (offset)
+					goto no_cache;
 				if (sz > len)
-					sz = len;
+					goto end;
+
+				chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
+				chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 				to_forward += sz;
 				len -= sz;
 				break;
@@ -402,12 +394,26 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		offset = 0;
 	}
 
+  end:
+	shctx_lock(shctx);
+	fb = shctx_row_reserve_hot(shctx, st->first_block, trash.data);
+	if (!fb) {
+		shctx_unlock(shctx);
+		goto no_cache;
+	}
+	shctx_unlock(shctx);
+
+	ret = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
+				    (unsigned char *)b_head(&trash), b_data(&trash));
+	if (ret < 0)
+		goto no_cache;
+
 	return to_forward;
 
   no_cache:
 	disable_cache_entry(st, filter, shctx);
 	unregister_data_filter(s, msg->chn, filter);
-	return len;
+	return orig_len;
 }
 
 static int
@@ -633,7 +639,7 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
  * register a filter to store the data
  */
 enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
-                                              struct session *sess, struct stream *s, int flags)
+					struct session *sess, struct stream *s, int flags)
 {
 	unsigned int age;
 	long long hdr_age;
@@ -720,9 +726,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			uint32_t sz = htx_get_blksz(blk);
 
 			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
+			chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 			if (type == HTX_BLK_EOH)
 				break;
-			chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 		}
 	}
 	else {
@@ -773,11 +779,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object->eb.node.leaf_p = NULL;
 	object->eb.key = 0;
 	object->age = age;
-	if (IS_HTX_STRM(s)) {
-		object->hdrs_len = trash.data;
-		object->data_len = 0;
-	}
-	else
+	if (!IS_HTX_STRM(s))
 		object->eoh = msg->eoh;
 
 	/* reserve space for the cache_entry structure */
@@ -845,10 +847,8 @@ out:
 #define 	HTX_CACHE_INIT   0  /* Initial state. */
 #define 	HTX_CACHE_HEADER 1  /* Cache entry headers forwarding */
 #define 	HTX_CACHE_DATA   2  /* Cache entry data forwarding */
-#define 	HTX_CACHE_EOD    3  /* Cache entry data forwarded. DATA->TLR transition */
-#define 	HTX_CACHE_TLR    4  /* Cache entry trailers forwarding */
-#define 	HTX_CACHE_EOM    5  /* Cache entry completely forwarded. Finish the HTX message */
-#define 	HTX_CACHE_END    6  /* Cache entry treatment terminated */
+#define 	HTX_CACHE_EOM    3  /* Cache entry completely forwarded. Finish the HTX message */
+#define 	HTX_CACHE_END    4  /* Cache entry treatment terminated */
 
 static void http_cache_applet_release(struct appctx *appctx)
 {
@@ -862,122 +862,168 @@ static void http_cache_applet_release(struct appctx *appctx)
 	shctx_unlock(shctx_ptr(cache));
 }
 
-static size_t htx_cache_dump_headers(struct appctx *appctx, struct htx *htx)
+
+static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, enum htx_blk_type type,
+				       uint32_t info, struct shared_block *shblk, unsigned int offset)
 {
 	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
-	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
-	struct shared_block *shblk  = appctx->ctx.cache.next;
-	struct buffer *tmp = get_trash_chunk();
-	char *end;
-	unsigned int offset, len, age;
+	struct htx_blk *blk;
+	unsigned int max, total;
+	uint32_t blksz;
 
-	offset = appctx->ctx.cache.offset;
-	len = cache_ptr->hdrs_len;
+	max = htx_get_max_blksz(htx, channel_htx_recv_max(si_ic(appctx->owner), htx));
+	if (!max)
+		return 0;
+	blksz = ((type == HTX_BLK_HDR)
+		 ? (info & 0xff) + ((info >> 8) & 0xfffff)
+		 : info & 0xfffffff);
+	if (blksz > max)
+		return 0;
 
-	/* 1. Retrieve all headers from the cache */
-	list_for_each_entry_from(shblk, &shctx->hot, list) {
-		int sz;
+	blk = htx_add_blk(htx, type, blksz);
+	if (!blk)
+		return 0;
 
-		sz = MIN(len, shctx->block_size - offset);
-		if (!chunk_memcat(tmp, (const char *)shblk->data + offset, sz))
-			return 0;
-
-		offset += sz;
-		len -= sz;
-		if (!len)
-			break;
-		offset = 0;
+	blk->info = info;
+	total = 4;
+	while (blksz) {
+		max = MIN(blksz, shctx->block_size - offset);
+		memcpy(htx_get_blk_ptr(htx, blk), (const char *)shblk->data + offset, max);
+		offset += max;
+		blksz  -= max;
+		total  += max;
+		if (blksz || offset == shctx->block_size) {
+			shblk = LIST_NEXT(&shblk->list, typeof(shblk), list);
+			offset = 0;
+		}
 	}
+
 	appctx->ctx.cache.offset = offset;
-	appctx->ctx.cache.next = shblk;
-	appctx->ctx.cache.sent += b_data(tmp);
+	appctx->ctx.cache.next   = shblk;
+	appctx->ctx.cache.sent  += total;
+	return total;
+}
 
-	/* 2. push these headers in the HTX message */
-	offset = 0;
-	while (offset < b_data(tmp)) {
-		struct htx_blk *blk;
-		enum htx_blk_type type;
-		uint32_t info, sz;
+static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *htx,
+					    uint32_t info, struct shared_block *shblk, unsigned int offset)
+{
 
-		/* Read the header's info */
-		memcpy((char *)&info, b_peek(tmp, offset), 4);
-		type = (info >> 28);
-		sz   = ((type == HTX_BLK_HDR)
-			? (info & 0xff) + ((info >> 8) & 0xfffff)
-			:  info & 0xfffffff);
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	unsigned int max, total, rem_data;
+	uint32_t blksz;
 
-		/* Create the block with the right type and the right size */
-		blk = htx_add_blk(htx, type, sz);
-		if (!blk)
-			return 0;
+	max = htx_get_max_blksz(htx, channel_htx_recv_max(si_ic(appctx->owner), htx));
+	if (!max)
+		return 0;
 
-		/* Copy info and data */
-		blk->info = info;
-		memcpy(htx_get_blk_ptr(htx, blk), b_peek(tmp, offset+4), sz);
-
-		/* next header */
-		offset += 4 + sz;
+	total = 0;
+	rem_data = 0;
+	blksz = ((appctx->ctx.cache.rem_data)
+		 ? appctx->ctx.cache.rem_data
+		 : (info & 0xfffffff));
+	if (blksz > max) {
+		total = 0;
+		rem_data = blksz - max;
+		blksz = max;
 	}
 
-	/* 3. Append "age" header */
-	chunk_reset(tmp);
+	while (blksz) {
+		size_t sz;
+
+		max = MIN(blksz, shctx->block_size - offset);
+		sz  = htx_add_data(htx, ist2(shblk->data + offset, max));
+		offset += sz;
+		blksz  -= sz;
+		total  += sz;
+		if (sz < max)
+			break;
+		if (blksz || offset == shctx->block_size) {
+			shblk = LIST_NEXT(&shblk->list, typeof(shblk), list);
+			offset = 0;
+		}
+	}
+
+	if (total && !appctx->ctx.cache.rem_data)
+		total += 4;
+
+	appctx->ctx.cache.offset   = offset;
+	appctx->ctx.cache.next     = shblk;
+	appctx->ctx.cache.sent    += total;
+	appctx->ctx.cache.rem_data = rem_data + blksz;
+	return total;
+}
+
+static size_t htx_cache_dump_msg(struct appctx *appctx, struct htx *htx, unsigned int len,
+				 enum htx_blk_type mark)
+{
+	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
+	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_block   *shblk;
+	unsigned int offset, sz;
+	unsigned int ret, total = 0;
+
+	while (len) {
+		enum htx_blk_type type;
+		uint32_t info;
+
+		shblk  = appctx->ctx.cache.next;
+		offset = appctx->ctx.cache.offset;
+		if (appctx->ctx.cache.rem_data) {
+			type = HTX_BLK_DATA;
+			info = 0;
+			goto add_data_blk;
+		}
+
+		/* Get info of the next HTX block. May be splitted on 2 shblk */
+		sz = MIN(4, shctx->block_size - offset);
+		memcpy((char *)&info, (const char *)shblk->data + offset, sz);
+		offset += sz;
+		if (sz < 4) {
+			shblk = LIST_NEXT(&shblk->list, typeof(shblk), list);
+			memcpy(((char *)&info)+sz, (const char *)shblk->data, 4 - sz);
+			offset = (4 - sz);
+		}
+
+		/* Get payload of the next HTX block and insert it. */
+		type = (info >> 28);
+		if (type != HTX_BLK_DATA)
+			ret = htx_cache_dump_blk(appctx, htx, type, info, shblk, offset);
+		else {
+		  add_data_blk:
+			ret = htx_cache_dump_data_blk(appctx, htx, info, shblk, offset);
+		}
+
+		if (!ret)
+			break;
+		total += ret;
+		len   -= ret;
+
+		if (appctx->ctx.cache.rem_data || type == mark)
+			break;
+	}
+
+	return total;
+}
+
+static int htx_cache_add_age_hdr(struct appctx *appctx, struct htx *htx)
+{
+	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
+	unsigned int age;
+	char *end;
+
+	chunk_reset(&trash);
 	age = MAX(0, (int)(now.tv_sec - cache_ptr->latest_validation)) + cache_ptr->age;
 	if (unlikely(age > CACHE_ENTRY_MAX_AGE))
 		age = CACHE_ENTRY_MAX_AGE;
-	end = ultoa_o(age, b_head(tmp), b_size(tmp));
-	b_set_data(tmp, end - b_head(tmp));
-
-	if (!http_add_header(htx, ist("Age"), ist2(b_head(tmp), b_data(tmp))))
+	end = ultoa_o(age, b_head(&trash), b_size(&trash));
+	b_set_data(&trash, end - b_head(&trash));
+	if (!http_add_header(htx, ist("Age"), ist2(b_head(&trash), b_data(&trash))))
 		return 0;
-
-	return htx->data;
+	return 1;
 }
 
-static size_t htx_cache_dump_data(struct appctx *appctx, struct htx *htx,
-				  enum htx_blk_type type, unsigned int len)
-{
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
-	struct shared_block *shblk  = appctx->ctx.cache.next;
-	uint32_t max = channel_htx_recv_max(si_ic(appctx->owner), htx);
-	unsigned int offset;
-	size_t total = 0;
-
-	offset = appctx->ctx.cache.offset;
-	if (len > max)
-		len = max;
-	if (!len)
-		goto end;
-
-	list_for_each_entry_from(shblk, &shctx->hot, list) {
-		struct ist data;
-		int sz;
-
-		sz = MIN(len, shctx->block_size - offset);
-		data = ist2((const char *)shblk->data + offset, sz);
-		if (type == HTX_BLK_DATA) {
-			sz = htx_add_data(htx, data);
-		}
-		else { /* HTX_BLK_TLR */
-			if (!htx_add_trailer(htx, data))
-				break;
-		}
-
-		offset += sz;
-		len -= sz;
-		total += sz;
-		if (!len || sz < data.len)
-			break;
-		offset = 0;
-	}
-	appctx->ctx.cache.offset = offset;
-	appctx->ctx.cache.next = shblk;
-	appctx->ctx.cache.sent += total;
-
-  end:
-	return total;
-}
 static void htx_cache_io_handler(struct appctx *appctx)
 {
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
@@ -987,9 +1033,11 @@ static void htx_cache_io_handler(struct appctx *appctx)
 	struct channel *res = si_ic(si);
 	struct htx *req_htx, *res_htx;
 	struct buffer *errmsg;
+	unsigned int len;
 	size_t ret, total = 0;
 
 	res_htx = htxbuf(&res->buf);
+	total = res_htx->data;
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
@@ -1007,77 +1055,35 @@ static void htx_cache_io_handler(struct appctx *appctx)
 		appctx->ctx.cache.next = block_ptr(cache_ptr);
 		appctx->ctx.cache.offset = sizeof(*cache_ptr);
 		appctx->ctx.cache.sent = 0;
+		appctx->ctx.cache.rem_data = 0;
 		appctx->st0 = HTX_CACHE_HEADER;
 	}
 
 	if (appctx->st0 == HTX_CACHE_HEADER) {
 		/* Headers must be dump at once. Otherwise it is an error */
-		ret = htx_cache_dump_headers(appctx, res_htx);
-		if (!ret)
+		len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
+		ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_EOH);
+		if (!ret || (htx_get_tail_type(res_htx) != HTX_BLK_EOH) ||
+		    !htx_cache_add_age_hdr(appctx, res_htx))
 			goto error;
 
-		total += ret;
-		if (si_strm(si)->txn->meth == HTTP_METH_HEAD) {
-			/* Skip response body for HEAD requests */
+		/* Skip response body for HEAD requests */
+		if (si_strm(si)->txn->meth == HTTP_METH_HEAD)
 			appctx->st0 = HTX_CACHE_EOM;
-		}
-		else if (cache_ptr->data_len)
-			appctx->st0 = HTX_CACHE_DATA;
-		else if (first->len > sizeof(*cache_ptr) + appctx->ctx.cache.sent) {
-			/* Headers have benn sent (hrds_len) and there is no data
-			 * (data_len == 0). So, all the remaining is the
-			 * trailers */
-			appctx->st0 = HTX_CACHE_EOD;
-		}
 		else
-			appctx->st0 = HTX_CACHE_EOM;
+			appctx->st0 = HTX_CACHE_DATA;
 	}
 
 	if (appctx->st0 == HTX_CACHE_DATA) {
-		unsigned int len = cache_ptr->hdrs_len + cache_ptr->data_len - appctx->ctx.cache.sent;
-
-		ret = htx_cache_dump_data(appctx, res_htx, HTX_BLK_DATA, len);
-		total += ret;
-		res_htx->extra = (len - ret);
-		if (ret < len) {
-			si_rx_room_blk(si);
-			goto out;
-		}
-
-		if (cache_ptr->hdrs_len + cache_ptr->data_len == appctx->ctx.cache.sent) {
-			if (first->len > sizeof(*cache_ptr) + appctx->ctx.cache.sent) {
-				/* Headers and all data have been sent
-				 * (hrds_len + data_len == sent). So, all the remaining
-				 * is the trailers */
-				appctx->st0 = HTX_CACHE_EOD;
+		len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
+		if (len) {
+			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_EOM);
+			if (ret < len) {
+				si_rx_room_blk(si);
+				goto out;
 			}
-			else
-				appctx->st0 = HTX_CACHE_EOM;
 		}
-	}
-
-	if (appctx->st0 == HTX_CACHE_EOD) {
-		if (!htx_add_endof(res_htx, HTX_BLK_EOD)) {
-			si_rx_room_blk(si);
-			goto out;
-		}
-
-		total++;
-		appctx->st0 = HTX_CACHE_TLR;
-	}
-
-	if (appctx->st0 == HTX_CACHE_TLR) {
-		unsigned int len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
-
-		ret = htx_cache_dump_data(appctx, res_htx, HTX_BLK_TLR, len);
-		total += ret;
-		if (ret < len) {
-			si_rx_room_blk(si);
-			goto out;
-		}
-
-		if (first->len == sizeof(*cache_ptr) + appctx->ctx.cache.sent)
-			appctx->st0 = HTX_CACHE_EOM;
+		appctx->st0 = HTX_CACHE_END;
 	}
 
 	if (appctx->st0 == HTX_CACHE_EOM) {
@@ -1085,8 +1091,6 @@ static void htx_cache_io_handler(struct appctx *appctx)
 			si_rx_room_blk(si);
 			goto out;
 		}
-
-		total++;
 		appctx->st0 = HTX_CACHE_END;
 	}
 
@@ -1097,6 +1101,7 @@ static void htx_cache_io_handler(struct appctx *appctx)
 	}
 
   out:
+	total = res_htx->data - total;
 	if (total)
 		channel_add_input(res, total);
 	htx_to_buf(res_htx, &res->buf);
@@ -1117,7 +1122,7 @@ static void htx_cache_io_handler(struct appctx *appctx)
 	memcpy(res->buf.area, b_head(errmsg), b_data(errmsg));
 	res_htx = htx_from_buf(&res->buf);
 
-	total = res_htx->data;
+	total = 0;
 	appctx->st0 = HTX_CACHE_END;
 	goto end;
 }
