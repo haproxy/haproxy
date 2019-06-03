@@ -66,10 +66,8 @@
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 #define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
 #define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
-#define H1S_F_HAVE_I_EOD     0x00000400 /* Set during input process to know the last empty chunk was processed */
 #define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
-#define H1S_F_HAVE_O_EOD     0x00001000 /* Set during output process to know the last empty chunk was processed */
-#define H1S_F_HAVE_O_TLR     0x00002000 /* Set during output process to know the trailers were processed */
+/* 0x00001000 .. 0x00002000 unused */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
 /* H1 connection descriptor */
@@ -935,6 +933,22 @@ static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 }
 
 /*
+ * Add the EOM in the HTX message and switch the message to the DONE state. It
+ * returns the number of bytes parsed if > 0, or 0 if iet couldn't proceed. This
+ * functions is responsible to update the parser state <h1m>. It also add the
+ * flag CS_FL_EOI on the CS.
+ */
+static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t max)
+{
+	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
+		return 0;
+
+	h1m->state = H1_MSG_DONE;
+	h1s->cs->flags |= CS_FL_EOI;
+	return (sizeof(struct htx_blk) + 1);
+}
+
+/*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
@@ -1178,10 +1192,8 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			}
 
 			if (!h1m->curr_len) {
-				if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
+				if (!h1_process_eom(h1s, h1m, htx, max))
 					goto end;
-				h1m->state = H1_MSG_DONE;
-				h1s->cs->flags |= CS_FL_EOI;
 			}
 		}
 		else if (h1m->flags & H1_MF_CHNK) {
@@ -1206,7 +1218,6 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				if (!chksz) {
 					if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOD))
 						goto end;
-					h1s->flags |= H1S_F_HAVE_I_EOD;
 					h1m->state = H1_MSG_TRAILERS;
 					max -= sizeof(struct htx_blk) + 1;
 				}
@@ -1217,6 +1228,9 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				h1m->body_len += chksz;
 				*ofs += ret;
 				total += ret;
+
+				if (!h1m->curr_len)
+					goto end;
 			}
 
 			if (h1m->state == H1_MSG_DATA) {
@@ -1243,55 +1257,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				}
 				goto end;
 			}
-
-			if (h1m->state == H1_MSG_TRAILERS) {
-				/* Trailers were alread parsed, only the EOM
-				 * need to be added */
-				if (h1s->flags & H1S_F_HAVE_I_TLR)
-					goto skip_tlr_parsing;
-
-				ret = htx_get_max_blksz(htx, max);
-				ret = h1_measure_trailers(buf, *ofs, ret);
-				if (ret <= 0) {
-					if (!ret && b_full(buf))
-						ret = -1;
-					goto end;
-				}
-
-				/* Realing input buffer if tailers wrap. For now
-				 * this is a workaroung. Because trailers are
-				 * not split on CRLF, like headers, there is no
-				 * way to know where to split it when trailers
-				 * wrap. This is a limitation of
-				 * h1_measure_trailers.
-				 */
-				if (b_peek(buf, *ofs) > b_peek(buf, *ofs + ret))
-					b_slow_realign(buf, trash.area, 0);
-
-				if (!htx_add_trailer(htx, ist2(b_peek(buf, *ofs), ret)))
-					goto end;
-				h1s->flags |= H1S_F_HAVE_I_TLR;
-				max -= sizeof(struct htx_blk) + ret;
-				*ofs += ret;
-				total += ret;
-
-			  skip_tlr_parsing:
-				if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
-					goto end;
-				max -= sizeof(struct htx_blk) + 1;
-				h1m->state = H1_MSG_DONE;
-				h1s->cs->flags |= CS_FL_EOI;
-			}
 		}
 		else {
 			/* XFER_LEN is set but not CLEN nor CHNK, it means there
 			 * is no body. Switch the message in DONE state
 			 */
-			if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
+			if (!h1_process_eom(h1s, h1m, htx, max))
 				goto end;
-			max -= sizeof(struct htx_blk) + 1;
-			h1m->state = H1_MSG_DONE;
-			h1s->cs->flags |= CS_FL_EOI;
 		}
 	}
 	else {
@@ -1326,6 +1298,65 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	if (h1m->flags & H1_MF_XFER_LEN)
 		htx->extra = h1m->curr_len;
 	return total;
+}
+
+/*
+ * Parse HTTP/1 trailers. It returns the number of bytes parsed if > 0, or 0 if
+ * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
+ * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
+ * responsible to update the parser state <h1m>.
+ */
+static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+				  struct buffer *buf, size_t *ofs, size_t max)
+{
+	struct http_hdr hdrs[MAX_HTTP_HDR];
+	struct h1m tlr_h1m;
+	int ret = 0;
+
+	if (!max || !b_data(buf))
+		goto end;
+
+	/* Realing input buffer if necessary */
+	if (b_peek(buf, *ofs) > b_tail(buf))
+		b_slow_realign(buf, trash.area, 0);
+
+	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
+	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
+				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &tlr_h1m, NULL);
+	if (ret <= 0) {
+		/* Incomplete or invalid trailers. If the buffer is full, it's
+		 * an error because traliers are too large to be handled by the
+		 * parser. */
+		if (ret < 0 || (!ret && !buf_room_for_htx_data(buf)))
+			goto error;
+		goto end;
+	}
+
+	/* messages trailers fully parsed. */
+	if (h1_eval_htx_hdrs_size(hdrs) > max) {
+		if (htx_is_empty(htx))
+			goto error;
+		ret = 0;
+		goto end;
+	}
+
+	if (!htx_add_all_trailers(htx, hdrs))
+		goto error;
+
+	*ofs += ret;
+	h1s->flags |= H1S_F_HAVE_I_TLR;
+  end:
+	return ret;
+
+  error:
+	h1m->err_state = h1m->state;
+	h1m->err_pos = h1m->next;
+	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+	h1s->cs->flags |= CS_FL_EOI;
+	htx->flags |= HTX_FL_PARSING_ERROR;
+	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+	ret = 0;
+	goto end;
 }
 
 /*
@@ -1367,10 +1398,19 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 			}
 		}
-		else if (h1m->state <= H1_MSG_TRAILERS) {
+		else if (h1m->state < H1_MSG_TRAILERS) {
 			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
 			htx = htx_from_buf(buf);
 			if (!ret)
+				break;
+		}
+		else if (h1m->state == H1_MSG_TRAILERS) {
+			if (!(h1s->flags & H1S_F_HAVE_I_TLR)) {
+				ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+				if (!ret)
+					break;
+			}
+			if (!h1_process_eom(h1s, h1m, htx, count))
 				break;
 		}
 		else if (h1m->state == H1_MSG_DONE) {
@@ -1523,7 +1563,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 		vlen = sz;
 		if (vlen > count) {
-			if (type != HTX_BLK_DATA && type != HTX_BLK_TLR)
+			if (type != HTX_BLK_DATA)
 				goto copy;
 			vlen = count;
 		}
@@ -1647,17 +1687,21 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case H1_MSG_DATA:
-				if (type == HTX_BLK_EOD) {
+				if (type == HTX_BLK_EOM) {
+					/* Chunked message without explicit trailers */
+					if (h1m->flags & H1_MF_CHNK) {
+						if (!chunk_memcat(tmp, "0\r\n\r\n", 5))
+							goto copy;
+					}
+					goto done;
+				}
+				else if (type == HTX_BLK_EOD)
+					break;
+				else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
 					if (!chunk_memcat(tmp, "0\r\n", 3))
 						goto copy;
-					h1s->flags |= H1S_F_HAVE_O_EOD;
-					h1m->state = H1_MSG_TRAILERS;
-					break;
-				}
-				if (type == HTX_BLK_TLR)
 					goto trailers;
-				else if (type == HTX_BLK_EOM)
-					goto done;
+				}
 				else if (type != HTX_BLK_DATA)
 					goto error;
 				v = htx_get_blk_value(chn_htx, blk);
@@ -1669,20 +1713,20 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			case H1_MSG_TRAILERS:
 				if (type == HTX_BLK_EOM)
 					goto done;
-				else if (type != HTX_BLK_TLR)
+				else if (type != HTX_BLK_TLR && type != HTX_BLK_EOT)
 					goto error;
 			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
-				if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
-					if (!chunk_memcat(tmp, "0\r\n", 3))
+				if (type == HTX_BLK_EOT) {
+					if (!chunk_memcat(tmp, "\r\n", 2))
 						goto copy;
-					h1s->flags |= H1S_F_HAVE_O_EOD;
 				}
-				v = htx_get_blk_value(chn_htx, blk);
-				v.len = vlen;
-				if (!htx_trailer_to_h1(v, tmp))
-					goto copy;
-				h1s->flags |= H1S_F_HAVE_O_TLR;
+				else { // HTX_BLK_TLR
+					n = htx_get_blk_name(chn_htx, blk);
+					v = htx_get_blk_value(chn_htx, blk);
+					if (!htx_hdr_to_h1(n, v, tmp))
+						goto copy;
+				}
 				break;
 
 			case H1_MSG_DONE:
@@ -1690,18 +1734,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 			  done:
 				h1m->state = H1_MSG_DONE;
-				if ((h1m->flags & H1_MF_CHNK)) {
-					if (!(h1s->flags & H1S_F_HAVE_O_EOD)) {
-						if (!chunk_memcat(tmp, "0\r\n", 3))
-							goto copy;
-						h1s->flags |= H1S_F_HAVE_O_EOD;
-					}
-					if (!(h1s->flags & H1S_F_HAVE_O_TLR)) {
-						if (!chunk_memcat(tmp, "\r\n", 2))
-							goto copy;
-						h1s->flags |= H1S_F_HAVE_O_TLR;
-					}
-				}
 				break;
 
 			default:

@@ -247,6 +247,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 			case HTX_BLK_EOD:
 			case HTX_BLK_TLR:
+			case HTX_BLK_EOT:
 			case HTX_BLK_EOM:
 				if (msg->flags & HTTP_MSGF_COMPRESSING) {
 					if (htx_compression_buffer_init(htx, &trash) < 0) {

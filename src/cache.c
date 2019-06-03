@@ -875,7 +875,7 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 	max = htx_get_max_blksz(htx, channel_htx_recv_max(si_ic(appctx->owner), htx));
 	if (!max)
 		return 0;
-	blksz = ((type == HTX_BLK_HDR)
+	blksz = ((type == HTX_BLK_HDR || type == HTX_BLK_TLR)
 		 ? (info & 0xff) + ((info >> 8) & 0xfffff)
 		 : info & 0xfffffff);
 	if (blksz > max)

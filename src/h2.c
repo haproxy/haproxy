@@ -943,13 +943,11 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	return -1;
 }
 
-/* Takes an H2 headers list <list> terminated by a name being <NULL,0> and
- * emits the equivalent HTX trailers block not including the empty line. The
- * output contents are emitted in <htx>, and a positive value is returned if
- * some bytes were emitted. In case of error, a negative error code is
- * returned. The caller must have verified that the message in the buffer is
- * compatible with receipt of trailers. Note that for now the HTX trailers
- * block is in fact an H1 block and it must contain the trailing CRLF.
+/* Takes an H2 headers list <list> terminated by a name being <NULL,0> and emits
+ * the equivalent HTX trailers blocks. The output contents are emitted in <htx>,
+ * and a positive value is returned if some bytes were emitted. In case of
+ * error, a negative error code is returned. The caller must have verified that
+ * the message in the buffer is compatible with receipt of trailers.
  *
  * The headers list <list> must be composed of :
  *   - n.name != NULL, n.len  > 0 : literal header name
@@ -961,13 +959,9 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
  */
 int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 {
-	struct htx_blk *blk;
-	char *out;
 	uint32_t idx;
-	int len;
 	int i;
 
-	len = 2; // CRLF
 	for (idx = 0; list[idx].n.len != 0; idx++) {
 		if (!list[idx].n.ptr) {
 			/* This is an indexed pseudo-header (RFC7540#8.1.2.1) */
@@ -995,28 +989,12 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 		    isteq(list[idx].n, ist("transfer-encoding")))
 			goto fail;
 
-		len += list[idx].n.len + 2 + list[idx].v.len + 2;
+		if (!htx_add_trailer(htx, list[idx].n, list[idx].v))
+			goto fail;
 	}
 
-	blk = htx_add_blk_type_size(htx, HTX_BLK_TLR, len);
-	if (!blk)
+	if (!htx_add_endof(htx, HTX_BLK_EOT))
 		goto fail;
-
-	out = htx_get_blk_ptr(htx, blk);
-	for (idx = 0; list[idx].n.len != 0; idx++) {
-		/* copy "name: value" */
-		memcpy(out, list[idx].n.ptr, list[idx].n.len);
-		out += list[idx].n.len;
-		*(out++) = ':';
-		*(out++) = ' ';
-
-		memcpy(out, list[idx].v.ptr, list[idx].v.len);
-		out += list[idx].v.len;
-		*(out++) = '\r';
-		*(out++) = '\n';
-	}
-	*(out++) = '\r';
-	*(out++) = '\n';
 
 	return 1;
 

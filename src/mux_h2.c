@@ -3687,13 +3687,8 @@ next_frame:
 		 * the EOM block we must remove the TLR block we've just added.
 		 */
 		if (htx) {
-			if (!htx_add_endof(htx, HTX_BLK_EOM)) {
-				struct htx_blk *tail = htx_get_tail_blk(htx);
-
-				if (tail && htx_get_blk_type(tail) == HTX_BLK_TLR)
-					htx_remove_blk(htx, tail);
+			if (!htx_add_endof(htx, HTX_BLK_EOM))
 				goto fail;
-			}
 		}
 		else if (*flags & H2_SF_DATA_CHNK) {
 			if (!b_putblk(rxbuf, "\r\n", 2))
@@ -5150,67 +5145,48 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 	struct htx_blk *blk_end;
 	struct buffer outbuf;
 	struct buffer *mbuf;
-	struct h1m h1m;
 	enum htx_blk_type type;
-	uint32_t size;
 	int ret = 0;
 	int hdr;
 	int idx;
-	void *start;
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
 		goto end;
 	}
 
-	/* The principle is that we parse each and every trailers block using
-	 * the H1 headers parser, and append it to the list. We don't proceed
-	 * until EOM is met. blk_end will point to the EOM block.
-	 */
-	hdr = 0;
-	memset(list, 0, sizeof(list));
+	/* determine the first block which must not be deleted, blk_end may
+	 * be NULL if all blocks have to be deleted. also get trailers.
+         */
+	idx = htx_get_head(htx);
 	blk_end = NULL;
 
-	for (idx = htx_get_head(htx); idx != -1; idx = htx_get_next(htx, idx)) {
+	hdr = 0;
+	while (idx != -1) {
 		blk = htx_get_blk(htx, idx);
 		type = htx_get_blk_type(blk);
-
+		idx = htx_get_next(htx, idx);
 		if (type == HTX_BLK_UNUSED)
 			continue;
 
+		if (type == HTX_BLK_EOT) {
+			if (idx != -1)
+				blk_end = blk;
+			break;
+		}
 		if (type != HTX_BLK_TLR)
 			break;
 
 		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
 			goto fail;
 
-		size = htx_get_blksz(blk);
-		start = htx_get_blk_ptr(htx, blk);
-
-		h1m.flags = H1_MF_HDRS_ONLY | H1_MF_TOLOWER;
-		h1m.err_pos = 0;
-		ret = h1_headers_to_hdr_list(start, start + size,
-					     list + hdr, sizeof(list)/sizeof(list[0]) - hdr,
-					     &h1m, NULL);
-		if (ret < 0)
-			goto fail;
-
-		/* ret == 0 if an incomplete trailers block was found (missing
-		 * empty line), or > 0 if it was found. We have to continue on
-		 * incomplete messages because the trailers block might be
-		 * incomplete.
-		 */
-
-		/* search the new end */
-		while (hdr <= sizeof(list)/sizeof(list[0])) {
-			if (!list[hdr].n.len)
-				break;
-			hdr++;
-		}
+		list[hdr].n = htx_get_blk_name(htx, blk);
+		list[hdr].v = htx_get_blk_value(htx, blk);
+		hdr++;
 	}
 
-	if (list[hdr].n.len != 0)
-		goto fail; // empty trailer not found: internal error
+	/* marker for end of trailers */
+	list[hdr].n = ist("");
 
 	mbuf = br_tail(h2c->mbuf);
  retry:
@@ -5294,6 +5270,12 @@ static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
 		ret += htx_get_blksz(blk);
 		blk = htx_remove_blk(htx, blk);
 	}
+
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM) {
+		ret += htx_get_blksz(blk_end);
+		htx_remove_blk(htx, blk_end);
+	}
+
  end:
 	return ret;
  full:
@@ -5577,6 +5559,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_TLR:
+			case HTX_BLK_EOT:
 				/* This is the first trailers block, all the subsequent ones AND
 				 * the EOM will be swallowed by the parser.
 				 */

@@ -103,7 +103,8 @@ enum htx_blk_type {
 	HTX_BLK_DATA   =  4, /* data block */
 	HTX_BLK_EOD    =  5, /* end-of-data block */
 	HTX_BLK_TLR    =  6, /* trailer name/value block */
-	HTX_BLK_EOM    =  7, /* end-of-message block */
+	HTX_BLK_EOT    =  7, /* end-of-trailers block */
+	HTX_BLK_EOM    =  8, /* end-of-message block */
 	/* 8 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
@@ -182,19 +183,19 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value);
 
 struct htx_blk *htx_add_header(struct htx *htx, const struct ist name, const struct ist value);
+struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name, const struct ist value);
 struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
+struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs);
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_blk *htx_add_data_atonce(struct htx *htx, const struct ist data);
 size_t htx_add_data(struct htx *htx, const struct ist data);
-struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr);
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref, const struct ist data);
 
 int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk);
 int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk);
 int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk);
 int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked);
-int htx_trailer_to_h1(const struct ist tlr, struct buffer *chk);
 
 /* Functions and macros to get parts of the start-line or legnth of these
  * parts
@@ -299,6 +300,7 @@ static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 
 	switch (type) {
 		case HTX_BLK_HDR:
+		case HTX_BLK_TLR:
 			/*       name.length       +        value.length        */
 			return ((blk->info & 0xff) + ((blk->info >> 8) & 0xfffff));
 		default:
@@ -513,12 +515,12 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 
 	switch (type) {
 		case HTX_BLK_HDR:
+		case HTX_BLK_TLR:
 			blk->info = (type << 28) + (vlen << 8) + (blk->info & 0xff);
 			break;
 		case HTX_BLK_REQ_SL:
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
-		case HTX_BLK_TLR:
 			blk->info = (type << 28) + vlen;
 			break;
 		default:
@@ -543,6 +545,7 @@ static inline struct ist htx_get_blk_name(const struct htx *htx, const struct ht
 
 	switch (type) {
 		case HTX_BLK_HDR:
+		case HTX_BLK_TLR:
 			ret.ptr = htx_get_blk_ptr(htx, blk);
 			ret.len = blk->info & 0xff;
 			break;
@@ -564,6 +567,7 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 
 	switch (type) {
 		case HTX_BLK_HDR:
+		case HTX_BLK_TLR:
 			ret.ptr = htx_get_blk_ptr(htx, blk) + (blk->info & 0xff);
 			ret.len = (blk->info >> 8) & 0xfffff;
 			break;
@@ -571,7 +575,6 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 		case HTX_BLK_REQ_SL:
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
-		case HTX_BLK_TLR:
 			ret.ptr = htx_get_blk_ptr(htx, blk);
 			ret.len = blk->info & 0xfffffff;
 			break;
@@ -755,6 +758,7 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_DATA:   return "HTX_BLK_DATA";
 		case HTX_BLK_EOD:    return "HTX_BLK_EOD";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
+		case HTX_BLK_EOT:    return "HTX_BLK_EOT";
 		case HTX_BLK_EOM:    return "HTX_BLK_EOM";
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";
 		default:             return "HTX_BLK_???";
@@ -789,7 +793,7 @@ static inline void htx_dump(struct htx *htx)
 				HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 				HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 		}
-		else if (type == HTX_BLK_HDR)
+		else if (type == HTX_BLK_HDR || type == HTX_BLK_TLR)
 			fprintf(stderr, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s: %.*s\n",
 				pos, htx_blk_type_str(type), sz, blk->addr,
 				(int)n.len, n.ptr,

@@ -293,7 +293,7 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 			offset -= sz;
 			continue;
 		}
-		if (type == HTX_BLK_DATA || type == HTX_BLK_TLR) {
+		if (type == HTX_BLK_DATA) {
 			htx_set_blk_value_len(blk, offset);
 			htx->data -= (sz - offset);
 		}
@@ -407,7 +407,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, const struct ist data)
 	return tailblk;
 
   add_new_block:
-	/* FIXME: check tlr.len (< 256MB) */
+	/* FIXME: check data.len (< 256MB) */
 	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
 	if (!blk)
 		return NULL;
@@ -492,6 +492,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	struct htx_blk   *blk, *dstblk;
 	enum htx_blk_type type;
 	uint32_t	  info, max, sz, ret;
+	int inside_trailers = 0;
 
 	ret = htx_used_space(dst);
 	blk = htx_get_blk(src, htx_get_head(src));
@@ -504,14 +505,23 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		if (type == HTX_BLK_UNUSED)
 			goto next;
 
-		/* Be sure to have enough space to xfer all headers in one
-		 * time. If not while <dst> is empty, we report a parsing error
-		 * on <src>.
+		/* Be sure to have enough space to xfer all headers/trailers in
+		 * one time. If not while <dst> is empty, we report a parsing
+		 * error on <src>.
 		 */
 		if (mark >= HTX_BLK_EOH && (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)) {
 			struct htx_sl *sl = htx_get_blk_ptr(src, blk);
 
 			if (sl->hdrs_bytes != -1 && sl->hdrs_bytes > count) {
+				if (htx_is_empty(dst))
+					src->flags |= HTX_FL_PARSING_ERROR;
+				break;
+			}
+		}
+		else if ((type == HTX_BLK_TLR || type == HTX_BLK_EOT) &&
+			 !inside_trailers && mark >= HTX_BLK_EOT) {
+			inside_trailers = 1;
+			if (htx_used_space(src) > count) {
 				if (htx_is_empty(dst))
 					src->flags |= HTX_FL_PARSING_ERROR;
 				break;
@@ -714,6 +724,25 @@ struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 	return blk;
 }
 
+/* Adds an HTX block of type TLR in <htx>. It returns the new block on
+ * success. Otherwise, it returns NULL. The header name is always lower cased.
+ */
+struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
+				const struct ist value)
+{
+	struct htx_blk *blk;
+
+	/* FIXME: check name.len (< 256B) and value.len (< 1MB) */
+	blk = htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
+	if (!blk)
+		return NULL;
+
+	blk->info += (value.len << 8) + name.len;
+	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
+	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
+	return blk;
+}
+
 /* Adds an HTX block of type <type> in <htx>, of size <blksz>. It returns the
  * new block on success. Otherwise, it returns NULL. The caller is responsible
  * for filling the block itself.
@@ -739,6 +768,17 @@ struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs
 			return NULL;
 	}
 	return htx_add_endof(htx, HTX_BLK_EOH);
+}
+
+struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs)
+{
+	int i;
+
+	for (i = 0; hdrs[i].n.len; i++) {
+		if (!htx_add_trailer(htx, hdrs[i].n, hdrs[i].v))
+			return NULL;
+	}
+	return htx_add_endof(htx, HTX_BLK_EOT);
 }
 
 /* Adds an HTX block of type EOH,EOD or EOM in <htx>. It returns the new block
@@ -818,7 +858,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	return len;
 
   add_new_block:
-	/* FIXME: check tlr.len (< 256MB) */
+	/* FIXME: check data.len (< 256MB) */
 	blk = htx_add_blk(htx, HTX_BLK_DATA, len);
 	if (!blk)
 		return 0;
@@ -826,23 +866,6 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	blk->info += len;
 	memcpy(htx_get_blk_ptr(htx, blk), data.ptr, len);
 	return len;
-}
-
-/* Adds an HTX block of type TLR in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
- */
-struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist tlr)
-{
-	struct htx_blk *blk;
-
-	/* FIXME: check tlr.len (< 256MB) */
-	blk = htx_add_blk(htx, HTX_BLK_TLR, tlr.len);
-	if (!blk)
-		return NULL;
-
-	blk->info += tlr.len;
-	memcpy(htx_get_blk_ptr(htx, blk), tlr.ptr, tlr.len);
-	return blk;
 }
 
 struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
@@ -974,17 +997,5 @@ int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 			return 0;
 	}
 
-	return 1;
-}
-
-/* Appends the h1 representation of the trailer block <blk> to the chunk
- * <chk>. It returns 1 if data are successfully appended, otherwise it returns
- * 0.
- */
-int htx_trailer_to_h1(const struct ist tlr, struct buffer *chk)
-{
-	/* FIXME: be sure the CRLF is here or remove it when inserted */
-	if (!chunk_memcat(chk, tlr.ptr, tlr.len))
-		return 0;
 	return 1;
 }
