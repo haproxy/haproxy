@@ -1230,7 +1230,7 @@ int connect_server(struct stream *s)
 		if (!srv_conn->target || srv_conn->target == s->target) {
 			srv_conn->flags &= ~(CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
 			if (srv_cs)
-				srv_cs->flags &= ~(CS_FL_ERROR | CS_FL_EOS | CS_FL_REOS);
+				srv_cs->flags &= ~(CS_FL_ERROR | CS_FL_EOS);
 			reuse = 1;
 			old_conn = srv_conn;
 		} else {

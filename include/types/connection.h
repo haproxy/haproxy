@@ -93,7 +93,7 @@ enum {
 	CS_FL_WANT_ROOM     = 0x00000400,  /* More bytes to transfert, but not enough room */
 	CS_FL_ERR_PENDING   = 0x00000800,  /* An error is pending, but there's still data to be read */
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
-	CS_FL_REOS          = 0x00002000,  /* End of stream received (buffer not empty) */
+	/* unused: 0x00002000 */
 	CS_FL_EOI           = 0x00004000,  /* end-of-input reached */
 	/* unused: 0x00008000 */
 	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */

@@ -513,7 +513,7 @@ static inline void cs_set_error(struct conn_stream *cs)
 	if (cs->flags & CS_FL_EOS)
 		cs->flags |= CS_FL_ERROR;
 	else
-		cs->flags |= CS_FL_REOS | CS_FL_ERR_PENDING;
+		cs->flags |= CS_FL_ERR_PENDING;
 }
 
 /* detect sock->data read0 transition */
