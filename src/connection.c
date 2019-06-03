@@ -487,7 +487,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
-		return 0;
+		goto not_ready;
 
 	do {
 		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
@@ -496,7 +496,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				continue;
 			if (errno == EAGAIN) {
 				fd_cant_recv(conn->handle.fd);
-				return 0;
+				goto not_ready;
 			}
 			goto recv_abort;
 		}
@@ -597,7 +597,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 			line++;
 		}
-		__conn_xprt_stop_recv(conn);
 
 		if (!dst_s || !sport_s || !dport_s)
 			goto bad_header;
@@ -746,7 +745,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 	conn->flags &= ~flag;
 	conn->flags |= CO_FL_RCVD_PROXY;
+	__conn_sock_stop_recv(conn);
 	return 1;
+
+ not_ready:
+	__conn_sock_want_recv(conn);
+	__conn_sock_stop_send(conn);
+	return 0;
 
  missing:
 	/* Missing data. Since we're using MSG_PEEK, we can only poll again if
@@ -803,7 +808,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
-		return 0;
+		goto not_ready;
 
 	do {
 		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
@@ -812,7 +817,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 				continue;
 			if (errno == EAGAIN) {
 				fd_cant_recv(conn->handle.fd);
-				return 0;
+				goto not_ready;
 			}
 			goto recv_abort;
 		}
@@ -944,7 +949,13 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	} while (0);
 
 	conn->flags &= ~flag;
+	__conn_sock_stop_recv(conn);
 	return 1;
+
+ not_ready:
+	__conn_sock_want_recv(conn);
+	__conn_sock_stop_send(conn);
+	return 0;
 
  missing:
 	/* Missing data. Since we're using MSG_PEEK, we can only poll again if
@@ -1049,6 +1060,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 
  out_wait:
 	__conn_sock_stop_recv(conn);
+	__conn_sock_want_send(conn);
 	return 0;
 }
 
@@ -1065,7 +1077,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
-		return 0;
+		goto not_ready;
 
 	do {
 		/* SOCKS4 Proxy will response with 8 bytes, 0x00 | 0x5A | 0x00 0x00 | 0x00 0x00 0x00 0x00
@@ -1100,8 +1112,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 			}
 			if (errno == EAGAIN) {
 				fd_cant_recv(conn->handle.fd);
-				__conn_sock_want_recv(conn);
-				return 0;
+				goto not_ready;
 			}
 			goto recv_abort;
 		}
@@ -1111,9 +1122,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 		/* Missing data. Since we're using MSG_PEEK, we can only poll again if
 		 * we are not able to read enough data.
 		 */
-		fd_cant_recv(conn->handle.fd);
-		__conn_sock_want_recv(conn);
-		return 0;
+		goto not_ready;
 	}
 
 	/*
@@ -1158,6 +1167,11 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 
 	conn->flags &= ~CO_FL_SOCKS4_RECV;
 	return 1;
+
+ not_ready:
+	__conn_sock_want_recv(conn);
+	__conn_sock_stop_send(conn);
+	return 0;
 
  recv_abort:
 	if (conn->err_code == CO_ER_NONE) {
