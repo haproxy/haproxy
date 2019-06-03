@@ -231,6 +231,19 @@ static int h1_avail_streams(struct connection *conn)
 /*****************************************************************/
 /* functions below are dedicated to the mux setup and management */
 /*****************************************************************/
+
+/* returns non-zero if there are input data pending for stream h1s. */
+static inline size_t h1s_data_pending(const struct h1s *h1s)
+{
+	const struct h1m *h1m;
+
+	h1m = conn_is_back(h1s->h1c->conn) ? &h1s->res : &h1s->req;
+	if (h1m->state == H1_MSG_DONE)
+		return 0; // data not for this stream (e.g. pipelining)
+
+	return b_data(&h1s->h1c->ibuf);
+}
+
 static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 {
 	struct conn_stream *cs;
@@ -1407,10 +1420,10 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-	else if (!htx_is_empty(htx))
+	else if (h1s_data_pending(h1s) && !htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
-	if ((h1s->cs->flags & CS_FL_REOS) && (!b_data(&h1c->ibuf) || htx_is_empty(htx))) {
+	if ((h1s->cs->flags & CS_FL_REOS) && (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
 		if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 			h1s->cs->flags |= CS_FL_ERROR;
@@ -1758,7 +1771,7 @@ static int h1_recv(struct h1c *h1c)
 	}
 
 	if (h1s && (h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
-		if (!b_data(&h1c->ibuf))
+		if (!h1s_data_pending(h1s))
 			h1_wake_stream_for_recv(h1s);
 		rcvd = 1;
 		goto end;
@@ -1804,8 +1817,11 @@ static int h1_recv(struct h1c *h1c)
 	if (ret > 0 || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn))
 		h1_wake_stream_for_recv(h1s);
 
-	if (conn_xprt_read0_pending(conn) && h1s && h1s->cs)
+	if (conn_xprt_read0_pending(conn) && h1s && h1s->cs) {
 		h1s->cs->flags |= CS_FL_REOS;
+		rcvd = 1;
+	}
+
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
 	else if (!buf_room_for_htx_data(&h1c->ibuf))
@@ -1904,7 +1920,7 @@ static int h1_process(struct h1c * h1c)
 	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
 		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 
-	if (!b_data(&h1c->ibuf) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
+	if (!h1s_data_pending(h1s) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
 	    (conn_xprt_read0_pending(conn) || h1c->flags & H1C_F_CS_ERROR ||
 	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		int flags = 0;
@@ -2324,7 +2340,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
-	if (b_data(&h1s->h1c->ibuf)) {
+	if (h1s_data_pending(h1s)) {
 		h1s->flags |= H1S_F_BUF_FLUSH;
 		goto end;
 	}
