@@ -5,14 +5,14 @@ language: c
 
 env:
   global:
-    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_GETADDRINFO=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas"
+    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_GETADDRINFO=1 USE_TFO=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas"
     - SSL_LIB=${HOME}/opt/lib
     - SSL_INC=${HOME}/opt/include
     - TMPDIR=/tmp
 
 addons:
   apt:
-    packages: [ liblua5.3-dev ]
+    packages: [ liblua5.3-dev, libsystemd-dev ]
 
 cache:
   directories:
@@ -38,13 +38,13 @@ matrix:
     env: TARGET=linux2628 OPENSSL_VERSION=1.0.2r
   - os: linux
     compiler: clang
-    env: TARGET=linux2628 LIBRESSL_VERSION=2.9.1
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.9.2
   - os: linux
     compiler: clang
     env: TARGET=linux2628 LIBRESSL_VERSION=2.8.3
   - os: linux
     compiler: clang
-    env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5
+    env: TARGET=linux2628 LIBRESSL_VERSION=2.7.5 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
   - os: linux
     compiler: clang
     env: TARGET=linux2628 BORINGSSL=yes
@@ -54,6 +54,11 @@ matrix:
   - os: osx
     compiler: clang
     env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1b
+  - os: windows
+    install:
+      - choco install bash make libssl-devel cygwin-devel gcc-core libgcc1 binutils lua-devel libpcre-devel zlib-devel --source cygwin
+    script:
+      - C:\\tools\\cygwin\\bin\\bash -lc 'cd $OLDPWD && make TARGET=cygwin USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_THREAD=1 && ./haproxy -vv'
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
@@ -64,7 +69,7 @@ install:
 script:
   - if [ "${CC}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
   - make -C contrib/wurfl
-  - make CC=$CC V=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS"
+  - make -j3 CC=$CC V=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" EXTRA_OBJS="$EXTRA_OBJS"
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then export LD_LIBRARY_PATH="${HOME}/opt/lib:${LD_LIBRARY_PATH:-}"; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export DYLD_LIBRARY_PATH="${HOME}/opt/lib:${DYLD_LIBRARY_PATH:-}"; fi
   - ./haproxy -vv

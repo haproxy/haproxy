@@ -56,6 +56,17 @@ build_libressl () {
     fi
 }
 
+download_boringssl () {
+    if [ ! -d "download-cache/boringssl" ]; then
+        git clone --depth=1 https://boringssl.googlesource.com/boringssl download-cache/boringssl
+    else
+       (
+        cd download-cache/boringssl
+        git pull
+       )
+    fi
+}
+
 if [ ! -z ${LIBRESSL_VERSION+x} ]; then
 	download_libressl
 	build_libressl
@@ -68,8 +79,9 @@ fi
 
 if [ ! -z ${BORINGSSL+x} ]; then
 	(
-	git clone --depth=1 https://boringssl.googlesource.com/boringssl
-	cd boringssl
+        download_boringssl
+	cd download-cache/boringssl
+        if [ -d build ]; then rm -rf build; fi
 	mkdir build
 	cd build
 	cmake -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
@@ -82,7 +94,7 @@ if [ ! -z ${BORINGSSL+x} ]; then
 	cp crypto/libcrypto.so ssl/libssl.so ${SSL_LIB}
 
 	mkdir -p ${SSL_INC}
-	mv ../include/* ${SSL_INC}
+	cp -r ../include/* ${SSL_INC}
 	)
 fi
 
