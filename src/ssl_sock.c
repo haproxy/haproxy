@@ -7196,6 +7196,37 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L
 static int
+smp_fetch_ssl_fc_random(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	                                           smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct buffer *data;
+	struct ssl_sock_ctx *ctx;
+
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+	ctx = conn->xprt_ctx;
+
+	data = get_trash_chunk();
+	if (kw[7] == 'c')
+		data->data = SSL_get_client_random(ctx->ssl,
+		                                   (unsigned char *) data->area,
+		                                   data->size);
+	else
+		data->data = SSL_get_server_random(ctx->ssl,
+		                                   (unsigned char *) data->area,
+		                                   data->size);
+	if (!data->data)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str = *data;
+
+	return 1;
+}
+
+static int
 smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -9395,6 +9426,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
 #if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L
+	{ "ssl_bc_client_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
+	{ "ssl_bc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
@@ -9444,6 +9477,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 #if HA_OPENSSL_VERSION_NUMBER >= 0x10100000L
+	{ "ssl_fc_client_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_fc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME

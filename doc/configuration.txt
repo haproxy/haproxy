@@ -15430,6 +15430,11 @@ ssl_bc_cipher : string
   Returns the name of the used cipher when the outgoing connection was made
   over an SSL/TLS transport layer.
 
+ssl_bc_client_random : binary
+  Returns the client random of the back connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+
 ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
   layer and the newly created SSL session was resumed using a cached
@@ -15453,6 +15458,11 @@ ssl_bc_unique_id : binary
   When the outgoing connection was made over an SSL/TLS transport layer,
   returns the TLS unique ID as defined in RFC5929 section 3. The unique id
   can be encoded to base64 using the converter: "ssl_bc_unique_id,base64".
+
+ssl_bc_server_random : binary
+  Returns the server random of the back connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
 
 ssl_bc_session_id : binary
   Returns the SSL ID of the back connection when the outgoing connection was
@@ -15675,6 +15685,11 @@ ssl_fc_cipherlist_xxh : integer
   "tune.ssl.capture-cipherlist-size" is set greater than 0, however the hash
   take in account all the data of the cipher list.
 
+ssl_fc_client_random : binary
+  Returns the client random of the front connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over
   SSL/TLS transport layer. Useful if 'verify' statement is set to 'optional'.
@@ -15718,6 +15733,11 @@ ssl_fc_unique_id : binary
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the TLS unique ID as defined in RFC5929 section 3. The unique id
   can be encoded to base64 using the converter: "ssl_bc_unique_id,base64".
+
+ssl_fc_server_random : binary
+  Returns the server random of the front connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
 
 ssl_fc_session_id : binary
   Returns the SSL ID of the front connection when the incoming connection was
