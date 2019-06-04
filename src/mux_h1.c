@@ -2347,7 +2347,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h1c->flags & H1C_F_CS_WAIT_CONN)
 		return 0;
 
-	while (total != count) {
+	while (count) {
 		size_t ret = 0;
 
 		if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
@@ -2355,6 +2355,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (!ret)
 			break;
 		total += ret;
+		count -= ret;
 		if (!h1_send(h1c))
 			break;
 	}
