@@ -12311,7 +12311,7 @@ pool-max-conn <max>
 pool-purge-delay <delay>
   Sets the delay to start purging idle connections. Each <delay> interval, half
   of the idle connections are closed. 0 means we don't keep any idle connection.
-  The default is 1s.
+  The default is 5s.
 
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
