@@ -4298,7 +4298,9 @@ int parse_dotted_uints(const char *str, unsigned int **nums, size_t *sz)
 }
 
 /* do nothing, just a placeholder for debugging calls, the real one is in trace.c */
+#ifndef USE_OBSOLETE_LINKER
 __attribute__((weak,format(printf, 1, 2)))
+#endif
 void trace(char *msg, ...)
 {
 }
