@@ -1072,7 +1072,7 @@ int htx_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
 	 * been received or if the buffer is full.
 	 */
-	if (htx_get_tail_type(htx) >= HTX_BLK_EOD ||
+	if (htx_get_tail_type(htx) > HTX_BLK_DATA ||
 	    channel_htx_full(req, htx, global.tune.maxrewrite))
 		goto http_end;
 

@@ -848,7 +848,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA) {
 				if (!htx_data_to_h1(htx_get_blk_value(htx, blk), temp, 0))
@@ -919,7 +919,7 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA)
 				len += htx_get_blksz(blk);
@@ -967,7 +967,7 @@ static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA)
 				len += htx_get_blksz(blk);
@@ -2594,7 +2594,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				struct htx_blk   *blk  = htx_get_blk(htx, pos);
 				enum htx_blk_type type = htx_get_blk_type(blk);
 
-				if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+				if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 					break;
 				if (type == HTX_BLK_DATA) {
 					if (!htx_data_to_h1(htx_get_blk_value(htx, blk), temp, 0))

@@ -245,7 +245,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 				blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
 				break;
 
-			case HTX_BLK_EOD:
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
 			case HTX_BLK_EOM:

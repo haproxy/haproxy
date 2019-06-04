@@ -2186,7 +2186,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			/* fall through */
 
 		case PROMEX_ST_DONE:
-			/* Don't add EOD and TLR because mux-h1 will take care of it */
+			/* Don't add TLR because mux-h1 will take care of it */
 			if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 				si_rx_room_blk(si);
 				goto out;

@@ -3734,13 +3734,12 @@ next_frame:
 		goto fail;
 	}
 
-	/* Trailers terminate a DATA sequence. In HTX we have to emit an EOD
-	 * block, and when using chunks we must send the 0 CRLF marker. For
-	 * other modes, the trailers are silently dropped.
+	/* Trailers terminate a DATA sequence. In HTX we always handle them. In
+	 * legacy, when using chunks, we have to emit the 0 CRLF marker first
+	 * and then handle the trailers. For other modes, the trailers are
+	 * silently dropped.
 	 */
 	if (htx) {
-		if (!htx_add_endof(htx, HTX_BLK_EOD))
-			goto fail;
 		if (h2_make_htx_trailers(list, htx) <= 0)
 			goto fail;
 	}
@@ -4860,7 +4859,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
  * present in <buf>, for stream <h2s>. Returns the number of bytes sent. The
  * caller must check the stream's status to detect any error which might have
  * happened subsequently to a successful send. Returns the number of data bytes
- * consumed, or zero if nothing done. Note that EOD/EOM count for 1 byte.
+ * consumed, or zero if nothing done. Note that EOM count for 1 byte.
  */
 static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
@@ -4883,9 +4882,9 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 	htx = htx_from_buf(buf);
 
-	/* We only come here with HTX_BLK_DATA or HTX_BLK_EOD blocks. However,
-	 * while looping, we can meet an HTX_BLK_EOM block that we'll leave to
-	 * the caller to handle.
+	/* We only come here with HTX_BLK_DATA blocks. However, while looping,
+	 * we can meet an HTX_BLK_EOM block that we'll leave to the caller to
+	 * handle.
 	 */
 
  new_frame:
@@ -4894,21 +4893,11 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 
 	idx   = htx_get_head(htx);
 	blk   = htx_get_blk(htx, idx);
-	type  = htx_get_blk_type(blk); // DATA or EOD or EOM
+	type  = htx_get_blk_type(blk); // DATA or EOM
 	bsize = htx_get_blksz(blk);
 	fsize = bsize;
 
-	if (type == HTX_BLK_EOD) {
-		/* if we have an EOD, we're dealing with chunked data. We may
-		 * have a set of trailers after us that the caller will want to
-		 * deal with. Let's simply remove the EOD and return.
-		 */
-		htx_remove_blk(htx, blk);
-		total++; // EOD counts as one byte
-		count--;
-		goto end;
-	}
-	else if (type == HTX_BLK_EOM) {
+	if (type == HTX_BLK_EOM) {
 		if (h2s->flags & H2_SF_ES_SENT) {
 			/* ES already sent */
 			htx_remove_blk(htx, blk);
@@ -5542,7 +5531,6 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				break;
 
 			case HTX_BLK_DATA:
-			case HTX_BLK_EOD:
 			case HTX_BLK_EOM:
 				/* all these cause the emission of a DATA frame (possibly empty).
 				 * This EOM necessarily is one before trailers, as the EOM following

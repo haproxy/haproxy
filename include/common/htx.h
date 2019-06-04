@@ -101,10 +101,9 @@ enum htx_blk_type {
 	HTX_BLK_HDR    =  2, /* header name/value block */
 	HTX_BLK_EOH    =  3, /* end-of-headers block */
 	HTX_BLK_DATA   =  4, /* data block */
-	HTX_BLK_EOD    =  5, /* end-of-data block */
-	HTX_BLK_TLR    =  6, /* trailer name/value block */
-	HTX_BLK_EOT    =  7, /* end-of-trailers block */
-	HTX_BLK_EOM    =  8, /* end-of-message block */
+	HTX_BLK_TLR    =  5, /* trailer name/value block */
+	HTX_BLK_EOT    =  6, /* end-of-trailers block */
+	HTX_BLK_EOM    =  7, /* end-of-message block */
 	/* 8 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
@@ -756,7 +755,6 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_HDR:    return "HTX_BLK_HDR";
 		case HTX_BLK_EOH:    return "HTX_BLK_EOH";
 		case HTX_BLK_DATA:   return "HTX_BLK_DATA";
-		case HTX_BLK_EOD:    return "HTX_BLK_EOD";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
 		case HTX_BLK_EOT:    return "HTX_BLK_EOT";
 		case HTX_BLK_EOM:    return "HTX_BLK_EOM";

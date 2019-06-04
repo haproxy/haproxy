@@ -1215,14 +1215,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				ret = h1_parse_chunk_size(buf, *ofs, b_data(buf), &chksz);
 				if (ret <= 0)
 					goto end;
-				if (!chksz) {
-					if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOD))
-						goto end;
-					h1m->state = H1_MSG_TRAILERS;
-					max -= sizeof(struct htx_blk) + 1;
-				}
-				else
-					h1m->state = H1_MSG_DATA;
+				h1m->state = ((!chksz) ? H1_MSG_TRAILERS : H1_MSG_DATA);
 
 				h1m->curr_len  = chksz;
 				h1m->body_len += chksz;
@@ -1695,8 +1688,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					}
 					goto done;
 				}
-				else if (type == HTX_BLK_EOD)
-					break;
 				else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
 					if (!chunk_memcat(tmp, "0\r\n", 3))
 						goto copy;

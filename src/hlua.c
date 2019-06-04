@@ -4002,7 +4002,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_EOD)
+			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA)
 				len += htx_get_blksz(blk);
@@ -4251,7 +4251,6 @@ __LJMP static int hlua_applet_htx_getline_yield(lua_State *L, int status, lua_KC
 				luaL_addlstring(&appctx->b, v.ptr, vlen);
 				break;
 
-			case HTX_BLK_EOD:
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOM:
 				stop = 1;
@@ -4401,7 +4400,6 @@ __LJMP static int hlua_applet_htx_recv_yield(lua_State *L, int status, lua_KCont
 				luaL_addlstring(&appctx->b, v.ptr, vlen);
 				break;
 
-			case HTX_BLK_EOD:
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOM:
 				len = 0;
@@ -7295,7 +7293,7 @@ static void hlua_applet_htx_fct(struct appctx *ctx)
 		if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT))
 			goto error;
 
-		/* Don't add EOD and TLR because mux-h1 will take care of it */
+		/* Don't add TLR because mux-h1 will take care of it */
 		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 			si_rx_room_blk(si);
 			goto out;

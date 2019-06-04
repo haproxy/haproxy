@@ -482,7 +482,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 }
 
 /* Transfer HTX blocks from <src> to <dst>, stopping on the first block of the
- * type <mark> (typically EOH, EOD or EOM) or when <count> bytes were moved
+ * type <mark> (typically EOH or EOM) or when <count> bytes were moved
  * (including payload and meta-data). It returns the number of bytes moved and
  * the last HTX block inserted in <dst>.
  */
@@ -781,7 +781,7 @@ struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdr
 	return htx_add_endof(htx, HTX_BLK_EOT);
 }
 
-/* Adds an HTX block of type EOH,EOD or EOM in <htx>. It returns the new block
+/* Adds an HTX block of type EOH or EOM in <htx>. It returns the new block
  * on success. Otherwise, it returns NULL.
  */
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
