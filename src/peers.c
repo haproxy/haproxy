@@ -168,6 +168,9 @@ struct peer_prep_params {
 #define PEER_MSG_STKT_ACK              0x84
 #define PEER_MSG_STKT_UPDATE_TIMED     0x85
 #define PEER_MSG_STKT_INCUPDATE_TIMED  0x86
+/* All the stick-table message identifiers abova have the #7 bit set */
+#define PEER_MSG_STKT_BIT                 7
+#define PEER_MSG_STKT_BIT_MASK         (1 << PEER_MSG_STKT_BIT)
 
 /* The maximum length of an encoded data length. */
 #define PEER_MSG_ENC_LENGTH_MAXLEN    5
@@ -1668,7 +1671,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 
 	*totl += reql;
 
-	if ((unsigned int)msg_head[1] < 128)
+	if (!(msg_head[1] & PEER_MSG_STKT_BIT_MASK))
 		return 1;
 
 	/* Read and Decode message length */
@@ -1693,7 +1696,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 
 			*totl += reql;
 
-			if (!(msg_head[i] & 0x80))
+			if (!(msg_head[i] & PEER_MSG_STKT_BIT_MASK))
 				break;
 		}
 
