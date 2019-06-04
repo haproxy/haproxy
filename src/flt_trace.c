@@ -464,8 +464,32 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 	struct trace_config *conf = FLT_CONF(filter);
 	int ret = len;
 
-	if (ret && conf->rand_forwarding)
+	if (ret && conf->rand_forwarding) {
+		struct htx *htx = htxbuf(&msg->chn->buf);
+		struct htx_blk *blk;
+		uint32_t sz, data = 0;
+
+		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+			if (htx_get_blk_type(blk) != HTX_BLK_DATA)
+				break;
+
+			sz = htx_get_blksz(blk);
+			if (offset >= sz) {
+				offset -= sz;
+				continue;
+			}
+			data  += sz - offset;
+			offset = 0;
+			if (data > len) {
+				data = len;
+				break;
+			}
+		}
+
 		ret = random() % (ret+1);
+		if (ret > data)
+			ret = len;
+	}
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
 		   "offset=%u - len=%u - forward=%d",
