@@ -697,6 +697,7 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
  * the format:
  *
  *   set-var(<variable-name>) <expression>
+ *   unset-var(<variable-name>)
  *
  * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error
  * message. Otherwise, it returns ACT_RET_PRS_OK and the variable <expr>
@@ -740,10 +741,6 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	/* There is no fetch method when variable is unset. Just set the right
 	 * action and return. */
 	if (!set_var) {
-		if (*args[*arg]) {
-			memprintf(err, "fetch method not supported");
-			return ACT_RET_PRS_ERR;
-		}
 		rule->action     = ACT_CUSTOM;
 		rule->action_ptr = action_clear;
 		return ACT_RET_PRS_OK;
