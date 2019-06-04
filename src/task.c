@@ -161,8 +161,8 @@ int wake_expired_tasks()
 {
 	struct task *task;
 	struct eb32_node *eb;
-	__decl_hathreads(int key);
 	int ret = TICK_ETERNITY;
+	__decl_hathreads(int key);
 
 	while (1) {
   lookup_next_local:
