@@ -607,6 +607,8 @@ static int si_cs_process(struct conn_stream *cs)
 	    (conn->flags & (CO_FL_CONNECTED | CO_FL_HANDSHAKE)) == CO_FL_CONNECTED) {
 		si->exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
+		if (si->state == SI_ST_CON)
+			si->state = SI_ST_RDY;
 	}
 
 	/* Report EOI on the channel if it was reached from the mux point of
@@ -656,6 +658,8 @@ int si_cs_send(struct conn_stream *cs)
 		if (ret > 0) {
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 			did_send = 1;
+			if (si->state == SI_ST_CON)
+				si->state = SI_ST_RDY;
 		}
 
 		if (!oc->pipe->data) {
@@ -735,6 +739,8 @@ int si_cs_send(struct conn_stream *cs)
 		if (ret > 0) {
 			did_send = 1;
 			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+			if (si->state == SI_ST_CON)
+				si->state = SI_ST_RDY;
 
 			co_set_data(oc, co_data(oc) - ret);
 			c_realign_if_empty(oc);
@@ -1252,6 +1258,8 @@ int si_cs_recv(struct conn_stream *cs)
 			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_PARTIAL;
+			if (si->state == SI_ST_CON)
+				si->state = SI_ST_RDY;
 		}
 
 		if (cs->flags & CS_FL_EOS)
@@ -1348,6 +1356,8 @@ int si_cs_recv(struct conn_stream *cs)
 
 		ic->flags |= CF_READ_PARTIAL;
 		ic->total += ret;
+		if (si->state == SI_ST_CON)
+			si->state = SI_ST_RDY;
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
 			/* we're stopped by the channel's policy */
@@ -1501,10 +1511,14 @@ static void stream_int_read0(struct stream_interface *si)
 
 	/* Don't change the state to SI_ST_DIS yet if we're still
 	 * in SI_ST_CON, otherwise it means sess_establish() hasn't
-	 * been called yet, and so the analysers would not run.
+	 * been called yet, and so the analysers would not run. However
+	 * it's fine to switch to SI_ST_RDY as we have really validated
+	 * the connection.
 	 */
 	if (si->state == SI_ST_EST)
 		si->state = SI_ST_DIS;
+	else if (si->state == SI_ST_CON)
+		si->state = SI_ST_RDY;
 	si->exp = TICK_ETERNITY;
 	return;
 }
