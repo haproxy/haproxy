@@ -111,8 +111,7 @@ void conn_fd_handler(int fd)
 	if (conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
 		return;
 
-	if (conn->xprt && fd_send_ready(fd) &&
-	    ((conn->flags & (CO_FL_XPRT_WR_ENA|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_XPRT_WR_ENA)) {
+	if (conn->xprt && fd_send_ready(fd)) {
 		/* force reporting of activity by clearing the previous flags :
 		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
 		 * both of which will be detected below.
@@ -131,8 +130,7 @@ void conn_fd_handler(int fd)
 	 * that we must absolutely test conn->xprt at each step in case it suddenly
 	 * changes due to a quick unexpected close().
 	 */
-	if (conn->xprt && fd_recv_ready(fd) &&
-	    ((conn->flags & (CO_FL_XPRT_RD_ENA|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)) == CO_FL_XPRT_RD_ENA)) {
+	if (conn->xprt && fd_recv_ready(fd)) {
 		/* force reporting of activity by clearing the previous flags :
 		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
 		 * both of which will be detected below.
