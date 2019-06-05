@@ -1440,17 +1440,22 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			unsigned int id;
 			struct dict_entry *de;
 			struct dcache *dc;
+			char *end;
 
 			data_len = decoded_int;
 			if (*msg_cur + data_len > msg_end)
 				goto malformed_unlock;
 
-			id = intdecode(msg_cur, msg_end);
+			/* Compute the end of the current data, <msg_end> being at the end of
+			 * the entire message.
+			 */
+			end = *msg_cur + data_len;
+			id = intdecode(msg_cur, end);
 			if (!*msg_cur || !id)
 				goto malformed_unlock;
 
 			dc = p->dcache;
-			if (*msg_cur == msg_end) {
+			if (*msg_cur == end) {
 				/* Dictionary entry key without value. */
 				if (id > dc->max_entries)
 					break;
@@ -1459,8 +1464,8 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			}
 			else {
 				chunk = get_trash_chunk();
-				value_len = intdecode(msg_cur, msg_end);
-				if (!*msg_cur || *msg_cur + value_len > msg_end ||
+				value_len = intdecode(msg_cur, end);
+				if (!*msg_cur || *msg_cur + value_len > end ||
 					unlikely(value_len + 1 >= chunk->size))
 					goto malformed_unlock;
 
