@@ -43,6 +43,22 @@ enum si_state {
 	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
 } __attribute__((packed));
 
+/* state bits for use with lists of states */
+enum si_state_bit {
+	SI_SB_NONE = 0,
+	SI_SB_INI = 1U << SI_ST_INI,
+	SI_SB_REQ = 1U << SI_ST_REQ,
+	SI_SB_QUE = 1U << SI_ST_QUE,
+	SI_SB_TAR = 1U << SI_ST_TAR,
+	SI_SB_ASS = 1U << SI_ST_ASS,
+	SI_SB_CON = 1U << SI_ST_CON,
+	SI_SB_CER = 1U << SI_ST_CER,
+	SI_SB_EST = 1U << SI_ST_EST,
+	SI_SB_DIS = 1U << SI_ST_DIS,
+	SI_SB_CLO = 1U << SI_ST_CLO,
+	SI_SB_ALL = SI_SB_INI|SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_EST|SI_SB_DIS|SI_SB_CLO,
+};
+
 /* error types reported on the streams interface for more accurate reporting */
 enum {
 	SI_ET_NONE       = 0x0000,  /* no error yet, leave it to zero */

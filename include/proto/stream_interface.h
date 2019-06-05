@@ -138,6 +138,20 @@ static inline void si_set_state(struct stream_interface *si, int state)
 	si->state = si->prev_state = state;
 }
 
+/* returns a bit for a stream-int state, to match against SI_SB_* */
+static inline enum si_state_bit si_state_bit(enum si_state state)
+{
+	BUG_ON(state < SI_ST_INI || state > SI_ST_CLO);
+	return 1U << state;
+}
+
+/* returns true if <state> matches one of the SI_SB_* bits in <mask> */
+static inline int si_state_in(enum si_state state, enum si_state_bit mask)
+{
+	BUG_ON(mask & ~SI_SB_ALL);
+	return !!(si_state_bit(state) & mask);
+}
+
 /* only detaches the endpoint from the SI, which means that it's set to
  * NULL and that ->ops is mapped to si_embedded_ops. The previous endpoint
  * is returned.
