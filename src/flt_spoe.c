@@ -1347,7 +1347,7 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 		goto exit;
 	}
 
-	if (!si_state_in(si->state, SI_SB_EST)) {
+	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST)) {
 		/* not connected yet */
 		si_rx_endp_more(si);
 		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);

@@ -649,7 +649,7 @@ void stream_process_counters(struct stream *s)
 	}
 }
 
-/* This function is called with (si->state == SI_ST_CON) meaning that a
+/* This function is called with (si->state == SI_ST_CON|SI_ST_RDY) meaning that a
  * connection was attempted and that the file descriptor is already allocated.
  * We must check for establishment, error and abort. Possible output states
  * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_DIS (abort), and
@@ -880,7 +880,7 @@ static int sess_update_st_cer(struct stream *s)
 /*
  * This function handles the transition between the SI_ST_CON state and the
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
- * SI_ST_INI) to SI_ST_EST, but only when a ->proto is defined.
+ * SI_ST_INI or SI_ST_RDY) to SI_ST_EST, but only when a ->proto is defined.
  * Note that it will switch the interface to SI_ST_DIS if we already have
  * the CF_SHUTR flag, it means we were able to forward the request, and
  * receive the response, before process_stream() had the opportunity to
@@ -1148,7 +1148,7 @@ static void sess_set_term_flags(struct stream *s)
 		}
 		else if (s->si[1].state == SI_ST_QUE)
 			s->flags |= SF_FINST_Q;
-		else if (si_state_in(s->si[1].state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER))
+		else if (si_state_in(s->si[1].state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY))
 			s->flags |= SF_FINST_C;
 		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
 			s->flags |= SF_FINST_D;
@@ -1945,7 +1945,7 @@ redo:
 		/* note: maybe we should process connection errors here ? */
 	}
 
-	if (si_state_in(si_b->state, SI_SB_CON)) {
+	if (si_state_in(si_b->state, SI_SB_CON|SI_SB_RDY)) {
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
@@ -2428,7 +2428,7 @@ redo:
 
 			/* Now we can add the server name to a header (if requested) */
 			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
-			if (si_state_in(si_b->state, SI_SB_CON|SI_SB_EST) &&
+			if (si_state_in(si_b->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) &&
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {

@@ -448,13 +448,13 @@ static inline void si_must_kill_conn(struct stream_interface *si)
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_RXBLK_CONN && si_state_in(si_opposite(si)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO))
+	if (si->flags & SI_FL_RXBLK_CONN && si_state_in(si_opposite(si)->state, SI_SB_RDY|SI_SB_EST|SI_SB_DIS|SI_SB_CLO))
 		si_rx_conn_rdy(si);
 
 	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
-	if (!si_state_in(si->state, SI_SB_EST))
+	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
 		return;
 
 	si->flags |= SI_FL_RX_WAIT_EP;
@@ -472,7 +472,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 {
 	struct conn_stream *cs;
 
-	if (!si_state_in(si->state, SI_SB_EST))
+	if (!si_state_in(si->state, SI_SB_RDY|SI_SB_EST))
 		return 0;
 
 	cs = objt_cs(si->end);
@@ -552,6 +552,7 @@ static inline const char *si_state_str(int state)
 	case SI_ST_ASS: return "ASS";
 	case SI_ST_CON: return "CON";
 	case SI_ST_CER: return "CER";
+	case SI_ST_RDY: return "RDY";
 	case SI_ST_EST: return "EST";
 	case SI_ST_DIS: return "DIS";
 	case SI_ST_CLO: return "CLO";

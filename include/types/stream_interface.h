@@ -38,6 +38,7 @@ enum si_state {
 	SI_ST_ASS,               /* server just assigned to this interface */
 	SI_ST_CON,               /* initiated connection request (resource exists) */
 	SI_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
+	SI_ST_RDY,               /* [transient] ready proven after I/O success during SI_ST_CON */
 	SI_ST_EST,               /* connection established (resource exists) */
 	SI_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
 	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
@@ -53,10 +54,11 @@ enum si_state_bit {
 	SI_SB_ASS = 1U << SI_ST_ASS,
 	SI_SB_CON = 1U << SI_ST_CON,
 	SI_SB_CER = 1U << SI_ST_CER,
+	SI_SB_RDY = 1U << SI_ST_RDY,
 	SI_SB_EST = 1U << SI_ST_EST,
 	SI_SB_DIS = 1U << SI_ST_DIS,
 	SI_SB_CLO = 1U << SI_ST_CLO,
-	SI_SB_ALL = SI_SB_INI|SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_EST|SI_SB_DIS|SI_SB_CLO,
+	SI_SB_ALL = SI_SB_INI|SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER|SI_SB_RDY|SI_SB_EST|SI_SB_DIS|SI_SB_CLO,
 };
 
 /* error types reported on the streams interface for more accurate reporting */
