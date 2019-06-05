@@ -175,7 +175,7 @@ static void stream_int_shutr(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+	if (!si_state_in(si->state, SI_SB_CON|SI_SB_EST))
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {
@@ -541,7 +541,7 @@ static void stream_int_notify(struct stream_interface *si)
 	/* wake the task up only when needed */
 	if (/* changes on the production side */
 	    (ic->flags & (CF_READ_NULL|CF_READ_ERROR)) ||
-	    (si->state != SI_ST_EST && si->state != SI_ST_CON) ||
+	    !si_state_in(si->state, SI_SB_CON|SI_SB_EST) ||
 	    (si->flags & SI_FL_ERR) ||
 	    ((ic->flags & CF_READ_PARTIAL) &&
 	     ((ic->flags & CF_EOI) || !ic->to_forward || sio->state != SI_ST_EST)) ||
@@ -602,7 +602,7 @@ static int si_cs_process(struct conn_stream *cs)
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 
-	if ((si->state < SI_ST_EST) &&
+	if (!si_state_in(si->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (conn->flags & (CO_FL_CONNECTED | CO_FL_HANDSHAKE)) == CO_FL_CONNECTED) {
 		si->exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
@@ -893,7 +893,7 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	/* back stream-int */
 	cs = objt_cs(si_b->end);
 	if (cs &&
-	    (si_b->state == SI_ST_EST || si_b->state == SI_ST_CON) &&
+	    si_state_in(si_b->state, SI_SB_CON|SI_SB_EST) &&
 	    !(req->flags & CF_SHUTW) && /* Write not closed */
 	    !channel_is_empty(req) &&
 	    !(cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) &&
@@ -903,10 +903,10 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	}
 
 	/* let's recompute both sides states */
-	if (si_f->state == SI_ST_EST)
+	if (si_state_in(si_f->state, SI_SB_EST))
 		si_update(si_f);
 
-	if (si_b->state == SI_ST_EST)
+	if (si_state_in(si_b->state, SI_SB_EST))
 		si_update(si_b);
 
 	/* stream ints are processed outside of process_stream() and must be
@@ -944,7 +944,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+	if (!si_state_in(si->state, SI_SB_CON|SI_SB_EST))
 		return;
 
 	if (si->flags & SI_FL_KILL_CONN)
@@ -1060,7 +1060,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	/* (re)start reading */
-	if (si->state == SI_ST_CON || si->state == SI_ST_EST)
+	if (si_state_in(si->state, SI_SB_CON|SI_SB_EST))
 		tasklet_wakeup(si->wait_event.task);
 }
 
@@ -1075,7 +1075,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	struct channel *oc = si_oc(si);
 	struct conn_stream *cs = __objt_cs(si->end);
 
-	if (unlikely((si->state != SI_ST_CON && si->state != SI_ST_EST) ||
+	if (unlikely(!si_state_in(si->state, SI_SB_CON|SI_SB_EST) ||
 	    (oc->flags & CF_SHUTW)))
 		return;
 
@@ -1106,7 +1106,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 */
 		if (((oc->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
-		    (si->state == SI_ST_EST)) {
+		    si_state_in(si->state, SI_SB_EST)) {
 			si_shutw(si);
 			goto out_wakeup;
 		}
@@ -1151,7 +1151,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	if (likely((oc->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
 	          ((oc->flags & CF_WAKE_WRITE) &&
 	           ((channel_is_empty(oc) && !oc->to_forward) ||
-	            si->state != SI_ST_EST)))) {
+	            !si_state_in(si->state, SI_SB_EST))))) {
 	out_wakeup:
 		if (!(si->flags & SI_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
@@ -1471,7 +1471,7 @@ static void stream_int_read0(struct stream_interface *si)
 	ic->flags |= CF_SHUTR;
 	ic->rex = TICK_ETERNITY;
 
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+	if (!si_state_in(si->state, SI_SB_CON|SI_SB_EST))
 		return;
 
 	if (oc->flags & CF_SHUTW)
@@ -1561,7 +1561,7 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 
 	/* Note: on shutr, we don't call the applet */
 
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+	if (!si_state_in(si->state, SI_SB_CON|SI_SB_EST))
 		return;
 
 	if (si_oc(si)->flags & CF_SHUTW) {

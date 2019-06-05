@@ -1341,14 +1341,17 @@ spoe_handle_connect_appctx(struct appctx *appctx)
 	char *frame, *buf;
 	int   ret;
 
-	if (si->state <= SI_ST_CON) {
+	if (si_state_in(si->state, SI_SB_CER|SI_SB_DIS|SI_SB_CLO)) {
+		/* closed */
+		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
+		goto exit;
+	}
+
+	if (!si_state_in(si->state, SI_SB_EST)) {
+		/* not connected yet */
 		si_rx_endp_more(si);
 		task_wakeup(si_strm(si)->task, TASK_WOKEN_MSG);
 		goto stop;
-	}
-	if (si->state != SI_ST_EST) {
-		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
-		goto exit;
 	}
 
 	if (appctx->st1 == SPOE_APPCTX_ERR_TOUT) {

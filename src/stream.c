@@ -1138,8 +1138,8 @@ abort_connection:
 static void sess_set_term_flags(struct stream *s)
 {
 	if (!(s->flags & SF_FINST_MASK)) {
-		if (s->si[1].state < SI_ST_REQ) {
-
+		if (s->si[1].state == SI_ST_INI) {
+			/* anything before REQ in fact */
 			_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.failed_req, 1);
 			if (strm_li(s) && strm_li(s)->counters)
 				_HA_ATOMIC_ADD(&strm_li(s)->counters->failed_req, 1);
@@ -1148,7 +1148,7 @@ static void sess_set_term_flags(struct stream *s)
 		}
 		else if (s->si[1].state == SI_ST_QUE)
 			s->flags |= SF_FINST_Q;
-		else if (s->si[1].state < SI_ST_EST)
+		else if (si_state_in(s->si[1].state, SI_SB_REQ|SI_SB_TAR|SI_SB_ASS|SI_SB_CON|SI_SB_CER))
 			s->flags |= SF_FINST_C;
 		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
 			s->flags |= SF_FINST_D;
@@ -1906,7 +1906,7 @@ redo:
 	 */
 	srv = objt_server(s->target);
 	if (unlikely(si_f->flags & SI_FL_ERR)) {
-		if (si_f->state == SI_ST_EST || si_f->state == SI_ST_DIS) {
+		if (si_state_in(si_f->state, SI_SB_EST|SI_SB_DIS)) {
 			si_shutr(si_f);
 			si_shutw(si_f);
 			si_report_error(si_f);
@@ -1924,7 +1924,7 @@ redo:
 	}
 
 	if (unlikely(si_b->flags & SI_FL_ERR)) {
-		if (si_b->state == SI_ST_EST || si_b->state == SI_ST_DIS) {
+		if (si_state_in(si_b->state, SI_SB_EST|SI_SB_DIS)) {
 			si_shutr(si_b);
 			si_shutw(si_b);
 			si_report_error(si_b);
@@ -1945,7 +1945,7 @@ redo:
 		/* note: maybe we should process connection errors here ? */
 	}
 
-	if (si_b->state == SI_ST_CON) {
+	if (si_state_in(si_b->state, SI_SB_CON)) {
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
@@ -2016,7 +2016,7 @@ redo:
 	    s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = req->flags;
 
-		if (si_f->state >= SI_ST_EST) {
+		if (si_state_in(si_f->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -2117,7 +2117,7 @@ redo:
 		 s->pending_events & TASK_WOKEN_MSG) {
 		unsigned int flags = res->flags;
 
-		if (si_b->state >= SI_ST_EST) {
+		if (si_state_in(si_b->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO)) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
@@ -2282,7 +2282,7 @@ redo:
 	 */
 	if (unlikely((!req->analysers || (req->analysers == AN_REQ_FLT_END && !(req->flags & CF_FLT_ANALYZE))) &&
 	    !(req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    (si_f->state >= SI_ST_EST) &&
+	    (si_state_in(si_f->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO)) &&
 	    (req->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2401,8 +2401,7 @@ redo:
 	/* we may have a pending connection request, or a connection waiting
 	 * for completion.
 	 */
-	if (si_b->state >= SI_ST_REQ && si_b->state < SI_ST_CON) {
-
+	if (si_state_in(si_b->state, SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS)) {
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
 			if (!LIST_ISEMPTY(&s->vars_reqres.head)) {
@@ -2429,7 +2428,7 @@ redo:
 
 			/* Now we can add the server name to a header (if requested) */
 			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
-			if ((si_b->state == SI_ST_CON || si_b->state == SI_ST_EST) &&
+			if (si_state_in(si_b->state, SI_SB_CON|SI_SB_EST) &&
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {
@@ -2459,7 +2458,7 @@ redo:
 	 */
 	if (unlikely((!res->analysers || (res->analysers == AN_RES_FLT_END && !(res->flags & CF_FLT_ANALYZE))) &&
 	    !(res->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
-	    (si_b->state >= SI_ST_EST) &&
+	    si_state_in(si_b->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
 	    (res->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
@@ -2607,8 +2606,7 @@ redo:
 		}
 	}
 
-	if (likely((si_f->state != SI_ST_CLO) ||
-		   (si_b->state > SI_ST_INI && si_b->state < SI_ST_CLO))) {
+	if (likely((si_f->state != SI_ST_CLO) || !si_state_in(si_b->state, SI_SB_INI|SI_SB_CLO))) {
 		enum si_state si_b_prev_state, si_f_prev_state;
 
 		si_f_prev_state = si_f->prev_state;

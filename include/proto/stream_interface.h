@@ -184,7 +184,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		cs_destroy(cs);
 	}
 	else if ((appctx = objt_appctx(si->end))) {
-		if (appctx->applet->release && si->state < SI_ST_DIS)
+		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
 	} else if ((conn = objt_conn(si->end))) {
@@ -238,7 +238,7 @@ static inline void si_applet_release(struct stream_interface *si)
 	struct appctx *appctx;
 
 	appctx = objt_appctx(si->end);
-	if (appctx && appctx->applet->release && si->state < SI_ST_DIS)
+	if (appctx && appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 		appctx->applet->release(appctx);
 }
 
@@ -448,13 +448,13 @@ static inline void si_must_kill_conn(struct stream_interface *si)
  */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	if (si->flags & SI_FL_RXBLK_CONN && (si_opposite(si)->state >= SI_ST_EST))
+	if (si->flags & SI_FL_RXBLK_CONN && si_state_in(si_opposite(si)->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO))
 		si_rx_conn_rdy(si);
 
 	if (si_rx_blocked(si) || !si_rx_endp_ready(si))
 		return;
 
-	if (si->state != SI_ST_EST)
+	if (!si_state_in(si->state, SI_SB_EST))
 		return;
 
 	si->flags |= SI_FL_RX_WAIT_EP;
@@ -472,7 +472,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 {
 	struct conn_stream *cs;
 
-	if (si->state != SI_ST_EST)
+	if (!si_state_in(si->state, SI_SB_EST))
 		return 0;
 
 	cs = objt_cs(si->end);
