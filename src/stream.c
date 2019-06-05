@@ -2429,7 +2429,7 @@ redo:
 
 			/* Now we can add the server name to a header (if requested) */
 			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
-			if ((si_b->state >= SI_ST_CON) && (si_b->state < SI_ST_CLO) &&
+			if ((si_b->state == SI_ST_CON || si_b->state == SI_ST_EST) &&
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {
