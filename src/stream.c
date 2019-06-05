@@ -649,14 +649,14 @@ void stream_process_counters(struct stream *s)
 	}
 }
 
-/* This function is called with (si->state == SI_ST_CON|SI_ST_RDY) meaning that a
+/* This function is called with (si->state == SI_ST_CON) meaning that a
  * connection was attempted and that the file descriptor is already allocated.
- * We must check for establishment, error and abort. Possible output states
- * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_DIS (abort), and
- * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
- * otherwise 1. This only works with connection-based streams.
+ * We must check for timeout, error and abort. Possible output states are
+ * SI_ST_CER (error), SI_ST_DIS (abort), and SI_ST_CON (no change). This only
+ * works with connection-based streams. We know that there were no I/O event
+ * when reaching this function. Timeouts and errors are *not* cleared.
  */
-static int sess_update_st_con_tcp(struct stream *s)
+static void sess_update_st_con_tcp(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
@@ -664,80 +664,36 @@ static int sess_update_st_con_tcp(struct stream *s)
 	struct conn_stream *srv_cs = objt_cs(si->end);
 	struct connection *conn = srv_cs ? srv_cs->conn : objt_conn(si->end);
 
-	/* If we got an error, or if nothing happened and the connection timed
-	 * out, we must give up. The CER state handler will take care of retry
-	 * attempts and error reports.
-	 */
-	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
-		if (unlikely(req->flags & CF_WROTE_DATA)) {
-			/* Some data were sent past the connection establishment,
-			 * so we need to pretend we're established to log correctly
-			 * and let later states handle the failure.
-			 */
-			si->state    = SI_ST_EST;
-			si->err_type = SI_ET_DATA_ERR;
-			/* Don't add CF_WRITE_ERROR if we're here because
-			 * early data were rejected by the server, or
-			 * http_wait_for_response() will never be called
-			 * to send a 425.
-			 */
-			if (conn->err_code != CO_ER_SSL_EARLY_FAILED)
-				req->flags |= CF_WRITE_ERROR;
-			rep->flags |= CF_READ_ERROR;
-			return 1;
-		}
-		si->exp   = TICK_ETERNITY;
-		si->state = SI_ST_CER;
+	/* the client might want to abort */
+	if ((rep->flags & CF_SHUTW) ||
+	    ((req->flags & CF_SHUTW_NOW) &&
+	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		si->flags |= SI_FL_NOLINGER;
+		si_shutw(si);
+		si->err_type |= SI_ET_CONN_ABRT;
+		if (s->srv_error)
+			s->srv_error(s, si);
+		/* Note: state = SI_ST_DIS now */
+		return;
+	}
 
+	/* retryable error ? */
+	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
 		if (!(s->flags & SF_SRV_REUSED) && conn) {
 			conn_stop_tracking(conn);
 			conn_full_close(conn);
 		}
 
-		if (si->err_type)
-			return 0;
+		if (!si->err_type) {
+			if (si->flags & SI_FL_ERR)
+				si->err_type = SI_ET_CONN_ERR;
+			else
+				si->err_type = SI_ET_CONN_TO;
+		}
 
-		if (si->flags & SI_FL_ERR)
-			si->err_type = SI_ET_CONN_ERR;
-		else
-			si->err_type = SI_ET_CONN_TO;
-		return 0;
+		si->state  = SI_ST_CER;
+		return;
 	}
-
-	/* OK, maybe we want to abort */
-	if (!(req->flags & CF_WROTE_DATA) &&
-	    unlikely((rep->flags & CF_SHUTW) ||
-		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
-		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
-		       (s->be->options & PR_O_ABRT_CLOSE))))) {
-		/* give up */
-		si_shutw(si);
-		si->err_type |= SI_ET_CONN_ABRT;
-		if (s->srv_error)
-			s->srv_error(s, si);
-		return 1;
-	}
-
-	/* If the request channel is waiting for the connect(), we mark the read
-	 * side as attached on the response channel and we wake up it once. So
-	 * it will have a chance to forward data now.
-	 */
-	if (req->flags & CF_WAKE_CONNECT) {
-		rep->flags |= CF_READ_ATTACHED;
-		req->flags |= CF_WAKE_ONCE;
-		req->flags &= ~CF_WAKE_CONNECT;
-	}
-
-	/* we need to wait a bit more if there was no activity either */
-	if (!(req->flags & CF_WRITE_ACTIVITY))
-		return 1;
-
-	/* OK, this means that a connection succeeded. The caller will be
-	 * responsible for handling the transition from CON to EST.
-	 */
-	si->state    = SI_ST_EST;
-	si->err_type = SI_ET_NONE;
-	return 1;
 }
 
 /* This function is called with (si->state == SI_ST_CER) meaning that a
@@ -747,13 +703,16 @@ static int sess_update_st_con_tcp(struct stream *s)
  * retries are exhausted, SI_ST_TAR when a delay is wanted before a new
  * connection attempt, SI_ST_ASS when it's wise to retry on the same server,
  * and SI_ST_REQ when an immediate redispatch is wanted. The buffers are
- * marked as in error state. It returns 0.
+ * marked as in error state. Timeouts and errors are cleared before retrying.
  */
-static int sess_update_st_cer(struct stream *s)
+static void sess_update_st_cer(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 	struct conn_stream *cs = objt_cs(si->end);
 	struct connection *conn = cs_conn(cs);
+
+	si->exp    = TICK_ETERNITY;
+	si->flags &= ~SI_FL_EXP;
 
 	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
@@ -808,7 +767,7 @@ static int sess_update_st_cer(struct stream *s)
 		si->state = SI_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, si);
-		return 0;
+		return;
 	}
 
 	/* If the "redispatch" option is set on the backend, we are allowed to
@@ -872,9 +831,75 @@ static int sess_update_st_cer(struct stream *s)
 			si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
 		si->flags &= ~SI_FL_ERR;
-		return 0;
 	}
-	return 0;
+}
+
+/* This function is called with (si->state == SI_ST_RDY) meaning that a
+ * connection was attempted, that the file descriptor is already allocated,
+ * and that it has succeeded. We must still check for errors and aborts.
+ * Possible output states are SI_ST_EST (established), SI_ST_CER (error),
+ * and SI_ST_DIS (abort). This only works with connection-based streams.
+ * Timeouts and errors are *not* cleared.
+ */
+static void sess_update_st_rdy_tcp(struct stream *s)
+{
+	struct stream_interface *si = &s->si[1];
+	struct channel *req = &s->req;
+	struct channel *rep = &s->res;
+	struct conn_stream *srv_cs = objt_cs(si->end);
+	struct connection *conn = srv_cs ? srv_cs->conn : objt_conn(si->end);
+
+	/* We know the connection at least succeeded, though it could have
+	 * since met an error for any other reason. At least it didn't time out
+	 * eventhough the timeout might have been reported right after success.
+	 * We need to take care of various situations here :
+	 *   - everything might be OK. We have to switch to established.
+	 *   - an I/O error might have been reported after a successful transfer,
+	 *     which is not retryable and needs to be logged correctly, and needs
+	 *     established as well
+	 *   - SI_ST_CON implies !CF_WROTE_DATA but not conversely as we could
+	 *     have validated a connection with incoming data (e.g. TCP with a
+	 *     banner protocol), or just a successful connect() probe.
+	 *   - the client might have requested a connection abort, this needs to
+	 *     be checked before we decide to retry anything.
+	 */
+
+	/* it's still possible to handle client aborts or connection retries
+	 * before any data were sent.
+	 */
+	if (!(req->flags & CF_WROTE_DATA)) {
+		/* client abort ? */
+		if ((rep->flags & CF_SHUTW) ||
+		    ((req->flags & CF_SHUTW_NOW) &&
+		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+			/* give up */
+			si->flags |= SI_FL_NOLINGER;
+			si_shutw(si);
+			si->err_type |= SI_ET_CONN_ABRT;
+			if (s->srv_error)
+				s->srv_error(s, si);
+			return;
+		}
+
+		/* retryable error ? */
+		if (si->flags & SI_FL_ERR) {
+			if (!(s->flags & SF_SRV_REUSED) && conn) {
+				conn_stop_tracking(conn);
+				conn_full_close(conn);
+			}
+
+			if (!si->err_type)
+				si->err_type = SI_ET_CONN_ERR;
+			si->state = SI_ST_CER;
+			return;
+		}
+	}
+
+	/* data were sent and/or we had no error, sess_establish() will
+	 * now take over.
+	 */
+	si->err_type = SI_ET_NONE;
+	si->state    = SI_ST_EST;
 }
 
 /*
@@ -886,16 +911,45 @@ static int sess_update_st_cer(struct stream *s)
  * receive the response, before process_stream() had the opportunity to
  * make the switch from SI_ST_CON to SI_ST_EST. When that happens, we want
  * to go through sess_establish() anyway, to make sure the analysers run.
+ * Timeouts are cleared. Error are reported on the channel so that analysers
+ * can handle them.
  */
 static void sess_establish(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
+	struct conn_stream *srv_cs = objt_cs(si->end);
+	struct connection *conn = srv_cs ? srv_cs->conn : objt_conn(si->end);
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
-	/* First, centralize the timers information */
+	/* First, centralize the timers information, and clear any irrelevant
+	 * timeout.
+	 */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	si->exp      = TICK_ETERNITY;
+	si->exp = TICK_ETERNITY;
+	si->flags &= ~SI_FL_EXP;
+
+	/* errors faced after sending data need to be reported */
+	if (si->flags & SI_FL_ERR && req->flags & CF_WROTE_DATA) {
+		/* Don't add CF_WRITE_ERROR if we're here because
+		 * early data were rejected by the server, or
+		 * http_wait_for_response() will never be called
+		 * to send a 425.
+		 */
+		if (conn && conn->err_code != CO_ER_SSL_EARLY_FAILED)
+			req->flags |= CF_WRITE_ERROR;
+		rep->flags |= CF_READ_ERROR;
+		si->err_type = SI_ET_DATA_ERR;
+	}
+
+	/* If the request channel is waiting for the connect(), we mark the read
+	 * side as attached on the response channel and we wake up it once. So
+	 * it will have a chance to forward data now.
+	 */
+	if (req->flags & CF_WAKE_CONNECT) {
+		req->flags |= CF_WAKE_ONCE;
+		req->flags &= ~CF_WAKE_CONNECT;
+	}
 
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_OK);
@@ -1061,6 +1115,7 @@ static void sess_update_stream_int(struct stream *s)
 		if (si->flags & SI_FL_EXP) {
 			/* ... and timeout expired */
 			si->exp = TICK_ETERNITY;
+			si->flags &= ~SI_FL_EXP;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 			/* we may need to know the position in the queue for logging */
@@ -1105,7 +1160,6 @@ static void sess_update_stream_int(struct stream *s)
 			return;  /* still in turn-around */
 
 		si->flags &= ~SI_FL_EXP;
-
 		si->exp = TICK_ETERNITY;
 
 		/* we keep trying on the same server as long as the stream is
@@ -1123,6 +1177,7 @@ static void sess_update_stream_int(struct stream *s)
 abort_connection:
 	/* give up */
 	si->exp = TICK_ETERNITY;
+	si->flags &= ~SI_FL_EXP;
 	si_shutr(si);
 	si_shutw(si);
 	si->state = SI_ST_CLO;
@@ -1200,17 +1255,6 @@ static void sess_prepare_conn_req(struct stream *s)
 			if (s->srv_error)
 				s->srv_error(s, si);
 			return;
-		}
-
-		/* For applets, there is no connection establishment, but if the
-		 * request channel is waiting for it, we mark the read side as
-		 * attached on the response channel and we wake up it once. So
-		 * it will have a chance to forward data now.
-		 */
-		if (s->req.flags & CF_WAKE_CONNECT) {
-			s->res.flags |= CF_READ_ATTACHED;
-			s->req.flags |= CF_WAKE_ONCE;
-			s->req.flags &= ~CF_WAKE_CONNECT;
 		}
 
 		if (tv_iszero(&s->logs.tv_request))
@@ -1949,7 +1993,12 @@ redo:
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
-		if (unlikely(!sess_update_st_con_tcp(s)))
+		if (si_b->state == SI_ST_RDY)
+			sess_update_st_rdy_tcp(s);
+		else if (si_b->state == SI_ST_CON)
+			sess_update_st_con_tcp(s);
+
+		if (si_b->state == SI_ST_CER)
 			sess_update_st_cer(s);
 		else if (si_b->state == SI_ST_EST)
 			sess_establish(s);
