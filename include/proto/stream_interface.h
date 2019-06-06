@@ -45,7 +45,8 @@ void si_retnclose(struct stream_interface *si, const struct buffer *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 struct appctx *si_register_handler(struct stream_interface *si, struct applet *app);
 void si_applet_wake_cb(struct stream_interface *si);
-void si_update(struct stream_interface *si);
+void si_update_rx(struct stream_interface *si);
+void si_update_tx(struct stream_interface *si);
 int si_cs_recv(struct conn_stream *cs);
 struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state);
 void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b);
@@ -527,6 +528,13 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		conn_get_from_addr(conn);
 
 	return ret;
+}
+
+/* Combines both si_update_rx() and si_update_tx() at once */
+static inline void si_update(struct stream_interface *si)
+{
+	si_update_rx(si);
+	si_update_tx(si);
 }
 
 /* Returns info about the conn_stream <cs>, if not NULL. It call the mux layer's
