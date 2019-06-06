@@ -519,7 +519,7 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		/* try to reuse the existing connection, it will be
 		 * confirmed once we can send on it.
 		 */
-		si->state = SI_ST_CON;
+		si->state = SI_ST_RDY;
 	}
 
 	/* needs src ip/port for logging */
