@@ -416,6 +416,27 @@
        +xxxxxxxxxxxxxxxxxxxx+xxxxxxxxxxxxxxxxxxxx+      +xxxxxxxxxxxxxxxxxxxx+
 
 
+     Most of these fields are internally stored as uint32_t (see STD_T_SINT,
+     STD_T_UINT, STD_T_ULL C enumerations) or structures made of several uint32_t
+     (see STD_T_FRQP C enumeration). The remaining one STD_T_DICT is internally
+     used to store entries of LRU caches for others literal dictionary entries
+     (couples of IDs associated to strings). It is used to transmit these cache
+     entries as follows:
+
+                    +xxxxxxxxxxx+xxxx+xxxxxxxxxxxxxxx+========+
+                    |   length  | ID | string length | string |
+                    +xxxxxxxxxxx+xxxx+xxxxxxxxxxxxxxx+========+
+
+     "length" is the length in bytes of the remaining data after this "length" field.
+     "string length" is the length of "string" field which follows.
+
+     Here the cache is used so that not to have to send again and again an already
+     sent string. Indeed, the second time we have to send the same dictionary entry,
+     if still cached, a peer sends only its ID:
+
+                              +xxxxxxxxxxx+xxxx+
+                              |   length  | ID |
+                              +xxxxxxxxxxx+xxxx+
 
      - Update message acknowledgement format:
 
