@@ -143,7 +143,7 @@ static inline void si_set_state(struct stream_interface *si, int state)
 /* returns a bit for a stream-int state, to match against SI_SB_* */
 static inline enum si_state_bit si_state_bit(enum si_state state)
 {
-	BUG_ON(state < SI_ST_INI || state > SI_ST_CLO);
+	BUG_ON(state > SI_ST_CLO);
 	return 1U << state;
 }
 
