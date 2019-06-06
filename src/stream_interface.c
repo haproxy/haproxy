@@ -918,11 +918,12 @@ void si_sync_send(struct stream_interface *si)
 		si_rx_room_rdy(si_opposite(si));
 }
 
-/* updates both stream ints of a same stream at once */
 /* Updates at once the channel flags, and timers of both stream interfaces of a
  * same stream, to complete the work after the analysers, then updates the data
  * layer below. This will ensure that any synchronous update performed at the
  * data layer will be reflected in the channel flags and/or stream-interface.
+ * Note that this does not change the stream interface's current state, though
+ * it updates the previous state to the current one.
  */
 void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b)
 {
@@ -934,9 +935,6 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 
 	si_f->prev_state = si_f->state;
 	si_b->prev_state = si_b->state;
-
-	si_sync_send(si_f);
-	si_sync_send(si_b);
 
 	/* let's recompute both sides states */
 	if (si_state_in(si_f->state, SI_SB_RDY|SI_SB_EST))
