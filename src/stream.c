@@ -2629,7 +2629,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	    (si_b->flags & SI_FL_ERR && si_b->state != SI_ST_CLO))
 		goto resync_stream_interface;
 
-	if (req->flags != rqf_last)
+	if ((req->flags & ~rqf_last) & CF_MASK_ANALYSER)
 		goto resync_request;
 
 	if ((res->flags ^ rpf_last) & CF_MASK_STATIC)
