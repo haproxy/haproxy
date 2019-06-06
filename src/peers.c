@@ -1471,6 +1471,8 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 
 				chunk_memcpy(chunk, *msg_cur, value_len);
 				chunk->area[chunk->data] = '\0';
+				*msg_cur += value_len;
+
 				de = dict_insert(&server_name_dict, chunk->area);
 				dc->rx[id - 1].de = de;
 			}
