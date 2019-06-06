@@ -884,6 +884,40 @@ void si_update_tx(struct stream_interface *si)
 	}
 }
 
+/* perform a synchronous send() for the stream interface. The CF_WRITE_NULL and
+ * CF_WRITE_PARTIAL flags are cleared prior to the attempt, and will possibly
+ * be updated in case of success.
+ */
+void si_sync_send(struct stream_interface *si)
+{
+	struct channel *oc = si_oc(si);
+	struct conn_stream *cs;
+
+	oc->flags &= ~(CF_WRITE_NULL|CF_WRITE_PARTIAL);
+
+	if (oc->flags & CF_SHUTW)
+		return;
+
+	if (channel_is_empty(oc))
+		return;
+
+	if (!si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
+		return;
+
+	cs = objt_cs(si->end);
+	if (!cs)
+		return;
+
+	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING))
+		return;
+
+	if (cs->conn->flags & CO_FL_ERROR)
+		return;
+
+	if (si_cs_send(cs))
+		si_rx_room_rdy(si_opposite(si));
+}
+
 /* updates both stream ints of a same stream at once */
 /* Updates at once the channel flags, and timers of both stream interfaces of a
  * same stream, to complete the work after the analysers, then updates the data
@@ -894,7 +928,6 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 {
 	struct channel *req = si_ic(si_f);
 	struct channel *res = si_oc(si_f);
-	struct conn_stream *cs;
 
 	req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
 	res->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ATTACHED|CF_WRITE_NULL|CF_WRITE_PARTIAL);
@@ -902,29 +935,8 @@ void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b
 	si_f->prev_state = si_f->state;
 	si_b->prev_state = si_b->state;
 
-	/* front stream-int */
-	cs = objt_cs(si_f->end);
-	if (cs &&
-	    si_f->state == SI_ST_EST &&
-	    !(res->flags & CF_SHUTW) && /* Write not closed */
-	    !channel_is_empty(res) &&
-	    !(cs->flags & CS_FL_ERROR) &&
-	    !(cs->conn->flags & CO_FL_ERROR)) {
-		if (si_cs_send(cs))
-			si_rx_room_rdy(si_b);
-	}
-
-	/* back stream-int */
-	cs = objt_cs(si_b->end);
-	if (cs &&
-	    si_state_in(si_b->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) &&
-	    !(req->flags & CF_SHUTW) && /* Write not closed */
-	    !channel_is_empty(req) &&
-	    !(cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) &&
-	    !(cs->conn->flags & CO_FL_ERROR)) {
-		if (si_cs_send(cs))
-			si_rx_room_rdy(si_f);
-	}
+	si_sync_send(si_f);
+	si_sync_send(si_b);
 
 	/* let's recompute both sides states */
 	if (si_state_in(si_f->state, SI_SB_RDY|SI_SB_EST))
