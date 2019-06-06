@@ -525,7 +525,7 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 				case STD_T_DICT: {
 					struct dict_entry *de;
 					struct dcache_tx_entry *cached_de;
-					struct dcache_tx_entry cde = {0};
+					struct dcache_tx_entry cde = { };
 					char *beg, *end;
 					size_t value_len, data_len;
 					struct dcache *dc;
