@@ -1818,10 +1818,9 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
-	srv->pool_purge_delay = 5000;
-	srv->max_idle_conns = -1;
-	srv->max_reuse = -1;
-
+	/* please don't put default server settings here, they are set in
+	 * init_default_instance().
+	 */
 	return srv;
 }
 
