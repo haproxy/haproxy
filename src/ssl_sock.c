@@ -5122,6 +5122,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->sent_early_data = 0;
 	ctx->tmp_early_data = -1;
 	ctx->conn = conn;
+	ctx->send_wait = NULL;
+	ctx->recv_wait = NULL;
 
 	/* Only work with sockets for now, this should be adapted when we'll
 	 * add QUIC support.
