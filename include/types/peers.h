@@ -100,12 +100,10 @@ struct peers {
 struct dcache_tx {
 	/* The last recently used key */
 	unsigned int lru_key;
-	/* The maximum number of entries in this cache */
-	size_t max_entries;
-	/* ebtree for keys (eb32_nodes from 0 included up to <max_entries> excluded) */
-	struct eb_root keys;
-	/* ebtree for values (ebpt_node, pointers to dict struct entries) */
-	struct eb_root values;
+	/* An array of entries to store pointers to dictionary entries. */
+	struct ebpt_node *entries;
+	/* ebtree to store the previous entries. */
+	struct eb_root cached_entries;
 };
 
 struct dcache_rx {
@@ -114,8 +112,8 @@ struct dcache_rx {
 };
 
 struct dcache_tx_entry {
-	struct eb32_node key;
-	struct ebpt_node value;
+	unsigned int id;
+	struct ebpt_node entry;
 };
 
 /* stick-table data type cache */
