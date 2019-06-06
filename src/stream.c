@@ -2144,7 +2144,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		req->flags &= ~CF_WAKE_ONCE;
 		rqf_last = req->flags;
 
-		if ((req->flags ^ flags) & CF_MASK_STATIC)
+		if ((req->flags ^ flags) & (CF_SHUTR|CF_SHUTW))
 			goto resync_request;
 	}
 
@@ -2213,7 +2213,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		res->flags &= ~CF_WAKE_ONCE;
 		rpf_last = res->flags;
 
-		if ((res->flags ^ flags) & CF_MASK_STATIC)
+		if ((res->flags ^ flags) & (CF_SHUTR|CF_SHUTW))
 			goto resync_response;
 	}
 
@@ -2500,7 +2500,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		goto resync_stream_interface;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
-	if ((req->flags ^ rqf_last) & CF_MASK_STATIC)
+	if ((req->flags ^ rqf_last) & (CF_SHUTR|CF_SHUTW))
 		goto resync_request;
 
 	/* perform output updates to the response buffer */
