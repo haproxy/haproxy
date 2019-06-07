@@ -1546,13 +1546,13 @@ int addr_is_local(const struct netns_entry *ns,
  */
 const char hextab[16] = "0123456789ABCDEF";
 char *encode_string(char *start, char *stop,
-		    const char escape, const fd_set *map,
+		    const char escape, const long *map,
 		    const char *string)
 {
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
 		while (start < stop && *string != '\0') {
-			if (!FD_ISSET((unsigned char)(*string), map))
+			if (!ha_bit_test((unsigned char)(*string), map))
 				*start++ = *string;
 			else {
 				if (start + 3 >= stop)
@@ -1573,7 +1573,7 @@ char *encode_string(char *start, char *stop,
  * <chunk> instead of a string.
  */
 char *encode_chunk(char *start, char *stop,
-		    const char escape, const fd_set *map,
+		    const char escape, const long *map,
 		    const struct buffer *chunk)
 {
 	char *str = chunk->area;
@@ -1582,7 +1582,7 @@ char *encode_chunk(char *start, char *stop,
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
 		while (start < stop && str < end) {
-			if (!FD_ISSET((unsigned char)(*str), map))
+			if (!ha_bit_test((unsigned char)(*str), map))
 				*start++ = *str;
 			else {
 				if (start + 3 >= stop)
@@ -1607,13 +1607,13 @@ char *encode_chunk(char *start, char *stop,
  * completes.
  */
 char *escape_string(char *start, char *stop,
-		    const char escape, const fd_set *map,
+		    const char escape, const long *map,
 		    const char *string)
 {
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
 		while (start < stop && *string != '\0') {
-			if (!FD_ISSET((unsigned char)(*string), map))
+			if (!ha_bit_test((unsigned char)(*string), map))
 				*start++ = *string;
 			else {
 				if (start + 2 >= stop)
@@ -1636,7 +1636,7 @@ char *escape_string(char *start, char *stop,
  * <stop>, and will return its position if the conversion completes.
  */
 char *escape_chunk(char *start, char *stop,
-		   const char escape, const fd_set *map,
+		   const char escape, const long *map,
 		   const struct buffer *chunk)
 {
 	char *str = chunk->area;
@@ -1645,7 +1645,7 @@ char *escape_chunk(char *start, char *stop,
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
 		while (start < stop && str < end) {
-			if (!FD_ISSET((unsigned char)(*str), map))
+			if (!ha_bit_test((unsigned char)(*str), map))
 				*start++ = *str;
 			else {
 				if (start + 2 >= stop)

@@ -466,14 +466,14 @@ int addr_is_local(const struct netns_entry *ns,
  */
 extern const char hextab[];
 char *encode_string(char *start, char *stop,
-		    const char escape, const fd_set *map,
+		    const char escape, const long *map,
 		    const char *string);
 
 /*
  * Same behavior, except that it encodes chunk <chunk> instead of a string.
  */
 char *encode_chunk(char *start, char *stop,
-                   const char escape, const fd_set *map,
+                   const char escape, const long *map,
                    const struct buffer *chunk);
 
 /*
@@ -485,7 +485,7 @@ char *encode_chunk(char *start, char *stop,
  * completes.
  */
 char *escape_string(char *start, char *stop,
-		    const char escape, const fd_set *map,
+		    const char escape, const long *map,
 		    const char *string);
 
 /*
@@ -496,7 +496,7 @@ char *escape_string(char *start, char *stop,
  * <stop>, and will return its position if the conversion completes.
  */
 char *escape_chunk(char *start, char *stop,
-                   const char escape, const fd_set *map,
+                   const char escape, const long *map,
                    const struct buffer *chunk);
 
 

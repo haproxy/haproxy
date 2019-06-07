@@ -82,23 +82,18 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 	},
 };
 
-#define FD_SETS_ARE_BITFIELDS
-#ifdef FD_SETS_ARE_BITFIELDS
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
- * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
- * which should be escaped. When FD_ISSET() returns non-zero, it means that the
- * byte should be escaped. Be careful to always pass bytes from 0 to 255
- * exclusively to the macros.
+ * is set or not. Each bit represents an ACSII code. ha_bit_set() sets those
+ * bytes which should be escaped. When ha_bit_test() returns non-zero, it means
+ * that the byte should be escaped. Be careful to always pass bytes from 0 to
+ * 255 exclusively to the macros.
  */
-fd_set rfc5424_escape_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+long rfc5424_escape_map[(256/8) / sizeof(long)];
+long hdr_encode_map[(256/8) / sizeof(long)];
+long url_encode_map[(256/8) / sizeof(long)];
+long http_encode_map[(256/8) / sizeof(long)];
 
-#else
-#error "Check if your OS uses bitfields for fd_sets"
-#endif
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
@@ -1153,7 +1148,7 @@ int get_log_facility(const char *fac)
  * <escape>.
  */
 static char *lf_encode_string(char *start, char *stop,
-                              const char escape, const fd_set *map,
+                              const char escape, const long *map,
                               const char *string,
                               struct logformat_node *node)
 {
@@ -1161,8 +1156,8 @@ static char *lf_encode_string(char *start, char *stop,
 		if (start < stop) {
 			stop--; /* reserve one byte for the final '\0' */
 			while (start < stop && *string != '\0') {
-				if (!FD_ISSET((unsigned char)(*string), map)) {
-					if (!FD_ISSET((unsigned char)(*string), rfc5424_escape_map))
+				if (!ha_bit_test((unsigned char)(*string), map)) {
+					if (!ha_bit_test((unsigned char)(*string), rfc5424_escape_map))
 						*start++ = *string;
 					else {
 						if (start + 2 >= stop)
@@ -1198,7 +1193,7 @@ static char *lf_encode_string(char *start, char *stop,
  * <escape>.
  */
 static char *lf_encode_chunk(char *start, char *stop,
-                             const char escape, const fd_set *map,
+                             const char escape, const long *map,
                              const struct buffer *chunk,
                              struct logformat_node *node)
 {
@@ -1211,8 +1206,8 @@ static char *lf_encode_chunk(char *start, char *stop,
 
 			stop--; /* reserve one byte for the final '\0' */
 			while (start < stop && str < end) {
-				if (!FD_ISSET((unsigned char)(*str), map)) {
-					if (!FD_ISSET((unsigned char)(*str), rfc5424_escape_map))
+				if (!ha_bit_test((unsigned char)(*str), map)) {
+					if (!ha_bit_test((unsigned char)(*str), rfc5424_escape_map))
 						*start++ = *str;
 					else {
 						if (start + 2 >= stop)
@@ -1765,10 +1760,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd
 	}
 }
 
-extern fd_set hdr_encode_map[];
-extern fd_set url_encode_map[];
-extern fd_set http_encode_map[];
-
 
 const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
 const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
@@ -1802,7 +1793,7 @@ static void init_log()
 
 	tmp = "\"\\]";
 	while (*tmp) {
-		FD_SET(*tmp, rfc5424_escape_map);
+		ha_bit_set(*tmp, rfc5424_escape_map);
 		tmp++;
 	}
 
@@ -1814,23 +1805,23 @@ static void init_log()
 	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
 	memset(url_encode_map, 0, sizeof(url_encode_map));
 	for (i = 0; i < 32; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
+		ha_bit_set(i, hdr_encode_map);
+		ha_bit_set(i, url_encode_map);
 	}
 	for (i = 127; i < 256; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
+		ha_bit_set(i, hdr_encode_map);
+		ha_bit_set(i, url_encode_map);
 	}
 
 	tmp = "\"#{|}";
 	while (*tmp) {
-		FD_SET(*tmp, hdr_encode_map);
+		ha_bit_set(*tmp, hdr_encode_map);
 		tmp++;
 	}
 
 	tmp = "\"#";
 	while (*tmp) {
-		FD_SET(*tmp, url_encode_map);
+		ha_bit_set(*tmp, url_encode_map);
 		tmp++;
 	}
 
@@ -1855,10 +1846,10 @@ static void init_log()
 	 */
 	memset(http_encode_map, 0, sizeof(http_encode_map));
 	for (i = 0x00; i <= 0x08; i++)
-		FD_SET(i, http_encode_map);
+		ha_bit_set(i, http_encode_map);
 	for (i = 0x0a; i <= 0x1f; i++)
-		FD_SET(i, http_encode_map);
-	FD_SET(0x7f, http_encode_map);
+		ha_bit_set(i, http_encode_map);
+	ha_bit_set(0x7f, http_encode_map);
 }
 
 INITCALL0(STG_PREPARE, init_log);
