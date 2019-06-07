@@ -891,6 +891,30 @@ static inline unsigned long nbits(int bits)
 		return (2UL << bits) - 1;
 }
 
+/* sets bit <bit> into map <map>, which must be long-aligned */
+static inline void ha_bit_set(unsigned long bit, long *map)
+{
+	map[bit / (8 * sizeof(*map))] |= 1UL << (bit & (8 * sizeof(*map) - 1));
+}
+
+/* clears bit <bit> from map <map>, which must be long-aligned */
+static inline void ha_bit_clr(unsigned long bit, long *map)
+{
+	map[bit / (8 * sizeof(*map))] &= ~(1UL << (bit & (8 * sizeof(*map) - 1)));
+}
+
+/* flips bit <bit> from map <map>, which must be long-aligned */
+static inline void ha_bit_flip(unsigned long bit, long *map)
+{
+	map[bit / (8 * sizeof(*map))] ^= 1UL << (bit & (8 * sizeof(*map) - 1));
+}
+
+/* returns non-zero if bit <bit> from map <map> is set, otherwise 0 */
+static inline int ha_bit_test(unsigned long bit, const long *map)
+{
+	return !!(map[bit / (8 * sizeof(*map))] & 1UL << (bit & (8 * sizeof(*map) - 1)));
+}
+
 /*
  * Parse binary string written in hexadecimal (source) and store the decoded
  * result into binstr and set binstrlen to the lengh of binstr. Memory for
