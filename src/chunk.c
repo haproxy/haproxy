@@ -68,8 +68,9 @@ struct buffer *get_trash_chunk(void)
  */
 static int alloc_trash_buffers(int bufsize)
 {
+	int old = 0;
 	chunk_init(&trash, my_realloc2(trash.area, bufsize), bufsize);
-	trash_size = bufsize;
+	HA_ATOMIC_CAS(&trash_size, &old, bufsize);
 	trash_buf1 = (char *)my_realloc2(trash_buf1, bufsize);
 	trash_buf2 = (char *)my_realloc2(trash_buf2, bufsize);
 	return trash.area && trash_buf1 && trash_buf2;
