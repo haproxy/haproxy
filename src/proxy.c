@@ -275,7 +275,17 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	}
 
 	res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
-	if (res) {
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to 'timeout %s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], name);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to 'timeout %s' (minimum non-null value is 1 ms)",
+			  args[1], name);
+		return -1;
+	}
+	else if (res) {
 		memprintf(err, "unexpected character '%c' in 'timeout %s'", *res, name);
 		return -1;
 	}
@@ -1056,7 +1066,17 @@ static int proxy_parse_hard_stop_after(char **args, int section_type, struct pro
 		return -1;
 	}
 	res = parse_time_err(args[1], &global.hard_stop_after, TIME_UNIT_MS);
-	if (res) {
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
 		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
 		return -1;
 	}

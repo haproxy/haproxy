@@ -2032,12 +2032,15 @@ int strl2llrc_dotted(const char *text, int len, long long *ret)
  * The value is returned in <ret> if everything is fine, and a NULL is returned
  * by the function. In case of error, a pointer to the error is returned and
  * <ret> is left untouched. Values are automatically rounded up when needed.
+ * Values resulting in values larger than or equal to 2^31 after conversion are
+ * reported as an overflow as value PARSE_TIME_OVER. Non-null values resulting
+ * in an underflow are reported as an underflow as value PARSE_TIME_UNDER.
  */
 const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 {
-	unsigned imult, idiv;
-	unsigned omult, odiv;
-	unsigned value;
+	unsigned long long imult, idiv;
+	unsigned long long omult, odiv;
+	unsigned long long value, result;
 
 	omult = odiv = 1;
 
@@ -2100,8 +2103,12 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 	if (imult % odiv == 0) { imult /= odiv; odiv = 1; }
 	if (odiv % imult == 0) { odiv /= imult; imult = 1; }
 
-	value = (value * (imult * omult) + (idiv * odiv - 1)) / (idiv * odiv);
-	*ret = value;
+	result = (value * (imult * omult) + (idiv * odiv - 1)) / (idiv * odiv);
+	if (result >= 0x80000000)
+		return PARSE_TIME_OVER;
+	if (!result && value)
+		return PARSE_TIME_UNDER;
+	*ret = result;
 	return NULL;
 }
 

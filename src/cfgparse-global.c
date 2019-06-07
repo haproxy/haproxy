@@ -263,9 +263,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		res = parse_time_err(args[1], &idle, TIME_UNIT_MS);
-		if (res) {
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 65535 ms.\n",
+			         file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
+			         file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res) {
 			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
-			      file, linenum, *res, args[0]);
+			         file, linenum, *res, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -942,15 +954,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err) {
+		if (err == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).\n",
+			         file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+		else if (err == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
+			         file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+		else if (err) {
 			ha_alert("parsing [%s:%d]: unsupported character '%c' in '%s' (wants an integer delay).\n", file, linenum, *err, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 		global.max_spread_checks = val;
-		if (global.max_spread_checks < 0) {
-			ha_alert("parsing [%s:%d]: '%s' needs a positive delay in milliseconds.\n",file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
 	}
 	else if (strcmp(args[0], "cpu-map") == 0) {
 		/* map a process list to a CPU set */

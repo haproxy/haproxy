@@ -737,6 +737,10 @@ extern time_t my_timegm(const struct tm *tm);
 extern const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags);
 extern const char *parse_size_err(const char *text, unsigned *ret);
 
+/* special return values for the time parser */
+#define PARSE_TIME_UNDER ((char *)1)
+#define PARSE_TIME_OVER  ((char *)2)
+
 /* unit flags to pass to parse_time_err */
 #define TIME_UNIT_US   0x0000
 #define TIME_UNIT_MS   0x0001

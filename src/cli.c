@@ -309,7 +309,17 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		unsigned timeout;
 		const char *res = parse_time_err(args[2], &timeout, TIME_UNIT_MS);
 
-		if (res) {
+		if (res == PARSE_TIME_OVER) {
+			memprintf(err, "timer overflow in argument '%s' to '%s %s' (maximum value is 2147483647 ms or ~24.8 days)",
+				 args[2], args[0], args[1]);
+			return -1;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			memprintf(err, "timer underflow in argument '%s' to '%s %s' (minimum non-null value is 1 ms)",
+				 args[2], args[0], args[1]);
+			return -1;
+		}
+		else if (res) {
 			memprintf(err, "'%s %s' : unexpected character '%c'", args[0], args[1], *res);
 			return -1;
 		}

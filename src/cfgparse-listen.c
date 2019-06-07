@@ -1067,7 +1067,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 
 				res = parse_time_err(args[cur_arg + 1], &maxidle, TIME_UNIT_S);
-				if (res) {
+				if (res == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (res == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (res) {
 					ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
 						 file, linenum, *res, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -1087,8 +1099,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
+
 				res = parse_time_err(args[cur_arg + 1], &maxlife, TIME_UNIT_S);
-				if (res) {
+				if (res == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (res == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (res) {
 					ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
 						 file, linenum, *res, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -1932,8 +1957,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			unsigned interval;
 
 			err = parse_time_err(args[2], &interval, TIME_UNIT_S);
-			if (err) {
-				ha_alert("parsing [%s:%d] : unexpected character '%c' in stats refresh interval.\n",
+			if (err == PARSE_TIME_OVER) {
+				ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to stats refresh interval, maximum value is 2147483647 s (~68 years).\n",
+					 file, linenum, args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			else if (err == PARSE_TIME_UNDER) {
+				ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to stats refresh interval, minimum non-null value is 1 s.\n",
+					 file, linenum, args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			else if (err) {
+				ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to stats refresh interval.\n",
 					 file, linenum, *err);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -3374,7 +3411,19 @@ stats_error_parsing:
 			goto out;
 		}
 		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err) {
+		if (err == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to grace time, maximum value is 2147483647 ms (~24.8 days).\n",
+			         file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (err == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to grace time, minimum non-null value is 1 ms.\n",
+			         file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (err) {
 			ha_alert("parsing [%s:%d] : unexpected character '%c' in grace time.\n",
 				 file, linenum, *err);
 			err_code |= ERR_ALERT | ERR_FATAL;

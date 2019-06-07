@@ -8073,7 +8073,17 @@ static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
 	const char *error;
 
 	error = parse_time_err(args[1], timeout, TIME_UNIT_MS);
-	if (error && *error != '\0') {
+	if (error == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument <%s> to <%s> (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (error == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument <%s> to <%s> (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (error) {
 		memprintf(err, "%s: invalid timeout", args[0]);
 		return -1;
 	}

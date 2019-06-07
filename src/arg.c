@@ -222,8 +222,11 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 				goto empty_err;
 
 			ptr_err = parse_time_err(word, &uint, TIME_UNIT_MS);
-			if (ptr_err)
+			if (ptr_err) {
+				if (ptr_err == PARSE_TIME_OVER || ptr_err == PARSE_TIME_UNDER)
+					ptr_err = word;
 				goto parse_err;
+			}
 			arg->data.sint = uint;
 			arg->type = ARGT_SINT;
 			break;

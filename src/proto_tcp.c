@@ -1816,7 +1816,17 @@ static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct 
 	}
 
 	ptr = parse_time_err(args[cur_arg + 1], &timeout, TIME_UNIT_MS);
-	if (ptr) {
+	if (ptr == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[cur_arg+1], args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (ptr == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[cur_arg+1], args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (ptr) {
 		memprintf(err, "'%s' : expects a positive delay in milliseconds", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1891,7 +1901,17 @@ static int srv_parse_tcp_ut(char **args, int *cur_arg, struct proxy *px, struct 
 	}
 
 	ptr = parse_time_err(args[*cur_arg + 1], &timeout, TIME_UNIT_MS);
-	if (ptr) {
+	if (ptr == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[*cur_arg+1], args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (ptr == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[*cur_arg+1], args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (ptr) {
 		memprintf(err, "'%s' : expects a positive delay in milliseconds", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}

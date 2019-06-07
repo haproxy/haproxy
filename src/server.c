@@ -404,7 +404,17 @@ static int srv_parse_pool_purge_delay(char **args, int *cur_arg, struct proxy *c
 		return ERR_ALERT | ERR_FATAL;
 	}
 	res = parse_time_err(arg, &time, TIME_UNIT_MS);
-	if (res) {
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[*cur_arg+1], args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[*cur_arg+1], args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (res) {
 		memprintf(err, "unexpected character '%c' in argument to <%s>.\n",
 		    *res, args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -2305,7 +2315,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "agent-inter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-				if (err) {
+
+				if (err == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err) {
 					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'agent-inter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2530,7 +2553,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "inter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-				if (err) {
+
+				if (err == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err) {
 					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'inter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2547,7 +2583,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "fastinter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-				if (err) {
+
+				if (err == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err) {
 					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'fastinter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2564,7 +2613,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!strcmp(args[cur_arg], "downinter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-				if (err) {
+
+				if (err == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err) {
 					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2611,7 +2673,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!strcmp(args[cur_arg], "slowstart")) {
 				/* slowstart is stored in seconds */
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-				if (err) {
+
+				if (err == PARSE_TIME_OVER) {
+					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err == PARSE_TIME_UNDER) {
+					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
+						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else if (err) {
 					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;

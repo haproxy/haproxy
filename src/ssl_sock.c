@@ -9065,7 +9065,17 @@ static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy
 	}
 
 	res = parse_time_err(args[1], &global_ssl.life_time, TIME_UNIT_S);
-	if (res) {
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to <%s> (maximum value is 2147483647 s or ~68 years).",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to <%s> (minimum non-null value is 1 s).",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
 		memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[0]);
 		return -1;
 	}

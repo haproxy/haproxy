@@ -769,15 +769,21 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				goto out;
 			}
 			err = parse_time_err(args[idx], &val, TIME_UNIT_MS);
-			if (err) {
-				ha_alert("parsing [%s:%d] : %s: unexpected character '%c' in argument of '%s'.\n",
-					 file, linenum, args[0], *err, args[idx-1]);
+			if (err == PARSE_TIME_OVER) {
+				ha_alert("parsing [%s:%d]: %s: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).\n",
+					 file, linenum, args[0], args[idx], args[idx-1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			if (val > INT_MAX) {
-				ha_alert("parsing [%s:%d] : Expire value [%u]ms exceeds maxmimum value of 24.85 days.\n",
-					 file, linenum, val);
+			else if (err == PARSE_TIME_UNDER) {
+				ha_alert("parsing [%s:%d]: %s: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
+					 file, linenum, args[0], args[idx], args[idx-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			else if (err) {
+				ha_alert("parsing [%s:%d] : %s: unexpected character '%c' in argument of '%s'.\n",
+					 file, linenum, args[0], *err, args[idx-1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}

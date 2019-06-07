@@ -3482,7 +3482,19 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		res = parse_time_err(args[2], &timeout, TIME_UNIT_MS);
-		if (res) {
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s %s>, maximum value is 2147483647 ms (~24.8 days).\n",
+				 file, linenum, args[2], args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s %s>, minimum non-null value is 1 ms.\n",
+				 file, linenum, args[2], args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res) {
 			ha_alert("parsing [%s:%d] : unexpected character '%c' in 'timeout %s'.\n",
 				 file, linenum, *res, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;

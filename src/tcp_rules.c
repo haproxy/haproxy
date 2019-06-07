@@ -922,7 +922,12 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			memprintf(err,
 			          "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
 			          args[0], args[1], proxy_type_str(curpx), curpx->id);
-			if (ptr)
+
+			if (ptr == PARSE_TIME_OVER)
+				memprintf(err, "%s (timer overflow in '%s', maximum value is 2147483647 ms or ~24.8 days)", *err, args[2]);
+			else if (ptr == PARSE_TIME_UNDER)
+				memprintf(err, "%s (timer underflow in '%s', minimum non-null value is 1 ms)", *err, args[2]);
+			else if (ptr)
 				memprintf(err, "%s (unexpected character '%c')", *err, *ptr);
 			return -1;
 		}
@@ -1031,7 +1036,12 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			memprintf(err,
 			          "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
 			          args[0], args[1], proxy_type_str(curpx), curpx->id);
-			if (ptr)
+
+			if (ptr == PARSE_TIME_OVER)
+				memprintf(err, "%s (timer overflow in '%s', maximum value is 2147483647 ms or ~24.8 days)", *err, args[2]);
+			else if (ptr == PARSE_TIME_UNDER)
+				memprintf(err, "%s (timer underflow in '%s', minimum non-null value is 1 ms)", *err, args[2]);
+			else if (ptr)
 				memprintf(err, "%s (unexpected character '%c')", *err, *ptr);
 			return -1;
 		}
