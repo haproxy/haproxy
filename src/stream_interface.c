@@ -1480,7 +1480,7 @@ int si_cs_recv(struct conn_stream *cs)
 		si_rx_endp_more(si);
 	}
 
-	return (cur_read != 0) || si_rx_blocked(si);
+	return (cur_read != 0) || si_rx_blocked(si) || (cs->flags & CS_FL_EOI);
 
  out_shutdown_r:
 	if (conn->flags & CO_FL_CONNECTED) {
