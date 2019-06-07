@@ -1,6 +1,81 @@
 ChangeLog :
 ===========
 
+2019/06/07 : 2.0-dev6
+    - BUG/MEDIUM: connection: fix multiple handshake polling issues
+    - MINOR: connection: also stop receiving after a SOCKS4 response
+    - MINOR: mux-h1: don't try to recv() before the connection is ready
+    - BUG/MEDIUM: mux-h1: only check input data for the current stream, not next one
+    - MEDIUM: mux-h1: don't use CS_FL_REOS anymore
+    - CLEANUP: connection: remove the now unused CS_FL_REOS flag
+    - CONTRIB: debug: add 4 missing connection/conn_stream flags
+    - MEDIUM: stream: make a full process_stream() loop when completing I/O on exit
+    - MINOR: server: increase the default pool-purge-delay to 5 seconds
+    - BUILD: tools: do not use the weak attribute for trace() on obsolete linkers
+    - BUG/MEDIUM: vars: make sure the scope is always valid when accessing vars
+    - BUG/MEDIUM: vars: make the tcp/http unset-var() action support conditions
+    - BUILD: task: fix a build warning when threads are disabled
+    - CLEANUP: peers: Remove tabs characters.
+    - CLEANUP: peers: Replace hard-coded values by macros.
+    - BUG/MINOR: peers: Wrong stick-table update message building.
+    - MINOR: dict: Add dictionary new data structure.
+    - MINOR: peers: Add a LRU cache implementation for dictionaries.
+    - MINOR: stick-table: Add "server_name" new data type.
+    - MINOR: cfgparse: Space allocation for "server_name" stick-table data type.
+    - MINOR: proxy: Add a "server by name" tree to proxy.
+    - MINOR: server: Add a dictionary for server names.
+    - MINOR: stream: Stickiness server lookup by name.
+    - MINOR: peers: Make peers protocol support new "server_name" data type.
+    - MINOR: stick-table: Make the CLI stick-table handler support dictionary entry data type.
+    - REGTEST: Add a basic server by name stickiness reg test.
+    - MINOR: peers: Add dictionary cache information to "show peers" CLI command.
+    - MINOR: peers: Replace hard-coded for peer protocol 64-bits value encoding by macros.
+    - MINOR: peers: Replace hard-coded values for peer protocol messaging by macros.
+    - CLEANUP: ssl: remove unneeded defined(OPENSSL_IS_BORINGSSL)
+    - BUILD: travis-ci improvements
+    - MINOR: SSL: add client/server random sample fetches
+    - BUG/MINOR: channel/htx: Don't alter channel during forward for empty HTX message
+    - BUG/MINOR: contrib/prometheus-exporter: Add HTX data block in one time
+    - BUG/MINOR: mux-h1: errflag must be set on H1S and not H1M during output processing
+    - MEDIUM: mux-h1: refactor output processing
+    - MINOR: mux-h1: Add the flag HAVE_O_CONN on h1s
+    - MINOR: mux-h1: Add h1_eval_htx_hdrs_size() to estimate size of the HTX headers
+    - MINOR: mux-h1: Don't count the EOM in the estimated size of headers
+    - MEDIUM: cache/htx: Always store info about HTX blocks in the cache
+    - MEDIUM: htx: Add the parsing of trailers of chunked messages
+    - MINOR: htx: Don't use end-of-data blocks anymore
+    - BUG/MINOR: mux-h1: Don't send more data than expected
+    - BUG/MINOR: flt_trace/htx: Only apply the random forwarding on the message body.
+    - BUG/MINOR: peers: Wrong "server_name" decoding.
+    - BUG/MEDIUM: servers: Don't attempt to destroy idle connections if disabled.
+    - MEDIUM: checks: Make sure we unsubscribe before calling cs_destroy().
+    - MEDIUM: connections: Wake the upper layer even if sending/receiving is disabled.
+    - MEDIUM: ssl: Handle subscribe by itself.
+    - MINOR: ssl: Make ssl_sock_handshake() static.
+    - MINOR: connections: Add a new xprt method, remove_xprt.
+    - MINOR: connections: Add a new xprt method, add_xprt().
+    - MEDIUM: connections: Introduce a handshake pseudo-XPRT.
+    - MEDIUM: connections: Remove CONN_FL_SOCK*
+    - BUG/MEDIUM: ssl: Don't forget to initialize ctx->send_recv and ctx->recv_wait.
+    - BUG/MINOR: peers: Wrong server name parsing.
+    - MINOR: server: really increase the pool-purge-delay default to 5 seconds
+    - BUG/MINOR: stream: don't emit a send-name-header in conn error or disconnect states
+    - MINOR: stream-int: use bit fields to match multiple stream-int states at once
+    - MEDIUM: stream-int: remove dangerous interval checks for stream-int states
+    - MEDIUM: stream-int: introduce a new state SI_ST_RDY
+    - MAJOR: stream-int: switch from SI_ST_CON to SI_ST_RDY on I/O
+    - MEDIUM: stream-int: make idle-conns switch to ST_RDY
+    - MEDIUM: stream: re-arrange the connection setup status reporting
+    - MINOR: stream-int: split si_update() into si_update_rx() and si_update_tx()
+    - MINOR: stream-int: make si_sync_send() from the send code of si_update_both()
+    - MEDIUM: stream: rearrange the events to remove the loop
+    - MEDIUM: stream: only loop on flags relevant to the analysers
+    - MEDIUM: stream: don't abusively loop back on changes on CF_SHUT*_NOW
+    - BUILD: stream-int: avoid a build warning in dev mode in si_state_bit()
+    - BUILD: peers: fix a build warning about an incorrect intiialization
+    - BUG/MINOR: time: make sure only one thread sets global_now at boot
+    - BUG/MEDIUM: tcp: Make sure we keep the polling consistent in tcp_probe_connect.
+
 2019/06/02 : 2.0-dev5
     - BUILD: watchdog: use si_value.sival_int, not si_int for the timer's value
     - BUILD: signals: FreeBSD has SI_LWP instead of SI_TKILL
