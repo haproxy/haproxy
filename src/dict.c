@@ -36,6 +36,7 @@ static struct dict_entry *new_dict_entry(char *s)
 	if (!de->value.key)
 		goto err;
 
+	de->len = strlen(s);
 	de->refcount = 1;
 
 	return de;
@@ -43,6 +44,7 @@ static struct dict_entry *new_dict_entry(char *s)
  err:
 	free(de->value.key);
 	de->value.key = NULL;
+	de->len = 0;
 	free(de);
 	return NULL;
 }

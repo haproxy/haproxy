@@ -7,6 +7,7 @@
 struct dict_entry {
 	struct ebpt_node value;
 	unsigned int refcount;
+	size_t len;
 };
 
 struct dict {
