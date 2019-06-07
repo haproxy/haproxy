@@ -516,6 +516,14 @@ static void dns_check_dns_response(struct dns_resolution *res)
 	struct server          *srv;
 	struct dns_srvrq       *srvrq;
 
+	/* clean up obsolete Additional records */
+	list_for_each_entry_safe(item, itemback, &res->response.ar_list, list) {
+		if ((item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
+			LIST_DEL(&item->list);
+			pool_free(dns_answer_item_pool, item);
+		}
+	}
+
 	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
 
 		/* Remove obsolete items */
@@ -607,6 +615,28 @@ static void dns_check_dns_response(struct dns_resolution *res)
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					continue;
 				}
+
+				/* Check if an Additional Record is associated to this SRV record.
+				 * Perform some sanity checks too to ensure the record can be used.
+				 * If all fine, we simply pick up the IP address found and associate
+				 * it to the server.
+				 */
+				if ((item->ar_item != NULL) &&
+				    (item->ar_item->type == DNS_RTYPE_A || item->ar_item->type == DNS_RTYPE_AAAA))
+				    {
+
+					switch (item->ar_item->type) {
+						case DNS_RTYPE_A:
+							update_server_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional recrd");
+						break;
+						case DNS_RTYPE_AAAA:
+							update_server_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional recrd");
+						break;
+					}
+
+					srv->flags |= SRV_F_NO_RESOLUTION;
+				}
+
 				msg = update_server_fqdn(srv, hostname, "SRV record", 1);
 				if (msg)
 					send_log(srv->proxy, LOG_NOTICE, "%s", msg);
@@ -990,12 +1020,197 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		}
 		else {
 			dns_answer_record->last_seen = now.tv_sec;
+			dns_answer_record->ar_item = NULL;
 			LIST_ADDQ(&dns_p->answer_list, &dns_answer_record->list);
 		}
 	} /* for i 0 to ancount */
 
 	/* Save the number of records we really own */
 	dns_p->header.ancount = nb_saved_records;
+
+	/* now parsing additional records */
+	nb_saved_records = 0;
+	//TODO: check with Dinko for DNS poisoning
+	for (i = 0; i < dns_p->header.arcount; i++) {
+		if (reader >= bufend)
+			return DNS_RESP_INVALID;
+
+		dns_answer_record = pool_alloc(dns_answer_item_pool);
+		if (dns_answer_record == NULL)
+			return (DNS_RESP_INVALID);
+
+		offset = 0;
+		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
+
+		if (len == 0) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+
+		/* Check if the current record dname is valid.  previous_dname
+		 * points either to queried dname or last CNAME target */
+		if (dns_query->type != DNS_RTYPE_SRV && memcmp(previous_dname, tmpname, len) != 0) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			if (i == 0) {
+				/* First record, means a mismatch issue between
+				 * queried dname and dname found in the first
+				 * record */
+				return DNS_RESP_INVALID;
+			}
+			else {
+				/* If not the first record, this means we have a
+				 * CNAME resolution error */
+				return DNS_RESP_CNAME_ERROR;
+			}
+
+		}
+
+		memcpy(dns_answer_record->name, tmpname, len);
+		dns_answer_record->name[len] = 0;
+
+		reader += offset;
+		if (reader >= bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+
+		/* 2 bytes for record type (A, AAAA, CNAME, etc...) */
+		if (reader + 2 > bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+		dns_answer_record->type = reader[0] * 256 + reader[1];
+		reader += 2;
+
+		/* 2 bytes for class (2) */
+		if (reader + 2 > bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+		dns_answer_record->class = reader[0] * 256 + reader[1];
+		reader += 2;
+
+		/* 4 bytes for ttl (4) */
+		if (reader + 4 > bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+		dns_answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
+			                 + reader[2] * 256 + reader[3];
+		reader += 4;
+
+		/* Now reading data len */
+		if (reader + 2 > bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+		dns_answer_record->data_len = reader[0] * 256 + reader[1];
+
+		/* Move forward 2 bytes for data len */
+		reader += 2;
+
+		if (reader + dns_answer_record->data_len > bufend) {
+			pool_free(dns_answer_item_pool, dns_answer_record);
+			return DNS_RESP_INVALID;
+		}
+
+		/* Analyzing record content */
+		switch (dns_answer_record->type) {
+			case DNS_RTYPE_A:
+				/* ipv4 is stored on 4 bytes */
+				if (dns_answer_record->data_len != 4) {
+					pool_free(dns_answer_item_pool, dns_answer_record);
+					return DNS_RESP_INVALID;
+				}
+				dns_answer_record->address.sa_family = AF_INET;
+				memcpy(&(((struct sockaddr_in *)&dns_answer_record->address)->sin_addr),
+						reader, dns_answer_record->data_len);
+				break;
+
+			case DNS_RTYPE_AAAA:
+				/* ipv6 is stored on 16 bytes */
+				if (dns_answer_record->data_len != 16) {
+					pool_free(dns_answer_item_pool, dns_answer_record);
+					return DNS_RESP_INVALID;
+				}
+				dns_answer_record->address.sa_family = AF_INET6;
+				memcpy(&(((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr),
+						reader, dns_answer_record->data_len);
+				break;
+
+			default:
+				pool_free(dns_answer_item_pool, dns_answer_record);
+				continue;
+
+		} /* switch (record type) */
+
+		/* Increment the counter for number of records saved into our
+		 * local response */
+		nb_saved_records++;
+
+		/* Move forward dns_answer_record->data_len for analyzing next
+		 * record in the response */
+		reader += ((dns_answer_record->type == DNS_RTYPE_SRV)
+			   ? offset
+			   : dns_answer_record->data_len);
+
+		/* Lookup to see if we already had this entry */
+		found = 0;
+		list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
+			if (tmp_record->type != dns_answer_record->type)
+				continue;
+
+			switch(tmp_record->type) {
+				case DNS_RTYPE_A:
+					if (!memcmp(&((struct sockaddr_in *)&dns_answer_record->address)->sin_addr,
+						    &((struct sockaddr_in *)&tmp_record->address)->sin_addr,
+						    sizeof(in_addr_t)))
+						found = 1;
+					break;
+
+				case DNS_RTYPE_AAAA:
+					if (!memcmp(&((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr,
+						    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr,
+						    sizeof(struct in6_addr)))
+						found = 1;
+					break;
+
+				default:
+					break;
+			}
+
+			if (found == 1)
+				break;
+		}
+
+		if (found == 1) {
+			tmp_record->last_seen = now.tv_sec;
+			pool_free(dns_answer_item_pool, dns_answer_record);
+		}
+		else {
+			dns_answer_record->last_seen = now.tv_sec;
+			dns_answer_record->ar_item = NULL;
+
+			// looking for the SRV record in the response list linked to this additional record
+			list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
+				if ( !(
+					(tmp_record->type == DNS_RTYPE_SRV) &&
+					(tmp_record->ar_item == NULL) &&
+					(memcmp(tmp_record->target, dns_answer_record->name, tmp_record->data_len) == 0)
+				      )
+				   )
+					continue;
+				tmp_record->ar_item = dns_answer_record;
+			}
+			//TODO: there is a leak for now, since we don't clean up AR records
+
+			LIST_ADDQ(&dns_p->ar_list, &dns_answer_record->list);
+		}
+	} /* for i 0 to arcount */
+
+	/* Save the number of records we really own */
+	dns_p->header.arcount = nb_saved_records;
+
 	dns_check_dns_response(resolution);
 	return DNS_RESP_VALID;
 }
@@ -1347,6 +1562,7 @@ static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolver
 
 		LIST_INIT(&res->requesters);
 		LIST_INIT(&res->response.answer_list);
+		LIST_INIT(&res->response.ar_list);
 
 		res->prefered_query_type = query_type;
 		res->query_type          = query_type;

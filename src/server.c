@@ -3320,9 +3320,11 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					/* If the FDQN has been changed from stats socket,
 					 * apply fqdn state file value (which is the value set
 					 * from stats socket).
+					 * Also ensure the runtime resolver will process this resolution.
 					 */
 					if (fqdn_set_by_cli) {
 						srv_set_fqdn(srv, fqdn, 0);
+						srv->flags &= ~SRV_F_NO_RESOLUTION;
 						srv->next_admin |= SRV_ADMF_HMAINT;
 					}
 				}
@@ -4429,6 +4431,9 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	if (!srv->hostname || !srv->hostname_dn)
 		goto err;
 
+	if (srv->flags & SRV_F_NO_RESOLUTION)
+		goto end;
+
 	if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 1) == -1)
 		goto err;
 
@@ -4769,6 +4774,10 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (!*args[4]) {
 			cli_err(appctx, "set server <b>/<s> fqdn requires a FQDN.\n");
 			goto out_unlock;
+		}
+		/* ensure runtime resolver will process this new fqdn */
+		if (sv->flags & SRV_F_NO_RESOLUTION) {
+			sv->flags &= ~SRV_F_NO_RESOLUTION;
 		}
 		warning = update_server_fqdn(sv, args[4], "stats socket command", 0);
 		if (warning)

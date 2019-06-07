@@ -142,6 +142,7 @@ enum srv_initaddr {
 #define SRV_F_COOKIESET    0x0100        /* this server has a cookie configured, so don't generate dynamic cookies */
 #define SRV_F_FASTOPEN     0x0200        /* Use TCP Fast Open to connect to server */
 #define SRV_F_SOCKS4_PROXY 0x0400        /* this server uses SOCKS4 proxy */
+#define SRV_F_NO_RESOLUTION 0x0800       /* disable runtime DNS resolution on this server */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */

@@ -151,6 +151,7 @@ struct dns_answer_item {
 	struct sockaddr address;                     /* IPv4 or IPv6, network format */
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
 	time_t          last_seen;                   /* When was the answer was last seen */
+	struct dns_answer_item *ar_item;             /* pointer to a RRset from the additionnal section, if exists */
 	struct list     list;
 };
 
@@ -158,7 +159,8 @@ struct dns_response_packet {
 	struct dns_header header;
 	struct list       query_list;
 	struct list       answer_list;
-	/* authority and additional_information ignored for now */
+	struct list       ar_list;         /* additional records */
+	/* authority ignored for now */
 };
 
 /* Resolvers section and parameters. It is linked to the name servers
