@@ -2572,6 +2572,15 @@ static void *run_thread_poll_loop(void *data)
 	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
 #endif
 #endif
+	/* broadcast that we are ready and wait for other threads to start */
+	thread_release();
+
+	/* Now, initialize one thread init at a time. This is better since
+	 * some init code is a bit tricky and may release global resources
+	 * after reallocating them locally. This will also ensure there is
+	 * no race on file descriptors allocation.
+	 */
+	thread_isolate();
 
 	tv_update_date(-1,-1);
 
@@ -2598,12 +2607,11 @@ static void *run_thread_poll_loop(void *data)
 		}
 	}
 
-	/* broadcast that we are ready and wait for other threads to finish
-	 * their initialization.
-	 */
+	protocol_enable_all();
+
+	/* done initializing this thread, wait for others */
 	thread_release();
 
-	protocol_enable_all();
 	run_poll_loop();
 
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
