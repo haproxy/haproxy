@@ -537,23 +537,31 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 					dc = peer->dcache;
 					cde.entry.key = de;
 					cached_de = dcache_tx_insert(dc, &cde);
-					/* Leave enough room to encode the remaining data length. */
-					end = beg = cursor + PEER_MSG_ENC_LENGTH_MAXLEN;
-					/* Encode the dictionary entry key */
-					intencode(cde.id + 1, &end);
-					if (cached_de != &cde.entry) {
+					if (cached_de == &cde.entry) {
+						if (cde.id + 1 >= PEER_ENC_2BYTES_MIN)
+							break;
+						/* Encode the length of the remaining data -> 1 */
+						intencode(1, &cursor);
+						/* Encode the cache entry ID */
+						intencode(cde.id + 1, &cursor);
+					}
+					else {
+						/* Leave enough room to encode the remaining data length. */
+						end = beg = cursor + PEER_MSG_ENC_LENGTH_MAXLEN;
+						/* Encode the dictionary entry key */
+						intencode(cde.id + 1, &end);
 						/* Encode the length of the dictionary entry data */
-						value_len = strlen(de->value.key);
+						value_len = de->len;
 						intencode(value_len, &end);
 						/* Copy the data */
 						memcpy(end, de->value.key, value_len);
 						end += value_len;
+						/* Encode the length of the data */
+						data_len = end - beg;
+						intencode(data_len, &cursor);
+						memmove(cursor, beg, data_len);
+						cursor += data_len;
 					}
-					/* Encode the length of the data */
-					data_len = end - beg;
-					intencode(data_len, &cursor);
-					memmove(cursor, beg, data_len);
-					cursor += data_len;
 					break;
 				}
 			}
