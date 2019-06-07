@@ -2849,6 +2849,7 @@ static struct dcache_tx *new_dcache_tx(size_t max_entries)
 		goto err;
 
 	d->lru_key = 0;
+	d->prev_lookup = NULL;
 	d->cached_entries = EB_ROOT_UNIQUE;
 	d->entries = entries;
 
@@ -2948,7 +2949,17 @@ static struct ebpt_node *dcache_tx_insert(struct dcache *dc, struct dcache_tx_en
 	struct ebpt_node *o;
 
 	dc_tx = dc->tx;
-	o = dcache_tx_lookup_value(dc_tx, i);
+
+	if (dc_tx->prev_lookup && dc_tx->prev_lookup->key == i->entry.key) {
+		o = dc_tx->prev_lookup;
+	} else {
+		o = dcache_tx_lookup_value(dc_tx, i);
+		if (o) {
+			/* Save it */
+			dc_tx->prev_lookup = o;
+		}
+	}
+
 	if (o) {
 		/* Copy the ID. */
 		i->id = o - dc->tx->entries;
@@ -2956,7 +2967,7 @@ static struct ebpt_node *dcache_tx_insert(struct dcache *dc, struct dcache_tx_en
 	}
 
 	/* The new entry to put in cache */
-	o = &dc_tx->entries[dc_tx->lru_key];
+	dc_tx->prev_lookup = o = &dc_tx->entries[dc_tx->lru_key];
 
 	ebpt_delete(o);
 	o->key = i->entry.key;

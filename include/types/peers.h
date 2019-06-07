@@ -102,6 +102,8 @@ struct dcache_tx {
 	unsigned int lru_key;
 	/* An array of entries to store pointers to dictionary entries. */
 	struct ebpt_node *entries;
+	/* The previous lookup result. */
+	struct ebpt_node *prev_lookup;
 	/* ebtree to store the previous entries. */
 	struct eb_root cached_entries;
 };
