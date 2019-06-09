@@ -53,6 +53,7 @@
 enum { all_threads_mask = 1UL };
 enum { threads_harmless_mask = 0 };
 enum { threads_want_rdv_mask = 0 };
+enum { threads_sync_mask = 0 };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 
@@ -225,6 +226,10 @@ static inline void thread_isolate()
 }
 
 static inline void thread_release()
+{
+}
+
+static inline void thread_sync_release()
 {
 }
 
@@ -417,6 +422,7 @@ static inline unsigned long thread_isolated()
 void thread_harmless_till_end();
 void thread_isolate();
 void thread_release();
+void thread_sync_release();
 void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
 
@@ -439,12 +445,17 @@ extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current threa
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long threads_want_rdv_mask;
 extern volatile unsigned long threads_harmless_mask;
+extern volatile unsigned long threads_sync_mask;
 
-/* explanation for threads_want_rdv_mask and threads_harmless_mask :
+/* explanation for threads_want_rdv_mask, threads_harmless_mask, and
+ * threads_sync_mask :
  * - threads_want_rdv_mask is a bit field indicating all threads that have
  *   requested a rendez-vous of other threads using thread_isolate().
  * - threads_harmless_mask is a bit field indicating all threads that are
  *   currently harmless in that they promise not to access a shared resource.
+ * - threads_sync_mask is a bit field indicating that a thread waiting for
+ *   others to finish wants to leave synchronized with others and as such
+ *   promises to do so as well using thread_sync_release().
  *
  * For a given thread, its bits in want_rdv and harmless can be translated like
  * this :
@@ -457,6 +468,9 @@ extern volatile unsigned long threads_harmless_mask;
  *       1    |     1    | thread interested in RDV and waiting for its turn
  *       1    |     0    | thread currently working isolated from others
  *  ----------+----------+----------------------------------------------------
+ *
+ * thread_sync_mask only delays the leaving of threads_sync_release() to make
+ * sure that each thread's harmless bit is cleared before leaving the function.
  */
 
 #define ha_sigmask(how, set, oldset)  pthread_sigmask(how, set, oldset)
