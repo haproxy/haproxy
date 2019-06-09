@@ -94,7 +94,12 @@ void thread_isolate()
 void thread_release()
 {
 	_HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
-	thread_harmless_end();
+	while (threads_want_rdv_mask & all_threads_mask) {
+		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+		while (threads_want_rdv_mask & all_threads_mask)
+			ha_thread_relax();
+		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
+	}
 }
 
 /* send signal <sig> to thread <thr> */
