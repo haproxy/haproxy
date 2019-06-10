@@ -2572,9 +2572,6 @@ static void *run_thread_poll_loop(void *data)
 	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
 #endif
 #endif
-	/* broadcast that we are ready and wait for other threads to start */
-	thread_release();
-
 	/* Now, initialize one thread init at a time. This is better since
 	 * some init code is a bit tricky and may release global resources
 	 * after reallocating them locally. This will also ensure there is
@@ -2607,10 +2604,17 @@ static void *run_thread_poll_loop(void *data)
 		}
 	}
 
+	/* enabling protocols will result in fd_insert() calls to be performed,
+	 * we want all threads to have already allocated their local fd tables
+	 * before doing so.
+	 */
+	thread_sync_release();
+	thread_isolate();
+
 	protocol_enable_all();
 
-	/* done initializing this thread, wait for others */
-	thread_release();
+	/* done initializing this thread, don't start before others are done */
+	thread_sync_release();
 
 	run_poll_loop();
 
@@ -3247,12 +3251,6 @@ int main(int argc, char **argv)
 		sigdelset(&blocked_sig, SIGILL);
 		sigdelset(&blocked_sig, SIGSEGV);
 		pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
-
-		/* mark the fact that threads must wait for each other
-		 * during startup. Once initialized, they just have to
-		 * call thread_release().
-		 */
-		threads_want_rdv_mask = all_threads_mask;
 
 		/* Create nbthread-1 thread. The first thread is the current process */
 		thread_info[0].pthread = pthread_self();
