@@ -2611,7 +2611,8 @@ static void *run_thread_poll_loop(void *data)
 	thread_sync_release();
 	thread_isolate();
 
-	protocol_enable_all();
+	if (tid == 0)
+		protocol_enable_all();
 
 	/* done initializing this thread, don't start before others are done */
 	thread_sync_release();
