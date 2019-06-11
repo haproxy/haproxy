@@ -5496,7 +5496,8 @@ static int htx_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	if (chunk_printf(&trash, "Basic realm=\"%s\"", auth_realm) == -1)
 		goto fail;
 
-        if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
+        if (!htx_add_header(htx, ist("Content-length"), ist("112")) ||
+	    !htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
 	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
 	    !htx_add_header(htx, ist("Content-Type"), ist("text/html")))
 		goto fail;
