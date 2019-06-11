@@ -149,7 +149,11 @@ struct htx {
 	uint32_t used;   /* number of blocks in use */
 	uint32_t tail;   /* last inserted block */
 	uint32_t head;   /* older inserted block */
-	uint32_t front;  /* block's position of the first content before the blocks table */
+
+	uint32_t tail_addr; /* start address of the free space in front of the the blocks table */
+	uint32_t head_addr; /* start address of the free space at the beginning */
+	uint32_t end_addr;  /* end address of the free space at the beginning */
+
 
 	uint64_t extra;  /* known bytes amount remaining to receive */
 	uint32_t flags;  /* HTX_FL_* */
@@ -187,7 +191,7 @@ struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, u
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
 struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs);
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
-struct htx_blk *htx_add_data_atonce(struct htx *htx, const struct ist data);
+struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data);
 size_t htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 
@@ -308,21 +312,6 @@ static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 	}
 }
 
-/* Returns the wrap position, ie the position where the blocks table wraps.
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
- */
-static inline int32_t htx_get_wrap(const struct htx *htx)
-{
-	if (!htx->used)
-		return -1;
-	return ((htx->tail >= htx->head)
-		? (htx->used + htx->head)
-		: (htx->used - 1) + (htx->head - htx->tail));
-}
-
 /* Returns the position of the oldest entry (head).
  *
  * An signed 32-bits integer is returned to handle -1 case. Blocks position are
@@ -434,10 +423,6 @@ static inline int32_t htx_get_prev(const struct htx *htx, uint32_t pos)
 	head = htx_get_head(htx);
 	if (head == -1 || pos == head)
 		return -1;
-	if (!pos) {
-		/* htx_get_wrap() is always greater than 1 here */
-		return (htx_get_wrap(htx) - 1);
-	}
 	return (pos - 1);
 }
 
@@ -464,10 +449,7 @@ static inline int32_t htx_get_next(const struct htx *htx, uint32_t pos)
 {
 	if (!htx->used || pos == htx->tail)
 		return -1;
-	pos++;
-	if (pos == htx_get_wrap(htx))
-		return 0;
-	return pos;
+	return (pos + 1);
 
 }
 
@@ -481,28 +463,6 @@ static inline struct htx_blk *htx_get_next_blk(const struct htx *htx,
 
 	pos = htx_get_next(htx, htx_get_blk_pos(htx, blk));
 	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
-}
-
-static inline int32_t htx_find_front(const struct htx *htx)
-{
-	int32_t  front, pos;
-	uint32_t addr = 0;
-
-	if (!htx->used)
-		return -1;
-
-	front = -1;
-	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk   *blk  = htx_get_blk(htx, pos);
-		enum htx_blk_type type = htx_get_blk_type(blk);
-
-		if (type != HTX_BLK_UNUSED && blk->addr >= addr) {
-			front = pos;
-			addr  = blk->addr;
-		}
-	}
-
-	return front;
 }
 
 /* Changes the size of the value. It is the caller responsibility to change the
@@ -593,6 +553,8 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
  */
 static inline void htx_cut_data_blk(struct htx *htx, struct htx_blk *blk, uint32_t n)
 {
+	if (blk->addr == htx->end_addr)
+		htx->end_addr += n;
 	blk->addr += n;
 	blk->info -= n;
 	htx->data -= n;
@@ -661,7 +623,8 @@ static inline int htx_almost_full(const struct htx *htx)
 
 static inline void htx_reset(struct htx *htx)
 {
-	htx->data = htx->used = htx->tail = htx->head  = htx->front = 0;
+	htx->data = htx->used = htx->tail = htx->head  = 0;
+	htx->tail_addr = htx->head_addr = htx->end_addr = 0;
 	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
 	htx->first = -1;
@@ -768,10 +731,12 @@ static inline void htx_dump(struct htx *htx)
 	int32_t pos;
 
 	fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%llu]\n",
-		htx, htx->size, htx->data, htx->used, (htx->tail >= htx->head) ? "NO" : "YES",
+		htx, htx->size, htx->data, htx->used, (!htx->head_addr) ? "NO" : "YES",
 		(unsigned long long)htx->extra);
-	fprintf(stderr, "\tfirst=%d - head=%u, tail=%u - front=%u\n",
-		htx->first, htx->head, htx->tail, htx->front);
+	fprintf(stderr, "\tfirst=%d - head=%u, tail=%u\n",
+		htx->first, htx->head, htx->tail);
+	fprintf(stderr, "\ttail_addr=%d - head_addr=%u, end_addr=%u\n",
+		htx->tail_addr, htx->head_addr, htx->end_addr);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_sl     *sl;

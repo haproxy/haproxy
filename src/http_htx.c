@@ -153,7 +153,6 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
 		if (blk->addr == pblk->addr)
 			blk->addr += htx_get_blksz(pblk);
-		htx->front = prev;
 
 		/* Stop when end-of-header is reached */
 		if (type == HTX_BLK_EOH)
@@ -161,9 +160,6 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
 		blk = pblk;
 	}
-
-	if (htx_get_blk_pos(htx, blk) != htx->front)
-		htx_defrag(htx, NULL);
 
 	return 1;
 }
