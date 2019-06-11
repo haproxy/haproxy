@@ -468,18 +468,19 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 		struct htx *htx = htxbuf(&msg->chn->buf);
 		struct htx_blk *blk;
 		uint32_t sz, data = 0;
+		unsigned int off = offset;
 
 		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 			if (htx_get_blk_type(blk) != HTX_BLK_DATA)
 				break;
 
 			sz = htx_get_blksz(blk);
-			if (offset >= sz) {
-				offset -= sz;
+			if (off >= sz) {
+				off -= sz;
 				continue;
 			}
-			data  += sz - offset;
-			offset = 0;
+			data  += sz - off;
+			off = 0;
 			if (data > len) {
 				data = len;
 				break;
