@@ -898,7 +898,6 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 			offset = 0;
 		}
 	}
-
 	appctx->ctx.cache.offset = offset;
 	appctx->ctx.cache.next   = shblk;
 	appctx->ctx.cache.sent  += total;
@@ -918,13 +917,16 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 	if (!max)
 		return 0;
 
-	total = 0;
 	rem_data = 0;
-	blksz = ((appctx->ctx.cache.rem_data)
-		 ? appctx->ctx.cache.rem_data
-		 : (info & 0xfffffff));
-	if (blksz > max) {
+	if (appctx->ctx.cache.rem_data) {
+		blksz = appctx->ctx.cache.rem_data;
 		total = 0;
+	}
+	else {
+		blksz = (info & 0xfffffff);
+		total = 4;
+	}
+	if (blksz > max) {
 		rem_data = blksz - max;
 		blksz = max;
 	}
@@ -944,9 +946,6 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 			offset = 0;
 		}
 	}
-
-	if (total && !appctx->ctx.cache.rem_data)
-		total += 4;
 
 	appctx->ctx.cache.offset   = offset;
 	appctx->ctx.cache.next     = shblk;
