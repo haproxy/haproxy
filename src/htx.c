@@ -1037,6 +1037,29 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 	return blk;
 }
 
+/* Moves the block <blk> just before the block <ref>. Both blocks must be in the
+ * HTX message <htx> and <blk> must be placed after <ref>. pointer to these
+ * blocks are updated to remain valid after the move. */
+void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref)
+{
+	struct htx_blk *cblk, *pblk;
+
+	cblk = *blk;
+	for (pblk = htx_get_prev_blk(htx, cblk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
+		/* Swap .addr and .info fields */
+		cblk->addr ^= pblk->addr; pblk->addr ^= cblk->addr; cblk->addr ^= pblk->addr;
+		cblk->info ^= pblk->info; pblk->info ^= cblk->info; cblk->info ^= pblk->info;
+
+		if (cblk->addr == pblk->addr)
+			cblk->addr += htx_get_blksz(pblk);
+		if (pblk == *ref)
+			break;
+		cblk = pblk;
+	}
+	*blk = cblk;
+	*ref = pblk;
+}
+
 /* Appends the H1 representation of the request line block <blk> to the
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
