@@ -464,17 +464,15 @@ static void h1_release(struct h1c *h1c)
 			conn = h1c->conn;
 
 		if (conn && h1c->flags & H1C_F_UPG_H2C) {
-			struct buffer tmpbuf = h1c->ibuf;
 			h1c->flags &= ~H1C_F_UPG_H2C;
-			h1c->ibuf = BUF_NULL;
-			if (conn_upgrade_mux_fe(conn, NULL, &tmpbuf, ist("h2"), PROTO_MODE_HTX) != -1) {
+			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTX) != -1) {
 				/* connection successfully upgraded to H2, this
 				 * mux was already released */
 				return;
 			}
-			h1c->ibuf = tmpbuf;
 			sess_log(conn->owner); /* Log if the upgrade failed */
 		}
+
 
 		if (!LIST_ISEMPTY(&h1c->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
