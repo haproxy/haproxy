@@ -2562,6 +2562,9 @@ static void *run_thread_poll_loop(void *data)
 	struct per_thread_init_fct   *ptif;
 	struct per_thread_deinit_fct *ptdf;
 	struct per_thread_free_fct   *ptff;
+	static int init_left = 0;
+	__decl_hathreads(static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER);
+	__decl_hathreads(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
 
 	ha_set_tid((unsigned long)data);
 
@@ -2577,7 +2580,13 @@ static void *run_thread_poll_loop(void *data)
 	 * after reallocating them locally. This will also ensure there is
 	 * no race on file descriptors allocation.
 	 */
-	thread_isolate();
+#ifdef USE_THREAD
+	pthread_mutex_lock(&init_mutex);
+#endif
+	/* The first thread must set the number of threads left */
+	if (!init_left)
+		init_left = global.nbthread;
+	init_left--;
 
 	tv_update_date(-1,-1);
 
@@ -2606,16 +2615,21 @@ static void *run_thread_poll_loop(void *data)
 
 	/* enabling protocols will result in fd_insert() calls to be performed,
 	 * we want all threads to have already allocated their local fd tables
-	 * before doing so.
+	 * before doing so, thus only the last thread does it.
 	 */
-	thread_sync_release();
-	thread_isolate();
-
-	if (tid == 0)
+	if (init_left == 0)
 		protocol_enable_all();
 
-	/* done initializing this thread, don't start before others are done */
-	thread_sync_release();
+#ifdef USE_THREAD
+	pthread_cond_broadcast(&init_cond);
+	pthread_mutex_unlock(&init_mutex);
+
+	/* now wait for other threads to finish starting */
+	pthread_mutex_lock(&init_mutex);
+	while (init_left)
+		pthread_cond_wait(&init_cond, &init_mutex);
+	pthread_mutex_unlock(&init_mutex);
+#endif
 
 	run_poll_loop();
 
