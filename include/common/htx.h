@@ -202,21 +202,21 @@ struct htx {
 			  * blocks (blocks and their contents), you need to add size used by blocks,
 			  * i.e. [ used * sizeof(struct htx_blk *) ] */
 
-	uint32_t used;   /* number of blocks in use */
-	uint32_t tail;   /* newest inserted block. -1 if the HTX message is empty */
-	uint32_t head;   /* oldest inserted block. -1 if the HTX message is empty */
+	int32_t tail;   /* newest inserted block. -1 if the HTX message is empty */
+	int32_t head;   /* oldest inserted block. -1 if the HTX message is empty */
+	int32_t first;  /* position of the first block to (re)start the analyse. -1 if unset. */
 
 	uint32_t tail_addr; /* start address of the free space in front of the the blocks table */
 	uint32_t head_addr; /* start address of the free space at the beginning */
 	uint32_t end_addr;  /* end address of the free space at the beginning */
 
-
 	uint64_t extra;  /* known bytes amount remaining to receive */
 	uint32_t flags;  /* HTX_FL_* */
 
-	int32_t  first;  /* position of the first block to (re)start the analyse. -1 if unset. */
+	/* XXX 4 bytes unused */
 
-	struct htx_blk blocks[0]; /* Blocks representing the HTTP message itself */
+	/* Blocks representing the HTTP message itself */
+	struct htx_blk blocks[0] __attribute__((aligned(8)));
 };
 
 
@@ -370,15 +370,12 @@ static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 	}
 }
 
-/* Returns the position of the oldest entry (head).
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
+/* Returns the position of the oldest entry (head). It returns a signed 32-bits
+ * integer, -1 means the HTX message is empty.
  */
 static inline int32_t htx_get_head(const struct htx *htx)
 {
-	return (htx->used ? htx->head : -1);
+	return htx->head;
 }
 
 /* Returns the oldest HTX block (head) if the HTX message is not
@@ -401,15 +398,12 @@ static inline enum htx_blk_type htx_get_head_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns the position of the newest entry (tail).
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
+/* Returns the position of the newest entry (tail).  It returns a signed 32-bits
+ * integer, -1 means the HTX message is empty.
  */
 static inline int32_t htx_get_tail(const struct htx *htx)
 {
-	return (htx->used ? htx->tail : -1);
+	return htx->tail;
 }
 
 /* Returns the newest HTX block (tail) if the HTX message is not
@@ -432,17 +426,11 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns the position of the first block in the HTX message <htx>. If unset,
- * or if <htx> is empty, -1 is returned.
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
+/* Returns the position of the first block in the HTX message <htx>. -1 means
+ * the first block is unset or the HTS is empty.
  */
 static inline int32_t htx_get_first(const struct htx *htx)
 {
-	if (!htx->used)
-		return -1;
 	return htx->first;
 }
 
@@ -469,17 +457,10 @@ static inline enum htx_blk_type htx_get_first_type(const struct htx *htx)
 
 /* Returns the position of block immediately before the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the head, -1 returned.
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
  */
 static inline int32_t htx_get_prev(const struct htx *htx, uint32_t pos)
 {
-	int32_t head;
-
-	head = htx_get_head(htx);
-	if (head == -1 || pos == head)
+	if (htx->head == -1 || pos == htx->head)
 		return -1;
 	return (pos - 1);
 }
@@ -498,14 +479,10 @@ static inline struct htx_blk *htx_get_prev_blk(const struct htx *htx,
 
 /* Returns the position of block immediately after the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the tail, -1 returned.
- *
- * An signed 32-bits integer is returned to handle -1 case. Blocks position are
- * store on unsigned 32-bits integer, but it is impossible to have so much
- * blocks to overflow a 32-bits signed integer !
  */
 static inline int32_t htx_get_next(const struct htx *htx, uint32_t pos)
 {
-	if (!htx->used || pos == htx->tail)
+	if (htx->tail == -1 || pos == htx->tail)
 		return -1;
 	return (pos + 1);
 
@@ -655,7 +632,10 @@ static inline void htx_cut_data_blk(struct htx *htx, struct htx_blk *blk, uint32
 /* Returns the space used by metadata in <htx>. */
 static inline uint32_t htx_meta_space(const struct htx *htx)
 {
-	return (htx->used * sizeof(htx->blocks[0]));
+	if (htx->tail == -1)
+		return 0;
+
+	return ((htx->tail + 1 - htx->head) * sizeof(htx->blocks[0]));
 }
 
 /* Returns the space used (payload + metadata) in <htx> */
@@ -707,11 +687,11 @@ static inline int htx_almost_full(const struct htx *htx)
 /* Resets an HTX message */
 static inline void htx_reset(struct htx *htx)
 {
-	htx->data = htx->used = htx->tail = htx->head  = 0;
+	htx->tail = htx->head  = htx->first = -1;
+	htx->data = 0;
 	htx->tail_addr = htx->head_addr = htx->end_addr = 0;
 	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
-	htx->first = -1;
 }
 
 /* Returns the available room for raw data in buffer <buf> once HTX overhead is
@@ -773,7 +753,7 @@ static inline struct htx *htx_from_buf(struct buffer *buf)
 /* Update <buf> accordingly to the HTX message <htx> */
 static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
 {
-	if (!htx->used && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_UPGRADE))) {
+	if ((htx->head == -1) && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_UPGRADE))) {
 		htx_reset(htx);
 		b_set_data(buf, 0);
 	}
@@ -786,7 +766,7 @@ static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
  */
 static inline int htx_is_empty(const struct htx *htx)
 {
-	return !htx->used;
+	return (htx->head == -1);
 }
 
 /* Returns 1 if the message is not empty, otherwise it returns 0. Note that it
@@ -794,9 +774,17 @@ static inline int htx_is_empty(const struct htx *htx)
  */
 static inline int htx_is_not_empty(const struct htx *htx)
 {
-	return htx->used;
+	return (htx->head != -1);
 }
 
+/* Returns the number of used blocks in the HTX message <htx>. Note that it is
+ * illegal to call this function with htx == NULL. Note also blocks of type
+ * HTX_BLK_UNUSED are part of used blocks.
+ */
+static inline int htx_nbblks(const struct htx *htx)
+{
+	return ((htx->head != -1) ? (htx->tail + 1 - htx->head) : 0);
+}
 /* For debugging purpose */
 static inline const char *htx_blk_type_str(enum htx_blk_type type)
 {
@@ -820,7 +808,8 @@ static inline void htx_dump(struct htx *htx)
 	int32_t pos;
 
 	fprintf(stderr, "htx:%p [ size=%u - data=%u - used=%u - wrap=%s - extra=%llu]\n",
-		htx, htx->size, htx->data, htx->used, (!htx->head_addr) ? "NO" : "YES",
+		htx, htx->size, htx->data, htx_nbblks(htx),
+		(!htx->head_addr) ? "NO" : "YES",
 		(unsigned long long)htx->extra);
 	fprintf(stderr, "\tfirst=%d - head=%u, tail=%u\n",
 		htx->first, htx->head, htx->tail);

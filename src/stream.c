@@ -3344,7 +3344,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 			chunk_appendf(&trash,
 				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
-				      htx, htx->flags, htx->size, htx->data, htx->used,
+				      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 				      (htx->tail >= htx->head) ? "NO" : "YES",
 				      (unsigned long long)htx->extra);
 		}
@@ -3383,7 +3383,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 			chunk_appendf(&trash,
 				      "      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n",
-				      htx, htx->flags, htx->size, htx->data, htx->used,
+				      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 				      (htx->tail >= htx->head) ? "NO" : "YES",
 				      (unsigned long long)htx->extra);
 		}

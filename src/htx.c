@@ -13,7 +13,7 @@
 #include <common/chunk.h>
 #include <common/htx.h>
 
-struct htx htx_empty = { .size = 0, .data = 0, .used = 0 };
+struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };
 
 /* Defragments an HTX message. It removes unused blocks and unwraps the payloads
  * part. A temporary buffer is used to do so. This function never fails. if
@@ -30,7 +30,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	uint32_t addr, blksz;
 	int32_t first = -1;
 
-	if (!htx->used)
+	if (htx->head == -1)
 		return NULL;
 
 	blkpos = -1;
@@ -64,7 +64,6 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 
 	}
 
-	htx->used = new;
 	htx->first = first;
 	htx->head = 0;
 	htx->tail = new - 1;
@@ -116,16 +115,14 @@ static void htx_defrag_blks(struct htx *htx)
 static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 {
 	struct htx_blk *blk;
-	uint32_t used, tail;
-	uint32_t headroom, tailroom;
+	uint32_t tail, headroom, tailroom;
 
 	if (blksz > htx_free_data_space(htx))
 		return NULL; /* full */
 
-	if (!htx->used) {
+	if (htx->head == -1) {
 		/* Empty message */
 		htx->head = htx->tail = htx->first = 0;
-		htx->used = 1;
 		blk = htx_get_blk(htx, htx->tail);
 		blk->addr = 0;
 		htx->data = blksz;
@@ -141,11 +138,10 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	 */
 	tail = htx->tail + 1;
 	if (sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, tail) >= htx->tail_addr)
-		used = htx->used + 1;
-	else if (tail > htx->used) {
+		;
+	else if (htx->head > 0) {
 		htx_defrag_blks(htx);
 		tail = htx->tail + 1;
-		used = htx->used + 1;
 		BUG_ON(sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, tail) < htx->tail_addr);
 	}
 	else
@@ -182,14 +178,12 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 		/* need to defragment the message before inserting upfront */
 		htx_defrag(htx, NULL);
 		tail = htx->tail + 1;
-		used = htx->used + 1;
 		blk = htx_get_blk(htx, tail);
 		blk->addr = htx->tail_addr;
 		htx->tail_addr += blksz;
 	}
 
 	htx->tail  = tail;
-	htx->used  = used;
 	htx->data += blksz;
 	/* Set first position if not already set */
 	if (htx->first == -1)
@@ -225,6 +219,8 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 {
 	uint32_t sz, tailroom, headroom;
 	int ret = 3;
+
+	BUG_ON(htx->head == -1);
 
 	headroom = (htx->end_addr - htx->head_addr);
 	tailroom = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - htx->tail_addr;
@@ -328,8 +324,10 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	enum htx_blk_type type;
 	uint32_t pos, addr, sz;
 
+	BUG_ON(htx->head == -1);
+
 	/* This is the last block in use */
-	if (htx->used == 1) {
+	if (htx->head == htx->tail) {
 		htx_reset(htx);
 		return NULL;
 	}
@@ -347,14 +345,12 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	/* There is at least 2 blocks, so tail is always > 0 */
 	if (pos == htx->head) {
 		/* move the head forward */
-		htx->used--;
 		htx->head++;
 	}
 	else if (pos == htx->tail) {
 		/* remove the tail. this was the last inserted block so
 		 * return NULL. */
 		htx->tail--;
-		htx->used--;
 		blk = NULL;
 		goto end;
 	}
@@ -364,7 +360,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	if (pos == htx->first)
 		htx->first = (blk ? htx_get_blk_pos(htx, blk) : -1);
 
-	if (htx->used == 1) {
+	if (htx->head == htx->tail) {
 		/* If there is just one block in the HTX message, free space can
 		 * be ajusted. This operation could save some defrags. */
 		struct htx_blk *lastblk = htx_get_blk(htx, htx->tail);
@@ -474,7 +470,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	void *ptr;
 	uint32_t len, sz, tailroom, headroom;
 
-	if (!htx->used)
+	if (htx->head == -1)
 		goto add_new_block;
 
 	/* Not enough space to store data */
@@ -929,7 +925,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	uint32_t sz, room;
 	int32_t len = data.len;
 
-	if (!htx->used)
+	if (htx->head == -1)
 		goto add_new_block;
 
 	/* Not enough space to store data */

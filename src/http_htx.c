@@ -77,7 +77,7 @@ int http_find_header(const struct htx *htx, const struct ist name,
 		goto return_hdr;
 	}
 
-	if (!htx->used)
+	if (htx_is_empty(htx))
 		return 0;
 
 	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
@@ -431,7 +431,7 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 	v = htx_get_blk_value(htx, blk);
 	if (len == v.len) {
 		blk = htx_remove_blk(htx, blk);
-		if (blk || !htx->used) {
+		if (blk || htx_is_empty(htx)) {
 			ctx->blk = blk;
 			ctx->value = ist2(NULL, 0);
 			ctx->lws_before = ctx->lws_after = 0;

@@ -4936,7 +4936,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
 	 * from the HTX blocks.
 	 */
 	if (unlikely(fsize == count &&
-	             htx->used == 1 && type == HTX_BLK_DATA &&
+	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA &&
 	             fsize <= h2s->mws && fsize <= h2c->mws && fsize <= h2c->mfs)) {
 		void *old_area = mbuf->area;
 
