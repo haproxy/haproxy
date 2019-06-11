@@ -556,7 +556,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		rule->cond = cond;
 	}
 	else if (*args[cur_arg]) {
-		ha_alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
+		ha_alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth',"
+			 " 'deny_status' for 'deny', or"
 			 " either 'if' or 'unless' followed by a condition but found '%s'.\n",
 			 file, linenum, args[0], args[cur_arg]);
 		goto out_err;
