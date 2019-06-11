@@ -77,29 +77,12 @@ static struct dict_entry *__dict_lookup(struct dict *d, const char *s)
 }
 
 /*
- * Insert <node> node in <root> ebtree, deleting any already existing node with
- * the same value.
- */
-static struct ebpt_node *__dict_insert(struct eb_root *root, struct ebpt_node *node)
-{
-	struct ebpt_node *n;
-
-	n = ebis_insert(root, node);
-	if (n != node) {
-		ebpt_delete(n);
-		free_dict_entry(container_of(n, struct dict_entry, value));
-		ebis_insert(root, node);
-	}
-
-	return node;
-}
-
-/*
  * Insert an entry in <d> dictionary with <s> as value. *
  */
 struct dict_entry *dict_insert(struct dict *d, char *s)
 {
 	struct dict_entry *de;
+	struct ebpt_node *n;
 
 	HA_RWLOCK_RDLOCK(DICT_LOCK, &d->rwlock);
 	de = __dict_lookup(d, s);
@@ -112,8 +95,12 @@ struct dict_entry *dict_insert(struct dict *d, char *s)
 		return NULL;
 
 	HA_RWLOCK_WRLOCK(DICT_LOCK, &d->rwlock);
-	__dict_insert(&d->values, &de->value);
+	n = ebis_insert(&d->values, &de->value);
 	HA_RWLOCK_WRUNLOCK(DICT_LOCK, &d->rwlock);
+	if (n != &de->value) {
+		free_dict_entry(de);
+		de = container_of(n, struct dict_entry, value);
+	}
 
 	return de;
 }
