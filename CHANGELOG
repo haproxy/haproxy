@@ -1,6 +1,42 @@
 ChangeLog :
 ===========
 
+2019/06/11 : 2.0-dev7
+    - BUG/MEDIUM: mux-h2: make sure the connection timeout is always set
+    - MINOR: tools: add new bitmap manipulation functions
+    - MINOR: logs: use the new bitmap functions instead of fd_sets for encoding maps
+    - MINOR: chunks: Make sure trash_size is only set once.
+    - Revert "MINOR: chunks: Make sure trash_size is only set once."
+    - MINOR: threads: serialize threads initialization
+    - MINOR peers: data structure simplifications for server names dictionary cache.
+    - DOC: peers: Update for dictionary cache entries for peers protocol.
+    - MINOR: dict: Store the length of the dictionary entries.
+    - MINOR: peers: A bit of optimization when encoding cached server names.
+    - MINOR: peers: Optimization for dictionary cache lookup.
+    - MEDIUM: tools: improve time format error detection
+    - BUG/MEDIUM: H1: When upgrading, make sure we don't free the buffer too early.
+    - BUG/MEDIUM: stream_interface: Make sure we call si_cs_process() if CS_FL_EOI.
+    - MINOR: threads: avoid clearing harmless twice in thread_release()
+    - MEDIUM: threads: add thread_sync_release() to synchronize steps
+    - BUG/MEDIUM: init/threads: prevent initialized threads from starting before others
+    - OPTIM/MINOR: init/threads: only call protocol_enable_all() on first thread
+    - BUG/MINOR: dict: race condition fix when inserting dictionary entries.
+    - MEDIUM: init/threads: don't use spinlocks during the init phase
+    - BUG/MINOR: cache/htx: Fix the counting of data already sent by the cache applet
+    - BUG/MEDIUM: compression/htx: Fix the adding of the last data block
+    - MINOR: flt_trace: Don't scrash the original offset during the random forwarding
+    - MAJOR: htx: Rework how free rooms are tracked in an HTX message
+    - MINOR: htx: Add the function htx_move_blk_before()
+    - Revert "BUG/MEDIUM: H1: When upgrading, make sure we don't free the buffer too early."
+    - BUG/MINOR: http-rules: mention "deny_status" for "deny" in the error message
+    - MINOR: http: turn default error files to HTTP/1.1
+    - BUG/MEDIUM: h1: Don't try to subscribe if we had a connection error.
+    - BUG/MEDIUM: h1: Don't consider we're connected if the handshake isn't done.
+    - MINOR: contrib/spoa_server: Upgrade SPOP to 2.0
+    - BUG/MEDIUM: contrib/spoa_server: Set FIN flag on agent frames
+    - MINOR: contrib/spoa_server: Add random IP score
+    - DOC/MINOR: contrib/spoa_server: Fix typo in README
+
 2019/06/07 : 2.0-dev6
     - BUG/MEDIUM: connection: fix multiple handshake polling issues
     - MINOR: connection: also stop receiving after a SOCKS4 response
