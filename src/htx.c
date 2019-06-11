@@ -868,22 +868,29 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	return len;
 }
 
-struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
-				    const struct ist data)
-{
-	struct htx_blk *blk;
-	int32_t prev;
 
-	/* FIXME: check data.len (< 256MB) */
-	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
+/* Adds an HTX block of type DATA in <htx> just after all other DATA
+ * blocks. Because it relies on htx_add_data_atonce(), It may be happened to a
+ * DATA block if possible. But, if the function succeeds, it will be the last
+ * DATA block in all cases. If an error occurred, NULL is returned. Otherwise,
+ * on success, the updated block (or the new one) is returned.
+ */
+struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
+{
+	struct htx_blk *blk, *pblk;
+
+	blk = htx_add_data_atonce(htx, data);
 	if (!blk)
 		return NULL;
 
-	blk->info += data.len;
-	memcpy(htx_get_blk_ptr(htx, blk), data.ptr, data.len);
+	for (pblk = htx_get_prev_blk(htx, blk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
+		int32_t cur, prev;
 
-	for (prev = htx_get_prev(htx, htx->tail); prev != -1; prev = htx_get_prev(htx, prev)) {
-		struct htx_blk *pblk = htx_get_blk(htx, prev);
+		if (htx_get_blk_type(pblk) <= HTX_BLK_DATA)
+			break;
+
+		cur  = htx_get_blk_pos(htx, blk);
+		prev = htx_get_blk_pos(htx, pblk);
 
 		/* Swap .addr and .info fields */
 		blk->addr ^= pblk->addr; pblk->addr ^= blk->addr; blk->addr ^= pblk->addr;
@@ -891,11 +898,11 @@ struct htx_blk *htx_add_data_before(struct htx *htx, const struct htx_blk *ref,
 
 		if (blk->addr == pblk->addr)
 			blk->addr += htx_get_blksz(pblk);
-		htx->front = prev;
-
-		if (pblk == ref)
-			break;
 		blk = pblk;
+		if (htx->front == cur)
+			htx->front = prev;
+		else if (htx->front == prev)
+			htx->front = cur;
 	}
 
 	if (htx_get_blk_pos(htx, blk) != htx->front)
