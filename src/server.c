@@ -3384,7 +3384,7 @@ void apply_server_state(void)
 	int mybuflen;
 	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	char *srv_params[SRV_STATE_FILE_MAX_FIELDS] = {0};
-	int arg, srv_arg, version, diff;
+	int arg, srv_arg, version;
 	FILE *f;
 	char *filepath;
 	char globalfilepath[MAXPATHLEN + 1];
@@ -3629,7 +3629,6 @@ void apply_server_state(void)
 					break;
 			}
 
-			diff = 0;
 			bk = curproxy;
 
 			/* if backend can't be found, let's continue */
@@ -3648,27 +3647,15 @@ void apply_server_state(void)
 					continue;
 			}
 
-			/* look for the server by its id: param[2] */
-			/* else look for the server by its name: param[3] */
-			diff = 0;
-			srv = server_find_best_match(bk, params[3], atoi(params[2]), &diff);
+			/* look for the server by its name: param[3] */
+			srv = server_find_best_match(bk, params[3], 0, NULL);
 
 			if (!srv) {
 				/* if no server found, then warning and continue with next line */
-				ha_warning("can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
-					   params[3], params[2], params[0], params[1]);
-				send_log(bk, LOG_NOTICE, "can't find server '%s' with id '%s' in backend with id '%s' or name '%s'\n",
-					 params[3], params[2], params[0], params[1]);
-				continue;
-			}
-			else if (diff & PR_FBM_MISMATCH_ID) {
-				ha_warning("In backend '%s' (id: '%d'): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
-				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server ID mismatch: from server state file: '%s', from running config %d\n", bk->id, bk->uuid, params[2], srv->puid);
-				continue;
-			}
-			else if (diff & PR_FBM_MISMATCH_NAME) {
-				ha_warning("In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
-				send_log(bk, LOG_NOTICE, "In backend '%s' (id: %d): server name mismatch: from server state file: '%s', from running config '%s'\n", bk->id, bk->uuid, params[3], srv->id);
+				ha_warning("can't find server '%s' in backend '%s'\n",
+					   params[3], params[1]);
+				send_log(bk, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
+					 params[3], params[1]);
 				continue;
 			}
 
