@@ -1936,7 +1936,8 @@ static int h1_process(struct h1c * h1c)
 		return -1;
 
 	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
-		if (!(conn->flags & (CO_FL_CONNECTED|CO_FL_ERROR)))
+		if (!(conn->flags & (CO_FL_CONNECTED|CO_FL_ERROR)) ||
+		    (conn->flags & CO_FL_HANDSHAKE))
 			goto end;
 		h1c->flags &= ~H1C_F_CS_WAIT_CONN;
 		h1_wake_stream_for_send(h1s);
