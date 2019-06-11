@@ -608,7 +608,7 @@ static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct h1m h1m;
-	struct http_hdr hdrs[MAX_HTTP_HDR];
+	struct http_hdr hdrs[global.tune.max_http_hdr];
 	union h1_sl h1sl;
 	unsigned int flags = HTX_SL_F_IS_RESP;
 	int ret = 0;

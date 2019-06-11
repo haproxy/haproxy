@@ -958,7 +958,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 				 struct buffer *buf, size_t *ofs, size_t max)
 {
 	struct htx_sl *sl;
-	struct http_hdr hdrs[MAX_HTTP_HDR];
+	struct http_hdr hdrs[global.tune.max_http_hdr];
 	union h1_sl h1sl;
 	unsigned int flags = HTX_SL_F_NONE;
 	size_t used;
@@ -1302,7 +1302,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				  struct buffer *buf, size_t *ofs, size_t max)
 {
-	struct http_hdr hdrs[MAX_HTTP_HDR];
+	struct http_hdr hdrs[global.tune.max_http_hdr];
 	struct h1m tlr_h1m;
 	int ret = 0;
 
