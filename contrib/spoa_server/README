@@ -34,7 +34,7 @@ The file processor is recognized using the extension. .lua or .luac for lua and
 
     $> ./spoa -d -f ps_lua.lua
 
-	 $> ./spoa -d -f ps_pyhton.py
+	 $> ./spoa -d -f ps_python.py
 
 
   Configure
