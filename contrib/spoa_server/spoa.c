@@ -679,13 +679,16 @@ error:
  * the number of written bytes otherwise. */
 static void prepare_agentack(struct worker *w)
 {
+	unsigned int flags = 0;
+
 	w->ack_len = 0;
 
 	/* Frame type */
 	w->ack[w->ack_len++] = SPOE_FRM_T_AGENT_ACK;
 
-	/* No flags for now */
-	memset(w->ack + w->ack_len, 0, 4); /* No flags */
+	/* Set flags */
+	flags |= htonl(SPOE_FRM_FL_FIN);
+	memcpy(w->ack + w->ack_len, &flags, 4);
 	w->ack_len += 4;
 
 	/* Set stream-id and frame-id for ACK frames */
@@ -940,12 +943,14 @@ static int
 prepare_agenthello(struct worker *w)
 {
 	int idx = 0;
+	unsigned int flags = 0;
 
 	/* Frame Type */
 	w->buf[idx++] = SPOE_FRM_T_AGENT_HELLO;
 
-	/* No flags for now */
-	memset(w->buf+idx, 0, 4); /* No flags */
+	/* Set flags */
+	flags |= htonl(SPOE_FRM_FL_FIN);
+	memcpy(w->buf+idx, &flags, 4);
 	idx += 4;
 
 	/* No stream-id and frame-id for HELLO frames */
@@ -978,6 +983,7 @@ prepare_agentdicon(struct worker *w)
 {
 	const char *reason;
 	int         rlen, idx = 0;
+	unsigned int flags = 0;
 
 	if (w->status_code >= SPOE_FRM_ERRS)
 		w->status_code = SPOE_FRM_ERR_UNKNOWN;
@@ -987,8 +993,9 @@ prepare_agentdicon(struct worker *w)
 	/* Frame type */
 	w->buf[idx++] = SPOE_FRM_T_AGENT_DISCON;
 
-	/* No flags for now */
-	memset(w->buf+idx, 0, 4);
+	/* Set flags */
+	flags |= htonl(SPOE_FRM_FL_FIN);
+	memcpy(w->buf+idx, &flags, 4);
 	idx += 4;
 
 	/* No stream-id and frame-id for DISCONNECT frames */

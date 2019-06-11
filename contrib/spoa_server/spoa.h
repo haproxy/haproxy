@@ -21,6 +21,9 @@
 #define SPOP_VERSION      "2.0"
 #define SPOA_CAPABILITIES ""
 
+/* Flags set on the SPOE frame */
+#define SPOE_FRM_FL_FIN         0x00000001
+
 /* All supported data types */
 enum spoe_data_type {
 	SPOE_DATA_T_NULL = 0,
