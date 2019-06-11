@@ -1794,7 +1794,7 @@ static int h1_recv(struct h1c *h1c)
 	if (h1c->wait_event.events & SUB_RETRY_RECV)
 		return (b_data(&h1c->ibuf));
 
-	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
+	if (!(conn->flags & CO_FL_ERROR) && h1c->flags & H1C_F_CS_WAIT_CONN) {
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		return 0;
 	}
