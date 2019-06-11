@@ -749,6 +749,19 @@ static inline int channel_htx_recv_limit(const struct channel *chn, const struct
 	return (htx_max_data_space(htx) - reserve);
 }
 
+/* HTX version of channel_full(). Instead of checking if INPUT data exceeds
+ * (size - reserve), this function checks if the free space for data in <htx>
+ * and the data scheduled for output are lower to the reserve. In such case, the
+ * channel is considered as full.
+ */
+static inline int channel_htx_full(const struct channel *c, const struct htx *htx,
+				   unsigned int reserve)
+{
+	if (!htx->size)
+		return 0;
+	return (htx_free_data_space(htx) + co_data(c) <= reserve);
+}
+
 /* Returns non-zero if the channel's INPUT buffer's is considered full, which
  * means that it holds at least as much INPUT data as (size - reserve). This
  * also means that data that are scheduled for output are considered as potential
@@ -763,22 +776,11 @@ static inline int channel_full(const struct channel *c, unsigned int reserve)
 	if (b_is_null(&c->buf))
 		return 0;
 
+	if (IS_HTX_STRM(chn_strm(c)))
+		return channel_htx_full(c, htxbuf(&c->buf), reserve);
+
 	return (ci_data(c) + reserve >= c_size(c));
 }
-
-/* HTX version of channel_full(). Instead of checking if INPUT data exceeds
- * (size - reserve), this function checks if the free space for data in <htx>
- * and the data scheduled for output are lower to the reserve. In such case, the
- * channel is considered as full.
- */
-static inline int channel_htx_full(const struct channel *c, const struct htx *htx,
-				   unsigned int reserve)
-{
-	if (!htx->size)
-		return 0;
-	return (htx_free_data_space(htx) + co_data(c) <= reserve);
-}
-
 
 /* HTX version of channel_recv_max(). */
 static inline int channel_htx_recv_max(const struct channel *chn, const struct htx *htx)
