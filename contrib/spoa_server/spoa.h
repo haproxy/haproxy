@@ -18,7 +18,7 @@
 #include <sys/time.h>
 
 #define MAX_FRAME_SIZE    16384
-#define SPOP_VERSION      "1.0"
+#define SPOP_VERSION      "2.0"
 #define SPOA_CAPABILITIES ""
 
 /* All supported data types */
