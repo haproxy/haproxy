@@ -1,6 +1,7 @@
 from pprint import pprint
 import spoa
 import ipaddress
+import random
 
 def check_client_ip(args):
 	pprint(args)
@@ -14,6 +15,7 @@ def check_client_ip(args):
 	spoa.set_var_ipv6("ipv6", spoa.scope_txn, ipaddress.IPv6Address(u"1::f"))
 	spoa.set_var_str("str", spoa.scope_txn, "1::f")
 	spoa.set_var_bin("bin", spoa.scope_txn, "1:\x01:\x02f\x00\x00")
+	spoa.set_var_int32("ip_score", spoa.scope_sess, random.randint(1,100))
 	return
 
 

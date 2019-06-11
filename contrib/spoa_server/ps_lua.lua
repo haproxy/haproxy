@@ -1,4 +1,5 @@
 require("print_r")
+require("math")
 
 print_r("Load lua message processors")
 
@@ -14,4 +15,5 @@ spoa.register_message("check-client-ip", function(args)
 	spoa.set_var_ipv6("ipv6", spoa.scope.txn, "1::f")
 	spoa.set_var_str("str", spoa.scope.txn, "1::f")
 	spoa.set_var_bin("bin", spoa.scope.txn, "1::f")
+	spoa.set_var_int32("ip_score", spoa.scope.sess, math.random(100))
 end)
