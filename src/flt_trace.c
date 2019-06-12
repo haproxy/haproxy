@@ -486,10 +486,11 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 				break;
 			}
 		}
-
-		ret = random() % (ret+1);
-		if (ret > data)
-			ret = len;
+		if (data)  {
+			ret = random() % (ret+1);
+			if (!ret || ret >= data)
+				ret = len;
+		}
 	}
 
 	STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
