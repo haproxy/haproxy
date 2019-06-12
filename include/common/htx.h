@@ -811,10 +811,8 @@ static inline void htx_dump(struct htx *htx)
 		htx, htx->size, htx->data, htx_nbblks(htx),
 		(!htx->head_addr) ? "NO" : "YES",
 		(unsigned long long)htx->extra);
-	fprintf(stderr, "\tfirst=%d - head=%u, tail=%u\n",
-		htx->first, htx->head, htx->tail);
-	fprintf(stderr, "\ttail_addr=%d - head_addr=%u, end_addr=%u\n",
-		htx->tail_addr, htx->head_addr, htx->end_addr);
+	fprintf(stderr, "\tfirst=%d - head=%d - tail=%d - tail_addr=%d - head_addr=%d, end_addr=%d\n",
+		htx->first, htx->head, htx->tail, htx->tail_addr, htx->head_addr, htx->end_addr);
 
 	for (pos = htx_get_head(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_sl     *sl;
