@@ -159,7 +159,7 @@ void ha_panic()
 	chunk_reset(&trash);
 	chunk_appendf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
 	ha_thread_dump_all_to_trash();
-	write(2, trash.area, trash.data);
+	shut_your_big_mouth_gcc(write(2, trash.area, trash.data));
 	for (;;)
 		abort();
 }
