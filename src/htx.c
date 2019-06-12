@@ -137,12 +137,12 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	 * message.
 	 */
 	tail = htx->tail + 1;
-	if (sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, tail) >= htx->tail_addr)
+	if (htx_pos_to_addr(htx, tail) >= htx->tail_addr)
 		;
 	else if (htx->head > 0) {
 		htx_defrag_blks(htx);
 		tail = htx->tail + 1;
-		BUG_ON(sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, tail) < htx->tail_addr);
+		BUG_ON(htx_pos_to_addr(htx, tail) < htx->tail_addr);
 	}
 	else
 		goto defrag;
@@ -157,9 +157,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
          *     used, the other one is never used again, until the next defrag.
 	 */
 	headroom = (htx->end_addr - htx->head_addr);
-	tailroom = (!htx->head_addr
-		    ? sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, tail) - htx->tail_addr
-		    : 0);
+	tailroom = (!htx->head_addr ? htx_pos_to_addr(htx, tail) - htx->tail_addr : 0);
 	BUG_ON((int32_t)headroom < 0);
 	BUG_ON((int32_t)tailroom < 0);
 
@@ -223,7 +221,7 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 	BUG_ON(htx->head == -1);
 
 	headroom = (htx->end_addr - htx->head_addr);
-	tailroom = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - htx->tail_addr;
+	tailroom = (htx_pos_to_addr(htx, htx->tail) - htx->tail_addr);
 	BUG_ON((int32_t)headroom < 0);
 	BUG_ON((int32_t)tailroom < 0);
 
@@ -492,7 +490,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	 * Same type and enough space: append data
 	 */
 	headroom = (htx->end_addr - htx->head_addr);
-	tailroom = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - htx->tail_addr;
+	tailroom = (htx_pos_to_addr(htx, htx->tail) - htx->tail_addr);
 	BUG_ON((int32_t)headroom < 0);
 	BUG_ON((int32_t)tailroom < 0);
 
@@ -952,7 +950,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	if (!htx->head_addr) {
 		if (tailblk->addr+sz != htx->tail_addr)
 			goto add_new_block;
-		room = sizeof(htx->blocks[0]) * htx_pos_to_idx(htx, htx->tail) - htx->tail_addr;
+		room = (htx_pos_to_addr(htx, htx->tail) - htx->tail_addr);
 	}
 	else {
 		if (tailblk->addr+sz != htx->head_addr)

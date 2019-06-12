@@ -216,7 +216,7 @@ struct htx {
 	/* XXX 4 bytes unused */
 
 	/* Blocks representing the HTTP message itself */
-	struct htx_blk blocks[0] __attribute__((aligned(8)));
+	char blocks[0] __attribute__((aligned(8)));
 };
 
 
@@ -329,23 +329,23 @@ static inline struct ist htx_sl_res_reason(const struct htx_sl *sl)
 }
 
 /* Converts a position to the corresponding relative address */
-static inline uint32_t htx_pos_to_idx(const struct htx *htx, uint32_t pos)
+static inline uint32_t htx_pos_to_addr(const struct htx *htx, uint32_t pos)
 {
-	return ((htx->size / sizeof(htx->blocks[0])) - pos - 1);
+	return htx->size - (pos + 1) * sizeof(struct htx_blk);
 }
 
 /* Returns the position of the block <blk>. It is the caller responsibility to
  * be sure <blk> is part of <htx>. */
 static inline uint32_t htx_get_blk_pos(const struct htx *htx, const struct htx_blk *blk)
 {
-	return (htx->blocks + (htx->size / sizeof(htx->blocks[0])) - blk - 1);
+	return ((htx->blocks + htx->size - (char *)blk) / sizeof(struct htx_blk) - 1);
 }
 
 /* Returns the block at the position <pos>. It is the caller responsibility to
  * be sure the block at the position <pos> exists. */
 static inline struct htx_blk *htx_get_blk(const struct htx *htx, uint32_t pos)
 {
-	return ((struct htx_blk *)(htx->blocks) + htx_pos_to_idx(htx, pos));
+	return (struct htx_blk *)(htx->blocks + htx_pos_to_addr(htx, pos));
 }
 
 /* Returns the type of the block <blk> */
@@ -635,7 +635,7 @@ static inline uint32_t htx_meta_space(const struct htx *htx)
 	if (htx->tail == -1)
 		return 0;
 
-	return ((htx->tail + 1 - htx->head) * sizeof(htx->blocks[0]));
+	return ((htx->tail + 1 - htx->head) * sizeof(struct htx_blk));
 }
 
 /* Returns the space used (payload + metadata) in <htx> */
@@ -657,9 +657,9 @@ static inline uint32_t htx_free_data_space(const struct htx *htx)
 {
 	uint32_t free = htx_free_space(htx);
 
-	if (free < sizeof(htx->blocks[0]))
+	if (free < sizeof(struct htx_blk))
 		return 0;
-	return (free - sizeof(htx->blocks[0]));
+	return (free - sizeof(struct htx_blk));
 }
 
 /* Returns the maximum size for a block, not exceeding <max> bytes. <max> may be
@@ -671,9 +671,9 @@ static inline uint32_t htx_get_max_blksz(const struct htx *htx, int32_t max)
 
 	if (max != -1 && free > max)
 		free = max;
-	if (free < sizeof(htx->blocks[0]))
+	if (free < sizeof(struct htx_blk))
 		return 0;
-	return (free - sizeof(htx->blocks[0]));
+	return (free - sizeof(struct htx_blk));
 }
 
 /* Returns 1 if the message has less than 1/4 of its capacity free, otherwise 0 */
