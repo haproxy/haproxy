@@ -249,11 +249,17 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 		}
 		else if ((sz + delta) < headroom) {
 			/* Move the block's payload into the headroom */
-			if (blk->addr == htx->end_addr)
-				htx->end_addr += sz;
 			blk->addr = htx->head_addr;
 			htx->tail_addr -= sz;
 			htx->head_addr += sz + delta;
+			if (blk->addr == htx->end_addr) {
+				if (htx->end_addr == htx->tail_addr) {
+					htx->tail_addr = htx->head_addr;
+					htx->head_addr = htx->end_addr = 0;
+				}
+				else
+					htx->end_addr += sz;
+			}
 			ret = 2;
 		}
 	}
@@ -368,11 +374,13 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 			htx->tail_addr = addr;
 		else if (addr+sz == htx->head_addr)
 			htx->head_addr = addr;
-		if (addr == htx->end_addr)
-			htx->end_addr += sz;
-		if (htx->tail_addr == htx->end_addr) {
-			htx->tail_addr = htx->head_addr;
-			htx->head_addr = htx->end_addr = 0;
+		if (addr == htx->end_addr) {
+			if (htx->tail_addr == htx->end_addr) {
+				htx->tail_addr = htx->head_addr;
+				htx->head_addr = htx->end_addr = 0;
+			}
+			else
+				htx->end_addr += sz;
 		}
 	}
 
