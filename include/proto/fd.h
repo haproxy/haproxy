@@ -117,15 +117,13 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
 static inline void updt_fd_polling(const int fd)
 {
 	if ((fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
-		unsigned int oldupdt;
 
 		/* note: we don't have a test-and-set yet in hathreads */
 
 		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 			return;
 
-		oldupdt = _HA_ATOMIC_ADD(&fd_nbupdt, 1) - 1;
-		fd_updt[oldupdt] = fd;
+		fd_updt[fd_nbupdt++] = fd;
 	} else {
 		unsigned long update_mask = fdtab[fd].update_mask;
 		do {
