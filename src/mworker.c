@@ -437,14 +437,18 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	struct mworker_proc *child;
 	int old = 0;
 	int up = now.tv_sec - proc_self->timestamp;
+	char *uptime = NULL;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", getpid(), "master", 0, proc_self->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
+	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s\n", getpid(), "master", 0, proc_self->reloads, uptime);
+	free(uptime);
+	uptime = NULL;
 
 	/* displays current processes */
 
@@ -459,7 +463,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			old++;
 			continue;
 		}
-		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", child->relative_pid, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s\n", child->pid, "worker", child->relative_pid, child->reloads, uptime);
+		free(uptime);
+		uptime = NULL;
 	}
 
 	/* displays old processes */
@@ -476,7 +483,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 			if (child->options & PROC_O_LEAVING) {
 				memprintf(&msg, "[was: %u]", child->relative_pid);
-				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, "worker", msg, child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, "worker", msg, child->reloads, uptime);
+				free(uptime);
+				uptime = NULL;
 			}
 		}
 		free(msg);
@@ -495,7 +505,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			old++;
 			continue;
 		}
-		chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, child->id, "-", child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+		chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, child->id, "-", child->reloads, uptime);
+		free(uptime);
+		uptime = NULL;
 	}
 
 	if (old) {
@@ -507,7 +520,10 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 				continue;
 
 			if (child->options & PROC_O_LEAVING) {
-				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %dd %02dh%02dm%02ds\n", child->pid, child->id, "-", child->reloads, up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, child->id, "-", child->reloads, uptime);
+				free(uptime);
+				uptime = NULL;
 			}
 		}
 	}
@@ -574,6 +590,7 @@ void mworker_free_child(struct mworker_proc *child)
 				free(child->command[i]);
 				child->command[i] = NULL;
 			}
+
 		}
 		free(child->command);
 		child->command = NULL;
