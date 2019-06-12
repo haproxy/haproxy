@@ -51,6 +51,7 @@ Summary
 3.4.      Userlists
 3.5.      Peers
 3.6.      Mailers
+3.7.      Programs
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -2187,6 +2188,40 @@ timeout mail <time>
     mailers mymailers
         timeout mail 20s
         mailer smtp1 192.168.0.1:587
+
+3.7. Programs
+-------------
+In master-worker mode, it is possible to launch external binaries with the
+master, these processes are called programs. These programs are launched and
+managed the same way as the workers.
+
+During a reload of HAProxy, those processes are dealing with the same
+sequence as a worker:
+
+  - the master is re-executed
+  - the master sends a SIGUSR1 signal to the program
+  - if "option start-on-reload" is not disabled, the master launches a new
+    instance of the program
+
+During a stop, or restart, a SIGTERM is sent to the programs.
+
+program <name>
+  This is a new program section, this section will create an instance <name>
+  which is visible in "show proc" on the master CLI. (See "9.4. Master CLI" in
+  the management guide).
+
+command <command> [arguments*]
+  Define the command to start with optional arguments. The command is looked
+  up in the current PATH if it does not include an absolute path. This is a
+  mandatory option of the program section. Arguments containing spaces must
+  be enclosed in quotes or double quotes or be prefixed by a backslash.
+
+option start-on-reload
+no option start-on-reload
+  Start (or not) a new instance of the program upon a reload of the master.
+  The default is to start a new instance. This option may only be used in a
+  program section.
+
 
 4. Proxies
 ----------
