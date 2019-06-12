@@ -2612,13 +2612,13 @@ processes:
 Example:
 
   $ echo 'show proc' | socat /var/run/haproxy-master.sock -
-  #<PID>          <type>          <relative PID>  <reloads>       <uptime>
-  1162            master          0               5               0d 00h02m07s
+  #<PID>          <type>          <relative PID>  <reloads>       <uptime>        <version>
+  1162            master          0               5               0d00h02m07s     2.0-dev7-0124c9-7
   # workers
-  1271            worker          1               0               0d 00h00m00s
-  1272            worker          2               0               0d 00h00m00s
+  1271            worker          1               0               0d00h00m00s     2.0-dev7-0124c9-7
+  1272            worker          2               0               0d00h00m00s     2.0-dev7-0124c9-7
   # old workers
-  1233            worker          [was: 1]        3               0d 00h00m43s
+  1233            worker          [was: 1]        3               0d00h00m43s     2.0-dev3-6019f6-289
 
 
 In this example, the master has been reloaded 5 times but one of the old

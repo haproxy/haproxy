@@ -20,6 +20,7 @@
 #include <common/cfgparse.h>
 #include <common/initcall.h>
 #include <common/mini-clist.h>
+#include <common/version.h>
 
 #include <types/cli.h>
 #include <types/global.h>
@@ -121,7 +122,7 @@ void mworker_proc_list_to_env()
 			type = 'w';
 
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "");
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -177,6 +178,8 @@ void mworker_env_to_proc_list()
 				child->timestamp = atoi(subtoken+10);
 			} else if (strncmp(subtoken, "id=", 3) == 0) {
 				child->id = strdup(subtoken+3);
+			} else if (strncmp(subtoken, "version=", 8) == 0) {
+				child->version = strdup(subtoken+8);
 			}
 		}
 		if (child->pid) {
@@ -444,9 +447,9 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>");
+	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>", "<version>");
 	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s\n", getpid(), "master", 0, proc_self->reloads, uptime);
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", getpid(), "master", 0, proc_self->reloads, uptime, haproxy_version);
 	free(uptime);
 	uptime = NULL;
 
@@ -464,7 +467,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			continue;
 		}
 		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s\n", child->pid, "worker", child->relative_pid, child->reloads, uptime);
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", child->pid, "worker", child->relative_pid, child->reloads, uptime, child->version);
 		free(uptime);
 		uptime = NULL;
 	}
@@ -484,7 +487,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			if (child->options & PROC_O_LEAVING) {
 				memprintf(&msg, "[was: %u]", child->relative_pid);
 				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, "worker", msg, child->reloads, uptime);
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s %-15s\n", child->pid, "worker", msg, child->reloads, uptime, child->version);
 				free(uptime);
 				uptime = NULL;
 			}
@@ -506,7 +509,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			continue;
 		}
 		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, child->id, "-", child->reloads, uptime);
+		chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s %-15s\n", child->pid, child->id, "-", child->reloads, uptime, "-");
 		free(uptime);
 		uptime = NULL;
 	}
@@ -521,7 +524,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 			if (child->options & PROC_O_LEAVING) {
 				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s\n", child->pid, child->id, "-", child->reloads, uptime);
+				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s %-15s\n", child->pid, child->id, "-", child->reloads, uptime, "-");
 				free(uptime);
 				uptime = NULL;
 			}
@@ -598,6 +601,10 @@ void mworker_free_child(struct mworker_proc *child)
 	if (child->id) {
 		free(child->id);
 		child->id = NULL;
+	}
+	if (child->version) {
+		free(child->version);
+		child->version = NULL;
 	}
 	free(child);
 }

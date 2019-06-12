@@ -3039,6 +3039,7 @@ int main(int argc, char **argv)
 						    child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
 							child->timestamp = now.tv_sec;
 							child->pid = ret;
+							child->version = strdup(haproxy_version);
 							break;
 						}
 					}

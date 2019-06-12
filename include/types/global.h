@@ -208,6 +208,7 @@ struct mworker_proc {
 	char *id;
 	char **command;
 	char *path;
+	char *version;
 	int ipc_fd[2]; /* 0 is master side, 1 is worker side */
 	int relative_pid;
 	int reloads;
