@@ -4447,6 +4447,33 @@ http-request replace-header <name> <match-regex> <replace-fmt>
 
       # assuming the backend IP is 192.168.1.20
 
+http-request replace-uri <match-regex> <replace-fmt>
+                           [ { if | unless } <condition> ]
+
+    This matches the regular expression in the URI part of the request
+    according to <match-regex>, and replaces it with the <replace-fmt>
+    argument. Standard back-references using the backslash ('\') followed by a
+    number are supported. The <fmt> field is interpreted as a log-format string
+    so it may contain special expressions just like the <fmt> argument passed
+    to "http-request set-uri". The match is exclusively case-sensitive. Any
+    optional scheme, authority or query string are considered in the matching
+    part of the URI. It is worth noting that regular expressions may be more
+    expensive to evaluate than certain ACLs, so rare replacements may benefit
+    from a condition to avoid performing the evaluation at all if it does not
+    match.
+
+    Example:
+        # prefix /foo : turn /bar?q=1 into /foo/bar?q=1 :
+        http-request replace-uri (.*) /foo\1
+
+        # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
+        http-request replace-uri ([^?]*)(\?(.*))? \1/foo\2
+
+        # strip /foo : turn /foo/bar?q=1 into /bar?q=1
+        http-request replace-uri /foo/(.*) /\1
+        # or more efficient if only some requests match :
+        http-request replace-uri /foo/(.*) /\1 if { url_beg /foo/ }
+
 http-request replace-value <name> <match-regex> <replace-fmt>
                            [ { if | unless } <condition> ]
 

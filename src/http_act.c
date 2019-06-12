@@ -32,6 +32,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/http_rules.h>
+#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/stream_interface.h>
@@ -125,6 +126,93 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 	}
 
 	(*orig_arg)++;
+	return ACT_RET_PRS_OK;
+}
+
+/* This function executes a replace-uri action. It finds its arguments in
+ * <rule>.arg.act.p[]. It builds a string in the trash from the format string
+ * previously filled by function parse_replace_uri() and will execute the regex
+ * in p[1] to replace the URI. It uses the format string present in act.p[2..3].
+ * It always returns ACT_RET_CONT. If an error occurs, the action is canceled,
+ * but the rule processing continues.
+ */
+static enum act_return http_action_replace_uri(struct act_rule *rule, struct proxy *px,
+                                               struct session *sess, struct stream *s, int flags)
+{
+	enum act_return ret = ACT_RET_ERR;
+	struct buffer *replace, *output;
+	struct ist uri;
+	int len;
+
+	replace = alloc_trash_chunk();
+	output  = alloc_trash_chunk();
+	if (!replace || !output)
+		goto leave;
+
+	if (IS_HTX_STRM(s))
+		uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
+	else
+		uri = ist2(ci_head(&s->req) + s->txn->req.sl.rq.u, s->txn->req.sl.rq.u_l);
+
+	if (!regex_exec_match2(rule->arg.act.p[1], uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
+		goto leave;
+
+	replace->data = build_logline(s, replace->area, replace->size, (struct list *)&rule->arg.act.p[2]);
+
+	/* note: uri.ptr doesn't need to be zero-terminated because it will
+	 * only be used to pick pmatch references.
+	 */
+	len = exp_replace(output->area, output->size, uri.ptr, replace->area, pmatch);
+	if (len == -1)
+		goto leave;
+
+	/* 3 is the set-uri action */
+	http_replace_req_line(3, output->area, len, px, s);
+
+	ret = ACT_RET_CONT;
+
+leave:
+	free_trash_chunk(output);
+	free_trash_chunk(replace);
+	return ret;
+}
+
+/* parse a "replace-uri" http-request action.
+ * This action takes 2 arguments (a regex and a replacement format string).
+ * The resulting rule makes use of arg->act.p[0] to store the action (0 for now),
+ * p[1] to store the compiled regex, and arg->act.p[2..3] to store the log-format
+ * list head. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, struct proxy *px,
+                                            struct act_rule *rule, char **err)
+{
+	int cur_arg = *orig_arg;
+	char *error = NULL;
+
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)0; // replace-uri
+	rule->action_ptr = http_action_replace_uri;
+
+	if (!*args[cur_arg] || !*args[cur_arg+1] ||
+	    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+		memprintf(err, "expects exactly 2 arguments <match-regex> and <replace-format>");
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (!(rule->arg.act.p[1] = regex_comp(args[cur_arg], 1, 1, &error))) {
+		memprintf(err, "failed to parse the regex : %s", error);
+		free(error);
+		return ACT_RET_PRS_ERR;
+	}
+
+	LIST_INIT((struct list *)&rule->arg.act.p[2]);
+	px->conf.args.ctx = ARGC_HRQ;
+	if (!parse_logformat_string(args[cur_arg + 1], px, (struct list *)&rule->arg.act.p[2], LOG_OPT_HTTP,
+	                            (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
+		return ACT_RET_PRS_ERR;
+	}
+
+	(*orig_arg) += 2;
 	return ACT_RET_PRS_OK;
 }
 
@@ -608,6 +696,7 @@ static struct action_kw_list http_req_actions = {
 		{ "capture",    parse_http_req_capture },
 		{ "reject",     parse_http_action_reject },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry },
+		{ "replace-uri", parse_replace_uri },
 		{ "set-method", parse_set_req_line },
 		{ "set-path",   parse_set_req_line },
 		{ "set-query",  parse_set_req_line },

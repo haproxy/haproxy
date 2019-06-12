@@ -3866,7 +3866,7 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		if (!already_warned(WARN_REQREP_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
+			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-uri' and 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
 
 		if (*(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
