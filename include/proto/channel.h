@@ -915,9 +915,10 @@ static inline void channel_slow_realign(struct channel *chn, char *swap)
 
 
 /* Forward all headers of an HTX message, starting from the SL to the EOH. This
- * function also updates the first block position.
+ * function returns the position of the block after the EOH, if
+ * found. Otherwise, it returns -1.
  */
-static inline void channel_htx_fwd_headers(struct channel *chn, struct htx *htx)
+static inline int32_t channel_htx_fwd_headers(struct channel *chn, struct htx *htx)
 {
 	int32_t pos;
 	size_t  data = 0;
@@ -926,11 +927,12 @@ static inline void channel_htx_fwd_headers(struct channel *chn, struct htx *htx)
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		data += htx_get_blksz(blk);
 		if (htx_get_blk_type(blk) == HTX_BLK_EOH) {
-			htx->first = htx_get_next(htx, pos);
+			pos = htx_get_next(htx, pos);
 			break;
 		}
 	}
 	c_adv(chn, data);
+	return pos;
 }
 
 /* Forward <data> bytes of payload of an HTX message. This function also updates

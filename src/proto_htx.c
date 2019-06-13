@@ -1220,12 +1220,12 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		ret  = flt_http_payload(s, msg, htx->data);
 		if (ret < 0)
 			goto return_bad_req;
-		channel_htx_fwd_payload(req, htx, ret);
+		c_adv(req, ret);
 		if (htx->data != co_data(req) || htx->extra)
 			goto missing_data_or_waiting;
 	}
 	else {
-		channel_htx_fwd_all(req, htx);
+		c_adv(req, htx->data - co_data(req));
 		if (msg->flags & HTTP_MSGF_XFER_LEN)
 			channel_htx_forward_forever(req, htx);
 	}
@@ -1698,7 +1698,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (txn->status < 200 &&
 	    (txn->status == 100 || txn->status >= 102)) {
 		FLT_STRM_CB(s, flt_http_reset(s, msg));
-		channel_htx_fwd_headers(rep, htx);
+		htx->first = channel_htx_fwd_headers(rep, htx);
 		msg->msg_state = HTTP_MSG_RPBEFORE;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
@@ -2219,12 +2219,12 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		ret  = flt_http_payload(s, msg, htx->data);
 		if (ret < 0)
 			goto return_bad_res;
-		channel_htx_fwd_payload(res, htx, ret);
+		c_adv(res, ret);
 		if (htx->data != co_data(res) || htx->extra)
 			goto missing_data_or_waiting;
 	}
 	else {
-		channel_htx_fwd_all(res, htx);
+		c_adv(res, htx->data - co_data(res));
 		if (msg->flags & HTTP_MSGF_XFER_LEN)
 			channel_htx_forward_forever(res, htx);
 	}
