@@ -423,7 +423,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		t->expire = tick_add(now_ms, h1c->timeout);
 	}
 
-	if (!(conn->flags & CO_FL_CONNECTED))
+	if (!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE))
 		h1c->flags |= H1C_F_CS_WAIT_CONN;
 
 	/* Always Create a new H1S */
