@@ -1655,15 +1655,8 @@ int connect_server(struct stream *s)
 				c_adv(&s->req, rewind);
 			}
 			else {
-				/* rewind the output data. */
-				rewind = co_data(&s->req);
-				c_rew(&s->req, rewind);
-
 				smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
 							   srv->ssl_ctx.sni, SMP_T_STR);
-
-				/* restore the pointers */
-				c_adv(&s->req, rewind);
 			}
 
 			if (smp_make_safe(smp)) {
