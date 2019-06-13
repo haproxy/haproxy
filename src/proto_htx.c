@@ -1221,8 +1221,6 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		if (ret < 0)
 			goto return_bad_req;
 		c_adv(req, ret);
-		if (htx->data != co_data(req) || htx->extra)
-			goto missing_data_or_waiting;
 	}
 	else {
 		c_adv(req, htx->data - co_data(req));
@@ -1235,12 +1233,17 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		goto done;
 	}
 
+
 	/* Check if the end-of-message is reached and if so, switch the message
-	 * in HTTP_MSG_DONE state.
+	 * in HTTP_MSG_ENDING state. Then if all data was marked to be
+	 * forwarded, set the state to HTTP_MSG_DONE.
 	 */
 	if (htx_get_tail_type(htx) != HTX_BLK_EOM)
 		goto missing_data_or_waiting;
 
+	msg->msg_state = HTTP_MSG_ENDING;
+	if (htx->data != co_data(req))
+		goto missing_data_or_waiting;
 	msg->msg_state = HTTP_MSG_DONE;
 	req->to_forward = 0;
 
@@ -1295,7 +1298,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  missing_data_or_waiting:
 	/* stop waiting for data if the input is closed before the end */
-	if (msg->msg_state < HTTP_MSG_DONE && req->flags & CF_SHUTR)
+	if (msg->msg_state < HTTP_MSG_ENDING && req->flags & CF_SHUTR)
 		goto return_cli_abort;
 
  waiting:
@@ -2220,8 +2223,6 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 		if (ret < 0)
 			goto return_bad_res;
 		c_adv(res, ret);
-		if (htx->data != co_data(res) || htx->extra)
-			goto missing_data_or_waiting;
 	}
 	else {
 		c_adv(res, htx->data - co_data(res));
@@ -2236,11 +2237,15 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	}
 
 	/* Check if the end-of-message is reached and if so, switch the message
-	 * in HTTP_MSG_DONE state.
+	 * in HTTP_MSG_ENDING state. Then if all data was marked to be
+	 * forwarded, set the state to HTTP_MSG_DONE.
 	 */
 	if (htx_get_tail_type(htx) != HTX_BLK_EOM)
 		goto missing_data_or_waiting;
 
+	msg->msg_state = HTTP_MSG_ENDING;
+	if (htx->data != co_data(res))
+		goto missing_data_or_waiting;
 	msg->msg_state = HTTP_MSG_DONE;
 	res->to_forward = 0;
 
@@ -2284,7 +2289,7 @@ int htx_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 	 * so we don't want to count this as a server abort. Otherwise it's a
 	 * server abort.
 	 */
-	if (msg->msg_state < HTTP_MSG_DONE && res->flags & CF_SHUTR) {
+	if (msg->msg_state < HTTP_MSG_ENDING && res->flags & CF_SHUTR) {
 		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto return_cli_abort;
 		/* If we have some pending data, we continue the processing */
