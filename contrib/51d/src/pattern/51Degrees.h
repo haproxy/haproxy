@@ -24,6 +24,10 @@
 #define FIFTYONEDEGREES_H_PATTERN_INCLUDED
 #endif
 
+#ifndef FIFTYONEDEGREES_DUMMY_LIB
+#define FIFTYONEDEGREES_DUMMY_LIB
+#endif
+
 #include <stdint.h>
 
 typedef enum e_fiftyoneDegrees_MatchMethod {

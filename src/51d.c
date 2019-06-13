@@ -827,4 +827,17 @@ INITCALL1(STG_REGISTER, sample_register_convs, &conv_kws);
 
 REGISTER_POST_CHECK(init_51degrees);
 REGISTER_POST_DEINIT(deinit_51degrees);
-REGISTER_BUILD_OPTS("Built with 51Degrees support.");
+
+#if defined(FIFTYONEDEGREES_H_PATTERN_INCLUDED)
+#ifndef FIFTYONEDEGREES_DUMMY_LIB
+	REGISTER_BUILD_OPTS("Built with 51Degrees Pattern support.");
+#else
+	REGISTER_BUILD_OPTS("Built with 51Degrees Pattern support (dummy library).");
+#endif
+#elif defined(FIFTYONEDEGREES_H_TRIE_INCLUDED)
+#ifndef FIFTYONEDEGREES_DUMMY_LIB
+	REGISTER_BUILD_OPTS("Built with 51Degrees Trie support.");
+#else
+	REGISTER_BUILD_OPTS("Built with 51Degrees Trie support (dummy library).");
+#endif
+#endif
