@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [\-x <unix_socket>] [{\-sf|\-st}\ pidlist...]
+haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-W] [\-Ws] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [\-x <unix_socket>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -76,6 +76,16 @@ starting up.
 .TP
 \fB\-D\fP
 Start in daemon mode.
+
+.TP
+\fB\-W\fP
+Start in master-worker mode. Could be used either with foreground or daemon
+mode.
+
+.TP
+\fB\-Ws\fP
+Start in master-worker mode with systemd notify support. It tells systemd when
+the process is ready. This mode forces foreground.
 
 .TP
 \fB\-q\fP
@@ -176,6 +186,9 @@ Some signals have a special meaning for the haproxy daemon. Generally, they are 
 .TP
 \- \fBSIGUSR1\fP
 Tells the daemon to stop all proxies and exit once all sessions are closed. It is often referred to as the "soft-stop" signal.
+.TP
+\- \fBSIGUSR2\fP
+In master-worker mode, reloads the configuration and sends a soft-stop signal to old processes.
 .TP
 \- \fBSIGTTOU\fP
 Tells the daemon to stop listening to all sockets. Used internally by \fB\-sf\fP and \fB\-st\fP.
