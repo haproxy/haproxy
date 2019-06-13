@@ -173,6 +173,12 @@ Attempt to connect to the unix socket, and retrieve all the listening sockets
 from the old process. Those sockets will then be used if possible instead of
 binding new ones.
 
+.TP
+\fB\-S <bind>[,<bind options>...]\fP
+In master-worker mode, create a master CLI. This CLI will enable access to the
+CLI of every worker. Useful for debugging, it's a convenient way of accessing a
+leaving process.
+
 .SH LOGGING
 Since HAProxy can run inside a chroot, it cannot reliably access /dev/log.
 For this reason, it uses the UDP protocol to send its logs to the server,

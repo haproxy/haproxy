@@ -527,7 +527,7 @@ static void usage(char *name)
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
-		"        -S <unix_socket>[,<bind options>...] new stats socket for the master\n"
+		"        -S <bind>[,<bind options>...] new master CLI\n"
 		"\n",
 		name, cfg_maxpconn);
 	exit(1);
