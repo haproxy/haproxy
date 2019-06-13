@@ -1185,20 +1185,6 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (msg->msg_state == HTTP_MSG_BODY)
 		msg->msg_state = HTTP_MSG_DATA;
 
-	/* Some post-connect processing might want us to refrain from starting to
-	 * forward data. Currently, the only reason for this is "balance url_param"
-	 * whichs need to parse/process the request after we've enabled forwarding.
-	 */
-	if (unlikely(msg->flags & HTTP_MSGF_WAIT_CONN)) {
-		if (!(s->res.flags & CF_READ_ATTACHED)) {
-			channel_auto_connect(req);
-			req->flags |= CF_WAKE_CONNECT;
-			channel_dont_close(req); /* don't fail on early shutr */
-			goto waiting;
-		}
-		msg->flags &= ~HTTP_MSGF_WAIT_CONN;
-	}
-
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(req);
 
