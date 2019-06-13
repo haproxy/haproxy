@@ -5,10 +5,11 @@ language: c
 
 env:
   global:
-    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_GETADDRINFO=1 USE_TFO=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas"
+    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_GETADDRINFO=1 USE_TFO=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1"
     - SSL_LIB=${HOME}/opt/lib
     - SSL_INC=${HOME}/opt/include
     - TMPDIR=/tmp
+    - FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
 
 addons:
   apt:
@@ -23,13 +24,13 @@ matrix:
   include:
   - os: linux
     compiler: gcc
-    env: TARGET=linux2628 FLAGS=
+    env: TARGET=linux2628 FIFTYONEDEGREES_SRC="contrib/51d/src/trie"
   - os: linux-ppc64le
     compiler: gcc
-    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1b LABEL="linux-ppc64le"
+    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1c LABEL="linux-ppc64le"
   - os: linux
     compiler: clang
-    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1b
+    env: TARGET=linux2628 OPENSSL_VERSION=1.1.1c
   - os: linux
     compiler: clang
     env: TARGET=linux2628 OPENSSL_VERSION=1.1.0j
@@ -53,7 +54,7 @@ matrix:
     env: TARGET=linux2628 FLAGS=
   - os: osx
     compiler: clang
-    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1b
+    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1c
   - os: windows
     install:
       - choco install bash make libssl-devel cygwin-devel gcc-core libgcc1 binutils lua-devel libpcre-devel zlib-devel --source cygwin
@@ -69,7 +70,7 @@ install:
 script:
   - if [ "${CC}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
   - make -C contrib/wurfl
-  - make -j3 CC=$CC V=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" EXTRA_OBJS="$EXTRA_OBJS"
+  - make -j3 CC=$CC V=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS"
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then export LD_LIBRARY_PATH="${HOME}/opt/lib:${LD_LIBRARY_PATH:-}"; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then export DYLD_LIBRARY_PATH="${HOME}/opt/lib:${DYLD_LIBRARY_PATH:-}"; fi
   - ./haproxy -vv
