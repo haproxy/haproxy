@@ -345,6 +345,17 @@ struct server {
 	struct sockaddr_storage socks4_addr;	/* the address of the SOCKS4 Proxy, including the port */
 };
 
+
+/* Storage structure to load server-state lines from a flat file into
+ * an ebtree, for faster processing
+ */
+struct state_line {
+	char *line;
+	struct ebmb_node name_name;
+	/* WARNING don't put anything after name_name, it's used by the key */
+};
+
+
 /* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of
  * success, or a combination of ERR_* flags if an error is encountered. The
  * function pointer can be NULL if not implemented. The function also has an
