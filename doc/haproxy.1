@@ -43,7 +43,8 @@ LC_COLLATE=C) ; only non hidden files with ".cfg" extension are added.
 Set the local instance's peer name. Peers are defined in the \fBpeers\fP
 configuration section and used for syncing stick tables between different
 instances. If this option is not specified, the local hostname is used as peer
-name.
+name. This name is exported in the $HAPROXY_LOCALPEER environment variable and
+can be used in the configuration file.
 
 .TP
 \fB\-n <maxconn>\fP
