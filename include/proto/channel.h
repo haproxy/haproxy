@@ -935,33 +935,6 @@ static inline int32_t channel_htx_fwd_headers(struct channel *chn, struct htx *h
 	return pos;
 }
 
-/* Forward <data> bytes of payload of an HTX message. This function also updates
- * the first block position.
- */
-static inline void channel_htx_fwd_payload(struct channel *chn, struct htx *htx, size_t data)
-{
-	int32_t pos;
-
-	c_adv(chn, data);
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		uint32_t sz = htx_get_blksz(htx_get_blk(htx, pos));
-
-		if (data < sz)
-			break;
-		data -= sz;
-	}
-	htx->first = pos;
-}
-
-/* Forward all data of an HTX message. This function also updates the first
- * block position.
- */
-static inline void channel_htx_fwd_all(struct channel *chn, struct htx *htx)
-{
-	htx->first = -1;
-	c_adv(chn, htx->data - co_data(chn));
-}
-
 /*
  * Advance the channel buffer's read pointer by <len> bytes. This is useful
  * when data have been read directly from the buffer. It is illegal to call
