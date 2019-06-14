@@ -477,9 +477,25 @@ underscore ("_") but should not start with a digit.
 
       user "$HAPROXY_USER"
 
-A special variable $HAPROXY_LOCALPEER is defined at the startup of the process
-which contains the name of the local peer. (See "-L" in the management guide.)
+Some variables are defined by HAProxy, they can be used in the configuration
+file, or could be inherited by a program (See 3.7. Programs):
 
+* HAPROXY_LOCALPEER: defined at the startup of the process which contains the
+  name of the local peer. (See "-L" in the management guide.)
+
+* HAPROXY_CFGFILES: list of the configuration files loaded by HAProxy,
+  separated by semicolons. Can be useful in the case you specified a
+  directory.
+
+* HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
+
+* HAPROXY_CLI: configured listeners adresses of the stats socket for every
+  processes, separated by semicolons.
+
+* HAPROXY_MASTER_CLI: In master-worker mode, listeners adresses of the master
+  CLI, separated by semicolons.
+
+See also "external-check command" for other variables.
 
 2.4. Time format
 ----------------
@@ -7557,6 +7573,8 @@ external-check command <command>
 
     PATH                    The PATH environment variable used when executing
                             the command may be set using "external-check path".
+
+  See also "2.3. Environment variables" for other variables.
 
   If the command executed and exits with a zero status then the check is
   considered to have passed, otherwise the check is considered to have
