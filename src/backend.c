@@ -1501,7 +1501,7 @@ int connect_server(struct stream *s)
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		    srv->mux_proto))
+		    srv->mux_proto || s->be->mode != PR_MODE_HTTP))
 #endif
 		{
 			srv_cs = objt_cs(s->si[1].end);
