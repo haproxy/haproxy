@@ -1605,7 +1605,7 @@ int connect_server(struct stream *s)
 
 #if USE_OPENSSL && (defined(OPENSSL_IS_BORINGSSL) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L))
 
-	if (!reuse && cli_conn && srv &&
+	if (!reuse && cli_conn && srv && srv_conn->mux &&
 	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
 	    /* Only attempt to use early data if either the client sent
 	     * early data, so that we know it can handle a 425, or if
