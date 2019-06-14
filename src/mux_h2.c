@@ -361,7 +361,7 @@ static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffe
 	if ((!consider_buffer || !b_data(&h2c->dbuf))
 	    && (h2c->wait_event.events & SUB_RETRY_RECV))
 		return;
-	tasklet_wakeup(h2c->wait_event.task);
+	tasklet_wakeup(h2c->wait_event.tasklet);
 }
 
 
@@ -546,11 +546,11 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		t->expire = tick_add(now_ms, h2c->timeout);
 	}
 
-	h2c->wait_event.task = tasklet_new();
-	if (!h2c->wait_event.task)
+	h2c->wait_event.tasklet = tasklet_new();
+	if (!h2c->wait_event.tasklet)
 		goto fail;
-	h2c->wait_event.task->process = h2_io_cb;
-	h2c->wait_event.task->context = h2c;
+	h2c->wait_event.tasklet->process = h2_io_cb;
+	h2c->wait_event.tasklet->context = h2c;
 	h2c->wait_event.events = 0;
 
 	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
@@ -611,8 +611,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	hpack_dht_free(h2c->ddht);
   fail:
 	task_destroy(t);
-	if (h2c->wait_event.task)
-		tasklet_free(h2c->wait_event.task);
+	if (h2c->wait_event.tasklet)
+		tasklet_free(h2c->wait_event.tasklet);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
 	return -1;
@@ -676,8 +676,8 @@ static void h2_release(struct h2c *h2c)
 			task_wakeup(h2c->task, TASK_WOKEN_OTHER);
 			h2c->task = NULL;
 		}
-		if (h2c->wait_event.task)
-			tasklet_free(h2c->wait_event.task);
+		if (h2c->wait_event.tasklet)
+			tasklet_free(h2c->wait_event.tasklet);
 		if (h2c->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 			    &h2c->wait_event);
@@ -749,7 +749,7 @@ static void __maybe_unused h2s_notify_recv(struct h2s *h2s)
 	if (h2s->recv_wait) {
 		sw = h2s->recv_wait;
 		sw->events &= ~SUB_RETRY_RECV;
-		tasklet_wakeup(sw->task);
+		tasklet_wakeup(sw->tasklet);
 		h2s->recv_wait = NULL;
 	}
 }
@@ -763,7 +763,7 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 		sw = h2s->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
-		tasklet_wakeup(sw->task);
+		tasklet_wakeup(sw->tasklet);
 	}
 }
 
@@ -911,10 +911,10 @@ static void h2s_destroy(struct h2s *h2s)
 	 */
 	LIST_DEL_INIT(&h2s->list);
 	if (LIST_ADDED(&h2s->sending_list)) {
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 	}
-	tasklet_free(h2s->wait_event.task);
+	tasklet_free(h2s->wait_event.tasklet);
 	pool_free(pool_head_h2s, h2s);
 }
 
@@ -932,15 +932,15 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	if (!h2s)
 		goto out;
 
-	h2s->wait_event.task = tasklet_new();
-	if (!h2s->wait_event.task) {
+	h2s->wait_event.tasklet = tasklet_new();
+	if (!h2s->wait_event.tasklet) {
 		pool_free(pool_head_h2s, h2s);
 		goto out;
 	}
 	h2s->send_wait = NULL;
 	h2s->recv_wait = NULL;
-	h2s->wait_event.task->process = h2_deferred_shut;
-	h2s->wait_event.task->context = h2s;
+	h2s->wait_event.tasklet->process = h2_deferred_shut;
+	h2s->wait_event.tasklet->context = h2s;
 	h2s->wait_event.events = 0;
 	LIST_INIT(&h2s->list);
 	LIST_INIT(&h2s->sending_list);
@@ -2679,7 +2679,7 @@ static int h2_process_mux(struct h2c *h2c)
 		}
 		h2s->send_wait->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
-		tasklet_wakeup(h2s->send_wait->task);
+		tasklet_wakeup(h2s->send_wait->tasklet);
 	}
 
 	list_for_each_entry_safe(h2s, h2s_back, &h2c->send_list, list) {
@@ -2699,7 +2699,7 @@ static int h2_process_mux(struct h2c *h2c)
 		h2s->flags &= ~H2_SF_BLK_ANY;
 		h2s->send_wait->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
-		tasklet_wakeup(h2s->send_wait->task);
+		tasklet_wakeup(h2s->send_wait->tasklet);
 	}
 
  fail:
@@ -2884,7 +2884,7 @@ static int h2_send(struct h2c *h2c)
 			}
 			h2s->flags &= ~H2_SF_BLK_ANY;
 			h2s->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(h2s->send_wait->task);
+			tasklet_wakeup(h2s->send_wait->tasklet);
 			LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
 		}
 	}
@@ -2898,7 +2898,7 @@ schedule:
 	return sent;
 }
 
-/* this is the tasklet referenced in h2c->wait_event.task */
+/* this is the tasklet referenced in h2c->wait_event.tasklet */
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct h2c *h2c = ctx;
@@ -3144,7 +3144,7 @@ static void h2_detach(struct conn_stream *cs)
 	/* The stream is about to die, so no need to attempt to run its task */
 	if (LIST_ADDED(&h2s->sending_list) &&
 	    h2s->send_wait != &h2s->wait_event) {
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 		/*
 		 * At this point, the stream_interface is supposed to have called
@@ -3277,7 +3277,7 @@ static void h2_do_shutr(struct h2s *h2s)
 		goto add_to_list;
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
-		tasklet_wakeup(h2c->wait_event.task);
+		tasklet_wakeup(h2c->wait_event.tasklet);
 	h2s_close(h2s);
  done:
 	h2s->flags &= ~H2_SF_WANT_SHUTR;
@@ -3346,7 +3346,7 @@ static void h2_do_shutw(struct h2s *h2s)
 	}
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
-		tasklet_wakeup(h2c->wait_event.task);
+		tasklet_wakeup(h2c->wait_event.tasklet);
  done:
 	h2s->flags &= ~H2_SF_WANT_SHUTW;
 	return;
@@ -3367,7 +3367,7 @@ static void h2_do_shutw(struct h2s *h2s)
 	return;
 }
 
-/* This is the tasklet referenced in h2s->wait_event.task, it is used for
+/* This is the tasklet referenced in h2s->wait_event.tasklet, it is used for
  * deferred shutdowns when the h2_detach() was done but the mux buffer was full
  * and prevented the last frame from being emitted.
  */
@@ -5346,7 +5346,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		/* We were about to send, make sure it does not happen */
 		if (LIST_ADDED(&h2s->sending_list) &&
 		    h2s->send_wait != &h2s->wait_event) {
-			task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+			task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
 			LIST_DEL_INIT(&h2s->sending_list);
 		}
 		h2s->send_wait = NULL;
@@ -5439,7 +5439,7 @@ static void h2_stop_senders(struct h2c *h2c)
 
 	list_for_each_entry_safe(h2s, h2s_back, &h2c->sending_list, sending_list) {
 		LIST_DEL_INIT(&h2s->sending_list);
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->task);
+		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
 	}
 }
@@ -5647,7 +5647,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.events & SUB_RETRY_SEND))
-			tasklet_wakeup(h2s->h2c->wait_event.task);
+			tasklet_wakeup(h2s->h2c->wait_event.tasklet);
 
 	}
 	/* If we're waiting for flow control, and we got a shutr on the

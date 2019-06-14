@@ -5110,14 +5110,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		return -1;
 	}
-	ctx->wait_event.task = tasklet_new();
-	if (!ctx->wait_event.task) {
+	ctx->wait_event.tasklet = tasklet_new();
+	if (!ctx->wait_event.tasklet) {
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		pool_free(ssl_sock_ctx_pool, ctx);
 		return -1;
 	}
-	ctx->wait_event.task->process = ssl_sock_io_cb;
-	ctx->wait_event.task->context = ctx;
+	ctx->wait_event.tasklet->process = ssl_sock_io_cb;
+	ctx->wait_event.tasklet->context = ctx;
 	ctx->wait_event.events = 0;
 	ctx->sent_early_data = 0;
 	ctx->tmp_early_data = -1;
@@ -5200,7 +5200,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
 		/* Start the handshake */
-		tasklet_wakeup(ctx->wait_event.task);
+		tasklet_wakeup(ctx->wait_event.tasklet);
 		if (conn->flags & CO_FL_ERROR)
 			goto err;
 		return 0;
@@ -5256,7 +5256,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
 		/* Start the handshake */
-		tasklet_wakeup(ctx->wait_event.task);
+		tasklet_wakeup(ctx->wait_event.tasklet);
 		if (conn->flags & CO_FL_ERROR)
 			goto err;
 		return 0;
@@ -5264,8 +5264,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	/* don't know how to handle such a target */
 	conn->err_code = CO_ER_SSL_NO_TARGET;
 err:
-	if (ctx && ctx->wait_event.task)
-		tasklet_free(ctx->wait_event.task);
+	if (ctx && ctx->wait_event.tasklet)
+		tasklet_free(ctx->wait_event.tasklet);
 	pool_free(ssl_sock_ctx_pool, ctx);
 	return -1;
 }
@@ -5667,13 +5667,13 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 		/* On error, wake any waiter */
 		if (ctx->recv_wait) {
 			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->task);
+			tasklet_wakeup(ctx->recv_wait->tasklet);
 			ctx->recv_wait = NULL;
 			woke = 1;
 		}
 		if (ctx->send_wait) {
 			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->task);
+			tasklet_wakeup(ctx->send_wait->tasklet);
 			ctx->send_wait = NULL;
 			woke = 1;
 		}
@@ -6005,11 +6005,11 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 					       &ctx->wait_event);
 		if (ctx->send_wait) {
 			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->task);
+			tasklet_wakeup(ctx->send_wait->tasklet);
 		}
 		if (ctx->recv_wait) {
 			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->task);
+			tasklet_wakeup(ctx->recv_wait->tasklet);
 		}
 		if (ctx->xprt->close)
 			ctx->xprt->close(conn, ctx->xprt_ctx);
@@ -6044,7 +6044,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 					 */
 					fd_cant_recv(afd);
 				}
-				tasklet_free(ctx->wait_event.task);
+				tasklet_free(ctx->wait_event.tasklet);
 				pool_free(ssl_sock_ctx_pool, ctx);
 				_HA_ATOMIC_ADD(&jobs, 1);
 				return;
@@ -6060,7 +6060,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		}
 #endif
 		SSL_free(ctx->ssl);
-		tasklet_free(ctx->wait_event.task);
+		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(ssl_sock_ctx_pool, ctx);
 		_HA_ATOMIC_SUB(&sslconns, 1);
 	}

@@ -77,7 +77,7 @@ void conn_fd_handler(int fd)
 		flags = 0;
 		if (conn->send_wait != NULL) {
 			conn->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(conn->send_wait->task);
+			tasklet_wakeup(conn->send_wait->tasklet);
 			conn->send_wait = NULL;
 		} else
 			io_available = 1;
@@ -96,7 +96,7 @@ void conn_fd_handler(int fd)
 		flags = 0;
 		if (conn->recv_wait) {
 			conn->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(conn->recv_wait->task);
+			tasklet_wakeup(conn->recv_wait->tasklet);
 			conn->recv_wait = NULL;
 		} else
 			io_available = 1;

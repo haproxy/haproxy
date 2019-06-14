@@ -2254,7 +2254,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			 * I/O handler expects to have a cs, so remove
 			 * the tasklet
 			 */
-			task_remove_from_tasklet_list((struct task *)check->wait_list.task);
+			task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2318,7 +2318,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
                          * I/O handler expects to have a cs, so remove
                          * the tasklet
                          */
-                        task_remove_from_tasklet_list((struct task *)check->wait_list.task);
+                        task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2835,7 +2835,7 @@ static int tcpcheck_main(struct check *check)
                          * I/O handler expects to have a cs, so remove
                          * the tasklet
                          */
-                        task_remove_from_tasklet_list((struct task *)check->wait_list.task);
+                        task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
 
 
 				cs_destroy(check->cs);
@@ -3200,12 +3200,12 @@ const char *init_check(struct check *check, int type)
 	if (!check->bi.area || !check->bo.area)
 		return "out of memory while allocating check buffer";
 
-	check->wait_list.task = tasklet_new();
-	if (!check->wait_list.task)
+	check->wait_list.tasklet = tasklet_new();
+	if (!check->wait_list.tasklet)
 		return "out of memroy while allocating check tasklet";
 	check->wait_list.events = 0;
-	check->wait_list.task->process = event_srv_chk_io;
-	check->wait_list.task->context = check;
+	check->wait_list.tasklet->process = event_srv_chk_io;
+	check->wait_list.tasklet->context = check;
 	return NULL;
 }
 

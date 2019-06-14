@@ -165,13 +165,13 @@ static int h1_buf_available(void *target)
 	if ((h1c->flags & H1C_F_IN_ALLOC) && b_alloc_margin(&h1c->ibuf, 0)) {
 		h1c->flags &= ~H1C_F_IN_ALLOC;
 		if (h1_recv_allowed(h1c))
-			tasklet_wakeup(h1c->wait_event.task);
+			tasklet_wakeup(h1c->wait_event.tasklet);
 		return 1;
 	}
 
 	if ((h1c->flags & H1C_F_OUT_ALLOC) && b_alloc_margin(&h1c->obuf, 0)) {
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
-		tasklet_wakeup(h1c->wait_event.task);
+		tasklet_wakeup(h1c->wait_event.tasklet);
 		return 1;
 	}
 
@@ -396,11 +396,11 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->task  = NULL;
 
 	LIST_INIT(&h1c->buf_wait.list);
-	h1c->wait_event.task = tasklet_new();
-	if (!h1c->wait_event.task)
+	h1c->wait_event.tasklet = tasklet_new();
+	if (!h1c->wait_event.tasklet)
 		goto fail;
-	h1c->wait_event.task->process = h1_io_cb;
-	h1c->wait_event.task->context = h1c;
+	h1c->wait_event.tasklet->process = h1_io_cb;
+	h1c->wait_event.tasklet->context = h1c;
 	h1c->wait_event.events   = 0;
 
 	if (conn_is_back(conn)) {
@@ -437,15 +437,15 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		task_queue(t);
 
 	/* Try to read, if nothing is available yet we'll just subscribe */
-	tasklet_wakeup(h1c->wait_event.task);
+	tasklet_wakeup(h1c->wait_event.tasklet);
 
 	/* mux->wake will be called soon to complete the operation */
 	return 0;
 
   fail:
 	task_destroy(t);
-	if (h1c->wait_event.task)
-		tasklet_free(h1c->wait_event.task);
+	if (h1c->wait_event.tasklet)
+		tasklet_free(h1c->wait_event.tasklet);
 	pool_free(pool_head_h1c, h1c);
  fail_h1c:
 	return -1;
@@ -490,8 +490,8 @@ static void h1_release(struct h1c *h1c)
 			h1c->task = NULL;
 		}
 
-		if (h1c->wait_event.task)
-			tasklet_free(h1c->wait_event.task);
+		if (h1c->wait_event.tasklet)
+			tasklet_free(h1c->wait_event.tasklet);
 
 		h1s_destroy(h1c->h1s);
 		if (conn && h1c->wait_event.events != 0)
@@ -893,7 +893,7 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 		h1s->req.state = H1_MSG_TUNNEL;
 		if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 			h1s->h1c->flags &= ~H1C_F_IN_BUSY;
-			tasklet_wakeup(h1s->h1c->wait_event.task);
+			tasklet_wakeup(h1s->h1c->wait_event.tasklet);
 		}
 	}
 }
@@ -1443,7 +1443,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	ret = htx->data - data;
 	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
-		tasklet_wakeup(h1c->wait_event.task);
+		tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 
 	h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
@@ -1776,7 +1776,7 @@ static void h1_wake_stream_for_recv(struct h1s *h1s)
 {
 	if (h1s && h1s->recv_wait) {
 		h1s->recv_wait->events &= ~SUB_RETRY_RECV;
-		tasklet_wakeup(h1s->recv_wait->task);
+		tasklet_wakeup(h1s->recv_wait->tasklet);
 		h1s->recv_wait = NULL;
 	}
 }
@@ -1784,7 +1784,7 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 {
 	if (h1s && h1s->send_wait) {
 		h1s->send_wait->events &= ~SUB_RETRY_SEND;
-		tasklet_wakeup(h1s->send_wait->task);
+		tasklet_wakeup(h1s->send_wait->tasklet);
 		h1s->send_wait = NULL;
 	}
 }
@@ -2153,7 +2153,7 @@ static void h1_detach(struct conn_stream *cs)
 					/* The server doesn't want it, let's kill the connection right away */
 					h1c->conn->mux->destroy(h1c->conn);
 				else
-					tasklet_wakeup(h1c->wait_event.task);
+					tasklet_wakeup(h1c->wait_event.tasklet);
 				return;
 
 			}
@@ -2167,7 +2167,7 @@ static void h1_detach(struct conn_stream *cs)
 				/* The connection was added to the server list,
 				 * wake the task so we can subscribe to events
 				 */
-				tasklet_wakeup(h1c->wait_event.task);
+				tasklet_wakeup(h1c->wait_event.tasklet);
 				return;
 			}
 		}
@@ -2191,7 +2191,7 @@ static void h1_detach(struct conn_stream *cs)
 	    (h1c->conn->flags & CO_FL_ERROR) || !h1c->conn->owner)
 		h1_release(h1c);
 	else {
-		tasklet_wakeup(h1c->wait_event.task);
+		tasklet_wakeup(h1c->wait_event.tasklet);
 		if (h1c->task) {
 			h1c->task->expire = TICK_ETERNITY;
 			if (b_data(&h1c->obuf)) {
@@ -2336,7 +2336,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
 		h1s->flags &= ~H1S_F_SPLICED_DATA;
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
-			tasklet_wakeup(h1c->wait_event.task);
+			tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 	return ret;
 }

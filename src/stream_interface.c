@@ -264,7 +264,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	}
 	else {
 		/* (re)start reading */
-		tasklet_wakeup(si->wait_event.task);
+		tasklet_wakeup(si->wait_event.tasklet);
 		if (!(si->flags & SI_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
@@ -1096,7 +1096,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	/* (re)start reading */
 	if (si_state_in(si->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST))
-		tasklet_wakeup(si->wait_event.task);
+		tasklet_wakeup(si->wait_event.tasklet);
 }
 
 

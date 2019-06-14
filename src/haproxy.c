@@ -2361,10 +2361,10 @@ void deinit(void)
 			task_destroy(s->check.task);
 			task_destroy(s->agent.task);
 
-			if (s->check.wait_list.task)
-				tasklet_free(s->check.wait_list.task);
-			if (s->agent.wait_list.task)
-				tasklet_free(s->agent.wait_list.task);
+			if (s->check.wait_list.tasklet)
+				tasklet_free(s->check.wait_list.tasklet);
+			if (s->agent.wait_list.tasklet)
+				tasklet_free(s->agent.wait_list.tasklet);
 
 			task_destroy(s->warmup);
 

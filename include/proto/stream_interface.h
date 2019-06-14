@@ -122,11 +122,11 @@ static inline int si_reset(struct stream_interface *si)
 	si->end            = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 	si->ops            = &si_embedded_ops;
-	si->wait_event.task = tasklet_new();
-	if (!si->wait_event.task)
+	si->wait_event.tasklet = tasklet_new();
+	if (!si->wait_event.tasklet)
 		return -1;
-	si->wait_event.task->process    = si_cs_io_cb;
-	si->wait_event.task->context = si;
+	si->wait_event.tasklet->process = si_cs_io_cb;
+	si->wait_event.tasklet->context = si;
 	si->wait_event.events = 0;
 	return 0;
 }

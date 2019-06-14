@@ -716,9 +716,9 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 
 static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
 {
-	if (!wl->task->process) {
-		wl->task->process = cb;
-		wl->task->context = ctx;
+	if (!wl->tasklet->process) {
+		wl->tasklet->process = cb;
+		wl->tasklet->context = ctx;
 	}
 	return wl;
 }

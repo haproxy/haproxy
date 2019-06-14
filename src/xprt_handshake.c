@@ -90,13 +90,13 @@ out:
 		/* On error, wake any waiter */
 		if (ctx->recv_wait) {
 			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->task);
+			tasklet_wakeup(ctx->recv_wait->tasklet);
 			woke = 1;
 			ctx->recv_wait = NULL;
 		}
 		if (ctx->send_wait) {
 			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->task);
+			tasklet_wakeup(ctx->send_wait->tasklet);
 			woke = 1;
 			ctx->send_wait = NULL;
 		}
@@ -126,7 +126,7 @@ out:
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
 				ret = ctx->conn->mux->wake(ctx->conn);
 		}
-		tasklet_free(ctx->wait_event.task);
+		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_handshake_ctx_pool, ctx);
 	}
 	return NULL;
@@ -147,14 +147,14 @@ static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)
 		return -1;
 	}
 	ctx->conn = conn;
-	ctx->wait_event.task = tasklet_new();
-	if (!ctx->wait_event.task) {
+	ctx->wait_event.tasklet = tasklet_new();
+	if (!ctx->wait_event.tasklet) {
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		pool_free(xprt_handshake_ctx_pool, ctx);
 		return -1;
 	}
-	ctx->wait_event.task->process = xprt_handshake_io_cb;
-	ctx->wait_event.task->context = ctx;
+	ctx->wait_event.tasklet->process = xprt_handshake_io_cb;
+	ctx->wait_event.tasklet->context = ctx;
 	ctx->wait_event.events = 0;
 	/* This XPRT expects the underlying XPRT to be provided later,
 	 * with an add_xprt() call, so we start trying to do the handshake
@@ -179,11 +179,11 @@ static void xprt_handshake_close(struct connection *conn, void *xprt_ctx)
 					       &ctx->wait_event);
 		if (ctx->send_wait) {
 			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->task);
+			tasklet_wakeup(ctx->send_wait->tasklet);
 		}
 		if (ctx->recv_wait) {
 			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->task);
+			tasklet_wakeup(ctx->recv_wait->tasklet);
 		}
 
 		if (ctx->xprt && ctx->xprt->close)
@@ -199,7 +199,7 @@ static void xprt_handshake_close(struct connection *conn, void *xprt_ctx)
 		conn->flags &= ~CO_FL_HANDSHAKE_NOSSL;
 		if (conn->xprt == xprt_get(XPRT_HANDSHAKE))
 			conn->xprt = xprt_get(XPRT_RAW);
-		tasklet_free(ctx->wait_event.task);
+		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_handshake_ctx_pool, ctx);
 	}
 }
@@ -263,7 +263,7 @@ static int xprt_handshake_add_xprt(struct connection *conn, void *xprt_ctx, void
 	ctx->xprt = toadd_ops;
 	ctx->xprt_ctx = toadd_ctx;
 	/* Ok we know have an xprt, so let's try to do the handshake */
-	tasklet_wakeup(ctx->wait_event.task);
+	tasklet_wakeup(ctx->wait_event.tasklet);
 	return 0;
 }
 

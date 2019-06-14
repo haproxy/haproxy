@@ -344,10 +344,10 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
  out_fail_accept:
 	flt_stream_release(s, 0);
 	task_destroy(t);
-	tasklet_free(s->si[1].wait_event.task);
+	tasklet_free(s->si[1].wait_event.tasklet);
 	LIST_DEL(&s->list);
 out_fail_alloc_si1:
-	tasklet_free(s->si[0].wait_event.task);
+	tasklet_free(s->si[0].wait_event.tasklet);
  out_fail_alloc:
 	pool_free(pool_head_stream, s);
 	return NULL;
@@ -480,8 +480,8 @@ static void stream_free(struct stream *s)
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
 
-	tasklet_free(s->si[0].wait_event.task);
-	tasklet_free(s->si[1].wait_event.task);
+	tasklet_free(s->si[0].wait_event.tasklet);
+	tasklet_free(s->si[1].wait_event.tasklet);
 
 	b_free(&s->si[1].l7_buffer);
 	if (must_free_sess) {
