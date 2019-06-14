@@ -5,7 +5,7 @@
 #
 # When in doubt, invoke help, possibly with a known target :
 #   [g]make help
-#   [g]make help TARGET=linux
+#   [g]make help TARGET=linux-glibc
 #
 # By default the detailed commands are hidden for a cleaner output, but you may
 # see them by appending "V=1" to the make command.
@@ -141,8 +141,8 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
-#    generic, linux22, linux24, linux24e, linux26, solaris,
-#    freebsd, openbsd, netbsd, cygwin, haiku, custom, aix51, aix52
+#    linux-glibc, solaris, freebsd, openbsd, netbsd, cygwin,
+#    haiku, aix51, aix52, osx, generic, custom
 TARGET =
 
 #### TARGET CPU
@@ -318,34 +318,8 @@ ifeq ($(TARGET),haiku)
   set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
 endif
 
-# Linux 2.2
-ifeq ($(TARGET),linux22)
-  set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT)
-endif
-
-# Standard Linux 2.4 with netfilter but without epoll()
-ifeq ($(TARGET),linux24)
-  set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER)
-endif
-
-# Enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
-ifeq ($(TARGET),linux24e)
-  set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_EPOLL USE_MY_EPOLL)
-endif
-
-# Standard Linux 2.6 with netfilter and standard epoll()
-ifeq ($(TARGET),linux26)
-  set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_EPOLL USE_FUTEX USE_PRCTL)
-endif
-
-# Standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
-ifeq ($(TARGET),linux2628)
+# For linux >= 2.6.28 and glibc
+ifeq ($(TARGET),linux-glibc)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
@@ -758,9 +732,8 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux2628, linux26, linux24, linux24e, linux22, solaris,"
-	@echo "   freebsd, netbsd, osx, openbsd, aix51, aix52, cygwin, haiku,"
-	@echo "   generic, custom"
+	@echo "   linux-glibc, solaris, freebsd, openbsd, netbsd, cygwin,"
+	@echo "   haiku, aix51, aix52, osx, generic, custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"
@@ -824,8 +797,8 @@ help:
 	     echo;\
 	   else \
 	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
-	     echo "  linux2628, linux26, linux24, linux24e, linux22, solaris, freebsd,"; \
-	     echo "  netbsd, osx, openbsd, aix51, aix52, cygwin, haiku, generic, custom"; \
+	     echo "  linux-glibc, solaris, freebsd, netbsd, osx, openbsd,"; \
+	     echo "  aix51, aix52, cygwin, haiku, generic, custom"; \
 	   fi
 	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
 	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
