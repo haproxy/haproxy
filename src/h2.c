@@ -555,6 +555,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		goto fail;
 
 	sl->info.req.meth = find_http_meth(phdr[H2_PHDR_IDX_METH].ptr, phdr[H2_PHDR_IDX_METH].len);
+	sl->flags |= HTX_SL_F_HAS_SCHM;
+	sl->flags |= (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("http")) ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 	return sl;
  fail:
 	return NULL;
