@@ -1,7 +1,11 @@
 # This GNU Makefile supports different OS and CPU combinations.
 #
 # You should use it this way :
-#   [g]make TARGET=os ARCH=arch CPU=cpu USE_xxx=1 ...
+#   [g]make TARGET=os [ARCH=arch] [CPU=cpu] USE_xxx=1 ...
+#
+# When in doubt, invoke help, possibly with a known target :
+#   [g]make help
+#   [g]make help TARGET=linux
 #
 # By default the detailed commands are hidden for a cleaner output, but you may
 # see them by appending "V=1" to the make command.
@@ -54,7 +58,8 @@
 #   USE_THREAD_DUMP      : use the more advanced thread state dump system. Automatic.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
-# "USE_xxx=" (empty string).
+# "USE_xxx=" (empty string). The list of enabled and disabled options for a
+# given TARGET is enumerated at the end of "make help".
 #
 # Variables useful for packagers :
 #   CC is set to "gcc" by default and is used for compilation only.
@@ -812,7 +817,19 @@ INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
 DEP = $(INCLUDES) .build_opts
 
 help:
-	$(Q)sed -ne "/^[^#]*$$/q;s/^#\(.*\)/\1/p" Makefile
+	$(Q)sed -ne "/^[^#]*$$/q;s/^# \?\(.*\)/\1/p" Makefile
+	$(Q)echo; \
+	   if [ -n "$(TARGET)" ]; then \
+	     echo -n "Current TARGET: $(TARGET)"; \
+	     if [ -z "$(set_target_defaults)" ]; then echo -n " (custom target)";fi; \
+	   else \
+	     echo -n "TARGET not set."; \
+	   fi; \
+	   echo
+	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
+	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
+	$(Q)echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
+	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt))); echo "  $$*" | (fmt || cat) 2>/dev/null
 
 # Used only to force a rebuild if some build options change
 build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
