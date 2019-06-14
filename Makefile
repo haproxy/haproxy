@@ -107,8 +107,7 @@
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
-#
-#   VTEST_PROGRAM : location of the vtest program to run reg-tests.
+#   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
 
 # verbosity: pass V=1 for verbose shell invocation
 V = 0
@@ -822,10 +821,12 @@ help:
 	   if [ -n "$(TARGET)" ]; then \
 	     echo -n "Current TARGET: $(TARGET)"; \
 	     if [ -z "$(set_target_defaults)" ]; then echo -n " (custom target)";fi; \
+	     echo;\
 	   else \
-	     echo -n "TARGET not set."; \
-	   fi; \
-	   echo
+	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
+	     echo "  linux2628, linux26, linux24, linux24e, linux22, solaris, freebsd,"; \
+	     echo "  netbsd, osx, openbsd, aix51, aix52, cygwin, haiku, generic, custom"; \
+	   fi
 	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
 	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
 	$(Q)echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
