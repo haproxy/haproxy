@@ -741,6 +741,14 @@ all:
 	@echo "out of it. Please check the Makefile in case of doubts."
 	@echo
 	@exit 1
+else ifneq ($(filter $(TARGET), linux linux22 linux24 linux24e linux26 linux2628),)
+all:
+	@echo
+	@echo "Target '$(TARGET)' was removed from HAProxy 2.0 due to being irrelevant and"
+	@echo "often wrong. Please use 'linux-glibc' instead or define your custom target"
+	@echo "by checking available options using 'make help TARGET=<your-target>'."
+	@echo
+	@exit 1
 else
 all: haproxy $(EXTRA)
 endif
