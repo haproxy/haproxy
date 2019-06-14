@@ -2254,7 +2254,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			 * I/O handler expects to have a cs, so remove
 			 * the tasklet
 			 */
-			task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
+			tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2315,10 +2315,10 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 				    check->wait_list.events,
 				    &check->wait_list);
 			/* We may have been scheduled to run, and the
-                         * I/O handler expects to have a cs, so remove
-                         * the tasklet
-                         */
-                        task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
+			 * I/O handler expects to have a cs, so remove
+			 * the tasklet
+			 */
+			tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
@@ -2831,13 +2831,11 @@ static int tcpcheck_main(struct check *check)
 					                            cs->conn->xprt_ctx,
 								    check->wait_list.events,
 								    &check->wait_list);
-			/* We may have been scheduled to run, and the
-                         * I/O handler expects to have a cs, so remove
-                         * the tasklet
-                         */
-                        task_remove_from_tasklet_list((struct task *)check->wait_list.tasklet);
-
-
+				/* We may have been scheduled to run, and the
+				 * I/O handler expects to have a cs, so remove
+				 * the tasklet
+				 */
+				tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 				cs_destroy(check->cs);
 			}
 

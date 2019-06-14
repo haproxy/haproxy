@@ -911,7 +911,7 @@ static void h2s_destroy(struct h2s *h2s)
 	 */
 	LIST_DEL_INIT(&h2s->list);
 	if (LIST_ADDED(&h2s->sending_list)) {
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
+		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 	}
 	tasklet_free(h2s->wait_event.tasklet);
@@ -3144,7 +3144,7 @@ static void h2_detach(struct conn_stream *cs)
 	/* The stream is about to die, so no need to attempt to run its task */
 	if (LIST_ADDED(&h2s->sending_list) &&
 	    h2s->send_wait != &h2s->wait_event) {
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
+		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 		/*
 		 * At this point, the stream_interface is supposed to have called
@@ -5346,7 +5346,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		/* We were about to send, make sure it does not happen */
 		if (LIST_ADDED(&h2s->sending_list) &&
 		    h2s->send_wait != &h2s->wait_event) {
-			task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
+			tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 			LIST_DEL_INIT(&h2s->sending_list);
 		}
 		h2s->send_wait = NULL;
@@ -5439,7 +5439,7 @@ static void h2_stop_senders(struct h2c *h2c)
 
 	list_for_each_entry_safe(h2s, h2s_back, &h2c->sending_list, sending_list) {
 		LIST_DEL_INIT(&h2s->sending_list);
-		task_remove_from_tasklet_list((struct task *)h2s->send_wait->tasklet);
+		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
 	}
 }
