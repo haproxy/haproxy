@@ -87,6 +87,9 @@
 #define HTX_SL_F_CHNK          0x00000010 /* The message payload is chunked */
 #define HTX_SL_F_VER_11        0x00000020 /* The message indicates version 1.1 or above */
 #define HTX_SL_F_BODYLESS      0x00000040 /* The message has no body (content-length = 0) */
+#define HTX_SL_F_HAS_SCHM      0x00000080 /* The scheme is explicitly specified */
+#define HTX_SL_F_SCHM_HTTP     0x00000100 /* The scheme HTTP should be used */
+#define HTX_SL_F_SCHM_HTTPS    0x00000200 /* The scheme HTTPS should be used */
 
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000
