@@ -4718,7 +4718,14 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	 */
 	if (sl->info.req.meth != HTTP_METH_CONNECT) {
 		/* encode the scheme which is always "https" (or 0x86 for "http") */
-		if (!hpack_encode_scheme(&outbuf, ist("https"))) {
+		struct ist scheme;
+
+		if ((sl->flags & (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP)) == (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP))
+			scheme = ist("http");
+		else
+			scheme = ist("https");
+
+		if (!hpack_encode_scheme(&outbuf, scheme)) {
 			/* output full */
 			if (b_space_wraps(mbuf))
 				goto realign_again;
