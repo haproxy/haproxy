@@ -369,7 +369,8 @@ void process_runnable_tasks()
 #endif
 
 		/* And add it to the local task list */
-		task_insert_into_tasklet_list(t);
+		tasklet_insert_into_tasklet_list((struct tasklet *)t);
+		task_per_thread[tid].task_list_size++;
 		activity[tid].tasksw++;
 	}
 
@@ -389,6 +390,8 @@ void process_runnable_tasks()
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
 		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
+		if (!TASK_IS_TASKLET(t))
+			task_per_thread[tid].task_list_size--;
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
