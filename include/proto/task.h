@@ -231,11 +231,11 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	if (!LIST_ISEMPTY(&tl->list))
 		return;
 	LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
-	task_per_thread[tid].task_list_size++;
 	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 
 }
 
+/* may only be used for real tasks */
 static inline void task_insert_into_tasklet_list(struct task *t)
 {
 	struct tasklet *tl;
@@ -252,7 +252,8 @@ static inline void task_insert_into_tasklet_list(struct task *t)
 static inline void __task_remove_from_tasklet_list(struct task *t)
 {
 	LIST_DEL_INIT(&((struct tasklet *)t)->list);
-	task_per_thread[tid].task_list_size--;
+	if (!TASK_IS_TASKLET(t))
+		task_per_thread[tid].task_list_size--;
 	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 }
 
@@ -361,7 +362,6 @@ static inline void tasklet_free(struct tasklet *tl)
 {
 	if (!LIST_ISEMPTY(&tl->list)) {
 		LIST_DEL(&tl->list);
-		task_per_thread[tid].task_list_size--;
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
 
