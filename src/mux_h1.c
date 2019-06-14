@@ -1733,6 +1733,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 			  done:
 				h1m->state = H1_MSG_DONE;
+				if (h1s->h1c->flags & H1C_F_IN_BUSY) {
+					h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+				}
 				break;
 
 			default:
