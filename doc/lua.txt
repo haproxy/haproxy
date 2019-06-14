@@ -597,8 +597,7 @@ embedding the Lua script language:
    cd haproxy-1.6.2
 
  - build HAProxy:
-   make TARGET=linux \
-        USE_DL=1 \
+   make TARGET=linux-glibc \
         USE_LUA=1 \
         LUA_LIB=/opt/lua-5.3.1/lib \
         LUA_INC=/opt/lua-5.3.1/include

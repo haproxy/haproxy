@@ -14,7 +14,7 @@ However, PROMEX is not built by default with HAProxy. It is provided as an extra
 component for everyone want to use it. So you need to explicity build HAProxy
 with the PROMEX service, using the Makefile variable "EXTRA_OBJS". For instance:
 
-    > make TARGET=linux2628 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
+    > make TARGET=linux-glibc EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
 
 if HAProxy provides the PROMEX service, the following build option will be
 reported by the command "haproxy -vv":

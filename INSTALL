@@ -31,7 +31,7 @@ are a few build examples :
 
   - recent Linux system with all options, make and install :
     $ make clean
-    $ make -j 4 TARGET=linux2628 USE_NS=1 USE_TFO=1 \
+    $ make -j $(nproc) TARGET=linux-glibc \
                 USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1 USE_SYSTEMD=1
     $ sudo make install
 
@@ -39,8 +39,8 @@ are a few build examples :
     $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1
 
   - embedded Linux, build using a cross-compiler :
-    $ make -j 4 TARGET=linux2628 USE_NS=1 USE_OPENSSL=1 USE_SLZ=1 USE_PCRE=1 \
-                CC=/opt/cross/gcc730-arm/bin/gcc
+    $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_SLZ=1 USE_PCRE=1 \
+                CC=/opt/cross/gcc730-arm/bin/gcc ADDLIB=-latomic
 
   - Build with static PCRE on Solaris / UltraSPARC :
     $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE=1
@@ -349,11 +349,7 @@ and section 3 (build environment). It often refers to section 4 (dependencies).
 To build haproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
 
-  - linux22     for Linux 2.2
-  - linux24     for Linux 2.4 and above (default)
-  - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
-  - linux26     for Linux 2.6 and above
-  - linux2628   for Linux 2.6.28, 3.x, and above (enables splice and tproxy)
+  - linux-glibc for Linux kernel 2.6.28 and above
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 12 (others untested)
   - netbsd      for NetBSD
@@ -411,7 +407,7 @@ to the linker. For example, in order to build a 32-bit binary on an x86_64
 Linux system with SSL support without support for compression but when OpenSSL
 requires ZLIB anyway :
 
-    $ make TARGET=linux2628 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
+    $ make TARGET=linux-glibc ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
 
 Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
 is not present in all libcs and does not work in all of them either. Support in
