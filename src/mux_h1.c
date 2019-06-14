@@ -1078,6 +1078,14 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		if (!sl || !htx_add_all_headers(htx, hdrs))
 			goto error;
 		sl->info.req.meth = h1s->meth;
+
+		/* Check if the uri contains an explicit scheme and if it is
+		 * "http" or "https". */
+		if (h1sl.rq.u.len && h1sl.rq.u.ptr[0] != '/') {
+			sl->flags |= HTX_SL_F_HAS_SCHM;
+			if (h1sl.rq.u.len > 4 && (h1sl.rq.u.ptr[0] | 0x20) == 'h')
+				sl->flags |= ((h1sl.rq.u.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
+		}
 	}
 	else {
 		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max) {
