@@ -5761,6 +5761,8 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 					conn->flags &= ~CO_FL_EARLY_SSL_HS;
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					need_out = 1;
+					/* Now initiate the handshake */
+					tasklet_wakeup(ctx->wait_event.tasklet);
 					if (read_length == 0)
 						break;
 				}
@@ -5920,6 +5922,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				try -= (try + ctx->sent_early_data) - max_early;
 				if (try <= 0) {
 					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+					tasklet_wakeup(ctx->wait_event.tasklet);
 					break;
 				}
 			}
@@ -5927,8 +5930,11 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			if (ret == 1) {
 				ret = written_data;
 				ctx->sent_early_data += ret;
-				if (objt_server(conn->target))
+				if (objt_server(conn->target)) {
 					conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_EARLY_DATA;
+					/* Initiate the handshake, now */
+					tasklet_wakeup(ctx->wait_event.tasklet);
+				}
 
 			}
 
