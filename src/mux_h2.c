@@ -157,7 +157,6 @@ enum h2_ss {
 #define H2_SS_HLOC_BIT    (1UL << H2_SS_HLOC)
 #define H2_SS_ERROR_BIT   (1UL << H2_SS_ERROR)
 #define H2_SS_CLOSED_BIT  (1UL << H2_SS_CLOSED)
-#define H2_SS_EOS_BITS    (H2_SS_CLOSED_BIT|H2_SS_ERROR_BIT|H2_SS_HREM_BIT)
 
 /* HTTP/2 stream flags (32 bit), in h2s->flags */
 #define H2_SF_NONE              0x00000000
@@ -2376,7 +2375,8 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (tmp_h2s != h2s && h2s && h2s->cs &&
 		    (b_data(&h2s->rxbuf) ||
-		     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
+		     conn_xprt_read0_pending(h2c->conn) ||
+		     h2s->st == H2_SS_CLOSED ||
 		     (h2s->flags & H2_SF_ES_RCVD) ||
 		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 			/* we may have to signal the upper layers */
@@ -2615,7 +2615,8 @@ static void h2_process_demux(struct h2c *h2c)
 	/* we can go here on missing data, blocked response or error */
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
-	     (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS) ||
+	     conn_xprt_read0_pending(h2c->conn) ||
+	     h2s->st == H2_SS_CLOSED ||
 	     (h2s->flags & H2_SF_ES_RCVD) ||
 	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 		/* we may have to signal the upper layers */
@@ -5411,7 +5412,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (h2s->flags & H2_SF_ES_RCVD)
 			cs->flags |= CS_FL_EOI;
-		if (H2_SS_MASK(h2s->st) & H2_SS_EOS_BITS)
+		if (conn_xprt_read0_pending(h2c->conn) || h2s->st == H2_SS_CLOSED)
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
 			cs->flags |= CS_FL_ERROR;
