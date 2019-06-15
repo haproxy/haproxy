@@ -3814,13 +3814,13 @@ try_again:
 
 		sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
 
-		b_del(&h2c->dbuf, flen);
-		h2c->dfl    -= flen;
-		h2c->rcvd_c += flen;
-		h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
+		b_del(&h2c->dbuf, sent);
+		h2c->dfl    -= sent;
+		h2c->rcvd_c += sent;
+		h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
 
 		if (h2s->flags & H2_SF_DATA_CLEN) {
-			h2s->body_len -= flen;
+			h2s->body_len -= sent;
 			htx->extra = h2s->body_len;
 		}
 
