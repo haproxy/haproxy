@@ -1,0 +1,239 @@
+HAProxy branches and life cycle
+===============================
+
+The HAProxy project evolves quickly to stay up to date with modern features
+found in web environments but also takes a great care of addressing bugs which
+may affect deployed versions without forcing such users to upgrade when not
+needed. For this reason the project is developed in branches.
+
+A branch is designated as two numbers separated by a dot, for example "1.8".
+This numbering is historical. Each new development cycle increases the second
+digit by one, and after it reaches '9' it goes back to zero and the first digit
+increases by one. It effectively grows as a decimal number increased by 0.1 per
+version.
+
+The complete version is made of the branch suffixed with "-dev" followed by a
+sequence number during development, then by "." followed by a number when the
+development of that branch is finished and the branch enters a maintenance
+phase. The first release of a branch starts at ".0". Immediately after ".0" is
+issued, the next branch is created as "-dev0" as an exact copy of the previous
+branch's ".0" version. Thus we observe the following development sequence:
+
+ ... 1.9-dev10 -> 1.9-dev11 -> 1.9.0 -> 2.0-dev0 -> 2.0-dev1 ... 2.0 -> ...
+
+Occasionally a series of "-rc" versions may be emitted between the latest -dev
+and the release to mark the end of development and start of stabilizing, though
+it's mostly a signal send to users that the release is approaching rather than
+a change in the cycle as it is always hard to categorize patches.
+
+Very often the terms "branch" and "version" will be used interchangeably with
+only the first two digits to designate "the latest version of that branch". So
+when someone asks you "Could you please try the same on 1.8", it means "1.8.X"
+with X as high as possible, thus for example 1.8.20 if this one is available at
+this moment.
+
+During the maintenance phase, a maintenance branch is created for the just
+released version. The development version remains in the development branch
+called "master", or sometimes "-dev". If branches are represented vertically
+and time horizontally, this will look like this:
+
+                     versions                                       branch
+  1.9-dev10  1.9-dev11  1.9.0  2.0-dev0  2.0-dev1  2.0-dev2
+   ----+--------+---------+-------+---------+---------+---------->  master
+                           \
+                            \          1.9.1         1.9.2
+                             `-----------+-------------+--------->   1.9
+
+Each released version (e.g. 1.9.0 above) appears once in the master branch so
+that it is easy to list history of changes between versions.
+
+Before version 1.4, development and maintenance were inter-mixed in the same
+branch, which resulted in latest maintenance branches becoming unstable after
+some point. This is why versions 1.3.14 and 1.3.15 became maintenance branches
+on their own while the development pursued on 1.3 to stabilize again in the
+latest versions.
+
+Starting with version 1.4.0, a rule has been set not to create new features
+into a maintenance branch. It was not well respected and still created trouble
+with certain 1.4 versions causing regressions and confusing users.
+
+Since 1.5.0 this "no new feature" rule has become strict and maintenance
+versions only contain bug fixes that are necessary in this branch. This means
+that any version X.Y.Z is necessarily more stable than X.Y.W with W<Z.
+
+For this reason there is absolutely no excuse for not updating a version within
+your branch, as your version necessarily contains bugs that are fixed in any
+later version in that same branch. Obviously when a branch is just released,
+there will be some occasional bugs. And once in a while a fix for a recently
+discovered bug may have an undesired side effect called a regression. This must
+never happen but this will happen from time to time, especially on recently
+released versions. This is often presented as an excuse by some users for not
+updating but this is wrong, as the risk staying with an older version is much
+higher than the risk of updating. If you fear there could be an issue with an
+update because you don't completely trust the version in your branch, it simply
+means you're using the wrong branch and need an older one.
+
+When a bug is reported in a branch, developers will systematically ask if the
+bug is present in the latest version of this branch (since developers don't
+like to work on bugs that were already fixed). It's a good practice to perform
+the update yourself and to test again before reporting the bug. Note, as long
+as you're using a supported branch, as indicated on the haproxy.org web site,
+you don't need to upgrade to another branch to report a bug. However from time
+to time it may happen that a developer will ask you if you can try it in order
+to help narrow the problem down. But this will never be a requirement, just a
+question.
+
+Once a bug is understood, it is tested on the development branch and fixed
+there. Then the fix will be applied in turn to older branches, jumping from
+one to the other in descending order. For example:
+
+               FIX
+     2.0-dev4  HERE       2.0-dev5     2.0-dev6
+   -----+-------V-------------+-----------+--------------> master
+   1.9.4         \      1.9.5     1.9.6         1.9.7
+   --+------------o-------+---------+-------------+------> 1.9
+      1.8.18       \          1.8.19         1.8.20
+   -----+-----------o------------+-------------+---------> 1.8
+
+This principle ensures that you will always have a safe upgrade path from an
+older branch to a newer: under no circumstances a bug that was already fixed
+in an older branch will still be present in a newer one. In the diagram above,
+a bug reported for 1.8.18 would be fixed between 2.0-dev4 and 2.0-dev5. The
+fix will be backported into 1.9 and from there into 1.8. 1.9.5 will be issued
+with the fix before 1.8.19 will be issued. This guarantees that for any version
+1.8 having the fix, there always exists a version 1.9 with it as well. So if
+you would upgrade to 1.8.19 to benefit from the fix and the next day decide
+that for whatever new feature you need to upgrade to 1.9, you'll have 1.9.5
+available with the same set of fixes so you will not reintroduce a previously
+fixed problem.
+
+In practice, it takes longer to release older versions than newer ones. There
+are two reasons to this. One is technical: the fixes often require some
+adaptations to be done for older versions. The other reason is stability: in
+spite of the great care and the tests, there is always a faint risk that a fix
+introduces a regression. By leaving fixes exposed in more recent versions
+before appearing in older ones, there is a much smaller probability that such a
+regression remains undetected when the next version of the older branch is
+issued.
+
+So the rule for the best stability is very simple:
+
+    STICK TO THE BRANCH THAT SUITS YOUR NEEDS AND APPLY ALL UPDATES.
+
+With other projects, some people developed a culture of backporting only a
+selection of fixes into their own maintenance branch. Usually they consider
+these fixes are critical, or security-related only. THIS IS TERRIBLY WRONG.
+It is already very difficult for the developers who made the initial patch to
+figure if and how it must be backported to an older branch, what extra patches
+it depends on to be safe, as you can imagine it is impossible for anyone else
+to make a safe guess about what to pick.
+
+     A VERSION WHICH ONLY CONTAINS A SELECTION OF FIXES IS WAY MORE
+     DANGEROUS AND LESS STABLE THAN ONE WITHOUT ANY OF THESE FIXES.
+
+Branches up to 1.8 are all designated as "long-term supported" ("LTS" for
+short), which means that they are maintained for several years after the
+release. These branches were emitted at a pace of one per year since 1.5 in
+2014. As of 2019, 1.5 is still supported and widely used, eventhough it very
+rarely receives updates. After a few years these LTS branches enter a
+"critical fixes only" status, which means that they will rarely receive a fix
+but if that a critital issue affects them, a release will be made, with or
+without any other fix. Once a version is not supported anymore, it will not
+receive any fix at all and it will really be time for you to upgrade to a more
+recent branch. Please note that even when an upgrade is needed, a great care is
+given to backwards compatibility so that most configs written for version 1.1
+still work with little to no modification 16 years later on version 2.0.
+
+Since 1.9, the release pacing has increased to match faster moving feature sets
+and a faster stabilization of the technical foundations. The principle is now
+the following:
+  - one release is emitted between October and December, with an odd version
+    number (such as "1.9"). This version heavily focuses on risky changes that
+    are considered necessary to develop new features. It can for example bring
+    nice performance improvements as well as invisible changes that will serve
+    later ; these versions will only be emitted for developers and highly
+    skilled users. They will not be maintained for a long time, they will
+    receive updates for 12 to 18 months only after which they will be marked
+    End-Of-Life ("EOL" for short). They may receive delicate fixes during their
+    maintenance cycle so users have to be prepared to see some breakage once in
+    a while as fixes are stabilizing. THESE VERSIONS MUST ABSOLUTELY NOT BE
+    PACKAGED BY OPERATING SYSTEM VENDORS.
+
+  - one release is emitted between May and June, with an even version number
+    (such as "2.0"). This version mostly relies on the technical foundations
+    brought by the previous release and tries hard not to apply risky changes.
+    Instead it will bring new user-visible features. Such versions will be
+    long-term supported and may be packaged by operating system vendors.
+
+This development model provides better stability for end users and better
+feedback for developers:
+  - regular users stick to LTS versions which rely on the same foundations
+    as the previous releases that had 6 months to stabilize. In terms of
+    stability it really means that the point zero version already accumulated
+    6 months of fixes and that it is much safer to use even just after it is
+    released.
+
+  - for developers, given that the odd versions are solely used by highly
+    skilled users, it's easier to get advanced traces and captures, and there
+    is less pressure during bug reports because there is no doubt the user is
+    autonomous and knows how to work around the issue or roll back to the last
+    working version.
+
+Thus the release cycle from 1.8 to 2.2 should look like this:
+
+ 1.8.0           1.9.0           2.0.0          2.1.0          2.2.0
+ --+---------------+---------------+--------------+--------------+----> master
+    \               \               \              \              \
+     \               \               \              \              `--> 2.2 LTS
+      \               \               \              `--+--+--+---+---> 2.1
+       \               \               `----+-----+------+-------+----> 2.0 LTS
+        \               `--+-+-+--+---+------+--------+-----|  EOL      1.9
+         `---+---+---+-----+-------+-----------+---------------+------> 1.8 LTS
+
+In short the non-LTS odd releases can be seen as technological previews of the
+next feature release, and will be terminated much ealier. The plan is to barely
+let them overlap with the next non-LTS release, allowing advanced users to
+always have the choice between the last two major releases.
+
+With all this in mind, what version should you use ? It's quite simple:
+  - if you're a first-time HAProxy user, just use the version provided by your
+    operating system. Just take a look at the "known bugs" section on the
+    haproxy.org web site to verify that it's not affected by bugs that could
+    have an impact for you.
+
+  - if you don't want or cannot use the version shipped with your operating
+    system, it is possible that other people (including the package maintainer)
+    provide alternate versions. This is the case for Debian and Ubuntu for
+    example, where you can choose your distribution and pick the branch you
+    need here: https://haproxy.debian.net/
+
+  - if you want to build with specific options, apply some patches, you'll
+    have to build from sources. If you have little experience or are not
+    certain to devote regular time to perform this task, take an "old" branch
+    (i.e. 1-2 years old max, for example 1.8 when 2.0 is emitted). You'll avoid
+    most bugs and will not have to work too often to update your local version.
+
+  - if you need a fresh version for application development, or to benefit from
+    latest improvements, take the most recent version of the most recent branch
+    and keep it up to date. You may even want to use the Git version or nightly
+    snapshots.
+
+  - if you want to develop on HAProxy, use the master from the Git tree.
+
+  - if you want to follow HAProxy's development by doing some tests without
+    the burden of entering too much into the development process, just use the
+    -dev versions of the master branch. At some point you'll feel the urge to
+    switch to the Git version anyway as it will ultimately simplify your work.
+
+  - if you're installing it on unmanaged servers with little to no hostile
+    exposure, or your home router, you should pick the latest version in one
+    of the oldest supported branches. While it doesn't guarantee that you will
+    never have to upgrade it, at least as long as you don't use too complex a
+    setup, it's unlikely that you will need to update it often.
+
+And as a general rule, do not put a non-LTS version on a server unless you are
+absolutely certain you are going to keep it up to date yourself and already
+plan to replace it once the following LTS version is issued. If you are not
+going to manage updates yourself, use pre-packaged versions exclusively and do
+not expect someone else to have to deal with the burden of building from
+sources.

@@ -4,6 +4,7 @@ ease of use.
 Please refer to the following files depending on what you're looking for :
 
   - INSTALL for instructions on how to build and install HAProxy
+  - BRANCHES to understand the project's life cycle and what version to use
   - LICENSE for the project's license
   - CONTRIBUTING for the process to follow to submit contributions
 
