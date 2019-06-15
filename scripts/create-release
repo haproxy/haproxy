@@ -177,17 +177,6 @@ echo "Updating VERDATE ..."
 echo '$Format:%ci$' > VERDATE
 echo "$DATE" >> VERDATE
 
-echo "Updating haproxy.spec ..."
-sed -e "s/^Version: .*/Version: $NEW/" < examples/haproxy.spec >examples/haproxy.spec- && mv examples/haproxy.spec- examples/haproxy.spec
-
-(sed -ne '0,/^%changelog/p';
- date -d "$DATE" "+* %a %b %e %Y $GIT_COMMITTER_NAME <$GIT_COMMITTER_EMAIL>"
- echo "- updated to $(cat VERSION)"
- echo
-) < examples/haproxy.spec >examples/haproxy.spec-
-sed -ne '0,/^%changelog/d;p' < examples/haproxy.spec >>examples/haproxy.spec-
-mv examples/haproxy.spec- examples/haproxy.spec
-
 # updating branch and date in all modified doc files except the outdated architecture.txt
 for file in doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --name-only v${OLD}.. -- doc); do
 	if [ ! -e "$file" ]; then continue; fi
@@ -207,7 +196,7 @@ sed -e "s:^\(#define\s*PRODUCT_BRANCH\s*\)\"[^\"]*\":\1\"$BRANCH\":" \
     -i include/common/version.h
 
 if [ -n "$INTERACTIVE" ]; then
-	vi CHANGELOG VERSION VERDATE examples/haproxy*.spec \
+	vi CHANGELOG VERSION VERDATE \
 	   src/haproxy.c doc/configuration.txt \
 	   $(git diff --name-only v${OLD}.. -- doc)
 fi
