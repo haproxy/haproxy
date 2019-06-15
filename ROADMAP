@@ -1,8 +1,8 @@
-Medium-long term wish list - 2017/11/24
+Medium-long term wish list - updated 2019/06/15
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.9 or later :
+2.1 or later :
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
 
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
@@ -55,8 +55,6 @@ Old, maybe obsolete points :
     the server's name or cookie in a header so that the server knows it.
 
 Unsorted :
-  - outgoing log load-balancing (round-robin or hash among multiple servers)
-
   - internal socket for "server XXX frontend:name"
 
   - XML inspection (content-switching for SOAP requests)
