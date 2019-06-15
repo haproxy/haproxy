@@ -1,26 +1,96 @@
-                      HOW TO GET YOUR CODE ACCEPTED IN HAPROXY
-                     READ THIS CAREFULLY BEFORE SUBMITTING CODE
+                    HOW TO GET YOUR CODE ACCEPTED IN HAPROXY
+                   READ THIS CAREFULLY BEFORE SUBMITTING CODE
 
 THIS DOCUMENT PROVIDES SOME RULES TO FOLLOW WHEN SENDING CONTRIBUTIONS. PATCHES
-NOT FOLLOWING THESE RULES WILL SIMPLY BE REJECTED IN ORDER TO PROTECT ALL OTHER
+NOT FOLLOWING THESE RULES WILL SIMPLY BE IGNORED IN ORDER TO PROTECT ALL OTHER
 RESPECTFUL CONTRIBUTORS' VALUABLE TIME.
+
+
+Abstract
+--------
+
+If you have never contributed to HAProxy before, or if you did so and noticed
+that nobody seems to be interested in reviewing your submission, please do read
+this long document carefully. HAProxy maintainers are particularly demanding on
+respecting certain simple rules related to general code and documentation style
+as well as splitting your patches and providing high quality commit messages.
+The reason behind this is that your patch will be met multiple times in the
+future, when doing some backporting work or when bisecting a bug, and it is
+critical that anyone can quickly decide if the patch is right, wrong, if it
+misses something, if it must be reverted or needs to be backported. Maintainers
+are generally benevolent with newcomers and will help them provided their work
+indicates they have at least read this document. Some have improved over time,
+to the point of being totally trusted and gaining commit access so they don't
+need to depend on anyone to pick their code. On the opposite, those who insist
+not making minimal efforts however will simply be ignored.
 
 
 Background
 ----------
 
-During the development cycle of version 1.6, much more time was spent reviewing
-poor quality submissions, fixing them and troubleshooting the bugs they
-introduced than doing any development work. This is not acceptable as it ends
-up with people actually slowing down the project for the features they're the
-only ones interested in. On the other end of the scale, there are people who
-make the effort of polishing their work to contribute excellent quality work
-which doesn't even require a review. Contrary to what newcomers may think, it's
-very easy to reach that level of quality and get your changes accepted quickly,
-even late in the development cycle. It only requires that you make your homework
-and not rely on others to do it for you. The most important point is that
-HAProxy is a community-driven project, all involved participants must respect
-all other ones' time and work.
+HAProxy is a community-driven project. But like most highly technical projects
+it takes a lot of time to develop the skills necessary to be autonomous in the
+project, and there is a very small core team helped by a small set of very
+active participants. While most of the core team members work on the code as
+part of their day job, most participants do it on a voluntary basis during
+their spare time. The ideal model for developers is to spend their time :
+  1) developing new features
+  2) fixing bugs
+  3) doing maintenance backports
+  4) reviewing other people's code
+
+It turns out that on a project like HAProxy, like many other similarly complex
+projects, the time spent is exactly the opposite :
+  1) reviewing other peopel's code
+  2) doing maintenance backports
+  3) fixing bugs
+  4) developing new features
+
+A large part of the time spent reviewing code often consists in giving basic
+recommendations that are already explained in this file. In addition to taking
+time, it is not appealing for people willing to spend one hour helping others
+to do the same thing over and over instead of discussing the code design, and
+it tends to delay the start of code reviews.
+
+Regarding backports, they are necessary to provide a set of stable branches
+that are deployed in production at many places. Load balancers are complex and
+new features often induce undesired side effects in other areas, which we will
+call bugs. Thus it's common for users to stick to a branch featuring everything
+they need and not to upgrade too often. This backporting job is critical to the
+ecosystem's health and must be done regularly. Very often the person devoting
+some time on backports has little to no information about the relevance (let
+alone importance) of a patch and is unlikely to be an expert in the area
+affected by the patch. It's the role of the commit message to explain WHAT
+problem the patch tries to solve, WHY it is estimated that it is a problem, and
+HOW it tries to address it. With these elements, the person in charge of the
+backports can decide whether or not to pick the patch. And if the patch does
+not apply (which is common for older versions) they have information in the
+commit message about the principle and choices that the initial developer made
+and will try to adapt the patch sticking to these principles. Thus, the time
+spent backporting patches solely depends on the code quality and the commit
+message details and accuracy.
+
+When it turns to fixing bugs, before declaring a bug, there is an analysis
+phase. It starts with "is this behaviour expected", "is it normal", "under what
+circumstances does it happen", "when did it start to happen", "was it intended",
+"was it just overlooked", and "how to fix it without breaking the initial
+intent". A utility called "git bisect" is usually involved in determining when
+the behaviour started to happen. It determines the first patch which introduced
+the new behaviour. If the patch is huge, touches many areas, is really difficult
+to read because it needlessly reindents code or adds/removes line breaks out of
+context, it will be very difficult to figure what part of this patch broke the
+behaviour. Then once the part is figured, if the commit message doesn't provide
+a detailed description about the intent of the patch, i.e. the problem it was
+trying to solve, why and how, the developer landing on that patch will really
+feel powerless. And very often in this case, the fix for the problem will break
+something else or something that depended on the original patch.
+
+But contrary to what it could look like, providing great quality patches is not
+difficult, and developers will always help contributors improve their patches
+quality because it's in their interest as well. History has shown that first
+time contributors can provide an excellent work when they have carefully read
+this document, and that people coming from projects with different practices
+can grow from first-time contributor to trusted committer in about 6 months.
 
 
 Preparation
@@ -40,17 +110,25 @@ subscribe to it by sending an empty e-mail at the following address :
 
                         haproxy+subscribe@formilux.org
 
+It is not even necessary to subscribe, you can post there and verify via the
+public list archives that your message was properly delivered. In this case you
+should indicate in your message that you'd like responders to keep you CCed.
+Please visit http://haproxy.org/ to figure available options to join the list.
+
 If you have an idea about something to implement, *please* discuss it on the
 list first. It has already happened several times that two persons did the same
 thing simultaneously. This is a waste of time for both of them. It's also very
 common to see some changes rejected because they're done in a way that will
 conflict with future evolutions, or that does not leave a good feeling. It's
 always unpleasant for the person who did the work, and it is unpleasant in
-general because value people's time and efforts are valuable and would be better
+general because people's time and efforts are valuable and would be better
 spent working on something else. That would not happen if these were discussed
 first. There is no problem posting work in progress to the list, it happens
-quite often in fact. Also, don't waste your time with the doc when submitting
-patches for review, only add the doc with the patch you consider ready to merge.
+quite often in fact. Just prefix your mail subject with "RFC" (it stands for
+"request for comments") and everyone will understand you'd like some opinion
+on your work in progress. Also, don't waste your time with the doc when
+submitting patches for review, only add the doc with the patch you consider
+ready to merge (unless you need some help on the doc itself, of course).
 
 Another important point concerns code portability. Haproxy requires gcc as the
 C compiler, and may or may not work with other compilers. However it's known to
@@ -67,7 +145,8 @@ code :
     "for" statements)
 
 Since most of these restrictions are just a matter of coding style, it is
-normally not a problem to comply.
+normally not a problem to comply. Please read doc/coding-style.txt for all the
+details.
 
 When modifying some optional subsystem (SSL, Lua, compression, device detection
 engines), please make sure the code continues to build (and to work) when these
@@ -84,7 +163,9 @@ also mail willy@haproxy.org directly about it, but your mail may be waiting
 several days in the queue before you get a response, if you get a response at
 all. Retransmit if you don't get a response by one week. Please note that
 direct sent e-mails to this address for non-confidential subjects may simply
-be forwarded to the list or be deleted without notification.
+be forwarded to the list or be deleted without notification. An auto-responder
+bot is in place to try to detect e-mails from people asking for help and to
+redirect them to the mailing list. Do not be surprised if this happens to you.
 
 If you'd like a feature to be added but you think you don't have the skills to
 implement it yourself, you should follow these steps :
@@ -99,6 +180,13 @@ implement it yourself, you should follow these steps :
     2. if you really can't code it yourself after discussing it, then you may
        consider contacting someone to do the job for you. Some people on the
        list might sometimes be OK with trying to do it.
+
+The version control system used by the project (Git) keeps authorship
+information in the form of the patch author's e-mail address. This way you will
+be credited for your work in the project's history. If you contract with
+someone to implement your idea you may have to discuss such modalities with
+the person doing the work as by default this person will be mentioned as the
+work's author.
 
 
 Rules : the 12 laws of patch contribution
@@ -361,7 +449,8 @@ do not think about them anymore after a few patches.
 
    If you can, please always put all the bug fixes at the beginning of the
    series. This often makes it easier to backport them because they will not
-   depend on context that your other patches changed.
+   depend on context that your other patches changed. As a hint, if you can't
+   do this, there are little chances that your bug fix can be backported.
 
 11) Real commit messages please!
 
@@ -458,6 +547,18 @@ do not think about them anymore after a few patches.
    painful) handling when they are backported, and at least for this reason
    it's important to keep this in mind.
 
+   Maintainers who pick your patch may slightly adjust the description as they
+   see fit. Do not see this as a failure to do a clean job, it just means they
+   think it will help them do their daily job this way. The code may also be
+   slightly adjusted before being merged (non-functional changes only, fix for
+   typos, tabs vs spaces for example), unless your patch contains a
+   Signed-off-By tag, in which case they will either modify it and mention the
+   changes after your Signed-off-By line, or (more likely) ask you to perform
+   these changes yourself. This ability to slightly adjust a patch before
+   merging is is the main reason for not using pull requests which do not
+   provide this facility and will require to iterate back and forth with the
+   submitter and significantly delay the patch inclusion.
+
    Each patch fixing a bug MUST be tagged with "BUG", a severity level, an
    indication of the affected subsystem and a brief description of the nature
    of the issue in the subject line, and a detailed analysis in the message
@@ -474,6 +575,18 @@ do not think about them anymore after a few patches.
    file.
 
 12) Discuss on the mailing list
+
+   Note, some first-time contributors might feel impressed or scared by posting
+   to a list. This list is frequented only by nice people who are willing to
+   help you polish your work so that it is perfect and can last long. What you
+   think could be perceived as a proof of incompetence or lack of care will
+   instead be a proof of your ability to work with a community. You will not be
+   judged nor blamed for making mistakes. The project maintainers are the ones
+   creating the most bugs and mistakes anyway, and nobody knows the project in
+   its entirety anymore so you're just like anyone else. And people who have no
+   consideration for other's work are quickly ejected from the list so the
+   place is as safe and welcoming to new contributors as it is to long time
+   ones.
 
    When submitting changes, please always CC the mailing list address so that
    everyone gets a chance to spot any issue in your code. It will also serve
@@ -560,7 +673,9 @@ patch types include :
              low and the gains significant, such patches may be merged in the
              stable branch. Depending on the amount of code changed or replaced
              and the level of trust the author has in the change, the risk of
-             regression should be indicated.
+             regression should be indicated. If the optimization depends on the
+             architecture or on build options, it is important to verify that
+             the code continues to work without it.
 
   - RELEASE  release of a new version (development or stable).
 
@@ -610,6 +725,10 @@ The expected length of the commit message grows with the importance of the
 change. While a MINOR patch may sometimes be described in 1 or 2 lines, MAJOR
 or CRITICAL patches cannot have less than 10-15 lines to describe exactly the
 impacts otherwise the submitter's work will be considered as rough sabotage.
+If you are sending a new patch series after a review, it is generally good to
+enumerate at the end of the commit description what changed from the previous
+one as it helps reviewers quickly glance over such changes and not re-read the
+rest.
 
 For BUILD, DOC and CLEANUP types, this tag is not always relevant and may be
 omitted.
@@ -672,6 +791,16 @@ part is being touched. The following tags are suggested but not limitative :
   - halog     the halog sub-component in the contrib directory
 
   - contrib   any addition to the contrib directory
+
+  - htx       general HTX subsystem
+
+  - mux-h1    HTTP/1.x multiplexer/demultiplexer
+
+  - mux-h2    HTTP/2 multiplexer/demultiplexer
+
+  - h1        general HTTP/1.x protocol parser
+
+  - h2        general HTTP/2 protocol parser
 
 Other names may be invented when more precise indications are meaningful, for
 instance : "cookie" which indicates cookie processing in the HTTP core. Last,
@@ -773,10 +902,91 @@ sent to the mailing list : haproxy@formilux.org and CCed to relevant subsystem
 maintainers or authors of the modified files if their address appears at the
 top of the file.
 
-Please don't send pull-requests, they are really inconvenient. First, a pull
-implies a merge operation and the code doesn't move fast enough to justify the
-use of merges. Second, pull requests are not easily commented on by the
-project's participants, contrary to e-mails where anyone is allowed to have an
-opinion and to express it.
+Please don't send pull requests, they are really inconvenient as they make it
+much more complicate to perform minor adjustments, and nobody benefits from
+any comment on the code while on a list all subscribers learn a little bit on
+each review of anyone else's code.
+
+
+What to do if your patch is ignored
+-----------------------------------
+
+All patches merged are acknowledged by the maintainer who picked it. If you
+didn't get an acknowledgement, check the mailing list archives to see if your
+mail was propely delivered there and possibly if anyone responded and you did
+not get their response (please look at http://haproxy.org/ for the mailing list
+archive's address).
+
+If you see that your mail is there but nobody responded, please recheck :
+  - was the subject clearly indicating that it was a patch and/or that you were
+    seeking some review ?
+
+  - was your e-mail mangled by your mail agent ? If so it's possible that
+    nobody had the willingness yet to mention it.
+
+  - was your e-mail sent as HTML ? If so it definitely ended in spam boxes
+    regardless of the archives
+
+  - did the patch violate some of the principles explained in this document ?
+
+If none of these cases matches, it might simply be that everyone was busy when
+your patch was sent and that it was overlooked. In this case it's fine to
+either resubmit it or respond to your own e-mail asking if anything's wrong
+about it. In general don't expect a response after one week of silence, just
+because your e-mail will not appear in anyone else's current window. So after
+one week it's time to resubmit.
+
+Among the mistakes that tend to make reviewers not respond are those who send
+multiple versions of a patch in a row. It's natural for others then to wait for
+the series to stabilize. And once it doesn't move anymore everyone forgot about
+it. As a rule of thumb, if you have to update your original e-mail more than
+twice, first double-check that your series is really ready for submission, and
+second, start a new thread and stop responding to the previous one. In this
+case it is well appreciated to mention a version of your patch set in the
+subject such as "[PATCH v2]", so that reviewers can immediately spot the new
+version and not waste their time on the old one.
+
+If you still do not receive any response, it is possible that you've already
+played your last card by not respecting the basic principles multiple times
+despite being told about it several times, and that nobody is willing to spend
+more of their time than normally needed with your work anymore. Your best
+option at this point probably is to ask "did I do something wrong" than to
+resend the same patches.
+
+
+How to be sure to irritate everyone
+-----------------------------------
+
+Among the best ways to quickly lose everyone's respect, there is this small
+selection, which should help you improve the way you work with others, if
+you notice you're already practising some of them :
+  - repeatedly send improperly formated commit messages, with no type or
+    severity, or with no commit message body. These ones require manual
+    edition, maintainers will quickly learn to recognize your name.
+
+  - repeatedly send patches which break something, and disappear or take a long
+    time to provide a fix.
+
+  - fail to respond to questions related to features you have contributed in
+    the past, which can further lead to the feature being declared unmaintained
+    and removed in a future version.
+
+  - send a new patch iteration without taking *all* comments from previous
+    review into consideration, so that the reviewer discovers he/she has to do
+    the exact same work again.
+
+  - "hijack" an existing thread to discuss something different or promote your
+    work. This will generally make you look like a fool so that everyone wants
+    to stay away from your e-mails.
+
+  - continue to send pull requests after having been explained why they are not
+    welcome.
+
+  - give wrong advices to people asking for help, or sending them patches to
+    try which make no sense, waste their time, and give them a bad impression
+    of the people working on the project.
+
+  - be disrespectful to anyone asking for help or contributing some work. This
+    may actually even get you kicked out of the list and banned from it.
 
 -- end
