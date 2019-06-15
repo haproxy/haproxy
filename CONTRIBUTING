@@ -33,15 +33,15 @@ it takes a lot of time to develop the skills necessary to be autonomous in the
 project, and there is a very small core team helped by a small set of very
 active participants. While most of the core team members work on the code as
 part of their day job, most participants do it on a voluntary basis during
-their spare time. The ideal model for developers is to spend their time :
+their spare time. The ideal model for developers is to spend their time:
   1) developing new features
   2) fixing bugs
   3) doing maintenance backports
   4) reviewing other people's code
 
 It turns out that on a project like HAProxy, like many other similarly complex
-projects, the time spent is exactly the opposite :
-  1) reviewing other peopel's code
+projects, the time spent is exactly the opposite:
+  1) reviewing other people's code
   2) doing maintenance backports
   3) fixing bugs
   4) developing new features
@@ -130,11 +130,11 @@ on your work in progress. Also, don't waste your time with the doc when
 submitting patches for review, only add the doc with the patch you consider
 ready to merge (unless you need some help on the doc itself, of course).
 
-Another important point concerns code portability. Haproxy requires gcc as the
+Another important point concerns code portability. HAProxy requires gcc as the
 C compiler, and may or may not work with other compilers. However it's known to
 build using gcc 2.95 or any later version. As such, it is important to keep in
 mind that certain facilities offered by recent versions must not be used in the
-code :
+code:
 
   - declarations mixed in the code (requires gcc >= 3.x and is a bad practice)
   - GCC builtins without checking for their availability based on version and
@@ -189,8 +189,8 @@ the person doing the work as by default this person will be mentioned as the
 work's author.
 
 
-Rules : the 12 laws of patch contribution
------------------------------------------
+Rules: the 12 laws of patch contribution
+----------------------------------------
 
 People contributing patches must apply the following rules. That may sound heavy
 at the beginning but it's common sense more than anything else and contributors
@@ -263,7 +263,7 @@ do not think about them anymore after a few patches.
      necessarily belong to a dirty project. Be careful to the way the text you
      add is presented and indented. Be very careful about typos, usual mistakes
      such as double consonants when only one is needed or "it's" instead of
-     "its", don't mix US english and UK english in the same paragraph, etc.
+     "its", don't mix US English and UK English in the same paragraph, etc.
      When in doubt, check in a dictionary. Fixes for existing typos in the doc
      are always welcome and chasing them is a good way to become familiar with
      the project and to get other participants' respect and consideration.
@@ -737,7 +737,8 @@ The area the patch applies to is quite important, because some areas are known
 to be similar in older versions, suggesting a backport might be desirable, and
 conversely, some areas are known to be specific to one version. The area is a
 single-word lowercase name the contributor find clear enough to describe what
-part is being touched. The following tags are suggested but not limitative :
+part is being touched. The following list of tags is suggested but not
+exhaustive:
 
   - examples  example files. Be careful, sometimes these files are packaged.
 
@@ -913,33 +914,33 @@ What to do if your patch is ignored
 
 All patches merged are acknowledged by the maintainer who picked it. If you
 didn't get an acknowledgement, check the mailing list archives to see if your
-mail was propely delivered there and possibly if anyone responded and you did
+mail was properly delivered there and possibly if anyone responded and you did
 not get their response (please look at http://haproxy.org/ for the mailing list
 archive's address).
 
-If you see that your mail is there but nobody responded, please recheck :
+If you see that your mail is there but nobody responded, please recheck:
   - was the subject clearly indicating that it was a patch and/or that you were
-    seeking some review ?
+    seeking some review?
 
-  - was your e-mail mangled by your mail agent ? If so it's possible that
+  - was your email mangled by your mail agent? If so it's possible that
     nobody had the willingness yet to mention it.
 
-  - was your e-mail sent as HTML ? If so it definitely ended in spam boxes
-    regardless of the archives
+  - was your email sent as HTML? If so it definitely ended in spam boxes
+    regardless of the archives.
 
-  - did the patch violate some of the principles explained in this document ?
+  - did the patch violate some of the principles explained in this document?
 
 If none of these cases matches, it might simply be that everyone was busy when
 your patch was sent and that it was overlooked. In this case it's fine to
-either resubmit it or respond to your own e-mail asking if anything's wrong
+either resubmit it or respond to your own email asking if anything's wrong
 about it. In general don't expect a response after one week of silence, just
-because your e-mail will not appear in anyone else's current window. So after
+because your email will not appear in anyone else's current window. So after
 one week it's time to resubmit.
 
 Among the mistakes that tend to make reviewers not respond are those who send
 multiple versions of a patch in a row. It's natural for others then to wait for
 the series to stabilize. And once it doesn't move anymore everyone forgot about
-it. As a rule of thumb, if you have to update your original e-mail more than
+it. As a rule of thumb, if you have to update your original email more than
 twice, first double-check that your series is really ready for submission, and
 second, start a new thread and stop responding to the previous one. In this
 case it is well appreciated to mention a version of your patch set in the
@@ -959,7 +960,7 @@ How to be sure to irritate everyone
 
 Among the best ways to quickly lose everyone's respect, there is this small
 selection, which should help you improve the way you work with others, if
-you notice you're already practising some of them :
+you notice you're already practising some of them:
   - repeatedly send improperly formated commit messages, with no type or
     severity, or with no commit message body. These ones require manual
     edition, maintainers will quickly learn to recognize your name.
