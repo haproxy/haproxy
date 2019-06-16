@@ -1,6 +1,71 @@
 ChangeLog :
 ===========
 
+2019/06/16 : 2.0.0
+    - MINOR: fd: Don't use atomic operations when it's not needed.
+    - DOC: mworker-prog: documentation for the program section
+    - MINOR: http: add a new "http-request replace-uri" action
+    - BUG/MINOR: 51d/htx: The _51d_fetch method, and the methods it calls are now HTX aware.
+    - MINOR: 51d: Added dummy libraries for the 51Degrees module for testing.
+    - MINOR: mworker: change formatting in uptime field of "show proc"
+    - MINOR: mworker: add the HAProxy version in "show proc"
+    - MINOR: doc: Remove -Ds option in man page
+    - MINOR: doc: add master-worker in the man page
+    - MINOR: doc: mention HAPROXY_LOCALPEER in the man
+    - BUILD: Silence gcc warning about unused return value
+    - CLEANUP: 51d: move the 51d dummy lib to contrib/51d/src to match the real lib
+    - BUILD: travis-ci: add 51Degree device detection, update openssl to 1.1.1c
+    - MINOR: doc: update the manpage and usage message about -S
+    - BUILD/MINOR: 51d: Updated build registration output to indicate thatif the library is a dummy one or not.
+    - BUG/MEDIUM: h1: Don't wait for handshake if we had an error.
+    - BUG/MEDIUM: h1: Wait for the connection if the handshake didn't complete.
+    - BUG/MINOR: task: prevent schedulable tasks from starving under high I/O activity
+    - BUG/MINOR: fl_trace/htx: Be sure to always forward trailers and EOM
+    - BUG/MINOR: channel/htx: Call channel_htx_full() from channel_full()
+    - BUG/MINOR: http: Use the global value to limit the number of parsed headers
+    - BUG/MINOR: htx: Detect when tail_addr meet end_addr to maximize free rooms
+    - BUG/MEDIUM: htx: Don't change position of the first block during HTX analysis
+    - CLEANUP: channel: Remove channel_htx_fwd_payload() and channel_htx_fwd_all()
+    - BUG/MEDIUM: proto_htx: Introduce the state ENDING during forwarding
+    - MINOR: htx: Add 3 flags on the start-line to deal with the request schemes
+    - MINOR: h2: Set flags about the request's scheme on the start-line
+    - MINOR: mux-h1: Set flags about the request's scheme on the start-line
+    - MINOR: mux-h2: Forward clients scheme to servers checking start-line flags
+    - MEDIUM: server: server-state only rely on server name
+    - CLEANUP: connection: rename the wait_event.task field to .tasklet
+    - CLEANUP: tasks: rename task_remove_from_tasklet_list() to tasklet_remove_*
+    - BUG/MEDIUM: connections: Don't call shutdown() if we want to disable linger.
+    - DOC: add some environment variables in section 2.3
+    - BUILD: makefile: clarify the "help" output and list options
+    - BUG/MINOR: mux-h1: Wake busy mux for I/O when message is fully sent
+    - BUG: tasks: fix bug introduced by latest scheduler cleanup
+    - BUG/MEDIUM: mux-h2: fix early close with option abortonclose
+    - BUG/MEDIUM: connections: Don't use ALPN to pick mux when in mode TCP.
+    - BUG/MEDIUM: connections: Don't try to send early data if we have no mux.
+    - BUG/MEDIUM: mux-h2: properly account for the appended data in HTX
+    - BUILD: makefile: further clarify the "help" output and list targets
+    - BUILD: makefile: rename "linux2628" to "linux-glibc" and remove older targets
+    - BUILD: travis-ci: switch to linux-glibc instead of linux2628
+    - DOC: update few references to the linux* targets and change them to linux-glibc
+    - BUILD: makefile: detect and reject recently removed linux targets
+    - BUILD: makefile: enable linux namespaces by default on linux
+    - BUILD: makefile: enable TFO on linux platforms
+    - BUILD: makefile: enable getaddrinfo on the linux-glibc target
+    - DOC: small updates to the CONTRIBUTING file
+    - BUG/MEDIUM: ssl: Make sure we initiate the handshake after using early data.
+    - CLEANUP: removed obsolete examples an move a few to better places
+    - DOC: Fix typos in CONTRIBUTING
+    - DOC: update the outdated ROADMAP file
+    - DOC: create a BRANCHES file to explain the life cycle
+    - DOC: mention in INSTALL haproxy 2.0 is a long-term supported stable version
+    - BUILD: travis-ci: TFO and GETADDRINFO are now enabled by default
+    - BUILD: makefile: make the obsolete target detection compatible with make-3.80
+    - BUILD: tools: work around an internal compiler bug in gcc-3.4
+    - BUILD: pattern: work around an internal compiler bug in gcc-3.4
+    - BUILD: makefile: enable USE_RT on Solaris
+    - BUILD: makefile: do not use echo -n
+    - DOC: mention a few common build errors in the INSTALL file
+
 2019/06/11 : 2.0-dev7
     - BUG/MEDIUM: mux-h2: make sure the connection timeout is always set
     - MINOR: tools: add new bitmap manipulation functions
