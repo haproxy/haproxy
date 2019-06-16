@@ -967,7 +967,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV4;
-				memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
+				static_pattern.val.ipv4.addr = *(struct in_addr *)elt->node.key;
 				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
 					return NULL;
 			}
@@ -989,7 +989,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
-				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
+				static_pattern.val.ipv6.addr = *(struct in6_addr *)elt->node.key;
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
 			}
 			return &static_pattern;
@@ -1009,7 +1009,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
-				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
+				static_pattern.val.ipv6.addr = *(struct in6_addr *)elt->node.key;
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
 			}
 			return &static_pattern;
@@ -1043,7 +1043,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 					static_pattern.ref = elt->ref;
 					static_pattern.sflags = PAT_SF_TREE;
 					static_pattern.type = SMP_T_IPV4;
-					memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
+					static_pattern.val.ipv4.addr = *(struct in_addr *)elt->node.key;
 					if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
 						return NULL;
 				}
