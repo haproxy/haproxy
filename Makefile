@@ -742,7 +742,8 @@ all:
 	@echo "out of it. Please check the Makefile in case of doubts."
 	@echo
 	@exit 1
-else ifneq ($(filter $(TARGET), linux linux22 linux24 linux24e linux26 linux2628),)
+else
+ifneq ($(filter $(TARGET), linux linux22 linux24 linux24e linux26 linux2628),)
 all:
 	@echo
 	@echo "Target '$(TARGET)' was removed from HAProxy 2.0 due to being irrelevant and"
@@ -752,6 +753,7 @@ all:
 	@exit 1
 else
 all: haproxy $(EXTRA)
+endif
 endif
 
 OBJS = src/proto_http.o src/cfgparse-listen.o src/proto_htx.o src/stream.o    \
