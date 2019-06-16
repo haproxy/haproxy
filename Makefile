@@ -803,9 +803,11 @@ help:
 	$(Q)sed -ne "/^[^#]*$$/q;s/^# \?\(.*\)/\1/p" Makefile
 	$(Q)echo; \
 	   if [ -n "$(TARGET)" ]; then \
-	     echo -n "Current TARGET: $(TARGET)"; \
-	     if [ -z "$(set_target_defaults)" ]; then echo -n " (custom target)";fi; \
-	     echo;\
+	     if [ -n "$(set_target_defaults)" ]; then \
+	        echo "Current TARGET: $(TARGET)"; \
+	     else \
+	        echo "Current TARGET: $(TARGET) (custom target)"; \
+	     fi; \
 	   else \
 	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
 	     echo "  linux-glibc, solaris, freebsd, netbsd, osx, openbsd,"; \
