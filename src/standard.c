@@ -928,6 +928,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNSPEC;
 	}
 	else if (ss.ss_family == AF_UNIX) {
+		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
 		int prefix_path_len;
 		int max_path_len;
 		int adr_len;
@@ -936,7 +937,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 * <unix_bind_prefix><path>.<pid>.<bak|tmp>
 		 */
 		prefix_path_len = (pfx && !abstract) ? strlen(pfx) : 0;
-		max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) -
+		max_path_len = (sizeof(un->sun_path) - 1) -
 			(prefix_path_len ? prefix_path_len + 1 + 5 + 1 + 3 : 0);
 
 		adr_len = strlen(str2);
@@ -946,10 +947,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		}
 
 		/* when abstract==1, we skip the first zero and copy all bytes except the trailing zero */
-		memset(((struct sockaddr_un *)&ss)->sun_path, 0, sizeof(((struct sockaddr_un *)&ss)->sun_path));
+		memset(un->sun_path, 0, sizeof(un->sun_path));
 		if (prefix_path_len)
-			memcpy(((struct sockaddr_un *)&ss)->sun_path, pfx, prefix_path_len);
-		memcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len + abstract, str2, adr_len + 1 - abstract);
+			memcpy(un->sun_path, pfx, prefix_path_len);
+		memcpy(un->sun_path + prefix_path_len + abstract, str2, adr_len + 1 - abstract);
 	}
 	else { /* IPv4 and IPv6 */
 		char *end = str2 + strlen(str2);
