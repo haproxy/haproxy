@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2019/06/16 : 2.1-dev0
+    - exact copy of 2.0.0
+
 2019/06/16 : 2.0.0
     - MINOR: fd: Don't use atomic operations when it's not needed.
     - DOC: mworker-prog: documentation for the program section
