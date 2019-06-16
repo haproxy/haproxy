@@ -330,7 +330,8 @@ are the extra libraries that may be referenced at build time :
   - USE_RT=1      build with librt, which is sometimes needed on some systems
                   when using threads. It is set by default on Linux platforms,
                   and may be disabled using "USE_RT=" if your system doesn't
-                  have one.
+                  have one. You may have to set it as well if you face an error
+                  indicating that clock_gettime() was not found.
 
   - USE_DL=1      build with libdl, which is usually needed for Lua and OpenSSL
                   on Linux. It is automatically detected and may be disabled
@@ -340,6 +341,26 @@ are the extra libraries that may be referenced at build time :
                   allowing better integration with systemd on Linux systems
                   which come with it. It is never enabled by default so there
                   is no need to disable it.
+
+4.10) Common errors
+-------------------
+Some build errors may happen depending on the options combinations or the
+selected target. When facing build errors, if you know that your system is a
+bit special or particularly old, start from TARGET=generic, it is easier to
+start from there and fix the remaining issues than trying to degrade another
+target. Common issues may include:
+
+  - clock_gettime() not found
+    => your system needs USE_RT=1
+
+  - __sync_sub_and_fetch undefined in cache.o
+    => your system needs either USE_PTHREAD_PSHARED=1 or USE_PRIVATE_CACHE=1
+
+  - many __sync_<something> errors in many files
+    => your gcc is too old, build without threads and with private cache.
+
+  - many openssl errors
+    => your OpenSSL version really is too old, do not enable OpenSSL
 
 
 5) How to build HAProxy
