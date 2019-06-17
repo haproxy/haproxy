@@ -1642,7 +1642,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					/* There is no "Connection:" header and
 					 * it the conn_mode must be
 					 * processed. So do it */
-					n = ist("Connection");
+					n = ist("connection");
 					v = ist("");
 					h1_process_output_conn_mode(h1s, h1m, &v);
 					if (v.len) {
