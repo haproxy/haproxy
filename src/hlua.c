@@ -5375,7 +5375,13 @@ __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
 	if (!(re = regex_comp(reg, 1, 1, NULL)))
 		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
 
-	http_transform_header_str(htxn->s, msg, name, name_len, value, re, action);
+	if (IS_HTX_STRM(htxn->s)) {
+		struct htx *htx = htxbuf(&msg->chn->buf);
+
+		htx_transform_header_str(htxn->s, msg->chn, htx, ist2(name, name_len), value, re, action);
+	}
+	else
+		http_transform_header_str(htxn->s, msg, name, name_len, value, re, action);
 	regex_free(re);
 	return 0;
 }
