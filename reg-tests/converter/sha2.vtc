@@ -1,0 +1,60 @@
+varnishtest "sha2 converter Test"
+
+#REQUIRE_VERSION=2.1
+#REQUIRE_OPTION=OPENSSL
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.hash) req.hdr(hash)
+
+	http-response set-header SHA2   "%[var(txn.hash),sha2,hex,lower]"
+	http-response set-header SHA2-224   "%[var(txn.hash),sha2(224),hex,lower]"
+	http-response set-header SHA2-256   "%[var(txn.hash),sha2(256),hex,lower]"
+	http-response set-header SHA2-384   "%[var(txn.hash),sha2(384),hex,lower]"
+	http-response set-header SHA2-512   "%[var(txn.hash),sha2(512),hex,lower]"
+	http-response set-header SHA2-invalid   "%[var(txn.hash),sha2(1),hex,lower]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "Hash: 1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.sha2 == "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+	expect resp.http.sha2-224 == "e25388fde8290dc286a6164fa2d97e551b53498dcbf7bc378eb1f178"
+	expect resp.http.sha2-256 == "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+	expect resp.http.sha2-384 == "47f05d367b0c32e438fb63e6cf4a5f35c2aa2f90dc7543f8a41a0f95ce8a40a313ab5cf36134a2068c4c969cb50db776"
+	expect resp.http.sha2-512 == "4dff4ea340f0a823f15d3f4f01ab62eae0e5da579ccb851f8db9dfe84c58b2b37b89903a740e1ee172da793a6e79d560e5f7f9bd058a12a280433ed6fa46510a"
+	expect resp.http.sha2-invalid == ""
+	txreq -url "/" \
+	  -hdr "Hash: 2"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.sha2 == "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+	expect resp.http.sha2-224 == "58b2aaa0bfae7acc021b3260e941117b529b2e69de878fd7d45c61a9"
+	expect resp.http.sha2-256 == "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+	expect resp.http.sha2-384 == "d063457705d66d6f016e4cdd747db3af8d70ebfd36badd63de6c8ca4a9d8bfb5d874e7fbd750aa804dcaddae7eeef51e"
+	expect resp.http.sha2-512 == "40b244112641dd78dd4f93b6c9190dd46e0099194d5a44257b7efad6ef9ff4683da1eda0244448cb343aa688f5d3efd7314dafe580ac0bcbf115aeca9e8dc114"
+	expect resp.http.sha2-invalid == ""
+} -run

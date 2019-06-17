@@ -13897,8 +13897,18 @@ set-var(<var name>)
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
 sha1
-  Converts a binary input sample to a SHA1 digest. The result is a binary
+  Converts a binary input sample to a SHA-1 digest. The result is a binary
   sample with length of 20 bytes.
+
+sha2([<bits>])
+  Converts a binary input sample to a digest in the SHA-2 family. The result
+  is a binary sample with length of <bits>/8 bytes.
+
+  Valid values for <bits> are 224, 256, 384, 512, each corresponding to
+  SHA-<bits>. The default value is 256.
+
+  Please note that this converter is only available when haproxy has been
+  compiled with USE_OPENSSL.
 
 strcmp(<var>)
   Compares the contents of <var> with the input value of type string. Returns
