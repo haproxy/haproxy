@@ -737,6 +737,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 				goto fail;
 
 			htx_set_blk_value_len(blk, tl);
+			htx->data += vl+2;
 			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
 			*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
 			memcpy(htx_get_blk_ptr(htx, blk) + bs + 2, list[ck].v.ptr, vl);
