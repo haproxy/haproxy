@@ -1,0 +1,187 @@
+varnishtest "Compression sets Vary header"
+
+#REQUIRE_VERSION=1.9
+#REQUIRE_OPTION=ZLIB|SLZ
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        expect req.url == "/plain/accept-encoding-gzip"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/plain/accept-encoding-invalid"
+        expect req.http.accept-encoding == "invalid"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/plain/accept-encoding-null"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/html/accept-encoding-gzip"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/html" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/html/accept-encoding-invalid"
+        expect req.http.accept-encoding == "invalid"
+        txresp \
+          -hdr "Content-Type: text/html" \
+          -bodylen 100
+
+
+        rxreq
+        expect req.url == "/html/accept-encoding-null"
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/html" \
+          -bodylen 100
+
+        rxreq
+        expect req.url == "/dup-etag/accept-encoding-gzip"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"123\"" \
+          -hdr "ETag: \"123\"" \
+          -bodylen 100
+} -repeat 2 -start
+
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        default_backend be-gzip
+
+    backend be-gzip
+        compression algo gzip
+        compression type text/plain
+        server www ${s1_addr}:${s1_port}
+
+    frontend fe-nothing
+        bind "fd@${fe_nothing}"
+        default_backend be-nothing
+
+    backend be-nothing
+        server www ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+        txreq -url "/plain/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.vary == "Accept-Encoding"
+        gunzip
+        expect resp.bodylen == 100
+
+        txreq -url "/plain/accept-encoding-invalid" \
+          -hdr "Accept-Encoding: invalid"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/plain/accept-encoding-null"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-invalid" \
+          -hdr "Accept-Encoding: invalid"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-null"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/dup-etag/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+} -run
+
+# This Client duplicates c1, against the "nothing" frontend, ensuring no Vary header is ever set.
+client c2 -connect ${h1_fe_nothing_sock} {
+        txreq -url "/plain/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/plain/accept-encoding-invalid" \
+          -hdr "Accept-Encoding: invalid"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/plain/accept-encoding-null"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-invalid" \
+          -hdr "Accept-Encoding: invalid"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/html/accept-encoding-null"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+
+        txreq -url "/dup-etag/accept-encoding-gzip" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.vary == "<undef>"
+        expect resp.bodylen == 100
+} -run

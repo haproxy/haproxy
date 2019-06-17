@@ -523,6 +523,9 @@ http_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *m
 		}
 	}
 
+	if (http_header_add_tail2(msg, &txn->hdr_idx, "Vary: Accept-Encoding", 21) < 0)
+		goto error;
+
 	return 1;
 
   error:
@@ -576,6 +579,9 @@ htx_set_comp_reshdr(struct comp_state *st, struct stream *s, struct http_msg *ms
 				goto error;
 		}
 	}
+
+	if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding")))
+		goto error;
 
 	return 1;
 
