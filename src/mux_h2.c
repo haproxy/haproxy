@@ -2316,6 +2316,7 @@ static void h2_process_demux(struct h2c *h2c)
 				break;
 			}
 
+			padlen = 0;
 			if (h2_ft_bit(hdr.ft) & H2_FT_PADDED_MASK && hdr.ff & H2_F_PADDED) {
 				/* If the frame is padded (HEADERS, PUSH_PROMISE or DATA),
 				 * we read the pad length and drop it from the remaining
