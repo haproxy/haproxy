@@ -461,10 +461,7 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 	}
 	/* Update the block content and its len */
 	memmove(start, start+len, v.len-len);
-	htx_set_blk_value_len(blk, v.len-len);
-
-	/* Update HTX msg */
-	htx->data -= len;
+	htx_change_blk_value_len(htx, blk, v.len-len);
 
 	/* Finally update the ctx */
 	ctx->value.ptr = start;

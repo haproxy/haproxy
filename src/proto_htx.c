@@ -4314,10 +4314,8 @@ static void htx_manage_client_side_cookies(struct stream *s, struct channel *req
 			hdr_end = (preserve_hdr ? del_from : hdr_beg);
 		}
 		if ((hdr_end - hdr_beg) != ctx.value.len) {
-			if (hdr_beg != hdr_end) {
-				htx_set_blk_value_len(ctx.blk, hdr_end - hdr_beg);
-				htx->data -= ctx.value.len - (hdr_end - hdr_beg);
-			}
+			if (hdr_beg != hdr_end)
+				htx_change_blk_value_len(htx, ctx.blk, hdr_end - hdr_beg);
 			else
 				http_remove_header(htx, &ctx);
 		}
@@ -4495,8 +4493,7 @@ static void htx_manage_server_side_cookies(struct stream *s, struct channel *res
 				next         += stripped_before;
 				hdr_end      += stripped_before;
 
-				htx_set_blk_value_len(ctx.blk, hdr_end - hdr_beg);
-				htx->data -= ctx.value.len - (hdr_end - hdr_beg);
+				htx_change_blk_value_len(htx, ctx.blk, hdr_end - hdr_beg);
 				ctx.value.len = hdr_end - hdr_beg;
 			}
 

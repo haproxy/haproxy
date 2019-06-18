@@ -406,15 +406,8 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 			offset -= sz;
 			continue;
 		}
-		if (type == HTX_BLK_DATA) {
-			htx_set_blk_value_len(blk, offset);
-			htx->data -= (sz - offset);
-
-			if (blk->addr+sz == htx->tail_addr)
-				htx->tail_addr -= offset;
-			else if (blk->addr+sz == htx->head_addr)
-				htx->head_addr -= offset;
-		}
+		if (type == HTX_BLK_DATA)
+			htx_change_blk_value_len(htx, blk, offset);
 		offset = 0;
 	}
 	while (blk)
@@ -522,14 +515,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	/* Append data and update the block itself */
 	ptr = htx_get_blk_ptr(htx, tailblk);
 	memcpy(ptr+sz, data.ptr, len);
-	htx_set_blk_value_len(tailblk, sz+len);
-
-	/* Update HTTP message */
-	htx->data += len;
-	if (tailblk->addr+sz == htx->tail_addr)
-		htx->tail_addr += len;
-	else if (tailblk->addr+sz == htx->head_addr)
-		htx->head_addr += len;
+	htx_change_blk_value_len(htx, tailblk, sz+len);
 
 	if (data.len == len) {
 		blk = tailblk;
@@ -988,14 +974,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	/* Append data and update the block itself */
 	ptr = htx_get_blk_ptr(htx, tailblk);
 	memcpy(ptr + sz, data.ptr, len);
-	htx_set_blk_value_len(tailblk, sz + len);
-
-	/* Update HTTP message */
-	htx->data += len;
-	if (tailblk->addr+sz == htx->tail_addr)
-		htx->tail_addr += len;
-	else if (tailblk->addr+sz == htx->head_addr)
-		htx->head_addr += len;
+	htx_change_blk_value_len(htx, tailblk, sz+len);
 
 	BUG_ON((int32_t)htx->tail_addr < 0);
 	BUG_ON((int32_t)htx->head_addr < 0);
