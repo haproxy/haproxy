@@ -15,10 +15,10 @@
 
 struct htx htx_empty = { .size = 0, .data = 0, .used = 0 };
 
-/* Defragments an HTTP message, removing unused blocks and unwrapping blocks and
- * their contents. A temporary message is used to do so. This function never
- * fails. if <blk> is not NULL, we replace it by the new block address, after
- * the defragmentation. The new <blk> is returned.
+/* Defragments an HTX message. It removes unused blocks and unwraps the payloads
+ * part. A temporary buffer is used to do so. This function never fails. if
+ * <blk> is not NULL, we replace it by the new block address, after the
+ * defragmentation. The new <blk> is returned.
  */
 /* TODO: merge data blocks into one */
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
@@ -54,7 +54,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		if (htx->first == old)
 			first = new;
 
-		/* if <blk> is defined, set its new position */
+		/* if <blk> is defined, save its new position */
 		if (blk != NULL && blk == oldblk)
 			blkpos = new;
 
@@ -75,6 +75,10 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	return ((blkpos == -1) ? NULL : htx_get_blk(htx, blkpos));
 }
 
+/* Degragments HTX blocks of an HTX message. Payloads part is keep untouched
+ * here. This function will move back all blocks starting at the position 0,
+ * removing unused blocks. It must never be called with an empty message.
+ */
 static void htx_defrag_blks(struct htx *htx)
 {
 	int32_t pos, new;
@@ -103,11 +107,11 @@ static void htx_defrag_blks(struct htx *htx)
 	htx->tail = new - 1;
 }
 
-/* Reserves a new block in the HTTP message <htx> with a content of <blksz>
+/* Reserves a new block in the HTX message <htx> with a content of <blksz>
  * bytes. If there is not enough space, NULL is returned. Otherwise the reserved
- * block is returned and the HTTP message is updated. Space for this new block
- * is reserved in the HTTP message. But it is the caller responsibility to set
- * right info in the block to reflect the stored data.
+ * block is returned and the HTX message is updated. Space for this new block is
+ * reserved in the HTX message. But it is the caller responsibility to set right
+ * info in the block to reflect the stored data.
  */
 static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 {
@@ -175,7 +179,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	}
 	else {
 	  defrag:
-		/* need to defragment the table before inserting upfront */
+		/* need to defragment the message before inserting upfront */
 		htx_defrag(htx, NULL);
 		tail = htx->tail + 1;
 		used = htx->used + 1;
@@ -203,12 +207,12 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
  * expanded by <delta> bytes and we need find where this expansion will be
  * performed. It can be a compression if <delta> is negative. This function only
  * updates all addresses. The caller have the responsibility to performe the
- * expansion and update the block and the HTX message accordingly. No error msut
- * occurre. It returns following values:
+ * expansion and update the block and the HTX message accordingly. No error must
+ * occurr. It returns following values:
  *
  *  0: The expansion cannot be performed, there is not enough space.
  *
- *  1: the expansion must be performed in place, there is enought space after
+ *  1: the expansion must be performed in place, there is enougth space after
  *      the block's payload to handle it. This is especially true if it is a
  *      compression and not an expension.
  *
@@ -299,8 +303,8 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 	return ret;
 }
 
-/* Adds a new block of type <type> in the HTTP message <htx>. Its content size
- * is passed but it is the caller responsibility to do the copy.
+/* Adds a new block of type <type> in the HTX message <htx>. Its content size is
+ * passed but it is the caller responsibility to do the copy.
  */
 struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
 {
@@ -315,9 +319,9 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 	return blk;
 }
 
-/* Removes the block <blk> from the HTTP message <htx>. The function returns the
- * block following <blk> or NULL if <blk> is the last block or the last
- * inserted one.
+/* Removes the block <blk> from the HTX message <htx>. The function returns the
+ * block following <blk> or NULL if <blk> is the last block or the last inserted
+ * one.
  */
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 {
@@ -340,7 +344,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		blk->info = ((uint32_t)HTX_BLK_UNUSED << 28);
 	}
 
-	/* There is at least 2 blocks, so tail is always >= 0 */
+	/* There is at least 2 blocks, so tail is always > 0 */
 	if (pos == htx->head) {
 		/* move the head forward */
 		htx->used--;
@@ -391,8 +395,8 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	return blk;
 }
 
-/* Truncate all blocks after the one containing the offset <offset>. This last
- * one is truncated too.
+/* Removes all blocks after the one containing the offset <offset>. This last
+ * one may be truncated if it is a DATA block.
  */
 void htx_truncate(struct htx *htx, uint32_t offset)
 {
@@ -414,11 +418,11 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 		blk = htx_remove_blk(htx, blk);
 }
 
-/* Drain <count> bytes from the HTX message <htx>. DATA blocks will be cut if
- * necessary. Others blocks will be removed at once if <count> is large
- * enough. The function returns an htx_ret with the first block remaing in the
- * messsage and the amount of data drained. If everything is removed,
- * htx_ret.blk is set to NULL.
+/* Drains <count> bytes from the HTX message <htx>. If the last block is a DATA
+ * block, it will be cut if necessary. Others blocks will be removed at once if
+ * <count> is large enough. The function returns an htx_ret with the first block
+ * remaing in the messsage and the amount of data drained. If everything is
+ * removed, htx_ret.blk is set to NULL.
  */
 struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 {
@@ -565,19 +569,19 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	htx_set_blk_value_len(blk, v.len + delta);
 	htx->data += delta;
 
-	if (ret == 1) {
+	if (ret == 1) { /* Replace in place */
 		if (delta <= 0) {
-			/* compression: copy new data first */
+			/* compression: copy new data first then move the end */
 			memcpy(old.ptr, new.ptr, new.len);
 			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
 		}
 		else {
-			/* expansion: move the end first */
+			/* expansion: move the end first then copy new data */
 			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
 			memcpy(old.ptr, new.ptr, new.len);
 		}
 	}
-	else if (ret == 2) {
+	else if (ret == 2) { /* New address but no defrag */
 		void *ptr = htx_get_blk_ptr(htx, blk);
 
 		/* Copy the name, if any */
@@ -595,7 +599,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		/* Copy value after old part, if any */
 		memcpy(ptr, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
 	}
-	else {
+	else { /* Do a degrag first */
 		struct buffer *tmp = get_trash_chunk();
 
 		/* Copy the header name, if any */
@@ -671,7 +675,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		if (!max)
 			break;
 		if (sz > max) {
-			/* Headers must be fully copied  */
+			/* Only DATA blocks can be partially xferred */
 			if (type != HTX_BLK_DATA)
 				break;
 			sz = max;
@@ -686,7 +690,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 
 		count -= sizeof(dstblk) + sz;
 		if (blk->info != info) {
-			/* Partial move: don't remove <blk> from <src> but
+			/* Partial xfer: don't remove <blk> from <src> but
 			 * resize its content */
 			htx_cut_data_blk(src, blk, sz);
 			break;
@@ -695,7 +699,6 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		blk = htx_remove_blk(src, blk);
 		if (type == mark)
 			break;
-
 	}
 
   end:
@@ -728,6 +731,9 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 	blk->info = (type << 28) + (value.len << 8) + name.len;
 	htx->data += delta;
 
+	/* Replace in place or at a new address is the same. We replace all the
+	 * header (name+value). Only take care to defrag the message if
+	 * necessary. */
 	if (ret == 3)
 		blk = htx_defrag(htx, blk);
 
@@ -772,6 +778,8 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	htx_set_blk_value_len(blk, sz+delta);
 	htx->data += delta;
 
+	/* Replace in place or at a new address is the same. We replace all the
+	 * start-line. Only take care to defrag the message if necessary. */
 	if (ret == 3)
 		blk = htx_defrag(htx, blk);
 
@@ -848,7 +856,7 @@ struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 }
 
 /* Adds an HTX block of type TLR in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL. The header name is always lower cased.
+ * success. Otherwise, it returns NULL. The trailer name is always lower cased.
  */
 struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 				const struct ist value)
@@ -882,6 +890,9 @@ struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, u
 	return blk;
 }
 
+/* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
+ * the EOH. On sucess, it returns the last block inserted (the EOH), otherwise
+ * NULL is returned. */
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs)
 {
 	int i;
@@ -893,6 +904,9 @@ struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs
 	return htx_add_endof(htx, HTX_BLK_EOH);
 }
 
+/* Add all trailers from the list <hdrs> into the HTX message <htx>, followed by
+ * the EOT. On sucess, it returns the last block inserted (the EOT), otherwise
+ * NULL is returned. */
 struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs)
 {
 	int i;
@@ -904,7 +918,7 @@ struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdr
 	return htx_add_endof(htx, HTX_BLK_EOT);
 }
 
-/* Adds an HTX block of type EOH or EOM in <htx>. It returns the new block
+/* Adds an HTX block of type EOH, EOT, or EOM in <htx>. It returns the new block
  * on success. Otherwise, it returns NULL.
  */
 struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
@@ -1047,9 +1061,8 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 	*ref = pblk;
 }
 
-/* Appends the H1 representation of the request line block <blk> to the
- * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
- * returns 0.
+/* Appends the H1 representation of the request line <sl> to the chunk <chk>. It
+ * returns 1 if data are successfully appended, otherwise it returns 0.
  */
 int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
@@ -1070,9 +1083,8 @@ int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the H1 representation of the status line block <blk> to the chunk
- * <chk>. It returns 1 if data are successfully appended, otherwise it
- * returns 0.
+/* Appends the H1 representation of the status line <sl> to the chunk <chk>. It
+ * returns 1 if data are successfully appended, otherwise it returns 0.
  */
 int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
@@ -1092,9 +1104,9 @@ int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the H1 representation of the header block <blk> to the chunk
- * <chk>. It returns 1 if data are successfully appended, otherwise it returns
- * 0.
+/* Appends the H1 representation of the header <n> witht the value <v> to the
+ * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
+ * returns 0.
  */
 int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk)
 {
@@ -1109,9 +1121,9 @@ int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk)
 	return 1;
 }
 
-/* Appends the H1 representation of the data block <blk> to the chunk
- * <chk>. If <chunked> is non-zero, it emits HTTP/1 chunk-encoded data. It
- * returns 1 if data are successfully appended, otherwise it returns 0.
+/* Appends the H1 representation of the data <data> to the chunk <chk>. If
+ * <chunked> is non-zero, it emits HTTP/1 chunk-encoded data. It returns 1 if
+ * data are successfully appended, otherwise it returns 0.
  */
 int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 {
