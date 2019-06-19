@@ -66,12 +66,11 @@ static inline void fwlc_queue_srv(struct server *s)
  */
 static void fwlc_srv_reposition(struct server *s)
 {
-	if (!s->lb_tree)
-		return;
-
 	HA_SPIN_LOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
-	fwlc_dequeue_srv(s);
-	fwlc_queue_srv(s);
+	if (s->lb_tree) {
+		fwlc_dequeue_srv(s);
+		fwlc_queue_srv(s);
+	}
 	HA_SPIN_UNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
 
