@@ -874,22 +874,6 @@ struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 	return blk;
 }
 
-/* Adds an HTX block of type <type> in <htx>, of size <blksz>. It returns the
- * new block on success. Otherwise, it returns NULL. The caller is responsible
- * for filling the block itself.
- */
-struct htx_blk *htx_add_blk_type_size(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
-{
-	struct htx_blk *blk;
-
-	blk = htx_add_blk(htx, type, blksz);
-	if (!blk)
-		return NULL;
-
-	blk->info += blksz;
-	return blk;
-}
-
 /* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
  * the EOH. On sucess, it returns the last block inserted (the EOH), otherwise
  * NULL is returned. */
