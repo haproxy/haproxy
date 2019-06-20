@@ -1245,15 +1245,11 @@ int smp_resolve_args(struct proxy *p)
 			break;
 
 		case ARGT_TAB:
-			if (!arg->data.str.data) {
-				ha_alert("parsing [%s:%d] : missing table name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
-					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
-				cfgerr++;
-				continue;
-			}
+			if (arg->data.str.data)
+				stktname = arg->data.str.area;
+			else
+				stktname = px->id;
 
-			stktname = arg->data.str.area;
 			t = stktable_find_by_name(stktname);
 			if (!t) {
 				ha_alert("parsing [%s:%d] : unable to find table '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
