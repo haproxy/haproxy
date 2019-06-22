@@ -3006,7 +3006,7 @@ int main(int argc, char **argv)
 		/* if in master-worker mode, write the PID of the father */
 		if (global.mode & MODE_MWORKER) {
 			char pidstr[100];
-			snprintf(pidstr, sizeof(pidstr), "%d\n", getpid());
+			snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
 			if (pidfd >= 0)
 				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
 		}

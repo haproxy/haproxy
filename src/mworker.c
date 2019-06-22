@@ -449,7 +449,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>", "<version>");
 	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", getpid(), "master", 0, proc_self->reloads, uptime, haproxy_version);
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", (unsigned int)getpid(), "master", 0, proc_self->reloads, uptime, haproxy_version);
 	free(uptime);
 	uptime = NULL;
 
