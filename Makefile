@@ -800,7 +800,7 @@ INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
 DEP = $(INCLUDES) .build_opts
 
 help:
-	$(Q)sed -ne "/^[^#]*$$/q;s/^# \?\(.*\)/\1/p" Makefile
+	$(Q)sed -ne "/^[^#]*$$/q;s/^# \{0,1\}\(.*\)/\1/;p" Makefile
 	$(Q)echo; \
 	   if [ -n "$(TARGET)" ]; then \
 	     if [ -n "$(set_target_defaults)" ]; then \
