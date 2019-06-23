@@ -929,6 +929,11 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 			smp_rgs_sz++;
 		}
 
+		if (smp_rgs == NULL) {
+			memprintf(err, "no sampling ranges given");
+			goto error;
+		}
+
 		beg = smp_sz_str;
 		end = beg + strlen(beg);
 		new_smp_sz = read_uint((const char **)&beg, end);
