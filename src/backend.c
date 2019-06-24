@@ -1213,7 +1213,6 @@ int connect_server(struct stream *s)
 	int reuse_orphan = 0;
 	int init_mux = 0;
 	int alloced_cs = 0;
-	int flags_hs = 0;
 	int err;
 
 
@@ -1484,7 +1483,6 @@ int connect_server(struct stream *s)
 			return SF_ERR_INTERNAL;
 	}
 
-	flags_hs = srv_conn->flags & CO_FL_HANDSHAKE_NOSSL;
 	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
 		/* set the correct protocol on the output stream interface */
 		if (srv)
@@ -1595,7 +1593,7 @@ int connect_server(struct stream *s)
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.
 	 */
-	if (!flags_hs && (srv_conn->flags & CO_FL_SEND_PROXY)) {
+	if ((srv_conn->flags & CO_FL_HANDSHAKE_NOSSL)) {
 		if (xprt_add_hs(srv_conn) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
