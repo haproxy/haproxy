@@ -5553,6 +5553,9 @@ static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type
 	struct wait_event *sw;
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
+	if (!ctx)
+		return -1;
+
 	if (event_type & SUB_RETRY_RECV) {
 		sw = param;
 		BUG_ON(ctx->recv_wait !=  NULL || (sw->events & SUB_RETRY_RECV));
