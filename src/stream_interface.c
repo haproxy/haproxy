@@ -588,8 +588,14 @@ static int si_cs_process(struct conn_stream *cs)
 
 	/* First step, report to the stream-int what was detected at the
 	 * connection layer : errors and connection establishment.
+	 * Only add SI_FL_ERR if we're connected, or we're attempting to
+	 * connect, we may get there because we got woken up, but only run
+	 * after process_stream() noticed there were an error, and decided
+	 * to retry to connect, the connection may still have CO_FL_ERROR,
+	 * and we don't want to add SI_FL_ERR back
 	 */
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+	if (si->state >= SI_ST_CON &&
+	    (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR))
 		si->flags |= SI_FL_ERR;
 
 	/* If we had early data, and the handshake ended, then
@@ -645,6 +651,14 @@ int si_cs_send(struct conn_stream *cs)
 		return 0;
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+		/* We're probably there because the tasklet was woken up,
+		 * but process_stream() ran before, detected there were an
+		 * error and put the si back to SI_ST_TAR. There's still
+		 * CO_FL_ERROR on the connection but we don't want to add
+		 * SI_FL_ERR back, so give up
+		 */
+		if (si->state < SI_ST_CON)
+			return 0;
 		si->flags |= SI_FL_ERR;
 		return 1;
 	}
@@ -1126,7 +1140,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING) || cs->conn->flags & CO_FL_ERROR) {
 		/* Write error on the file descriptor */
-		si->flags |= SI_FL_ERR;
+		if (si->state >= SI_ST_CON)
+			si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
 
