@@ -634,11 +634,14 @@ void mworker_reload()
 
 	/* close the listeners FD */
 	mworker_cli_proxy_stop();
-	/* close the poller FD and the thread waker pipe FD */
-	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
-		ptdf->fct();
-	if (fdtab)
-		deinit_pollers();
+
+	if (getenv("HAPROXY_MWORKER_WAIT_ONLY") == NULL) {
+		/* close the poller FD and the thread waker pipe FD */
+		list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+			ptdf->fct();
+		if (fdtab)
+			deinit_pollers();
+	}
 #if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	if (global.ssl_used_frontend || global.ssl_used_backend)
 		/* close random device FDs */
