@@ -66,6 +66,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	struct pool_head *entry;
 	struct list *start;
 	unsigned int align;
+	int thr, idx;
 
 	/* We need to store a (void *) at the end of the chunks. Since we know
 	 * that the malloc() function will never return such a small size,
@@ -131,6 +132,13 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		pool->size = size;
 		pool->flags = flags;
 		LIST_ADDQ(start, &pool->list);
+
+		/* update per-thread pool cache if necessary */
+		idx = pool_get_index(pool);
+		if (idx >= 0) {
+			for (thr = 0; thr < MAX_THREADS; thr++)
+				pool_cache[thr][idx].size = size;
+		}
 	}
 	pool->users++;
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
