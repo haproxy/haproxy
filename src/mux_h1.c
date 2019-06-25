@@ -1478,7 +1478,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct h1m *h1m;
 	struct htx *chn_htx;
 	struct htx_blk *blk;
-	struct buffer *tmp;
+	struct buffer tmp;
 	size_t total = 0;
 	int errflag;
 
@@ -1506,8 +1506,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	/* the htx is non-empty thus has at least one block */
 	blk = htx_get_head_blk(chn_htx);
 
-	tmp = get_trash_chunk();
-
 	/* Perform some optimizations to reduce the number of buffer copies.
 	 * First, if the mux's buffer is empty and the htx area contains
 	 * exactly one data block of the same size as the requested count,
@@ -1525,14 +1523,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	 * the HTX blocks.
 	 */
 	if (!b_data(&h1c->obuf)) {
-		h1c->obuf.head = sizeof(struct htx) + blk->addr;
-
 		if (chn_htx->used == 1 &&
 		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 		    htx_get_blk_value(chn_htx, blk).len == count) {
 			void *old_area = h1c->obuf.area;
 
 			h1c->obuf.area = buf->area;
+			h1c->obuf.head = sizeof(struct htx) + blk->addr;
 			h1c->obuf.data = count;
 
 			buf->area = old_area;
@@ -1550,11 +1547,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			total += count;
 			goto out;
 		}
-		tmp->area = h1c->obuf.area + h1c->obuf.head;
+		tmp.area = h1c->obuf.area + h1c->obuf.head;
 	}
+	else
+		tmp.area = trash.area;
 
-	tmp->size = b_room(&h1c->obuf);
-
+	tmp.data = 0;
+	tmp.size = b_room(&h1c->obuf);
 	while (count && !(h1s->flags & errflag) && blk) {
 		struct htx_sl *sl;
 		struct ist n, v;
@@ -1579,7 +1578,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
-				if (!htx_reqline_to_h1(sl, tmp))
+				if (!htx_reqline_to_h1(sl, &tmp))
 					goto copy;
 				h1m->flags |= H1_MF_XFER_LEN;
 				if (sl->flags & HTX_SL_F_BODYLESS)
@@ -1593,7 +1592,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
-				if (!htx_stline_to_h1(sl, tmp))
+				if (!htx_stline_to_h1(sl, &tmp))
 					goto copy;
 				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
@@ -1627,7 +1626,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						goto skip_hdr;
 				}
 
-				if (!htx_hdr_to_h1(n, v, tmp))
+				if (!htx_hdr_to_h1(n, v, &tmp))
 					goto copy;
 			  skip_hdr:
 				h1m->state = H1_MSG_HDR_L2_LWS;
@@ -1646,7 +1645,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					v = ist("");
 					h1_process_output_conn_mode(h1s, h1m, &v);
 					if (v.len) {
-						if (!htx_hdr_to_h1(n, v, tmp))
+						if (!htx_hdr_to_h1(n, v, &tmp))
 							goto copy;
 					}
 					h1s->flags |= H1S_F_HAVE_O_CONN;
@@ -1660,12 +1659,12 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN))) {
 					/* chunking needed but header not seen */
-					if (!chunk_memcat(tmp, "transfer-encoding: chunked\r\n", 28))
+					if (!chunk_memcat(&tmp, "transfer-encoding: chunked\r\n", 28))
 						goto copy;
 					h1m->flags |= H1_MF_CHNK;
 				}
 
-				if (!chunk_memcat(tmp, "\r\n", 2))
+				if (!chunk_memcat(&tmp, "\r\n", 2))
 					goto copy;
 
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
@@ -1691,13 +1690,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (type == HTX_BLK_EOM) {
 					/* Chunked message without explicit trailers */
 					if (h1m->flags & H1_MF_CHNK) {
-						if (!chunk_memcat(tmp, "0\r\n\r\n", 5))
+						if (!chunk_memcat(&tmp, "0\r\n\r\n", 5))
 							goto copy;
 					}
 					goto done;
 				}
 				else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
-					if (!chunk_memcat(tmp, "0\r\n", 3))
+					if (!chunk_memcat(&tmp, "0\r\n", 3))
 						goto copy;
 					goto trailers;
 				}
@@ -1705,7 +1704,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
-				if (!htx_data_to_h1(v, tmp, !!(h1m->flags & H1_MF_CHNK)))
+				if (!htx_data_to_h1(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto copy;
 				break;
 
@@ -1717,13 +1716,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
 				if (type == HTX_BLK_EOT) {
-					if (!chunk_memcat(tmp, "\r\n", 2))
+					if (!chunk_memcat(&tmp, "\r\n", 2))
 						goto copy;
 				}
 				else { // HTX_BLK_TLR
 					n = htx_get_blk_name(chn_htx, blk);
 					v = htx_get_blk_value(chn_htx, blk);
-					if (!htx_hdr_to_h1(n, v, tmp))
+					if (!htx_hdr_to_h1(n, v, &tmp))
 						goto copy;
 				}
 				break;
@@ -1760,10 +1759,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	/* when the output buffer is empty, tmp shares the same area so that we
 	 * only have to update pointers and lengths.
 	 */
-	if (tmp->area == h1c->obuf.area + h1c->obuf.head)
-		h1c->obuf.data = tmp->data;
+	if (tmp.area == h1c->obuf.area + h1c->obuf.head)
+		h1c->obuf.data = tmp.data;
 	else
-		b_putblk(&h1c->obuf, tmp->area, tmp->data);
+		b_putblk(&h1c->obuf, tmp.area, tmp.data);
 
 	htx_to_buf(chn_htx, buf);
  out:
