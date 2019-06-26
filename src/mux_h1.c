@@ -984,7 +984,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		/* Incomplete or invalid message. If the buffer is full, it's an
 		 * error because headers are too large to be handled by the
 		 * parser. */
-		if (ret < 0 || (!ret && b_full(buf)))
+		if (ret < 0 || (!ret && !buf_room_for_htx_data(buf)))
 			goto error;
 		goto end;
 	}
