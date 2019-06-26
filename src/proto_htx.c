@@ -2650,7 +2650,7 @@ static int htx_reply_103_early_hints(struct channel *res)
 	struct htx *htx = htx_from_buf(&res->buf);
 	size_t data;
 
-	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM)) {
+	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		/* If an error occurred during an Early-hint rule,
 		 * remove the incomplete HTTP 103 response from the
 		 * buffer */
@@ -5443,7 +5443,7 @@ static int htx_reply_100_continue(struct stream *s)
 		goto fail;
 	sl->info.res.status = 100;
 
-	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM))
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
 
 	data = htx->data - co_data(res);

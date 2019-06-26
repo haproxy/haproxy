@@ -629,6 +629,9 @@ static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 	    ((*(h1sl.st.v.ptr + 5) == '1') && (*(h1sl.st.v.ptr + 7) >= '1')))
 		h1m.flags |= H1_MF_VER_11;
 
+	if (h1sl.st.status < 200 && (h1sl.st.status == 100 || h1sl.st.status >= 102))
+		goto error;
+
 	if (h1m.flags & H1_MF_VER_11)
 		flags |= HTX_SL_F_VER_11;
 	if (h1m.flags & H1_MF_XFER_ENC)
@@ -656,8 +659,10 @@ static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 			goto error;
 		ret += sent;
 	}
+
 	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto error;
+
 	return htx;
 
 error:
