@@ -1740,7 +1740,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 			default:
 			  error:
+				/* Unexpected error during output processing */
+				chn_htx->flags |= HTX_FL_PARSING_ERROR;
 				h1s->flags |= errflag;
+				h1c->flags |= H1C_F_CS_ERROR;
 				break;
 		}
 
