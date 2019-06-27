@@ -1696,7 +1696,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto done;
 				}
 				else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
-					if (!chunk_memcat(&tmp, "0\r\n", 3))
+					/* If the message is not chunked, never
+					 * add the last chunk. */
+					if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "0\r\n", 3))
 						goto copy;
 					goto trailers;
 				}
@@ -1715,6 +1717,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
+				/* If the message is not chunked, ignore
+				 * trailers. It may happen with H2 messages. */
+				if (!(h1m->flags & H1_MF_CHNK))
+					break;
+
 				if (type == HTX_BLK_EOT) {
 					if (!chunk_memcat(&tmp, "\r\n", 2))
 						goto copy;
