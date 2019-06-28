@@ -6411,6 +6411,9 @@ void ssl_sock_set_alpn(struct connection *conn, const unsigned char *alpn, int l
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 
+	if (!ssl_sock_is_ssl(conn))
+		return;
+
 	SSL_set_alpn_protos(ctx->ssl, alpn, len);
 #endif
 }
