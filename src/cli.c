@@ -821,7 +821,7 @@ static void cli_io_handler(struct appctx *appctx)
 						prompt = "\n> ";
 				}
 				else {
-					if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))
+					if (!(appctx->st1 & (APPCTX_CLI_ST1_PAYLOAD|APPCTX_CLI_ST1_NOLF)))
 						prompt = "\n";
 				}
 
@@ -848,6 +848,8 @@ static void cli_io_handler(struct appctx *appctx)
 
 			/* switch state back to GETREQ to read next requests */
 			appctx->st0 = CLI_ST_GETREQ;
+			/* reactivate the \n at the end of the response for the next command */
+			appctx->st1 &= ~APPCTX_CLI_ST1_NOLF;
 		}
 	}
 
@@ -1442,6 +1444,10 @@ static int cli_parse_show_lvl(char **args, char *payload, struct appctx *appctx,
 /* parse and set the CLI level dynamically */
 static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	/* this will ask the applet to not output a \n after the command */
+	if (!strcmp(args[1], "-"))
+	    appctx->st1 |= APPCTX_CLI_ST1_NOLF;
+
 	if (!strcmp(args[0], "operator")) {
 		if (!cli_has_level(appctx, ACCESS_LVL_OPER)) {
 			return 1;
@@ -2097,11 +2103,11 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		if (pcli_has_level(s, ACCESS_LVL_ADMIN)) {
 			goto end;
 		} else if (pcli_has_level(s, ACCESS_LVL_OPER)) {
-			ci_insert_line2(req, 0, "operator", strlen("operator"));
-			ret += strlen("operator") + 2;
+			ci_insert_line2(req, 0, "operator -", strlen("operator -"));
+			ret += strlen("operator -") + 2;
 		} else if (pcli_has_level(s, ACCESS_LVL_USER)) {
-			ci_insert_line2(req, 0, "user", strlen("user"));
-			ret += strlen("user") + 2;
+			ci_insert_line2(req, 0, "user -", strlen("user -"));
+			ret += strlen("user -") + 2;
 		}
 	}
 end:

@@ -50,6 +50,7 @@ struct applet {
 
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)
 #define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
+#define APPCTX_CLI_ST1_NOLF    (1 << 2)
 
 /* Context of a running applet. */
 struct appctx {
