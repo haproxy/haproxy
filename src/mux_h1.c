@@ -1682,6 +1682,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 					h1s->flags &= ~H1S_F_HAVE_O_CONN;
 				}
+				else if ((h1m->flags & H1_MF_RESP) &&  h1s->meth == HTTP_METH_HEAD)
+					h1m->state = H1_MSG_DONE;
 				else
 					h1m->state = H1_MSG_DATA;
 				break;
