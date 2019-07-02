@@ -352,8 +352,7 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 	/* don't perform a clean shutdown if we're going to reset or
 	 * if the shutr was already received.
 	 */
-	if (conn_ctrl_ready(c) && !(c->flags & CO_FL_SOCK_RD_SH) && clean &&
-	    !fdtab[c->handle.fd].linger_risk)
+	if (conn_ctrl_ready(c) && !(c->flags & CO_FL_SOCK_RD_SH) && clean)
 		shutdown(c->handle.fd, SHUT_WR);
 }
 

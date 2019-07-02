@@ -1382,6 +1382,11 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	 * range quickly.  To avoid sending RSTs all the time, we first try to
 	 * drain pending data.
 	 */
+	/* Call cs_shutr() first, to add the CO_FL_SOCK_RD_SH flag on the
+	 * connection, to make sure cs_shutw() will not lead to a shutdown()
+	 * that would provoke TIME_WAITs.
+	 */
+	cs_shutr(cs, CS_SHR_DRAIN);
 	cs_shutw(cs, CS_SHW_NORMAL);
 
 	/* OK, let's not stay here forever */
