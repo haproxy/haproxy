@@ -736,17 +736,17 @@ static inline int channel_htx_recv_limit(const struct channel *chn, const struct
 	 * cause an integer underflow in the comparison since both are unsigned
 	 * while maxrewrite is signed.
 	 * The code below has been verified for being a valid check for this :
-	 *   - if (o + to_forward) overflow => return max_data_space  [ large enough ]
-	 *   - if o + to_forward >= maxrw   => return max_data_space  [ large enough ]
-	 *   - otherwise return max_data_space - (maxrw - (o + to_forward))
+	 *   - if (o + to_forward) overflow => return htx->size  [ large enough ]
+	 *   - if o + to_forward >= maxrw   => return htx->size  [ large enough ]
+	 *   - otherwise return htx->size - (maxrw - (o + to_forward))
 	 */
 	transit = co_data(chn) + chn->to_forward;
 	reserve -= transit;
 	if (transit < chn->to_forward ||                 // addition overflow
 	    transit >= (unsigned)global.tune.maxrewrite) // enough transit data
-		return htx_max_data_space(htx);
+		return htx->size;
  end:
-	return (htx_max_data_space(htx) - reserve);
+	return (htx->size - reserve);
 }
 
 /* HTX version of channel_full(). Instead of checking if INPUT data exceeds
