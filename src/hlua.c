@@ -4555,7 +4555,7 @@ __LJMP static int hlua_applet_htx_send_yield(lua_State *L, int status, lua_KCont
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
 
-	max = channel_htx_recv_max(res, htx);
+	max = htx_free_data_space(htx);
 	if (!max)
 		goto snd_yield;
 
