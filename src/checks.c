@@ -1453,6 +1453,11 @@ static int wake_srv_chk(struct conn_stream *cs)
 		conn_sock_drain(conn);
 		cs_close(cs);
 		ret = -1;
+		/* We may have been scheduled to run, and the
+		 * I/O handler expects to have a cs, so remove
+		 * the tasklet
+		 */
+		tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
