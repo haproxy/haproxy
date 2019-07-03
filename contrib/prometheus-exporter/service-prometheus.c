@@ -1214,7 +1214,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	struct field metric;
 	struct channel *chn = si_ic(appctx->owner);
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_free_data_space(htx);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 
 #ifdef USE_OPENSSL
@@ -1227,7 +1227,6 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
 	}
 #endif
-
 	while (appctx->st2 && appctx->st2 < INF_TOTAL_FIELDS) {
 		switch (appctx->st2) {
 			case INF_NBTHREAD:
@@ -1427,7 +1426,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct field metric;
 	struct channel *chn = si_ic(appctx->owner);
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_free_data_space(htx);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
@@ -1605,7 +1604,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	struct field metric;
 	struct channel *chn = si_ic(appctx->owner);
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_free_data_space(htx);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 	uint32_t weight;
 
@@ -1824,7 +1823,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	struct field metric;
 	struct channel *chn = si_ic(appctx->owner);
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_free_data_space(htx);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 	uint32_t weight;
 
@@ -2153,7 +2152,6 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 	int ret;
 
 	res_htx = htx_from_buf(&res->buf);
-
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
