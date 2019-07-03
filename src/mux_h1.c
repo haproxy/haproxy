@@ -465,6 +465,10 @@ static void h1_release(struct h1c *h1c)
 
 		if (conn && h1c->flags & H1C_F_UPG_H2C) {
 			h1c->flags &= ~H1C_F_UPG_H2C;
+			/* Make sure we're no longer subscribed to anything */
+			if (h1c->wait_event.events)
+				conn->xprt->unsubscribe(conn, conn->xprt_ctx,
+				    h1c->wait_event.events, &h1c->wait_event);
 			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTX) != -1) {
 				/* connection successfully upgraded to H2, this
 				 * mux was already released */

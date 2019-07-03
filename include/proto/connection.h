@@ -1091,6 +1091,9 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct
 	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
 }
 
+/* Change the mux for the connection.
+ * The caller should make sure he's not subscribed to the underlying XPRT.
+ */
 static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
 				      struct ist mux_proto, int mode)
 {
@@ -1118,7 +1121,6 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 	old_mux_ctx = conn->ctx;
 	conn->mux = new_mux;
 	conn->ctx = ctx;
-	conn_force_unsubscribe(conn);
 	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1) {
 		/* The mux upgrade failed, so restore the old mux */
 		conn->ctx = old_mux_ctx;
