@@ -8,12 +8,25 @@ callback write variables which are sent as response when the processing
 is done.
 
 
+  Prerequirement
+----------------
+
+You have to install the development packages, either from the
+distribution repositories or from the source.
+
+CentOS/RHEL: yum install python-devel
+
+The current python version in use is 2.7.
+
+
   Compilation
 ---------------
 
 Actually, the server support Lua and Python. Type "make" with the options:
 USE_LUA=1 and/or USE_PYTHON=1.
 
+You can add LUA_INC=.. LUA_LIB=.. to the make command to set the paths to
+the lua header files and lua libraries.
 
   Start the service
 ---------------------
