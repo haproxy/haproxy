@@ -473,7 +473,6 @@ static inline void *pool_alloc(struct pool_head *pool)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
@@ -481,16 +480,20 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 #endif
 
 #ifndef DEBUG_UAF /* normal pool behaviour */
+		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
-                pool->free_list = (void *)ptr;
+		pool->free_list = (void *)ptr;
+		pool->used--;
+		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #else  /* release the entry for real to detect use after free */
 		/* ensure we crash on double free or free of a const area*/
 		*(uint32_t *)ptr = 0xDEADADD4;
 		pool_free_area(ptr, pool->size + POOL_EXTRA);
+		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		pool->allocated--;
-#endif /* DEBUG_UAF */
-                pool->used--;
+		pool->used--;
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+#endif /* DEBUG_UAF */
 	}
 }
 #endif /* CONFIG_HAP_LOCKLESS_POOLS */
