@@ -70,12 +70,11 @@ static inline void fas_queue_srv(struct server *s)
  */
 static void fas_srv_reposition(struct server *s)
 {
-	if (!s->lb_tree)
-		return;
-
 	HA_SPIN_LOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
-	fas_dequeue_srv(s);
-	fas_queue_srv(s);
+	if (s->lb_tree) {
+		fas_dequeue_srv(s);
+		fas_queue_srv(s);
+	}
 	HA_SPIN_UNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
 
