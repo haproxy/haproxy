@@ -421,6 +421,10 @@ static inline void *pool_alloc_area(size_t size)
 	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if (ret == MAP_FAILED)
 		return NULL;
+	/* let's dereference the page before returning so that the real
+	 * allocation in the system is performed without holding the lock.
+	 */
+	*(int *)ret = 0;
 	if (pad >= sizeof(void *))
 		*(void **)(ret + pad - sizeof(void *)) = ret + pad;
 	return ret + pad;

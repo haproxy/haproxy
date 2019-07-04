@@ -337,6 +337,14 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 		ptr = pool_alloc_area(pool->size + POOL_EXTRA);
+#ifdef DEBUG_MEMORY_POOLS
+		/* keep track of where the element was allocated from. This
+		 * is done out of the lock so that the system really allocates
+		 * the data without harming other threads waiting on the lock.
+		 */
+		if (ptr)
+			*POOL_LINK(pool, ptr) = (void *)pool;
+#endif
 		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		if (!ptr) {
 			pool->failed++;
@@ -355,10 +363,6 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		pool->free_list = ptr;
 	}
 	pool->used++;
-#ifdef DEBUG_MEMORY_POOLS
-	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, ptr) = (void *)pool;
-#endif
 	return ptr;
 }
 void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
