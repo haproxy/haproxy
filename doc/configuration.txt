@@ -12127,6 +12127,13 @@ no-verifyhost
   It may also be used as "default-server" setting to reset any previous
   "default-server" "verifyhost" setting.
 
+no-tfo
+  This option may be used as "server" setting to reset any "tfo"
+  setting which would have been inherited from "default-server" directive as
+  default value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "tfo" setting.
+
 non-stick
   Never add connections allocated to this sever to a stick-table.
   This may be used in conjunction with backup to ensure that
@@ -12482,7 +12489,7 @@ tfo
   See the "tfo" bind option for more information about TCP fast open.
   Please note that when using tfo, you should also use the "conn-failure",
   "empty-response" and "response-timeout" keywords for "retry-on", or haproxy
-  won't be able to retry the connection on failure.
+  won't be able to retry the connection on failure. See also "no-tfo".
 
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by tracking

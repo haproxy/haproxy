@@ -583,6 +583,14 @@ static int srv_parse_no_send_proxy_v2(char **args, int *cur_arg,
 	return srv_disable_pp_flags(newsrv, SRV_PP_V2);
 }
 
+/* Parse the "no-tfo" server keyword */
+static int srv_parse_no_tfo(char **args, int *cur_arg,
+                            struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->flags &= ~SRV_F_FASTOPEN;
+	return 0;
+}
+
 /* Parse the "non-stick" server keyword */
 static int srv_parse_non_stick(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -1354,6 +1362,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
+	{ "no-tfo",              srv_parse_no_tfo,              0,  1 }, /* Disable use of TCP Fast Open */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1 }, /* Set the max number of orphan idle connections, 0 means unlimited */
