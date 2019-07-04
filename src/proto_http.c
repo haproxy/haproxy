@@ -1788,6 +1788,9 @@ resume_execution:
 			case ACT_RET_CONT:
 				break;
 			case ACT_RET_STOP:
+				rule_ret = HTTP_RULE_RES_STOP;
+				goto end;
+			case ACT_RET_DONE:
 				rule_ret = HTTP_RULE_RES_DONE;
 				goto end;
 			case ACT_RET_YIELD:
@@ -2198,6 +2201,9 @@ resume_execution:
 			case ACT_RET_STOP:
 				rule_ret = HTTP_RULE_RES_STOP;
 				goto end;
+			case ACT_RET_DONE:
+				rule_ret = HTTP_RULE_RES_DONE;
+				goto end;
 			case ACT_RET_YIELD:
 				s->current_rule = rule;
 				rule_ret = HTTP_RULE_RES_YIELD;
@@ -2588,7 +2594,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * by a possible reqrep, while they are processed *after* so that a
 	 * reqdeny can still block them. This clearly needs to change in 1.6!
 	 */
-	if (stats_check_uri(&s->si[1], txn, px)) {
+	if (!s->target && stats_check_uri(&s->si[1], txn, px)) {
 		s->target = &http_stats_applet.obj_type;
 		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target)))) {
 			txn->status = 500;

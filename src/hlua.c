@@ -6794,7 +6794,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_ERR;
 		}
 		if (s->hlua->flags & HLUA_STOP)
-			return ACT_RET_STOP;
+			return ACT_RET_DONE;
 		return ACT_RET_CONT;
 
 	/* yield. */
