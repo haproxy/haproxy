@@ -1693,6 +1693,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case H1_MSG_DATA:
+			case H1_MSG_TUNNEL:
 				if (type == HTX_BLK_EOM) {
 					/* Chunked message without explicit trailers */
 					if (h1m->flags & H1_MF_CHNK) {
