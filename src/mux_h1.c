@@ -1390,6 +1390,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
 	data = htx->data;
+	if (h1s->flags & errflag)
+		goto end;
+
 	do {
 		size_t used = htx_used_space(htx);
 
@@ -1506,6 +1509,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		h1m = &h1s->req;
 		errflag = H1S_F_REQ_ERROR;
 	}
+
+	if (h1s->flags & errflag)
+		goto end;
 
 	/* the htx is non-empty thus has at least one block */
 	blk = htx_get_head_blk(chn_htx);
