@@ -1365,7 +1365,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "source",              srv_parse_source,             -1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
-	{ "tfo",                 srv_parse_tfo,                 0,  0 }, /* enable TCP Fast Open of server */
+	{ "tfo",                 srv_parse_tfo,                 0,  1 }, /* enable TCP Fast Open of server */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",              srv_parse_socks4,              1,  1 }, /* Set the socks4 proxy of the server*/
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1 }, /* enable socks4 proxy for health checks */
