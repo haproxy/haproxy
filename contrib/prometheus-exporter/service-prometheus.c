@@ -1408,9 +1408,11 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	}
 
   end:
-	if (!htx_add_data_atonce(htx, out))
-		return -1; /* Unexpected and unrecoverable error */
-	channel_add_input(chn, out.len);
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
 	return ret;
   full:
 	ret = 0;
@@ -1586,9 +1588,11 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	}
 
   end:
-	if (!htx_add_data_atonce(htx, out))
-		return -1; /* Unexpected and unrecoverable error */
-	channel_add_input(chn, out.len);
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
 	return ret;
   full:
 	ret = 0;
@@ -1804,9 +1808,11 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	}
 
   end:
-	if (!htx_add_data_atonce(htx, out))
-		return -1; /* Unexpected and unrecoverable error */
-	channel_add_input(chn, out.len);
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
 	return ret;
   full:
 	ret = 0;
@@ -1998,9 +2004,11 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 
 
   end:
-	if (!htx_add_data_atonce(htx, out))
-		return -1; /* Unexpected and unrecoverable error */
-	channel_add_input(chn, out.len);
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
 	return ret;
   full:
 	ret = 0;
