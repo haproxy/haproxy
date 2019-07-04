@@ -418,16 +418,21 @@ static inline void *pool_alloc_area(size_t size)
 	size_t pad = (4096 - size) & 0xFF0;
 	void *ret;
 
+	thread_harmless_now();
 	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-	if (ret == MAP_FAILED)
-		return NULL;
-	/* let's dereference the page before returning so that the real
-	 * allocation in the system is performed without holding the lock.
-	 */
-	*(int *)ret = 0;
-	if (pad >= sizeof(void *))
-		*(void **)(ret + pad - sizeof(void *)) = ret + pad;
-	return ret + pad;
+	if (ret != MAP_FAILED) {
+		/* let's dereference the page before returning so that the real
+		 * allocation in the system is performed without holding the lock.
+		 */
+		*(int *)ret = 0;
+		if (pad >= sizeof(void *))
+			*(void **)(ret + pad - sizeof(void *)) = ret + pad;
+		ret += pad;
+	} else {
+		ret = NULL;
+	}
+	thread_harmless_end();
+	return ret;
 }
 
 /* frees an area <area> of size <size> allocated by pool_alloc_area(). The
@@ -443,7 +448,9 @@ static inline void pool_free_area(void *area, size_t size)
 	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
 		*(volatile int *)0 = 0;
 
+	thread_harmless_now();
 	munmap(area - pad, (size + 4095) & -4096);
+	thread_harmless_end();
 }
 
 #endif /* DEBUG_UAF */
