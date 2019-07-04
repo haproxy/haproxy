@@ -242,12 +242,13 @@ resume_execution:
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
+				case ACT_RET_DONE:
 					break;
 				case ACT_RET_YIELD:
 					s->current_rule = rule;
 					goto missing_data;
 				}
-				break; /* ACT_RET_STOP */
+				break; /* ACT_RET_STOP/DONE */
 			}
 		}
 	}
@@ -379,13 +380,14 @@ resume_execution:
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
+				case ACT_RET_DONE:
 					break;
 				case ACT_RET_YIELD:
 					channel_dont_close(rep);
 					s->current_rule = rule;
 					return 0;
 				}
-				break; /* ACT_RET_STOP */
+				break; /* ACT_RET_STOP/DONE */
 			}
 		}
 	}
@@ -484,6 +486,7 @@ int tcp_exec_l4_rules(struct session *sess)
 					send_log(sess->fe, LOG_WARNING,
 					         "Internal error: yield not allowed with tcp-request connection actions.");
 				case ACT_RET_STOP:
+				case ACT_RET_DONE:
 					break;
 				case ACT_RET_CONT:
 					continue;
@@ -491,7 +494,7 @@ int tcp_exec_l4_rules(struct session *sess)
 					result = 0;
 					break;
 				}
-				break; /* ACT_RET_STOP */
+				break; /* ACT_RET_STOP/DONE */
 			}
 		}
 	}
@@ -563,6 +566,7 @@ int tcp_exec_l5_rules(struct session *sess)
 					send_log(sess->fe, LOG_WARNING,
 					         "Internal error: yield not allowed with tcp-request session actions.");
 				case ACT_RET_STOP:
+				case ACT_RET_DONE:
 					break;
 				case ACT_RET_CONT:
 					continue;
@@ -570,7 +574,7 @@ int tcp_exec_l5_rules(struct session *sess)
 					result = 0;
 					break;
 				}
-				break; /* ACT_RET_STOP */
+				break; /* ACT_RET_STOP/DONE */
 			}
 		}
 	}

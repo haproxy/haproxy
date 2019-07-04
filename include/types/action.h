@@ -41,6 +41,7 @@ enum act_return {
 	ACT_RET_STOP,  /* stop processing. */
 	ACT_RET_YIELD, /* call me again. */
 	ACT_RET_ERR,   /* processing error. */
+	ACT_RET_DONE,  /* processing done, stop processing */
 };
 
 enum act_parse_ret {
