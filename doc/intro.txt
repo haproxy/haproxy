@@ -1071,7 +1071,7 @@ components.
 
 HAProxy provides very detailed logs, with millisecond accuracy and the exact
 connection accept time that can be searched in firewalls logs (e.g. for NAT
-correlation). By default, TCP and HTTP logs are quite detailed an contain
+correlation). By default, TCP and HTTP logs are quite detailed and contain
 everything needed for troubleshooting, such as source IP address and port,
 frontend, backend, server, timers (request receipt duration, queue duration,
 connection setup time, response headers time, data transfer time), global
