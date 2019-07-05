@@ -669,21 +669,12 @@ int si_cs_send(struct conn_stream *cs)
 
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(cs, oc->pipe);
-		if (ret > 0) {
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		if (ret > 0)
 			did_send = 1;
-			if (si->state == SI_ST_CON)
-				si->state = SI_ST_RDY;
-		}
 
 		if (!oc->pipe->data) {
 			put_pipe(oc->pipe);
 			oc->pipe = NULL;
-		}
-
-		if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
-			si->flags |= SI_FL_ERR;
-			return 1;
 		}
 
 		if (oc->pipe)
@@ -752,10 +743,6 @@ int si_cs_send(struct conn_stream *cs)
 		ret = cs->conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
-			oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-			if (si->state == SI_ST_CON)
-				si->state = SI_ST_RDY;
-
 			co_set_data(oc, co_data(oc) - ret);
 			c_realign_if_empty(oc);
 
@@ -763,19 +750,24 @@ int si_cs_send(struct conn_stream *cs)
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				oc->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
 			}
-
 			/* if some data remain in the buffer, it's only because the
 			 * system buffers are full, we will try next time.
 			 */
 		}
-
-		if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
-			si->flags |= SI_FL_ERR;
-			return 1;
-		}
 	}
 
  end:
+	if (did_send) {
+		oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		if (si->state == SI_ST_CON)
+			si->state = SI_ST_RDY;
+	}
+
+	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
+		si->flags |= SI_FL_ERR;
+		return 1;
+	}
+
 	/* We couldn't send all of our data, let the mux know we'd like to send more */
 	if (!channel_is_empty(oc))
 		conn->mux->subscribe(cs, SUB_RETRY_SEND, &si->wait_event);
