@@ -950,6 +950,7 @@ static inline void co_skip(struct channel *chn, int len)
 
 	/* notify that some data was written to the SI from the buffer */
 	chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+	chn_prod(chn)->flags &= ~SI_FL_RXBLK_ROOM; // si_rx_room_rdy()
 }
 
 /* HTX version of co_skip(). This function skips at most <len> bytes from the
@@ -967,6 +968,7 @@ static inline void co_htx_skip(struct channel *chn, struct htx *htx, int len)
 
 		/* notify that some data was written to the SI from the buffer */
 		chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		chn_prod(chn)->flags &= ~SI_FL_RXBLK_ROOM; // si_rx_room_rdy()
 	}
 }
 

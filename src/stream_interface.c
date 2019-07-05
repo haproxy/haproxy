@@ -482,10 +482,6 @@ static void stream_int_notify(struct stream_interface *si)
 				ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 
-	if ((sio->flags & SI_FL_RXBLK_ROOM) &&
-	    ((oc->flags & CF_WRITE_PARTIAL) || channel_is_empty(oc)))
-		si_rx_room_rdy(sio);
-
 	if (oc->flags & CF_DONT_READ)
 		si_rx_chan_blk(sio);
 	else
@@ -761,6 +757,8 @@ int si_cs_send(struct conn_stream *cs)
 		oc->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 		if (si->state == SI_ST_CON)
 			si->state = SI_ST_RDY;
+
+		si_rx_room_rdy(si_opposite(si));
 	}
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
@@ -920,8 +918,7 @@ void si_sync_send(struct stream_interface *si)
 	if (cs->conn->flags & CO_FL_ERROR)
 		return;
 
-	if (si_cs_send(cs))
-		si_rx_room_rdy(si_opposite(si));
+	si_cs_send(cs);
 }
 
 /* Updates at once the channel flags, and timers of both stream interfaces of a
