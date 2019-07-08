@@ -5352,15 +5352,18 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
-#ifdef OPENSSL_IS_BORINGSSL /* BoringSSL */
+#if defined(OPENSSL_IS_BORINGSSL) || defined(LIBRESSL_VERSION_NUMBER)
+					/* do not handle empty handshakes in BoringSSL or LibreSSL */
 					conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 					int empty_handshake;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+					/* use SSL_get_state() in OpenSSL >= 1.1.0; SSL_state() is broken */
 					OSSL_HANDSHAKE_STATE state = SSL_get_state((SSL *)ctx->ssl);
 					empty_handshake = state == TLS_ST_BEFORE;
 #else
-					empty_handshake = SSL_state((SSL *)ctx->ssl) == SSL_ST_BEFORE;
+					/* access packet_length directly in OpenSSL <= 1.0.2; SSL_state() is broken */
+					empty_handshake = !ctx->ssl->packet_length;
 #endif
 					if (empty_handshake) {
 						if (!errno) {
@@ -5382,7 +5385,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 						else
 							conn->err_code = CO_ER_SSL_HANDSHAKE;
 					}
-#endif
+#endif /* BoringSSL or LibreSSL */
 				}
 				goto out_error;
 			}
@@ -5433,15 +5436,18 @@ check_error:
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 			if (!conn->err_code) {
-#ifdef OPENSSL_IS_BORINGSSL  /* BoringSSL */
+#if defined(OPENSSL_IS_BORINGSSL) || defined(LIBRESSL_VERSION_NUMBER)
+				/* do not handle empty handshakes in BoringSSL or LibreSSL */
 				conn->err_code = CO_ER_SSL_HANDSHAKE;
 #else
 				int empty_handshake;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL)
+				/* use SSL_get_state() in OpenSSL >= 1.1.0; SSL_state() is broken */
 				OSSL_HANDSHAKE_STATE state = SSL_get_state(ctx->ssl);
 				empty_handshake = state == TLS_ST_BEFORE;
 #else
-				empty_handshake = SSL_state((SSL *)ctx->ssl) == SSL_ST_BEFORE;
+				/* access packet_length directly in OpenSSL <= 1.0.2; SSL_state() is broken */
+				empty_handshake = !ctx->ssl->packet_length;
 #endif
 				if (empty_handshake) {
 					if (!errno) {
@@ -5463,7 +5469,7 @@ check_error:
 					else
 						conn->err_code = CO_ER_SSL_HANDSHAKE;
 				}
-#endif
+#endif /* BoringSSL or LibreSSL */
 			}
 			goto out_error;
 		}
