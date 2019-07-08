@@ -50,6 +50,10 @@ enum {
 #define FD_EV_READY     2U
 #define FD_EV_POLLED    4U
 
+/* bits positions for a few flags */
+#define FD_EV_READY_R_BIT 1
+#define FD_EV_READY_W_BIT 5
+
 #define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED | FD_EV_READY)
 #define FD_EV_STATUS_R  (FD_EV_STATUS)
 #define FD_EV_STATUS_W  (FD_EV_STATUS << 4)

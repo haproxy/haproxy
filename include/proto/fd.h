@@ -377,13 +377,15 @@ static inline void fd_cant_recv(const int fd)
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
-/* Report that FD <fd> can receive anymore without polling. */
+/* Report that FD <fd> may receive again without polling. */
 static inline void fd_may_recv(const int fd)
 {
 	unsigned long locked;
 
 	/* marking ready never changes polled status */
-	_HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_R);
+	if ((fdtab[fd].state & FD_EV_READY_R) ||
+	    HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_READY_R_BIT))
+		return;
 
 	locked = atleast2(fdtab[fd].thread_mask);
 	if (locked)
@@ -449,13 +451,15 @@ static inline void fd_cant_send(const int fd)
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
 }
 
-/* Report that FD <fd> can send anymore without polling (EAGAIN detected). */
+/* Report that FD <fd> may send again without polling (EAGAIN not detected). */
 static inline void fd_may_send(const int fd)
 {
 	unsigned long locked;
 
 	/* marking ready never changes polled status */
-	_HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_W);
+	if ((fdtab[fd].state & FD_EV_READY_W) ||
+	    HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_READY_W_BIT))
+		return;
 
 	locked = atleast2(fdtab[fd].thread_mask);
 	if (locked)
@@ -522,13 +526,19 @@ static inline void fd_want_send(int fd)
 static inline void fd_update_events(int fd, int evts)
 {
 	unsigned long locked = atleast2(fdtab[fd].thread_mask);
+	unsigned char old, new;
 
-	if (locked)
-		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
-	fdtab[fd].ev &= FD_POLL_STICKY;
-	fdtab[fd].ev |= evts;
-	if (locked)
-		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	old = fdtab[fd].ev;
+	new = (old & FD_POLL_STICKY) | evts;
+
+	if (unlikely(locked)) {
+		/* Locked FDs (those with more than 2 threads) are atomically updated */
+		while (unlikely(new != old && !_HA_ATOMIC_CAS(&fdtab[fd].ev, &old, new)))
+			new = (old & FD_POLL_STICKY) | evts;
+	} else {
+		if (new != old)
+			fdtab[fd].ev = new;
+	}
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		fd_may_recv(fd);
