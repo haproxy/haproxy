@@ -716,10 +716,11 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
 	struct email_alertq *q = container_of(check, typeof(*q), check);
+	int ret = 0;
 
 	if (!(check->wait_list.events & SUB_RETRY_SEND))
-		wake_srv_chk(cs);
-	if (!(check->wait_list.events & SUB_RETRY_RECV)) {
+		ret = wake_srv_chk(cs);
+	if (ret == 0 && !(check->wait_list.events & SUB_RETRY_RECV)) {
 		if (check->server)
 			HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 		else
