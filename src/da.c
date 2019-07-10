@@ -254,6 +254,7 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 
 	smp->data.u.str.area = tmp->area;
 	smp->data.u.str.data = tmp->data;
+	smp->data.type = SMP_T_STR;
 
 	return 1;
 }
