@@ -306,10 +306,20 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 		if (!sess)
 			sess = h1c->conn->owner;
 
-		h1s->csinfo.create_date = sess->accept_date;
-		h1s->csinfo.tv_create   = sess->tv_accept;
-		h1s->csinfo.t_handshake = sess->t_handshake;
-		h1s->csinfo.t_idle      = -1;
+		/* Timers for subsequent sessions on the same HTTP 1.x connection
+		 * measure from `now`, not from the connection accept time */
+		if (h1s->flags & H1S_F_NOT_FIRST) {
+			h1s->csinfo.create_date = date;
+			h1s->csinfo.tv_create   = now;
+			h1s->csinfo.t_handshake = 0;
+			h1s->csinfo.t_idle      = -1;
+		}
+		else {
+			h1s->csinfo.create_date = sess->accept_date;
+			h1s->csinfo.tv_create   = sess->tv_accept;
+			h1s->csinfo.t_handshake = sess->t_handshake;
+			h1s->csinfo.t_idle      = -1;
+		}
 	}
 	else {
 		if (h1c->px->options2 & PR_O2_RSPBUG_OK)
