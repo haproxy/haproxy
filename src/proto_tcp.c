@@ -25,9 +25,7 @@
 
 #include <sys/param.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/un.h>
 
 #include <netinet/tcp.h>
 #include <netinet/in.h>
