@@ -256,7 +256,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		int retadd;
 
 		retadd = _HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);
-		if (retadd >= srv->max_idle_conns) {
+		if (retadd > srv->max_idle_conns) {
 			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			return 0;
 		}
