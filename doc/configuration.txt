@@ -489,10 +489,10 @@ file, or could be inherited by a program (See 3.7. Programs):
 
 * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
-* HAPROXY_CLI: configured listeners adresses of the stats socket for every
+* HAPROXY_CLI: configured listeners addresses of the stats socket for every
   processes, separated by semicolons.
 
-* HAPROXY_MASTER_CLI: In master-worker mode, listeners adresses of the master
+* HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
   CLI, separated by semicolons.
 
 See also "external-check command" for other variables.
@@ -987,7 +987,7 @@ master-worker [no-exit-on-failure]
 
 mworker-max-reloads <number>
   In master-worker mode, this option limits the number of time a worker can
-  survive to a reload. If the worker did not left after a reload, once its
+  survive to a reload. If the worker did not leave after a reload, once its
   number of reloads is greater than this number, the worker will receive a
   SIGTERM. This option helps to keep under control the number of workers.
   See also "show proc" in the Management Guide.
@@ -1514,7 +1514,7 @@ profiling.tasks { auto | on | off }
   the profiling automatically turns on a thread when it starts to suffer from
   an average latency of 1000 microseconds or higher as reported in the
   "avg_loop_us" activity field, and automatically turns off when the latency
-  reutnrs below 990 microseconds (this value is an average over the last 1024
+  returns below 990 microseconds (this value is an average over the last 1024
   loops so it does not vary quickly and tends to significantly smooth short
   spikes). It may also spontaneously trigger from time to time on overloaded
   systems, containers, or virtual machines, or when the system swaps (which
@@ -1559,7 +1559,7 @@ ssl-mode-async
   implementation supports a maximum of 32 engines. The Openssl ASYNC API
   doesn't support moving read/write buffers and is not compliant with
   haproxy's buffer management. So the asynchronous mode is disabled on
-  read/write  operations (it is only enabled during initial and reneg
+  read/write  operations (it is only enabled during initial and renegotiation
   handshakes).
 
 tune.buffers.limit <number>
@@ -1692,7 +1692,7 @@ tune.idletimer <timeout>
   parameter. The value is in milliseconds between 0 and 65535. A value of zero
   means that haproxy will not try to detect idle streams. The default is 1000,
   which seems to correctly detect end user pauses (e.g. read a page before
-  clicking). There should be not reason for changing this value. Please check
+  clicking). There should be no reason for changing this value. Please check
   tune.ssl.maxrecord below.
 
 tune.listener.multi-queue { on | off }
@@ -1810,14 +1810,14 @@ tune.pool-high-fd-ratio <number>
   and we have to create a new one. The default is 25 (one quarter of the file
   descriptor will mean that roughly half of the maximum front connections can
   keep an idle connection behind, anything beyond this probably doesn't make
-  much sense in the general case when targetting connection reuse).
+  much sense in the general case when targeting connection reuse).
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
   Forces the kernel socket receive buffer size on the client or the server side
   to the specified value in bytes. This value applies to all TCP/HTTP frontends
   and backends. It should normally never be set, and the default size (0) lets
-  the kernel autotune this value depending on the amount of available memory.
+  the kernel auto-tune this value depending on the amount of available memory.
   However it can sometimes help to set it to very low values (e.g. 4096) in
   order to save kernel memory by preventing it from buffering too large amounts
   of received data. Lower values will significantly increase CPU usage though.
@@ -1830,7 +1830,7 @@ tune.recv_enough <number>
   of short messages such as telnet or SSH sessions.
 
 tune.runqueue-depth <number>
-  Sets the maxinum amount of task that can be processed at once when running
+  Sets the maximum amount of task that can be processed at once when running
   tasks. The default value is 200. Increasing it may incur latency when
   dealing with I/Os, making it too small can incur extra overhead.
 
@@ -1839,7 +1839,7 @@ tune.sndbuf.server <number>
   Forces the kernel socket send buffer size on the client or the server side to
   the specified value in bytes. This value applies to all TCP/HTTP frontends
   and backends. It should normally never be set, and the default size (0) lets
-  the kernel autotune this value depending on the amount of available memory.
+  the kernel auto-tune this value depending on the amount of available memory.
   However it can sometimes help to set it to very low values (e.g. 4096) in
   order to save kernel memory by preventing it from buffering too large amounts
   of received data. Lower values will significantly increase CPU usage though.
@@ -2121,7 +2121,7 @@ table <tablename> type {ip | integer | string [len <length>] | binary [len <leng
 
   Configure a stickiness table for the current section. This line is parsed
   exactly the same way as the "stick-table" keyword in others section, except
-  for the "peers" argument which is not required here and with an aditionnal
+  for the "peers" argument which is not required here and with an additional
   mandatory first parameter to designate the stick-table. Contrary to others
   sections, there may be several "table" lines in "peers" sections (see also
   "stick-table" keyword).
@@ -2767,7 +2767,7 @@ balance url_param <param> [check_post]
   for each backend.
 
   With authentication schemes that require the same connection like NTLM, URI
-  based alghoritms must not be used, as they would cause subsequent requests
+  based algorithms must not be used, as they would cause subsequent requests
   to be routed to different backend servers, breaking the invalid assumptions
   NTLM relies on.
 
@@ -6492,7 +6492,7 @@ no option httpclose
 
   If "option httpclose" is set, HAProxy will close connections with the server
   and the client as soon as the request and the response are received. It will
-  alos check if a "Connection: close" header is already set in each direction,
+  also check if a "Connection: close" header is already set in each direction,
   and will add one if missing. Any "Connection" header different from "close"
   will also be removed.
 
@@ -9693,7 +9693,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         rules do not stop evaluation and do not change default action. The
         number of counters that may be simultaneously tracked by the same
         connection is set in MAX_SESS_STKCTR at build time (reported in
-        haproxy -vv) whichs defaults to 3, so the track-sc number is between 0
+        haproxy -vv) which defaults to 3, so the track-sc number is between 0
         and (MAX_SESS_STCKTR-1). The first "track-sc0" rule executed enables
         tracking of the counters of the specified table as the first set. The
         first "track-sc1" rule executed enables tracking of the counters of the
@@ -10412,7 +10412,7 @@ timeout client <timeout>
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it. An unspecified timeout results in an infinite timeout, which
   is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of expired sessions in
+  during startup because it may result in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
   This also applies to HTTP/2 connections, which will be closed with GOAWAY.
@@ -10467,7 +10467,7 @@ timeout connect <timeout>
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it. An unspecified timeout results in an infinite timeout, which
   is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of failed sessions in
+  during startup because it may result in accumulation of failed sessions in
   the system if the system's timeouts are not configured either.
 
   See also: "timeout check", "timeout queue", "timeout server", "timeout tarpit".
@@ -10620,7 +10620,7 @@ timeout server <timeout>
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it. An unspecified timeout results in an infinite timeout, which
   is not recommended. Such a usage is accepted and works but reports a warning
-  during startup because it may results in accumulation of expired sessions in
+  during startup because it may result in accumulation of expired sessions in
   the system if the system's timeouts are not configured either.
 
   See also : "timeout client" and "timeout tunnel".
@@ -10962,7 +10962,7 @@ accept-proxy
 allow-0rtt
   Allow receiving early data when using TLSv1.3. This is disabled by default,
   due to security considerations. Because it is vulnerable to replay attacks,
-  you should only allow if for requests that are safe to replay, ie requests
+  you should only allow if for requests that are safe to replay, i.e. requests
   that are idempotent. You can use the "wait-for-handshake" action for any
   request that wouldn't be safe with early data.
 
@@ -10970,7 +10970,7 @@ alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol
   list as supported on top of ALPN. The protocol list consists in a comma-
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
-  quotes). This requires that the SSL library is build with support for TLS
+  quotes). This requires that the SSL library is built with support for TLS
   extensions enabled (check with haproxy -vv). The ALPN extension replaces the
   initial NPN extension. ALPN is required to enable HTTP/2 on an HTTP frontend.
   Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
@@ -11422,7 +11422,7 @@ npn <protocols>
   This enables the NPN TLS extension and advertises the specified protocol list
   as supported on top of NPN. The protocol list consists in a comma-delimited
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
-  This requires that the SSL library is build with support for TLS extensions
+  This requires that the SSL library is built with support for TLS extensions
   enabled (check with haproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword), though this one is
   only available starting with OpenSSL 1.0.2. If HTTP/2 is desired on an older
@@ -11723,7 +11723,7 @@ alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol
   list as supported on top of ALPN. The protocol list consists in a comma-
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
-  quotes). This requires that the SSL library is build with support for TLS
+  quotes). This requires that the SSL library is built with support for TLS
   extensions enabled (check with haproxy -vv). The ALPN extension replaces the
   initial NPN extension. ALPN is required to connect to HTTP/2 servers.
   Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
@@ -11792,7 +11792,7 @@ check-ssl
   this option.
 
 check-via-socks4
-  This option enables outgoinng health checks using upstream socks4 proxy. By
+  This option enables outgoing health checks using upstream socks4 proxy. By
   default, the health checks won't go through socks tunnel even it was enabled
   for normal traffic.
 
@@ -12143,7 +12143,7 @@ npn <protocols>
   This enables the NPN TLS extension and advertises the specified protocol list
   as supported on top of NPN. The protocol list consists in a comma-delimited
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
-  This requires that the SSL library is build with support for TLS extensions
+  This requires that the SSL library is built with support for TLS extensions
   enabled (check with haproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword), though this one is
   only available starting with OpenSSL 1.0.2.
@@ -12298,7 +12298,7 @@ resolve-prefer <family>
     server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
 
 resolve-net <network>[,<network[,...]]
-  This options prioritize th choice of an ip address matching a network. This is
+  This option prioritizes the choice of an ip address matching a network. This is
   useful with clouds to prefer a local ip. In some cases, a cloud high
   availability service can be announced with many ip addresses on many
   different datacenters. The latency between datacenter is not negligible, so
@@ -12464,7 +12464,7 @@ stick
   "default-server" "non-stick" setting.
 
 socks4 <addr>:<port>
-  This option enables upstream socks4 tunnel for outgoinng connections to the
+  This option enables upstream socks4 tunnel for outgoing connections to the
   server. Using this option won't force the health check to go via socks4 by
   default. You will have to use the keyword "check-via-socks4" to enable it.
 
@@ -12584,7 +12584,7 @@ will be checked periodically, and if any server are added or removed, haproxy
 will automatically do the same.
 
 A few things important to notice:
-  - all the name servers are queried in the mean time. HAProxy will process the
+  - all the name servers are queried in the meantime. HAProxy will process the
     first valid response.
 
   - a resolution is considered as invalid (NX, timeout, refused), when all the
@@ -12967,7 +12967,7 @@ By default, if the parser cannot parse ip address it considers that the parsed
 string is maybe a domain name and try dns resolution. The flag "-n" disable this
 resolution. It is useful for detecting malformed ip lists. Note that if the DNS
 server is not reachable, the haproxy configuration parsing may last many minutes
-waiting fir the timeout. During this time no error messages are displayed. The
+waiting for the timeout. During this time no error messages are displayed. The
 flag "-n" disable this behavior. Note also that during the runtime, this
 function is disabled for the dynamic acl modifications.
 
@@ -13477,9 +13477,9 @@ concat([<start>],[<var>],[<end>])
   appended after the variable. It may also be omitted. Together, these elements
   allow to concatenate variables with delimiters to an existing set of
   variables. This can be used to build new variables made of a succession of
-  other variables, such as colon-delimited varlues. Note that due to the config
+  other variables, such as colon-delimited values. Note that due to the config
   parser, it is not possible to use a comma nor a closing parenthesis as
-  delimitors.
+  delimiters.
 
   Example:
     tcp-request session set-var(sess.src) src
@@ -13585,7 +13585,7 @@ hex
 
 hex2i
   Converts a hex string containing two hex digits per input byte to an
-  integer. If the input value can not be converted, then zero is returned.
+  integer. If the input value cannot be converted, then zero is returned.
 
 http_date([<offset>])
   Converts an integer supposed to contain a date since epoch to a string
@@ -14156,14 +14156,14 @@ ungrpc(<field_number>,[<field_type>])
 
     req.body,ungrpc(48.59.1,int32) # "latitude" of "lo" first PPoint
     req.body,ungrpc(48.59.2,int32) # "longitude" of "lo" first PPoint
-    req.body,ungrpc(49.59.1,int32) # "latidude" of "hi" second PPoint
+    req.body,ungrpc(49.59.1,int32) # "latitude" of "hi" second PPoint
     req.body,ungrpc(49.59.2,int32) # "longitude" of "hi" second PPoint
 
     We could also extract the intermediary 48.59 field as a binary sample as follows:
 
     req.body,ungrpc(48.59)
 
-    As a gRPC message is alway made of a gRPC header followed by protocol buffers
+    As a gRPC message is always made of a gRPC header followed by protocol buffers
     messages, in the previous example the "latitude" of "lo" first PPoint
     could be extracted with these equivalent directives:
 
@@ -15615,7 +15615,7 @@ ssl_fc_has_sni : boolean
   This checks for the presence of a Server Name Indication TLS extension (SNI)
   in an incoming connection was made over an SSL/TLS transport layer. Returns
   true when the incoming connection presents a TLS SNI field. This requires
-  that the SSL library is build with support for TLS extensions enabled (check
+  that the SSL library is built with support for TLS extensions enabled (check
   haproxy -vv).
 
 ssl_fc_is_resumed : boolean
@@ -15670,7 +15670,7 @@ ssl_fc_sni : string
   This fetch is different from "req_ssl_sni" above in that it applies to the
   connection being deciphered by haproxy and not to SSL contents being blindly
   forwarded. See also "ssl_fc_sni_end" and "ssl_fc_sni_reg" below. This
-  requires that the SSL library is build with support for TLS extensions
+  requires that the SSL library is built with support for TLS extensions
   enabled (check haproxy -vv).
 
   ACL derivatives :
@@ -16924,7 +16924,7 @@ Detailed fields description :
   - "TR" is the total time in milliseconds spent waiting for a full HTTP
     request from the client (not counting body) after the first byte was
     received. It can be "-1" if the connection was aborted before a complete
-    request could be received or the a bad request was received. It should
+    request could be received or a bad request was received. It should
     always be very small because a request generally fits in one single packet.
     Large times here generally indicate network issues between the client and
     haproxy or requests being typed by hand. See section 8.4 "Timing Events"
@@ -16962,7 +16962,7 @@ Detailed fields description :
 
   - "bytes_read" is the total number of bytes transmitted to the client when
     the log is emitted. This does include HTTP headers. If "option logasap" is
-    specified, the this value will be prefixed with a '+' sign indicating that
+    specified, this value will be prefixed with a '+' sign indicating that
     the final one may be larger. Please note that this value is a 64-bit
     counter, so log analysis tools must be able to handle it without
     overflowing.
@@ -18157,7 +18157,7 @@ filter cache <name>
 
 The cache uses a filter to store cacheable responses. The HTTP rules
 "cache-store" and "cache-use" must be used to define how and when to use a
-cache. By default the correpsonding filter is implicitly defined. And when no
+cache. By default the corresponding filter is implicitly defined. And when no
 other filters than cache or compression are used, it is enough. In such case,
 the compression filter is always evaluated after the cache filter. But it is
 mandatory to explicitly use a filter line to use a cache when at least one
