@@ -66,6 +66,7 @@ struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
 struct task *idle_conn_cleanup[MAX_THREADS] = { NULL };
 struct list toremove_connections[MAX_THREADS];
+__decl_hathreads(HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
 
 /* The server names dictionary */
 struct dict server_name_dict = {
@@ -5660,6 +5661,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			int j;
 			int did_remove = 0;
 
+			HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[i]);
 			for (j = 0; j < max_conn; j++) {
 				struct connection *conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i], struct connection *, list);
 				if (!conn)
@@ -5667,6 +5669,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 				did_remove = 1;
 				LIST_ADDQ_LOCKED(&toremove_connections[i], &conn->list);
 			}
+			HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[i]);
 			if (did_remove && max_conn < srv->curr_idle_thr[i])
 				srv_is_empty = 0;
 			if (did_remove)

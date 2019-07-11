@@ -64,6 +64,8 @@ int conn_sock_drain(struct connection *conn);
 int conn_send_socks4_proxy_request(struct connection *conn);
 int conn_recv_socks4_proxy_response(struct connection *conn);
 
+__decl_hathreads(extern HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
+
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
 {
@@ -595,7 +597,9 @@ static inline void conn_free(struct connection *conn)
 	}
 
 	conn_force_unsubscribe(conn);
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
 	LIST_DEL_LOCKED(&conn->list);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 	pool_free(pool_head_connection, conn);
 }
 
