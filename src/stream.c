@@ -770,41 +770,7 @@ static void sess_update_st_cer(struct stream *s)
 		return;
 	}
 
-	/* If the "redispatch" option is set on the backend, we are allowed to
-	 * retry on another server. By default this redispatch occurs on the
-	 * last retry, but if configured we allow redispatches to occur on
-	 * configurable intervals, e.g. on every retry. In order to achieve this,
-	 * we must mark the stream unassigned, and eventually clear the DIRECT
-	 * bit to ignore any persistence cookie. We won't count a retry nor a
-	 * redispatch yet, because this will depend on what server is selected.
-	 * If the connection is not persistent, the balancing algorithm is not
-	 * determinist (round robin) and there is more than one active server,
-	 * we accept to perform an immediate redispatch without waiting since
-	 * we don't care about this particular server.
-	 */
-	if (objt_server(s->target) &&
-	    (s->be->options & PR_O_REDISP) && !(s->flags & SF_FORCE_PRST) &&
-	    ((__objt_server(s->target)->cur_state < SRV_ST_RUNNING) ||
-	     (((s->be->redispatch_after > 0) &&
-	       ((s->be->conn_retries - si->conn_retries) %
-	        s->be->redispatch_after == 0)) ||
-	      ((s->be->redispatch_after < 0) &&
-	       ((s->be->conn_retries - si->conn_retries) %
-	        (s->be->conn_retries + 1 + s->be->redispatch_after) == 0))) ||
-	     (!(s->flags & SF_DIRECT) && s->be->srv_act > 1 &&
-	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR)))) {
-		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
-
-		s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
-		si->state = SI_ST_REQ;
-	} else {
-		if (objt_server(s->target))
-			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.retries, 1);
-		_HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
-		si->state = SI_ST_ASS;
-	}
+	stream_choose_redispatch(s);
 
 	if (si->flags & SI_FL_ERR) {
 		/* The error was an asynchronous connection error, and we will

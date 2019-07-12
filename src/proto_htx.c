@@ -1406,13 +1406,13 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers = 0;
 	si->flags &= ~(SI_FL_ERR | SI_FL_EXP | SI_FL_RXBLK_SHUT);
-	si->state = SI_ST_REQ;
+	stream_choose_redispatch(s);
 	si->exp = TICK_ETERNITY;
 	res->rex = TICK_ETERNITY;
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
-	s->flags &= ~(SF_ASSIGNED | SF_ADDR_SET | SF_ERR_SRVTO | SF_ERR_SRVCL);
+	s->flags &= ~(SF_ERR_SRVTO | SF_ERR_SRVCL);
 	si_release_endpoint(&s->si[1]);
 	b_free(&req->buf);
 	/* Swap the L7 buffer with the channel buffer */
