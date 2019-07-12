@@ -541,6 +541,19 @@ static inline int thread_has_tasks(void)
 	        !LIST_ISEMPTY(&task_per_thread[tid].task_list));
 }
 
+/* adds list item <item> to work list <work> and wake up the associated task */
+static inline void work_list_add(struct work_list *work, struct list *item)
+{
+	LIST_ADDQ_LOCKED(&work->head, item);
+	task_wakeup(work->task, TASK_WOKEN_OTHER);
+}
+
+struct work_list *work_list_create(int nbthread,
+                                   struct task *(*fct)(struct task *, void *, unsigned short),
+                                   void *arg);
+
+void work_list_destroy(struct work_list *work, int nbthread);
+
 /*
  * This does 3 things :
  *   - wake up all expired tasks
