@@ -1163,6 +1163,12 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
+		/* Don't abort yet if we had L7 retries activated and it
+		 * was a write error, we may recover.
+		 */
+		if (!(req->flags & (CF_READ_ERROR | CF_READ_TIMEOUT)) &&
+		    (s->si[1].flags & SI_FL_L7_RETRY))
+			return 0;
 		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
 		htx_end_request(s);
