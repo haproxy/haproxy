@@ -2449,6 +2449,15 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				http_send_name_header(s, s->be, objt_server(s->target)->id);
 			}
 
+			/* Now we can add the server vhost to a header (if requested) */
+			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
+			if (si_state_in(si_b->state, SI_SB_CON|SI_SB_RDY|SI_SB_EST) &&
+			    (s->be->mode == PR_MODE_HTTP) &&
+			    objt_server(s->target) &&
+			    (objt_server(s->target)->vhost != NULL)) {
+				http_send_vhost_header(s, s->be, objt_server(s->target)->vhost);
+			}
+
 			srv = objt_server(s->target);
 			if (si_b->state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
 				http_perform_server_redirect(s, si_b);

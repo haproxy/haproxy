@@ -4806,6 +4806,36 @@ int htx_send_name_header(struct stream *s, struct proxy *be, const char *srv_nam
 	return 0;
 }
 
+/* send a server's vhost with an outgoing request over an established connection.
+ * Note: this function is designed to be called once the request has been
+ * scheduled for being forwarded. This is the reason why the number of forwarded
+ * bytes have to be adjusted.
+ */
+int htx_send_vhost_header(struct stream *s, struct proxy *be, const char *vhost)
+{
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	struct ist hdr;
+	uint32_t data;
+
+	hdr = ist2("Host", strlen("Host"));
+	htx = htxbuf(&s->req.buf);
+	data = htx->data;
+
+	ctx.blk = NULL;
+	while (http_find_header(htx, hdr, &ctx, 1))
+		http_remove_header(htx, &ctx);
+	http_add_header(htx, hdr, ist2(vhost, strlen(vhost)));
+
+	if (co_data(&s->req)) {
+		if (data >= htx->data)
+			c_rew(&s->req, data - htx->data);
+		else
+			c_adv(&s->req, htx->data - data);
+	}
+	return 0;
+}
+
 /*
  * In a GET, HEAD or POST request, check if the requested URI matches the stats uri
  * for the current backend.

@@ -1586,6 +1586,11 @@ static int connect_conn_chk(struct task *t)
 			if (s->proxy->options2 & PR_O2_CHK_SNDST)
 				b_putblk(&check->bo, trash.area,
 					 httpchk_build_status_header(s, trash.area, trash.size));
+			/* set the host header per backend */
+			if (s->vhost)
+				b_putist(&check->bo, ist("Host: "));
+				b_putist(&check->bo, ist(s->vhost));
+				b_putist(&check->bo, ist("\r\n"));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
 				b_putist(&check->bo, ist("Connection: close\r\n"));
@@ -1663,6 +1668,8 @@ static int connect_conn_chk(struct task *t)
 
 #ifdef USE_OPENSSL
 	if (ret == SF_ERR_NONE) {
+		if (s->vhost)
+			ssl_sock_set_servername(conn, s->vhost);
 		if (s->check.sni)
 			ssl_sock_set_servername(conn, s->check.sni);
 		if (s->check.alpn_str)

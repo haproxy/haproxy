@@ -3378,6 +3378,65 @@ int http_send_name_header(struct stream *s, struct proxy* be, const char* srv_na
 	return 0;
 }
 
+/* send a server's vhost with an outgoing request over an established connection.
+ * Note: this function is designed to be called once the request has been scheduled
+ * for being forwarded. This is the reason why it rewinds the buffer before
+ * proceeding.
+ */
+int http_send_vhost_header(struct stream *s, struct proxy* be, const char* vhost) {
+
+	struct hdr_ctx ctx;
+	struct http_txn *txn = s->txn;
+	char *hdr_name = "Host";
+	int hdr_name_len = strlen(hdr_name);
+	struct channel *chn = txn->req.chn;
+	char *hdr_val;
+	unsigned int old_o, old_i;
+
+	if (IS_HTX_STRM(s))
+		return htx_send_vhost_header(s, be, vhost);
+	ctx.idx = 0;
+
+	old_o = http_hdr_rewind(&txn->req);
+	if (old_o) {
+		/* The request was already skipped, let's restore it */
+		c_rew(chn, old_o);
+		txn->req.next += old_o;
+		txn->req.sov += old_o;
+	}
+
+	old_i = ci_data(chn);
+	while (http_find_header2(hdr_name, hdr_name_len, ci_head(txn->req.chn), &txn->hdr_idx, &ctx)) {
+		/* remove any existing values from the header */
+	        http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
+	}
+
+	/* Add the new header requested with the server value */
+	hdr_val = trash.area;
+	memcpy(hdr_val, hdr_name, hdr_name_len);
+	hdr_val += hdr_name_len;
+	*hdr_val++ = ':';
+	*hdr_val++ = ' ';
+	hdr_val += strlcpy2(hdr_val, vhost,
+			    trash.area + trash.size - hdr_val);
+	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.area,
+			      hdr_val - trash.area);
+
+	if (old_o) {
+		/* If this was a forwarded request, we must readjust the amount of
+		 * data to be forwarded in order to take into account the size
+		 * variations. Note that the current state is >= HTTP_MSG_BODY,
+		 * so we don't have to adjust ->sol.
+		 */
+		old_o += ci_data(chn) - old_i;
+		c_adv(chn, old_o);
+		txn->req.next -= old_o;
+		txn->req.sov  -= old_o;
+	}
+
+	return 0;
+}
+
 /* Terminate current transaction and prepare a new one. This is very tricky
  * right now but it works.
  */

@@ -1672,6 +1672,11 @@ int connect_server(struct stream *s)
 				srv_conn->flags |= CO_FL_PRIVATE;
 			}
 		}
+
+		if (srv->vhost) {
+			ssl_sock_set_servername(srv_conn, srv->vhost);
+			srv_conn->flags |= CO_FL_PRIVATE;
+		}
 #endif /* USE_OPENSSL */
 
 	}

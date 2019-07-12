@@ -1735,6 +1735,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 		srv->cklen  = src->cklen;
 	}
 	srv->use_ssl                  = src->use_ssl;
+	srv->vhost					  = src->vhost;
 	srv->check.addr = srv->agent.addr = src->check.addr;
 	srv->check.use_ssl            = src->check.use_ssl;
 	srv->check.port               = src->check.port;
@@ -2527,6 +2528,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					p = e;
 				}
 
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "vhost")) {
+				free(newsrv->vhost);
+				newsrv->vhost = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "rise")) {
