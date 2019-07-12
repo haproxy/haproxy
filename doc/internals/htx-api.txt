@@ -1,0 +1,498 @@
+                -----------------------------------------------
+                                   HTX API
+                                  Version 1.0
+                          ( Last update: 2019-06-20 )
+                -----------------------------------------------
+                          Author : Christopher Faulet
+                      Contact : cfaulet at haproxy dot com
+
+1. Background
+
+Historically, HAProxy stored HTTP messages in a raw fashion in buffers, keeping
+parsing information separatly in a "struct http_msg" owned by the stream. It was
+optimized to the data transfer, but not so much for rewrites. It was also HTTP/1
+centered. While it was the only HTTP version supported, it was not a
+problem. But with the rise of HTTP/2, it starts to be hard to still use this
+representation.
+
+At the first age of the HTTP/2 in HAProxy, H2 messages were converted into
+H1. This was terribly unefficient because it required two parsing passes, a
+first one in H2 and a second one in H1, with a conversion in the middle. And of
+course, the same was also true in the opposite direction. outgoing H1 messages
+had to be converted back in H2 to be sent. Even worse, because the H2->H1
+conversion, only client H2 connections were supported.
+
+So, to address all these problems, we decided to replace the old raw
+representation by a version-agnostic and self-structured internal HTTP
+representation, the HTX. As an additional benefit, with this new representation,
+the message parsing and its processing are now separated, making all the HTTP
+analysis simplier and cleaner. The parsing of HTTP messages is now handled by
+the multiplexers (h1 or h2).
+
+
+2. The HTX message
+
+The HTX is a structure containing useful information about an HTTP message
+followed by a contiguous array with some parts of the message. These parts are
+called blocks. A block is composed of metadata (htx_blk) and an associated
+payload. Blocks' metadata are stored starting from the end of the array while
+their payload are stored at the beginning. Blocks' metadata are often simply
+called blocks. it is a misuse of language that's simplify explainations.
+
+Internally, this structure is "hidden" in a buffer. This way, there are few
+changes into intermediate layers (stream-interface and channels). They still
+manipulate buffers. Only the multiplexer and the stream have to know how data
+are really stored. From the HTX perspective, a buffer is just a memory
+area. When an HTX message is stored in a buffer, this one appears as full.
+
+  * General view of an HTX message :
+
+
+  buffer->area
+    |
+    |<------------ buffer->size == buffer->data ----------------------|
+    |                                                                 |
+    |     |<------------- Blocks array (htx->size) ------------------>|
+    V     |                                                           |
+    +-----+-----------------+-------------------------+---------------+
+    | HTX |   PAYLOADS ==>  |                         |  <== HTX_BLKs |
+    +-----+-----------------+-------------------------+---------------+
+          |                 |                         |               |
+          |<-payloads part->|<----- free space ------>|<-blocks part->|
+              (htx->data)
+
+
+The blocks part remains linear and sorted. You may think about it as an array
+with negative indexes. But, instead of using negative indexes, we use positive
+positions to identify a block. This position is then converted to an address
+relatively to the beginning of the blocks array.
+
+                tail                                 head
+                 |                                     |
+                 V                                     V
+     .....--+----+-----------------------+------+------+
+            | Bn |       ...             |  B1  |  B0  |
+     .....--+----+-----------------------+------+------+
+                 ^                       ^      ^
+ Addr of the block       Addr of the block      Addr of the block
+ at the position N       at the position 1      at the position 0
+
+
+In the HTX struture, 3 "special" positions are stored:
+
+    - tail  : Position of the newest inserted block
+    - head  : Position of the oldest inserted block
+    - first : Position of the first block to (re)start the analyse
+
+The blocks part never wrap. If we have no space to allocate a new block and if
+there is a hole at the beginning of the blocks part (so at the end of the blocks
+array), we move back all blocks.
+
+
+      tail           head                                tail           head
+       |              |                                   |              |
+       V              V                                   V              V
+    ...+--------------+---------+    blocks  ...----------+--------------+
+       | X== HTX_BLKS |         |    defrag               | <== HTX_BLKS |
+    ...+--------------+---------+    =====>  ...----------+--------------+
+
+
+The payloads part is a raw space that may wrap. You never access to a block's
+payload directly. Instead you get a block to retrieve the address of its
+payload.
+
+
+          +------------------------( B0.addr )--------------------------+
+          |    +-------------------( B1.addr )----------------------+   |
+          |    |       +-----------( B2.addr )----------------+     |   |
+          V    V       V                                      |     |   |
+    +-----+----+-------+----+--------+-------------+-------+----+----+----+
+    | HTX | P0 |   P1  | P2 | ...==> |             | <=... | B2 | B1 | B0 |
+    +-----+----+-------+----+--------+-------------+-------+----+----+----+
+
+
+Because the payloads part may wrap, there are 2 usable free spaces:
+
+    - The free space in front of the blocks part. This one is used iff the other
+      one was not used yet.
+
+    - The free space at the beginning of the message. Once this one is used, the
+      other one is never used again, until a message defragmentation.
+
+
+  * Linear payloads part :
+
+
+      head_addr             end_addr     tail_addr
+          |                    |             |
+          V                    V             V
+    +-----+--------------------+-------------+--------------------+-------...
+    | HTX |                    |   PAYLOADS  |                    | HTX_BLKs
+    +-----+--------------------+-------------+--------------------+-------...
+          |<-- free space 2 -->|             |<-- free space 1 -->|
+     (used if the other is too small)          (used in priority)
+
+
+  * Wrapping payloads part :
+
+
+                            head_addr end_addr        tail_addr
+                                |        |                |
+                                V        V                V
+    +-----+----+----------------+--------+----------------+-------+-------...
+    | HTX |    | PAYLOADS part2 |        | PAYLOADS part1 |       | HTX_BLKs
+    +-----+----+----------------+--------+----------------+-------+-------...
+          |<-->|                |<------>|                |<----->|
+         unusable               free space                 unusable
+        free space                                        free space
+
+
+Finally, when the usable free space is not enough to store a new block, unsuable
+parts may be get back with a full defragmentation. The payloads part is then
+realigned at the beginning of the blocks array and the free space becomes
+continuous again.
+
+
+3. The HTX blocks
+
+An HTX block can be as well a start-line as a header, a body part or a
+trailer. For all these types of block, a payload is attached to the block. It
+can also be a marker, the end-of-headers, end-of-trailers or end-of-message. For
+these blocks, there is no payload but it counts for a byte. It is important to
+not skip it when data are forwarded.
+
+As already said, a block is composed of metadata and a payload. Metadata are
+stored in the blocks part and are composed of 2 fields :
+
+    - info : It a 32 bits field containing the block's type on 4 bits followed
+             by the payload length. See below for details.
+
+    - addr : The payload's address, if any, relatively to the beginning the
+             array used to store part of the HTTP message itself.
+
+
+  * Block's info representation :
+
+    0b 0000 0000 0000 0000 0000 0000 0000 0000
+       ---- ------------------------ ---------
+       type     value (1 MB max)     name length (header/trailer - 256B max)
+            ----------------------------------
+                 data length (256 MB max)
+     (body, method, path, version, status, reason)
+
+
+Supported types are :
+
+    - 0000  (0) : The request start-line
+    - 0001  (1) : The response start-line
+    - 0010  (2) : A header block
+    - 0011  (3) : The end-of-headers marker
+    - 0100  (4) : A data block
+    - 0101  (5) : A trailer block
+    - 0110  (6) : The end-of-trailers marker
+    - 0111  (7) : The end-of-message marker
+    - 1111 (15) : An unused block
+
+Other types are unused for now and reserved for futur extensions.
+
+An HTX message is typically composed of following blocks, in this order :
+
+    - a start-line
+    - zero or more header blocks
+    - an end-of-headers marker
+    - zero or more data blocks
+    - zero or more trailer blocks (optional)
+    - an end-of-trailers marker (optional but always set if there is at least
+      one trailer block)
+    - an end-of-message marker.
+
+Only one HTTP request at a time can be stored in an HTX message. For HTTP
+response, it is more complicated. Only one "final" response can be stored in an
+HTX message. It is a response with status-code 101 or greater or equal to
+200. But it may be preceeded by several 1xx informational responses. Such
+responses are part of the same HTX message, so there is no end-of-message marker
+for them.
+
+
+3.1. The start-line
+
+Every HTX message starts with a start-line. Its payload is a "struct htx_sl". In
+addition to the parts of the HTTP start-line, this structure contains some
+information about the represented HTTP message, mainly in the form of flags
+(HTX_SL_F_*). For instance, if an HTTP message contains the header
+"conten-length", then the flag HTX_SL_F_CLEN is set.
+
+Each HTTP message has its own start-line. So an HTX request has one and only one
+start-line because it must contain only one HTTP request at a time. But an HTX
+response may have more than one start-line if the final HTTP response is
+precedeed by some 1xx informational responses.
+
+In HTTP/2, there is no start-line. So the H2 multiplexer must create one when it
+converts an H2 message to HTX :
+
+    - For the request, it uses the pseudo headers ":method", ":path" or
+      ":authority" depending on the method and the hardcoded version "HTTP/2.0".
+
+    - For the response, it used the hardcoded version "HTTP/2.0", the
+      pseudo-header ":status" and an empty reason.
+
+
+3.2. The headers and trailers
+
+HTX Headers and trailers are quite similar. Different types are used to simplify
+headers processing. But from the HTX point of view, there is no real difference,
+except their position in the HTX message. The header blocks always follow an HTX
+start-line while trailer blocks come after the data. If there is no data, they
+follow the end-of-headers marker.
+
+Headers and trailers are the only blocks containing a Key/Value payload. The
+corresponding end-of marker must always be placed after each group to mark, as
+it name suggests, the end.
+
+In HTTP/1, trailers are only present on chunked messages. But chunked messages
+do not always have trailers. In this case, the end-of-trailers block may or may
+not be present. Multiplexers must be able to handle both situations. In HTTP/2,
+trailers are only present if a HEADERS frame is sent after DATA frames.
+
+
+3.3. The data
+
+The payload body of an HTTP message is stored as DATA blocks in the HTX
+message. For HTTP/1 messages, it is the message body without the chunks
+formatting, if any. For HTTP/2, it is the payload of DATA frames.
+
+The DATA blocks are the only HTX blocks that may be partially processed (copied
+or removed). All other types of block must be entierly processed. This means
+DATA blocks can be resized.
+
+
+3.4. The end-of markers
+
+These blocks are used to delimit parts of an HTX message. It exists three
+markers:
+
+    - end-of-headers (EOH)
+    - end-of-trailers (EOT)
+    - end-of-message (EOM)
+
+EOH and EOM are always present in an HTX message. EOT is optional.
+
+
+4. The HTX API
+
+
+4.1. Get/set HTX message from/to the underlying buffer
+
+The first thing to do to process an HTX message is to get it from the underlying
+buffer. There are 2 functions to do so, the second one relying on the first:
+
+    - htxbuf() returns an HTX message from a buffer. It does not modify the
+      buffer. It only initialize the HTX message if the buffer is empty.
+
+    - htx_from_buf() uses htxbuf(). But it also updates the underlying buffer so
+      that it appears as full.
+
+Both functions return a "zero-sized" HTX message if the buffer is null. This
+way, you are sure to always have a valid HTX message. The first function is the
+default function to use. The second one is only useful when some content will be
+added. For instance, it used by the HTX analyzers when HAproxy generates a
+response. This way, the buffer is in a right state and you don't need to take
+care of it anymore outside the possible error paths.
+
+Once the processing done, if the HTX message has been modified, the underlying
+buffer must be also updated, except you uses htx_from_buf() and you only add
+data. For all other cases, the function htx_to_buf() must be called.
+
+Finally, the function htx_reset() may be called at any time to reset an HTX
+message. And the function buf_room_for_htx_data() may be called to know if a raw
+buffer is full from the HTX perspective. It is used during conversion from/to
+the HTX.
+
+
+4.2. Helpers to deal with free space in an HTX message
+
+Once you have an HTX message, following functions may help you to process it :
+
+    - htx_used_space() and htx_meta_space() return, respectively, the total
+      space used in an HTX message and the space used by block's metadata only.
+
+    - htx_free_space() and htx_free_data_space() return, respectively, the total
+      free space in an HTX message and the free space available for the payload
+      if a new HTX block is stored (so it is the total free space minus the size
+      of an HTX block).
+
+    - htx_is_empty() and htx_is_not_empty() are boolean functions to know if an
+      HTX message is empty or not.
+
+    - htx_get_max_blksz() returns the maximum size available for the payload,
+      not exceeding a maximum, metadata included.
+
+    - htx_almost_full() should be used to know if an HTX message uses at least
+      3/4 of its capacity.
+
+
+4.3. HTX Blocks manipulations
+
+Once you know how much space is available in an HTX message, the next step is to
+add HTX blocks. First of all the function htx_nbblks() returns the number of
+blocks allocated in an HTX message. Then, there is an add function per block's
+type:
+
+    - htx_add_stline() adds a start-line. The type (request or response) and the
+      flags of the start-line must be provided, as well as its three parts
+      (method,uri,version or version,status-code,reason).
+
+    - htx_add_header() and htx_add_trailers() are similar. The name and the
+      value must be provided. The inserted HTX block is returned on success or
+      NULL if an error occurred.
+
+    - htx_add_endof() must be used to add any end-of marker. The block's type
+      (EOH, EOT or EOM) must be specified. The inserted HTX block is returned on
+      success or NULL if an error occurred.
+
+    - htx_add_all_headers() and htx_add_all_trailers() add, respectively, a list
+      of headers and a list of trailers, followed by the appropriate end-of
+      marker. On success, this marker is returned. Otherwise, NULL is
+      returned. Note there is no rollback on the HTX message when an error
+      occurred. Some headers or trailers may have been added. So it is the
+      caller responsibility to take care of that.
+
+    - htx_add_data() must be used to add a DATA block. Unlike previous
+      functions, this one returns the number of bytes copied or 0 if nothing was
+      copied. If possible, the data are appended to the last DATA block, if
+      any. Only a part of the payload may be copied because this function will
+      try to limit the message defragmentation and the wrapping of blocks as far
+      as possible. If you really need to add all data or nothing, the function
+      htx_add_data_atonce() must be used instead. Because it tries to insert all
+      the payload, this function returns the inserted block on success.
+      Otherwise it returns NULL.
+
+When an HTX block is added, it is always the last one (the tail). But, if you
+need to add a block at a specific place, it is not really handy. 2 functions may
+help you (others could be added) :
+
+    - htx_add_last_data() adds a DATA block just after all other DATA blocks and
+      before any trailers and EOT or EOM markers. It relies on
+      htx_add_data_atonce(), so a defragmentation may be performed.
+
+    - htx_move_blk_before() moves a specific block just after another one. Both
+      blocks must already be in the HTX message and the block to move must
+      always be placed after the "pivot".
+
+Once added, there are three functions to update the block's payload :
+
+    - htx_replace_stline() updates a start-line. The HTX block must be passed as
+      argument. Only string parts of the start-line are updated by this
+      function. On success, it returns the new start-line. So it is pretty easy
+      to update its flags. NULL is returned if an error occurred.
+
+    - htx_replace_header() fully replaces a header (its name and its value) by a
+      new one. The HTX block must be passed a argument, as well as its new name
+      and its new value. The new header can be smaller or larger than the old
+      one. This function returns the new HTX block on success, or NULL is an
+      error occurred.
+
+    - htx_replace_blk_value() replaces a part of a block's payload or its
+      totality. It works for HEADERS, TRAILERS or DATA blocks. The HTX block
+      must be provided with the part to remove and the new one. The new part can
+      be smaller or larger than the old one. This function returns the new HTX
+      block on success, or NULL is an error occurred.
+
+Finally, You may remove a block using the function htx_remove_blk(). This
+function returns the block following the one removed or NULL if it is the tail
+block.
+
+
+4.4. The HTX start-line
+
+Unlike other HTX blocks, the start-line is a bit special because its payload is
+a structure followed by its three parts :
+
+        +--------+-------+-------+-------+
+        | HTX_SL | PART1 | PART2 | PART3 |
+        +--------+-------+-------+-------+
+
+Some macros and functions may help to manipulate these parts :
+
+    - HTX_SL_P{N}_LEN() and HTX_SL_P{N}_PTR() are macros to get the length of a
+      part and a pointer on it. {N} should be 1, 2 or 3.
+
+    - HTX_SL_REQ_MLEN(), HTX_SL_REQ_ULEN(), HTX_SL_REQ_VLEN(),
+      HTX_SL_REQ_MPTR(), HTX_SL_REQ_UPTR() and HTX_SL_REQ_VPTR() are macros to
+      get info about a request start-line. These macros only wrap HTX_SL_P*
+      ones.
+
+    - HTX_SL_RES_VLEN(), HTX_SL_RES_CLEN(), HTX_SL_RES_RLEN(),
+      HTX_SL_RES_VPTR(), HTX_SL_RES_CPTR() and HTX_SL_RES_RPTR() are macros to
+      get info about a response start-line. These macros only wrap HTX_SL_P*
+      ones.
+
+    - htx_sl_p1(), htx_sl_p2() and htx_sl_p2() are functions to get the ist
+      corresponding to the right part of a start-line.
+
+    - htx_sl_req_meth(), htx_sl_req_uri() and htx_sl_req_vsn() get the ist
+      corresponding to the right part of a request start-line.
+
+    - htx_sl_res_vsn(), htx_sl_res_code() and htx_sl_res_reason() get the ist
+      corresponding to the right part of a response start-line.
+
+
+4.5. Iterate on the HTX message
+
+To iterate on an HTX message, the first thing to do is to get the HTX block to
+start the loop. There are three special blocks in an HTX message that may be
+good candidates to start a loop :
+
+  * the head block. It is the oldest inserted block. Multiplexers always start
+    to consume an HTX message from this block. The function htx_get_head()
+    returns its position and htx_get_head_blk() returns the blocks itself. In
+    addition, the function htx_get_head_type() returns its block's type.
+
+  * the tail block. It is the newest inserted block. The function htx_get_tail()
+    returns its position and htx_get_tail_blk() returns the blocks itself. In
+    addition, the function htx_get_tail_type() returns its block's type.
+
+  * the first block. It is the block where to (re)start the analyse. It is used
+    as start point by HTX analyzers. The function htx_get_first() returns its
+    position and htx_get_first_blk() returns the blocks itself. In addition, the
+    function htx_get_first_type() returns its block's type.
+
+For all these functions, if the HTX message is empty, -1 is returned for the
+block's position, NULL instead of a block and HTX_BLK_UNUSED for its type.
+
+Then to iterate on blocks, you may move foreword or backward :
+
+  * htx_get_prev() and htx_get_next() return, respectively, the position of the
+    previous block or the next block, given a specific position. Or -1 if an edge
+    is reached.
+
+  * htx_get_prev_blk() and htx_get_next_blk() return, respectively, the previous
+    block or the next one, given a specific block. Or NULL if an edge is
+    reached.
+
+
+4.6. Advanced functions
+
+Some more advanced functions may be used to do complex processing on the HTX
+message. These functions are used by HTX analyzers or by multiplexers.
+
+  * htx_truncate() removes all blocks after the one containing a specific offset
+    relatively to the head block of the HTX message. If the offset is inside a
+    DATA block, it is truncated. For all other blocks, the removal starts to the
+    next block.
+
+  * htx_drain() tries to remove a specific amount of bytes of payload. If the
+    last block is a DATA block, it may be truncated if necessary. All other
+    block are removed at once or kept. This function returns a mixed value, with
+    the first block not removed, or NULL if everything was removed, and the
+    amount of data drained.
+
+  * htx_xfer_blks() transfers HTX blocks from an HTX message to another,
+    stopping on the first block of a specified type or when a specific amount of
+    bytes, including meta-data, was moved. If the last block is a DATA block, it
+    may be partially moved. All other block are transferred at once or
+    kept. This function returns a mixed value, with the last block moved, or
+    NULL if nothing was moved, and the amount of data transferred. When HEADERS
+    or TRAILERS blocks must be transferred, this function transfers all of
+    them. Otherwise, if it is not possible, it triggers an error. It is the
+    caller responsibility to transfer all headers or trailers at once.
