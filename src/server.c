@@ -1735,7 +1735,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 		srv->cklen  = src->cklen;
 	}
 	srv->use_ssl                  = src->use_ssl;
-	srv->vhost					  = src->vhost;
+	srv->vhost                    = src->vhost;
 	srv->check.addr = srv->agent.addr = src->check.addr;
 	srv->check.use_ssl            = src->check.use_ssl;
 	srv->check.port               = src->check.port;
