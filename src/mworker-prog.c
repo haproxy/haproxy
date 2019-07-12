@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <grp.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -91,6 +92,23 @@ int mworker_ext_launch_all()
 				mworker_cleanlisteners();
 				mworker_cleantasks();
 
+				/* setgid / setuid */
+				if (child->gid != -1) {
+					if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
+						ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+							" without 'uid'/'user' is generally useless.\n", child->command[0]);
+
+					if (setgid(child->gid) == -1) {
+						ha_alert("[%s.main()] Cannot set gid %d.\n", child->command[0], child->gid);
+						exit(1);
+					}
+				}
+
+				if (child->uid != -1 && setuid(child->uid) == -1) {
+					ha_alert("[%s.main()] Cannot set uid %d.\n", child->command[0], child->gid);
+					exit(1);
+				}
+
 				execvp(child->command[0], child->command);
 
 				ha_alert("Cannot execute %s: %s\n", child->command[0], strerror(errno));
@@ -143,6 +161,8 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		ext_child->ipc_fd[0] = -1;
 		ext_child->ipc_fd[1] = -1;
 		ext_child->options |= PROC_O_START_RELOAD; /* restart the programs by default */
+		ext_child->uid = -1;
+		ext_child->gid = -1;
 		LIST_INIT(&ext_child->list);
 
 		list_for_each_entry(child, &proc_list, list) {
@@ -218,6 +238,56 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto error;
+		}
+	} else if (!strcmp(args[0], "user")) {
+		struct passwd *ext_child_user;
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d]: '%s' expects a user name.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto error;
+
+		if (ext_child->uid != -1) {
+			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+
+		ext_child_user = getpwnam(args[1]);
+		if (ext_child_user != NULL) {
+			ext_child->uid = (int)ext_child_user->pw_uid;
+		} else {
+			ha_alert("parsing [%s:%d] : cannot find user id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	} else if (!strcmp(args[0], "group")) {
+		struct group *ext_child_group;
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d]: '%s' expects a group name.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto error;
+
+		if (ext_child->gid != -1) {
+			ha_alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, linenum);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+
+		ext_child_group = getgrnam(args[1]);
+		if (ext_child_group != NULL) {
+			ext_child->gid = (int)ext_child_group->gr_gid;
+		} else {
+			ha_alert("parsing [%s:%d] : cannot find group id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	} else {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "program");

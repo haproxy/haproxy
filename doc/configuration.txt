@@ -2232,6 +2232,14 @@ command <command> [arguments*]
   mandatory option of the program section. Arguments containing spaces must
   be enclosed in quotes or double quotes or be prefixed by a backslash.
 
+user <user name>
+  Changes the executed command user ID to the <user name> from /etc/passwd.
+  See also "group".
+
+group <group name>
+  Changes the executed command group ID to the <group name> from /etc/group.
+  See also "user".
+
 option start-on-reload
 no option start-on-reload
   Start (or not) a new instance of the program upon a reload of the master.

@@ -215,6 +215,8 @@ struct mworker_proc {
 	int timestamp;
 	struct server *srv; /* the server entry in the master proxy */
 	struct list list;
+	int uid;
+	int gid;
 };
 
 extern struct global global;
