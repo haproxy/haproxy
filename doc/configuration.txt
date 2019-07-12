@@ -12531,6 +12531,24 @@ verifyhost <hostname>
   handshake is aborted. The hostnames in the server-provided certificate may
   include wildcards. See also "verify", "sni" and "no-verifyhost" options.
 
+vhost <hostname>
+  The "vhost" parameter is used to specify the hostname for a backend. 
+  It will be set in the Host header in requests forwarded to the backend, 
+  in HTTP healthchecks and when establishing TLS connections (TLS SNI).
+  It is required when using services that rely on the Host header for
+  routing connections (kubernetes ingress, ALB, other haproxy, etc...).
+
+  Examples :
+  backend vhost-example
+    mode http
+
+	option httpchk GET /healthcheck
+	http-check expect status 200
+	server srv-host 10.10.0.1:8080 vhost myapp.naeast-1a.example.com check
+	server srv-host 10.20.0.1:8080 vhost myapp.nawest-2b.example.com check
+
+  See also : "http-send-name-header", "httpchk"
+
 weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight
