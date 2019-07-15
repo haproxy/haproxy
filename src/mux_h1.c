@@ -479,7 +479,7 @@ static void h1_release(struct h1c *h1c)
 			if (h1c->wait_event.events)
 				conn->xprt->unsubscribe(conn, conn->xprt_ctx,
 				    h1c->wait_event.events, &h1c->wait_event);
-			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTX) != -1) {
+			if (conn_upgrade_mux_fe(conn, NULL, &h1c->ibuf, ist("h2"), PROTO_MODE_HTTP) != -1) {
 				/* connection successfully upgraded to H2, this
 				 * mux was already released */
 				return;
@@ -2533,7 +2533,7 @@ static const struct mux_ops mux_h1_ops = {
 
 /* this mux registers default HTX proto */
 static struct mux_proto_list mux_proto_htx =
-{ .token = IST(""), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
+{ .token = IST(""), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_htx);
 

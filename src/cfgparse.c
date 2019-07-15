@@ -3585,10 +3585,6 @@ out_uri_auth_compat:
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
 			const struct mux_proto_list *mux_ent;
 
-			/* Special case for HTX because legacy HTTP still exists */
-			if (mode == PROTO_MODE_HTTP && (curproxy->options2 & PR_O2_USE_HTX))
-				mode = PROTO_MODE_HTX;
-
 			if (!bind_conf->mux_proto)
 				continue;
 
@@ -3613,10 +3609,6 @@ out_uri_auth_compat:
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int mode = (1 << (curproxy->mode == PR_MODE_HTTP));
 			const struct mux_proto_list *mux_ent;
-
-			/* Special case for HTX because legacy HTTP still exists */
-			if (mode == PROTO_MODE_HTTP && (curproxy->options2 & PR_O2_USE_HTX))
-				mode = PROTO_MODE_HTX;
 
 			if (!newsrv->mux_proto)
 				continue;

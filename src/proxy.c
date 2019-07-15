@@ -1477,7 +1477,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 				if (s->si[0].wait_event.events)
 					conn->mux->unsubscribe(cs, s->si[0].wait_event.events,
 					    &s->si[0].wait_event);
-				if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTX)  == -1)
+				if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTTP)  == -1)
 					return 0;
 				s->flags |= SF_HTX;
 			}

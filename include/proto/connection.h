@@ -929,10 +929,6 @@ static inline void list_mux_proto(FILE *out)
 			mode = "TCP";
 		else if (item->mode == PROTO_MODE_HTTP)
 			mode = "HTTP";
-		else if (item->mode == PROTO_MODE_HTX)
-			mode = "HTX";
-		else if (item->mode == (PROTO_MODE_HTTP | PROTO_MODE_HTX))
-			mode = "HTTP|HTX";
 		else
 			mode = "NONE";
 
@@ -1043,7 +1039,7 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 		int mode;
 
 		if (bind_conf->frontend->mode == PR_MODE_HTTP)
-			mode = ((bind_conf->frontend->options2 & PR_O2_USE_HTX) ? PROTO_MODE_HTX : PROTO_MODE_HTTP);
+			mode = PROTO_MODE_HTTP;
 		else
 			mode = PROTO_MODE_TCP;
 
@@ -1081,7 +1077,7 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct
 		int mode;
 
 		if (prx->mode == PR_MODE_HTTP)
-			mode = ((prx->options2 & PR_O2_USE_HTX) ? PROTO_MODE_HTX : PROTO_MODE_HTTP);
+			mode = PROTO_MODE_HTTP;
 		else
 			mode = PROTO_MODE_TCP;
 
