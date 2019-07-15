@@ -3412,7 +3412,7 @@ resume_execution:
 
 			case ACT_HTTP_REDIR:
 				rule_ret = HTTP_RULE_RES_DONE;
-				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
+				if (!htx_apply_redirect_rule(rule->arg.redir, s, txn))
 					rule_ret = HTTP_RULE_RES_BADREQ;
 				goto end;
 
