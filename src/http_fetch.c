@@ -59,7 +59,7 @@ static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
  * have the credentials overwritten by another stream in parallel.
  */
 
-static int get_http_auth(struct sample *smp)
+static int get_http_auth(struct sample *smp, struct htx *htx)
 {
 	struct stream *s = smp->strm;
 	struct http_txn *txn = s->txn;
@@ -75,9 +75,8 @@ static int get_http_auth(struct sample *smp)
 
 	txn->auth.method = HTTP_AUTH_WRONG;
 
-	if (IS_HTX_STRM(s) || (smp->px->mode == PR_MODE_TCP)) {
+	if (htx) {
 		/* HTX version */
-		struct htx *htx = htxbuf(&s->req.buf);
 		struct http_hdr_ctx ctx = { .blk = NULL };
 		struct ist hdr;
 
@@ -1918,14 +1917,16 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 
 		if (!htx)
 			return 0;
+		if (!get_http_auth(smp, htx))
+			return 0;
 	}
 	else {
 		/* LEGACY version */
 		CHECK_HTTP_MESSAGE_FIRST(chn);
+		if (!get_http_auth(smp, NULL))
+			return 0;
 	}
 
-	if (!get_http_auth(smp))
-		return 0;
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = check_user(args->data.usr, smp->strm->txn->auth.user,
 				      smp->strm->txn->auth.pass);
@@ -1946,14 +1947,15 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 
 		if (!htx)
 			return 0;
+		if (!get_http_auth(smp, htx))
+			return 0;
 	}
 	else {
 		/* LEGACY version */
 		CHECK_HTTP_MESSAGE_FIRST(chn);
+		if (!get_http_auth(smp, NULL))
+			return 0;
 	}
-
-	if (!get_http_auth(smp))
-		return 0;
 
 	/* if the user does not belong to the userlist or has a wrong password,
 	 * report that it unconditionally does not match. Otherwise we return
