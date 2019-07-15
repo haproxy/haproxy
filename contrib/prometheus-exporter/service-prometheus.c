@@ -2239,10 +2239,6 @@ static enum act_parse_ret service_parse_prometheus_exporter(const char **args, i
 		memprintf(err, "Prometheus exporter service only available on 'http-request' rulesets");
 		return ACT_RET_PRS_ERR;
 	}
-	if (!(px->options2 & PR_O2_USE_HTX)) {
-		memprintf(err, "Prometheus exporter service only available for HTX proxies");
-		return ACT_RET_PRS_ERR;
-	}
 
 	/* Add applet pointer in the rule. */
 	rule->applet = promex_applet;
