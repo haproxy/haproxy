@@ -246,8 +246,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 		if (cs->conn->mux->flags & MX_FL_HTX)
 			s->flags |= SF_HTX;
 	}
-	/* Set SF_HTX flag for HTX frontends. */
-	if (sess->fe->mode == PR_MODE_HTTP && sess->fe->options2 & PR_O2_USE_HTX)
+        /* Set SF_HTX flag for HTTP frontends. */
+	if (sess->fe->mode == PR_MODE_HTTP)
 		s->flags |= SF_HTX;
 
 	/* attach the incoming connection to the stream interface now. */
