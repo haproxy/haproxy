@@ -106,7 +106,7 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
-	s->srv_error = http_return_srv_error;
+	s->srv_error = htx_return_srv_error;
 
 	/* If there is data available for analysis, log the end of the idle time. */
 	if (c_data(req) && s->logs.t_idle == -1) {
@@ -5410,6 +5410,56 @@ struct buffer *htx_error_message(struct stream *s)
 		return &strm_fe(s)->errmsg[msgnum];
 	else
 		return &htx_err_chunks[msgnum];
+}
+
+/* Return the error message corresponding to si->err_type. It is assumed
+ * that the server side is closed. Note that err_type is actually a
+ * bitmask, where almost only aborts may be cumulated with other
+ * values. We consider that aborted operations are more important
+ * than timeouts or errors due to the fact that nobody else in the
+ * logs might explain incomplete retries. All others should avoid
+ * being cumulated. It should normally not be possible to have multiple
+ * aborts at once, but just in case, the first one in sequence is reported.
+ * Note that connection errors appearing on the second request of a keep-alive
+ * connection are not reported since this allows the client to retry.
+ */
+void htx_return_srv_error(struct stream *s, struct stream_interface *si)
+{
+	int err_type = si->err_type;
+
+	/* set s->txn->status for http_error_message(s) */
+	s->txn->status = 503;
+
+	if (err_type & SI_ET_QUEUE_ABRT)
+		htx_server_error(s, si, SF_ERR_CLICL, SF_FINST_Q,
+				 htx_error_message(s));
+	else if (err_type & SI_ET_CONN_ABRT)
+		htx_server_error(s, si, SF_ERR_CLICL, SF_FINST_C,
+				 (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				 htx_error_message(s));
+	else if (err_type & SI_ET_QUEUE_TO)
+		htx_server_error(s, si, SF_ERR_SRVTO, SF_FINST_Q,
+				 htx_error_message(s));
+	else if (err_type & SI_ET_QUEUE_ERR)
+		htx_server_error(s, si, SF_ERR_SRVCL, SF_FINST_Q,
+				 htx_error_message(s));
+	else if (err_type & SI_ET_CONN_TO)
+		htx_server_error(s, si, SF_ERR_SRVTO, SF_FINST_C,
+				 (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				 htx_error_message(s));
+	else if (err_type & SI_ET_CONN_ERR)
+		htx_server_error(s, si, SF_ERR_SRVCL, SF_FINST_C,
+				 (s->flags & SF_SRV_REUSED) ? NULL :
+				 htx_error_message(s));
+	else if (err_type & SI_ET_CONN_RES)
+		htx_server_error(s, si, SF_ERR_RESOURCE, SF_FINST_C,
+				 (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				 htx_error_message(s));
+	else { /* SI_ET_CONN_OTHER and others */
+		s->txn->status = 500;
+		htx_server_error(s, si, SF_ERR_INTERNAL, SF_FINST_C,
+				 htx_error_message(s));
+	}
 }
 
 
