@@ -1447,14 +1447,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		if (be->options2 & PR_O2_RSPBUG_OK)
 			s->txn->rsp.err_pos = -1; /* let buggy responses pass */
 
-		/* If we chain to an HTTP backend running a different HTTP mode, we
-		 * have to re-adjust the desired keep-alive/close mode to accommodate
-		 * both the frontend's and the backend's modes.
-		 */
-		if (strm_fe(s)->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
-		    ((strm_fe(s)->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
-			http_adjust_conn_mode(s, s->txn, &s->txn->req);
-
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
 		 * the client mux */
 		if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP) {
