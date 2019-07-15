@@ -7724,8 +7724,8 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 {
 	struct hlua_function *fcn = rule->kw->private;
 
-	if (px->mode == PR_MODE_HTTP && (px->options2 & PR_O2_USE_HTX)) {
-		memprintf(err, "Lua services cannot be used when the HTX internal representation is enabled");
+	if (px->mode == PR_MODE_HTTP) {
+		memprintf(err, "Lua TCP services cannot be used on HTTP proxies");
 		return ACT_RET_PRS_ERR;
 	}
 
