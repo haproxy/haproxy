@@ -2538,12 +2538,6 @@ int check_config_validity()
 			}
 		}
 
-		if ((curproxy->retry_type &~ PR_RE_CONN_FAILED) &&
-		    !(curproxy->options2 & PR_O2_USE_HTX)) {
-			ha_warning("Proxy '%s' : retry-on with any other keywords than 'conn-failure' will be ignored, requires 'option http-use-htx'.\n", curproxy->id);
-			err_code |= ERR_WARN;
-			curproxy->retry_type &= PR_RE_CONN_FAILED;
-		}
 		if (curproxy->email_alert.set) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
 			    ha_warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
@@ -2605,13 +2599,6 @@ int check_config_validity()
 				   !(curproxy->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
 
 				ha_alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) as its default backend (see 'mode').\n",
-					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
-					 curproxy->conf.file, curproxy->conf.line,
-					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
-					 target->conf.file, target->conf.line);
-				cfgerr++;
-			} else if ((curproxy->options2 ^ target->options2) & PR_O2_USE_HTX) {
-				ha_alert("%s %s '%s' (%s:%d) tries to use %s %s '%s' (%s:%d) as its default backend, both of which disagree on 'option http-use-htx'.\n",
 					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
 					 curproxy->conf.file, curproxy->conf.line,
 					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
@@ -2682,13 +2669,6 @@ int check_config_validity()
 				   !(curproxy->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
 
 				ha_alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'use_backend' rule (see 'mode').\n",
-					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
-					 curproxy->conf.file, curproxy->conf.line,
-					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
-					 target->conf.file, target->conf.line);
-				cfgerr++;
-			} else if ((curproxy->options2 ^ target->options2) & PR_O2_USE_HTX) {
-				ha_alert("%s %s '%s' (%s:%d) tries to use %s %s '%s' (%s:%d) in a 'use_backend' rule, both of which disagree on 'option http-use-htx'.\n",
 					 proxy_mode_str(curproxy->mode), proxy_type_str(curproxy), curproxy->id,
 					 curproxy->conf.file, curproxy->conf.line,
 					 proxy_mode_str(target->mode), proxy_type_str(target), target->id,
@@ -3632,12 +3612,9 @@ out_uri_auth_compat:
 			newsrv->mux_proto = mux_ent;
 		}
 
-		/* the option "http-tunnel" is ignored when HTX is enabled and
-		 * only works with the legacy HTTP. So emit a warning if the
-		 * option is set on a HTX frontend. */
-		if ((curproxy->cap & PR_CAP_FE) && curproxy->options2 & PR_O2_USE_HTX &&
-		    (curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN) {
-			ha_warning("config : %s '%s' : the option 'http-tunnel' is ignored for HTX proxies.\n",
+		/* the option "http-tunnel" is deprecated and ignored. So emit a warning if the option is set. */
+		if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN) {
+			ha_warning("config : %s '%s' : the option 'http-tunnel' is deprecated and will be removed in next version.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			curproxy->options &= ~PR_O_HTTP_MODE;
 		}
