@@ -291,6 +291,8 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	da_deviceinfo_t devinfo;
 	da_status_t status;
 	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
 	char vbuf[DA_MAX_HEADERS][1024] = {{ 0 }};
 	int i, nbh = 0;
 
@@ -299,152 +301,79 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	}
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-	/* HTX Mode check */
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		struct htx_blk *blk;
-		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
-		if (!htx) {
-			return 0;
+	htx = smp_prefetch_htx(smp, chn, 1);
+	if (!htx)
+		return 0;
+
+	i = 0;
+	for (blk = htx_get_first_blk(htx); nbh < DA_MAX_HEADERS && blk; blk = htx_get_next_blk(htx, blk)) {
+		size_t vlen;
+		char *pval;
+		da_evidence_id_t evid;
+		enum htx_blk_type type;
+		struct ist n, v;
+		char hbuf[24] = { 0 };
+		char tval[1024] = { 0 };
+
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_HDR) {
+			n = htx_get_blk_name(htx, blk);
+			v = htx_get_blk_value(htx, blk);
+		} else if (type == HTX_BLK_EOH) {
+			break;
+		} else {
+			continue;
 		}
 
-		i = 0;
-		for (blk = htx_get_first_blk(htx); nbh < DA_MAX_HEADERS && blk; blk = htx_get_next_blk(htx, blk)) {
-			size_t vlen;
-			char *pval;
-			da_evidence_id_t evid;
-			enum htx_blk_type type;
-			struct ist n, v;
-			char hbuf[24] = { 0 };
-			char tval[1024] = { 0 };
-
-			type = htx_get_blk_type(blk);
-
-			if (type == HTX_BLK_HDR) {
-				n = htx_get_blk_name(htx, blk);
-				v = htx_get_blk_value(htx, blk);
-			} else if (type == HTX_BLK_EOH) {
-				break;
-			} else {
-				continue;
-			}
-
-			/* The HTTP headers used by the DeviceAtlas API are not longer */
-			if (n.len >= sizeof(hbuf)) {
-				continue;
-			}
-
-			memcpy(hbuf, n.ptr, n.len);
-			hbuf[n.len] = 0;
-			pval = v.ptr;
-			vlen = v.len;
-			evid = -1;
-			i = v.len > sizeof(tval) - 1 ? sizeof(tval) - 1 : v.len;
-			memcpy(tval, v.ptr, i);
-			tval[i] = 0;
-			pval = tval;
-
-			if (strcasecmp(hbuf, "Accept-Language") == 0) {
-				evid = da_atlas_accept_language_evidence_id(&global_deviceatlas.atlas);
-			} else if (strcasecmp(hbuf, "Cookie") == 0) {
-				char *p, *eval;
-				size_t pl;
-
-				eval = pval + vlen;
-				/**
-				 * The cookie value, if it exists, is located between the current header's
-				 * value position and the next one
-				 */
-				if (http_extract_cookie_value(pval, eval, global_deviceatlas.cookiename,
-							global_deviceatlas.cookienamelen, 1, &p, &pl) == NULL) {
-					continue;
-				}
-
-				vlen -= global_deviceatlas.cookienamelen - 1;
-				pval = p;
-				evid = da_atlas_clientprop_evidence_id(&global_deviceatlas.atlas);
-			} else {
-				evid = da_atlas_header_evidence_id(&global_deviceatlas.atlas, hbuf);
-			}
-
-			if (evid == -1) {
-				continue;
-			}
-
-			i = vlen > sizeof(vbuf[nbh]) - 1 ? sizeof(vbuf[nbh]) - 1 : vlen;
-			memcpy(vbuf[nbh], pval, i);
-			vbuf[nbh][i] = 0;
-			ev[nbh].key = evid;
-			ev[nbh].value = vbuf[nbh];
-			++ nbh;
+		/* The HTTP headers used by the DeviceAtlas API are not longer */
+		if (n.len >= sizeof(hbuf)) {
+			continue;
 		}
-	} else {
-		struct hdr_idx *hidx;
-		struct hdr_ctx hctx;
-		const struct http_msg *hmsg;
-		CHECK_HTTP_MESSAGE_FIRST(chn);
-		smp->data.type = SMP_T_STR;
 
-		/**
-		 * Here we go through the whole list of headers from start
-		 * they will be filtered via the DeviceAtlas API itself
-		 */
-		hctx.idx = 0;
-		hidx = &smp->strm->txn->hdr_idx;
-		hmsg = &smp->strm->txn->req;
+		memcpy(hbuf, n.ptr, n.len);
+		hbuf[n.len] = 0;
+		pval = v.ptr;
+		vlen = v.len;
+		evid = -1;
+		i = v.len > sizeof(tval) - 1 ? sizeof(tval) - 1 : v.len;
+		memcpy(tval, v.ptr, i);
+		tval[i] = 0;
+		pval = tval;
 
-		while (http_find_next_header(ci_head(hmsg->chn), hidx, &hctx) == 1 &&
-				nbh < DA_MAX_HEADERS) {
-			char *pval;
-			size_t vlen;
-			da_evidence_id_t evid = -1;
-			char hbuf[24] = { 0 };
+		if (strcasecmp(hbuf, "Accept-Language") == 0) {
+			evid = da_atlas_accept_language_evidence_id(&global_deviceatlas.atlas);
+		} else if (strcasecmp(hbuf, "Cookie") == 0) {
+			char *p, *eval;
+			size_t pl;
 
-			/* The HTTP headers used by the DeviceAtlas API are not longer */
-			if (hctx.del >= sizeof(hbuf) || hctx.del <= 0 || hctx.vlen <= 0) {
+			eval = pval + vlen;
+			/**
+			 * The cookie value, if it exists, is located between the current header's
+			 * value position and the next one
+			 */
+			if (http_extract_cookie_value(pval, eval, global_deviceatlas.cookiename,
+						      global_deviceatlas.cookienamelen, 1, &p, &pl) == NULL) {
 				continue;
 			}
 
-			vlen = hctx.vlen;
-			memcpy(hbuf, hctx.line, hctx.del);
-			hbuf[hctx.del] = 0;
-			pval = (hctx.line + hctx.val);
-
-			if (strcmp(hbuf, "Accept-Language") == 0) {
-				evid = da_atlas_accept_language_evidence_id(&global_deviceatlas.
-						atlas);
-			} else if (strcmp(hbuf, "Cookie") == 0) {
-				char *p, *eval;
-				size_t pl;
-
-				eval = pval + hctx.vlen;
-				/**
-				 * The cookie value, if it exists, is located between the current header's
-				 * value position and the next one
-				 */
-				if (http_extract_cookie_value(pval, eval, global_deviceatlas.cookiename,
-							global_deviceatlas.cookienamelen, 1, &p, &pl) == NULL) {
-					continue;
-				}
-
-				vlen = (size_t)pl;
-				pval = p;
-				evid = da_atlas_clientprop_evidence_id(&global_deviceatlas.atlas);
-			} else {
-				evid = da_atlas_header_evidence_id(&global_deviceatlas.atlas,
-						hbuf);
-			}
-
-			if (evid == -1) {
-				continue;
-			}
-
-			i = vlen > sizeof(vbuf[nbh]) ? sizeof(vbuf[nbh]) : vlen;
-			memcpy(vbuf[nbh], pval, i - 1);
-			vbuf[nbh][i - 1] = 0;
-			ev[nbh].key = evid;
-			ev[nbh].value = vbuf[nbh];
-			++ nbh;
+			vlen -= global_deviceatlas.cookienamelen - 1;
+			pval = p;
+			evid = da_atlas_clientprop_evidence_id(&global_deviceatlas.atlas);
+		} else {
+			evid = da_atlas_header_evidence_id(&global_deviceatlas.atlas, hbuf);
 		}
+
+		if (evid == -1) {
+			continue;
+		}
+
+		i = vlen > sizeof(vbuf[nbh]) - 1 ? sizeof(vbuf[nbh]) - 1 : vlen;
+		memcpy(vbuf[nbh], pval, i);
+		vbuf[nbh][i] = 0;
+		ev[nbh].key = evid;
+		ev[nbh].value = vbuf[nbh];
+		++ nbh;
 	}
 
 	status = da_searchv(&global_deviceatlas.atlas, &devinfo,

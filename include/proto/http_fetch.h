@@ -23,25 +23,12 @@
 #define _PROTO_HTTP_FETCH_H
 
 #include <common/config.h>
-#include <common/mini-clist.h>
-#include <types/action.h>
-#include <types/proxy.h>
+#include <common/htx.h>
+#include <types/arg.h>
+#include <types/channel.h>
+#include <types/sample.h>
 
-/* Note: these functions *do* modify the sample. Even in case of success, at
- * least the type and uint value are modified.
- */
-#define CHECK_HTTP_MESSAGE_FIRST(chn) \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, (chn), smp, 1); if (r <= 0) return r; } while (0)
-
-#define CHECK_HTTP_MESSAGE_FIRST_PERM(chn) \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, (chn), smp, 0); if (r <= 0) return r; } while (0)
-
-int smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
-                  struct channel *chn, struct sample *smp, int req_vol);
-
-struct htx;
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol);
-
 int val_hdr(struct arg *arg, char **err_msg);
 
 

@@ -431,23 +431,14 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 	wurfl_information_t *wi;
 	ha_wurfl_header_t wh;
 	struct channel *chn;
+	struct htx *htx;
 
 	ha_wurfl_log("WURFL: starting ha_wurfl_get_all\n");
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
-
-		if (!htx) {
-			return 0;
-		}
-
-	} else {
-		/* Legacy version */
-		CHECK_HTTP_MESSAGE_FIRST(chn);
-	}
+	htx = smp_prefetch_htx(smp, chn, 1);
+	if (!htx)
+		return 0;
 
 	wh.wsmp = smp;
 
@@ -526,23 +517,14 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	ha_wurfl_header_t wh;
 	int i = 0;
 	struct channel *chn;
+	struct htx *htx;
 
 	ha_wurfl_log("WURFL: starting ha_wurfl_get\n");
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
-
-		if (!htx) {
-			return 0;
-		}
-
-	} else {
-		/* Legacy version */
-		CHECK_HTTP_MESSAGE_FIRST(chn);
-	}
+	htx = smp_prefetch_htx(smp, chn, 1);
+	if (!htx)
+		return 0;
 
 	wh.wsmp = smp;
 
@@ -741,76 +723,40 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 {
 	struct sample *smp;
 	struct channel *chn;
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	struct ist name;
 	int header_len = HA_WURFL_MAX_HEADER_LENGTH;
 
 	smp =  ((ha_wurfl_header_t *)wh)->wsmp;
 	chn = (smp->strm ? &smp->strm->req : NULL);
 
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx;
-		struct http_hdr_ctx ctx;
-		struct ist name;
+	ha_wurfl_log("WURFL: retrieve header (HTX) request [%s]\n", header_name);
 
-		ha_wurfl_log("WURFL: retrieve header (HTX) request [%s]\n", header_name);
+	//the header is searched from the beginning
+	ctx.blk = NULL;
 
-		//the header is searched from the beginning
-		ctx.blk = NULL;
-
-		// We could skip this chek since ha_wurfl_retrieve_header is called from inside
-		// ha_wurfl_get()/ha_wurfl_get_all() that already perform the same check
-		// We choose to keep it in case ha_wurfl_retrieve_header will be called directly
-		htx = smp_prefetch_htx(smp, chn, 1);
-		if (!htx) {
-			return NULL;
-		}
-
-		name.ptr = (char *)header_name;
-		name.len = strlen(header_name);
-
-		// If 4th param is set, it works on full-line headers in whose comma is not a delimiter but is
-		// part of the syntax
-		if (!http_find_header(htx, name, &ctx, 1)) {
-			return NULL;
-		}
-
-		if (header_len > ctx.value.len)
-			header_len = ctx.value.len;
-
-		strncpy(((ha_wurfl_header_t *)wh)->header_value, ctx.value.ptr, header_len);
-
-	} else {
-		/* Legacy version */
-		struct http_txn *txn;
-		struct hdr_idx *idx;
-		struct hdr_ctx ctx;
-		int res;
-
-		ha_wurfl_log("WURFL: retrieve header (legacy) request [%s]\n", header_name);
-
-		// We could skip this chek since ha_wurfl_retrieve_header is called from inside
-		// ha_wurfl_get()/ha_wurfl_get_all() that already perform the same check
-		// We choose to keep it in case ha_wurfl_retrieve_header will be called directly
-		// This is a version of CHECK_HTTP_MESSAGE_FIRST(chn) which returns NULL in case of error
-		res = smp_prefetch_http(smp->px, smp->strm, smp->opt, (chn), smp, 1);
-		if (res <= 0) {
-			return NULL;
-		}
-
-		txn = smp->strm->txn;
-		idx = &txn->hdr_idx;
-
-		ctx.idx = 0;
-
-		if (http_find_full_header2(header_name, strlen(header_name), ci_head(chn), idx, &ctx) == 0)
-			return NULL;
-
-		if (header_len > ctx.vlen)
-			header_len = ctx.vlen;
-
-		strncpy(((ha_wurfl_header_t *)wh)->header_value, ctx.line + ctx.val, header_len);
-
+	// We could skip this chek since ha_wurfl_retrieve_header is called from inside
+	// ha_wurfl_get()/ha_wurfl_get_all() that already perform the same check
+	// We choose to keep it in case ha_wurfl_retrieve_header will be called directly
+	htx = smp_prefetch_htx(smp, chn, 1);
+	if (!htx) {
+		return NULL;
 	}
+
+	name.ptr = (char *)header_name;
+	name.len = strlen(header_name);
+
+	// If 4th param is set, it works on full-line headers in whose comma is not a delimiter but is
+	// part of the syntax
+	if (!http_find_header(htx, name, &ctx, 1)) {
+		return NULL;
+	}
+
+	if (header_len > ctx.value.len)
+		header_len = ctx.value.len;
+
+	strncpy(((ha_wurfl_header_t *)wh)->header_value, ctx.value.ptr, header_len);
 
 	((ha_wurfl_header_t *)wh)->header_value[header_len] = '\0';
 

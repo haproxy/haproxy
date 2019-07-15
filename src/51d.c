@@ -227,63 +227,29 @@ static void _51d_retrieve_cache_entry(struct sample *smp, struct lru64 *lru)
  */
 static void _51d_set_headers(struct sample *smp, fiftyoneDegreesWorkset *ws)
 {
+	struct channel *chn;
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	struct ist name;
 	int i;
 
 	ws->importantHeadersCount = 0;
+	chn = (smp->strm ? &smp->strm->req : NULL);
 
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx;
-		struct http_hdr_ctx ctx;
-		struct ist name;
-		struct channel *chn;
+	// No need to null check as this has already been carried out in the
+	// calling method
+	htx = smp_prefetch_htx(smp, chn, 1);
 
-		chn = (smp->strm ? &smp->strm->req : NULL);
+	for (i = 0; i < global_51degrees.header_count; i++) {
+		name.ptr = (global_51degrees.header_names + i)->area;
+		name.len = (global_51degrees.header_names + i)->data;
+		ctx.blk = NULL;
 
-		// No need to null check as this has already been carried out in the
-		// calling method
-		htx = smp_prefetch_htx(smp, chn, 1);
-
-		for (i = 0; i < global_51degrees.header_count; i++) {
-			name.ptr = (global_51degrees.header_names + i)->area;
-			name.len = (global_51degrees.header_names + i)->data;
-			ctx.blk = NULL;
-
-			if (http_find_header(htx, name, &ctx, 1)) {
-				ws->importantHeaders[ws->importantHeadersCount].header = ws->dataSet->httpHeaders + i;
-				ws->importantHeaders[ws->importantHeadersCount].headerValue = ctx.value.ptr;
-				ws->importantHeaders[ws->importantHeadersCount].headerValueLength = ctx.value.len;
-				ws->importantHeadersCount++;
-			}
-		}
-
-	}
-	else {
-		/* Legacy Version */
-		struct hdr_idx *idx;
-		struct hdr_ctx ctx;
-		const struct http_msg *msg;
-
-		idx = &smp->strm->txn->hdr_idx;
-		msg = &smp->strm->txn->req;
-
-
-		for (i = 0; i < global_51degrees.header_count; i++) {
-			ctx.idx = 0;
-			if (http_find_full_header2((global_51degrees.header_names + i)->area,
-			                           (global_51degrees.header_names + i)->data,
-#ifndef BUF_NULL
-			                           msg->chn->buf->p,
-#else
-			                           ci_head(msg->chn),
-#endif
-			                           idx,
-			                           &ctx) == 1) {
-				ws->importantHeaders[ws->importantHeadersCount].header = ws->dataSet->httpHeaders + i;
-				ws->importantHeaders[ws->importantHeadersCount].headerValue = ctx.line + ctx.val;
-				ws->importantHeaders[ws->importantHeadersCount].headerValueLength = ctx.vlen;
-				ws->importantHeadersCount++;
-			}
+		if (http_find_header(htx, name, &ctx, 1)) {
+			ws->importantHeaders[ws->importantHeadersCount].header = ws->dataSet->httpHeaders + i;
+			ws->importantHeaders[ws->importantHeadersCount].headerValue = ctx.value.ptr;
+			ws->importantHeaders[ws->importantHeadersCount].headerValueLength = ctx.value.len;
+			ws->importantHeadersCount++;
 		}
 	}
 }
@@ -299,63 +265,31 @@ static void _51d_init_device_offsets(fiftyoneDegreesDeviceOffsets *offsets) {
 
 static void _51d_set_device_offsets(struct sample *smp, fiftyoneDegreesDeviceOffsets *offsets)
 {
+	struct channel *chn;
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	struct ist name;
 	int i;
 
 	offsets->size = 0;
+	chn = (smp->strm ? &smp->strm->req : NULL);
 
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx;
-		struct http_hdr_ctx ctx;
-		struct ist name;
-		struct channel *chn;
+	// No need to null check as this has already been carried out in the
+	// calling method
+	htx = smp_prefetch_htx(smp, chn, 1);
 
-		chn = (smp->strm ? &smp->strm->req : NULL);
+	for (i = 0; i < global_51degrees.header_count; i++) {
+		name.ptr = (global_51degrees.header_names + i)->area;
+		name.len = (global_51degrees.header_names + i)->data;
+		ctx.blk = NULL;
 
-		// No need to null check as this has already been carried out in the
-		// calling method
-		htx = smp_prefetch_htx(smp, chn, 1);
-
-		for (i = 0; i < global_51degrees.header_count; i++) {
-			name.ptr = (global_51degrees.header_names + i)->area;
-			name.len = (global_51degrees.header_names + i)->data;
-			ctx.blk = NULL;
-
-			if (http_find_header(htx, name, &ctx, 1)) {
-				(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global_51degrees.header_offsets + i);
-				(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, ctx.value.ptr);
-				offsets->size++;
-			}
-		}
-
-	}
-	else {
-		/* Legacy Version */
-		struct hdr_idx *idx;
-		struct hdr_ctx ctx;
-		const struct http_msg *msg;
-
-		idx = &smp->strm->txn->hdr_idx;
-		msg = &smp->strm->txn->req;
-
-
-		for (i = 0; i < global_51degrees.header_count; i++) {
-			ctx.idx = 0;
-			if (http_find_full_header2((global_51degrees.header_names + i)->area,
-			                          (global_51degrees.header_names + i)->data,
-#ifndef BUF_NULL
-			                          msg->chn->buf->p,
-#else
-			                          ci_head(msg->chn),
-#endif
-			                          idx,
-			                          &ctx) == 1) {
-				(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global_51degrees.header_offsets + i);
-				(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, ctx.line + ctx.val);
-				offsets->size++;
-			}
+		if (http_find_header(htx, name, &ctx, 1)) {
+			(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global_51degrees.header_offsets + i);
+			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, ctx.value.ptr);
+			offsets->size++;
 		}
 	}
+
 }
 #endif
 
@@ -472,18 +406,13 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 
 #endif
 	struct channel *chn;
-	chn = (smp->strm ? &smp->strm->req : NULL);
+	struct htx *htx;
 
-	if (smp->px->options2 & PR_O2_USE_HTX) {
-		/* HTX version */
-		struct htx *htx = smp_prefetch_htx(smp, chn, 1);
-		if (!htx) {
-			return 0;
-		}
-	} else {
-		/* Legacy version */
-		CHECK_HTTP_MESSAGE_FIRST(chn);
-	}
+	chn = (smp->strm ? &smp->strm->req : NULL);
+	htx = smp_prefetch_htx(smp, chn, 1);
+	if (!htx)
+		return 0;
+
 	/*
 	 * Data type has to be reset to ensure the string output is processed
 	 * correctly.
