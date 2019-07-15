@@ -69,7 +69,6 @@ struct cache_flt_conf {
  * cache ctx for filters
  */
 struct cache_st {
-	int hdrs_len; // field used in legacy mode only
 	struct shared_block *first_block;
 };
 
@@ -77,7 +76,6 @@ struct cache_entry {
 	unsigned int latest_validation;     /* latest validation date */
 	unsigned int expire;      /* expiration date */
 	unsigned int age;         /* Origin server "Age" header value */
-	unsigned int eoh;         /* Origin server end of headers offset. */ // field used in legacy mode only
 
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
@@ -210,7 +208,6 @@ cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct ch
 		if (st == NULL)
 			return -1;
 
-		st->hdrs_len    = 0;
 		st->first_block = NULL;
 		filter->ctx     = st;
 
@@ -284,11 +281,8 @@ cache_store_http_headers(struct stream *s, struct filter *filter, struct http_ms
 	if (!(msg->chn->flags & CF_ISRESP) || !st)
 		return 1;
 
-	if (st->first_block) {
+	if (st->first_block)
 		register_data_filter(s, msg->chn, filter);
-		if (!IS_HTX_STRM(s))
-			st->hdrs_len = msg->sov;
-	}
 	return 1;
 }
 
@@ -399,81 +393,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 }
 
 static int
-cache_store_http_forward_data(struct stream *s, struct filter *filter,
-		       struct http_msg *msg, unsigned int len)
-{
-	struct cache_st *st = filter->ctx;
-	struct cache_flt_conf *cconf = FLT_CONF(filter);
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
-	int ret;
-
-	ret = 0;
-
-	/*
-	 * We need to skip the HTTP headers first, because we saved them in the
-	 * http-response action.
-	 */
-	if (!(msg->chn->flags & CF_ISRESP) || !st) {
-		/* should never happen */
-		unregister_data_filter(s, msg->chn, filter);
-		return len;
-	}
-
-	if (!len) {
-		/* Nothing to forward */
-		ret = len;
-	}
-	else if (st->hdrs_len >= len) {
-		/* Forward part of headers */
-		ret           = len;
-		st->hdrs_len -= len;
-	}
-	else {
-		/* Forward data */
-		if (st->first_block) {
-			int to_append, append;
-			struct shared_block *fb;
-
-			to_append = MIN(ci_contig_data(msg->chn), len - st->hdrs_len);
-
-			shctx_lock(shctx);
-			fb = shctx_row_reserve_hot(shctx, st->first_block, to_append);
-			if (!fb) {
-				shctx_unlock(shctx);
-				disable_cache_entry(st, filter, shctx);
-				unregister_data_filter(s, msg->chn, filter);
-				return len;
-			}
-			shctx_unlock(shctx);
-
-			/* Skip remaining headers to fill the cache */
-			c_adv(msg->chn, st->hdrs_len);
-			append = shctx_row_data_append(shctx, st->first_block, st->first_block->last_append,
-			                               (unsigned char *)ci_head(msg->chn), to_append);
-			ret = st->hdrs_len + to_append - append;
-			/* Rewind the buffer to forward all data */
-			c_rew(msg->chn, st->hdrs_len);
-			st->hdrs_len = 0;
-			if (ret < 0) {
-				disable_cache_entry(st, filter, shctx);
-				unregister_data_filter(s, msg->chn, filter);
-			}
-		}
-		else {
-			/* should never happen */
-			unregister_data_filter(s, msg->chn, filter);
-			ret = len;
-		}
-	}
-
-	if ((ret != len) ||
-	    (FLT_NXT(filter, msg->chn) != FLT_FWD(filter, msg->chn) + ret))
-		task_wakeup(s->task, TASK_WOKEN_MSG);
-
-	return ret;
-}
-
-static int
 cache_store_http_end(struct stream *s, struct filter *filter,
                      struct http_msg *msg)
 {
@@ -560,66 +479,30 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  */
 int http_calc_maxage(struct stream *s, struct cache *cache)
 {
+	struct htx *htx = htxbuf(&s->res.buf);
+	struct http_hdr_ctx ctx = { .blk = NULL };
 	int smaxage = -1;
 	int maxage = -1;
 
+	while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
+		char *value;
 
-	if (IS_HTX_STRM(s)) {
-		/* HTX mode */
-		struct htx *htx = htxbuf(&s->res.buf);
-		struct http_hdr_ctx ctx = { .blk = NULL };
+		value = directive_value(ctx.value.ptr, ctx.value.len, "s-maxage", 8);
+		if (value) {
+			struct buffer *chk = get_trash_chunk();
 
-		while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
-			char *value;
-
-			value = directive_value(ctx.value.ptr, ctx.value.len, "s-maxage", 8);
-			if (value) {
-				struct buffer *chk = get_trash_chunk();
-
-				chunk_strncat(chk, value, ctx.value.len - 8 + 1);
-				chunk_strncat(chk, "", 1);
-				maxage = atoi(chk->area);
-			}
-
-			value = directive_value(ctx.value.ptr, ctx.value.len, "max-age", 7);
-			if (value) {
-				struct buffer *chk = get_trash_chunk();
-
-				chunk_strncat(chk, value, ctx.value.len - 7 + 1);
-				chunk_strncat(chk, "", 1);
-				smaxage = atoi(chk->area);
-			}
+			chunk_strncat(chk, value, ctx.value.len - 8 + 1);
+			chunk_strncat(chk, "", 1);
+			maxage = atoi(chk->area);
 		}
-	}
-	else {
-		/* Legacy mode */
-		struct http_txn *txn = s->txn;
-		struct hdr_ctx ctx;
 
-		ctx.idx = 0;
+		value = directive_value(ctx.value.ptr, ctx.value.len, "max-age", 7);
+		if (value) {
+			struct buffer *chk = get_trash_chunk();
 
-		/* loop on the Cache-Control values */
-		while (http_find_header2("Cache-Control", 13, ci_head(&s->res), &txn->hdr_idx, &ctx)) {
-			char *directive = ctx.line + ctx.val;
-			char *value;
-
-			value = directive_value(directive, ctx.vlen, "s-maxage", 8);
-			if (value) {
-				struct buffer *chk = get_trash_chunk();
-
-				chunk_strncat(chk, value, ctx.vlen - 8 + 1);
-				chunk_strncat(chk, "", 1);
-				maxage = atoi(chk->area);
-			}
-
-			value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
-			if (value) {
-				struct buffer *chk = get_trash_chunk();
-
-				chunk_strncat(chk, value, ctx.vlen - 7 + 1);
-				chunk_strncat(chk, "", 1);
-				smaxage = atoi(chk->area);
-			}
+			chunk_strncat(chk, value, ctx.value.len - 7 + 1);
+			chunk_strncat(chk, "", 1);
+			smaxage = atoi(chk->area);
 		}
 	}
 
@@ -664,6 +547,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct cache_st *cache_ctx = NULL;
 	struct cache_entry *object, *old;
 	unsigned int key = *(unsigned int *)txn->cache_hash;
+	struct htx *htx;
+	struct http_hdr_ctx ctx;
+	int32_t pos;
 
 	/* Don't cache if the response came from a cache */
 	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
@@ -699,85 +585,48 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* from there, cache_ctx is always defined */
+	htx = htxbuf(&s->res.buf);
 
-	if (IS_HTX_STRM(s)) {
-		struct htx *htx = htxbuf(&s->res.buf);
-		struct http_hdr_ctx ctx;
-		int32_t pos;
+	/* Do not cache too big objects. */
+	if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
+	    htx->data + htx->extra > shctx->max_obj_size)
+		goto out;
 
-		/* Do not cache too big objects. */
-		if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
-		    htx->data + htx->extra > shctx->max_obj_size)
-			goto out;
+	/* Does not manage Vary at the moment. We will need a secondary key later for that */
+	ctx.blk = NULL;
+	if (http_find_header(htx, ist("Vary"), &ctx, 0))
+		goto out;
 
-		/* Does not manage Vary at the moment. We will need a secondary key later for that */
-		ctx.blk = NULL;
-		if (http_find_header(htx, ist("Vary"), &ctx, 0))
-			goto out;
+	htx_check_response_for_cacheability(s, &s->res);
 
-		htx_check_response_for_cacheability(s, &s->res);
+	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
+		goto out;
 
-		if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
-			goto out;
-
-		age = 0;
-		ctx.blk = NULL;
-		if (http_find_header(htx, ist("Age"), &ctx, 0)) {
-			if (!strl2llrc(ctx.value.ptr, ctx.value.len, &hdr_age) && hdr_age > 0) {
-				if (unlikely(hdr_age > CACHE_ENTRY_MAX_AGE))
-					hdr_age = CACHE_ENTRY_MAX_AGE;
-				age = hdr_age;
-			}
-			http_remove_header(htx, &ctx);
+	age = 0;
+	ctx.blk = NULL;
+	if (http_find_header(htx, ist("Age"), &ctx, 0)) {
+		if (!strl2llrc(ctx.value.ptr, ctx.value.len, &hdr_age) && hdr_age > 0) {
+			if (unlikely(hdr_age > CACHE_ENTRY_MAX_AGE))
+				hdr_age = CACHE_ENTRY_MAX_AGE;
+			age = hdr_age;
 		}
-
-		chunk_reset(&trash);
-		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-			struct htx_blk *blk = htx_get_blk(htx, pos);
-			enum htx_blk_type type = htx_get_blk_type(blk);
-			uint32_t sz = htx_get_blksz(blk);
-
-			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
-			chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
-			if (type == HTX_BLK_EOH)
-				break;
-		}
+		http_remove_header(htx, &ctx);
 	}
-	else {
-		struct hdr_ctx ctx;
 
-		/* Do not cache too big objects. */
-		if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
-		    msg->sov + msg->body_len > shctx->max_obj_size)
-			goto out;
+	chunk_reset(&trash);
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+		enum htx_blk_type type = htx_get_blk_type(blk);
+		uint32_t sz = htx_get_blksz(blk);
 
-		/* Does not manage Vary at the moment. We will need a secondary key later for that */
-		ctx.idx = 0;
-		if (http_find_header2("Vary", 4, ci_head(txn->rsp.chn), &txn->hdr_idx, &ctx))
-			goto out;
-
-		check_response_for_cacheability(s, &s->res);
-
-		if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
-			goto out;
-
-		age = 0;
-		ctx.idx = 0;
-		if (http_find_header2("Age", 3, ci_head(txn->rsp.chn), &txn->hdr_idx, &ctx)) {
-			if (!strl2llrc(ctx.line + ctx.val, ctx.vlen, &hdr_age) && hdr_age > 0) {
-				if (unlikely(hdr_age > CACHE_ENTRY_MAX_AGE))
-					hdr_age = CACHE_ENTRY_MAX_AGE;
-				age = hdr_age;
-			}
-			http_remove_header2(msg, &txn->hdr_idx, &ctx);
-		}
+		chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
+		chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
+		if (type == HTX_BLK_EOH)
+			break;
 	}
 
 	shctx_lock(shctx);
-	if (IS_HTX_STRM(s))
-		first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + trash.data);
-	else
-		first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + msg->sov);
+	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + trash.data);
 	if (!first) {
 		shctx_unlock(shctx);
 		goto out;
@@ -791,8 +640,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object->eb.node.leaf_p = NULL;
 	object->eb.key = 0;
 	object->age = age;
-	if (!IS_HTX_STRM(s))
-		object->eoh = msg->eoh;
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
@@ -805,14 +652,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
-	if (IS_HTX_STRM(s)) {
-		if (shctx_row_data_append(shctx, first, NULL, (unsigned char *)trash.area, trash.data) < 0)
-			goto out;
-	}
-	else {
-		if (shctx_row_data_append(shctx, first, NULL, (unsigned char *)ci_head(&s->res), msg->sov) < 0)
-			goto out;
-	}
+	if (shctx_row_data_append(shctx, first, NULL, (unsigned char *)trash.area, trash.data) < 0)
+		goto out;
 
 	/* register the buffer in the filter ctx for filling it with data*/
 	if (cache_ctx) {
@@ -850,11 +691,6 @@ out:
 
 	return ACT_RET_CONT;
 }
-
-#define 	HTTP_CACHE_INIT   0  /* Initial state. */
-#define 	HTTP_CACHE_HEADER 1  /* Cache entry headers forwarded. */
-#define 	HTTP_CACHE_FWD    2  /* Cache entry completely forwarded. */
-#define 	HTTP_CACHE_END    3  /* Cache entry treatment terminated. */
 
 #define 	HTX_CACHE_INIT   0  /* Initial state. */
 #define 	HTX_CACHE_HEADER 1  /* Cache entry headers forwarding */
@@ -1035,7 +871,7 @@ static int htx_cache_add_age_hdr(struct appctx *appctx, struct htx *htx)
 	return 1;
 }
 
-static void htx_cache_io_handler(struct appctx *appctx)
+static void http_cache_io_handler(struct appctx *appctx)
 {
 	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
 	struct shared_block *first = block_ptr(cache_ptr);
@@ -1139,139 +975,6 @@ static void htx_cache_io_handler(struct appctx *appctx)
 }
 
 
-/*
- * Append an "Age" header into <chn> channel for this <ce> cache entry.
- * This is the responsibility of the caller to insure there is enough
- * data in the channel.
- *
- * Returns the number of bytes inserted if succeeded, 0 if failed.
- */
-static int cache_channel_append_age_header(struct cache_entry *ce, struct channel *chn)
-{
-	unsigned int age;
-
-	age = MAX(0, (int)(now.tv_sec - ce->latest_validation)) + ce->age;
-	if (unlikely(age > CACHE_ENTRY_MAX_AGE))
-		age = CACHE_ENTRY_MAX_AGE;
-
-	chunk_reset(&trash);
-	chunk_printf(&trash, "Age: %u", age);
-
-	return ci_insert_line2(chn, ce->eoh, trash.area, trash.data);
-}
-
-static int cache_channel_row_data_get(struct appctx *appctx, int len)
-{
-	int ret, total;
-	struct stream_interface *si = appctx->owner;
-	struct channel *res = si_ic(si);
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct cache *cache = cconf->c.cache;
-	struct shared_context *shctx = shctx_ptr(cache);
-	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
-	struct shared_block *blk, *next = appctx->ctx.cache.next;
-	int offset;
-
-	total = 0;
-	offset = 0;
-
-	if (!next) {
-		offset = sizeof(struct cache_entry);
-		next =  block_ptr(cache_ptr);
-	}
-
-	blk = next;
-	list_for_each_entry_from(blk, &shctx->hot, list) {
-		int sz;
-
-		if (len <= 0)
-			break;
-
-		sz = MIN(len, shctx->block_size - offset);
-
-		ret = ci_putblk(res, (const char *)blk->data + offset, sz);
-		if (unlikely(offset))
-			offset = 0;
-		if (ret <= 0) {
-			if (ret == -3 || ret == -1) {
-				si_rx_room_blk(si);
-				break;
-			}
-			return -1;
-		}
-
-		total += sz;
-		len -= sz;
-	}
-	appctx->ctx.cache.next = blk;
-
-	return total;
-}
-
-static void http_cache_io_handler(struct appctx *appctx)
-{
-	struct stream_interface *si = appctx->owner;
-	struct stream *s = si_strm(si);
-	struct channel *res = si_ic(si);
-	struct cache_entry *cache_ptr = appctx->ctx.cache.entry;
-	struct shared_block *first = block_ptr(cache_ptr);
-	unsigned int *sent = &appctx->ctx.cache.sent;
-
-	if (IS_HTX_STRM(s))
-		return htx_cache_io_handler(appctx);
-
-	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
-		goto out;
-
-	/* Check if the input buffer is available. */
-	if (res->buf.size == 0) {
-		/* buf.size==0 means we failed to get a buffer and were
-		 * already subscribed to a wait list to get a buffer.
-		 */
-		goto out;
-	}
-
-	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_SHUTR))
-		appctx->st0 = HTTP_CACHE_END;
-
-	/* buffer are aligned there, should be fine */
-	if (appctx->st0 == HTTP_CACHE_HEADER || appctx->st0 == HTTP_CACHE_INIT) {
-		int len = first->len - *sent - sizeof(struct cache_entry);
-		if (len > 0) {
-			int ret;
-
-			ret = cache_channel_row_data_get(appctx, len);
-			if (ret == -1)
-				appctx->st0 = HTTP_CACHE_END;
-			else
-				*sent += ret;
-			if (appctx->st0 == HTTP_CACHE_INIT && *sent > cache_ptr->eoh &&
-				cache_channel_append_age_header(cache_ptr, res))
-				appctx->st0 = HTTP_CACHE_HEADER;
-			else if (ret == len) {
-				*sent = 0;
-				appctx->st0 = HTTP_CACHE_FWD;
-			}
-		}
-		else {
-			*sent = 0;
-			appctx->st0 = HTTP_CACHE_FWD;
-		}
-	}
-
-	if (appctx->st0 == HTTP_CACHE_FWD)
-		appctx->st0 = HTTP_CACHE_END;
-
-	if (!(res->flags & CF_SHUTR) && appctx->st0 == HTTP_CACHE_END) {
-		res->flags |= CF_READ_NULL;
-		si_shutr(si);
-	}
-out:
-	/* eat the whole request */
-	if (co_data(si_oc(si)))
-	    co_skip(si_oc(si), co_data(si_oc(si)));
-}
-
 static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
 {
 	struct flt_conf *fconf;
@@ -1345,46 +1048,24 @@ enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct pr
 int sha1_hosturi(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
+	struct htx *htx = htxbuf(&s->req.buf);
+	struct htx_sl *sl;
+	struct http_hdr_ctx ctx;
+	struct ist path;
 	blk_SHA_CTX sha1_ctx;
 	struct buffer *trash;
 
 	trash = get_trash_chunk();
+	ctx.blk = NULL;
+	if (!http_find_header(htx, ist("Host"), &ctx, 0))
+		return 0;
+	chunk_memcat(trash, ctx.value.ptr, ctx.value.len);
 
-	if (IS_HTX_STRM(s)) {
-		struct htx *htx = htxbuf(&s->req.buf);
-		struct htx_sl *sl;
-		struct http_hdr_ctx ctx;
-		struct ist path;
-
-		ctx.blk = NULL;
-		if (!http_find_header(htx, ist("Host"), &ctx, 0))
-			return 0;
-		chunk_memcat(trash, ctx.value.ptr, ctx.value.len);
-
-		sl = http_get_stline(htx);
-                path = http_get_path(htx_sl_req_uri(sl));
-                if (!path.ptr)
-                        return 0;
-		chunk_memcat(trash, path.ptr, path.len);
-	}
-	else {
-		struct hdr_ctx ctx;
-		char *path;
-		char *end;
-
-		/* retrive the host */
-		ctx.idx = 0;
-		if (!http_find_header2("Host", 4, ci_head(txn->req.chn), &txn->hdr_idx, &ctx))
-			return 0;
-		chunk_strncat(trash, ctx.line + ctx.val, ctx.vlen);
-
-		/* now retrieve the path */
-		end = ci_head(txn->req.chn) + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
-		path = http_txn_get_path(txn);
-		if (!path)
-			return 0;
-		chunk_strncat(trash, path, end - path);
-	}
+	sl = http_get_stline(htx);
+	path = http_get_path(htx_sl_req_uri(sl));
+	if (!path.ptr)
+		return 0;
+	chunk_memcat(trash, path.ptr, path.len);
 
 	/* hash everything */
 	blk_SHA1_Init(&sha1_ctx);
@@ -1409,10 +1090,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	    (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD))
 		txn->flags |= TX_CACHE_IGNORE;
 
-	if (IS_HTX_STRM(s))
-		htx_check_request_for_cacheability(s, &s->req);
-	else
-		check_request_for_cacheability(s, &s->req);
+	htx_check_request_for_cacheability(s, &s->req);
 
 	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
@@ -1436,7 +1114,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		shctx_unlock(shctx_ptr(cache));
 		s->target = &http_cache_applet.obj_type;
 		if ((appctx = si_register_handler(&s->si[1], objt_applet(s->target)))) {
-			appctx->st0 = HTTP_CACHE_INIT;
+			appctx->st0 = HTX_CACHE_INIT;
 			appctx->rule = rule;
 			appctx->ctx.cache.entry = res;
 			appctx->ctx.cache.next = NULL;
@@ -1648,9 +1326,6 @@ struct flt_ops cache_ops = {
 	.http_headers        = cache_store_http_headers,
 	.http_payload        = cache_store_http_payload,
 	.http_end            = cache_store_http_end,
-
-	.http_forward_data   = cache_store_http_forward_data,
-
 };
 
 
