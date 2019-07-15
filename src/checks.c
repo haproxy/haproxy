@@ -2960,6 +2960,10 @@ static int tcpcheck_main(struct check *check)
 			if (&check->current_step->list == head)
 				break;
 
+			/* don't do anything until the connection is established */
+			if (!(conn->flags & CO_FL_CONNECTED))
+				break;
+
 		} /* end 'connect' */
 		else if (check->current_step->action == TCPCHK_ACT_SEND) {
 			/* mark the step as started */
