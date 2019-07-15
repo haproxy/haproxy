@@ -1,0 +1,51 @@
+varnishtest "tcp-check multiple ports"
+#REGTEST_TYPE=slow
+# This test uses multiple tcp-check connect rules to perform health checking on
+# a target. It relies on port 1 being unbound on the local system.
+feature ignore_unknown_macro
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 failed.*Connection refused at step 2 of tcp-check.*connect port 1"
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv1 failed.*Connection refused at step 1 of tcp-check.*connect port 1"
+} -start
+
+server s1 {
+} -start
+
+haproxy h1 -conf {
+  defaults
+    mode tcp
+    timeout connect 200ms
+    timeout check 500ms
+    timeout server 5s
+    timeout client 5s
+    default-server check inter 200ms rise 1 fall 1
+
+  backend be1
+    log ${S1_addr}:${S1_port} len 2048 local0
+    option tcp-check
+    option log-health-checks
+    tcp-check connect port ${s1_port}
+    tcp-check connect port 1
+    server srv1 ${s1_addr}:${s1_port}
+
+  backend be2
+    log ${S2_addr}:${S2_port} len 2048 local0
+    option tcp-check
+    option log-health-checks
+    tcp-check connect port 1
+    tcp-check connect port ${s1_port}
+    server srv1 ${s1_addr}:${s1_port}
+} -start
+
+syslog S1 -wait
+syslog S2 -wait
