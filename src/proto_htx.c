@@ -1989,7 +1989,7 @@ int htx_process_res_common(struct stream *s, struct channel *rep, int an_bit, st
 	 * Check for cache-control or pragma headers if required.
 	 */
 	if ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC))
-		check_response_for_cacheability(s, rep);
+		htx_check_response_for_cacheability(s, rep);
 
 	/*
 	 * Add server cookie in the response if needed
