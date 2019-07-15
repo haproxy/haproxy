@@ -1415,10 +1415,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 			     HA_ATOMIC_ADD(&be->beconn, 1));
 	proxy_inc_be_ctr(be);
 
-	/* HTX/legacy must match */
-	if ((strm_fe(s)->options2 ^ be->options2) & PR_O2_USE_HTX)
-		return 0;
-
 	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)
@@ -1464,7 +1460,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
 		 * the client mux */
-		if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP && (be->options2 & PR_O2_USE_HTX)) {
+		if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP) {
 			struct connection  *conn = objt_conn(strm_sess(s)->origin);
 			struct conn_stream *cs   = objt_cs(s->si[0].end);
 
