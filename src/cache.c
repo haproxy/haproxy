@@ -38,11 +38,6 @@
 #include <common/htx.h>
 #include <common/initcall.h>
 
-/* flt_cache_store */
-#define CACHE_F_LEGACY_HTTP 0x00000001 /* The cache is used to store raw HTTP
-					* messages (legacy implementation) */
-#define CACHE_F_HTX         0x00000002 /* The cache is used to store HTX messages */
-
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
 
@@ -59,7 +54,6 @@ struct cache {
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
 	char id[33];             /* cache name */
-	unsigned int flags;      /* CACHE_F_* */
 };
 
 /* cache config for filters */
@@ -161,11 +155,6 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	/* resolve the cache name to a ptr in the filter config */
 	list_for_each_entry(cache, &caches, list) {
 		if (!strcmp(cache->id, cconf->c.name)) {
-			/* there can be only one filter per cache, so we free it there */
-			cache->flags |= ((px->options2 & PR_O2_USE_HTX)
-					 ? CACHE_F_HTX
-					 : CACHE_F_LEGACY_HTTP);
-
 			free(cconf->c.name);
 			cconf->c.cache = cache;
 			goto found;
@@ -193,15 +182,8 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 				return 1;
 			}
 		}
-		else if (f->id == http_comp_flt_id) {
-			if (!(px->options2 & PR_O2_USE_HTX)) {
-				ha_alert("config: %s '%s' : compression and cache filters cannot be "
-					 "both enabled on non HTX proxy.\n",
-					 proxy_type_str(px), px->id);
-				return 1;
-			}
+		else if (f->id == http_comp_flt_id)
 			comp = 1;
-		}
 		else if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
 			/* Implicit declaration is only allowed with the
 			 * compression. For other filters, an implicit
@@ -1525,7 +1507,6 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
-			tmp_cache_config->flags = 0;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
 		unsigned long int maxsize;
@@ -1652,29 +1633,6 @@ out:
 	return err_code;
 
 }
-
-/*
- * Resolve the cache name to a pointer once the file is completely read.
- */
-int cfg_cache_postparser()
-{
-	struct cache *cache;
-	int err = 0;
-
-	/* Check if the cache is used by HTX and legacy HTTP proxies in same
-	 * time
-	 */
-	list_for_each_entry(cache, &caches, list) {
-		if ((cache->flags & (CACHE_F_HTX|CACHE_F_LEGACY_HTTP)) == (CACHE_F_HTX|CACHE_F_LEGACY_HTTP)) {
-			ha_alert("Cache '%s': cannot be used by HTX and legacy HTTP proxies in same time.\n",
-				 cache->id);
-			err++;
-		}
-	}
-
-	return err;
-}
-
 
 struct flt_ops cache_ops = {
 	.init   = cache_store_init,
@@ -1876,4 +1834,3 @@ struct applet http_cache_applet = {
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("cache", cfg_parse_cache, cfg_post_parse_section_cache);
-REGISTER_CONFIG_POSTPARSER("cache", cfg_cache_postparser);
