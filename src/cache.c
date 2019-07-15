@@ -578,36 +578,66 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  */
 int http_calc_maxage(struct stream *s, struct cache *cache)
 {
-	struct http_txn *txn = s->txn;
-	struct hdr_ctx ctx;
-
 	int smaxage = -1;
 	int maxage = -1;
 
 
-	ctx.idx = 0;
+	if (IS_HTX_STRM(s)) {
+		/* HTX mode */
+		struct htx *htx = htxbuf(&s->res.buf);
+		struct http_hdr_ctx ctx = { .blk = NULL };
 
-	/* loop on the Cache-Control values */
-	while (http_find_header2("Cache-Control", 13, ci_head(&s->res), &txn->hdr_idx, &ctx)) {
-		char *directive = ctx.line + ctx.val;
-		char *value;
+		while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
+			char *value;
 
-		value = directive_value(directive, ctx.vlen, "s-maxage", 8);
-		if (value) {
-			struct buffer *chk = get_trash_chunk();
+			value = directive_value(ctx.value.ptr, ctx.value.len, "s-maxage", 8);
+			if (value) {
+				struct buffer *chk = get_trash_chunk();
 
-			chunk_strncat(chk, value, ctx.vlen - 8 + 1);
-			chunk_strncat(chk, "", 1);
-			maxage = atoi(chk->area);
+				chunk_strncat(chk, value, ctx.value.len - 8 + 1);
+				chunk_strncat(chk, "", 1);
+				maxage = atoi(chk->area);
+			}
+
+			value = directive_value(ctx.value.ptr, ctx.value.len, "max-age", 7);
+			if (value) {
+				struct buffer *chk = get_trash_chunk();
+
+				chunk_strncat(chk, value, ctx.value.len - 7 + 1);
+				chunk_strncat(chk, "", 1);
+				smaxage = atoi(chk->area);
+			}
 		}
+	}
+	else {
+		/* Legacy mode */
+		struct http_txn *txn = s->txn;
+		struct hdr_ctx ctx;
 
-		value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
-		if (value) {
-			struct buffer *chk = get_trash_chunk();
+		ctx.idx = 0;
 
-			chunk_strncat(chk, value, ctx.vlen - 7 + 1);
-			chunk_strncat(chk, "", 1);
-			smaxage = atoi(chk->area);
+		/* loop on the Cache-Control values */
+		while (http_find_header2("Cache-Control", 13, ci_head(&s->res), &txn->hdr_idx, &ctx)) {
+			char *directive = ctx.line + ctx.val;
+			char *value;
+
+			value = directive_value(directive, ctx.vlen, "s-maxage", 8);
+			if (value) {
+				struct buffer *chk = get_trash_chunk();
+
+				chunk_strncat(chk, value, ctx.vlen - 8 + 1);
+				chunk_strncat(chk, "", 1);
+				maxage = atoi(chk->area);
+			}
+
+			value = directive_value(ctx.line + ctx.val, ctx.vlen, "max-age", 7);
+			if (value) {
+				struct buffer *chk = get_trash_chunk();
+
+				chunk_strncat(chk, value, ctx.vlen - 7 + 1);
+				chunk_strncat(chk, "", 1);
+				smaxage = atoi(chk->area);
+			}
 		}
 	}
 
