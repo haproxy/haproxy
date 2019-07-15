@@ -123,14 +123,6 @@ struct flt_kw_list {
  *  - http_payload        : Called when some data can be consumed.
  *                          Returns a negative value if an error occurs, else
  *                          the number of forwarded bytes.
- *  - http_data           : Called when unparsed body data are available.
- *                          Returns a negative value if an error occurs, else
- *                          the number of consumed bytes. [DEPRECATED]
- *  - http_chunk_trailers : Called when part of trailer headers of a
- *                          chunk-encoded request/response are ready to be
- *                          processed.
- *                          Returns a negative value if an error occurs, any
- *                          other value otherwise. [DEPRECATED]
  *  - http_end            : Called when all the request/response has been
  *                          processed and all body data has been forwarded.
  *                          Returns a negative value if an error occurs, 0 if
@@ -146,9 +138,6 @@ struct flt_kw_list {
  *                          to the client (mainly, when an error or a redirect
  *                          occur).
  *                          Returns nothing.
- *  - http_forward_data   : Called when some data can be consumed.
- *                          Returns a negative value if an error occurs, else
- *                          the number of forwarded bytes. [DEPRECATED]
  *  - tcp_data            : Called when unparsed data are available.
  *                          Returns a negative value if an error occurs, else
  *                          the number of consumed bytes.
@@ -189,10 +178,6 @@ struct flt_ops {
 	int  (*http_payload)       (struct stream *s, struct filter *f, struct http_msg *msg,
 				    unsigned int offset, unsigned int len);
 	int  (*http_end)           (struct stream *s, struct filter *f, struct http_msg *msg);
-	int  (*http_data)          (struct stream *s, struct filter *f, struct http_msg *msg); // DEPRECATED
-	int  (*http_chunk_trailers)(struct stream *s, struct filter *f, struct http_msg *msg); // DEPRECATED
-	int  (*http_forward_data)  (struct stream *s, struct filter *f, struct http_msg *msg,  // DEPRECATED
-				    unsigned int len);
 
 	void (*http_reset)         (struct stream *s, struct filter *f, struct http_msg *msg);
 	void (*http_reply)         (struct stream *s, struct filter *f, short status,

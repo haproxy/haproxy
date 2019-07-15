@@ -114,10 +114,6 @@ void flt_stream_check_timeouts(struct stream *s);
 int  flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len);
 int  flt_http_end(struct stream *s, struct http_msg *msg);
 
-int  flt_http_data(struct stream *s, struct http_msg *msg);
-int  flt_http_chunk_trailers(struct stream *s, struct http_msg *msg);
-int  flt_http_forward_data(struct stream *s, struct http_msg *msg, unsigned int len);
-
 void flt_http_reset(struct stream *s, struct http_msg *msg);
 void flt_http_reply(struct stream *s, short status, const struct buffer *msg);
 
