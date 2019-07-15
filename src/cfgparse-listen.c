@@ -2152,6 +2152,15 @@ stats_error_parsing:
 					goto out;
 				}
 
+				/* "[no] option http-use-htx" is deprecated */
+				if (!strcmp(cfg_opts2[optnum].name, "http-use-htx")) {
+					ha_warning("parsing [%s:%d]: option '%s' is deprecated and ignored."
+						   " The HTX mode is now the only supported mode.\n",
+						   file, linenum, cfg_opts2[optnum].name);
+					err_code |= ERR_WARN;
+					goto out;
+				}
+
 				curproxy->no_options2 &= ~cfg_opts2[optnum].val;
 				curproxy->options2    &= ~cfg_opts2[optnum].val;
 
@@ -2704,7 +2713,7 @@ stats_error_parsing:
 			int cur_arg;
 
 			/* insert x-forwarded-for field, but not for the IP address listed as an except.
-			 * set default options (ie: bitfield, header name, etc) 
+			 * set default options (ie: bitfield, header name, etc)
 			 */
 
 			curproxy->options |= PR_O_FWDFOR | PR_O_FF_ALWAYS;
@@ -3674,7 +3683,7 @@ stats_error_parsing:
 			goto out;
 		}
 
-		/* we must first clear any optional default setting */	
+		/* we must first clear any optional default setting */
 		curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 		free(curproxy->conn_src.iface_name);
 		curproxy->conn_src.iface_name = NULL;
