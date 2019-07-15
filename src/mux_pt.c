@@ -260,13 +260,11 @@ static size_t mux_pt_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 	b_realign_if_empty(buf);
 	ret = cs->conn->xprt->rcv_buf(cs->conn, cs->conn->xprt_ctx, buf, count, flags);
 	if (conn_xprt_read0_pending(cs->conn)) {
-		if (ret == 0)
-			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		cs->flags |= CS_FL_EOS;
 	}
 	if (cs->conn->flags & CO_FL_ERROR) {
-		if (ret == 0)
-			cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
+		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		cs->flags |= CS_FL_ERROR;
 	}
 	return ret;
