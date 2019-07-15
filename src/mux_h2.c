@@ -2745,8 +2745,8 @@ static int h2_recv(struct h2c *h2c)
 
 	do {
 		b_realign_if_empty(buf);
-		if (!b_data(buf) && (h2c->proxy->options2 & PR_O2_USE_HTX)) {
-			/* HTX in use : try to pre-align the buffer like the
+		if (!b_data(buf)) {
+			/* try to pre-align the buffer like the
 			 * rxbufs will be to optimize memory copies. We'll make
 			 * sure that the frame header lands at the end of the
 			 * HTX block to alias it upon recv. We cannot use the
@@ -3194,8 +3194,7 @@ static void h2_detach(struct conn_stream *cs)
 
 	h2s_destroy(h2s);
 
-	if (h2c->flags & H2_CF_IS_BACK &&
-	    (h2c->proxy->options2 & PR_O2_USE_HTX)) {
+	if (h2c->flags & H2_CF_IS_BACK) {
 		if (!(h2c->conn->flags &
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 			if (!h2c->conn->owner) {
@@ -3424,12 +3423,12 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	h2_do_shutw(h2s);
 }
 
-/* Decode the payload of a HEADERS frame and produce the equivalent HTTP/1 or
- * HTX request or response depending on the connection's side. Returns a
- * positive value on success, a negative value on failure, or 0 if it couldn't
- * proceed. May report connection errors in h2c->errcode if the frame is
- * non-decodable and the connection unrecoverable. In absence of connection
- * error when a failure is reported, the caller must assume a stream error.
+/* Decode the payload of a HEADERS frame and produce the HTX request or response
+ * depending on the connection's side. Returns a positive value on success, a
+ * negative value on failure, or 0 if it couldn't proceed. May report connection
+ * errors in h2c->errcode if the frame is non-decodable and the connection
+ * unrecoverable. In absence of connection error when a failure is reported, the
+ * caller must assume a stream error.
  *
  * The function may fold CONTINUATION frames into the initial HEADERS frame
  * by removing padding and next frame header, then moving the CONTINUATION
@@ -3491,7 +3490,6 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 	int ret = 0;
 	int outlen;
 	int wrap;
-	int try = 0;
 
 next_frame:
 	if (b_data(&h2c->dbuf) - hole < h2c->dfl)
@@ -3595,21 +3593,10 @@ next_frame:
 	 * always empty except maybe for trailers, in which case we simply have
 	 * to wait for the upper layer to finish consuming what is available.
 	 */
-
-	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
-		htx = htx_from_buf(rxbuf);
-		if (!htx_is_empty(htx)) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto leave;
-		}
-	} else {
-		if (b_data(rxbuf)) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto leave;
-		}
-
-		rxbuf->head = 0;
-		try = b_size(rxbuf);
+	htx = htx_from_buf(rxbuf);
+	if (!htx_is_empty(htx)) {
+		h2c->flags |= H2_CF_DEM_SFULL;
+		goto leave;
 	}
 
 	/* past this point we cannot roll back in case of error */
@@ -3635,18 +3622,10 @@ next_frame:
 		goto trailers;
 
 	/* This is the first HEADERS frame so it's a headers block */
-	if (htx) {
-		/* HTX mode */
-		if (h2c->flags & H2_CF_IS_BACK)
-			outlen = h2_make_htx_response(list, htx, &msgf, body_len);
-		else
-			outlen = h2_make_htx_request(list, htx, &msgf, body_len);
-	} else {
-		/* HTTP/1 mode */
-		outlen = h2_make_h1_request(list, b_tail(rxbuf), try, &msgf, body_len);
-		if (outlen > 0)
-			b_add(rxbuf, outlen);
-	}
+	if (h2c->flags & H2_CF_IS_BACK)
+		outlen = h2_make_htx_response(list, htx, &msgf, body_len);
+	else
+		outlen = h2_make_htx_request(list, htx, &msgf, body_len);
 
 	if (outlen < 0) {
 		/* too large headers? this is a stream error only */
@@ -3657,8 +3636,7 @@ next_frame:
 		/* a payload is present */
 		if (msgf & H2_MSGF_BODY_CL) {
 			*flags |= H2_SF_DATA_CLEN;
-			if (htx)
-				htx->extra = *body_len;
+			htx->extra = *body_len;
 		}
 		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
 			*flags |= H2_SF_DATA_CHNK;
@@ -3673,21 +3651,9 @@ next_frame:
 		*flags |= H2_SF_HEADERS_RCVD;
 
 	if ((h2c->dff & H2_F_HEADERS_END_STREAM)) {
-		/* Mark the end of message, either using EOM in HTX or with the
-		 * trailing CRLF after the end of trailers. Note that DATA_CHNK
-		 * is not set during headers with END_STREAM. For HTX trailers,
-		 * we must not leave an HTX trailers block not followed by an
-		 * EOM block, the two must be atomic. Thus if we fail to emit
-		 * the EOM block we must remove the TLR block we've just added.
-		 */
-		if (htx) {
-			if (!htx_add_endof(htx, HTX_BLK_EOM))
-				goto fail;
-		}
-		else if (*flags & H2_SF_DATA_CHNK) {
-			if (!b_putblk(rxbuf, "\r\n", 2))
-				goto fail;
-		}
+		/* Mark the end of message using EOM */
+		if (!htx_add_endof(htx, HTX_BLK_EOM))
+			goto fail;
 	}
 
 	/* success */
@@ -3721,44 +3687,19 @@ next_frame:
 
  trailers:
 	/* This is the last HEADERS frame hence a trailer */
-
 	if (!(h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* It's a trailer but it's missing ES flag */
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 		goto fail;
 	}
 
-	/* Trailers terminate a DATA sequence. In HTX we always handle them. In
-	 * legacy, when using chunks, we have to emit the 0 CRLF marker first
-	 * and then handle the trailers. For other modes, the trailers are
-	 * silently dropped.
-	 */
-	if (htx) {
-		if (h2_make_htx_trailers(list, htx) <= 0)
-			goto fail;
-	}
-	else if (*flags & H2_SF_DATA_CHNK) {
-		/* Legacy mode with chunked encoding : we must finalize the
-		 * data block message emit the trailing CRLF */
-		if (!b_putblk(rxbuf, "0\r\n", 3))
-			goto fail;
-
-		outlen = h2_make_h1_trailers(list, b_tail(rxbuf), try);
-		if (outlen > 0)
-			b_add(rxbuf, outlen);
-		else
-			goto fail;
-	}
-
+	/* Trailers terminate a DATA sequence */
+	if (h2_make_htx_trailers(list, htx) <= 0)
+		goto fail;
 	goto done;
 }
 
-/* Transfer the payload of a DATA frame to the HTTP/1 side. When content-length
- * or a tunnel is used, the contents are copied as-is. When chunked encoding is
- * in use, a new chunk is emitted for each frame. This is supposed to fit
- * because the smallest chunk takes 1 byte for the size, 2 for CRLF, X for the
- * data, 2 for the extra CRLF, so that's 5+X, while on the H2 side the smallest
- * frame will be 9+X bytes based on the same buffer size. The HTTP/2 frame
+/* Transfer the payload of a DATA frame to the HTTP/1 side. The HTTP/2 frame
  * parser state is automatically updated. Returns > 0 if it could completely
  * send the current frame, 0 if it couldn't complete, in which case
  * CS_FL_RCV_MORE must be checked to know if some data remain pending (an empty
@@ -3770,11 +3711,11 @@ next_frame:
 static int h2_frt_transfer_data(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
-	int block1, block2;
+	int block;
 	unsigned int flen = 0;
-	unsigned int chklen = 0;
 	struct htx *htx = NULL;
 	struct buffer *csbuf;
+	unsigned int sent;
 
 	h2c->flags &= ~H2_CF_DEM_SFULL;
 
@@ -3783,11 +3724,10 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		goto fail;
 	}
+	htx = htx_from_buf(csbuf);
 
 try_again:
 	flen = h2c->dfl - h2c->dpl;
-	if (h2c->proxy->options2 & PR_O2_USE_HTX)
-		htx = htx_from_buf(csbuf);
 	if (!flen)
 		goto end_transfer;
 
@@ -3797,119 +3737,37 @@ try_again:
 			goto fail;
 	}
 
-	if (htx) {
-		unsigned int sent;
-
-		block1 = htx_free_data_space(htx);
-		if (!block1) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
-		}
-		if (flen > block1)
-			flen = block1;
-
-		/* here, flen is the max we can copy into the output buffer */
-		block1 = b_contig_data(&h2c->dbuf, 0);
-		if (flen > block1)
-			flen = block1;
-
-		sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
-
-		b_del(&h2c->dbuf, sent);
-		h2c->dfl    -= sent;
-		h2c->rcvd_c += sent;
-		h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
-
-		if (h2s->flags & H2_SF_DATA_CLEN) {
-			h2s->body_len -= sent;
-			htx->extra = h2s->body_len;
-		}
-
-		if (sent < flen) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
-		}
-
-		goto try_again;
-	}
-	else if (unlikely(b_space_wraps(csbuf) &&
-	                  flen + chklen <= b_room(csbuf) &&
-	                  b_data(csbuf) <= MAX_DATA_REALIGN)) {
-		/* it doesn't fit in a single block and the buffer is fragmented, if there are
-		 * not too many data in the buffer, let's defragment it and try
-		 * again.
-		 */
-		b_slow_realign(csbuf, trash.area, 0);
-	}
-
-	/* chunked-encoding requires more room */
-	if (h2s->flags & H2_SF_DATA_CHNK) {
-		chklen = MIN(flen, b_room(csbuf));
-		chklen = (chklen < 16) ? 1 : (chklen < 256) ? 2 :
-			(chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
-			(chklen < 1048576) ? 4 : 8;
-		chklen += 4; // CRLF, CRLF
-	}
-
-	/* does it fit in output buffer or should we wait ? */
-	if (flen + chklen > b_room(csbuf)) {
-		if (chklen >= b_room(csbuf)) {
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
-		}
-		flen = b_room(csbuf) - chklen;
-	}
-
-	if (h2s->flags & H2_SF_DATA_CHNK) {
-		/* emit the chunk size */
-		unsigned int chksz = flen;
-		char str[10];
-		char *beg;
-
-		beg = str + sizeof(str);
-		*--beg = '\n';
-		*--beg = '\r';
-		do {
-			*--beg = hextab[chksz & 0xF];
-		} while (chksz >>= 4);
-		b_putblk(csbuf, beg, str + sizeof(str) - beg);
-	}
-
-	/* Block1 is the length of the first block before the buffer wraps,
-	 * block2 is the optional second block to reach the end of the frame.
-	 */
-	block1 = b_contig_data(&h2c->dbuf, 0);
-	if (block1 > flen)
-		block1 = flen;
-	block2 = flen - block1;
-
-	if (block1)
-		b_putblk(csbuf, b_head(&h2c->dbuf), block1);
-
-	if (block2)
-		b_putblk(csbuf, b_peek(&h2c->dbuf, block1), block2);
-
-	if (h2s->flags & H2_SF_DATA_CHNK) {
-		/* emit the CRLF */
-		b_putblk(csbuf, "\r\n", 2);
-	}
-
-	/* now mark the input data as consumed (will be deleted from the buffer
-	 * by the caller when seeing FRAME_A after sending the window update).
-	 */
-	b_del(&h2c->dbuf, flen);
-	h2c->dfl    -= flen;
-	h2c->rcvd_c += flen;
-	h2c->rcvd_s += flen;  // warning, this can also affect the closed streams!
-
-	if (h2s->flags & H2_SF_DATA_CLEN)
-		h2s->body_len -= flen;
-
-	if (h2c->dfl > h2c->dpl) {
-		/* more data available, transfer stalled on stream full */
+	block = htx_free_data_space(htx);
+	if (!block) {
 		h2c->flags |= H2_CF_DEM_SFULL;
 		goto fail;
 	}
+	if (flen > block)
+		flen = block;
+
+	/* here, flen is the max we can copy into the output buffer */
+	block = b_contig_data(&h2c->dbuf, 0);
+	if (flen > block)
+		flen = block;
+
+	sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
+
+	b_del(&h2c->dbuf, sent);
+	h2c->dfl    -= sent;
+	h2c->rcvd_c += sent;
+	h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
+
+	if (h2s->flags & H2_SF_DATA_CLEN) {
+		h2s->body_len -= sent;
+		htx->extra = h2s->body_len;
+	}
+
+	if (sent < flen) {
+		h2c->flags |= H2_CF_DEM_SFULL;
+		goto fail;
+	}
+
+	goto try_again;
 
  end_transfer:
 	/* here we're done with the frame, all the payload (except padding) was
@@ -3917,20 +3775,9 @@ try_again:
 	 */
 
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		if (htx) {
-			if (!htx_add_endof(htx, HTX_BLK_EOM)) {
-				h2c->flags |= H2_CF_DEM_SFULL;
-				goto fail;
-			}
-		}
-		else if (h2s->flags & H2_SF_DATA_CHNK) {
-			/* emit the trailing 0 CRLF CRLF */
-			if (b_room(csbuf) < 5) {
-				h2c->flags |= H2_CF_DEM_SFULL;
-				goto fail;
-			}
-			chklen += 5;
-			b_putblk(csbuf, "0\r\n\r\n", 5);
+		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+			h2c->flags |= H2_CF_DEM_SFULL;
+			goto fail;
 		}
 	}
 
@@ -3938,460 +3785,12 @@ try_again:
 	h2c->rcvd_s += h2c->dpl;
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
-	if (htx)
-		htx_to_buf(htx, csbuf);
+	htx_to_buf(htx, csbuf);
 	return 1;
  fail:
 	if (htx)
 		htx_to_buf(htx, csbuf);
 	return 0;
-}
-
-/* Try to send a HEADERS frame matching HTTP/1 response present at offset <ofs>
- * and for <max> bytes in buffer <buf> for the H2 stream <h2s>. Returns the
- * number of bytes sent. The caller must check the stream's status to detect
- * any error which might have happened subsequently to a successful send.
- */
-static size_t h2s_frt_make_resp_headers(struct h2s *h2s, const struct buffer *buf, size_t ofs, size_t max)
-{
-	struct http_hdr list[global.tune.max_http_hdr];
-	struct h2c *h2c = h2s->h2c;
-	struct h1m *h1m = &h2s->h1m;
-	struct buffer outbuf;
-	struct buffer *mbuf;
-	union h1_sl sl;
-	int es_now = 0;
-	int ret = 0;
-	int hdr;
-
-	if (h2c_mux_busy(h2c, h2s)) {
-		h2s->flags |= H2_SF_BLK_MBUSY;
-		return 0;
-	}
-
-	/* First, try to parse the H1 response and index it into <list>.
-	 * NOTE! Since it comes from haproxy, we *know* that a response header
-	 * block does not wrap and we can safely read it this way without
-	 * having to realign the buffer.
-	 */
-	ret = h1_headers_to_hdr_list(b_peek(buf, ofs), b_peek(buf, ofs) + max,
-	                             list, sizeof(list)/sizeof(list[0]), h1m, &sl);
-	if (ret <= 0) {
-		/* incomplete or invalid response, this is abnormal coming from
-		 * haproxy and may only result in a bad errorfile or bad Lua code
-		 * so that won't be fixed, raise an error now.
-		 *
-		 * FIXME: we should instead add the ability to only return a
-		 * 502 bad gateway. But in theory this is not supposed to
-		 * happen.
-		 */
-		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-		ret = 0;
-		goto end;
-	}
-
-	h2s->status = sl.st.status;
-
-	/* certain statuses have no body or an empty one, regardless of
-	 * what the headers say.
-	 */
-	if (sl.st.status >= 100 && sl.st.status < 200) {
-		h1m->flags &= ~(H1_MF_CLEN | H1_MF_CHNK);
-		h1m->curr_len = h1m->body_len = 0;
-	}
-	else if (sl.st.status == 204 || sl.st.status == 304) {
-		/* no contents, claim c-len is present and set to zero */
-		h1m->flags &= ~H1_MF_CHNK;
-		h1m->flags |=  H1_MF_CLEN;
-		h1m->curr_len = h1m->body_len = 0;
-	}
-
-	mbuf = br_tail(h2c->mbuf);
- retry:
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		return 0;
-	}
-
-	chunk_reset(&outbuf);
-
-	while (1) {
-		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 9 || !b_space_wraps(mbuf))
-			break;
-	realign_again:
-		b_slow_realign(mbuf, trash.area, b_data(mbuf));
-	}
-
-	if (outbuf.size < 9)
-		goto full;
-
-	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4 */
-	memcpy(outbuf.area, "\x00\x00\x00\x01\x04", 5);
-	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
-	outbuf.data = 9;
-
-	/* encode status, which necessarily is the first one */
-	if (unlikely(list[0].v.len != 3)) {
-		/* this is an unparsable response */
-		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-		ret = 0;
-		goto end;
-	}
-
-	if (!hpack_encode_str_status(&outbuf, h2s->status, list[0].v)) {
-		if (b_space_wraps(mbuf))
-			goto realign_again;
-		goto full;
-	}
-
-	/* encode all headers, stop at empty name */
-	for (hdr = 1; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
-		/* these ones do not exist in H2 and must be dropped. */
-		if (isteq(list[hdr].n, ist("connection")) ||
-		    isteq(list[hdr].n, ist("proxy-connection")) ||
-		    isteq(list[hdr].n, ist("keep-alive")) ||
-		    isteq(list[hdr].n, ist("upgrade")) ||
-		    isteq(list[hdr].n, ist("transfer-encoding")))
-			continue;
-
-		if (isteq(list[hdr].n, ist("")))
-			break; // end
-
-		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
-			/* output full */
-			if (b_space_wraps(mbuf))
-				goto realign_again;
-			goto full;
-		}
-	}
-
-	/* we may need to add END_STREAM */
-	if (((h1m->flags & H1_MF_CLEN) && !h1m->body_len) || !h2s->cs || h2s->cs->flags & CS_FL_SHW)
-		es_now = 1;
-
-	/* update the frame's size */
-	h2_set_frame_size(outbuf.area, outbuf.data - 9);
-
-	if (es_now)
-		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
-
-	/* consume incoming H1 response */
-	max -= ret;
-
-	/* commit the H2 response */
-	b_add(mbuf, outbuf.data);
-	h2s->flags |= H2_SF_HEADERS_SENT;
-
-	if (es_now) {
-		// trim any possibly pending data (eg: inconsistent content-length)
-		ret += max;
-
-		h1m->state = H1_MSG_DONE;
-		h2s->flags |= H2_SF_ES_SENT;
-		if (h2s->st == H2_SS_OPEN)
-			h2s->st = H2_SS_HLOC;
-		else
-			h2s_close(h2s);
-	}
-	else if (h2s->status >= 100 && h2s->status < 200) {
-		/* we'll let the caller check if it has more headers to send */
-		h1m_init_res(h1m);
-		h1m->err_pos = -1; // don't care about errors on the response path
-		h2s->h1m.flags |= H1_MF_TOLOWER;
-		goto end;
-	}
-
-	/* now the h1m state is either H1_MSG_CHUNK_SIZE or H1_MSG_DATA */
-
- end:
-	//fprintf(stderr, "[%d] sent simple H2 response (sid=%d) = %d bytes (%d in, ep=%u, es=%s)\n", h2c->st0, h2s->id, outbuf.len, ret, h1m->err_pos, h1m_state_str(h1m->err_state));
-	return ret;
- full:
-	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
-		goto retry;
-	h1m_init_res(h1m);
-	h1m->err_pos = -1; // don't care about errors on the response path
-	h2c->flags |= H2_CF_MUX_MFULL;
-	h2s->flags |= H2_SF_BLK_MROOM;
-	ret = 0;
-	goto end;
-}
-
-/* Try to send a DATA frame matching HTTP/1 response present at offset <ofs>
- * for up to <max> bytes in response buffer <buf>, for stream <h2s>. Returns
- * the number of bytes sent. The caller must check the stream's status to
- * detect any error which might have happened subsequently to a successful send.
- */
-static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, size_t ofs, size_t max)
-{
-	struct h2c *h2c = h2s->h2c;
-	struct h1m *h1m = &h2s->h1m;
-	struct buffer outbuf;
-	struct buffer *mbuf;
-	int ret = 0;
-	size_t total = 0;
-	int es_now = 0;
-	int size = 0;
-	const char *blk1, *blk2;
-	size_t len1, len2;
-
-	if (h2c_mux_busy(h2c, h2s)) {
-		h2s->flags |= H2_SF_BLK_MBUSY;
-		goto end;
-	}
-
-	mbuf = br_tail(h2c->mbuf);
- retry:
-	if (!h2_get_buf(h2c, mbuf)) {
-		h2c->flags |= H2_CF_MUX_MALLOC;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		goto end;
-	}
-
- new_frame:
-	if (!max)
-		goto end;
-
-	chunk_reset(&outbuf);
-
-	while (1) {
-		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 9 || !b_space_wraps(mbuf))
-			break;
-	realign_again:
-		/* If there are pending data in the output buffer, and we have
-		 * less than 1/4 of the mbuf's size and everything fits, we'll
-		 * still perform a copy anyway. Otherwise we'll pretend the mbuf
-		 * is full and wait, to save some slow realign calls.
-		 */
-		if ((max + 9 > b_room(mbuf) || max >= b_size(mbuf) / 4)) {
-			if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
-				goto retry;
-			h2c->flags |= H2_CF_MUX_MFULL;
-			h2s->flags |= H2_SF_BLK_MROOM;
-			goto end;
-		}
-
-		b_slow_realign(mbuf, trash.area, b_data(mbuf));
-	}
-
-	if (outbuf.size < 9) {
-		if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
-			goto retry;
-		h2c->flags |= H2_CF_MUX_MFULL;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		goto end;
-	}
-
-	/* len: 0x000000 (fill later), type: 0(DATA), flags: none=0 */
-	memcpy(outbuf.area, "\x00\x00\x00\x00\x00", 5);
-	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
-	outbuf.data = 9;
-
-	switch (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
-	case 0:           /* no content length, read till SHUTW */
-		size = max;
-		h1m->curr_len = size;
-		break;
-	case H1_MF_CLEN:  /* content-length: read only h2m->body_len */
-		size = max;
-		if ((long long)size > h1m->curr_len)
-			size = h1m->curr_len;
-		break;
-	default:          /* te:chunked : parse chunks */
-		if (h1m->state == H1_MSG_CHUNK_CRLF) {
-			ret = h1_skip_chunk_crlf(buf, ofs, ofs + max);
-			if (!ret)
-				goto end;
-
-			if (ret < 0) {
-				/* FIXME: bad contents. how to proceed here when we're in H2 ? */
-				h1m->err_pos = ofs + max + ret;
-				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-				goto end;
-			}
-			max -= ret;
-			ofs += ret;
-			total += ret;
-			h1m->state = H1_MSG_CHUNK_SIZE;
-		}
-
-		if (h1m->state == H1_MSG_CHUNK_SIZE) {
-			unsigned int chunk;
-			ret = h1_parse_chunk_size(buf, ofs, ofs + max, &chunk);
-			if (!ret)
-				goto end;
-
-			if (ret < 0) {
-				/* FIXME: bad contents. how to proceed here when we're in H2 ? */
-				h1m->err_pos = ofs + max + ret;
-				h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-				goto end;
-			}
-
-			size = chunk;
-			h1m->curr_len = chunk;
-			h1m->body_len += chunk;
-			max -= ret;
-			ofs += ret;
-			total += ret;
-			h1m->state = size ? H1_MSG_DATA : H1_MSG_TRAILERS;
-			if (!size)
-				goto send_empty;
-		}
-
-		/* in MSG_DATA state, continue below */
-		size = h1m->curr_len;
-		break;
-	}
-
-	/* we have in <size> the exact number of bytes we need to copy from
-	 * the H1 buffer. We need to check this against the connection's and
-	 * the stream's send windows, and to ensure that this fits in the max
-	 * frame size and in the buffer's available space minus 9 bytes (for
-	 * the frame header). The connection's flow control is applied last so
-	 * that we can use a separate list of streams which are immediately
-	 * unblocked on window opening. Note: we don't implement padding.
-	 */
-
-	if (size > max)
-		size = max;
-
-	if (size > h2s->mws)
-		size = h2s->mws;
-
-	if (size <= 0) {
-		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (LIST_ADDED(&h2s->list))
-			LIST_DEL_INIT(&h2s->list);
-		goto end;
-	}
-
-	if (h2c->mfs && size > h2c->mfs)
-		size = h2c->mfs;
-
-	if (size + 9 > outbuf.size) {
-		/* It doesn't fit at once. If it at least fits once split and
-		 * the amount of data to move is low, let's defragment the
-		 * buffer now.
-		 */
-		if (b_space_wraps(mbuf) &&
-		    (size + 9 <= b_room(mbuf)) &&
-		    b_data(mbuf) <= MAX_DATA_REALIGN)
-			goto realign_again;
-		size = outbuf.size - 9;
-	}
-
-	if (size <= 0) {
-		if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
-			goto retry;
-		h2c->flags |= H2_CF_MUX_MFULL;
-		h2s->flags |= H2_SF_BLK_MROOM;
-		goto end;
-	}
-
-	if (size > h2c->mws)
-		size = h2c->mws;
-
-	if (size <= 0) {
-		h2s->flags |= H2_SF_BLK_MFCTL;
-		goto end;
-	}
-
-	/* copy whatever we can */
-	blk1 = blk2 = NULL; // silence a maybe-uninitialized warning
-	ret = b_getblk_nc(buf, &blk1, &len1, &blk2, &len2, ofs, max);
-	if (ret == 1)
-		len2 = 0;
-
-	if (!ret || len1 + len2 < size) {
-		/* FIXME: must normally never happen */
-		h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-		goto end;
-	}
-
-	/* limit len1/len2 to size */
-	if (len1 + len2 > size) {
-		int sub = len1 + len2 - size;
-
-		if (len2 > sub)
-			len2 -= sub;
-		else {
-			sub -= len2;
-			len2 = 0;
-			len1 -= sub;
-		}
-	}
-
-	/* now let's copy this this into the output buffer */
-	memcpy(outbuf.area + 9, blk1, len1);
-	if (len2)
-		memcpy(outbuf.area + 9 + len1, blk2, len2);
-
- send_empty:
-	/* we may need to add END_STREAM */
-	/* FIXME: we should also detect shutdown(w) below, but how ? Maybe we
-	 * could rely on the MSG_MORE flag as a hint for this ?
-	 *
-	 * FIXME: what we do here is not correct because we send end_stream
-	 * before knowing if we'll have to send a HEADERS frame for the
-	 * trailers. More importantly we're not consuming the trailing CRLF
-	 * after the end of trailers, so it will be left to the caller to
-	 * eat it. The right way to do it would be to measure trailers here
-	 * and to send ES only if there are no trailers.
-	 *
-	 */
-	if (((h1m->flags & H1_MF_CLEN) && !(h1m->curr_len - size)) ||
-	    !h1m->curr_len || h1m->state >= H1_MSG_DONE)
-		es_now = 1;
-
-	/* update the frame's size */
-	h2_set_frame_size(outbuf.area, size);
-
-	if (es_now)
-		outbuf.area[4] |= H2_F_DATA_END_STREAM;
-
-	/* commit the H2 response */
-	b_add(mbuf, size + 9);
-
-	/* consume incoming H1 response */
-	if (size > 0) {
-		max -= size;
-		ofs += size;
-		total += size;
-		h1m->curr_len -= size;
-		h2s->mws -= size;
-		h2c->mws -= size;
-
-		if (size && !h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
-			h1m->state = H1_MSG_CHUNK_CRLF;
-			goto new_frame;
-		}
-	}
-
-	if (es_now) {
-		if (h2s->st == H2_SS_OPEN)
-			h2s->st = H2_SS_HLOC;
-		else
-			h2s_close(h2s);
-
-		if (!(h1m->flags & H1_MF_CHNK)) {
-			// trim any possibly pending data (eg: inconsistent content-length)
-			total += max;
-			ofs += max;
-			max = 0;
-
-			h1m->state = H1_MSG_DONE;
-		}
-
-		h2s->flags |= H2_SF_ES_SENT;
-	}
-
- end:
-	trace("[%d] sent simple H2 DATA response (sid=%d) = %d bytes out (%u in, st=%s, ep=%u, es=%s, h2cws=%d h2sws=%d) data=%u", h2c->st0, h2s->id, size+9, (unsigned int)total, h1m_state_str(h1m->state), h1m->err_pos, h1m_state_str(h1m->err_state), h2c->mws, h2s->mws, (unsigned int)b_data(buf));
-	return total;
 }
 
 /* Try to send a HEADERS frame matching HTX response present in HTX message
@@ -4403,7 +3802,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, const struct buffer *buf, 
  * header blocks and an end of header, otherwise an invalid frame could be
  * emitted and the resulting htx message could be left in an inconsistent state.
  */
-static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
+static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 {
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct h2c *h2c = h2s->h2c;
@@ -4611,7 +4010,7 @@ static size_t h2s_htx_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
  * header blocks and an end of header, otherwise an invalid frame could be
  * emitted and the resulting htx message could be left in an inconsistent state.
  */
-static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
+static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 {
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct h2c *h2c = h2s->h2c;
@@ -4862,7 +4261,7 @@ static size_t h2s_htx_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
  * happened subsequently to a successful send. Returns the number of data bytes
  * consumed, or zero if nothing done. Note that EOM count for 1 byte.
  */
-static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t count)
+static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct htx *htx;
@@ -5127,7 +4526,7 @@ static size_t h2s_htx_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, si
  * the EOM, which is *not* removed. All trailers are processed at once and sent
  * as a single frame. The ES flag is always set.
  */
-static size_t h2s_htx_make_trailers(struct h2s *h2s, struct htx *htx)
+static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 {
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct h2c *h2c = h2s->h2c;
@@ -5367,44 +4766,39 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	size_t ret = 0;
 
 	/* transfer possibly pending data to the upper layer */
-	if (h2c->proxy->options2 & PR_O2_USE_HTX) {
-		h2s_htx = htx_from_buf(&h2s->rxbuf);
-		if (htx_is_empty(h2s_htx)) {
-			/* Here htx_to_buf() will set buffer data to 0 because
-			 * the HTX is empty.
-			 */
-			htx_to_buf(h2s_htx, &h2s->rxbuf);
-			goto end;
-		}
+	h2s_htx = htx_from_buf(&h2s->rxbuf);
+	if (htx_is_empty(h2s_htx)) {
+		/* Here htx_to_buf() will set buffer data to 0 because
+		 * the HTX is empty.
+		 */
+		htx_to_buf(h2s_htx, &h2s->rxbuf);
+		goto end;
+	}
 
-		ret = h2s_htx->data;
-		buf_htx = htx_from_buf(buf);
+	ret = h2s_htx->data;
+	buf_htx = htx_from_buf(buf);
 
-		/* <buf> is empty and the message is small enough, swap the
-		 * buffers. */
-		if (htx_is_empty(buf_htx) && htx_used_space(h2s_htx) <= count) {
-			htx_to_buf(buf_htx, buf);
-			htx_to_buf(h2s_htx, &h2s->rxbuf);
-			b_xfer(buf, &h2s->rxbuf, b_data(&h2s->rxbuf));
-			goto end;
-		}
-
-		htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
-
-		if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
-			buf_htx->flags |= HTX_FL_PARSING_ERROR;
-			if (htx_is_empty(buf_htx))
-				cs->flags |= CS_FL_EOI;
-		}
-
-		buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
+	/* <buf> is empty and the message is small enough, swap the
+	 * buffers. */
+	if (htx_is_empty(buf_htx) && htx_used_space(h2s_htx) <= count) {
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(h2s_htx, &h2s->rxbuf);
-		ret -= h2s_htx->data;
+		b_xfer(buf, &h2s->rxbuf, b_data(&h2s->rxbuf));
+		goto end;
 	}
-	else {
-		ret = b_xfer(buf, &h2s->rxbuf, count);
+
+	htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_EOM);
+
+	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
+		buf_htx->flags |= HTX_FL_PARSING_ERROR;
+		if (htx_is_empty(buf_htx))
+			cs->flags |= CS_FL_EOI;
 	}
+
+	buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
+	htx_to_buf(buf_htx, buf);
+	htx_to_buf(h2s_htx, &h2s->rxbuf);
+	ret -= h2s_htx->data;
 
   end:
 	if (b_data(&h2s->rxbuf))
@@ -5478,8 +4872,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (h2s->h2c->st0 < H2_CS_FRAME_H)
 		return 0;
 
-	/* htx will be enough to decide if we're using HTX or legacy */
-	htx = (h2s->h2c->proxy->options2 & PR_O2_USE_HTX) ? htx_from_buf(buf) : NULL;
+	htx = htx_from_buf(buf);
 
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
 		h2s->flags |= H2_SF_OUTGOING_DATA;
@@ -5499,18 +4892,17 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		eb32_insert(&h2s->h2c->streams_by_id, &h2s->by_id);
 	}
 
-	if (htx) {
-		while (h2s->st < H2_SS_HLOC && !(h2s->flags & H2_SF_BLK_ANY) &&
-		       count && !htx_is_empty(htx)) {
-			idx   = htx_get_head(htx);
-			blk   = htx_get_blk(htx, idx);
-			btype = htx_get_blk_type(blk);
-			bsize = htx_get_blksz(blk);
+	while (h2s->st < H2_SS_HLOC && !(h2s->flags & H2_SF_BLK_ANY) &&
+	       count && !htx_is_empty(htx)) {
+		idx   = htx_get_head(htx);
+		blk   = htx_get_blk(htx, idx);
+		btype = htx_get_blk_type(blk);
+		bsize = htx_get_blksz(blk);
 
-			switch (btype) {
+		switch (btype) {
 			case HTX_BLK_REQ_SL:
 				/* start-line before headers */
-				ret = h2s_htx_bck_make_req_headers(h2s, htx);
+				ret = h2s_bck_make_req_headers(h2s, htx);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
@@ -5521,7 +4913,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 			case HTX_BLK_RES_SL:
 				/* start-line before headers */
-				ret = h2s_htx_frt_make_resp_headers(h2s, htx);
+				ret = h2s_frt_make_resp_headers(h2s, htx);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
@@ -5536,7 +4928,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				 * This EOM necessarily is one before trailers, as the EOM following
 				 * trailers would have been consumed by the trailers parser.
 				 */
-				ret = h2s_htx_frt_make_resp_data(h2s, buf, count);
+				ret = h2s_frt_make_resp_data(h2s, buf, count);
 				if (ret > 0) {
 					htx = htx_from_buf(buf);
 					total += ret;
@@ -5551,7 +4943,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				/* This is the first trailers block, all the subsequent ones AND
 				 * the EOM will be swallowed by the parser.
 				 */
-				ret = h2s_htx_make_trailers(h2s, htx);
+				ret = h2s_make_trailers(h2s, htx);
 				if (ret > 0) {
 					total += ret;
 					count -= ret;
@@ -5565,53 +4957,10 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				total += bsize;
 				count -= bsize;
 				break;
-			}
 		}
-		goto done;
 	}
 
-	/* legacy transfer mode */
-	while (h2s->h1m.state < H1_MSG_DONE && count) {
-		if (h2s->h1m.state <= H1_MSG_LAST_LF) {
-			if (h2s->h2c->flags & H2_CF_IS_BACK)
-				ret = -1;
-			else
-				ret = h2s_frt_make_resp_headers(h2s, buf, total, count);
-		}
-		else if (h2s->h1m.state < H1_MSG_TRAILERS) {
-			ret = h2s_frt_make_resp_data(h2s, buf, total, count);
-		}
-		else if (h2s->h1m.state == H1_MSG_TRAILERS) {
-			/* consume the trailers if any (we don't forward them for now) */
-			ret = h1_measure_trailers(buf, total, count);
-
-			if (unlikely((int)ret <= 0)) {
-				if ((int)ret < 0)
-					h2s_error(h2s, H2_ERR_INTERNAL_ERROR);
-				break;
-			}
-			// trim any possibly pending data (eg: extra CR-LF, ...)
-			total += count;
-			count  = 0;
-			h2s->h1m.state = H1_MSG_DONE;
-			break;
-		}
-		else {
-			cs_set_error(cs);
-			break;
-		}
-
-		total += ret;
-		count -= ret;
-
-		if (h2s->st >= H2_SS_HLOC)
-			break;
-
-		if (h2s->flags & H2_SF_BLK_ANY)
-			break;
-	}
-
- done:
+  done:
 	if (h2s->st >= H2_SS_HLOC) {
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
@@ -5627,11 +4976,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			h2s_close(h2s);
 	}
 
-	if (htx) {
-		htx_to_buf(htx, buf);
-	} else {
-		b_del(buf, total);
-	}
+	htx_to_buf(htx, buf);
 
 	/* The mux is full, cancel the pending tasks */
 	if ((h2s->h2c->flags & H2_CF_MUX_BLOCK_ANY) ||
@@ -5813,42 +5158,14 @@ static const struct mux_ops h2_ops = {
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
 	.show_fd = h2_show_fd,
-	.flags = MX_FL_CLEAN_ABRT,
-	.name = "H2",
-};
-
-/* PROTO selection : this mux registers PROTO token "h2" */
-static struct mux_proto_list mux_proto_h2 =
-	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &h2_ops };
-
-INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
-
-
-/* The mux operations */
-static const struct mux_ops h2_htx_ops = {
-	.init = h2_init,
-	.wake = h2_wake,
-	.snd_buf = h2_snd_buf,
-	.rcv_buf = h2_rcv_buf,
-	.subscribe = h2_subscribe,
-	.unsubscribe = h2_unsubscribe,
-	.attach = h2_attach,
-	.get_first_cs = h2_get_first_cs,
-	.detach = h2_detach,
-	.destroy = h2_destroy,
-	.avail_streams = h2_avail_streams,
-	.used_streams = h2_used_streams,
-	.shutr = h2_shutr,
-	.shutw = h2_shutw,
-	.show_fd = h2_show_fd,
 	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX,
 	.name = "H2",
 };
 
-static struct mux_proto_list mux_proto_h2_htx =
-	{ .token = IST("h2"), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &h2_htx_ops };
+static struct mux_proto_list mux_proto_h2 =
+	{ .token = IST("h2"), .mode = PROTO_MODE_HTX, .side = PROTO_SIDE_BOTH, .mux = &h2_ops };
 
-INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2_htx);
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
