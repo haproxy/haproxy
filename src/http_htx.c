@@ -680,7 +680,7 @@ static int http_htx_init(void)
 	int err_code = 0;
 
 	for (px = proxies_list; px; px = px->next) {
-		if (px->mode != PR_MODE_HTTP || !(px->options2 & PR_O2_USE_HTX))
+		if (!(px->options2 & PR_O2_USE_HTX))
 			continue;
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
