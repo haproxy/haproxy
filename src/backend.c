@@ -321,6 +321,8 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 	unsigned int hash = 0;
 	struct channel  *req  = &s->req;
 	struct proxy    *px   = s->be;
+	struct htx      *htx = htxbuf(&req->buf);
+	struct htx_blk  *blk;
 	unsigned int     plen = px->lbprm.arg_len;
 	unsigned long    len;
 	const char      *params, *p, *start, *end;
@@ -328,36 +330,18 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (!IS_HTX_STRM(s)) {
-		struct http_txn *txn = s->txn;
-		struct http_msg *msg = &txn->req;
+	p = params = NULL;
+	len = 0;
+	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		enum htx_blk_type type = htx_get_blk_type(blk);
+		struct ist v;
 
-		len  = http_body_bytes(msg);
-		p = params = c_ptr(req, -http_data_rewind(msg));
-
-		if (len == 0)
-			return NULL;
-		if (len > b_wrap(&req->buf) - p)
-			len = b_wrap(&req->buf) - p;
-
-	}
-	else {
-		struct htx *htx = htxbuf(&req->buf);
-		struct htx_blk *blk;
-
-		p = params = NULL;
-		len = 0;
-		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
-			enum htx_blk_type type = htx_get_blk_type(blk);
-			struct ist v;
-
-			if (type != HTX_BLK_DATA)
-				continue;
-			v = htx_get_blk_value(htx, blk);
-			p = params = v.ptr;
-			len = v.len;
-			break;
-		}
+		if (type != HTX_BLK_DATA)
+			continue;
+		v = htx_get_blk_value(htx, blk);
+		p = params = v.ptr;
+		len = v.len;
+		break;
 	}
 
 	while (len > plen) {
@@ -428,6 +412,8 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	unsigned long    len;
 	const char      *p;
 	const char *start, *end;
+	struct htx *htx = htxbuf(&s->req.buf);
+	struct http_hdr_ctx ctx = { .blk = NULL };
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
@@ -437,40 +423,17 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	if (!IS_HTX_STRM(s)) {
-		struct http_txn *txn = s->txn;
-		struct hdr_ctx   ctx = { .idx = 0 };
+	http_find_header(htx, ist2(px->lbprm.arg_str, plen), &ctx, 0);
 
-		/* if the message is chunked, we skip the chunk size, but use the value as len */
-		http_find_header2(px->lbprm.arg_str, plen, c_ptr(&s->req, -http_hdr_rewind(&txn->req)),
-				  &txn->hdr_idx, &ctx);
+	/* if the header is not found or empty, let's fallback to round robin */
+	if (!ctx.blk || !ctx.value.len)
+		return NULL;
 
-		/* if the header is not found or empty, let's fallback to round robin */
-		if (!ctx.idx || !ctx.vlen)
-			return NULL;
-
-		/* Found the param_name in the headers.
-		 * we will compute the hash based on this value ctx.val.
-		 */
-		len = ctx.vlen;
-		p = (char *)ctx.line + ctx.val;
-	}
-	else {
-		struct htx *htx = htxbuf(&s->req.buf);
-		struct http_hdr_ctx ctx = { .blk = NULL };
-
-		http_find_header(htx, ist2(px->lbprm.arg_str, plen), &ctx, 0);
-
-		/* if the header is not found or empty, let's fallback to round robin */
-		if (!ctx.blk || !ctx.value.len)
-			return NULL;
-
-		/* Found a the param_name in the headers.
-		 * we will compute the hash based on this value ctx.val.
-		 */
-		len = ctx.value.len;
-		p   = ctx.value.ptr;
-	}
+	/* Found a the param_name in the headers.
+	 * we will compute the hash based on this value ctx.val.
+	 */
+	len = ctx.value.len;
+	p   = ctx.value.ptr;
 
 	if (!px->lbprm.arg_opt1) {
 		hash = gen_hash(px, p, len);
@@ -734,13 +697,7 @@ int assign_server(struct stream *s)
 
 			case BE_LB_HASH_URI:
 				/* URI hashing */
-				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
-					break;
-				if (!IS_HTX_STRM(s))
-					srv = get_server_uh(s->be,
-							    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
-							    s->txn->req.sl.rq.u_l, prev_srv);
-				else {
+				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY) {
 					struct ist uri;
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
@@ -750,29 +707,21 @@ int assign_server(struct stream *s)
 
 			case BE_LB_HASH_PRM:
 				/* URL Parameter hashing */
-				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
-					break;
-
-				if (!IS_HTX_STRM(s))
-					srv = get_server_ph(s->be,
-							    c_ptr(&s->req, -http_uri_rewind(&s->txn->req)),
-							    s->txn->req.sl.rq.u_l, prev_srv);
-				else {
+				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY) {
 					struct ist uri;
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 					srv = get_server_ph(s->be, uri.ptr, uri.len, prev_srv);
-				}
 
-				if (!srv && s->txn->meth == HTTP_METH_POST)
-					srv = get_server_ph_post(s, prev_srv);
+					if (!srv && s->txn->meth == HTTP_METH_POST)
+						srv = get_server_ph_post(s, prev_srv);
+				}
 				break;
 
 			case BE_LB_HASH_HDR:
 				/* Header Parameter hashing */
-				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
-					break;
-				srv = get_server_hh(s, prev_srv);
+				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY)
+					srv = get_server_hh(s, prev_srv);
 				break;
 
 			case BE_LB_HASH_RDP:
@@ -1103,7 +1052,7 @@ static void assign_tproxy_address(struct stream *s)
 			memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
 		break;
 	case CO_SRC_TPROXY_DYN:
-		if (src->bind_hdr_occ && s->txn) {
+		if (src->bind_hdr_occ && IS_HTX_STRM(s)) {
 			char *vptr;
 			size_t vlen;
 
@@ -1111,24 +1060,12 @@ static void assign_tproxy_address(struct stream *s)
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_family = AF_INET;
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
-			if (!IS_HTX_STRM(s)) {
-				int rewind;
 
-				c_rew(&s->req, rewind = http_hdr_rewind(&s->txn->req));
-				if (http_get_hdr(&s->txn->req, src->bind_hdr_name, src->bind_hdr_len,
-						 &s->txn->hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
-					((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
-						htonl(inetaddr_host_lim(vptr, vptr + vlen));
-				}
-				c_adv(&s->req, rewind);
-			}
-			else {
-				if (http_get_htx_hdr(htxbuf(&s->req.buf),
-						     ist2(src->bind_hdr_name, src->bind_hdr_len),
-						     src->bind_hdr_occ, NULL, &vptr, &vlen)) {
-					((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
-						htonl(inetaddr_host_lim(vptr, vptr + vlen));
-				}
+			if (http_get_htx_hdr(htxbuf(&s->req.buf),
+					     ist2(src->bind_hdr_name, src->bind_hdr_len),
+					     src->bind_hdr_occ, NULL, &vptr, &vlen)) {
+				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
+					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}
 		}
 		break;
@@ -1637,28 +1574,9 @@ int connect_server(struct stream *s)
 #ifdef USE_OPENSSL
 		if (srv->ssl_ctx.sni) {
 			struct sample *smp;
-			int rewind;
 
-			if (!IS_HTX_STRM(s)) {
-				/* Tricky case : we have already scheduled the pending
-				 * HTTP request or TCP data for leaving. So in HTTP we
-				 * rewind exactly the headers, otherwise we rewind the
-				 * output data.
-				 */
-				rewind = s->txn ? http_hdr_rewind(&s->txn->req) : co_data(&s->req);
-				c_rew(&s->req, rewind);
-
-				smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-							   srv->ssl_ctx.sni, SMP_T_STR);
-
-				/* restore the pointers */
-				c_adv(&s->req, rewind);
-			}
-			else {
-				smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-							   srv->ssl_ctx.sni, SMP_T_STR);
-			}
-
+			smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+						   srv->ssl_ctx.sni, SMP_T_STR);
 			if (smp_make_safe(smp)) {
 				ssl_sock_set_servername(srv_conn,
 							smp->data.u.str.area);
