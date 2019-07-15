@@ -201,8 +201,6 @@ extern struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES];
 
 /* various protocol processing functions */
 
-int h2_make_h1_request(struct http_hdr *list, char *out, int osize, unsigned int *msgf, unsigned long long *body_len);
-int h2_make_h1_trailers(struct http_hdr *list, char *out, int osize);
 int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned long long *body_len);
 int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len);
 int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len);
