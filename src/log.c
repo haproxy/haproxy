@@ -517,7 +517,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 		goto error_free;
 	}
 
-	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+	/* check if we need to allocate an http_txn struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
 	curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 

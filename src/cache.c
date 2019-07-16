@@ -22,7 +22,6 @@
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/proxy.h>
-#include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
 #include <proto/filters.h>
 #include <proto/http_rules.h>

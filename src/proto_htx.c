@@ -24,7 +24,6 @@
 #include <proto/checks.h>
 #include <proto/connection.h>
 #include <proto/filters.h>
-#include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>

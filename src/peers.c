@@ -40,7 +40,6 @@
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
-#include <proto/hdr_idx.h>
 #include <proto/mux_pt.h>
 #include <proto/peers.h>
 #include <proto/proxy.h>

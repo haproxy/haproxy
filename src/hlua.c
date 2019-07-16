@@ -42,7 +42,6 @@
 #include <proto/cli.h>
 #include <proto/connection.h>
 #include <proto/stats.h>
-#include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>

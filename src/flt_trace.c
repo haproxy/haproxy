@@ -26,7 +26,6 @@
 #include <types/stream.h>
 
 #include <proto/filters.h>
-#include <proto/hdr_idx.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>

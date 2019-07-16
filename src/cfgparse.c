@@ -63,7 +63,6 @@
 #include <proto/stats.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>
-#include <proto/hdr_idx.h>
 #include <proto/http_rules.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>
@@ -4055,10 +4054,6 @@ out_uri_auth_compat:
 		    curproxy->server_state_file_name == NULL)
 			curproxy->server_state_file_name = strdup(curproxy->id);
 	}
-
-	pool_head_hdr_idx = create_pool("hdr_idx",
-				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),
-				    MEM_F_SHARED);
 
 	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
 		if (LIST_ISEMPTY(&curr_resolvers->nameservers)) {

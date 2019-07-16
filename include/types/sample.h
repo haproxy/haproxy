@@ -133,7 +133,7 @@ enum {
 	SMP_USE_TXFIN = 1 << SMP_SRC_TXFIN,  /* final information about the transaction (eg: #comp rate) */
 	SMP_USE_SSFIN = 1 << SMP_SRC_SSFIN,  /* final information about the stream (eg: #requests, final flags) */
 
-	/* This composite one is useful to detect if an hdr_idx needs to be allocated */
+	/* This composite one is useful to detect if an http_txn needs to be allocated */
 	SMP_USE_HTTP_ANY = SMP_USE_HRQHV | SMP_USE_HRQHP | SMP_USE_HRQBO |
 	                   SMP_USE_HRSHV | SMP_USE_HRSHP | SMP_USE_HRSBO,
 };

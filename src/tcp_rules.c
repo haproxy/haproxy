@@ -743,7 +743,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		curpx->req_cap = hdr;
 		curpx->to_log |= LW_REQHDR;
 
-		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		/* check if we need to allocate an http_txn struct for HTTP parsing */
 		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 		rule->arg.cap.expr = expr;
@@ -781,7 +781,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			return -1;
 		}
 
-		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		/* check if we need to allocate an http_txn struct for HTTP parsing */
 		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 		if (strcmp(args[arg], "table") == 0) {

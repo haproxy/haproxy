@@ -38,7 +38,6 @@
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
-#include <proto/hdr_idx.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>

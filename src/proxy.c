@@ -41,7 +41,6 @@
 #include <proto/backend.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
-#include <proto/hdr_idx.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/proto_tcp.h>
@@ -1428,7 +1427,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	s->req.analysers |= be->be_req_ana & ~(strm_li(s) ? strm_li(s)->analysers : 0);
 
 	/* If the target backend requires HTTP processing, we have to allocate
-	 * the HTTP transaction and hdr_idx if we did not have one.
+	 * the HTTP transaction if we did not have one.
 	 */
 	if (unlikely(!s->txn && be->http_needed)) {
 		if (unlikely(!http_alloc_txn(s)))
@@ -1444,9 +1443,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		s->req.analysers |= AN_REQ_FLT_HTTP_HDRS;
 
 	if (s->txn) {
-		if (be->options2 & PR_O2_RSPBUG_OK)
-			s->txn->rsp.err_pos = -1; /* let buggy responses pass */
-
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
 		 * the client mux */
 		if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP) {
@@ -1478,8 +1474,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 			s->txn->req.flags |= HTTP_MSGF_WAIT_CONN;
 
 		/* we may request to parse a request body */
-		if ((be->options & PR_O_WREQ_BODY) &&
-		    (s->txn->req.body_len || (s->txn->req.flags & HTTP_MSGF_TE_CHNK)))
+		if (be->options & PR_O_WREQ_BODY)
 			s->req.analysers |= AN_REQ_HTTP_BODY;
 	}
 

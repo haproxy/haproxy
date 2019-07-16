@@ -22,10 +22,8 @@
 #include <types/stream.h>
 
 #include <proto/arg.h>
-#include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
 #include <proto/spoe.h>
 
 #include <api.h>

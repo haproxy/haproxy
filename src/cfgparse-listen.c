@@ -1829,7 +1829,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		/* check if we need to allocate an http_txn struct for HTTP parsing */
 		curproxy->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 		if (strcmp(args[myidx], "table") == 0) {

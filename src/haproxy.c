@@ -108,7 +108,6 @@
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
-#include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>

@@ -33,7 +33,6 @@
 
 #include <proto/arg.h>
 #include <proto/auth.h>
-#include <proto/hdr_idx.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
@@ -1332,7 +1331,7 @@ static int smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp,
 {
 	struct http_txn *txn = smp->strm->txn;
 
-	if (!txn || txn->req.msg_state < HTTP_MSG_HDR_FIRST)
+	if (!txn || txn->req.msg_state >= HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->req.flags & HTTP_MSGF_VER_11)
@@ -1354,7 +1353,7 @@ static int smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp,
 {
 	struct http_txn *txn = smp->strm->txn;
 
-	if (!txn || txn->rsp.msg_state < HTTP_MSG_HDR_FIRST)
+	if (!txn || txn->rsp.msg_state >= HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.flags & HTTP_MSGF_VER_11)

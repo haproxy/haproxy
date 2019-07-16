@@ -46,7 +46,6 @@
 #include <proto/filters.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
-#include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
@@ -429,7 +428,6 @@ static void stream_free(struct stream *s)
 	}
 
 	if (s->txn) {
-		pool_free(pool_head_hdr_idx, s->txn->hdr_idx.v);
 		pool_free(pool_head_http_txn, s->txn);
 		s->txn = NULL;
 	}
@@ -495,7 +493,6 @@ static void stream_free(struct stream *s)
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
 		pool_flush(pool_head_buffer);
 		pool_flush(pool_head_http_txn);
-		pool_flush(pool_head_hdr_idx);
 		pool_flush(pool_head_requri);
 		pool_flush(pool_head_capture);
 		pool_flush(pool_head_stream);
