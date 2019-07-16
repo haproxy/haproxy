@@ -3611,13 +3611,6 @@ out_uri_auth_compat:
 			newsrv->mux_proto = mux_ent;
 		}
 
-		/* the option "http-tunnel" is deprecated and ignored. So emit a warning if the option is set. */
-		if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN) {
-			ha_warning("config : %s '%s' : the option 'http-tunnel' is deprecated and will be removed in next version.\n",
-				   proxy_type_str(curproxy), curproxy->id);
-			curproxy->options &= ~PR_O_HTTP_MODE;
-		}
-
 		/* initialize idle conns lists */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int i;

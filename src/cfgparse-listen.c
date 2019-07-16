@@ -2232,22 +2232,10 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-tunnel") == 0) {
-			if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[1], NULL)) {
-				err_code |= ERR_WARN;
-				goto out;
-			}
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-			if (kwm == KWM_STD) {
-				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_TUN;
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
-					curproxy->options &= ~PR_O_HTTP_MODE;
-				goto out;
-			}
+			ha_warning("parsing [%s:%d]: the option '%s' is deprecated and will be removed in next version.\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_WARN;
+			goto out;
 		}
 
 		/* Redispatch can take an integer argument that control when the

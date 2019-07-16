@@ -117,8 +117,8 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_HTTP_KAL   0x00000000      /* HTTP keep-alive mode (http-keep-alive) */
 #define PR_O_HTTP_CLO   0x01000000      /* HTTP close mode (httpclose) */
 #define PR_O_HTTP_SCL   0x02000000      /* HTTP server close mode (http-server-close) */
-#define PR_O_HTTP_TUN   0x04000000      /* HTTP tunnel mode : no analysis past first request/response */
-#define PR_O_HTTP_MODE  0x07000000      /* MASK to retrieve the HTTP mode */
+#define PR_O_HTTP_MODE  0x03000000      /* MASK to retrieve the HTTP mode */
+/* unused: 0x04000000 */
 
 #define PR_O_TCPCHK_SSL 0x08000000	/* at least one TCPCHECK connect rule requires SSL */
 #define PR_O_CONTSTATS	0x10000000	/* continuous counters */
