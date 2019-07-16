@@ -6477,16 +6477,6 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	const char *error;
 
 	txn = strm->txn;
-
-	/* We want two things in HTTP mode :
-	 *  - enforce server-close mode if we were in keep-alive, so that the
-	 *    applet is released after each response ;
-	 *  - enable request body transfer to the applet in order to resync
-	 *    with the response body.
-	 */
-	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
-
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
