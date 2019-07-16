@@ -905,15 +905,6 @@ static void sess_establish(struct stream *s)
 		si->err_type = SI_ET_DATA_ERR;
 	}
 
-	/* If the request channel is waiting for the connect(), we mark the read
-	 * side as attached on the response channel and we wake up it once. So
-	 * it will have a chance to forward data now.
-	 */
-	if (req->flags & CF_WAKE_CONNECT) {
-		req->flags |= CF_WAKE_ONCE;
-		req->flags &= ~CF_WAKE_CONNECT;
-	}
-
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_OK);
 
