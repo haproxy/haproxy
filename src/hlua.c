@@ -5996,15 +5996,19 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	ic = &htxn->s->req;
 	oc = &htxn->s->res;
 
-	if (htxn->s->txn) {
-		/* HTTP mode, let's stay in sync with the stream */
-		b_del(&ic->buf, htxn->s->txn->req.sov);
-		htxn->s->txn->req.next -= htxn->s->txn->req.sov;
-		htxn->s->txn->req.sov = 0;
-		ic->analysers &= AN_REQ_HTTP_XFER_BODY;
-		oc->analysers = AN_RES_HTTP_XFER_BODY;
-		htxn->s->txn->req.msg_state = HTTP_MSG_CLOSED;
-		htxn->s->txn->rsp.msg_state = HTTP_MSG_DONE;
+	if (IS_HTX_STRM(htxn->s))
+		htx_reply_and_close(htxn->s, 0, NULL);
+	else {
+		if (htxn->s->txn) {
+			/* HTTP mode, let's stay in sync with the stream */
+			b_del(&ic->buf, htxn->s->txn->req.sov);
+			htxn->s->txn->req.next -= htxn->s->txn->req.sov;
+			htxn->s->txn->req.sov = 0;
+
+			ic->analysers &= AN_REQ_HTTP_XFER_BODY;
+			oc->analysers = AN_RES_HTTP_XFER_BODY;
+			htxn->s->txn->req.msg_state = HTTP_MSG_CLOSED;
+			htxn->s->txn->rsp.msg_state = HTTP_MSG_DONE;
 
 		/* Note that if we want to support keep-alive, we need
 		 * to bypass the close/shutr_now calls below, but that
@@ -6012,19 +6016,20 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		 * processed and the connection header is known (ie
 		 * not during TCP rules).
 		 */
+		}
+
+		channel_auto_read(ic);
+		channel_abort(ic);
+		channel_auto_close(ic);
+		channel_erase(ic);
+
+		oc->wex = tick_add_ifset(now_ms, oc->wto);
+		channel_auto_read(oc);
+		channel_auto_close(oc);
+		channel_shutr_now(oc);
+
+		ic->analysers = 0;
 	}
-
-	channel_auto_read(ic);
-	channel_abort(ic);
-	channel_auto_close(ic);
-	channel_erase(ic);
-
-	oc->wex = tick_add_ifset(now_ms, oc->wto);
-	channel_auto_read(oc);
-	channel_auto_close(oc);
-	channel_shutr_now(oc);
-
-	ic->analysers = 0;
 
 	hlua->flags |= HLUA_STOP;
 	WILL_LJMP(hlua_done(L));
