@@ -33,6 +33,7 @@
 
 #include <proto/arg.h>
 #include <proto/auth.h>
+#include <proto/channel.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>

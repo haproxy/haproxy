@@ -24,11 +24,9 @@
 
 #include <common/config.h>
 #include <common/htx.h>
+#include <types/channel.h>
 #include <types/proto_http.h>
 #include <types/stream.h>
-#include <types/task.h>
-#include <proto/channel.h>
-#include <proto/stream.h>
 
 extern struct pool_head *pool_head_uniqueid;
 

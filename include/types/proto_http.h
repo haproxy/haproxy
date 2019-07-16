@@ -22,15 +22,10 @@
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
 
-#include <common/buf.h>
 #include <common/config.h>
 #include <common/http.h>
-#include <common/mini-clist.h>
-#include <common/regex.h>
 
 #include <types/channel.h>
-#include <types/filters.h>
-//#include <types/sample.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -78,25 +73,6 @@
 
 /* used only for keep-alive purposes, to indicate we're on a second transaction */
 #define TX_NOT_FIRST	0x00040000	/* the transaction is not the first one */
-
-/* The HTTP parser is more complex than it looks like, because we have to
- * support multi-line headers and any number of spaces between the colon and
- * the value.
- *
- * All those examples must work :
-
- Hdr1:val1\r\n
- Hdr1: val1\r\n
- Hdr1:\t val1\r\n
- Hdr1: \r\n
-  val1\r\n
- Hdr1:\r\n
-  val1\n
- \tval2\r\n
-  val3\n
-
- *
- */
 
 /*
  * HTTP message status flags (msg->flags)
