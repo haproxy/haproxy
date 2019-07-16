@@ -25,7 +25,7 @@
 #include <proto/http_htx.h>
 #include <proto/filters.h>
 #include <proto/http_rules.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/log.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -596,7 +596,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (http_find_header(htx, ist("Vary"), &ctx, 0))
 		goto out;
 
-	htx_check_response_for_cacheability(s, &s->res);
+	http_check_response_for_cacheability(s, &s->res);
 
 	if (!(txn->flags & TX_CACHEABLE) || !(txn->flags & TX_CACHE_COOK))
 		goto out;
@@ -1089,7 +1089,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	    (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD))
 		txn->flags |= TX_CACHE_IGNORE;
 
-	htx_check_request_for_cacheability(s, &s->req);
+	http_check_request_for_cacheability(s, &s->req);
 
 	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
 		return ACT_RET_CONT;

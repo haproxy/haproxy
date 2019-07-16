@@ -3,7 +3,7 @@
 
 #include <types/channel.h>
 #include <types/connection.h>
-#include <types/proto_http.h>
+#include <types/http_ana.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
 #include <types/task.h>

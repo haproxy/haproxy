@@ -25,7 +25,7 @@
 #include <proto/compression.h>
 #include <proto/filters.h>
 #include <proto/http_htx.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 

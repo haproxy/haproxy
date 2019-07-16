@@ -54,7 +54,7 @@
 #include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/pipe.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
@@ -2072,20 +2072,20 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				/* Warning! ensure that analysers are always placed in ascending order! */
 				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_REQ_FLT_START_FE);
 				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_FE);
-				FLT_ANALYZE(s, req, htx_wait_for_request,       ana_list, ana_back, AN_REQ_WAIT_HTTP);
-				FLT_ANALYZE(s, req, htx_wait_for_request_body,  ana_list, ana_back, AN_REQ_HTTP_BODY);
-				FLT_ANALYZE(s, req, htx_process_req_common,     ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE, sess->fe);
+				FLT_ANALYZE(s, req, http_wait_for_request,      ana_list, ana_back, AN_REQ_WAIT_HTTP);
+				FLT_ANALYZE(s, req, http_wait_for_request_body, ana_list, ana_back, AN_REQ_HTTP_BODY);
+				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE, sess->fe);
 				FLT_ANALYZE(s, req, process_switching_rules,    ana_list, ana_back, AN_REQ_SWITCHING_RULES);
 				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_REQ_FLT_START_BE);
 				FLT_ANALYZE(s, req, tcp_inspect_request,        ana_list, ana_back, AN_REQ_INSPECT_BE);
-				FLT_ANALYZE(s, req, htx_process_req_common,     ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE, s->be);
-				FLT_ANALYZE(s, req, htx_process_tarpit,         ana_list, ana_back, AN_REQ_HTTP_TARPIT);
+				FLT_ANALYZE(s, req, http_process_req_common,    ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE, s->be);
+				FLT_ANALYZE(s, req, http_process_tarpit,        ana_list, ana_back, AN_REQ_HTTP_TARPIT);
 				FLT_ANALYZE(s, req, process_server_rules,       ana_list, ana_back, AN_REQ_SRV_RULES);
-				FLT_ANALYZE(s, req, htx_process_request,        ana_list, ana_back, AN_REQ_HTTP_INNER);
+				FLT_ANALYZE(s, req, http_process_request,       ana_list, ana_back, AN_REQ_HTTP_INNER);
 				FLT_ANALYZE(s, req, tcp_persist_rdp_cookie,     ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
 				FLT_ANALYZE(s, req, process_sticking_rules,     ana_list, ana_back, AN_REQ_STICKING_RULES);
 				ANALYZE    (s, req, flt_analyze_http_headers,   ana_list, ana_back, AN_REQ_FLT_HTTP_HDRS);
-				ANALYZE    (s, req, htx_request_forward_body,   ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
+				ANALYZE    (s, req, http_request_forward_body,  ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
 				ANALYZE    (s, req, pcli_wait_for_request,      ana_list, ana_back, AN_REQ_WAIT_CLI);
 				ANALYZE    (s, req, flt_xfer_data,              ana_list, ana_back, AN_REQ_FLT_XFER_DATA);
 				ANALYZE    (s, req, flt_end_analyze,            ana_list, ana_back, AN_REQ_FLT_END);
@@ -2150,11 +2150,11 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_RES_FLT_START_FE);
 				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_RES_FLT_START_BE);
 				FLT_ANALYZE(s, res, tcp_inspect_response,       ana_list, ana_back, AN_RES_INSPECT);
-				FLT_ANALYZE(s, res, htx_wait_for_response,      ana_list, ana_back, AN_RES_WAIT_HTTP);
+				FLT_ANALYZE(s, res, http_wait_for_response,     ana_list, ana_back, AN_RES_WAIT_HTTP);
 				FLT_ANALYZE(s, res, process_store_rules,        ana_list, ana_back, AN_RES_STORE_RULES);
-				FLT_ANALYZE(s, res, htx_process_res_common,     ana_list, ana_back, AN_RES_HTTP_PROCESS_BE, s->be);
+				FLT_ANALYZE(s, res, http_process_res_common,    ana_list, ana_back, AN_RES_HTTP_PROCESS_BE, s->be);
 				ANALYZE    (s, res, flt_analyze_http_headers,   ana_list, ana_back, AN_RES_FLT_HTTP_HDRS);
-				ANALYZE    (s, res, htx_response_forward_body,  ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
+				ANALYZE    (s, res, http_response_forward_body, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
 				ANALYZE    (s, res, pcli_wait_for_response,     ana_list, ana_back, AN_RES_WAIT_CLI);
 				ANALYZE    (s, res, flt_xfer_data,              ana_list, ana_back, AN_RES_FLT_XFER_DATA);
 				ANALYZE    (s, res, flt_end_analyze,            ana_list, ana_back, AN_RES_FLT_END);
@@ -2392,12 +2392,12 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {
-				htx_send_name_header(s, s->be, objt_server(s->target)->id);
+				http_send_name_header(s, s->be, objt_server(s->target)->id);
 			}
 
 			srv = objt_server(s->target);
 			if (si_b->state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
-				htx_perform_server_redirect(s, si_b);
+				http_perform_server_redirect(s, si_b);
 		} while (si_b->state == SI_ST_ASS);
 	}
 

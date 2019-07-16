@@ -1,5 +1,5 @@
 /*
- * include/types/proto_http.h
+ * include/types/http_ana.h
  * This file contains HTTP protocol definitions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu

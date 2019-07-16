@@ -756,7 +756,7 @@ all: haproxy $(EXTRA)
 endif
 endif
 
-OBJS = src/proto_http.o src/cfgparse-listen.o src/proto_htx.o src/stream.o    \
+OBJS = src/http_ana.o src/cfgparse-listen.o src/stream.o                      \
        src/mux_h2.o src/stats.o src/flt_spoe.o src/server.o src/checks.o      \
        src/haproxy.o src/cfgparse.o src/flt_http_comp.o src/http_fetch.o      \
        src/dns.o src/stick_table.o src/mux_h1.o src/peers.o src/standard.o    \

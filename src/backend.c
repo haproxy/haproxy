@@ -48,7 +48,7 @@
 #include <proto/obj_type.h>
 #include <proto/payload.h>
 #include <proto/protocol.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

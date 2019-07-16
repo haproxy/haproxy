@@ -22,7 +22,7 @@
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/sample.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 
 
 /************************************************************************/

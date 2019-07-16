@@ -38,7 +38,7 @@
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/obj_type.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 

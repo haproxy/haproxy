@@ -35,7 +35,7 @@
 #include <types/filters.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
-#include <types/proto_http.h>
+#include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>

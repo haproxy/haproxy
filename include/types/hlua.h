@@ -9,7 +9,7 @@
 #include <common/regex.h>
 #include <common/xref.h>
 
-#include <types/proto_http.h>
+#include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <types/stick_table.h>

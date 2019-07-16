@@ -9,7 +9,7 @@
 
 #include <proto/arg.h>
 #include <proto/http_rules.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 #include <proto/tcp_rules.h>

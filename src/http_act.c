@@ -34,7 +34,7 @@
 #include <proto/http_rules.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/stream_interface.h>
 
 
@@ -62,8 +62,8 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 				       replace->size - replace->data,
 				       &rule->arg.http.logfmt);
 
-	htx_req_replace_stline(rule->arg.http.action, replace->area,
-			       replace->data, px, s);
+	http_req_replace_stline(rule->arg.http.action, replace->area,
+				replace->data, px, s);
 
 	ret = ACT_RET_CONT;
 
@@ -162,7 +162,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto leave;
 
 	/* 3 is the set-uri action */
-	htx_req_replace_stline(3, output->area, len, px, s);
+	http_req_replace_stline(3, output->area, len, px, s);
 
 	ret = ACT_RET_CONT;
 
@@ -215,7 +215,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 static enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
-	htx_res_set_status(rule->arg.status.code, rule->arg.status.reason, s);
+	http_res_set_status(rule->arg.status.code, rule->arg.status.reason, s);
 	return ACT_RET_CONT;
 }
 

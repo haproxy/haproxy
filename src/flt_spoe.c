@@ -34,7 +34,7 @@
 #include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>

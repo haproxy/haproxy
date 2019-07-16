@@ -39,7 +39,7 @@
 #include <proto/checks.h>
 #include <proto/dns.h>
 #include <proto/fd.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/sample.h>

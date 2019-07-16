@@ -115,7 +115,7 @@
 #include <proto/mworker.h>
 #include <proto/pattern.h>
 #include <proto/protocol.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>

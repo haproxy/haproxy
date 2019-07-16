@@ -28,7 +28,7 @@
 #include <proto/filters.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/stream.h>
 
 const char *trace_flt_id = "trace filter";

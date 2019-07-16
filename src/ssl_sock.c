@@ -77,7 +77,7 @@
 #include <proto/listener.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
 #include <proto/log.h>

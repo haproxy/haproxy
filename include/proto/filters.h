@@ -23,7 +23,7 @@
 
 #include <types/channel.h>
 #include <types/filters.h>
-#include <types/proto_http.h>
+#include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 

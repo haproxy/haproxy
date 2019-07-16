@@ -52,7 +52,7 @@
 #include <proto/queue.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
@@ -4831,7 +4831,7 @@ __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
 		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
 
 	htx = htxbuf(&msg->chn->buf);
-	htx_transform_header_str(htxn->s, msg->chn, htx, ist2(name, name_len), value, re, action);
+	http_transform_header_str(htxn->s, msg->chn, htx, ist2(name, name_len), value, re, action);
 	regex_free(re);
 	return 0;
 }
@@ -4977,7 +4977,7 @@ static int hlua_http_req_set_meth(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	lua_pushboolean(L, htx_req_replace_stline(0, name, name_len, htxn->p, htxn->s) != -1);
+	lua_pushboolean(L, http_req_replace_stline(0, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -4988,7 +4988,7 @@ static int hlua_http_req_set_path(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	lua_pushboolean(L, htx_req_replace_stline(1, name, name_len, htxn->p, htxn->s) != -1);
+	lua_pushboolean(L, http_req_replace_stline(1, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -5012,7 +5012,7 @@ static int hlua_http_req_set_query(lua_State *L)
 	trash.data += name_len;
 
 	lua_pushboolean(L,
-			htx_req_replace_stline(2, trash.area, trash.data, htxn->p, htxn->s) != -1);
+			http_req_replace_stline(2, trash.area, trash.data, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -5023,7 +5023,7 @@ static int hlua_http_req_set_uri(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	lua_pushboolean(L, htx_req_replace_stline(3, name, name_len, htxn->p, htxn->s) != -1);
+	lua_pushboolean(L, http_req_replace_stline(3, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -5034,7 +5034,7 @@ static int hlua_http_res_set_status(lua_State *L)
 	unsigned int code = MAY_LJMP(luaL_checkinteger(L, 2));
 	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 
-	htx_res_set_status(code, reason, htxn->s);
+	http_res_set_status(code, reason, htxn->s);
 	return 0;
 }
 
@@ -5409,7 +5409,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	oc = &htxn->s->res;
 
 	if (IS_HTX_STRM(htxn->s))
-		htx_reply_and_close(htxn->s, 0, NULL);
+		http_reply_and_close(htxn->s, 0, NULL);
 	else {
 		channel_auto_read(ic);
 		channel_abort(ic);

@@ -23,13 +23,13 @@
 #include <common/hathreads.h>
 
 #include <types/filters.h>
-#include <types/proto_http.h>
+#include <types/http_ana.h>
 
 #include <proto/compression.h>
 #include <proto/filters.h>
 #include <proto/flt_http_comp.h>
 #include <proto/http_htx.h>
-#include <proto/proto_http.h>
+#include <proto/http_ana.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
@@ -1014,10 +1014,10 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 	if (IS_HTX_STRM(s)) {
 		/* Do not do that when we are waiting for the next request */
 		if (s->txn->status)
-			htx_reply_and_close(s, s->txn->status, NULL);
+			http_reply_and_close(s, s->txn->status, NULL);
 		else {
 			s->txn->status = 400;
-			htx_reply_and_close(s, 400, htx_error_message(s));
+			http_reply_and_close(s, 400, http_error_message(s));
 		}
 	}
 
