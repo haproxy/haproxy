@@ -1,6 +1,93 @@
 ChangeLog :
 ===========
 
+2019/07/16 : 2.1-dev1
+    - BUG/MEDIUM: h2/htx: Update data length of the HTX when the cookie list is built
+    - DOC: this is a development branch again.
+    - MEDIUM: Make 'block' directive fatal
+    - MEDIUM: Make 'redispatch' directive fatal
+    - MEDIUM: Make '(cli|con|srv)timeout' directive fatal
+    - MEDIUM: Remove 'option independant-streams'
+    - MINOR: sample: Add sha2([<bits>]) converter
+    - MEDIUM: server: server-state global file stored in a tree
+    - BUG/MINOR: lua/htx: Make txn.req_req_* and txn.res_rep_* HTX aware
+    - BUG/MINOR: mux-h1: Add the header connection in lower case in outgoing messages
+    - BUG/MEDIUM: compression: Set Vary: Accept-Encoding for compressed responses
+    - MINOR: htx: Add the function htx_change_blk_value_len()
+    - BUG/MEDIUM: htx: Fully update HTX message when the block value is changed
+    - BUG/MEDIUM: mux-h2: Reset padlen when several frames are demux
+    - BUG/MEDIUM: mux-h2: Remove the padding length when a DATA frame size is checked
+    - BUG/MEDIUM: lb_fwlc: Don't test the server's lb_tree from outside the lock
+    - BUG/MAJOR: sample: Wrong stick-table name parsing in "if/unless" ACL condition.
+    - BUILD: mworker: silence two printf format warnings around getpid()
+    - BUILD: makefile: use :space: instead of digits to count commits
+    - BUILD: makefile: adjust the sed expression of "make help" for solaris
+    - BUILD: makefile: do not rely on shell substitutions to determine git version
+    - BUG/MINOR: mworker-prog: Fix segmentation fault during cfgparse
+    - BUG/MINOR: spoe: Fix memory leak if failing to allocate memory
+    - BUG/MEDIUM: mworker: don't call the thread and fdtab deinit
+    - BUG/MEDIUM: stream_interface: Don't add SI_FL_ERR the state is < SI_ST_CON.
+    - BUG/MEDIUM: connections: Always add the xprt handshake if needed.
+    - BUG/MEDIUM: ssl: Don't do anything in ssl_subscribe if we have no ctx.
+    - BUG/MEDIUM: mworker/cli: command pipelining doesn't work anymore
+    - BUG/MINOR: htx: Save hdrs_bytes when the HTX start-line is replaced
+    - BUG/MAJOR: mux-h1: Don't crush trash chunk area when outgoing message is formatted
+    - BUG/MINOR: memory: Set objects size for pools in the per-thread cache
+    - BUG/MINOR: log: Detect missing sampling ranges in config
+    - BUG/MEDIUM: proto_htx: Don't add EOM on 1xx informational messages
+    - BUG/MEDIUM: mux-h1: Use buf_room_for_htx_data() to detect too large messages
+    - BUG/MINOR: mux-h1: Make format errors during output formatting fatal
+    - BUG/MEDIUM: ssl: Don't attempt to set alpn if we're not using SSL.
+    - BUG/MEDIUM: mux-h1: Always release H1C if a shutdown for writes was reported
+    - BUG/MINOR: mworker/cli: don't output a \n before the response
+    - BUG/MEDIUM: checks: unblock signals in external checks
+    - BUG/MINOR: mux-h1: Skip trailers for non-chunked outgoing messages
+    - BUG/MINOR: mux-h1: Don't return the empty chunk on HEAD responses
+    - BUG/MEDIUM: connections: Always call shutdown, with no linger.
+    - BUG/MEDIUM: checks: Make sure the tasklet won't run if the connection is closed.
+    - BUG/MINOR: contrib/prometheus-exporter: Don't use channel_htx_recv_max()
+    - BUG/MINOR: hlua: Don't use channel_htx_recv_max()
+    - BUG/MEDIUM: channel/htx: Use the total HTX size in channel_htx_recv_limit()
+    - BUG/MINOR: hlua/htx: Respect the reserve when HTX data are sent
+    - BUG/MINOR: contrib/prometheus-exporter: Respect the reserve when data are sent
+    - BUG/MEDIUM: connections: Make sure we're unsubscribe before upgrading the mux.
+    - BUG/MEDIUM: servers: Authorize tfo in default-server.
+    - BUG/MEDIUM: sessions: Don't keep an extra idle connection in sessions.
+    - MINOR: server: Add "no-tfo" option.
+    - BUG/MINOR: contrib/prometheus-exporter: Don't try to add empty data blocks
+    - MINOR: action: Add the return code ACT_RET_DONE for actions
+    - BUG/MEDIUM: http/applet: Finish request processing when a service is registered
+    - BUG/MEDIUM: lb_fas: Don't test the server's lb_tree from outside the lock
+    - BUG/MEDIUM: mux-h1: Handle TUNNEL state when outgoing messages are formatted
+    - BUG/MINOR: mux-h1: Don't process input or ouput if an error occurred
+    - MINOR: stream-int: Factorize processing done after sending data in si_cs_send()
+    - BUG/MEDIUM: stream-int: Don't rely on CF_WRITE_PARTIAL to unblock opposite si
+    - DOC: contrib: spoa_server Add some hints for building spoa_server
+    - DOC: Fix typo in intro.txt
+    - BUG/MEDIUM: servers: Don't forget to set srv_cs to NULL if we can't reuse it.
+    - BUG/MINOR: ssl: revert empty handshake detection in OpenSSL <= 1.0.2
+    - MINOR: pools: release the pool's lock during the malloc/free calls
+    - MINOR: pools: always pre-initialize allocated memory outside of the lock
+    - MINOR: pools: make the thread harmless during the mmap/munmap syscalls
+    - BUG/MEDIUM: fd/threads: fix excessive CPU usage on multi-thread accept
+    - BUG/MINOR: server: Be really able to keep "pool-max-conn" idle connections
+    - BUG/MEDIUM: checks: Don't attempt to read if we destroyed the connection.
+    - BUG/MEDIUM: da: cast the chunk to string.
+    - DOC: Fix typos and grammer in configuration.txt
+    - CLEANUP: proto_tcp: Remove useless header inclusions.
+    - BUG/MEDIUM: servers: Fix a race condition with idle connections.
+    - MINOR: task: introduce work lists
+    - BUG/MAJOR: listener: fix thread safety in resume_listener()
+    - BUG/MEDIUM: mux-h1: Don't release h1 connection if there is still data to send
+    - BUG/MINOR: mux-h1: Correctly report Ti timer when HTX and keepalives are used
+    - BUG/MEDIUM: streams: Don't give up if we couldn't send the request.
+    - BUG/MEDIUM: streams: Don't redispatch with L7 retries if redispatch isn't set.
+    - BUG/MINOR: mux-pt: do not pretend there's more data after a read0
+    - BUG/MEDIUM: tcp-check: unbreak multiple connect rules again
+    - MEDIUM: mworker-prog: Add user/group options to program section
+    - REGTESTS: checks: tcp-check connect to multiple ports
+    - BUG/MEDIUM: threads: cpu-map designating a single thread/process are ignored
+
 2019/06/16 : 2.1-dev0
     - exact copy of 2.0.0
 
