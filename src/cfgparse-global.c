@@ -1032,8 +1032,19 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (atleast2(proc)) {
-			/* Mapping at the process level */
+		/* we now have to deal with 3 real cases :
+		 *    cpu-map P-Q    => mapping for whole processes, numbers P to Q
+		 *    cpu-map P-Q/1  => mapping of first thread of processes P to Q
+		 *    cpu-map 1/T-U  => mapping of threads T to U of process 1
+		 * Otherwise other combinations are silently ignored since nbthread
+		 * and nbproc cannot both be >1 :
+		 *    cpu-map P-Q/T  => mapping for thread T for processes P to Q.
+		 *                      Only one of T,Q may be > 1, others ignored.
+		 *    cpu-map P/T-U  => mapping for threads T to U of process P. Only
+		 *                      one of P,U may be > 1, others ignored.
+		 */
+		if (!thread) {
+			/* mapping for whole processes. E.g. cpu-map 1-4 0-3 */
 			for (i = n = 0; i < MAX_PROCS; i++) {
 				/* No mapping for this process */
 				if (!(proc & (1UL << i)))
@@ -1046,20 +1057,39 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					global.cpu_map.proc[i] = (1UL << (n-1));
 				}
 			}
-		}
+		} else {
+			/* Mapping at the thread level. All threads are retained
+			 * for process 1, and only thread 1 is retained for other
+			 * processes.
+			 */
+			if (thread == 0x1) {
+				/* first thread, iterate on processes. E.g. cpu-map 1-4/1 0-3 */
+				for (i = n = 0; i < MAX_PROCS; i++) {
+					/* No mapping for this process */
+					if (!(proc & (1UL << i)))
+						continue;
+					if (!autoinc)
+						global.cpu_map.proc_t1[i] = cpus;
+					else {
+						n += my_ffsl(cpus >> n);
+						global.cpu_map.proc_t1[i] = (1UL << (n-1));
+					}
+				}
+			}
 
-		if (atleast2(thread)) {
-			/* Mapping at the thread level */
-			for (j = n = 0; j < MAX_THREADS; j++) {
-				/* No mapping for this thread */
-				if (!(thread & (1UL << j)))
-					continue;
+			if (proc == 0x1) {
+				/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+				for (j = n = 0; j < MAX_THREADS; j++) {
+					/* No mapping for this thread */
+					if (!(thread & (1UL << j)))
+						continue;
 
-				if (!autoinc)
-					global.cpu_map.thread[j] = cpus;
-				else {
-					n += my_ffsl(cpus >> n);
-					global.cpu_map.thread[j] = (1UL << (n-1));
+					if (!autoinc)
+						global.cpu_map.thread[j] = cpus;
+					else {
+						n += my_ffsl(cpus >> n);
+						global.cpu_map.thread[j] = (1UL << (n-1));
+					}
 				}
 			}
 		}

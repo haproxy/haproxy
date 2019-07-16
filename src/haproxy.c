@@ -3278,6 +3278,9 @@ int main(int argc, char **argv)
 
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
+		if (global.cpu_map.proc_t1[relative_pid-1])
+			global.cpu_map.thread[0] &= global.cpu_map.proc_t1[relative_pid-1];
+
 		for (i = 0; i < global.nbthread; i++) {
 			if (global.cpu_map.proc[relative_pid-1])
 				global.cpu_map.thread[i] &= global.cpu_map.proc[relative_pid-1];
