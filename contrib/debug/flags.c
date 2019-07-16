@@ -141,10 +141,8 @@ void show_conn_flags(unsigned int f)
 	SHOW_FLAG(f, CO_FL_CTRL_READY);
 	SHOW_FLAG(f, CO_FL_CURR_WR_ENA);
 	SHOW_FLAG(f, CO_FL_XPRT_WR_ENA);
-	SHOW_FLAG(f, CO_FL_SOCK_WR_ENA);
 	SHOW_FLAG(f, CO_FL_CURR_RD_ENA);
 	SHOW_FLAG(f, CO_FL_XPRT_RD_ENA);
-	SHOW_FLAG(f, CO_FL_SOCK_RD_ENA);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
