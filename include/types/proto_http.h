@@ -70,37 +70,16 @@
 #define TX_CACHE_IGNORE 0x00004000	/* do not retrieve object from cache */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
-/* Unused: 0x8000 */
+/* Unused: 0x00008000, 0x00010000, 0x00020000, 0x00080000 */
 
-#define TX_WAIT_CLEANUP	0x0010000	/* this transaction is waiting for a clean up */
+#define TX_CON_WANT_TUN 0x00100000 /* Will be a tunnel (CONNECT or 101-Switching-Protocol) */
 
-/* Unused: 0x20000, 0x80000 */
+/* unused: 0x00200000, 0x00400000, 0x00800000, 0x01000000, 0x02000000 */
 
-
-/* indicate how we *want* the connection to behave, regardless of what is in
- * the headers. We have 4 possible values right now :
- * - WANT_KAL : try to maintain keep-alive (default when nothing configured)
- * - WANT_TUN : will be a tunnel (CONNECT).
- * - WANT_SCL : enforce close on the server side
- * - WANT_CLO : enforce close on both sides
- */
-#define TX_CON_WANT_KAL 0x00000000	/* note: it's important that it is 0 (init) */
-#define TX_CON_WANT_TUN 0x00100000
-#define TX_CON_WANT_SCL 0x00200000
-#define TX_CON_WANT_CLO 0x00300000
-#define TX_CON_WANT_MSK 0x00300000	/* this is the mask to get the bits */
-
-#define TX_CON_CLO_SET  0x00400000	/* "connection: close" is now set */
-#define TX_CON_KAL_SET  0x00800000	/* "connection: keep-alive" is now set */
-
-/* unused: 0x01000000 */
-
-#define TX_HDR_CONN_UPG 0x02000000	/* The "Upgrade" token was found in the "Connection" header */
 #define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */
 
-#define TX_HDR_CONN_PRS	0x08000000	/* "connection" header already parsed (req or res), results below */
-#define TX_HDR_CONN_CLO	0x10000000	/* "Connection: close" was present at least once */
-#define TX_HDR_CONN_KAL	0x20000000	/* "Connection: keep-alive" was present at least once */
+/* unused: 0x08000000, 0x10000000, 0x20000000 */
+
 #define TX_USE_PX_CONN	0x40000000	/* Use "Proxy-Connection" instead of "Connection" */
 
 /* used only for keep-alive purposes, to indicate we're on a second transaction */

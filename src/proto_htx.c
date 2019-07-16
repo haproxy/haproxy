@@ -400,9 +400,6 @@ int htx_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->req_cap))
 		htx_capture_headers(htx, s->req_cap, sess->fe->req_cap);
 
-	/* by default, close the stream at the end of the transaction. */
-	txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-
 	/* we may have to wait for the request's body */
 	if (s->be->options & PR_O_WREQ_BODY)
 		req->analysers |= AN_REQ_HTTP_BODY;
@@ -1242,7 +1239,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
   done:
 	/* other states, DONE...TUNNEL */
 	/* we don't want to forward closes on DONE except in tunnel mode. */
-	if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+	if (!(txn->flags & TX_CON_WANT_TUN))
 		channel_dont_close(req);
 
 	if (HAS_REQ_DATA_FILTERS(s)) {
@@ -1275,8 +1272,7 @@ int htx_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * it can be abused to exhaust source ports. */
 	if (s->be->options & PR_O_ABRT_CLOSE) {
 		channel_auto_read(req);
-		if ((req->flags & (CF_SHUTR|CF_READ_NULL)) &&
-		    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN))
+		if ((req->flags & (CF_SHUTR|CF_READ_NULL)) && !(txn->flags & TX_CON_WANT_TUN))
 			s->si[1].flags |= SI_FL_NOLINGER;
 		channel_auto_close(req);
 	}
@@ -1751,7 +1747,7 @@ int htx_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 * header which contains information about that protocol for
 		 * responses with status 101 (eg: see RFC2817 about TLS).
 		 */
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
+		txn->flags |= TX_CON_WANT_TUN;
 	}
 
 	/* check for NTML authentication headers in 401 (WWW-Authenticate) and
@@ -5142,7 +5138,7 @@ static void htx_end_request(struct stream *s)
 		 * mode, we'll have to wait for the last bytes to leave in either
 		 * direction, and sometimes for a close to be effective.
 		 */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+		if (txn->flags & TX_CON_WANT_TUN) {
 			/* Tunnel mode will not have any analyser so it needs to
 			 * poll for reads.
 			 */
@@ -5262,7 +5258,7 @@ static void htx_end_response(struct stream *s)
 		 * mode, we'll have to wait for the last bytes to leave in either
 		 * direction, and sometimes for a close to be effective.
 		 */
-		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+		if (txn->flags & TX_CON_WANT_TUN) {
 			channel_auto_read(chn);
 			chn->flags |= CF_NEVER_WAIT;
 			if (b_data(&chn->buf))

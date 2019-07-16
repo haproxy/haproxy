@@ -273,21 +273,8 @@ void show_txn_flags(unsigned int f)
 
 	SHOW_FLAG(f, TX_NOT_FIRST);
 	SHOW_FLAG(f, TX_USE_PX_CONN);
-	SHOW_FLAG(f, TX_HDR_CONN_KAL);
-	SHOW_FLAG(f, TX_HDR_CONN_CLO);
-	SHOW_FLAG(f, TX_HDR_CONN_PRS);
 	SHOW_FLAG(f, TX_WAIT_NEXT_RQ);
-	SHOW_FLAG(f, TX_HDR_CONN_UPG);
-	SHOW_FLAG(f, TX_CON_KAL_SET);
-	SHOW_FLAG(f, TX_CON_CLO_SET);
-
-	//printf("%s", f ? "" : " | ");
-	switch (f & TX_CON_WANT_MSK) {
-	case TX_CON_WANT_KAL: /*f &= ~TX_CON_WANT_MSK ; printf("TX_CON_WANT_KAL%s", f ? " | " : "");*/ break;
-	case TX_CON_WANT_TUN: f &= ~TX_CON_WANT_MSK ; printf("TX_CON_WANT_TUN%s", f ? " | " : ""); break;
-	case TX_CON_WANT_SCL: f &= ~TX_CON_WANT_MSK ; printf("TX_CON_WANT_SCL%s", f ? " | " : ""); break;
-	case TX_CON_WANT_CLO: f &= ~TX_CON_WANT_MSK ; printf("TX_CON_WANT_CLO%s", f ? " | " : ""); break;
-	}
+	SHOW_FLAG(f, TX_CON_WANT_TUN);
 
 	SHOW_FLAG(f, TX_CACHE_COOK);
 	SHOW_FLAG(f, TX_CACHEABLE);
