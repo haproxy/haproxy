@@ -65,19 +65,27 @@ int frontend_accept(struct stream *s)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
 					s->do_log(s);
 		}
+		else if (conn && !conn_get_src(conn)) {
+			send_log(fe, LOG_INFO, "Connect from unknown source to listener %d (%s/%s)\n",
+				 l->luid, fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+		}
 		else if (conn) {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
-
-			conn_get_from_addr(conn);
-			conn_get_to_addr(conn);
+			int port;
 
 			switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
-				addr_to_str(&conn->addr.to, sn, sizeof(sn));
+				if (conn_get_dst(conn)) {
+					addr_to_str(&conn->addr.to, sn, sizeof(sn));
+					port = get_host_port(&conn->addr.to);
+				} else {
+					strcpy(sn, "undetermined address");
+					port = 0;
+				}
 				send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
 					 pn, get_host_port(&conn->addr.from),
-					 sn, get_host_port(&conn->addr.to),
+					 sn, port,
 					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			case AF_UNIX:
@@ -97,11 +105,8 @@ int frontend_accept(struct stream *s)
 		const char *alpn_str = NULL;
 		int alpn_len;
 
-		conn_get_from_addr(conn);
-
 		/* try to report the ALPN value when available (also works for NPN) */
-
-		if (conn && conn == cs_conn(objt_cs(s->si[0].end))) {
+		if (conn == cs_conn(objt_cs(s->si[0].end))) {
 			if (conn_get_alpn(conn, &alpn_str, &alpn_len) && alpn_str) {
 				int len = MIN(alpn_len, sizeof(alpn) - 1);
 				memcpy(alpn, alpn_str, len);
@@ -109,7 +114,12 @@ int frontend_accept(struct stream *s)
 			}
 		}
 
-		switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
+		if (!conn_get_src(conn)) {
+			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [listener:%d] ALPN=%s\n",
+			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
+			             l->luid, alpn);
+		}
+		else switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d] ALPN=%s\n",
