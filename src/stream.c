@@ -2886,7 +2886,7 @@ void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, ch
 	csf = objt_cs(si_f->end);
 	cof = cs_conn(csf);
 	acf = objt_appctx(si_f->end);
-	if (cof && addr_to_str(&cof->addr.from, pn, sizeof(pn)) >= 0)
+	if (cof && cof->src && addr_to_str(cof->src, pn, sizeof(pn)) >= 0)
 		src = pn;
 	else if (acf)
 		src = acf->applet->name;
@@ -3057,11 +3057,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm_li(strm) ? strm_li(strm)->proto->name : "?");
 
 		conn = objt_conn(strm_orig(strm));
-		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " source=%s:%d\n",
-			              pn, get_host_port(&conn->addr.from));
+			              pn, get_host_port(conn->src));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " source=unix:%d\n", strm_li(strm)->luid);
@@ -3083,11 +3083,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
 			     strm_li(strm) ? strm_li(strm)->luid : 0);
 
-		switch (conn && conn_get_dst(conn) ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&conn->addr.to));
+				     pn, get_host_port(conn->dst));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix:%d\n", strm_li(strm)->luid);
@@ -3109,11 +3109,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		cs = objt_cs(strm->si[1].end);
 		conn = cs_conn(cs);
 
-		switch (conn && conn_get_src(conn) ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&conn->addr.from));
+				     pn, get_host_port(conn->src));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -3132,11 +3132,11 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		else
 			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
 
-		switch (conn && conn_get_dst(conn) ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&conn->addr.to));
+				     pn, get_host_port(conn->dst));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -3459,13 +3459,13 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				     strm_li(curr_strm) ? strm_li(curr_strm)->proto->name : "?");
 
 			conn = objt_conn(strm_orig(curr_strm));
-			switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+			switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 			case AF_INET:
 			case AF_INET6:
 				chunk_appendf(&trash,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     get_host_port(&conn->addr.from),
+					     get_host_port(conn->src),
 					     strm_fe(curr_strm)->id,
 					     (curr_strm->be->cap & PR_CAP_BE) ? curr_strm->be->id : "<NONE>",
 					     objt_server(curr_strm->target) ? objt_server(curr_strm->target)->id : "<none>"
