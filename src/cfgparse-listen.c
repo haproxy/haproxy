@@ -66,19 +66,6 @@ int warnif_rule_after_monitor(struct proxy *proxy, const char *file, int line, c
 	return 0;
 }
 
-/* Report a warning if a rule is placed after a 'block' rule.
- * Return 1 if the warning has been emitted, otherwise 0.
- */
-int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	if (!LIST_ISEMPTY(&proxy->block_rules)) {
-		ha_warning("parsing [%s:%d] : a '%s' rule placed after a 'block' rule will still be processed before.\n",
-			   file, line, arg);
-		return 1;
-	}
-	return 0;
-}
-
 /* Report a warning if a rule is placed after an 'http_request' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -186,17 +173,10 @@ int warnif_misplaced_http_req(struct proxy *proxy, const char *file, int line, c
 }
 
 /* report a warning if a block rule is dangerously placed */
-int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, const char *arg)
+int warnif_misplaced_monitor(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_http_req(proxy, file, line, arg) ||
 		warnif_misplaced_http_req(proxy, file, line, arg);
-}
-
-/* report a warning if a block rule is dangerously placed */
-int warnif_misplaced_monitor(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	return	warnif_rule_after_block(proxy, file, line, arg) ||
-		warnif_misplaced_block(proxy, file, line, arg);
 }
 
 /* report a warning if a "tcp request content" rule is dangerously placed */

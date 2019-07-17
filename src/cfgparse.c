@@ -2813,16 +2813,6 @@ int check_config_validity()
 			}
 		}
 
-		/* move any "block" rules at the beginning of the http-request rules */
-		if (!LIST_ISEMPTY(&curproxy->block_rules)) {
-			/* insert block_rules into http_req_rules at the beginning */
-			curproxy->block_rules.p->n    = curproxy->http_req_rules.n;
-			curproxy->http_req_rules.n->p = curproxy->block_rules.p;
-			curproxy->block_rules.n->p    = &curproxy->http_req_rules;
-			curproxy->http_req_rules.n    = curproxy->block_rules.n;
-			LIST_INIT(&curproxy->block_rules);
-		}
-
 		if (curproxy->table && curproxy->table->peers.name) {
 			struct peers *curpeers;
 
@@ -3370,12 +3360,6 @@ out_uri_auth_compat:
 
 			if (!LIST_ISEMPTY(&curproxy->http_res_rules)) {
 				ha_warning("config : 'http-response' rules ignored for %s '%s' as they require HTTP mode.\n",
-					   proxy_type_str(curproxy), curproxy->id);
-				err_code |= ERR_WARN;
-			}
-
-			if (!LIST_ISEMPTY(&curproxy->block_rules)) {
-				ha_warning("config : 'block' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
