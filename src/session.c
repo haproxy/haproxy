@@ -303,10 +303,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) &&
 	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL) {
 		/* critical error, no more memory, try to emit a 500 response */
-		struct buffer *err_msg = &p->errmsg[HTTP_ERR_500];
-		if (!err_msg->area)
-			err_msg = &http_err_chunks[HTTP_ERR_500];
-		send(cfd, err_msg->area, err_msg->data,
+		send(cfd, http_err_msgs[HTTP_ERR_500], strlen(http_err_msgs[HTTP_ERR_500]),
 		     MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
