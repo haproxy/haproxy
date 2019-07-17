@@ -300,7 +300,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	conn_free(cli_conn);
  out_close:
 	listener_release(l);
-	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) && p->mode == PR_MODE_HTTP) {
+	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) &&
+	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL) {
 		/* critical error, no more memory, try to emit a 500 response */
 		struct buffer *err_msg = &p->errmsg[HTTP_ERR_500];
 		if (!err_msg->area)
