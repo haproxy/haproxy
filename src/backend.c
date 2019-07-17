@@ -678,14 +678,14 @@ int assign_server(struct stream *s)
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
 				conn = objt_conn(strm_orig(s));
-				if (conn && conn_get_src(conn) && conn->addr.from.ss_family == AF_INET) {
+				if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
+							    (void *)&((struct sockaddr_in *)conn->src)->sin_addr,
 							    4, prev_srv);
 				}
-				else if (conn && conn_get_src(conn) && conn->addr.from.ss_family == AF_INET6) {
+				else if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET6) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr,
+							    (void *)&((struct sockaddr_in6 *)conn->src)->sin6_addr,
 							    16, prev_srv);
 				}
 				else {
@@ -770,7 +770,7 @@ int assign_server(struct stream *s)
 	else if ((s->be->options & PR_O_HTTP_PROXY)) {
 		conn = cs_conn(objt_cs(s->si[1].end));
 
-		if (conn && is_addr(&conn->addr.to)) {
+		if (conn && conn->dst && is_addr(conn->dst)) {
 			/* in proxy mode, we need a valid destination address */
 			s->target = &s->be->obj_type;
 		} else {
@@ -826,15 +826,17 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 
 	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
+	/* FIXME WTA: an address allocation will soon be needed here */
+
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
 		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		srv_conn->addr.to = __objt_server(s->target)->addr;
-		set_host_port(&srv_conn->addr.to, __objt_server(s->target)->svc_port);
+		*srv_conn->dst = __objt_server(s->target)->addr;
+		set_host_port(srv_conn->dst, __objt_server(s->target)->svc_port);
 
-		if (!is_addr(&srv_conn->addr.to) && cli_conn) {
+		if (!is_addr(srv_conn->dst) && cli_conn) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
@@ -842,10 +844,10 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 			 */
 			if (!conn_get_dst(cli_conn)) {
 				/* do nothing if we can't retrieve the address */
-			} else if (cli_conn->addr.to.ss_family == AF_INET) {
-				((struct sockaddr_in *)&srv_conn->addr.to)->sin_addr = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
-			} else if (cli_conn->addr.to.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&srv_conn->addr.to)->sin6_addr = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
+			} else if (cli_conn->dst->ss_family == AF_INET) {
+				((struct sockaddr_in *)srv_conn->dst)->sin_addr = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
+			} else if (cli_conn->dst->ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)srv_conn->dst)->sin6_addr = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
 			}
 		}
 
@@ -856,23 +858,23 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 
 			if (conn_get_dst(cli_conn)) {
 				/* First, retrieve the port from the incoming connection */
-				base_port = get_host_port(&cli_conn->addr.to);
+				base_port = get_host_port(cli_conn->dst);
 
 				/* Second, assign the outgoing connection's port */
-				base_port += get_host_port(&srv_conn->addr.to);
-				set_host_port(&srv_conn->addr.to, base_port);
+				base_port += get_host_port(srv_conn->dst);
+				set_host_port(srv_conn->dst, base_port);
 			}
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
 		/* connect to the defined dispatch addr */
-		srv_conn->addr.to = s->be->dispatch_addr;
+		*srv_conn->dst = s->be->dispatch_addr;
 	}
 	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		if (conn_get_dst(cli_conn) &&
-		    (cli_conn->addr.to.ss_family == AF_INET || cli_conn->addr.to.ss_family == AF_INET6))
-			srv_conn->addr.to = cli_conn->addr.to;
+		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
+			*srv_conn->dst = *cli_conn->dst;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
 		/* If HTTP PROXY option is set, then server is already assigned
@@ -1037,18 +1039,22 @@ static void assign_tproxy_address(struct stream *s)
 	else
 		return;
 
+	/* FIXME WTA: an address allocation will soon be needed here for src */
+
 	switch (src->opts & CO_SRC_TPROXY_MASK) {
 	case CO_SRC_TPROXY_ADDR:
-		srv_conn->addr.from = src->tproxy_addr;
+		*srv_conn->src = src->tproxy_addr;
 		break;
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 		cli_conn = objt_conn(strm_orig(s));
 		if (cli_conn && conn_get_src(cli_conn))
-			srv_conn->addr.from = cli_conn->addr.from;
-		else
-			memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
+			*srv_conn->src = *cli_conn->src;
+		else {
+			/* FIXME WTA: the dynamic address may be released here */
+			memset(srv_conn->src, 0, sizeof(*srv_conn->src));
+		}
 		break;
 	case CO_SRC_TPROXY_DYN:
 		if (src->bind_hdr_occ && IS_HTX_STRM(s)) {
@@ -1056,20 +1062,20 @@ static void assign_tproxy_address(struct stream *s)
 			size_t vlen;
 
 			/* bind to the IP in a header */
-			((struct sockaddr_in *)&srv_conn->addr.from)->sin_family = AF_INET;
-			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
-			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
-
+			((struct sockaddr_in *)srv_conn->src)->sin_family = AF_INET;
+			((struct sockaddr_in *)srv_conn->src)->sin_port = 0;
+			((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr = 0;
 			if (http_get_htx_hdr(htxbuf(&s->req.buf),
 					     ist2(src->bind_hdr_name, src->bind_hdr_len),
 					     src->bind_hdr_occ, NULL, &vptr, &vlen)) {
-				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
+				((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr =
 					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}
 		}
 		break;
 	default:
-		memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
+		/* FIXME WTA: the dynamic address may be released here */
+		memset(srv_conn->src, 0, sizeof(*srv_conn->src));
 	}
 #endif
 }
@@ -1423,10 +1429,10 @@ int connect_server(struct stream *s)
 	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
 		/* set the correct protocol on the output stream interface */
 		if (srv)
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), srv->xprt);
+			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), srv->xprt);
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), xprt_get(XPRT_RAW));
+			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
 			if (!(srv_conn->ctrl))
 				return SF_ERR_INTERNAL;
 		}
