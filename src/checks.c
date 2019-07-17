@@ -1614,13 +1614,14 @@ static int connect_conn_chk(struct task *t)
 	/* Maybe there were an older connection we were waiting on */
 	check->wait_list.events = 0;
 
+	/* FIXME WTA: we'll have to dynamically allocate the dst address here */
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
-		conn->addr.to = check->addr;
+		*conn->dst = check->addr;
 	}
 	else {
 		/* we'll connect to the addr on the server */
-		conn->addr.to = s->addr;
+		*conn->dst = s->addr;
 	}
 
 	if (s->check.via_socks4 &&  (s->flags & SRV_F_SOCKS4_PROXY)) {
@@ -1628,21 +1629,24 @@ static int connect_conn_chk(struct task *t)
 		conn->flags |= CO_FL_SOCKS4;
 	}
 
-	proto = protocol_by_family(conn->addr.to.ss_family);
+	proto = protocol_by_family(conn->dst->ss_family);
 	conn->target = &s->obj_type;
 
-	if ((conn->addr.to.ss_family == AF_INET) || (conn->addr.to.ss_family == AF_INET6)) {
+	if ((conn->dst->ss_family == AF_INET) || (conn->dst->ss_family == AF_INET6)) {
 		int i = 0;
 
 		i = srv_check_healthcheck_port(check);
 		if (i == 0)
 			return SF_ERR_CHK_PORT;
 
-		set_host_port(&conn->addr.to, i);
+		set_host_port(conn->dst, i);
 	}
 
 	/* no client address */
-	clear_addr(&conn->addr.from);
+	/* FIXME WTA: we'll have to dynamically allocate the src address here
+	 * before clearing it, or better release it and make it null.
+	 */
+	clear_addr(conn->src);
 
 	conn_prepare(conn, proto, check->xprt);
 	if (conn_install_mux(conn, &mux_pt_ops, cs, s->proxy, NULL) < 0)
@@ -2858,25 +2862,29 @@ static int tcpcheck_main(struct check *check)
 			conn->target = s ? &s->obj_type : &proxy->obj_type;
 
 			/* no client address */
-			clear_addr(&conn->addr.from);
+			/* FIXME WTA: we'll have to dynamically allocate the src address here
+			 * before clearing it, or better release it and make it null.
+			 */
+			clear_addr(conn->src);
 
+			/* FIXME WTA: we'll have to dynamically allocate the dst address here */
 			if (is_addr(&check->addr)) {
 				/* we'll connect to the check addr specified on the server */
-				conn->addr.to = check->addr;
+				*conn->dst = check->addr;
 			}
 			else {
 				/* we'll connect to the addr on the server */
-				conn->addr.to = s->addr;
+				*conn->dst = s->addr;
 			}
-			proto = protocol_by_family(conn->addr.to.ss_family);
+			proto = protocol_by_family(conn->dst->ss_family);
 
 			/* port */
 			if (check->current_step->port)
-				set_host_port(&conn->addr.to, check->current_step->port);
+				set_host_port(conn->dst, check->current_step->port);
 			else if (check->port)
-				set_host_port(&conn->addr.to, check->port);
+				set_host_port(conn->dst, check->port);
 			else if (s->svc_port)
-				set_host_port(&conn->addr.to, s->svc_port);
+				set_host_port(conn->dst, s->svc_port);
 
 			if (check->current_step->conn_opts & TCPCHK_OPT_SSL) {
 				xprt = xprt_get(XPRT_SSL);
