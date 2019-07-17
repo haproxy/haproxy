@@ -2538,7 +2538,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_conn;
 
 	conn->target = s->target = peer_session_target(peer, s);
-	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
+
+	/* FIXME WTA: a sockaddr allocation will be needed here */
+	memcpy(conn->dst, &peer->addr, sizeof(*conn->dst));
 
 	conn_prepare(conn, peer->proto, peer_xprt(peer));
 	if (conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL) < 0)
@@ -3128,20 +3130,20 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	if (conn)
 		chunk_appendf(&trash, "\n        xprt=%s", conn_get_xprt_name(conn));
 
-	switch (conn && conn_get_src(conn) ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
-		chunk_appendf(&trash, " src=%s:%d", pn, get_host_port(&conn->addr.from));
+		chunk_appendf(&trash, " src=%s:%d", pn, get_host_port(conn->src));
 		break;
 	case AF_UNIX:
 		chunk_appendf(&trash, " src=unix:%d", strm_li(peer_s)->luid);
 		break;
 	}
 
-	switch (conn && conn_get_dst(conn) ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
-		chunk_appendf(&trash, " addr=%s:%d", pn, get_host_port(&conn->addr.to));
+		chunk_appendf(&trash, " addr=%s:%d", pn, get_host_port(conn->dst));
 		break;
 	case AF_UNIX:
 		chunk_appendf(&trash, " addr=unix:%d", strm_li(peer_s)->luid);
