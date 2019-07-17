@@ -629,38 +629,6 @@ static inline struct connection *cs_conn(const struct conn_stream *cs)
 	return cs ? cs->conn : NULL;
 }
 
-/* Retrieves the connection's source address */
-static inline void conn_get_from_addr(struct connection *conn)
-{
-	if (conn->flags & CO_FL_ADDR_FROM_SET)
-		return;
-
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
-		return;
-
-	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)&conn->addr.from,
-	                        sizeof(conn->addr.from),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
-		return;
-	conn->flags |= CO_FL_ADDR_FROM_SET;
-}
-
-/* Retrieves the connection's original destination address */
-static inline void conn_get_to_addr(struct connection *conn)
-{
-	if (conn->flags & CO_FL_ADDR_TO_SET)
-		return;
-
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
-		return;
-
-	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)&conn->addr.to,
-	                        sizeof(conn->addr.to),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
-		return;
-	conn->flags |= CO_FL_ADDR_TO_SET;
-}
-
 /* Retrieves the connection's original source address. Returns non-zero on
  * success or zero on failure. The operation is only performed once and the
  * address is stored in the connection for future use.
