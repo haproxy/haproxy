@@ -1525,8 +1525,8 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	es->when    = date; // user-visible date
 	es->srv     = objt_server(target);
 	es->oe      = other_end;
-	if (objt_conn(sess->origin))
-		es->src  = __objt_conn(sess->origin)->addr.from;
+	if (objt_conn(sess->origin) && conn_get_src(__objt_conn(sess->origin)))
+		es->src  = *__objt_conn(sess->origin)->src;
 	else
 		memset(&es->src, 0, sizeof(es->src));
 
