@@ -215,7 +215,7 @@ int send_fd_uxst(int fd, int send_fd)
  * This function works like uxst_connect_server but instead of creating a
  * socket and establishing a connection, it creates a pair of connected
  * sockets, and send one of them through the destination FD. The destination FD
- * is stored in addr.to->sin_addr.s_addr during configuration parsing.
+ * is stored in conn->dst->sin_addr.s_addr during configuration parsing.
  *
  * conn->target may point either to a valid server or to a backend, depending
  * on conn->target. Only OBJ_TYPE_PROXY and OBJ_TYPE_SERVER are supported. The
@@ -242,7 +242,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 	int sv[2], fd, dst_fd = -1;
 
 	/* the FD is stored in the sockaddr struct */
-	dst_fd = ((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr;
+	dst_fd = ((struct sockaddr_in *)conn->dst)->sin_addr.s_addr;
 
 	if (obj_type(conn->target) != OBJ_TYPE_PROXY &&
 	    obj_type(conn->target) != OBJ_TYPE_SERVER) {
