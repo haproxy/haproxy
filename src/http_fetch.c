@@ -34,6 +34,7 @@
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/channel.h>
+#include <proto/connection.h>
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
@@ -1089,16 +1090,16 @@ static int smp_fetch_base32_src(const struct arg *args, struct sample *smp, cons
 	*(unsigned int *) temp->area = htonl(smp->data.u.sint);
 	temp->data += sizeof(unsigned int);
 
-	switch (cli_conn->addr.from.ss_family) {
+	switch (cli_conn->src->ss_family) {
 	case AF_INET:
 		memcpy(temp->area + temp->data,
-		       &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr,
+		       &((struct sockaddr_in *)cli_conn->src)->sin_addr,
 		       4);
 		temp->data += 4;
 		break;
 	case AF_INET6:
 		memcpy(temp->area + temp->data,
-		       &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr,
+		       &((struct sockaddr_in6 *)cli_conn->src)->sin6_addr,
 		       16);
 		temp->data += 16;
 		break;
@@ -1794,16 +1795,16 @@ static int smp_fetch_url32_src(const struct arg *args, struct sample *smp, const
 	*(unsigned int *) temp->area = htonl(smp->data.u.sint);
 	temp->data += sizeof(unsigned int);
 
-	switch (cli_conn->addr.from.ss_family) {
+	switch (cli_conn->src->ss_family) {
 	case AF_INET:
 		memcpy(temp->area + temp->data,
-		       &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr,
+		       &((struct sockaddr_in *)cli_conn->src)->sin_addr,
 		       4);
 		temp->data += 4;
 		break;
 	case AF_INET6:
 		memcpy(temp->area + temp->data,
-		       &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr,
+		       &((struct sockaddr_in6 *)cli_conn->src)->sin6_addr,
 		       16);
 		temp->data += 16;
 		break;
