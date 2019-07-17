@@ -118,11 +118,8 @@
 #define HTTP_MSGF_XFER_LEN    0x00000004  /* message xfer size can be determined */
 #define HTTP_MSGF_VER_11      0x00000008  /* the message is HTTP/1.1 or above */
 
-/* If this flag is set, we don't process the body until the connect() is confirmed.
- * This is only used by the request forwarding function to protect the buffer
- * contents if something needs them during a redispatch.
- */
-#define HTTP_MSGF_WAIT_CONN   0x00000010  /* Wait for connect() to be confirmed before processing body */
+/* unused: 0x00000010 */
+
 #define HTTP_MSGF_COMPRESSING 0x00000020  /* data compression is in progress */
 
 #define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */

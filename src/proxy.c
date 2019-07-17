@@ -1464,15 +1464,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 			}
 		}
 
-		/* If an LB algorithm needs to access some pre-parsed body contents,
-		 * we must not start to forward anything until the connection is
-		 * confirmed otherwise we'll lose the pointer to these data and
-		 * prevent the hash from being doable again after a redispatch.
-		 */
-		if (be->mode == PR_MODE_HTTP &&
-		    (be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_HI | BE_LB_HASH_PRM))
-			s->txn->req.flags |= HTTP_MSGF_WAIT_CONN;
-
 		/* we may request to parse a request body */
 		if (be->options & PR_O_WREQ_BODY)
 			s->req.analysers |= AN_REQ_HTTP_BODY;
