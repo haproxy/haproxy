@@ -34,6 +34,7 @@
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
+extern struct pool_head *pool_head_sockaddr;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
 
@@ -489,6 +490,37 @@ static inline void conn_set_xprt_done_cb(struct connection *conn, int (*cb)(stru
 static inline void conn_clear_xprt_done_cb(struct connection *conn)
 {
 	conn->xprt_done_cb = NULL;
+}
+
+/* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
+ * returns it. If <sap> is NULL, the address is always allocated and returned.
+ * if <sap> is non-null, an address will only be allocated if it points to a
+ * non-null pointer. In this case the allocated address will be assigned there.
+ * In both situations the new pointer is returned.
+ */
+static inline struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap)
+{
+	struct sockaddr_storage *sa;
+
+	if (sap && *sap)
+		return *sap;
+
+	sa = pool_alloc(pool_head_sockaddr);
+	if (sap)
+		*sap = sa;
+	return sa;
+}
+
+/* Releases the struct sockaddr potentially pointed to by <sap> to the pool. It
+ * may be NULL or may point to NULL. If <sap> is not NULL, a NULL is placed
+ * there.
+ */
+static inline void sockaddr_free(struct sockaddr_storage **sap)
+{
+	if (!sap)
+		return;
+	pool_free(pool_head_sockaddr, *sap);
+	*sap = NULL;
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The

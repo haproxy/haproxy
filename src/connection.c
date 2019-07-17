@@ -31,6 +31,7 @@
 
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
+DECLARE_POOL(pool_head_sockaddr,   "sockaddr",    sizeof(struct sockaddr_storage));
 
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
