@@ -73,18 +73,18 @@ int frontend_accept(struct stream *s)
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 			int port;
 
-			switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
+			switch (addr_to_str(conn->src, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
 				if (conn_get_dst(conn)) {
-					addr_to_str(&conn->addr.to, sn, sizeof(sn));
-					port = get_host_port(&conn->addr.to);
+					addr_to_str(conn->dst, sn, sizeof(sn));
+					port = get_host_port(conn->dst);
 				} else {
 					strcpy(sn, "undetermined address");
 					port = 0;
 				}
 				send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, get_host_port(&conn->addr.from),
+					 pn, get_host_port(conn->src),
 					 sn, port,
 					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
@@ -119,12 +119,12 @@ int frontend_accept(struct stream *s)
 			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
 			             l->luid, alpn);
 		}
-		else switch (addr_to_str(&conn->addr.from, pn, sizeof(pn))) {
+		else switch (addr_to_str(conn->src, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d] ALPN=%s\n",
 			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
-			             pn, get_host_port(&conn->addr.from), alpn);
+			             pn, get_host_port(conn->src), alpn);
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
