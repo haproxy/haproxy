@@ -1904,7 +1904,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct proxy *be;
 	struct http_txn *txn;
 	const struct strm_logs *logs;
-	const struct connection *be_conn;
+	struct connection *be_conn;
 	unsigned int s_flags;
 	unsigned int uniq_id;
 	struct buffer chunk;
@@ -2021,7 +2021,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_CLIENTIP:  // %ci
 				conn = objt_conn(sess->origin);
-				if (conn)
+				if (conn && conn_get_src(conn))
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
@@ -2033,7 +2033,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_CLIENTPORT:  // %cp
 				conn = objt_conn(sess->origin);
-				if (conn) {
+				if (conn && conn_get_src(conn)) {
 					if (conn->addr.from.ss_family == AF_UNIX) {
 						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					} else {
@@ -2052,8 +2052,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case LOG_FMT_FRONTENDIP: // %fi
 				conn = objt_conn(sess->origin);
-				if (conn) {
-					conn_get_to_addr(conn);
+				if (conn && conn_get_dst(conn)) {
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				}
 				else
@@ -2067,8 +2066,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
 				conn = objt_conn(sess->origin);
-				if (conn) {
-					conn_get_to_addr(conn);
+				if (conn && conn_get_dst(conn)) {
 					if (conn->addr.to.ss_family == AF_UNIX)
 						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					else
@@ -2084,7 +2082,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
-				if (be_conn)
+				if (be_conn && conn_get_src(be_conn))
 					ret = lf_ip(tmplog, (const struct sockaddr *)&be_conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
@@ -2096,7 +2094,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
-				if (be_conn)
+				if (be_conn && conn_get_src(be_conn))
 					ret = lf_port(tmplog, (struct sockaddr *)&be_conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
@@ -2108,7 +2106,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
-				if (be_conn)
+				if (be_conn && conn_get_dst(be_conn))
 					ret = lf_ip(tmplog, (struct sockaddr *)&be_conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
@@ -2120,7 +2118,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
-				if (be_conn)
+				if (be_conn && conn_get_dst(be_conn))
 					ret = lf_port(tmplog, (struct sockaddr *)&be_conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
 					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
