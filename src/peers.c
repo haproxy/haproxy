@@ -3128,7 +3128,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	if (conn)
 		chunk_appendf(&trash, "\n        xprt=%s", conn_get_xprt_name(conn));
 
-	switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (conn && conn_get_src(conn) ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(&trash, " src=%s:%d", pn, get_host_port(&conn->addr.from));
@@ -3138,10 +3138,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 		break;
 	}
 
-	if (conn)
-		conn_get_to_addr(conn);
-
-	switch (conn ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (conn && conn_get_dst(conn) ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(&trash, " addr=%s:%d", pn, get_host_port(&conn->addr.to));
