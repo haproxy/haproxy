@@ -2264,7 +2264,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 		return 1;
 	}
 
-	ret = MAY_LJMP(hlua_socket_info(L, &conn->addr.to));
+	ret = MAY_LJMP(hlua_socket_info(L, conn->dst));
 	xref_unlock(&socket->xref, peer);
 	return ret;
 }
@@ -2313,7 +2313,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 		return 1;
 	}
 
-	ret = hlua_socket_info(L, &conn->addr.from);
+	ret = hlua_socket_info(L, conn->src);
 	xref_unlock(&socket->xref, peer);
 	return ret;
 }
@@ -2460,22 +2460,24 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: port ranges not supported : address '%s'", ip));
 	}
-	memcpy(&conn->addr.to, addr, sizeof(struct sockaddr_storage));
+
+	/* FIXME WTA: dst address allocation needed here! */
+	memcpy(conn->dst, addr, sizeof(struct sockaddr_storage));
 
 	/* Set port. */
 	if (low == 0) {
-		if (conn->addr.to.ss_family == AF_INET) {
+		if (conn->dst->ss_family == AF_INET) {
 			if (port == -1) {
 				xref_unlock(&socket->xref, peer);
 				WILL_LJMP(luaL_error(L, "connect: port missing"));
 			}
-			((struct sockaddr_in *)&conn->addr.to)->sin_port = htons(port);
-		} else if (conn->addr.to.ss_family == AF_INET6) {
+			((struct sockaddr_in *)conn->dst)->sin_port = htons(port);
+		} else if (conn->dst->ss_family == AF_INET6) {
 			if (port == -1) {
 				xref_unlock(&socket->xref, peer);
 				WILL_LJMP(luaL_error(L, "connect: port missing"));
 			}
-			((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = htons(port);
+			((struct sockaddr_in6 *)conn->dst)->sin6_port = htons(port);
 		}
 	}
 
