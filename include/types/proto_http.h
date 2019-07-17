@@ -70,21 +70,14 @@
 #define TX_CACHE_IGNORE 0x00004000	/* do not retrieve object from cache */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
-/* Unused: 0x00008000, 0x00010000, 0x00020000, 0x00080000 */
+#define TX_CON_WANT_TUN 0x00008000	/* Will be a tunnel (CONNECT or 101-Switching-Protocol) */
 
-#define TX_CON_WANT_TUN 0x00100000 /* Will be a tunnel (CONNECT or 101-Switching-Protocol) */
+#define TX_WAIT_NEXT_RQ	0x00010000	/* waiting for the second request to start, use keep-alive timeout */
 
-/* unused: 0x00200000, 0x00400000, 0x00800000, 0x01000000, 0x02000000 */
-
-#define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */
-
-/* unused: 0x08000000, 0x10000000, 0x20000000 */
-
-#define TX_USE_PX_CONN	0x40000000	/* Use "Proxy-Connection" instead of "Connection" */
+#define TX_USE_PX_CONN	0x00020000	/* Use "Proxy-Connection" instead of "Connection" */
 
 /* used only for keep-alive purposes, to indicate we're on a second transaction */
-#define TX_NOT_FIRST	0x80000000	/* the transaction is not the first one */
-/* no more room for transaction flags ! */
+#define TX_NOT_FIRST	0x00040000	/* the transaction is not the first one */
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
