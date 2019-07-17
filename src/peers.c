@@ -2539,7 +2539,9 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	conn->target = s->target = peer_session_target(peer, s);
 
-	/* FIXME WTA: a sockaddr allocation will be needed here */
+	if (!sockaddr_alloc(&conn->dst))
+		goto out_free_cs;
+
 	memcpy(conn->dst, &peer->addr, sizeof(*conn->dst));
 
 	conn_prepare(conn, peer->proto, peer_xprt(peer));

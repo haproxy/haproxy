@@ -402,6 +402,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
+	if (!sockaddr_alloc(&conn->src) || !sockaddr_alloc(&conn->dst))
+		goto fail;
+
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 

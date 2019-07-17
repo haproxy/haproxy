@@ -2461,7 +2461,11 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		WILL_LJMP(luaL_error(L, "connect: port ranges not supported : address '%s'", ip));
 	}
 
-	/* FIXME WTA: dst address allocation needed here! */
+	if (!sockaddr_alloc(&conn->dst)) {
+		xref_unlock(&socket->xref, peer);
+		WILL_LJMP(luaL_error(L, "connect: internal error"));
+	}
+
 	memcpy(conn->dst, addr, sizeof(struct sockaddr_storage));
 
 	/* Set port. */

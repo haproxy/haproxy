@@ -675,6 +675,9 @@ static inline int conn_get_src(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
 		return 0;
 
+	if (!sockaddr_alloc(&conn->src))
+		return 0;
+
 	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
 	                        sizeof(*conn->src),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
@@ -693,6 +696,9 @@ static inline int conn_get_dst(struct connection *conn)
 		return 1;
 
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
+		return 0;
+
+	if (!sockaddr_alloc(&conn->dst))
 		return 0;
 
 	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,

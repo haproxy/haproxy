@@ -826,7 +826,8 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 
 	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
-	/* FIXME WTA: an address allocation will soon be needed here */
+	if (!sockaddr_alloc(&srv_conn->dst))
+		return SRV_STATUS_INTERNAL;
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
@@ -1039,7 +1040,8 @@ static void assign_tproxy_address(struct stream *s)
 	else
 		return;
 
-	/* FIXME WTA: an address allocation will soon be needed here for src */
+	if (!sockaddr_alloc(&srv_conn->src))
+		return;
 
 	switch (src->opts & CO_SRC_TPROXY_MASK) {
 	case CO_SRC_TPROXY_ADDR:

@@ -1614,7 +1614,9 @@ static int connect_conn_chk(struct task *t)
 	/* Maybe there were an older connection we were waiting on */
 	check->wait_list.events = 0;
 
-	/* FIXME WTA: we'll have to dynamically allocate the dst address here */
+	if (!sockaddr_alloc(&conn->dst))
+		return SF_ERR_RESOURCE;
+
 	if (is_addr(&check->addr)) {
 		/* we'll connect to the check addr specified on the server */
 		*conn->dst = check->addr;
@@ -1643,10 +1645,6 @@ static int connect_conn_chk(struct task *t)
 	}
 
 	/* no client address */
-	/* FIXME WTA: we'll have to dynamically allocate the src address here
-	 * before clearing it, or better release it and make it null.
-	 */
-	clear_addr(conn->src);
 
 	conn_prepare(conn, proto, check->xprt);
 	if (conn_install_mux(conn, &mux_pt_ops, cs, s->proxy, NULL) < 0)
@@ -2862,12 +2860,12 @@ static int tcpcheck_main(struct check *check)
 			conn->target = s ? &s->obj_type : &proxy->obj_type;
 
 			/* no client address */
-			/* FIXME WTA: we'll have to dynamically allocate the src address here
-			 * before clearing it, or better release it and make it null.
-			 */
-			clear_addr(conn->src);
 
-			/* FIXME WTA: we'll have to dynamically allocate the dst address here */
+			if (!sockaddr_alloc(&conn->dst)) {
+				ret = SF_ERR_RESOURCE;
+				goto fail_check;
+			}
+
 			if (is_addr(&check->addr)) {
 				/* we'll connect to the check addr specified on the server */
 				*conn->dst = check->addr;

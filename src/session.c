@@ -155,8 +155,10 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (unlikely((cli_conn = conn_new()) == NULL))
 		goto out_close;
 
+	if (!sockaddr_alloc(&cli_conn->src))
+		goto out_free_conn;
+
 	cli_conn->handle.fd = cfd;
-	/* FIXME WTA: an allocation will be needed here. Better steal the original address on success */
 	*cli_conn->src = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->target = &l->obj_type;

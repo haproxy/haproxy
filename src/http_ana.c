@@ -741,7 +741,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		struct ist uri, path;
 
 		/* Note that for now we don't reuse existing proxy connections */
-		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL)) {
+		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL ||
+			     !sockaddr_alloc(&conn->dst))) {
 			txn->req.err_state = txn->req.msg_state;
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
@@ -759,7 +760,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		uri = htx_sl_req_uri(sl);
 		path = http_get_path(uri);
 
-		/* FIXME WTA: below we'll need to dynamically allocate the dst address */
 		if (url2sa(uri.ptr, uri.len - path.len, conn->dst, NULL) == -1)
 			goto return_bad_req;
 
