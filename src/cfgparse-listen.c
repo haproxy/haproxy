@@ -220,92 +220,6 @@ int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, c
 		warnif_misplaced_tcp_sess(proxy, file, line, arg);
 }
 
-/* This function createss a new req* or rsp* rule to the proxy. It compiles the
- * regex and may return the ERR_WARN bit, and error bits such as ERR_ALERT and
- * ERR_FATAL in case of error.
- */
-static int create_cond_regex_rule(const char *file, int line,
-                                  struct proxy *px, int dir, int action, int flags,
-                                  const char *cmd, const char *reg, const char *repl,
-                                  const char **cond_start)
-{
-	struct my_regex *preg = NULL;
-	char *errmsg = NULL;
-	const char *err;
-	char *error;
-	int ret_code = 0;
-	struct acl_cond *cond = NULL;
-	int cs;
-	int cap;
-
-	if (px == &defproxy) {
-		ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, line, cmd);
-		ret_code |= ERR_ALERT | ERR_FATAL;
-		goto err;
-	}
-
-	if (*reg == 0) {
-		ha_alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, line, cmd);
-		ret_code |= ERR_ALERT | ERR_FATAL;
-		goto err;
-	}
-
-	if (warnifnotcap(px, PR_CAP_FE | PR_CAP_BE, file, line, cmd, NULL))
-		ret_code |= ERR_WARN;
-
-	if (cond_start &&
-	    (strcmp(*cond_start, "if") == 0 || strcmp(*cond_start, "unless") == 0)) {
-		if ((cond = build_acl_cond(file, line, &px->acl, px, cond_start, &errmsg)) == NULL) {
-			ha_alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
-				 file, line, cmd, errmsg);
-			ret_code |= ERR_ALERT | ERR_FATAL;
-			goto err;
-		}
-	}
-	else if (cond_start && **cond_start) {
-		ha_alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
-			 file, line, cmd, *cond_start);
-		ret_code |= ERR_ALERT | ERR_FATAL;
-		goto err;
-	}
-
-	ret_code |= warnif_cond_conflicts(cond,
-	                                  (dir == SMP_OPT_DIR_REQ) ?
-	                                  ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR) :
-	                                  ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR),
-	                                  file, line);
-
-	cs = !(flags & REG_ICASE);
-	cap = !(flags & REG_NOSUB);
-	error = NULL;
-	if (!(preg = regex_comp(reg, cs, cap, &error))) {
-		ha_alert("parsing [%s:%d] : '%s' : regular expression '%s' : %s\n", file, line, cmd, reg, error);
-		free(error);
-		ret_code = ERR_ALERT | ERR_FATAL;
-		goto err;
-	}
-
-	err = chain_regex((dir == SMP_OPT_DIR_REQ) ? &px->req_exp : &px->rsp_exp,
-			  preg, action, repl ? strdup(repl) : NULL, cond);
-	if (repl && err) {
-		ha_alert("parsing [%s:%d] : '%s' : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			 file, line, cmd, *err);
-		ret_code |= ERR_ALERT | ERR_FATAL;
-		goto err_free;
-	}
-
-	if (dir == SMP_OPT_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
-		ret_code |= ERR_WARN;
-
-	return ret_code;
-
- err_free:
-	regex_free(preg);
- err:
-	free(errmsg);
-	return ret_code;
-}
-
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
@@ -3832,299 +3746,123 @@ stats_error_parsing:
 		goto out;
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
-		if (!already_warned(WARN_REQREP_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-uri' and 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (*(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_REPLACE, 0,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request replace-uri' and 'http-request replace-header' instead.\n",
+			 file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
-		if (!already_warned(WARN_REQDEL_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request del-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_REMOVE, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
-		if (!already_warned(WARN_REQDENY_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request deny' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_DENY, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
-		if (!already_warned(WARN_REQPASS_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_PASS, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
-		if (!already_warned(WARN_REQALLOW_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request allow' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_ALLOW, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
-		if (!already_warned(WARN_REQTARPIT_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request tarpit' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_TARPIT, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
-		if (!already_warned(WARN_REQREP_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request replace-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (*(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_REPLACE, REG_ICASE,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request replace-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
-		if (!already_warned(WARN_REQDEL_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request del-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_REMOVE, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
-		if (!already_warned(WARN_REQDENY_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request deny' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_DENY, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
-		if (!already_warned(WARN_REQPASS_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_PASS, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
-		if (!already_warned(WARN_REQALLOW_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request allow' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_ALLOW, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
-		if (!already_warned(WARN_REQTARPIT_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request tarpit' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_REQ, ACT_TARPIT, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
-		struct cond_wordlist *wl;
-
-		if (!already_warned(WARN_REQADD_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-request add-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (curproxy == &defproxy) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args+2, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
-					 file, linenum, args[0], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			err_code |= warnif_cond_conflicts(cond,
-			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
-			                                  file, linenum);
-		}
-		else if (*args[2]) {
-			ha_alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
-				 file, linenum, args[0], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		wl = calloc(1, sizeof(*wl));
-		wl->cond = cond;
-		wl->s = strdup(args[1]);
-		LIST_ADDQ(&curproxy->req_add, &wl->list);
-		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-request add-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
-		if (!already_warned(WARN_RSPREP_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response replace-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (*(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_REPLACE, 0,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
-		if (!already_warned(WARN_RSPDEL_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response del-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_REMOVE, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response del-header' .\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
-		if (!already_warned(WARN_RSPDENY_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response deny' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_DENY, 0,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
-		if (!already_warned(WARN_RSPREP_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response replace-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (*(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_REPLACE, REG_ICASE,
-						   args[0], args[1], args[2], (const char **)args+3);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore sionce HAProxy 2.1. "
+			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
-		if (!already_warned(WARN_RSPDEL_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response del-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_REMOVE, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response del-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
-		if (!already_warned(WARN_RSPDENY_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response deny' and will be removed in next version.\n", file, linenum, args[0]);
-
-		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   SMP_OPT_DIR_RES, ACT_DENY, REG_ICASE,
-						   args[0], args[1], NULL, (const char **)args+2);
-		if (err_code & ERR_FATAL)
-			goto out;
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
-		struct cond_wordlist *wl;
-
-		if (!already_warned(WARN_RSPADD_DEPRECATED))
-			ha_warning("parsing [%s:%d] : The '%s' directive is deprecated in favor of 'http-response add-header' and will be removed in next version.\n", file, linenum, args[0]);
-
-		if (curproxy == &defproxy) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args+2, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
-					 file, linenum, args[0], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			err_code |= warnif_cond_conflicts(cond,
-			                                  (curproxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
-			                                  file, linenum);
-		}
-		else if (*args[2]) {
-			ha_alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
-				 file, linenum, args[0], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		wl = calloc(1, sizeof(*wl));
-		wl->cond = cond;
-		wl->s = strdup(args[1]);
-		LIST_ADDQ(&curproxy->rsp_add, &wl->list);
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
+			"Use 'http-response add-header' instead.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (!strcmp(args[0], "errorloc") ||
 		 !strcmp(args[0], "errorloc302") ||
