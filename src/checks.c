@@ -2683,7 +2683,7 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
  * connection, presenting the risk of an fd replacement.
  *
  * Please do NOT place any return statement in this function and only leave
- * via the out_unlock label after setting retcode.
+ * via the out_end_tcpcheck label after setting retcode.
  */
 static int tcpcheck_main(struct check *check)
 {
@@ -2886,8 +2886,12 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			conn_prepare(conn, proto, xprt);
-			if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0)
-				return SF_ERR_RESOURCE;
+
+			if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0) {
+				ret = SF_ERR_RESOURCE;
+				goto fail_check;
+			}
+
 			cs_attach(cs, check, &check_conn_cb);
 
 			ret = SF_ERR_INTERNAL;
@@ -2912,6 +2916,7 @@ static int tcpcheck_main(struct check *check)
 			 * Note that we try to prevent the network stack from sending the ACK during the
 			 * connect() when a pure TCP check is used (without PROXY protocol).
 			 */
+		fail_check:
 			switch (ret) {
 			case SF_ERR_NONE:
 				/* we allow up to min(inter, timeout.connect) for a connection
