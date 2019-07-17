@@ -1079,7 +1079,7 @@ static int smp_fetch_base32_src(const struct arg *args, struct sample *smp, cons
 	struct buffer *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
-	if (!cli_conn)
+	if (!cli_conn || !conn_get_src(cli_conn))
 		return 0;
 
 	if (!smp_fetch_base32(args, smp, kw, private))
@@ -1784,7 +1784,7 @@ static int smp_fetch_url32_src(const struct arg *args, struct sample *smp, const
 	struct buffer *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
-	if (!cli_conn)
+	if (!cli_conn || !conn_get_src(cli_conn))
 		return 0;
 
 	if (!smp_fetch_url32(args, smp, kw, private))
