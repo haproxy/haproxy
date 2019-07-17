@@ -240,6 +240,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	return 0;
 }
 
+/* conn->dst MUST be valid */
 static int create_server_socket(struct connection *conn)
 {
 	const struct netns_entry *ns = NULL;
@@ -252,13 +253,13 @@ static int create_server_socket(struct connection *conn)
 			ns = __objt_server(conn->target)->netns;
 	}
 #endif
-	return my_socketat(ns, conn->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP);
+	return my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, IPPROTO_TCP);
 }
 
 /*
  * This function initiates a TCP connection establishment to the target assigned
- * to connection <conn> using (si->{target,addr.to}). A source address may be
- * pointed to by conn->addr.from in case of transparent proxying. Normal source
+ * to connection <conn> using (si->{target,dst}). A source address may be
+ * pointed to by conn->src in case of transparent proxying. Normal source
  * bind addresses are still determined locally (due to the possible need of a
  * source port). conn->target may point either to a valid server or to a backend,
  * depending on conn->target. Only OBJ_TYPE_PROXY and OBJ_TYPE_SERVER are
@@ -314,6 +315,11 @@ int tcp_connect_server(struct connection *conn, int flags)
 				(CONNECT_CAN_USE_TFO | CONNECT_HAS_DATA));
 		break;
 	default:
+		conn->flags |= CO_FL_ERROR;
+		return SF_ERR_INTERNAL;
+	}
+
+	if (!conn->dst) {
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_INTERNAL;
 	}
@@ -397,7 +403,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (src) {
 		int ret, flags = 0;
 
-		if (is_inet_addr(&conn->addr.from)) {
+		if (conn->src && is_inet_addr(conn->src)) {
 			switch (src->opts & CO_SRC_TPROXY_MASK) {
 			case CO_SRC_TPROXY_CLI:
 				conn->flags |= CO_FL_PRIVATE;
@@ -446,7 +452,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 				fdinfo[fd].port_range = src->sport_range;
 				set_host_port(&sa, fdinfo[fd].local_port);
 
-				ret = tcp_bind_socket(fd, flags, &sa, &conn->addr.from);
+				ret = tcp_bind_socket(fd, flags, &sa, conn->src);
 				if (ret != 0)
 					conn->err_code = CO_ER_CANT_BIND;
 			} while (ret != 0); /* binding NOK */
@@ -456,7 +462,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 			static THREAD_LOCAL int bind_address_no_port = 1;
 			setsockopt(fd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, (const void *) &bind_address_no_port, sizeof(int));
 #endif
-			ret = tcp_bind_socket(fd, flags, &src->source_addr, &conn->addr.from);
+			ret = tcp_bind_socket(fd, flags, &src->source_addr, conn->src);
 			if (ret != 0)
 				conn->err_code = CO_ER_CANT_BIND;
 		}
@@ -513,7 +519,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : &conn->addr.to;
+	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : conn->dst;
 	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
 		if (errno == EINPROGRESS || errno == EALREADY) {
 			/* common case, let's wait for connect status */
@@ -683,7 +689,7 @@ int tcp_connect_probe(struct connection *conn)
 	 *  - connecting (EALREADY, EINPROGRESS)
 	 *  - connected (EISCONN, 0)
 	 */
-	addr = &conn->addr.to;
+	addr = conn->dst;
 	if ((conn->flags & CO_FL_SOCKS4) && obj_type(conn->target) == OBJ_TYPE_SERVER)
 		addr = &objt_server(conn->target)->socks4_addr;
 
@@ -1177,16 +1183,16 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
 		if (smp) {
-			int port = get_net_port(&cli_conn->addr.from);
+			int port = get_net_port(cli_conn->src);
 
 			if (smp->data.type == SMP_T_IPV4) {
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_family = AF_INET;
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = port;
+				((struct sockaddr_in *)cli_conn->src)->sin_family = AF_INET;
+				((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+				((struct sockaddr_in *)cli_conn->src)->sin_port = port;
 			} else if (smp->data.type == SMP_T_IPV6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_family = AF_INET6;
-				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = port;
+				((struct sockaddr_in6 *)cli_conn->src)->sin6_family = AF_INET6;
+				memcpy(&((struct sockaddr_in6 *)cli_conn->src)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+				((struct sockaddr_in6 *)cli_conn->src)->sin6_port = port;
 			}
 		}
 		cli_conn->flags |= CO_FL_ADDR_FROM_SET;
@@ -1209,15 +1215,15 @@ enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
 		if (smp) {
-			int port = get_net_port(&cli_conn->addr.to);
+			int port = get_net_port(cli_conn->dst);
 
 			if (smp->data.type == SMP_T_IPV4) {
-				((struct sockaddr_in *)&cli_conn->addr.to)->sin_family = AF_INET;
-				((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+				((struct sockaddr_in *)cli_conn->dst)->sin_family = AF_INET;
+				((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
 			} else if (smp->data.type == SMP_T_IPV6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_family = AF_INET6;
-				memcpy(&((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
-				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = port;
+				((struct sockaddr_in6 *)cli_conn->dst)->sin6_family = AF_INET6;
+				memcpy(&((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
+				((struct sockaddr_in6 *)cli_conn->dst)->sin6_port = port;
 			}
 			cli_conn->flags |= CO_FL_ADDR_TO_SET;
 		}
@@ -1241,14 +1247,14 @@ enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy 
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
-			if (cli_conn->addr.from.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_port = htons(smp->data.u.sint);
+			if (cli_conn->src->ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)cli_conn->src)->sin6_port = htons(smp->data.u.sint);
 			} else {
-				if (cli_conn->addr.from.ss_family != AF_INET) {
-					cli_conn->addr.from.ss_family = AF_INET;
-					((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr = 0;
+				if (cli_conn->src->ss_family != AF_INET) {
+					cli_conn->src->ss_family = AF_INET;
+					((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr = 0;
 				}
-				((struct sockaddr_in *)&cli_conn->addr.from)->sin_port = htons(smp->data.u.sint);
+				((struct sockaddr_in *)cli_conn->src)->sin_port = htons(smp->data.u.sint);
 			}
 		}
 	}
@@ -1271,14 +1277,14 @@ enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy 
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
-			if (cli_conn->addr.to.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_port = htons(smp->data.u.sint);
+			if (cli_conn->dst->ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)cli_conn->dst)->sin6_port = htons(smp->data.u.sint);
 			} else {
-				if (cli_conn->addr.to.ss_family != AF_INET) {
-					cli_conn->addr.to.ss_family = AF_INET;
-					((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr = 0;
+				if (cli_conn->dst->ss_family != AF_INET) {
+					cli_conn->dst->ss_family = AF_INET;
+					((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr = 0;
 				}
-				((struct sockaddr_in *)&cli_conn->addr.to)->sin_port = htons(smp->data.u.sint);
+				((struct sockaddr_in *)cli_conn->dst)->sin_port = htons(smp->data.u.sint);
 			}
 		}
 	}
@@ -1424,13 +1430,13 @@ int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, vo
 	if (!conn_get_src(cli_conn))
 		return 0;
 
-	switch (cli_conn->addr.from.ss_family) {
+	switch (cli_conn->src->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)cli_conn->src)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)cli_conn->src)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -1454,7 +1460,7 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *k, void 
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(&cli_conn->addr.from)))
+	if (!(smp->data.u.sint = get_host_port(cli_conn->src)))
 		return 0;
 
 	smp->flags = 0;
@@ -1473,13 +1479,13 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 	if (!conn_get_dst(cli_conn))
 		return 0;
 
-	switch (cli_conn->addr.to.ss_family) {
+	switch (cli_conn->dst->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -1506,7 +1512,7 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->netns, &conn->addr.to);
+	smp->data.u.sint = addr_is_local(li->netns, conn->dst);
 	return smp->data.u.sint >= 0;
 }
 
@@ -1526,7 +1532,7 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->netns, &conn->addr.from);
+	smp->data.u.sint = addr_is_local(li->netns, conn->src);
 	return smp->data.u.sint >= 0;
 }
 
@@ -1543,7 +1549,7 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(&cli_conn->addr.to)))
+	if (!(smp->data.u.sint = get_host_port(cli_conn->dst)))
 		return 0;
 
 	smp->flags = 0;
