@@ -2084,7 +2084,7 @@ ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
 	if (conn_get_dst(conn)) {
-		key = ssl_sock_generated_cert_key(&conn->addr.to, get_addr_len(&conn->addr.to));
+		key = ssl_sock_generated_cert_key(conn->dst, get_addr_len(conn->dst));
 		if (ssl_sock_assign_generated_cert(key, bind_conf, ssl))
 			return 1;
 	}
