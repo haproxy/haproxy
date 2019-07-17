@@ -1099,6 +1099,8 @@ S (Servers).
  81: dcon [LF..]: requests denied by "tcp-request connection" rules
  82: dses [LF..]: requests denied by "tcp-request session" rules
  83: wrew [LFBS]: cumulative number of failed header rewriting warnings
+ 84: connect [..BS]: cumulative number of connection establishment attempts
+ 85: reuse [..BS]: cumulative number of connection reuses
 
 
 9.2) Typed output format
