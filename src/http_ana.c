@@ -758,7 +758,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		sl = http_get_stline(htx);
 		uri = htx_sl_req_uri(sl);
 		path = http_get_path(uri);
-		if (url2sa(uri.ptr, uri.len - path.len, &conn->addr.to, NULL) == -1)
+
+		/* FIXME WTA: below we'll need to dynamically allocate the dst address */
+		if (url2sa(uri.ptr, uri.len - path.len, conn->dst, NULL) == -1)
 			goto return_bad_req;
 
 		/* if the path was found, we have to remove everything between
@@ -814,17 +816,17 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			 * and we found it, so don't do anything.
 			 */
 		}
-		else if (cli_conn && cli_conn->addr.from.ss_family == AF_INET) {
+		else if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET) {
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */
 			if ((!sess->fe->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & sess->fe->except_mask.s_addr)
+			     (((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr & sess->fe->except_mask.s_addr)
 			     != sess->fe->except_net.s_addr) &&
 			    (!s->be->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
+			     (((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr & s->be->except_mask.s_addr)
 			     != s->be->except_net.s_addr)) {
-				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)cli_conn->src)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-forwarded-for, because the header is really meant for the backends.
@@ -836,14 +838,14 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 					goto return_bad_req;
 			}
 		}
-		else if (cli_conn && cli_conn->addr.from.ss_family == AF_INET6) {
+		else if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET6) {
 			/* FIXME: for the sake of completeness, we should also support
 			 * 'except' here, although it is mostly useless in this case.
 			 */
 			char pn[INET6_ADDRSTRLEN];
 
 			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&cli_conn->addr.from))->sin6_addr,
+				  (const void *)&((struct sockaddr_in6 *)(cli_conn->src))->sin6_addr,
 				  pn, sizeof(pn));
 
 			/* Note: we rely on the backend to get the header name to be used for
@@ -864,19 +866,19 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
 
 		/* FIXME: don't know if IPv6 can handle that case too. */
-		if (cli_conn && cli_conn->addr.from.ss_family == AF_INET && conn_get_dst(cli_conn)) {
+		if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET && conn_get_dst(cli_conn)) {
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
-			if (cli_conn->addr.to.ss_family == AF_INET &&
+			if (cli_conn->dst->ss_family == AF_INET &&
 			    ((!sess->fe->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & sess->fe->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr & sess->fe->except_mask_to.s_addr)
 			      != sess->fe->except_to.s_addr) &&
 			     (!s->be->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
 			      != s->be->except_to.s_addr))) {
 				struct ist hdr;
-				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
+				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)cli_conn->dst)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-original-to, because the header is really meant for the backends.
