@@ -2258,8 +2258,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 		return 1;
 	}
 
-	conn_get_to_addr(conn);
-	if (!(conn->flags & CO_FL_ADDR_TO_SET)) {
+	if (!conn_get_dst(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
 		return 1;
@@ -2308,8 +2307,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 		return 1;
 	}
 
-	conn_get_from_addr(conn);
-	if (!(conn->flags & CO_FL_ADDR_FROM_SET)) {
+	if (!conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
 		return 1;
