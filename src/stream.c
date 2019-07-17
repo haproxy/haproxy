@@ -2323,14 +2323,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			c_adv(req, ci_data(req));
 			if (!(req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_forward_forever(req);
-
-			/* Just in order to support fetching HTTP contents after start
-			 * of forwarding when the HTTP forwarding analyser is not used,
-			 * we simply reset msg->sov so that HTTP rewinding points to the
-			 * headers.
-			 */
-			if (s->txn)
-				s->txn->req.sov = s->txn->req.eoh + s->txn->req.eol - co_data(req);
 		}
 	}
 
@@ -2504,14 +2496,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			c_adv(res, ci_data(res));
 			if (!(res->flags & (CF_SHUTR|CF_SHUTW_NOW)))
 				channel_forward_forever(res);
-
-			/* Just in order to support fetching HTTP contents after start
-			 * of forwarding when the HTTP forwarding analyser is not used,
-			 * we simply reset msg->sov so that HTTP rewinding points to the
-			 * headers.
-			 */
-			if (s->txn)
-				s->txn->rsp.sov = s->txn->rsp.eoh + s->txn->rsp.eol - co_data(res);
 		}
 
 		/* if we have no analyser anymore in any direction and have a
@@ -3202,13 +3186,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		if (strm->txn)
 			chunk_appendf(&trash,
-			      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n"
-			      "      req.f=0x%02x blen=%llu chnk=%llu next=%u\n"
-			      "      rsp.f=0x%02x blen=%llu chnk=%llu next=%u\n",
+			      "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n",
 			      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
 			      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
-			      strm->txn->req.flags, strm->txn->req.body_len, strm->txn->req.chunk_len, strm->txn->req.next,
-			      strm->txn->rsp.flags, strm->txn->rsp.body_len, strm->txn->rsp.chunk_len, strm->txn->rsp.next);
+			      strm->txn->req.flags, strm->txn->rsp.flags);
 
 		chunk_appendf(&trash,
 			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s et=0x%03x sub=%d)\n",
@@ -3329,14 +3310,13 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%u req.next=%d i=%u size=%u\n",
+			     "      buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 			     strm->req.wex ?
 			     human_time(TICKS_TO_MS(strm->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     &strm->req.buf,
 		             b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
-			     (unsigned int)ci_head_ofs(&strm->req),
-		             strm->txn ? strm->txn->req.next : 0, (unsigned int)ci_data(&strm->req),
+			     (unsigned int)ci_head_ofs(&strm->req), (unsigned int)ci_data(&strm->req),
 			     (unsigned int)strm->req.buf.size);
 
 		if (IS_HTX_STRM(strm)) {
@@ -3368,14 +3348,13 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      buf=%p data=%p o=%u p=%u rsp.next=%d i=%u size=%u\n",
+			     "      buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 			     strm->res.wex ?
 			     human_time(TICKS_TO_MS(strm->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     &strm->res.buf,
 		             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
-		             (unsigned int)ci_head_ofs(&strm->res),
-		             strm->txn ? strm->txn->rsp.next : 0, (unsigned int)ci_data(&strm->res),
+		             (unsigned int)ci_head_ofs(&strm->res), (unsigned int)ci_data(&strm->res),
 			     (unsigned int)strm->res.buf.size);
 
 		if (IS_HTX_STRM(strm)) {
