@@ -120,7 +120,6 @@ struct http_method_desc {
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern const char *http_err_msgs[HTTP_ERR_SIZE];
-extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 extern const struct ist http_known_methods[HTTP_METH_OTHER];
 extern const uint8_t http_char_classes[256];
 
@@ -134,7 +133,6 @@ extern const char *HTTP_308;
 extern const char *HTTP_401_fmt;
 extern const char *HTTP_407_fmt;
 
-int init_http(char **err);
 enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);

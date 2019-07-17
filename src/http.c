@@ -155,11 +155,6 @@ const unsigned char http_char_classes[256] = {
 	[127] = HTTP_FLG_CTL,
 };
 
-/* We must put the messages here since GCC cannot initialize consts depending
- * on strlen().
- */
-struct buffer http_err_chunks[HTTP_ERR_SIZE];
-
 const struct ist HTTP_100 = IST("HTTP/1.1 100 Continue\r\n\r\n");
 
 const struct ist HTTP_103 = IST("HTTP/1.1 103 Early Hints\r\n");
@@ -984,24 +979,4 @@ int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, str
         p3->len = end - p;
 
         return 1;
-}
-
-
-/* post-initializes the HTTP parts. Returns zero on error, with <err>
- * pointing to the error message.
- */
-int init_http(char **err)
-{
-	int msg;
-
-	for (msg = 0; msg < HTTP_ERR_SIZE; msg++) {
-		if (!http_err_msgs[msg]) {
-			memprintf(err, "Internal error: no message defined for HTTP return code %d", msg);
-			return 0;
-		}
-
-		http_err_chunks[msg].area = (char *)http_err_msgs[msg];
-		http_err_chunks[msg].data = strlen(http_err_msgs[msg]);
-	}
-	return 1;
 }

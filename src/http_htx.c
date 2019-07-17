@@ -19,7 +19,7 @@
 
 #include <proto/http_htx.h>
 
-struct buffer htx_err_chunks[HTTP_ERR_SIZE];
+struct buffer http_err_chunks[HTTP_ERR_SIZE];
 
 /* Returns the next unporocessed start line in the HTX message. It returns NULL
  * if the start-line is undefined (first == -1). Otherwise, it returns the
@@ -600,7 +600,7 @@ unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 	return 1;
 }
 
-static struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
+struct htx *http_str_to_htx(struct buffer *buf, struct ist raw)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -673,27 +673,10 @@ error:
 
 static int http_htx_init(void)
 {
-	struct proxy *px;
 	struct buffer chk;
 	struct ist raw;
 	int rc;
 	int err_code = 0;
-
-	for (px = proxies_list; px; px = px->next) {
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (!b_data(&px->errmsg[rc]))
-				continue;
-
-			raw = ist2(b_head(&px->errmsg[rc]), b_data(&px->errmsg[rc]));
-			if (!http_str_to_htx(&chk, raw)) {
-				ha_alert("config: %s '%s': Unable to convert message in HTX for HTTP return code %d.\n",
-					 proxy_type_str(px), px->id, http_err_codes[rc]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-			}
-			chunk_destroy(&px->errmsg[rc]);
-			px->errmsg[rc] = chk;
-		}
-	}
 
 	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 		if (!http_err_msgs[rc]) {
@@ -708,7 +691,7 @@ static int http_htx_init(void)
 				 http_err_codes[rc]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
-		htx_err_chunks[rc] = chk;
+		http_err_chunks[rc] = chk;
 	}
 end:
 	return err_code;

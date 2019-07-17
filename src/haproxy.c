@@ -1383,13 +1383,6 @@ static void init(int argc, char **argv)
 	if (init_acl() != 0)
 		exit(1);
 
-	/* warning, we init buffers later */
-	if (!init_http(&err_msg)) {
-		ha_alert("%s. Aborting.\n", err_msg);
-		free(err_msg);
-		abort();
-	}
-
 	/* Initialise lua. */
 	hlua_init();
 

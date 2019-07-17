@@ -6724,7 +6724,7 @@ static void hlua_applet_http_fct(struct appctx *ctx)
 	 * just close the connection.
 	 */
 	if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT)) {
-		struct buffer *err = &htx_err_chunks[HTTP_ERR_500];
+		struct buffer *err = &http_err_chunks[HTTP_ERR_500];
 
 		channel_erase(res);
 		res->buf.data = b_data(err);

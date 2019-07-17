@@ -20,6 +20,7 @@
 #include <proto/acl.h>
 #include <proto/checks.h>
 #include <proto/connection.h>
+#include <proto/http_htx.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/protocol.h>
@@ -3832,8 +3833,17 @@ stats_error_parsing:
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
+				struct buffer chk;
+
+				if (!http_str_to_htx(&chk, ist2(err, errlen))) {
+					ha_alert("parsing [%s:%d] : unable to convert message in HTX for HTTP return code %d.\n",
+						 file, linenum, http_err_codes[rc]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					free(err);
+					goto out;
+				}
 				chunk_destroy(&curproxy->errmsg[rc]);
-				chunk_initlen(&curproxy->errmsg[rc], err, errlen, errlen);
+				curproxy->errmsg[rc] = chk;
 				break;
 			}
 		}
@@ -3892,8 +3902,17 @@ stats_error_parsing:
 		errnum = atol(args[1]);
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
+				struct buffer chk;
+
+				if (!http_str_to_htx(&chk, ist2(err, errlen))) {
+					ha_alert("parsing [%s:%d] : unable to convert message in HTX for HTTP return code %d.\n",
+						 file, linenum, http_err_codes[rc]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					free(err);
+					goto out;
+				}
 				chunk_destroy(&curproxy->errmsg[rc]);
-				chunk_initlen(&curproxy->errmsg[rc], err, errlen, errlen);
+				curproxy->errmsg[rc] = chk;
 				break;
 			}
 		}

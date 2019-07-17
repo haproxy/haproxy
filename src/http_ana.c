@@ -4904,7 +4904,7 @@ struct buffer *http_error_message(struct stream *s)
 	else if (strm_fe(s)->errmsg[msgnum].area)
 		return &strm_fe(s)->errmsg[msgnum];
 	else
-		return &htx_err_chunks[msgnum];
+		return &http_err_chunks[msgnum];
 }
 
 /* Return the error message corresponding to si->err_type. It is assumed

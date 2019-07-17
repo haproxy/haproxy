@@ -963,7 +963,7 @@ static void http_cache_io_handler(struct appctx *appctx)
   error:
 	/* Sent and HTTP error 500 */
 	b_reset(&res->buf);
-	errmsg = &htx_err_chunks[HTTP_ERR_500];
+	errmsg = &http_err_chunks[HTTP_ERR_500];
 	res->buf.data = b_data(errmsg);
 	memcpy(res->buf.area, b_head(errmsg), b_data(errmsg));
 	res_htx = htx_from_buf(&res->buf);
