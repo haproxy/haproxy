@@ -468,6 +468,8 @@ static inline void conn_init(struct connection *conn)
 	conn->send_wait = NULL;
 	conn->recv_wait = NULL;
 	conn->idle_time = 0;
+	conn->src = &conn->addr.from;
+	conn->dst = &conn->addr.to;
 }
 
 /* sets <owner> as the connection's owner */

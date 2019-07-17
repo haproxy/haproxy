@@ -459,6 +459,8 @@ struct connection {
 
 	/* third cache line and beyond */
 	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */
+	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
+	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
