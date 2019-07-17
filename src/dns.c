@@ -2147,8 +2147,9 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
-	struct connection *cli_conn;
 	struct dns_resolution *resolution;
+	struct sample *smp;
+	char *fqdn;
 
 	/* we have a response to our DNS resolution */
 	if (s->dns_ctx.dns_requester && s->dns_ctx.dns_requester->resolution != NULL) {
@@ -2197,26 +2198,17 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* need to configure and start a new DNS resolution */
-	cli_conn = objt_conn(sess->origin);
-	if (cli_conn && conn_ctrl_ready(cli_conn)) {
-		struct sample *smp;
-		char *fqdn;
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.dns.expr, SMP_T_STR);
+	if (smp == NULL)
+		return ACT_RET_CONT;
 
-		conn_get_from_addr(cli_conn);
+	fqdn = smp->data.u.str.area;
+	if (action_prepare_for_resolution(s, fqdn) == -1)
+		return ACT_RET_ERR;
 
-		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.dns.expr, SMP_T_STR);
-		if (smp == NULL)
-			return ACT_RET_CONT;
-
-		fqdn = smp->data.u.str.area;
-		if (action_prepare_for_resolution(s, fqdn) == -1) {
-			return ACT_RET_ERR;
-		}
-
-		s->dns_ctx.parent = rule;
-		dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
-		dns_trigger_resolution(s->dns_ctx.dns_requester);
-	}
+	s->dns_ctx.parent = rule;
+	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
+	dns_trigger_resolution(s->dns_ctx.dns_requester);
 	return ACT_RET_YIELD;
 }
 
