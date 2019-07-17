@@ -469,8 +469,8 @@ static inline void conn_init(struct connection *conn)
 	conn->send_wait = NULL;
 	conn->recv_wait = NULL;
 	conn->idle_time = 0;
-	conn->src = &conn->addr.from;
-	conn->dst = &conn->addr.to;
+	conn->src = NULL;
+	conn->dst = NULL;
 }
 
 /* sets <owner> as the connection's owner */
@@ -613,6 +613,9 @@ static inline void conn_free(struct connection *conn)
 			sess->idle_conns--;
 		session_unown_conn(sess, conn);
 	}
+
+	sockaddr_free(&conn->src);
+	sockaddr_free(&conn->dst);
 
 	/* By convention we always place a NULL where the ctx points to if the
 	 * mux is null. It may have been used to store the connection as a
