@@ -814,14 +814,6 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		ha_warning("config : cookie will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->rsp_exp != NULL) {
-		ha_warning("config : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			   proxy_type_str(curproxy), curproxy->id);
-	}
-	if (curproxy->req_exp != NULL) {
-		ha_warning("config : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			   proxy_type_str(curproxy), curproxy->id);
-	}
 	if (curproxy->monitor_uri != NULL) {
 		ha_warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
@@ -873,8 +865,6 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_rep.inspect_rules);
 	LIST_INIT(&p->tcp_req.l4_rules);
 	LIST_INIT(&p->tcp_req.l5_rules);
-	LIST_INIT(&p->req_add);
-	LIST_INIT(&p->rsp_add);
 	LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->logsrvs);
 	LIST_INIT(&p->logformat);

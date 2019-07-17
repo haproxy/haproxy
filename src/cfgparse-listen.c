@@ -79,32 +79,6 @@ int warnif_rule_after_http_req(struct proxy *proxy, const char *file, int line, 
 	return 0;
 }
 
-/* Report a warning if a rule is placed after a reqrewrite rule.
- * Return 1 if the warning has been emitted, otherwise 0.
- */
-int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	if (proxy->req_exp) {
-		ha_warning("parsing [%s:%d] : a '%s' rule placed after a 'reqxxx' rule will still be processed before.\n",
-			   file, line, arg);
-		return 1;
-	}
-	return 0;
-}
-
-/* Report a warning if a rule is placed after a reqadd rule.
- * Return 1 if the warning has been emitted, otherwise 0.
- */
-int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	if (!LIST_ISEMPTY(&proxy->req_add)) {
-		ha_warning("parsing [%s:%d] : a '%s' rule placed after a 'reqadd' rule will still be processed before.\n",
-			   file, line, arg);
-		return 1;
-	}
-	return 0;
-}
-
 /* Report a warning if a rule is placed after a redirect rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -151,25 +125,11 @@ int warnif_misplaced_redirect(struct proxy *proxy, const char *file, int line, c
 		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
-/* report a warning if a reqadd rule is dangerously placed */
-int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	return	warnif_rule_after_redirect(proxy, file, line, arg) ||
-		warnif_misplaced_redirect(proxy, file, line, arg);
-}
-
-/* report a warning if a reqxxx rule is dangerously placed */
-int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, const char *arg)
-{
-	return	warnif_rule_after_reqadd(proxy, file, line, arg) ||
-		warnif_misplaced_reqadd(proxy, file, line, arg);
-}
-
 /* report a warning if an http-request rule is dangerously placed */
 int warnif_misplaced_http_req(struct proxy *proxy, const char *file, int line, const char *arg)
 {
-	return	warnif_rule_after_reqxxx(proxy, file, line, arg) ||
-		warnif_misplaced_reqxxx(proxy, file, line, arg);;
+	return	warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_misplaced_redirect(proxy, file, line, arg);
 }
 
 /* report a warning if a block rule is dangerously placed */

@@ -2181,13 +2181,11 @@ void deinit(void)
 	struct server *s,*s_next;
 	struct listener *l,*l_next;
 	struct acl_cond *cond, *condb;
-	struct hdr_exp *exp, *expb;
 	struct acl *acl, *aclb;
 	struct switching_rule *rule, *ruleb;
 	struct server_rule *srule, *sruleb;
 	struct redirect_rule *rdr, *rdrb;
 	struct wordlist *wl, *wlb;
-	struct cond_wordlist *cwl, *cwlb;
 	struct uri_auth *uap, *ua = NULL;
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
@@ -2225,38 +2223,10 @@ void deinit(void)
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
 
-		list_for_each_entry_safe(cwl, cwlb, &p->req_add, list) {
-			LIST_DEL(&cwl->list);
-			free(cwl->s);
-			free(cwl);
-		}
-
-		list_for_each_entry_safe(cwl, cwlb, &p->rsp_add, list) {
-			LIST_DEL(&cwl->list);
-			free(cwl->s);
-			free(cwl);
-		}
-
 		list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
 			LIST_DEL(&cond->list);
 			prune_acl_cond(cond);
 			free(cond);
-		}
-
-		for (exp = p->req_exp; exp != NULL; ) {
-			regex_free(exp->preg);
-			free((char *)exp->replace);
-			expb = exp;
-			exp = exp->next;
-			free(expb);
-		}
-
-		for (exp = p->rsp_exp; exp != NULL; ) {
-			regex_free(exp->preg);
-			free((char *)exp->replace);
-			expb = exp;
-			exp = exp->next;
-			free(expb);
 		}
 
 		/* build a list of unique uri_auths */

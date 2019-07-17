@@ -47,15 +47,11 @@ static void http_end_response(struct stream *s);
 static void http_capture_headers(struct htx *htx, char **cap, struct cap_hdr *cap_hdr);
 static int http_del_hdr_value(char *start, char *end, char **from, char *next);
 static size_t http_fmt_req_line(const struct htx_sl *sl, char *str, size_t len);
-static size_t http_fmt_res_line(const struct htx_sl *sl, char *str, size_t len);
 static void http_debug_stline(const char *dir, struct stream *s, const struct htx_sl *sl);
 static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
 static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, int *deny_status);
 static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s);
-
-static int http_apply_filters_to_request(struct stream *s, struct channel *req, struct proxy *px);
-static int http_apply_filters_to_response(struct stream *s, struct channel *res, struct proxy *px);
 
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req);
 static void http_manage_server_side_cookies(struct stream *s, struct channel *res);
@@ -470,7 +466,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	struct redirect_rule *rule;
-	struct cond_wordlist *wl;
 	enum rule_result verdict;
 	int deny_status = HTTP_ERR_403;
 	struct connection *conn = objt_conn(sess->origin);
@@ -563,37 +558,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		if (verdict == HTTP_RULE_RES_ABRT) /* stats auth / stats http-request auth */
 			goto return_prx_cond;
-	}
-
-	/* evaluate the req* rules except reqadd */
-	if (px->req_exp != NULL) {
-		if (http_apply_filters_to_request(s, req, px) < 0)
-			goto return_bad_req;
-
-		if (txn->flags & TX_CLDENY)
-			goto deny;
-
-		if (txn->flags & TX_CLTARPIT) {
-			deny_status = HTTP_ERR_500;
-			goto tarpit;
-		}
-	}
-
-	/* add request headers from the rule sets in the same order */
-	list_for_each_entry(wl, &px->req_add, list) {
-		struct ist n,v;
-		if (wl->cond) {
-			int ret = acl_exec_cond(wl->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
-				ret = !ret;
-			if (!ret)
-				continue;
-		}
-
-		http_parse_header(ist2(wl->s, strlen(wl->s)), &n, &v);
-		if (unlikely(!http_add_header(htx, n, v)))
-			goto return_bad_req;
 	}
 
 	/* Proceed with the applets now. */
@@ -1838,7 +1802,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
 	struct proxy *cur_proxy;
-	struct cond_wordlist *wl;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
@@ -1887,8 +1850,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	else
 		cur_proxy = s->be;
 	while (1) {
-		struct proxy *rule_set = cur_proxy;
-
 		/* evaluate http-response rules */
 		if (ret == HTTP_RULE_RES_CONT) {
 			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
@@ -1909,12 +1870,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			return 0;
 		}
 
-		/* try headers filters */
-		if (rule_set->rsp_exp != NULL) {
-			if (http_apply_filters_to_response(s, rep, rule_set) < 0)
-				goto return_bad_resp;
-		}
-
 		/* has the response been denied ? */
 		if (txn->flags & TX_SVDENY) {
 			if (objt_server(s->target))
@@ -1925,25 +1880,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			if (sess->listener->counters)
 				_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 			goto return_srv_prx_502;
-		}
-
-		/* add response headers from the rule sets in the same order */
-		list_for_each_entry(wl, &rule_set->rsp_add, list) {
-			struct ist n, v;
-			if (txn->status < 200 && txn->status != 101)
-				break;
-			if (wl->cond) {
-				int ret = acl_exec_cond(wl->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
-				ret = acl_pass(ret);
-				if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
-					ret = !ret;
-				if (!ret)
-					continue;
-			}
-
-			http_parse_header(ist2(wl->s, strlen(wl->s)), &n, &v);
-			if (unlikely(!http_add_header(htx, n, v)))
-				goto return_bad_resp;
 		}
 
 		/* check whether we're already working on the frontend */
@@ -3493,433 +3429,6 @@ resume_execution:
   end:
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
-}
-
-/* Iterate the same filter through all request headers.
- * Returns 1 if this filter can be stopped upon return, otherwise 0.
- * Since it can manage the switch to another backend, it updates the per-proxy
- * DENY stats.
- */
-static int http_apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp)
-{
-	struct http_txn *txn = s->txn;
-	struct htx *htx;
-	struct buffer *hdr = get_trash_chunk();
-	int32_t pos;
-
-	htx = htxbuf(&req->buf);
-
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type;
-		struct ist n, v;
-
-	  next_hdr:
-		type = htx_get_blk_type(blk);
-		if (type == HTX_BLK_EOH)
-			break;
-		if (type != HTX_BLK_HDR)
-			continue;
-
-		if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
-			return 1;
-		else if (unlikely(txn->flags & TX_CLALLOW) &&
-			 (exp->action == ACT_ALLOW ||
-			  exp->action == ACT_DENY ||
-			  exp->action == ACT_TARPIT))
-			return 0;
-
-		n = htx_get_blk_name(htx, blk);
-		v = htx_get_blk_value(htx, blk);
-
-		chunk_memcpy(hdr, n.ptr, n.len);
-		hdr->area[hdr->data++] = ':';
-		hdr->area[hdr->data++] = ' ';
-		chunk_memcat(hdr, v.ptr, v.len);
-
-		/* Now we have one header in <hdr> */
-
-		if (regex_exec_match2(exp->preg, hdr->area, hdr->data, MAX_MATCH, pmatch, 0)) {
-			struct http_hdr_ctx ctx;
-			int len;
-
-			switch (exp->action) {
-				case ACT_ALLOW:
-					txn->flags |= TX_CLALLOW;
-					goto end;
-
-				case ACT_DENY:
-					txn->flags |= TX_CLDENY;
-					goto end;
-
-				case ACT_TARPIT:
-					txn->flags |= TX_CLTARPIT;
-					goto end;
-
-				case ACT_REPLACE:
-					len = exp_replace(trash.area, trash.size, hdr->area, exp->replace, pmatch);
-					if (len < 0)
-						return -1;
-
-					http_parse_header(ist2(trash.area, len), &n, &v);
-					ctx.blk = blk;
-					ctx.value = v;
-				        ctx.lws_before = ctx.lws_after = 0;
-					if (!http_replace_header(htx, &ctx, n, v))
-						return -1;
-					if (!ctx.blk)
-						goto end;
-					pos = htx_get_blk_pos(htx, blk);
-					break;
-
-				case ACT_REMOVE:
-					ctx.blk = blk;
-					ctx.value = v;
-				        ctx.lws_before = ctx.lws_after = 0;
-					if (!http_remove_header(htx, &ctx))
-						return -1;
-					if (!ctx.blk)
-						goto end;
-					pos = htx_get_blk_pos(htx, blk);
-					goto next_hdr;
-
-			}
-		}
-	}
-  end:
-	return 0;
-}
-
-/* Apply the filter to the request line.
- * Returns 0 if nothing has been done, 1 if the filter has been applied,
- * or -1 if a replacement resulted in an invalid request line.
- * Since it can manage the switch to another backend, it updates the per-proxy
- * DENY stats.
- */
-static int http_apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_exp *exp)
-{
-	struct http_txn *txn = s->txn;
-	struct htx *htx;
-	struct buffer *reqline = get_trash_chunk();
-	int done;
-
-	htx = htxbuf(&req->buf);
-
-	if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
-		return 1;
-	else if (unlikely(txn->flags & TX_CLALLOW) &&
-		 (exp->action == ACT_ALLOW ||
-		  exp->action == ACT_DENY ||
-		  exp->action == ACT_TARPIT))
-		return 0;
-	else if (exp->action == ACT_REMOVE)
-		return 0;
-
-	done = 0;
-
-	reqline->data = http_fmt_req_line(http_get_stline(htx), reqline->area, reqline->size);
-
-	/* Now we have the request line between cur_ptr and cur_end */
-	if (regex_exec_match2(exp->preg, reqline->area, reqline->data, MAX_MATCH, pmatch, 0)) {
-		struct htx_sl *sl = http_get_stline(htx);
-		struct ist meth, uri, vsn;
-		int len;
-
-		switch (exp->action) {
-			case ACT_ALLOW:
-				txn->flags |= TX_CLALLOW;
-				done = 1;
-				break;
-
-			case ACT_DENY:
-				txn->flags |= TX_CLDENY;
-				done = 1;
-				break;
-
-			case ACT_TARPIT:
-				txn->flags |= TX_CLTARPIT;
-				done = 1;
-				break;
-
-			case ACT_REPLACE:
-				len = exp_replace(trash.area, trash.size, reqline->area, exp->replace, pmatch);
-				if (len < 0)
-					return -1;
-
-				http_parse_stline(ist2(trash.area, len), &meth, &uri, &vsn);
-				sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
-				if (!http_replace_stline(htx, meth, uri, vsn))
-					return -1;
-				done = 1;
-				break;
-		}
-	}
-	return done;
-}
-
-/*
- * Apply all the req filters of proxy <px> to all headers in buffer <req> of stream <s>.
- * Returns 0 if everything is alright, or -1 in case a replacement lead to an
- * unparsable request. Since it can manage the switch to another backend, it
- * updates the per-proxy DENY stats.
- */
-static int http_apply_filters_to_request(struct stream *s, struct channel *req, struct proxy *px)
-{
-	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
-	struct hdr_exp *exp;
-
-	for (exp = px->req_exp; exp; exp = exp->next) {
-		int ret;
-
-		/*
-		 * The interleaving of transformations and verdicts
-		 * makes it difficult to decide to continue or stop
-		 * the evaluation.
-		 */
-
-		if (txn->flags & (TX_CLDENY|TX_CLTARPIT))
-			break;
-
-		if ((txn->flags & TX_CLALLOW) &&
-		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
-		     exp->action == ACT_TARPIT || exp->action == ACT_PASS))
-			continue;
-
-		/* if this filter had a condition, evaluate it now and skip to
-		 * next filter if the condition does not match.
-		 */
-		if (exp->cond) {
-			ret = acl_exec_cond(exp->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (((struct acl_cond *)exp->cond)->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (!ret)
-				continue;
-		}
-
-		/* Apply the filter to the request line. */
-		ret = http_apply_filter_to_req_line(s, req, exp);
-		if (unlikely(ret < 0))
-			return -1;
-
-		if (likely(ret == 0)) {
-			/* The filter did not match the request, it can be
-			 * iterated through all headers.
-			 */
-			if (unlikely(http_apply_filter_to_req_headers(s, req, exp) < 0))
-				return -1;
-		}
-	}
-	return 0;
-}
-
-/* Iterate the same filter through all response headers contained in <res>.
- * Returns 1 if this filter can be stopped upon return, otherwise 0.
- */
-static int http_apply_filter_to_resp_headers(struct stream *s, struct channel *res, struct hdr_exp *exp)
-{
-	struct http_txn *txn = s->txn;
-	struct htx *htx;
-	struct buffer *hdr = get_trash_chunk();
-	int32_t pos;
-
-	htx = htxbuf(&res->buf);
-
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type;
-		struct ist n, v;
-
-	  next_hdr:
-		type = htx_get_blk_type(blk);
-		if (type == HTX_BLK_EOH)
-			break;
-		if (type != HTX_BLK_HDR)
-			continue;
-
-		if (unlikely(txn->flags & TX_SVDENY))
-			return 1;
-		else if (unlikely(txn->flags & TX_SVALLOW) &&
-			 (exp->action == ACT_ALLOW ||
-			  exp->action == ACT_DENY))
-			return 0;
-
-		n = htx_get_blk_name(htx, blk);
-		v = htx_get_blk_value(htx, blk);
-
-		chunk_memcpy(hdr, n.ptr, n.len);
-		hdr->area[hdr->data++] = ':';
-		hdr->area[hdr->data++] = ' ';
-		chunk_memcat(hdr, v.ptr, v.len);
-
-		/* Now we have one header in <hdr> */
-
-		if (regex_exec_match2(exp->preg, hdr->area, hdr->data, MAX_MATCH, pmatch, 0)) {
-			struct http_hdr_ctx ctx;
-			int len;
-
-			switch (exp->action) {
-				case ACT_ALLOW:
-					txn->flags |= TX_SVALLOW;
-					goto end;
-					break;
-
-				case ACT_DENY:
-					txn->flags |= TX_SVDENY;
-					goto end;
-					break;
-
-				case ACT_REPLACE:
-					len = exp_replace(trash.area, trash.size, hdr->area, exp->replace, pmatch);
-					if (len < 0)
-						return -1;
-
-					http_parse_header(ist2(trash.area, len), &n, &v);
-					ctx.blk = blk;
-					ctx.value = v;
-				        ctx.lws_before = ctx.lws_after = 0;
-					if (!http_replace_header(htx, &ctx, n, v))
-						return -1;
-					if (!ctx.blk)
-						goto end;
-					pos = htx_get_blk_pos(htx, blk);
-					break;
-
-				case ACT_REMOVE:
-					ctx.blk = blk;
-					ctx.value = v;
-				        ctx.lws_before = ctx.lws_after = 0;
-					if (!http_remove_header(htx, &ctx))
-						return -1;
-					if (!ctx.blk)
-						goto end;
-					pos = htx_get_blk_pos(htx, blk);
-					goto next_hdr;
-			}
-		}
-
-	}
-  end:
-	return 0;
-}
-
-/* Apply the filter to the status line in the response buffer <res>.
- * Returns 0 if nothing has been done, 1 if the filter has been applied,
- * or -1 if a replacement resulted in an invalid status line.
- */
-static int http_apply_filter_to_sts_line(struct stream *s, struct channel *res, struct hdr_exp *exp)
-{
-	struct http_txn *txn = s->txn;
-	struct htx *htx;
-	struct buffer *resline = get_trash_chunk();
-	int done;
-
-	htx = htxbuf(&res->buf);
-
-	if (unlikely(txn->flags & TX_SVDENY))
-		return 1;
-	else if (unlikely(txn->flags & TX_SVALLOW) &&
-		 (exp->action == ACT_ALLOW ||
-		  exp->action == ACT_DENY))
-		return 0;
-	else if (exp->action == ACT_REMOVE)
-		return 0;
-
-	done = 0;
-	resline->data = http_fmt_res_line(http_get_stline(htx), resline->area, resline->size);
-
-	/* Now we have the status line between cur_ptr and cur_end */
-	if (regex_exec_match2(exp->preg, resline->area, resline->data, MAX_MATCH, pmatch, 0)) {
-		struct htx_sl *sl = http_get_stline(htx);
-		struct ist vsn, code, reason;
-		int len;
-
-		switch (exp->action) {
-			case ACT_ALLOW:
-				txn->flags |= TX_SVALLOW;
-				done = 1;
-				break;
-
-			case ACT_DENY:
-				txn->flags |= TX_SVDENY;
-				done = 1;
-				break;
-
-			case ACT_REPLACE:
-				len = exp_replace(trash.area, trash.size, resline->area, exp->replace, pmatch);
-				if (len < 0)
-					return -1;
-
-				http_parse_stline(ist2(trash.area, len), &vsn, &code, &reason);
-				sl->info.res.status = strl2ui(code.ptr, code.len);
-				if (!http_replace_stline(htx, vsn, code, reason))
-					return -1;
-
-				done = 1;
-				return 1;
-		}
-	}
-	return done;
-}
-
-/*
- * Apply all the resp filters of proxy <px> to all headers in buffer <res> of stream <s>.
- * Returns 0 if everything is alright, or -1 in case a replacement lead to an
- * unparsable response.
- */
-static int http_apply_filters_to_response(struct stream *s, struct channel *res, struct proxy *px)
-{
-	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
-	struct hdr_exp *exp;
-
-	for (exp = px->rsp_exp; exp; exp = exp->next) {
-		int ret;
-
-		/*
-		 * The interleaving of transformations and verdicts
-		 * makes it difficult to decide to continue or stop
-		 * the evaluation.
-		 */
-
-		if (txn->flags & TX_SVDENY)
-			break;
-
-		if ((txn->flags & TX_SVALLOW) &&
-		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
-		     exp->action == ACT_PASS)) {
-			exp = exp->next;
-			continue;
-		}
-
-		/* if this filter had a condition, evaluate it now and skip to
-		 * next filter if the condition does not match.
-		 */
-		if (exp->cond) {
-			ret = acl_exec_cond(exp->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (((struct acl_cond *)exp->cond)->pol == ACL_COND_UNLESS)
-				ret = !ret;
-			if (!ret)
-				continue;
-		}
-
-		/* Apply the filter to the status line. */
-		ret = http_apply_filter_to_sts_line(s, res, exp);
-		if (unlikely(ret < 0))
-			return -1;
-
-		if (likely(ret == 0)) {
-			/* The filter did not match the response, it can be
-			 * iterated through all headers.
-			 */
-			if (unlikely(http_apply_filter_to_resp_headers(s, res, exp) < 0))
-				return -1;
-		}
-	}
-	return 0;
 }
 
 /*
@@ -5711,31 +5220,6 @@ static size_t http_fmt_req_line(const struct htx_sl *sl, char *str, size_t len)
   end:
 	return dst.len;
 }
-
-/* Formats the start line of the response (without CRLF) and puts it in <str> and
- * return the written length. The line can be truncated if it exceeds <len>.
- */
-static size_t http_fmt_res_line(const struct htx_sl *sl, char *str, size_t len)
-{
-	struct ist dst = ist2(str, 0);
-
-	if (istcat(&dst, htx_sl_res_vsn(sl), len) == -1)
-		goto end;
-	if (dst.len + 1 > len)
-		goto end;
-	dst.ptr[dst.len++] = ' ';
-
-	if (istcat(&dst, htx_sl_res_code(sl), len) == -1)
-		goto end;
-	if (dst.len + 1 > len)
-		goto end;
-	dst.ptr[dst.len++] = ' ';
-
-	istcat(&dst, htx_sl_res_reason(sl), len);
-  end:
-	return dst.len;
-}
-
 
 /*
  * Print a debug line with a start line.

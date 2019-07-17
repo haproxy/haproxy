@@ -404,14 +404,11 @@ struct proxy {
 	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
-	struct hdr_exp *req_exp;		/* regular expressions for request headers */
-	struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
 	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the streams */
 	                 *rsp_cap_pool;
-	struct list req_add, rsp_add;           /* headers to be added */
 	struct be_counters be_counters;		/* backend statistics counters */
 	struct fe_counters fe_counters;		/* frontend statistics counters */
 
