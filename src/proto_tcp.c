@@ -1172,7 +1172,7 @@ enum act_return tcp_action_req_set_src(struct act_rule *rule, struct proxy *px,
 {
 	struct connection *cli_conn;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+	if ((cli_conn = objt_conn(sess->origin)) && conn_get_src(cli_conn)) {
 		struct sample *smp;
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
@@ -1204,7 +1204,7 @@ enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct proxy *px,
 {
 	struct connection *cli_conn;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+	if ((cli_conn = objt_conn(sess->origin)) && conn_get_dst(cli_conn)) {
 		struct sample *smp;
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_ADDR);
@@ -1236,10 +1236,8 @@ enum act_return tcp_action_req_set_src_port(struct act_rule *rule, struct proxy 
 {
 	struct connection *cli_conn;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+	if ((cli_conn = objt_conn(sess->origin)) && conn_get_src(cli_conn)) {
 		struct sample *smp;
-
-		conn_get_from_addr(cli_conn);
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
@@ -1268,10 +1266,8 @@ enum act_return tcp_action_req_set_dst_port(struct act_rule *rule, struct proxy 
 {
 	struct connection *cli_conn;
 
-	if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn)) {
+	if ((cli_conn = objt_conn(sess->origin)) && conn_get_dst(cli_conn)) {
 		struct sample *smp;
-
-		conn_get_to_addr(cli_conn);
 
 		smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.expr, SMP_T_SINT);
 		if (smp) {
@@ -1425,6 +1421,9 @@ int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, vo
 	if (!cli_conn)
 		return 0;
 
+	if (!conn_get_src(cli_conn))
+		return 0;
+
 	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
 		smp->data.u.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
@@ -1451,6 +1450,9 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *k, void 
 	if (!cli_conn)
 		return 0;
 
+	if (!conn_get_src(cli_conn))
+		return 0;
+
 	smp->data.type = SMP_T_SINT;
 	if (!(smp->data.u.sint = get_host_port(&cli_conn->addr.from)))
 		return 0;
@@ -1468,7 +1470,8 @@ smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *
 	if (!cli_conn)
 		return 0;
 
-	conn_get_to_addr(cli_conn);
+	if (!conn_get_dst(cli_conn))
+		return 0;
 
 	switch (cli_conn->addr.to.ss_family) {
 	case AF_INET:
@@ -1498,8 +1501,7 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
 	if (!conn)
 		return 0;
 
-	conn_get_to_addr(conn);
-	if (!(conn->flags & CO_FL_ADDR_TO_SET))
+	if (!conn_get_dst(conn))
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
@@ -1519,8 +1521,7 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 	if (!conn)
 		return 0;
 
-	conn_get_from_addr(conn);
-	if (!(conn->flags & CO_FL_ADDR_FROM_SET))
+	if (!conn_get_src(conn))
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
@@ -1538,7 +1539,8 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
 	if (!cli_conn)
 		return 0;
 
-	conn_get_to_addr(cli_conn);
+	if (!conn_get_dst(cli_conn))
+		return 0;
 
 	smp->data.type = SMP_T_SINT;
 	if (!(smp->data.u.sint = get_host_port(&cli_conn->addr.to)))
