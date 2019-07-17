@@ -678,12 +678,12 @@ int assign_server(struct stream *s)
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
 				conn = objt_conn(strm_orig(s));
-				if (conn && conn->addr.from.ss_family == AF_INET) {
+				if (conn && conn_get_src(conn) && conn->addr.from.ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
 							    4, prev_srv);
 				}
-				else if (conn && conn->addr.from.ss_family == AF_INET6) {
+				else if (conn && conn_get_src(conn) && conn->addr.from.ss_family == AF_INET6) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr,
 							    16, prev_srv);
@@ -840,9 +840,9 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			conn_get_to_addr(cli_conn);
-
-			if (cli_conn->addr.to.ss_family == AF_INET) {
+			if (!conn_get_dst(cli_conn)) {
+				/* do nothing if we can't retrieve the address */
+			} else if (cli_conn->addr.to.ss_family == AF_INET) {
 				((struct sockaddr_in *)&srv_conn->addr.to)->sin_addr = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
 			} else if (cli_conn->addr.to.ss_family == AF_INET6) {
 				((struct sockaddr_in6 *)&srv_conn->addr.to)->sin6_addr = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
@@ -854,14 +854,14 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 		if ((__objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
 			int base_port;
 
-			conn_get_to_addr(cli_conn);
+			if (conn_get_dst(cli_conn)) {
+				/* First, retrieve the port from the incoming connection */
+				base_port = get_host_port(&cli_conn->addr.to);
 
-			/* First, retrieve the port from the incoming connection */
-			base_port = get_host_port(&cli_conn->addr.to);
-
-			/* Second, assign the outgoing connection's port */
-			base_port += get_host_port(&srv_conn->addr.to);
-			set_host_port(&srv_conn->addr.to, base_port);
+				/* Second, assign the outgoing connection's port */
+				base_port += get_host_port(&srv_conn->addr.to);
+				set_host_port(&srv_conn->addr.to, base_port);
+			}
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
@@ -870,9 +870,8 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 	}
 	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		conn_get_to_addr(cli_conn);
-
-		if (cli_conn->addr.to.ss_family == AF_INET || cli_conn->addr.to.ss_family == AF_INET6)
+		if (conn_get_dst(cli_conn) &&
+		    (cli_conn->addr.to.ss_family == AF_INET || cli_conn->addr.to.ss_family == AF_INET6))
 			srv_conn->addr.to = cli_conn->addr.to;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
@@ -1046,7 +1045,7 @@ static void assign_tproxy_address(struct stream *s)
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 		cli_conn = objt_conn(strm_orig(s));
-		if (cli_conn)
+		if (cli_conn && conn_get_src(cli_conn))
 			srv_conn->addr.from = cli_conn->addr.from;
 		else
 			memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
@@ -1474,7 +1473,7 @@ int connect_server(struct stream *s)
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			if (cli_conn)
-				conn_get_to_addr(cli_conn);
+				conn_get_dst(cli_conn);
 		}
 
 		assign_tproxy_address(s);
