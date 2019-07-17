@@ -661,6 +661,46 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
+/* Retrieves the connection's original source address. Returns non-zero on
+ * success or zero on failure. The operation is only performed once and the
+ * address is stored in the connection for future use.
+ */
+static inline int conn_get_src(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_FROM_SET)
+		return 1;
+
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
+		return 0;
+
+	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)&conn->addr.from,
+	                        sizeof(conn->addr.from),
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
+		return 0;
+	conn->flags |= CO_FL_ADDR_FROM_SET;
+	return 1;
+}
+
+/* Retrieves the connection's original destination address. Returns non-zero on
+ * success or zero on failure. The operation is only performed once and the
+ * address is stored in the connection for future use.
+ */
+static inline int conn_get_dst(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_TO_SET)
+		return 1;
+
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
+		return 0;
+
+	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)&conn->addr.to,
+	                        sizeof(conn->addr.to),
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
+		return 0;
+	conn->flags |= CO_FL_ADDR_TO_SET;
+	return 1;
+}
+
 /* Sets the TOS header in IPv4 and the traffic class header in IPv6 packets
  * (as per RFC3260 #4 and BCP37 #4.2 and #5.2). The connection is tested and if
  * it is null, nothing is done.
