@@ -643,8 +643,8 @@ static inline int conn_get_src(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
 		return 0;
 
-	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)&conn->addr.from,
-	                        sizeof(conn->addr.from),
+	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
+	                        sizeof(*conn->src),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
 	conn->flags |= CO_FL_ADDR_FROM_SET;
@@ -663,8 +663,8 @@ static inline int conn_get_dst(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
 		return 0;
 
-	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)&conn->addr.to,
-	                        sizeof(conn->addr.to),
+	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
+	                        sizeof(*conn->dst),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
 	conn->flags |= CO_FL_ADDR_TO_SET;
@@ -681,12 +681,12 @@ static inline void conn_set_tos(const struct connection *conn, int tos)
 		return;
 
 #ifdef IP_TOS
-	if (conn->addr.from.ss_family == AF_INET)
+	if (conn->src->ss_family == AF_INET)
 		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
 #endif
 #ifdef IPV6_TCLASS
-	if (conn->addr.from.ss_family == AF_INET6) {
-		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr))
+	if (conn->src->ss_family == AF_INET6) {
+		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)conn->src)->sin6_addr))
 			/* v4-mapped addresses need IP_TOS */
 			setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
 		else

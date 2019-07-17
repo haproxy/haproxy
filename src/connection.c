@@ -470,13 +470,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			goto bad_header;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)&conn->addr.from)->sin_family      = AF_INET;
-		((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = htonl(src3);
-		((struct sockaddr_in *)&conn->addr.from)->sin_port        = htons(sport);
+		((struct sockaddr_in *)conn->src)->sin_family      = AF_INET;
+		((struct sockaddr_in *)conn->src)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)conn->src)->sin_port        = htons(sport);
 
-		((struct sockaddr_in *)&conn->addr.to)->sin_family        = AF_INET;
-		((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr   = htonl(dst3);
-		((struct sockaddr_in *)&conn->addr.to)->sin_port          = htons(dport);
+		((struct sockaddr_in *)conn->dst)->sin_family        = AF_INET;
+		((struct sockaddr_in *)conn->dst)->sin_addr.s_addr   = htonl(dst3);
+		((struct sockaddr_in *)conn->dst)->sin_port          = htons(dport);
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "TCP6 ", 5) == 0) {
@@ -531,13 +531,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			goto bad_header;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr, &src3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&conn->addr.from)->sin6_port        = htons(sport);
+		((struct sockaddr_in6 *)conn->src)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)conn->src)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)conn->src)->sin6_port        = htons(sport);
 
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_family        = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port          = htons(dport);
+		((struct sockaddr_in6 *)conn->dst)->sin6_family        = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)conn->dst)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)conn->dst)->sin6_port          = htons(dport);
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "UNKNOWN\r\n", 9) == 0) {
@@ -576,12 +576,12 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET)
 				goto bad_header;
 
-			((struct sockaddr_in *)&conn->addr.from)->sin_family = AF_INET;
-			((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = hdr_v2->addr.ip4.src_addr;
-			((struct sockaddr_in *)&conn->addr.from)->sin_port = hdr_v2->addr.ip4.src_port;
-			((struct sockaddr_in *)&conn->addr.to)->sin_family = AF_INET;
-			((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
-			((struct sockaddr_in *)&conn->addr.to)->sin_port = hdr_v2->addr.ip4.dst_port;
+			((struct sockaddr_in *)conn->src)->sin_family = AF_INET;
+			((struct sockaddr_in *)conn->src)->sin_addr.s_addr = hdr_v2->addr.ip4.src_addr;
+			((struct sockaddr_in *)conn->src)->sin_port = hdr_v2->addr.ip4.src_port;
+			((struct sockaddr_in *)conn->dst)->sin_family = AF_INET;
+			((struct sockaddr_in *)conn->dst)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
+			((struct sockaddr_in *)conn->dst)->sin_port = hdr_v2->addr.ip4.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET;
 			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET;
@@ -590,12 +590,12 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET6)
 				goto bad_header;
 
-			((struct sockaddr_in6 *)&conn->addr.from)->sin6_family = AF_INET6;
-			memcpy(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr, hdr_v2->addr.ip6.src_addr, 16);
-			((struct sockaddr_in6 *)&conn->addr.from)->sin6_port = hdr_v2->addr.ip6.src_port;
-			((struct sockaddr_in6 *)&conn->addr.to)->sin6_family = AF_INET6;
-			memcpy(&((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
-			((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = hdr_v2->addr.ip6.dst_port;
+			((struct sockaddr_in6 *)conn->src)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)conn->src)->sin6_addr, hdr_v2->addr.ip6.src_addr, 16);
+			((struct sockaddr_in6 *)conn->src)->sin6_port = hdr_v2->addr.ip6.src_port;
+			((struct sockaddr_in6 *)conn->dst)->sin6_family = AF_INET6;
+			memcpy(&((struct sockaddr_in6 *)conn->dst)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
+			((struct sockaddr_in6 *)conn->dst)->sin6_port = hdr_v2->addr.ip6.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 			tlv_offset = PP2_HEADER_LEN + PP2_ADDR_LEN_INET6;
 			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET6;
@@ -798,13 +798,13 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		hdr_tcp = (struct my_tcphdr *)(line + (hdr_ip4->ip_hl * 4));
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)&conn->addr.from)->sin_family = AF_INET;
-		((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = hdr_ip4->ip_src.s_addr;
-		((struct sockaddr_in *)&conn->addr.from)->sin_port = hdr_tcp->source;
+		((struct sockaddr_in *)conn->src)->sin_family = AF_INET;
+		((struct sockaddr_in *)conn->src)->sin_addr.s_addr = hdr_ip4->ip_src.s_addr;
+		((struct sockaddr_in *)conn->src)->sin_port = hdr_tcp->source;
 
-		((struct sockaddr_in *)&conn->addr.to)->sin_family = AF_INET;
-		((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
-		((struct sockaddr_in *)&conn->addr.to)->sin_port = hdr_tcp->dest;
+		((struct sockaddr_in *)conn->dst)->sin_family = AF_INET;
+		((struct sockaddr_in *)conn->dst)->sin_addr.s_addr = hdr_ip4->ip_dst.s_addr;
+		((struct sockaddr_in *)conn->dst)->sin_port = hdr_tcp->dest;
 
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
@@ -828,13 +828,13 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		hdr_tcp = (struct my_tcphdr *)(line + sizeof(struct ip6_hdr));
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family = AF_INET6;
-		((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr = hdr_ip6->ip6_src;
-		((struct sockaddr_in6 *)&conn->addr.from)->sin6_port = hdr_tcp->source;
+		((struct sockaddr_in6 *)conn->src)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)conn->src)->sin6_addr = hdr_ip6->ip6_src;
+		((struct sockaddr_in6 *)conn->src)->sin6_port = hdr_tcp->source;
 
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_family = AF_INET6;
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr = hdr_ip6->ip6_dst;
-		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = hdr_tcp->dest;
+		((struct sockaddr_in6 *)conn->dst)->sin6_family = AF_INET6;
+		((struct sockaddr_in6 *)conn->dst)->sin6_addr = hdr_ip6->ip6_dst;
+		((struct sockaddr_in6 *)conn->dst)->sin6_port = hdr_tcp->dest;
 
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
@@ -899,10 +899,13 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	if (!conn_ctrl_ready(conn))
 		goto out_error;
 
+	if (!conn_get_dst(conn))
+		goto out_error;
+
 	req_line.version = 0x04;
 	req_line.command = 0x01;
-	req_line.port    = get_net_port(&(conn->addr.to));
-	req_line.ip      = is_inet_addr(&(conn->addr.to));
+	req_line.port    = get_net_port(conn->dst);
+	req_line.ip      = is_inet_addr(conn->dst);
 	memcpy(req_line.user_id, "HAProxy\0", 8);
 
 	if (conn->send_proxy_ofs > 0) {
@@ -1096,8 +1099,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 		ret = make_proxy_line_v2(buf, buf_len, srv, remote);
 	}
 	else {
-		if (remote)
-			ret = make_proxy_line_v1(buf, buf_len, &remote->addr.from, &remote->addr.to);
+		if (remote && conn_get_src(remote) && conn_get_dst(remote))
+			ret = make_proxy_line_v1(buf, buf_len, remote->src, remote->dst);
 		else
 			ret = make_proxy_line_v1(buf, buf_len, NULL, NULL);
 	}
@@ -1216,9 +1219,9 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		return 0;
 	memcpy(hdr->sig, pp2_signature, PP2_SIGNATURE_LEN);
 
-	if (remote) {
-		src = &remote->addr.from;
-		dst = &remote->addr.to;
+	if (remote && conn_get_src(remote) && conn_get_dst(remote)) {
+		src = remote->src;
+		dst = remote->dst;
 	}
 
 	/* At least one of src or dst is not of AF_INET or AF_INET6 */
