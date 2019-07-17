@@ -381,12 +381,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			/* The target server expects a LOCAL line to be sent first. Retrieving
 			 * local or remote addresses may fail until the connection is established.
 			 */
-			conn_get_from_addr(conn);
-			if (!(conn->flags & CO_FL_ADDR_FROM_SET))
-				goto out_wait;
-
-			conn_get_to_addr(conn);
-			if (!(conn->flags & CO_FL_ADDR_TO_SET))
+			if (!conn_get_src(conn) || !conn_get_dst(conn))
 				goto out_wait;
 
 			ret = make_proxy_line(trash.area, trash.size,
