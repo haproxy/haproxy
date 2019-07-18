@@ -2886,6 +2886,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
 				goto return_bad_req;
 		}
+		conn->target = &s->be->obj_type;
 	}
 
 	/*
