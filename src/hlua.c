@@ -1586,7 +1586,6 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
-	struct connection *c = cs_conn(objt_cs(si_opposite(si)->end));
 
 	if (appctx->ctx.hlua_cosocket.die) {
 		si_shutw(si);
@@ -1597,18 +1596,6 @@ static void hlua_socket_handler(struct appctx *appctx)
 		stream_shutdown(si_strm(si), SF_ERR_KILLED);
 	}
 
-	/* If the connection object is not available, close all the
-	 * streams and wakeup everything waiting for.
-	 */
-	if (!c) {
-		si_shutw(si);
-		si_shutr(si);
-		si_ic(si)->flags |= CF_READ_NULL;
-		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
-		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
-		return;
-	}
-
 	/* If we cant write, wakeup the pending write signals. */
 	if (channel_output_closed(si_ic(si)))
 		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
@@ -1617,10 +1604,10 @@ static void hlua_socket_handler(struct appctx *appctx)
 	if (channel_input_closed(si_oc(si)))
 		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 
-	/* if the connection is not estabkished, inform the stream that we want
+	/* if the connection is not established, inform the stream that we want
 	 * to be notified whenever the connection completes.
 	 */
-	if (!(c->flags & CO_FL_CONNECTED)) {
+	if (si_opposite(si)->state < SI_ST_EST) {
 		si_cant_get(si);
 		si_rx_conn_blk(si);
 		si_rx_endp_more(si);
@@ -2224,7 +2211,6 @@ __LJMP static inline int hlua_socket_info(struct lua_State *L, struct sockaddr_s
 __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 {
 	struct hlua_socket *socket;
-	struct connection *conn;
 	struct xref *peer;
 	struct appctx *appctx;
 	struct stream_interface *si;
@@ -2251,20 +2237,13 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	conn = cs_conn(objt_cs(s->si[1].end));
-	if (!conn) {
+	if (!s->target_addr) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
 		return 1;
 	}
 
-	if (!conn_get_dst(conn)) {
-		xref_unlock(&socket->xref, peer);
-		lua_pushnil(L);
-		return 1;
-	}
-
-	ret = MAY_LJMP(hlua_socket_info(L, conn->dst));
+	ret = MAY_LJMP(hlua_socket_info(L, s->target_addr));
 	xref_unlock(&socket->xref, peer);
 	return ret;
 }
@@ -2301,13 +2280,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 	s = si_strm(si);
 
 	conn = cs_conn(objt_cs(s->si[1].end));
-	if (!conn) {
-		xref_unlock(&socket->xref, peer);
-		lua_pushnil(L);
-		return 1;
-	}
-
-	if (!conn_get_src(conn)) {
+	if (!conn || !conn_get_src(conn)) {
 		xref_unlock(&socket->xref, peer);
 		lua_pushnil(L);
 		return 1;
@@ -2392,7 +2365,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	struct hlua_socket *socket;
 	int port = -1;
 	const char *ip;
-	struct connection *conn;
 	struct hlua *hlua;
 	struct appctx *appctx;
 	int low, high;
@@ -2436,21 +2408,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		lua_pushnil(L);
 		return 1;
 	}
-	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
-	si = appctx->owner;
-	s = si_strm(si);
-
-	/* FIXME WTA: the conn-specific code below should now be useless */
-
-	/* Initialise connection. */
-	conn = cs_conn(si_alloc_cs(&s->si[1], NULL));
-	if (!conn) {
-		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "connect: internal error"));
-	}
-
-	/* needed for the connection not to be closed */
-	conn->target = s->target;
 
 	/* Parse ip address. */
 	addr = str2sa_range(ip, NULL, &low, &high, NULL, NULL, NULL, 0);
@@ -2480,21 +2437,18 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		}
 	}
 
-	if (!sockaddr_alloc(&conn->dst)) {
-		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "connect: internal error"));
-	}
-
-	memcpy(conn->dst, addr, sizeof(struct sockaddr_storage));
+	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
+	si = appctx->owner;
+	s = si_strm(si);
 
 	if (!sockaddr_alloc(&s->target_addr)) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}
 	*s->target_addr = *addr;
+	s->flags |= SF_ADDR_SET;
 
 	hlua = hlua_gethlua(L);
-	appctx = __objt_appctx(s->si[0].end);
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
@@ -2681,7 +2635,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	si_set_state(&strm->si[1], SI_ST_ASS);
 
 	/* Force destination server. */
-	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
+	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
 	strm->target = &socket_tcp.obj_type;
 
 	return 1;
