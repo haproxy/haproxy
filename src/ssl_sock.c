@@ -2865,6 +2865,15 @@ struct cert_key_and_chain {
 	X509 **chain_certs;
 };
 
+/*
+ * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
+ * metadata.
+ */
+struct ckch_node {
+	struct cert_key_and_chain *ckch;
+	int multi; /* is it a multi-cert bundle ? */
+};
+
 #define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
 
 struct key_combo_ctx {
@@ -3079,9 +3088,65 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 
 }
 
+/*
+ * This function allocate a ckch_node and populate it with certificates from files.
+ */
+static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
+{
+	struct ckch_node *ckchn;
+	char fp[MAXPATHLEN+1] = {0};
+	int n = 0;
 
-/* Given a path that does not exist, try to check for path.rsa, path.dsa and path.ecdsa files.
- * If any are found, group these files into a set of SSL_CTX*
+	ckchn = calloc(1, sizeof(*ckchn));
+	if (!ckchn) {
+		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
+		goto end;
+	}
+	ckchn->ckch = calloc(1, sizeof(*ckchn->ckch) * (multi ? SSL_SOCK_NUM_KEYTYPES : 1));
+
+	if (!ckchn->ckch) {
+		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
+		goto end;
+	}
+
+	if (!multi) {
+
+		if (ssl_sock_load_crt_file_into_ckch(path, ckchn->ckch, err) == 1)
+			goto end;
+
+	} else {
+		int found = 0;
+
+		/* Load all possible certs and keys */
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+			struct stat buf;
+			snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+			if (stat(fp, &buf) == 0) {
+				if (ssl_sock_load_crt_file_into_ckch(fp, &ckchn->ckch[n], err) == 1)
+					goto end;
+				found = 1;
+				ckchn->multi = 1;
+			}
+		}
+
+		if (!found) {
+			memprintf(err, "%sDidn't find any certificate.\n", err && *err ? *err : "");
+			goto end;
+		}
+	}
+	return ckchn;
+
+end:
+	if (ckchn)
+		free(ckchn->ckch);
+	free(ckchn);
+
+	return NULL;
+}
+
+/*
+ * Take a ckch_node which contains a multi-certificate bundle.
+ * Group these certificates into a set of SSL_CTX*
  * based on shared and unique CN and SAN entries. Add these SSL_CTX* to the SNI tree.
  *
  * This will allow the user to explicitly group multiple cert/keys for a single purpose
@@ -3089,14 +3154,16 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
  * Returns
  *     0 on success
  *     1 on failure
+ *
+ * TODO: This function shouldn't access files anymore, sctl and ocsp file access
+ * should be migrated to the ssl_sock_load_crt_file_into_ckch() function
  */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-				    char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
+                                     struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+                                     char **sni_filter, int fcount, char **err)
 {
-	char fp[MAXPATHLEN+1] = {0};
-	int n = 0;
-	int i = 0;
-	struct cert_key_and_chain certs_and_keys[SSL_SOCK_NUM_KEYTYPES] = { {0} };
+	int i = 0, n = 0;
+	struct cert_key_and_chain *certs_and_keys;
 	struct eb_root sni_keytypes_map = { {0} };
 	struct ebmb_node *node;
 	struct ebmb_node *next;
@@ -3111,18 +3178,13 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 	STACK_OF(GENERAL_NAME) *names = NULL;
 #endif
 
-	/* Load all possible certs and keys */
-	for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-		struct stat buf;
-
-		snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
-		if (stat(fp, &buf) == 0) {
-			if (ssl_sock_load_crt_file_into_ckch(fp, &certs_and_keys[n], err) == 1) {
-				rv = 1;
-				goto end;
-			}
-		}
+	if (!ckch_n || !ckch_n->ckch || !ckch_n->multi) {
+		memprintf(err, "%sunable to load SSL certificate file '%s' file does not exist.\n",
+		          err && *err ? *err : "", path);
+		return 1;
 	}
+
+	certs_and_keys = ckch_n->ckch;
 
 	/* Process each ckch and update keytypes for each CN/SAN
 	 * for example, if CN/SAN www.a.com is associated with
@@ -3234,6 +3296,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 					/* Load OCSP Info into context */
+					/* TODO: store OCSP in ckch */
 					if (ssl_sock_load_ocsp(cur_ctx, cur_file) < 0) {
 						if (err)
 							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
@@ -3250,6 +3313,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 			/* Load DH params into the ctx to support DHE keys */
 #ifndef OPENSSL_NO_DH
+			/* TODO store DH in ckch */
 			if (ssl_dh_ptr_index >= 0)
 				SSL_CTX_set_ex_data(cur_ctx, ssl_dh_ptr_index, NULL);
 
@@ -3304,8 +3368,9 @@ end:
 }
 #else
 /* This is a dummy, that just logs an error and returns error */
-static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-				    char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
+                                     struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+                                     char **sni_filter, int fcount, char **err)
 {
 	memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 	          err && *err ? *err : "", path, strerror(errno));
@@ -3314,7 +3379,7 @@ static int ssl_sock_load_multi_cert(const char *path, struct bind_conf *bind_con
 
 #endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
-static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
 				   char **sni_filter, int fcount, char **err)
 {
 	SSL_CTX *ctx;
@@ -3328,12 +3393,12 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
-	struct cert_key_and_chain ckch;
+	struct cert_key_and_chain *ckch;
 
-	memset(&ckch, 0, sizeof(ckch));
-
-	if (ssl_sock_load_crt_file_into_ckch(path, &ckch, err) == 1)
+	if (!ckch_n || !ckch_n->ckch)
 		return 1;
+
+	ckch = ckch_n->ckch;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
@@ -3342,12 +3407,12 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 		return 1;
 	}
 
-	if (ssl_sock_put_ckch_into_ctx(path, &ckch, ctx, err) != 0) {
+	if (ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err) != 0) {
 		SSL_CTX_free(ctx);
 		return 1;
 	}
 
-	pkey = X509_get_pubkey(ckch.cert);
+	pkey = X509_get_pubkey(ckch->cert);
 	if (pkey) {
 		kinfo.bits = EVP_PKEY_bits(pkey);
 		switch(EVP_PKEY_base_id(pkey)) {
@@ -3370,7 +3435,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		names = X509_get_ext_d2i(ckch.cert, NID_subject_alt_name, NULL, NULL);
+		names = X509_get_ext_d2i(ckch->cert, NID_subject_alt_name, NULL, NULL);
 		if (names) {
 			for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
@@ -3384,7 +3449,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 			sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 		}
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
-		xname = X509_get_subject_name(ckch.cert);
+		xname = X509_get_subject_name(ckch->cert);
 		i = -1;
 		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
 			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
@@ -3467,6 +3532,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	char *end;
 	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
+	struct ckch_node *ckchn;
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	int is_bundle;
 	int j;
@@ -3474,8 +3540,12 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 
 	if (stat(path, &buf) == 0) {
 		dir = opendir(path);
-		if (!dir)
-			return ssl_sock_load_cert_file(path, bind_conf, NULL, NULL, 0, err);
+		if (!dir) {
+			ckchn =  ckchn_load_cert_file(path, 0,  err);
+			if (!ckchn)
+				return 1;
+			return ssl_sock_load_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+		}
 
 		/* strip trailing slashes, including first one */
 		for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -3535,7 +3605,10 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						cfgerr += ssl_sock_load_multi_cert(fp, bind_conf, NULL, NULL, 0, err);
+						ckchn =  ckchn_load_cert_file(fp, 1,  err);
+						if (!ckchn)
+							return 1;
+						cfgerr += ssl_sock_load_multi_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -3543,7 +3616,11 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				}
 
 #endif
-				cfgerr += ssl_sock_load_cert_file(fp, bind_conf, NULL, NULL, 0, err);
+				ckchn =  ckchn_load_cert_file(fp, 0,  err);
+				if (!ckchn)
+					return 1;
+				cfgerr += ssl_sock_load_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
+
 ignore_entry:
 				free(de);
 			}
@@ -3553,7 +3630,10 @@ ignore_entry:
 		return cfgerr;
 	}
 
-	cfgerr = ssl_sock_load_multi_cert(path, bind_conf, NULL, NULL, 0, err);
+	ckchn =  ckchn_load_cert_file(fp, 1,  err);
+	if (!ckchn)
+		return 1;
+	cfgerr = ssl_sock_load_multi_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -3611,6 +3691,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 	struct stat buf;
 	int linenum = 0;
 	int cfgerr = 0;
+	struct ckch_node *ckchn;
 
 	if ((f = fopen(file, "r")) == NULL) {
 		memprintf(err, "cannot open file '%s' : %s", file, strerror(errno));
@@ -3738,10 +3819,17 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 		}
 
 		if (stat(crt_path, &buf) == 0) {
-			cfgerr = ssl_sock_load_cert_file(crt_path, bind_conf, ssl_conf,
+
+			ckchn =  ckchn_load_cert_file(crt_path, 0,  err);
+			if (!ckchn)
+				return 1;
+			cfgerr = ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
 							 &args[cur_arg], arg - cur_arg - 1, err);
 		} else {
-			cfgerr = ssl_sock_load_multi_cert(crt_path, bind_conf, ssl_conf,
+			ckchn =  ckchn_load_cert_file(crt_path, 1,  err);
+			if (!ckchn)
+				return 1;
+			cfgerr = ssl_sock_load_multi_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
 							  &args[cur_arg], arg - cur_arg - 1, err);
 		}
 
