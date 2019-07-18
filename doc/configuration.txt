@@ -64,8 +64,6 @@ Summary
 5.3.1.      Global overview
 5.3.2.      The resolvers section
 
-6.    HTTP header manipulation
-
 7.    Using ACLs and fetching samples
 7.1.      ACL basics
 7.1.1.      Matching booleans
@@ -83,6 +81,12 @@ Summary
 7.3.5.        Fetching samples from buffer contents (Layer 6)
 7.3.6.        Fetching HTTP samples (Layer 7)
 7.4.      Pre-defined ACLs
+
+6.    Cache
+6.1.      Limitation
+6.2.      Setup
+6.2.1.        Cache section
+6.2.2.        Proxy section
 
 8.    Logging
 8.1.      Log levels
@@ -110,11 +114,6 @@ Summary
 9.3.      Stream Processing Offload Engine (SPOE)
 9.4.      Cache
 
-10.   Cache
-10.1. Limitation
-10.2. Setup
-10.2.1. Cache section
-10.2.2. Proxy section
 
 1. Quick reminder about HTTP
 ----------------------------
@@ -364,12 +363,12 @@ HAProxy may emit the following status codes by itself :
    400  for an invalid or too large request
    401  when an authentication is required to perform the action (when
         accessing the stats page)
-   403  when a request is forbidden by a "block" ACL or "reqdeny" filter
+   403  when a request is forbidden by a "http-request deny" rule
    408  when the request timeout strikes before the request is complete
    500  when haproxy encounters an unrecoverable internal error, such as a
         memory allocation failure, which should never happen
    502  when the server returns an empty, invalid or incomplete response, or
-        when an "rspdeny" filter blocks the response.
+        when an "http-response deny" rule blocks the response.
    503  when no server was available to handle the request, or in response to
         monitoring requests which match the "monitor fail" condition
    504  when the response timeout strikes before the server responds
@@ -2443,29 +2442,9 @@ external-check path                       X          -         X         X
 persist rdp-cookie                        X          -         X         X
 rate-limit sessions                       X          X         X         -
 redirect                                  -          X         X         X
-reqadd                      (deprecated)  -          X         X         X
-reqallow                    (deprecated)  -          X         X         X
-reqdel                      (deprecated)  -          X         X         X
-reqdeny                     (deprecated)  -          X         X         X
-reqiallow                   (deprecated)  -          X         X         X
-reqidel                     (deprecated)  -          X         X         X
-reqideny                    (deprecated)  -          X         X         X
-reqipass                    (deprecated)  -          X         X         X
-reqirep                     (deprecated)  -          X         X         X
-reqitarpit                  (deprecated)  -          X         X         X
-reqpass                     (deprecated)  -          X         X         X
-reqrep                      (deprecated)  -          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
-reqtarpit                   (deprecated)  -          X         X         X
 retries                                   X          -         X         X
 retry-on                                  X          -         X         X
-rspadd                      (deprecated)  -          X         X         X
-rspdel                      (deprecated)  -          X         X         X
-rspdeny                     (deprecated)  -          X         X         X
-rspidel                     (deprecated)  -          X         X         X
-rspideny                    (deprecated)  -          X         X         X
-rspirep                     (deprecated)  -          X         X         X
-rsprep                      (deprecated)  -          X         X         X
 server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
 server-template                           -          -         X         X
@@ -2782,7 +2761,7 @@ balance url_param <param> [check_post]
       to determine if the parameters will be found in the body or entity which
       may contain binary data. Therefore another method may be required to
       restrict consideration of POST requests that have no URL parameters in
-      the body. (see acl reqideny http_end)
+      the body. (see acl http_end)
 
     - using a <max_wait> value larger than the request buffer size does not
       make sense and is useless. The buffer size is set at build time, and
@@ -4110,16 +4089,6 @@ http-request <action> [options...] [ { if | unless } <condition> ]
 
   There is no limit to the number of http-request statements per instance.
 
-  It is important to know that http-request rules are processed very early in
-  the HTTP processing, just after "block" rules and before "reqdel" or "reqrep"
-  or "reqadd" rules. That way, headers added by "add-header"/"set-header" are
-  visible by almost all further ACL rules.
-
-  Using "reqadd"/"reqdel"/"reqrep" to manipulate request headers is discouraged
-  in newer versions (>= 1.5). But if you need to use regular expression to
-  delete headers, you can still use "reqdel". Also please use
-  "http-request deny/allow/tarpit" instead of "reqdeny"/"reqpass"/"reqtarpit".
-
   Example:
         acl nagios src 192.168.129.3
         acl local_net src 192.168.0.0/16
@@ -4195,7 +4164,7 @@ http-request auth [realm <realm>] [ { if | unless } <condition> ]
 
 http-request cache-use <name> [ { if | unless } <condition> ]
 
-  See section 10.2 about cache setup.
+  See section 6.2 about cache setup.
 
 http-request capture <sample> [ len <length> | id <id> ]
                      [ { if | unless } <condition> ]
@@ -4773,16 +4742,6 @@ http-response <action> <options...> [ { if | unless } <condition> ]
 
   There is no limit to the number of http-response statements per instance.
 
-  It is important to know that http-response rules are processed very early in
-  the HTTP processing, before "rspdel" or "rsprep" or "rspadd" rules. That way,
-  headers added by "add-header"/"set-header" are visible by almost all further
-  ACL rules.
-
-  Using "rspadd"/"rspdel"/"rsprep" to manipulate request headers is discouraged
-  in newer versions (>= 1.5). But if you need to use regular expression to
-  delete headers, you can still use "rspdel". Also please use
-  "http-response deny" instead of "rspdeny".
-
   Example:
     acl key_acl res.hdr(X-Acl-Key) -m found
 
@@ -4830,7 +4789,7 @@ http-response allow [ { if | unless } <condition> ]
 
 http-response cache-store <name> [ { if | unless } <condition> ]
 
-  See section 10.2 about cache setup.
+  See section 6.2 about cache setup.
 
 http-response capture <sample> id <id> [ { if | unless } <condition> ]
 
@@ -5708,13 +5667,12 @@ monitor-uri <uri>
   at the HTTP level. This keyword may only be used with an HTTP-mode frontend.
 
   Monitor requests are processed very early, just after the request is parsed
-  and even before any "http-request" or "block" rulesets. The only rulesets
-  applied before are the tcp-request ones. They cannot be logged either, and it
-  is the intended purpose. They are only used to report HAProxy's health to an
-  upper component, nothing more. However, it is possible to add any number of
-  conditions using "monitor fail" and ACLs so that the result can be adjusted
-  to whatever check can be imagined (most often the number of available servers
-  in a backend).
+  and even before any "http-request". The only rulesets applied before are the
+  tcp-request ones. They cannot be logged either, and it is the intended
+  purpose. They are only used to report HAProxy's health to an upper component,
+  nothing more. However, it is possible to add any number of conditions using
+  "monitor fail" and ACLs so that the result can be adjusted to whatever check
+  can be imagined (most often the number of available servers in a backend).
 
   Example :
     # Use /haproxy_test to report haproxy's status
@@ -5907,10 +5865,10 @@ no option checkcache
       (allowing other fields after set-cookie)
 
   If a response doesn't respect these requirements, then it will be blocked
-  just as if it was from an "rspdeny" filter, with an "HTTP 502 bad gateway".
-  The session state shows "PH--" meaning that the proxy blocked the response
-  during headers processing. Additionally, an alert will be sent in the logs so
-  that admins are informed that there's something to be fixed.
+  just as if it was from an "http-response deny" rule, with an "HTTP 502 bad
+  gateway". The session state shows "PH--" meaning that the proxy blocked the
+  response during headers processing. Additionally, an alert will be sent in
+  the logs so that admins are informed that there's something to be fixed.
 
   Due to the high impact on the application, the application should be tested
   in depth with the option enabled before going to production. It is also a
@@ -6874,13 +6832,10 @@ no option redispatch
   connection failures. Of course, it requires having "retries" set to a nonzero
   value.
 
-  This form is the preferred form, which replaces both the "redispatch" and
-  "redisp" keywords.
-
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "redispatch", "retries", "force-persist"
+  See also : "retries", "force-persist"
 
 
 option redis-check
@@ -7603,263 +7558,6 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
   See section 7 about ACL usage.
 
 
-reqadd  <string> [{if | unless} <cond>] (deprecated)
-  Add a header at the end of the HTTP request
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <string>  is the complete line to be added. Any space or known delimiter
-              must be escaped using a backslash ('\'). Please refer to section
-              6 about HTTP header manipulation for more information.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A new line consisting in <string> followed by a line feed will be added after
-  the last header of an HTTP request.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses.
-
-  Example : add "X-Proto: SSL" to requests coming via port 81
-     acl is-ssl  dst_port       81
-     reqadd      X-Proto:\ SSL  if is-ssl
-
-  See also: "rspadd", "http-request", section 6 about HTTP header manipulation,
-            and section 7 about ACLs.
-
-
-reqallow  <search> [{if | unless} <cond>] (deprecated)
-reqiallow <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Definitely allow an HTTP request if a line matches a regular expression
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The
-              "reqallow" keyword strictly matches case while "reqiallow"
-              ignores case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A request containing any line which matches extended regular expression
-  <search> will mark the request as allowed, even if any later test would
-  result in a deny. The test applies both to the request line and to request
-  headers. Keep in mind that URLs in request line are case-sensitive while
-  header names are not.
-
-  It is easier, faster and more powerful to use ACLs to write access policies.
-  Reqdeny, reqallow and reqpass should be avoided in new designs.
-
-  Example :
-     # allow www.* but refuse *.local
-     reqiallow ^Host:\ www\.
-     reqideny  ^Host:\ .*\.local
-
-  See also: "reqdeny", "block", "http-request",  section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
-
-
-reqdel  <search> [{if | unless} <cond>] (deprecated)
-reqidel <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Delete all headers matching a regular expression in an HTTP request
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The "reqdel"
-              keyword strictly matches case while "reqidel" ignores case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  Any header line matching extended regular expression <search> in the request
-  will be completely deleted. Most common use of this is to remove unwanted
-  and/or dangerous headers or cookies from a request before passing it to the
-  next servers.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses. Keep in mind that header names are not case-sensitive.
-
-  Example :
-     # remove X-Forwarded-For header and SERVER cookie
-     reqidel ^X-Forwarded-For:.*
-     reqidel ^Cookie:.*SERVER=
-
-  See also: "reqadd", "reqrep", "rspdel", "http-request", section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
-
-
-reqdeny  <search> [{if | unless} <cond>] (deprecated)
-reqideny <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Deny an HTTP request if a line matches a regular expression
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The
-              "reqdeny" keyword strictly matches case while "reqideny" ignores
-              case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A request containing any line which matches extended regular expression
-  <search> will mark the request as denied, even if any later test would
-  result in an allow. The test applies both to the request line and to request
-  headers. Keep in mind that URLs in request line are case-sensitive while
-  header names are not.
-
-  A denied request will generate an "HTTP 403 forbidden" response once the
-  complete request has been parsed. This is consistent with what is practiced
-  using ACLs.
-
-  It is easier, faster and more powerful to use ACLs to write access policies.
-  Reqdeny, reqallow and reqpass should be avoided in new designs.
-
-  Example :
-     # refuse *.local, then allow www.*
-     reqideny  ^Host:\ .*\.local
-     reqiallow ^Host:\ www\.
-
-  See also: "reqallow", "rspdeny", "block", "http-request", section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
-
-
-reqpass  <search> [{if | unless} <cond>] (deprecated)
-reqipass <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Ignore any HTTP request line matching a regular expression in next rules
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The
-              "reqpass" keyword strictly matches case while "reqipass" ignores
-              case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A request containing any line which matches extended regular expression
-  <search> will skip next rules, without assigning any deny or allow verdict.
-  The test applies both to the request line and to request headers. Keep in
-  mind that URLs in request line are case-sensitive while header names are not.
-
-  It is easier, faster and more powerful to use ACLs to write access policies.
-  Reqdeny, reqallow and reqpass should be avoided in new designs.
-
-  Example :
-     # refuse *.local, then allow www.*, but ignore "www.private.local"
-     reqipass  ^Host:\ www.private\.local
-     reqideny  ^Host:\ .*\.local
-     reqiallow ^Host:\ www\.
-
-  See also: "reqallow", "reqdeny", "block", "http-request", section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
-
-
-reqrep  <search> <string> [{if | unless} <cond>] (deprecated)
-reqirep <search> <string> [{if | unless} <cond>] (ignore case) (deprecated)
-  Replace a regular expression with a string in an HTTP request line
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The "reqrep"
-              keyword strictly matches case while "reqirep" ignores case.
-
-    <string>  is the complete line to be added. Any space or known delimiter
-              must be escaped using a backslash ('\'). References to matched
-              pattern groups are possible using the common \N form, with N
-              being a single digit between 0 and 9. Please refer to section
-              6 about HTTP header manipulation for more information.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  Any line matching extended regular expression <search> in the request (both
-  the request line and header lines) will be completely replaced with <string>.
-  Most common use of this is to rewrite URLs or domain names in "Host" headers.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses. Note that for increased readability, it is suggested to add enough
-  spaces between the request and the response. Keep in mind that URLs in
-  request line are case-sensitive while header names are not.
-
-  Example :
-     # replace "/static/" with "/" at the beginning of any request path.
-     reqrep ^([^\ :]*)\ /static/(.*)     \1\ /\2
-     # replace "www.mydomain.com" with "www" in the host name.
-     reqirep ^Host:\ www.mydomain.com   Host:\ www
-
-  See also: "reqadd", "reqdel", "rsprep", "tune.bufsize", "http-request",
-            section 6 about HTTP header manipulation, and section 7 about ACLs.
-
-
-reqtarpit  <search> [{if | unless} <cond>] (deprecated)
-reqitarpit <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Tarpit an HTTP request containing a line matching a regular expression
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              request line. This is an extended regular expression. Parenthesis
-              grouping is supported and no preliminary backslash is required.
-              Any space or known delimiter must be escaped using a backslash
-              ('\'). The pattern applies to a full line at a time. The
-              "reqtarpit" keyword strictly matches case while "reqitarpit"
-              ignores case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A request containing any line which matches extended regular expression
-  <search> will be tarpitted, which means that it will connect to nowhere, will
-  be kept open for a pre-defined time, then will return an HTTP error 500 so
-  that the attacker does not suspect it has been tarpitted. The status 500 will
-  be reported in the logs, but the completion flags will indicate "PT". The
-  delay is defined by "timeout tarpit", or "timeout connect" if the former is
-  not set.
-
-  The goal of the tarpit is to slow down robots attacking servers with
-  identifiable requests. Many robots limit their outgoing number of connections
-  and stay connected waiting for a reply which can take several minutes to
-  come. Depending on the environment and attack, it may be particularly
-  efficient at reducing the load on the network and firewalls.
-
-  Examples :
-     # ignore user-agents reporting any flavor of "Mozilla" or "MSIE", but
-     # block all others.
-     reqipass   ^User-Agent:\.*(Mozilla|MSIE)
-     reqitarpit ^User-Agent:
-
-     # block bad guys
-     acl badguys src 10.1.0.3 172.16.13.20/28
-     reqitarpit . if badguys
-
-  See also: "reqallow", "reqdeny", "reqpass", "http-request",  section 6
-            about HTTP header manipulation, and section 7 about ACLs.
-
-
 retries <value>
   Set the number of retries to perform on a server after a connection failure
   May be used in sections:    defaults | frontend | listen | backend
@@ -7964,142 +7662,6 @@ retry-on [list of keywords]
   The default is "conn-failure".
 
   See also: "retries", "option redispatch", "tune.bufsize"
-
-rspadd <string> [{if | unless} <cond>] (deprecated)
-  Add a header at the end of the HTTP response
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <string>  is the complete line to be added. Any space or known delimiter
-              must be escaped using a backslash ('\'). Please refer to section
-              6 about HTTP header manipulation for more information.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A new line consisting in <string> followed by a line feed will be added after
-  the last header of an HTTP response.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses.
-
-  See also: "rspdel" "reqadd", "http-response", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
-
-
-rspdel  <search> [{if | unless} <cond>] (deprecated)
-rspidel <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Delete all headers matching a regular expression in an HTTP response
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              response line. This is an extended regular expression, so
-              parenthesis grouping is supported and no preliminary backslash
-              is required. Any space or known delimiter must be escaped using
-              a backslash ('\'). The pattern applies to a full line at a time.
-              The "rspdel" keyword strictly matches case while "rspidel"
-              ignores case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  Any header line matching extended regular expression <search> in the response
-  will be completely deleted. Most common use of this is to remove unwanted
-  and/or sensitive headers or cookies from a response before passing it to the
-  client.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses. Keep in mind that header names are not case-sensitive.
-
-  Example :
-     # remove the Server header from responses
-     rspidel ^Server:.*
-
-  See also: "rspadd", "rsprep", "reqdel", "http-response",  section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
-
-
-rspdeny  <search> [{if | unless} <cond>] (deprecated)
-rspideny <search> [{if | unless} <cond>] (ignore case) (deprecated)
-  Block an HTTP response if a line matches a regular expression
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              response line. This is an extended regular expression, so
-              parenthesis grouping is supported and no preliminary backslash
-              is required. Any space or known delimiter must be escaped using
-              a backslash ('\'). The pattern applies to a full line at a time.
-              The "rspdeny" keyword strictly matches case while "rspideny"
-              ignores case.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  A response containing any line which matches extended regular expression
-  <search> will mark the request as denied. The test applies both to the
-  response line and to response headers. Keep in mind that header names are not
-  case-sensitive.
-
-  Main use of this keyword is to prevent sensitive information leak and to
-  block the response before it reaches the client. If a response is denied, it
-  will be replaced with an HTTP 502 error so that the client never retrieves
-  any sensitive data.
-
-  It is easier, faster and more powerful to use ACLs to write access policies.
-  Rspdeny should be avoided in new designs.
-
-  Example :
-     # Ensure that no content type matching ms-word will leak
-     rspideny  ^Content-type:\.*/ms-word
-
-  See also: "reqdeny", "acl", "block", "http-response",  section 6 about
-            HTTP header manipulation and section 7 about ACLs.
-
-
-rsprep  <search> <string> [{if | unless} <cond>] (deprecated)
-rspirep <search> <string> [{if | unless} <cond>] (ignore case) (deprecated)
-  Replace a regular expression with a string in an HTTP response line
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-  Arguments :
-    <search>  is the regular expression applied to HTTP headers and to the
-              response line. This is an extended regular expression, so
-              parenthesis grouping is supported and no preliminary backslash
-              is required. Any space or known delimiter must be escaped using
-              a backslash ('\'). The pattern applies to a full line at a time.
-              The "rsprep" keyword strictly matches case while "rspirep"
-              ignores case.
-
-    <string>  is the complete line to be added. Any space or known delimiter
-              must be escaped using a backslash ('\'). References to matched
-              pattern groups are possible using the common \N form, with N
-              being a single digit between 0 and 9. Please refer to section
-              6 about HTTP header manipulation for more information.
-
-    <cond>    is an optional matching condition built from ACLs. It makes it
-              possible to ignore this rule when other conditions are not met.
-
-  Any line matching extended regular expression <search> in the response (both
-  the response line and header lines) will be completely replaced with
-  <string>. Most common use of this is to rewrite Location headers.
-
-  Header transformations only apply to traffic which passes through HAProxy,
-  and not to traffic generated by HAProxy, such as health-checks or error
-  responses. Note that for increased readability, it is suggested to add enough
-  spaces between the request and the response. Keep in mind that header names
-  are not case-sensitive.
-
-  Example :
-     # replace "Location: 127.0.0.1:8080" with "Location: www.mydomain.com"
-     rspirep ^Location:\ 127.0.0.1:8080    Location:\ www.mydomain.com
-
-  See also: "rspadd", "rspdel", "reqrep", "http-response", section 6 about
-            HTTP header manipulation, and section 7 about ACLs.
-
 
 server <name> <address>[:[port]] [param*]
   Declare a server in a backend
@@ -10582,10 +10144,9 @@ timeout tarpit <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  When a connection is tarpitted using "http-request tarpit" or
-  "reqtarpit", it is maintained open with no activity for a certain
-  amount of time, then closed. "timeout tarpit" defines how long it will
-  be maintained open.
+  When a connection is tarpitted using "http-request tarpit", it is maintained
+  open with no activity for a certain amount of time, then closed. "timeout
+  tarpit" defines how long it will be maintained open.
 
   The value is specified in milliseconds by default, but can be in any other
   unit if the number is suffixed by the unit, as specified at the top of this
@@ -12734,6 +12295,106 @@ Notes related to these keywords :
   - req* statements are applied after "block" statements, so that "block" is
     always the first one, but before "use_backend" in order to permit rewriting
     before switching.
+
+
+6. Cache
+---------
+
+HAProxy provides a cache, which was designed to perform cache on small objects
+(favicon, css...). This is a minimalist low-maintenance cache which runs in
+RAM.
+
+The cache is based on a memory which is shared between processes and threads,
+this memory is split in blocks of 1k.
+
+If an object is not used anymore, it can be deleted to store a new object
+independently of its expiration date. The oldest objects are deleted first
+when we try to allocate a new one.
+
+The cache uses a hash of the host header and the URI as the key.
+
+It's possible to view the status of a cache using the Unix socket command
+"show cache" consult section 9.3 "Unix Socket commands" of Management Guide
+for more details.
+
+When an object is delivered from the cache, the server name in the log is
+replaced by "<CACHE>".
+
+
+6.1. Limitation
+----------------
+
+The cache won't store and won't deliver objects in these cases:
+
+- If the response is not a 200
+- If the response contains a Vary header
+- If the Content-Length + the headers size is greater than "max-object-size"
+- If the response is not cacheable
+
+- If the request is not a GET
+- If the HTTP version of the request is smaller than 1.1
+- If the request contains an Authorization header
+
+
+6.2. Setup
+-----------
+
+To setup a cache, you must define a cache section and use it in a proxy with
+the corresponding http-request and response actions.
+
+
+6.2.1. Cache section
+---------------------
+
+cache <name>
+  Declare a cache section, allocate a shared cache memory named <name>, the
+  size of cache is mandatory.
+
+total-max-size <megabytes>
+  Define the size in RAM of the cache in megabytes. This size is split in
+  blocks of 1kB which are used by the cache entries. Its maximum value is 4095.
+
+max-object-size <bytes>
+  Define the maximum size of the objects to be cached. Must not be greater than
+  an half of "total-max-size". If not set, it equals to a 256th of the cache size.
+  All objects with sizes larger than "max-object-size" will not be cached.
+
+max-age <seconds>
+  Define the maximum expiration duration. The expiration is set has the lowest
+  value between the s-maxage or max-age (in this order) directive in the
+  Cache-Control response header and this value. The default value is 60
+  seconds, which means that you can't cache an object more than 60 seconds by
+  default.
+
+
+6.2.2. Proxy section
+---------------------
+
+http-request cache-use <name> [ { if | unless } <condition> ]
+  Try to deliver a cached object from the cache <name>. This directive is also
+  mandatory to store the cache as it calculates the cache hash. If you want to
+  use a condition for both storage and delivering that's a good idea to put it
+  after this one.
+
+http-response cache-store <name> [ { if | unless } <condition> ]
+  Store an http-response within the cache. The storage of the response headers
+  is done at this step, which means you can use others http-response actions
+  to modify headers before or after the storage of the response. This action
+  is responsible for the setup of the cache storage filter.
+
+
+Example:
+
+    backend bck1
+      mode http
+
+      http-request cache-use foobar
+      http-response cache-store foobar
+      server srv1 127.0.0.1:80
+
+    cache foobar
+      total-max-size 4
+      max-age 240
 
 
 7. Using ACLs and fetching samples
@@ -17938,12 +17599,12 @@ reading. Their sole purpose is to explain how to decipher them.
           px-http/srv1 9/0/7/14/30 502 243 - - PH-- 3/2/2/0/0 0/0 \
           "GET /cgi-bin/bug.cgi? HTTP/1.0"
 
-    => the proxy blocked a server response either because of an "rspdeny" or
-       "rspideny" filter, or because the response was improperly formatted and
-       not HTTP-compliant, or because it blocked sensitive information which
-       risked being cached. In this case, the response is replaced with a "502
-       bad gateway". The flags ("PH--") tell us that it was haproxy who decided
-       to return the 502 and not the server.
+    => the proxy blocked a server response either because of an "http-response
+       deny" rule, or because the response was improperly formatted and not
+       HTTP-compliant, or because it blocked sensitive information which risked
+       being cached. In this case, the response is replaced with a "502 bad
+       gateway". The flags ("PH--") tell us that it was haproxy who decided to
+       return the 502 and not the server.
 
     >>> haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55.798] px-http \
           px-http/<NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 2/2/2/0/0 0/0 ""
@@ -18086,102 +17747,7 @@ filter other than the compression is used for the same
 listener/frontend/backend. This is important to know the filters evaluation
 order.
 
-See also : section 9.2 about the compression filter and section 10 about cache.
-
-10. Cache
----------
-
-HAProxy provides a cache, which was designed to perform cache on small objects
-(favicon, css...). This is a minimalist low-maintenance cache which runs in
-RAM.
-
-The cache is based on a memory which is shared between processes and threads,
-this memory is split in blocks of 1k.
-
-If an object is not used anymore, it can be deleted to store a new object
-independently of its expiration date. The oldest objects are deleted first
-when we try to allocate a new one.
-
-The cache uses a hash of the host header and the URI as the key.
-
-It's possible to view the status of a cache using the Unix socket command
-"show cache" consult section 9.3 "Unix Socket commands" of Management Guide
-for more details.
-
-When an object is delivered from the cache, the server name in the log is
-replaced by "<CACHE>".
-
-10.1. Limitation
-----------------
-
-The cache won't store and won't deliver objects in these cases:
-
-- If the response is not a 200
-- If the response contains a Vary header
-- If the Content-Length + the headers size is greater than "max-object-size"
-- If the response is not cacheable
-
-- If the request is not a GET
-- If the HTTP version of the request is smaller than 1.1
-- If the request contains an Authorization header
-
-10.2. Setup
------------
-
-To setup a cache, you must define a cache section and use it in a proxy with
-the corresponding http-request and response actions.
-
-10.2.1. Cache section
----------------------
-
-cache <name>
-  Declare a cache section, allocate a shared cache memory named <name>, the
-  size of cache is mandatory.
-
-total-max-size <megabytes>
-  Define the size in RAM of the cache in megabytes. This size is split in
-  blocks of 1kB which are used by the cache entries. Its maximum value is 4095.
-
-max-object-size <bytes>
-  Define the maximum size of the objects to be cached. Must not be greater than
-  an half of "total-max-size". If not set, it equals to a 256th of the cache size.
-  All objects with sizes larger than "max-object-size" will not be cached.
-
-max-age <seconds>
-  Define the maximum expiration duration. The expiration is set has the lowest
-  value between the s-maxage or max-age (in this order) directive in the
-  Cache-Control response header and this value. The default value is 60
-  seconds, which means that you can't cache an object more than 60 seconds by
-  default.
-
-10.2.2. Proxy section
----------------------
-
-http-request cache-use <name> [ { if | unless } <condition> ]
-  Try to deliver a cached object from the cache <name>. This directive is also
-  mandatory to store the cache as it calculates the cache hash. If you want to
-  use a condition for both storage and delivering that's a good idea to put it
-  after this one.
-
-http-response cache-store <name> [ { if | unless } <condition> ]
-  Store an http-response within the cache. The storage of the response headers
-  is done at this step, which means you can use others http-response actions
-  to modify headers before or after the storage of the response. This action
-  is responsible for the setup of the cache storage filter.
-
-
-Example:
-
-    backend bck1
-      mode http
-
-      http-request cache-use foobar
-      http-response cache-store foobar
-      server srv1 127.0.0.1:80
-
-    cache foobar
-      total-max-size 4
-      max-age 240
+See also : section 9.2 about the compression filter and section 6 about cache.
 
 /*
  * Local variables:
