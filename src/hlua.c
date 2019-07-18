@@ -2440,6 +2440,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
+	/* FIXME WTA: the conn-specific code below should now be useless */
+
 	/* Initialise connection. */
 	conn = cs_conn(si_alloc_cs(&s->si[1], NULL));
 	if (!conn) {
@@ -2461,6 +2463,23 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		WILL_LJMP(luaL_error(L, "connect: port ranges not supported : address '%s'", ip));
 	}
 
+	/* Set port. */
+	if (low == 0) {
+		if (addr->ss_family == AF_INET) {
+			if (port == -1) {
+				xref_unlock(&socket->xref, peer);
+				WILL_LJMP(luaL_error(L, "connect: port missing"));
+			}
+			((struct sockaddr_in *)addr)->sin_port = htons(port);
+		} else if (addr->ss_family == AF_INET6) {
+			if (port == -1) {
+				xref_unlock(&socket->xref, peer);
+				WILL_LJMP(luaL_error(L, "connect: port missing"));
+			}
+			((struct sockaddr_in6 *)addr)->sin6_port = htons(port);
+		}
+	}
+
 	if (!sockaddr_alloc(&conn->dst)) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
@@ -2468,22 +2487,11 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 
 	memcpy(conn->dst, addr, sizeof(struct sockaddr_storage));
 
-	/* Set port. */
-	if (low == 0) {
-		if (conn->dst->ss_family == AF_INET) {
-			if (port == -1) {
-				xref_unlock(&socket->xref, peer);
-				WILL_LJMP(luaL_error(L, "connect: port missing"));
-			}
-			((struct sockaddr_in *)conn->dst)->sin_port = htons(port);
-		} else if (conn->dst->ss_family == AF_INET6) {
-			if (port == -1) {
-				xref_unlock(&socket->xref, peer);
-				WILL_LJMP(luaL_error(L, "connect: port missing"));
-			}
-			((struct sockaddr_in6 *)conn->dst)->sin6_port = htons(port);
-		}
+	if (!sockaddr_alloc(&s->target_addr)) {
+		xref_unlock(&socket->xref, peer);
+		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}
+	*s->target_addr = *addr;
 
 	hlua = hlua_gethlua(L);
 	appctx = __objt_appctx(s->si[0].end);

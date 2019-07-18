@@ -2319,6 +2319,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			s->srv_conn = NULL;
 		}
 
+		sockaddr_free(&s->target_addr);
+
 		s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 		s->si[1].err_type  = SI_ET_NONE;
 		s->si[1].conn_retries = 0;  /* used for logging too */

@@ -2525,8 +2525,14 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	appctx_wakeup(appctx);
 
 	/* initiate an outgoing connection */
+	s->target = peer_session_target(peer, s);
+	if (!sockaddr_alloc(&s->target_addr))
+		goto out_free_strm;
+	*s->target_addr = peer->addr;
 	s->si[1].flags |= SI_FL_NOLINGER;
 	si_set_state(&s->si[1], SI_ST_ASS);
+
+	/* FIXME WTA: the connection below should now be totally useless */
 
 	/* automatically prepare the stream interface to connect to the
 	 * pre-initialized connection in si->conn.
@@ -2537,7 +2543,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (unlikely((cs = cs_new(conn)) == NULL))
 		goto out_free_conn;
 
-	conn->target = s->target = peer_session_target(peer, s);
+	conn->target = s->target;
 
 	if (!sockaddr_alloc(&conn->dst))
 		goto out_free_cs;

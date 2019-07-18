@@ -732,17 +732,13 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	/*
 	 * If HTTP PROXY is set we simply get remote server address parsing
-	 * incoming request. Note that this requires that a connection is
-	 * allocated on the server side.
+	 * incoming request.
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
-		struct connection *conn;
 		struct htx_sl *sl;
 		struct ist uri, path;
 
-		/* Note that for now we don't reuse existing proxy connections */
-		if (unlikely((conn = cs_conn(si_alloc_cs(&s->si[1], NULL))) == NULL ||
-			     !sockaddr_alloc(&conn->dst))) {
+		if (!sockaddr_alloc(&s->target_addr)) {
 			txn->req.err_state = txn->req.msg_state;
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
@@ -760,8 +756,11 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		uri = htx_sl_req_uri(sl);
 		path = http_get_path(uri);
 
-		if (url2sa(uri.ptr, uri.len - path.len, conn->dst, NULL) == -1)
+		if (url2sa(uri.ptr, uri.len - path.len, s->target_addr, NULL) == -1)
 			goto return_bad_req;
+
+		s->target = &s->be->obj_type;
+		s->flags |= SF_ADDR_SET | SF_ASSIGNED;
 
 		/* if the path was found, we have to remove everything between
 		 * uri.ptr and path.ptr (excluded). If it was not found, we need
@@ -772,7 +771,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		 * insignificant.
 		 */
 		istcpy(&uri, (path.len ? path : ist("/")), uri.len);
-		conn->target = &s->be->obj_type;
 	}
 
 	/*

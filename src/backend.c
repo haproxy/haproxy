@@ -815,18 +815,14 @@ out_ok:
  *
  * Upon successful return, the stream flag SF_ADDR_SET is set. This flag is
  * not cleared, so it's to the caller to clear it if required.
- *
- * The caller is responsible for having already assigned a connection
- * to si->end.
- *
  */
-int assign_server_address(struct stream *s, struct connection *srv_conn)
+int assign_server_address(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 
 	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
-	if (!sockaddr_alloc(&srv_conn->dst))
+	if (!sockaddr_alloc(&s->target_addr))
 		return SRV_STATUS_INTERNAL;
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
@@ -834,10 +830,10 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		*srv_conn->dst = __objt_server(s->target)->addr;
-		set_host_port(srv_conn->dst, __objt_server(s->target)->svc_port);
+		*s->target_addr = __objt_server(s->target)->addr;
+		set_host_port(s->target_addr, __objt_server(s->target)->svc_port);
 
-		if (!is_addr(srv_conn->dst) && cli_conn) {
+		if (!is_addr(s->target_addr) && cli_conn) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
@@ -846,9 +842,9 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 			if (!conn_get_dst(cli_conn)) {
 				/* do nothing if we can't retrieve the address */
 			} else if (cli_conn->dst->ss_family == AF_INET) {
-				((struct sockaddr_in *)srv_conn->dst)->sin_addr = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
+				((struct sockaddr_in *)s->target_addr)->sin_addr = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
 			} else if (cli_conn->dst->ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)srv_conn->dst)->sin6_addr = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
+				((struct sockaddr_in6 *)s->target_addr)->sin6_addr = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
 			}
 		}
 
@@ -862,20 +858,20 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 				base_port = get_host_port(cli_conn->dst);
 
 				/* Second, assign the outgoing connection's port */
-				base_port += get_host_port(srv_conn->dst);
-				set_host_port(srv_conn->dst, base_port);
+				base_port += get_host_port(s->target_addr);
+				set_host_port(s->target_addr, base_port);
 			}
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
 		/* connect to the defined dispatch addr */
-		*srv_conn->dst = s->be->dispatch_addr;
+		*s->target_addr = s->be->dispatch_addr;
 	}
 	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		if (conn_get_dst(cli_conn) &&
 		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
-			*srv_conn->dst = *cli_conn->dst;
+			*s->target_addr = *cli_conn->dst;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
 		/* If HTTP PROXY option is set, then server is already assigned
@@ -885,9 +881,6 @@ int assign_server_address(struct stream *s, struct connection *srv_conn)
 		/* no server and no LB algorithm ! */
 		return SRV_STATUS_INTERNAL;
 	}
-
-	/* Copy network namespace from client connection */
-	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
 	s->flags |= SF_ADDR_SET;
 	return SRV_STATUS_OK;
@@ -1146,7 +1139,7 @@ fail:
  */
 int connect_server(struct stream *s)
 {
-	struct connection *cli_conn = NULL;
+	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
 	struct connection *old_conn = NULL;
 	struct conn_stream *srv_cs = NULL;
@@ -1417,14 +1410,20 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (!srv_conn)
+	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst))
 		return SF_ERR_RESOURCE;
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = assign_server_address(s, srv_conn);
+		err = assign_server_address(s);
 		if (err != SRV_STATUS_OK)
 			return SF_ERR_INTERNAL;
 	}
+
+	/* copy the target address into the connection */
+	*srv_conn->dst = *s->target_addr;
+
+	/* Copy network namespace from client connection */
+	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
 	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
 		/* set the correct protocol on the output stream interface */
@@ -1468,11 +1467,8 @@ int connect_server(struct stream *s)
 		}
 
 #endif
-
-
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
-		cli_conn = objt_conn(strm_orig(s));
 
 		if (srv && srv->pp_opts) {
 			srv_conn->flags |= CO_FL_PRIVATE;
@@ -1631,6 +1627,7 @@ int srv_redispatch_connect(struct stream *s)
 		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
+			sockaddr_free(&s->target_addr);
 			goto redispatch;
 		}
 
