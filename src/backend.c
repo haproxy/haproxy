@@ -1151,11 +1151,11 @@ int connect_server(struct stream *s)
 	int err;
 
 
-	/* Some, such as http_proxy and the LUA, create their connection and
-	 * conn_stream manually, so if we already have a conn_stream, try
-	 * to use it.
+	/* This will catch some corner cases such as lying connections resulting from
+	 * retries or connect timeouts but will rarely trigger.
 	 */
-	srv_cs = objt_cs(s->si[1].end);
+	si_release_endpoint(&s->si[1]);
+
 	if (!srv_cs)
 		srv_conn = objt_conn(s->si[1].end);
 	else
