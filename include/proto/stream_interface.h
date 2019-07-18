@@ -188,7 +188,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	else if ((appctx = objt_appctx(si->end))) {
 		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 			appctx->applet->release(appctx);
-		appctx_free(appctx); /* we share the connection pool */
+		appctx_free(appctx);
 	} else if ((conn = objt_conn(si->end))) {
 		conn_stop_tracking(conn);
 		conn_full_close(conn);

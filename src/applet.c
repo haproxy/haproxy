@@ -23,6 +23,8 @@
 
 unsigned int nb_applets = 0;
 
+DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
+
 /* Callback used to wake up an applet when a buffer is available. The applet
  * <appctx> is woken up if an input buffer was requested for the associated
  * stream interface. In this case the buffer is immediately allocated and the

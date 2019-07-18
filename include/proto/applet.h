@@ -25,12 +25,13 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <common/mini-clist.h>
 #include <types/applet.h>
-#include <proto/connection.h>
 #include <proto/task.h>
 
 extern unsigned int nb_applets;
+extern struct pool_head *pool_head_appctx;
 
 struct task *task_run_applet(struct task *t, void *context, unsigned short state);
 
@@ -56,21 +57,20 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using
- * pool_free(connection) or appctx_free(), since it's allocated from the
- * connection pool. <applet> is assigned as the applet, but it can be NULL.
+ * appctx_free(). <applet> is assigned as the applet, but it can be NULL.
  */
 static inline struct appctx *appctx_new(struct applet *applet, unsigned long thread_mask)
 {
 	struct appctx *appctx;
 
-	appctx = pool_alloc(pool_head_connection);
+	appctx = pool_alloc(pool_head_appctx);
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
 		appctx_init(appctx, thread_mask);
 		appctx->t = task_new(thread_mask);
 		if (unlikely(appctx->t == NULL)) {
-			pool_free(pool_head_connection, appctx);
+			pool_free(pool_head_appctx, appctx);
 			return NULL;
 		}
 		appctx->t->process = task_run_applet;
@@ -83,9 +83,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 	return appctx;
 }
 
-/* Releases an appctx previously allocated by appctx_new(). Note that
- * we share the connection pool.
- */
+/* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
 {
 	task_destroy(appctx->t);
@@ -96,7 +94,7 @@ static inline void __appctx_free(struct appctx *appctx)
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 
-	pool_free(pool_head_connection, appctx);
+	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_SUB(&nb_applets, 1);
 }
 
