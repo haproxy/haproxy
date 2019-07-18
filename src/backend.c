@@ -1143,6 +1143,7 @@ int connect_server(struct stream *s)
 	struct connection *srv_conn = NULL;
 	struct connection *old_conn = NULL;
 	struct conn_stream *srv_cs = NULL;
+	struct sess_srv_list *srv_list;
 	struct server *srv;
 	int reuse = 0;
 	int reuse_orphan = 0;
@@ -1156,52 +1157,39 @@ int connect_server(struct stream *s)
 	 */
 	si_release_endpoint(&s->si[1]);
 
-	if (!srv_cs)
-		srv_conn = objt_conn(s->si[1].end);
-	else
-		srv_conn = cs_conn(srv_cs);
-
-	if (srv_conn) {
-		if (!srv_conn->target || srv_conn->target == s->target) {
-			srv_conn->flags &= ~(CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH);
-			if (srv_cs)
-				srv_cs->flags &= ~(CS_FL_ERROR | CS_FL_EOS);
-			reuse = 1;
-			old_conn = srv_conn;
-		} else {
-			srv_conn = NULL;
-			srv_cs = NULL;
-			si_release_endpoint(&s->si[1]);
-		}
-	}
-
-	if (!old_conn) {
-		struct sess_srv_list *srv_list;
-		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
-			if (srv_list->target == s->target) {
-				list_for_each_entry(srv_conn, &srv_list->conn_list,
-				    session_list) {
-					if (conn_xprt_ready(srv_conn) &&
-					    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
-						reuse = 1;
-						break;
-					}
+	/* first, search for a matching connection in the session's idle conns */
+	list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
+		if (srv_list->target == s->target) {
+			list_for_each_entry(srv_conn, &srv_list->conn_list, session_list) {
+				if (conn_xprt_ready(srv_conn) &&
+				    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
+					reuse = 1;
+					break;
 				}
-				break;
 			}
-		}
-		if (reuse == 0) {
-			srv_conn = NULL;
-			if (!LIST_ISEMPTY(&s->sess->srv_list)) {
-				srv_list = LIST_ELEM(s->sess->srv_list.n,
-					struct sess_srv_list *, srv_list);
-				if (!LIST_ISEMPTY(&srv_list->conn_list))
-					srv_conn = LIST_ELEM(srv_list->conn_list.n,
-						struct connection *, session_list);
-			}
-
+			break;
 		}
 	}
+
+	if (!reuse) {
+		/* no connection was found in our session's list. Pick any
+		 * random one that we could trade against another one.
+		 */
+		srv_conn = NULL;
+		if (!LIST_ISEMPTY(&s->sess->srv_list)) {
+			srv_list = LIST_ELEM(s->sess->srv_list.n, struct sess_srv_list *, srv_list);
+			if (!LIST_ISEMPTY(&srv_list->conn_list))
+				srv_conn = LIST_ELEM(srv_list->conn_list.n, struct connection *, session_list);
+		}
+
+	}
+	/* OK at this point we have this :
+	 *   - srv_conn points to an existing connection or NULL
+	 *   - if reuse is set, srv_conn holds a valid connection, otherwise it
+	 *     points to any of our old connections we may want to trade against
+	 *     another one
+	 */
+
 	old_conn = srv_conn;
 
 	srv = objt_server(s->target);
@@ -1222,6 +1210,9 @@ int connect_server(struct stream *s)
 		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
 		 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
 		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *
+		 * Idle conns are necessarily looked up on the same thread so
+		 * that there is no concurrency issues.
 		 */
 		if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
@@ -1256,6 +1247,10 @@ int connect_server(struct stream *s)
 			reuse = 1;
 	}
 
+
+	/* here reuse might have been set above, indicating srv_conn finally
+	 * is OK.
+	 */
 	if (reuse) {
 		/* Disable connection reuse if a dynamic source is used.
 		 * As long as we don't share connections between servers,
@@ -1271,6 +1266,7 @@ int connect_server(struct stream *s)
 				reuse = 0;
 		}
 	}
+
 	if (((!reuse || (srv_conn && !(srv_conn->flags & CO_FL_CONNECTED)))
 	    && ha_used_fds > global.tune.pool_high_count) && srv->idle_orphan_conns) {
 		struct connection *tokill_conn;
@@ -1333,7 +1329,7 @@ int connect_server(struct stream *s)
 	}
 
 	/* We're about to use another connection, let the mux know we're
-	 * done with this one
+	 * done with this one.
 	 */
 	if (old_conn != srv_conn && old_conn && reuse && !reuse_orphan) {
 		struct session *sess = srv_conn->owner;
@@ -1356,10 +1352,7 @@ int connect_server(struct stream *s)
 	}
 
 	if (reuse) {
-		/* We already created a cs earlier when using http_proxy, so
-		 * only create a new one if we don't have one already.
-		 */
-		if (!srv_cs && srv_conn->mux) {
+		if (srv_conn->mux) {
 			int avail = srv_conn->mux->avail_streams(srv_conn);
 
 			if (avail <= 1) {
