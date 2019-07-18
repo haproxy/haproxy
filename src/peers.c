@@ -2489,8 +2489,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct appctx *appctx;
 	struct session *sess;
 	struct stream *s;
-	struct connection *conn;
-	struct conn_stream *cs;
 
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
@@ -2515,11 +2513,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_sess;
 	}
 
-	/* The tasks below are normally what is supposed to be done by
-	 * fe->accept().
-	 */
-	s->flags = SF_ASSIGNED|SF_ADDR_SET;
-
 	/* applet is waiting for data */
 	si_cant_get(&s->si[0]);
 	appctx_wakeup(appctx);
@@ -2529,31 +2522,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	if (!sockaddr_alloc(&s->target_addr))
 		goto out_free_strm;
 	*s->target_addr = peer->addr;
+	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	s->si[1].flags |= SI_FL_NOLINGER;
-	si_set_state(&s->si[1], SI_ST_ASS);
-
-	/* FIXME WTA: the connection below should now be totally useless */
-
-	/* automatically prepare the stream interface to connect to the
-	 * pre-initialized connection in si->conn.
-	 */
-	if (unlikely((conn = conn_new()) == NULL))
-		goto out_free_strm;
-
-	if (unlikely((cs = cs_new(conn)) == NULL))
-		goto out_free_conn;
-
-	conn->target = s->target;
-
-	if (!sockaddr_alloc(&conn->dst))
-		goto out_free_cs;
-
-	memcpy(conn->dst, &peer->addr, sizeof(*conn->dst));
-
-	conn_prepare(conn, peer->proto, peer_xprt(peer));
-	if (conn_install_mux(conn, &mux_pt_ops, cs, s->be, NULL) < 0)
-		goto out_free_cs;
-	si_attach_cs(&s->si[1], cs);
 
 	s->do_log = NULL;
 	s->uniq_id = 0;
@@ -2566,10 +2536,6 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	return appctx;
 
 	/* Error unrolling */
-out_free_cs:
-	cs_free(cs);
- out_free_conn:
-	conn_free(conn);
  out_free_strm:
 	LIST_DEL(&s->list);
 	pool_free(pool_head_stream, s);
