@@ -3010,6 +3010,11 @@ static int tcpcheck_main(struct check *check)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
+			/* If we already subscribed, then we tried to received
+			 * and failed, so there's no point trying again.
+			 */
+			if (check->wait_list.events & SUB_RETRY_RECV)
+				break;
 			if (cs->conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
 					done = 1;
