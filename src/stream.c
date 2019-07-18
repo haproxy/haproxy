@@ -270,6 +270,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 
 	stream_init_srv_conn(s);
 	s->target = sess->listener ? sess->listener->default_target : NULL;
+	s->target_addr = NULL;
 
 	s->pend_pos = NULL;
 	s->priority_class = 0;
@@ -487,6 +488,7 @@ static void stream_free(struct stream *s)
 		session_free(sess);
 	}
 
+	sockaddr_free(&s->target_addr);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */

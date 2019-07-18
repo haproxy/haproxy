@@ -148,15 +148,16 @@ struct stream {
 
 	struct freq_ctr call_rate;      /* stream task call rate */
 
+	short store_count;
+	enum obj_type obj_type;         /* object type == OBJ_TYPE_STREAM */
+	/* 1 unused bytes here */
+
 	struct {
 		struct stksess *ts;
 		struct stktable *table;
 	} store[8];                     /* tracked stickiness values to store */
-	int store_count;
 
-	enum obj_type obj_type;         /* object type == OBJ_TYPE_STREAM */
-	/* 3 unused bytes here */
-
+	struct sockaddr_storage *target_addr;   /* the address to join if not null */
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
 
 	struct strm_flt strm_flt;               /* current state of filters active on this stream */
