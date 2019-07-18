@@ -1054,8 +1054,7 @@ static void assign_tproxy_address(struct stream *s)
 		if (cli_conn && conn_get_src(cli_conn))
 			*srv_conn->src = *cli_conn->src;
 		else {
-			/* FIXME WTA: the dynamic address may be released here */
-			memset(srv_conn->src, 0, sizeof(*srv_conn->src));
+			sockaddr_free(&srv_conn->src);
 		}
 		break;
 	case CO_SRC_TPROXY_DYN:
@@ -1076,8 +1075,7 @@ static void assign_tproxy_address(struct stream *s)
 		}
 		break;
 	default:
-		/* FIXME WTA: the dynamic address may be released here */
-		memset(srv_conn->src, 0, sizeof(*srv_conn->src));
+		sockaddr_free(&srv_conn->src);
 	}
 #endif
 }
