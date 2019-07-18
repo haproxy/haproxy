@@ -177,15 +177,7 @@ enum h2_ss {
 #define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
 #define H2_SF_DATA_CHNK         0x00000200 // data sent using chunked-encoding
 
-/* step we're currently in when sending chunks. This is needed because we may
- * have to transfer chunks as large as a full buffer so there's no room left
- * for size nor crlf around.
- */
-#define H2_SF_CHNK_SIZE         0x00000000 // trying to send chunk size
-#define H2_SF_CHNK_DATA         0x00000400 // trying to send chunk data
-#define H2_SF_CHNK_CRLF         0x00000800 // trying to send chunk crlf after data
-
-#define H2_SF_CHNK_MASK         0x00000C00 // trying to send chunk size
+/* unused flags: 0x00000400, 0x00000800 */
 
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
 #define H2_SF_OUTGOING_DATA     0x00002000  // set whenever we've seen outgoing data
