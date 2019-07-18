@@ -1573,6 +1573,9 @@ int connect_server(struct stream *s)
 	}
 
 	err = si_connect(&s->si[1], srv_conn);
+	if (err != SF_ERR_NONE)
+		return err;
+
 	/* We have to defer the mux initialization until after si_connect()
 	 * has been called, as we need the xprt to have been properly
 	 * initialized, or any attempt to recv during the mux init may
@@ -1618,9 +1621,6 @@ int connect_server(struct stream *s)
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
-
-	if (err != SF_ERR_NONE)
-		return err;
 
 	/* set connect timeout */
 	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
