@@ -2177,10 +2177,17 @@ static void h1_detach(struct conn_stream *cs)
 
 	if (conn_is_back(h1c->conn) && has_keepalive &&
 	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
-		/* Release input buffer to trim any excess data received from
-		 * the server to be sure to block invalid responses.
+		/* If there are any excess server data in the input buffer,
+		 * release it and close the connection ASAP (some data may
+		 * remain in the output buffer). This happens if a server sends
+		 * invalid responses. So in such case, we don't want to reuse
+		 * the connection
 		 */
-		h1_release_buf(h1c, &h1c->ibuf);
+		if (b_data(&h1c->ibuf)) {
+			h1_release_buf(h1c, &h1c->ibuf);
+			h1c->flags |= H1C_F_CS_SHUTW_NOW;
+			goto release;
+		}
 
 		/* Never ever allow to reuse a connection from a non-reuse backend */
 		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
@@ -2227,6 +2234,7 @@ static void h1_detach(struct conn_stream *cs)
 		}
 	}
 
+  release:
 	/* We don't want to close right now unless the connection is in error or shut down for writes */
 	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN|H1C_F_UPG_H2C)) ||
 	    (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) ||
