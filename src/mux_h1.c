@@ -2177,6 +2177,11 @@ static void h1_detach(struct conn_stream *cs)
 
 	if (conn_is_back(h1c->conn) && has_keepalive &&
 	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+		/* Release input buffer to trim any excess data received from
+		 * the server to be sure to block invalid responses.
+		 */
+		h1_release_buf(h1c, &h1c->ibuf);
+
 		/* Never ever allow to reuse a connection from a non-reuse backend */
 		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			h1c->conn->flags |= CO_FL_PRIVATE;
