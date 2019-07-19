@@ -164,6 +164,7 @@ struct global global = {
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
 		.pool_low_ratio  = 20,
 		.pool_high_ratio = 25,
+		.max_http_hdr = MAX_HTTP_HDR,
 #ifdef USE_OPENSSL
 		.sslcachesize = SSLCACHESIZE,
 #endif
