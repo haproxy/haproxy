@@ -47,6 +47,6 @@ unsigned int http_get_htx_hdr(const struct htx *htx, const struct ist hdr,
 			      int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
 unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 			       int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
-struct htx *http_str_to_htx(struct buffer *buf, struct ist raw);
+int http_str_to_htx(struct buffer *buf, struct ist raw);
 
 #endif /* _PROTO_HTTP_HTX_H */
