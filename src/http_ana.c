@@ -4845,7 +4845,7 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 
 	/* <msg> is an HTX structure. So we copy it in the response's
 	 * channel */
-	if (msg) {
+	if (msg && !b_is_null(msg)) {
 		struct channel *chn = si_ic(si);
 		struct htx *htx;
 
@@ -4875,7 +4875,7 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 	/* <msg> is an HTX structure. So we copy it in the response's
 	 * channel */
 	/* FIXME: It is a problem for now if there is some outgoing data */
-	if (msg) {
+	if (msg && !b_is_null(msg)) {
 		struct channel *chn = &s->res;
 		struct htx *htx;
 
