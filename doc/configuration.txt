@@ -583,6 +583,8 @@ The following keywords are supported in the "global" section :
    - gid
    - group
    - hard-stop-after
+   - h1-case-adjust
+   - h1-case-adjust-file
    - log
    - log-tag
    - log-send-hostname
@@ -836,6 +838,55 @@ hard-stop-after <time>
   Example:
     global
       hard-stop-after 30s
+
+h1-case-adjust <from> <to>
+  Defines the case adjustment to apply, when enabled, to the header name
+  <from>, to change it to <to> before sending it to HTTP/1 clients or
+  servers. <from> must be in lower case, and <from> and <to> must not differ
+  except for their case. It may be repeated if several header names need to be
+  ajusted. Duplicate entries are not allowed. If a lot of header names have to
+  be adjusted, it might be more convenient to use "h1-case-adjust-file".
+  Please note that no transformation will be applied unless "option
+  h1-case-adjust-bogus-client" or "option h1-case-adjust-bogus-server" is
+  specified in a proxy.
+
+  There is no standard case for header names because, as stated in RFC7230,
+  they are case-insensitive. So applications must handle them in a case-
+  insensitive manner. But some bogus applications violate the standards and
+  erroneously rely on the cases most commonly used by browsers. This problem
+  becomes critical with HTTP/2 because all header names must be exchanged in
+  lower case, and HAProxy follows the same convention. All header names are
+  sent in lower case to clients and servers, regardless of the HTTP version.
+
+  Applications which fail to properly process requests or responses may require
+  to temporarily use such workarounds to adjust header names sent to them for
+  the time it takes the application to be fixed. Please note that an
+  application which requires such workarounds might be vulnerable to content
+  smuggling attacks and must absolutely be fixed.
+
+  Example:
+    global
+      h1-case-adjust content-length Content-Length
+
+  See "h1-case-adjust-file", "option h1-case-adjust-bogus-client" and
+  "option h1-case-adjust-bogus-server".
+
+h1-case-adjust-file <hdrs-file>
+  Defines a file containing a list of key/value pairs used to adjust the case
+  of some header names before sending them to HTTP/1 clients or servers. The
+  file <hdrs-file> must contain 2 header names per line. The first one must be
+  in lower case and both must not differ except for their case. Lines which
+  start with '#' are ignored, just like empty lines. Leading and trailing tabs
+  and spaces are stripped. Duplicate entries are not allowed. Please note that
+  no transformation will be applied unless "option h1-case-adjust-bogus-client"
+  or "option h1-case-adjust-bogus-server" is specified in a proxy.
+
+  If this directive is repeated, only the last one will be processed.  It is an
+  alternative to the directive "h1-case-adjust" if a lot of header names need
+  to be adjusted. Please read the risks associated with using this.
+
+  See "h1-case-adjust", "option h1-case-adjust-bogus-client" and
+  "option h1-case-adjust-bogus-server".
 
 group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
@@ -2397,6 +2448,8 @@ option dontlog-normal                (*)  X          X         X         -
 option dontlognull                   (*)  X          X         X         -
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option h1-case-adjust-bogus-client   (*)  X          X         X         -
+option h1-case-adjust-bogus-server   (*)  X          -         X         X
 option http-buffer-request           (*)  X          X         X         X
 option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
@@ -6043,6 +6096,76 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
 
   See also : "option httpclose", "option http-server-close",
              "option http-keep-alive"
+
+
+option h1-case-adjust-bogus-client
+no option h1-case-adjust-bogus-client
+  Enable or disable the case adjustment of HTTP/1 headers sent to bogus clients
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  There is no standard case for header names because, as stated in RFC7230,
+  they are case-insensitive. So applications must handle them in a case-
+  insensitive manner. But some bogus applications violate the standards and
+  erroneously rely on the cases most commonly used by browsers. This problem
+  becomes critical with HTTP/2 because all header names must be exchanged in
+  lower case, and HAProxy follows the same convention. All header names are
+  sent in lower case to clients and servers, regardless of the HTTP version.
+
+  When HAProxy receives an HTTP/1 response, its header names are converted to
+  lower case and manipulated and sent this way to the clients. If a client is
+  known to violate the HTTP standards and to fail to process a response coming
+  from HAProxy, it is possible to transform the lower case header names to a
+  different format when the response is formatted and sent to the client, by
+  enabling this option and specifying the list of headers to be reformatted
+  using the global directives "h1-case-adjust" or "h1-case-adjust-file". This
+  must only be a temporary workaround for the time it takes the client to be
+  fixed, because clients which require such workarounds might be vulnerable to
+  content smuggling attacks and must absolutely be fixed.
+
+  Please note that this option will not affect standards-compliant clients.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: "option h1-case-adjust-bogus-server", "h1-case-adjust",
+  "h1-case-adjust-file".
+
+
+option h1-case-adjust-bogus-server
+no option h1-case-adjust-bogus-server
+  Enable or disable the case adjustment of HTTP/1 headers sent to bogus servers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no   |   yes  |   yes
+  Arguments : none
+
+  There is no standard case for header names because, as stated in RFC7230,
+  they are case-insensitive. So applications must handle them in a case-
+  insensitive manner. But some bogus applications violate the standards and
+  erroneously rely on the cases most commonly used by browsers. This problem
+  becomes critical with HTTP/2 because all header names must be exchanged in
+  lower case, and HAProxy follows the same convention. All header names are
+  sent in lower case to clients and servers, regardless of the HTTP version.
+
+  When HAProxy receives an HTTP/1 request, its header names are converted to
+  lower case and manipulated and sent this way to the servers. If a server is
+  known to violate the HTTP standards and to fail to process a request coming
+  from HAProxy, it is possible to transform the lower case header names to a
+  different format when the request is formatted and sent to the server, by
+  enabling this option and specifying the list of headers to be reformatted
+  using the global directives "h1-case-adjust" or "h1-case-adjust-file". This
+  must only be a temporary workaround for the time it takes the server to be
+  fixed, because servers which require such workarounds might be vulnerable to
+  content smuggling attacks and must absolutely be fixed.
+
+  Please note that this option will not affect standards-compliant servers.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: "option h1-case-adjust-bogus-client", "h1-case-adjust",
+  "h1-case-adjust-file".
 
 
 option http-buffer-request

@@ -143,7 +143,10 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_INDEPSTR	0x00001000	/* independent streams, don't update rex on write */
 #define PR_O2_SOCKSTAT	0x00002000	/* collect & provide separate statistics for sockets */
 
-/* unused: 0x00004000 0x00008000 0x00010000 */
+#define PR_O2_H1_ADJ_BUGCLI 0x00008000 /* adjust the case of h1 headers of the response for bogus clients */
+#define PR_O2_H1_ADJ_BUGSRV 0x00004000 /* adjust the case of h1 headers of the request for bogus servers */
+
+/* unused:  0x00010000 */
 
 #define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
