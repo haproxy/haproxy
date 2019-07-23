@@ -3204,7 +3204,7 @@ static int tcpcheck_main(struct check *check)
 
  out_end_tcpcheck:
 	/* collect possible new errors */
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 		chk_report_conn_err(check, 0, 0);
 
 	/* cleanup before leaving */
