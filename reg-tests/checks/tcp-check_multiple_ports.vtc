@@ -1,4 +1,5 @@
 varnishtest "tcp-check multiple ports"
+#EXCLUDE_TARGETS=freebsd,osx,generic
 #REGTEST_TYPE=slow
 # This test uses multiple tcp-check connect rules to perform health checking on
 # a target. It relies on port 1 being unbound on the local system.
