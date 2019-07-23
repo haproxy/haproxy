@@ -2872,7 +2872,14 @@ struct cert_key_and_chain {
 struct ckch_node {
 	struct cert_key_and_chain *ckch;
 	int multi; /* is it a multi-cert bundle ? */
+	struct ebmb_node node;
+	char path[0];
 };
+
+/*
+ * tree used to store the ckchn ordered by filename/bundle name
+ */
+struct eb_root ckchn_tree = EB_ROOT_UNIQUE;
 
 #define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
 
@@ -3089,6 +3096,20 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 }
 
 /*
+ * lookup a path into the ckchn tree.
+ */
+static inline struct ckch_node *ckchn_lookup(char *path)
+{
+	struct ebmb_node *eb;
+
+	eb = ebst_lookup(&ckchn_tree, path);
+	if (!eb)
+		return NULL;
+
+	return ebmb_entry(eb, struct ckch_node, node);
+}
+
+/*
  * This function allocate a ckch_node and populate it with certificates from files.
  */
 static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
@@ -3097,7 +3118,7 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 	char fp[MAXPATHLEN+1] = {0};
 	int n = 0;
 
-	ckchn = calloc(1, sizeof(*ckchn));
+	ckchn = calloc(1, sizeof(*ckchn) + strlen(path) + 1);
 	if (!ckchn) {
 		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
 		goto end;
@@ -3114,6 +3135,9 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 		if (ssl_sock_load_crt_file_into_ckch(path, ckchn->ckch, err) == 1)
 			goto end;
 
+		/* insert into the ckchn tree */
+		memcpy(ckchn->path, path, strlen(path) + 1);
+		ebst_insert(&ckchn_tree, &ckchn->node);
 	} else {
 		int found = 0;
 
@@ -3133,12 +3157,18 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 			memprintf(err, "%sDidn't find any certificate.\n", err && *err ? *err : "");
 			goto end;
 		}
+		/* insert into the ckchn tree */
+		memcpy(ckchn->path, path, strlen(path) + 1);
+		ebst_insert(&ckchn_tree, &ckchn->node);
 	}
 	return ckchn;
 
 end:
-	if (ckchn)
+	if (ckchn) {
 		free(ckchn->ckch);
+		ebmb_delete(&ckchn->node);
+	}
+
 	free(ckchn);
 
 	return NULL;
@@ -3538,6 +3568,16 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	int j;
 #endif
 
+	if ((ckchn = ckchn_lookup(path))) {
+
+		/* we found the ckchn in the tree, we can use it directly */
+		if (ckchn->multi)
+			return ssl_sock_load_multi_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+		else
+			return ssl_sock_load_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+
+	}
+
 	if (stat(path, &buf) == 0) {
 		dir = opendir(path);
 		if (!dir) {
@@ -3605,7 +3645,8 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						ckchn =  ckchn_load_cert_file(fp, 1,  err);
+						if ((ckchn = ckchn_lookup(fp)) == NULL)
+							ckchn =  ckchn_load_cert_file(fp, 1,  err);
 						if (!ckchn)
 							return 1;
 						cfgerr += ssl_sock_load_multi_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
@@ -3616,7 +3657,8 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				}
 
 #endif
-				ckchn =  ckchn_load_cert_file(fp, 0,  err);
+				if ((ckchn = ckchn_lookup(fp)) == NULL)
+					ckchn =  ckchn_load_cert_file(fp, 0,  err);
 				if (!ckchn)
 					return 1;
 				cfgerr += ssl_sock_load_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
