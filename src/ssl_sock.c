@@ -2738,55 +2738,6 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename)
 
 	return -1;
 }
-
-/* Loads Diffie-Hellman parameter from a file. Returns 1 if loaded, else -1
-   if an error occurred, and 0 if parameter not found. */
-int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
-{
-	int ret = -1;
-	DH *dh = ssl_sock_get_dh_from_file(file);
-
-	if (dh) {
-		ret = 1;
-		SSL_CTX_set_tmp_dh(ctx, dh);
-
-		if (ssl_dh_ptr_index >= 0) {
-			/* store a pointer to the DH params to avoid complaining about
-			   ssl-default-dh-param not being set for this SSL_CTX */
-			SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, dh);
-		}
-	}
-	else if (global_dh) {
-		SSL_CTX_set_tmp_dh(ctx, global_dh);
-		ret = 0; /* DH params not found */
-	}
-	else {
-		/* Clear openssl global errors stack */
-		ERR_clear_error();
-
-		if (global_ssl.default_dh_param <= 1024) {
-			/* we are limited to DH parameter of 1024 bits anyway */
-			if (local_dh_1024 == NULL)
-				local_dh_1024 = ssl_get_dh_1024();
-
-			if (local_dh_1024 == NULL)
-				goto end;
-
-			SSL_CTX_set_tmp_dh(ctx, local_dh_1024);
-		}
-		else {
-			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
-		}
-
-		ret = 0; /* DH params not found */
-	}
-
-end:
-	if (dh)
-		DH_free(dh);
-
-	return ret;
-}
 #endif
 
 static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_bind_conf *conf,
@@ -2863,6 +2814,7 @@ struct cert_key_and_chain {
 	unsigned int num_chain_certs;
 	/* This is an array of X509 pointers */
 	X509 **chain_certs;
+	DH *dh;
 };
 
 /*
@@ -2897,6 +2849,60 @@ struct sni_keytype {
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
+
+/* Loads Diffie-Hellman parameter from a ckchn. Returns 1 if loaded, else -1
+   if an error occurred, and 0 if parameter not found. */
+#ifndef OPENSSL_NO_DH
+static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
+{
+	int ret = -1;
+	DH *dh = NULL;
+
+	if (ckch)
+		dh = ckch->dh;
+
+	if (dh) {
+		ret = 1;
+		SSL_CTX_set_tmp_dh(ctx, dh);
+
+		if (ssl_dh_ptr_index >= 0) {
+			/* store a pointer to the DH params to avoid complaining about
+			   ssl-default-dh-param not being set for this SSL_CTX */
+			SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, dh);
+		}
+	}
+	else if (global_dh) {
+		SSL_CTX_set_tmp_dh(ctx, global_dh);
+		ret = 0; /* DH params not found */
+	}
+	else {
+		/* Clear openssl global errors stack */
+		ERR_clear_error();
+
+		if (global_ssl.default_dh_param <= 1024) {
+			/* we are limited to DH parameter of 1024 bits anyway */
+			if (local_dh_1024 == NULL)
+				local_dh_1024 = ssl_get_dh_1024();
+
+			if (local_dh_1024 == NULL)
+				goto end;
+
+			SSL_CTX_set_tmp_dh(ctx, local_dh_1024);
+		}
+		else {
+			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
+		}
+
+		ret = 0; /* DH params not found */
+	}
+
+end:
+	if (dh)
+		DH_free(dh);
+
+	return ret;
+}
+#endif
 
 /* Frees the contents of a cert_key_and_chain
  */
@@ -2972,6 +2978,16 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 				err && *err ? *err : "", path);
 		goto end;
 	}
+
+	/* Seek back to beginning of file */
+	if (BIO_reset(in) == -1) {
+		memprintf(err, "%san error occurred while reading the file '%s'.\n",
+		          err && *err ? *err : "", path);
+		goto end;
+	}
+
+	ckch->dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
+	/* no need to check for NULL there, dh is not mandatory */
 
 	/* Seek back to beginning of file */
 	if (BIO_reset(in) == -1) {
@@ -3057,6 +3073,20 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 				err && *err ? *err : "", path);
 		return 1;
 	}
+
+#ifndef OPENSSL_NO_DH
+	/* store a NULL pointer to indicate we have not yet loaded
+	   a custom DH param file */
+	if (ssl_dh_ptr_index >= 0) {
+		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
+	}
+
+	if (ssl_sock_load_dh_params(ctx, ckch) < 0) {
+		memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
+		          err && *err ? *err : "", path);
+		return 1;
+	}
+#endif
 
 	return 0;
 }
@@ -3341,22 +3371,6 @@ static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
 				}
 			}
 
-			/* Load DH params into the ctx to support DHE keys */
-#ifndef OPENSSL_NO_DH
-			/* TODO store DH in ckch */
-			if (ssl_dh_ptr_index >= 0)
-				SSL_CTX_set_ex_data(cur_ctx, ssl_dh_ptr_index, NULL);
-
-			rv = ssl_sock_load_dh_params(cur_ctx, NULL);
-			if (rv < 0) {
-				if (err)
-					memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
-							*err ? *err : "", path);
-				rv = 1;
-				goto end;
-			}
-#endif
-
 			/* Update key_combos */
 			key_combos[i-1].ctx = cur_ctx;
 		}
@@ -3498,21 +3512,6 @@ static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struc
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
-#ifndef OPENSSL_NO_DH
-	/* store a NULL pointer to indicate we have not yet loaded
-	   a custom DH param file */
-	if (ssl_dh_ptr_index >= 0) {
-		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
-	}
-
-	ret = ssl_sock_load_dh_params(ctx, path);
-	if (ret < 0) {
-		if (err)
-			memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
-				  *err ? *err : "", path);
-		return 1;
-	}
-#endif
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 	ret = ssl_sock_load_ocsp(ctx, path);
