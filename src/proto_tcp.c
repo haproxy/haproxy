@@ -1107,6 +1107,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  * The sockets will be registered but not added to any fd_set, in order not to
  * loose them across the fork(). A call to enable_all_listeners() is needed
  * to complete initialization. The return value is composed from ERR_*.
+ *
+ * Must be called with proto_lock held.
+ *
  */
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 {
@@ -1125,6 +1128,9 @@ static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 /* Add <listener> to the list of tcpv4 listeners, on port <port>. The
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
  * The number of listeners for the protocol is updated.
+ *
+ * Must be called with proto_lock held.
+ *
  */
 static void tcpv4_add_listener(struct listener *listener, int port)
 {
@@ -1140,6 +1146,9 @@ static void tcpv4_add_listener(struct listener *listener, int port)
 /* Add <listener> to the list of tcpv6 listeners, on port <port>. The
  * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
  * The number of listeners for the protocol is updated.
+ *
+ * Must be called with proto_lock held.
+ *
  */
 static void tcpv6_add_listener(struct listener *listener, int port)
 {

@@ -18,18 +18,26 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 
-#include <types/protocol.h>
+#include <proto/protocol.h>
 
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
 struct protocol *__protocol_by_family[AF_CUST_MAX] = { };
 
+/* This is the global spinlock we may need to register/unregister listeners or
+ * protocols. Its main purpose is in fact to serialize the rare stop/deinit()
+ * phases.
+ */
+__decl_spinlock(proto_lock);
+
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto)
 {
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	LIST_ADDQ(&protocols, &proto->list);
 	if (proto->sock_domain >= 0 && proto->sock_domain < AF_CUST_MAX)
 		__protocol_by_family[proto->sock_domain] = proto;
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
 /* Unregisters the protocol <proto>. Note that all listeners must have
@@ -37,8 +45,10 @@ void protocol_register(struct protocol *proto)
  */
 void protocol_unregister(struct protocol *proto)
 {
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	LIST_DEL(&proto->list);
 	LIST_INIT(&proto->list);
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
 /* binds all listeners of all registered protocols. Returns a composition
@@ -50,6 +60,7 @@ int protocol_bind_all(char *errmsg, int errlen)
 	int err;
 
 	err = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		if (proto->bind_all) {
 			err |= proto->bind_all(proto, errmsg, errlen);
@@ -57,6 +68,7 @@ int protocol_bind_all(char *errmsg, int errlen)
 				break;
 		}
 	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;
 }
 
@@ -71,11 +83,13 @@ int protocol_unbind_all(void)
 	int err;
 
 	err = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		if (proto->unbind_all) {
 			err |= proto->unbind_all(proto);
 		}
 	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;
 }
 
@@ -89,11 +103,13 @@ int protocol_enable_all(void)
 	int err;
 
 	err = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		if (proto->enable_all) {
 			err |= proto->enable_all(proto);
 		}
 	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;
 }
 
@@ -107,11 +123,13 @@ int protocol_disable_all(void)
 	int err;
 
 	err = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		if (proto->disable_all) {
 			err |= proto->disable_all(proto);
 		}
 	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;
 }
 

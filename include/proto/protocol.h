@@ -23,9 +23,11 @@
 #define _PROTO_PROTOCOL_H
 
 #include <sys/socket.h>
+#include <common/hathreads.h>
 #include <types/protocol.h>
 
 extern struct protocol *__protocol_by_family[AF_CUST_MAX];
+__decl_hathreads(extern HA_SPINLOCK_T proto_lock);
 
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto);
