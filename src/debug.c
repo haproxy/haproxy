@@ -45,7 +45,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
-	              "             stuck=%d fdcache=%d prof=%d",
+	              "             stuck=%d prof=%d",
 	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 		      thread_has_tasks(),
 	              !!(global_tasks_mask & thr_bit),
@@ -55,7 +55,6 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              task_per_thread[thr].task_list_size,
 	              task_per_thread[thr].rqueue_size,
 	              stuck,
-	              !!(fd_cache_mask & thr_bit),
 	              !!(task_profiling_mask & thr_bit));
 
 	chunk_appendf(buf,

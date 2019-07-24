@@ -984,7 +984,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] cnext=%d cprev=%d tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
+			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_EV_POLLED_R) ? 'P' : 'p',
@@ -1001,8 +1001,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.ev & FD_POLL_IN)  ? 'I' : 'i',
 			     fdt.linger_risk ? 'L' : 'l',
 			     fdt.cloned ? 'C' : 'c',
-			     fdt.cache.next,
-			     fdt.cache.prev,
 			     fdt.thread_mask, fdt.update_mask,
 			     fdt.owner,
 			     fdt.iocb,
@@ -1119,7 +1117,6 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "thread_id: %u (%u..%u)\n", tid + 1, 1, global.nbthread);
 	chunk_appendf(&trash, "date_now: %lu.%06lu\n", (long)now.tv_sec, (long)now.tv_usec);
 	chunk_appendf(&trash, "loops:");        SHOW_TOT(thr, activity[thr].loops);
-	chunk_appendf(&trash, "wake_cache:");   SHOW_TOT(thr, activity[thr].wake_cache);
 	chunk_appendf(&trash, "wake_tasks:");   SHOW_TOT(thr, activity[thr].wake_tasks);
 	chunk_appendf(&trash, "wake_signal:");  SHOW_TOT(thr, activity[thr].wake_signal);
 	chunk_appendf(&trash, "poll_exp:");     SHOW_TOT(thr, activity[thr].poll_exp);

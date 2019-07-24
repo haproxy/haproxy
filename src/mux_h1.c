@@ -48,7 +48,6 @@
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
 #define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down for read and writes */
-#define H1C_F_CS_WAIT_CONN   0x00008000 /* waiting for the connection establishment */
 
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
 #define H1C_F_UPG_H2C        0x00020000 /* set if an upgrade to h2 should be done */
@@ -450,9 +449,6 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		t->context = h1c;
 		t->expire = tick_add(now_ms, h1c->timeout);
 	}
-
-	if (!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE))
-		h1c->flags |= H1C_F_CS_WAIT_CONN;
 
 	/* Always Create a new H1S */
 	if (!h1s_create(h1c, conn->ctx, sess))
@@ -1894,11 +1890,6 @@ static int h1_recv(struct h1c *h1c)
 	if (h1c->wait_event.events & SUB_RETRY_RECV)
 		return (b_data(&h1c->ibuf));
 
-	if (!(conn->flags & CO_FL_ERROR) && h1c->flags & H1C_F_CS_WAIT_CONN) {
-		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-		return 0;
-	}
-
 	if (!h1_recv_allowed(h1c)) {
 		rcvd = 1;
 		goto end;
@@ -1982,12 +1973,6 @@ static int h1_send(struct h1c *h1c)
 	if (conn->flags & CO_FL_ERROR)
 		return 0;
 
-	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
-		if (!(h1c->wait_event.events & SUB_RETRY_SEND))
-			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
-		return 0;
-	}
-
 	if (!b_data(&h1c->obuf))
 		goto end;
 
@@ -2034,14 +2019,6 @@ static int h1_process(struct h1c * h1c)
 
 	if (!conn->ctx)
 		return -1;
-
-	if (h1c->flags & H1C_F_CS_WAIT_CONN) {
-		if (!(conn->flags & (CO_FL_CONNECTED|CO_FL_ERROR)) ||
-		    (!(conn->flags & CO_FL_ERROR) && (conn->flags & CO_FL_HANDSHAKE)))
-			goto end;
-		h1c->flags &= ~H1C_F_CS_WAIT_CONN;
-		h1_wake_stream_for_send(h1s);
-	}
 
 	if (!h1s) {
 		if (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN) ||
@@ -2103,10 +2080,7 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 
 static void h1_reset(struct connection *conn)
 {
-	struct h1c *h1c = conn->ctx;
 
-	/* Reset the flags, and let the mux know we're waiting for a connection */
-	h1c->flags = H1C_F_CS_WAIT_CONN;
 }
 
 static int h1_wake(struct connection *conn)
@@ -2401,6 +2375,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_event *sw;
 	struct h1s *h1s = cs->ctx;
+	struct h1c *h1c = h1s->h1c;
 
 	if (!h1s)
 		return -1;
@@ -2417,6 +2392,17 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 			BUG_ON(h1s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
 			sw->events |= SUB_RETRY_SEND;
 			h1s->send_wait = sw;
+			/*
+			 * If the conn_stream attempt to subscribe, and the
+			 * mux isn't subscribed to the connection, then it
+			 * probably means the connection wasn't established
+			 * yet, so we have to subscribe.
+			 */
+			if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+				h1c->conn->xprt->subscribe(h1c->conn,
+				                           h1c->conn->xprt_ctx,
+							   SUB_RETRY_SEND,
+							   &h1c->wait_event);
 			return 0;
 		default:
 			break;
@@ -2461,7 +2447,13 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		return 0;
 
 	h1c = h1s->h1c;
-	if (h1c->flags & H1C_F_CS_WAIT_CONN)
+
+	/* If we're not connected yet, or we're waiting for a handshake, stop
+	 * now, as we don't want to remove everything from the channel buffer
+	 * before we're sure we can send it.
+	 */
+	if (!(h1c->conn->flags & CO_FL_CONNECTED) ||
+	    (h1c->conn->flags & CO_FL_HANDSHAKE))
 		return 0;
 
 	while (count) {

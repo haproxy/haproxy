@@ -140,6 +140,8 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 	}
 
 	thread_harmless_now();
+	if (sleeping_thread_mask & tid_bit)
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 
 	/*
 	 * Determine how long to wait for events to materialise on the port.

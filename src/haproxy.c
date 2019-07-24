@@ -2496,9 +2496,7 @@ static void run_poll_loop()
 
 		/* expire immediately if events are pending */
 		wake = 1;
-		if (fd_cache_mask & tid_bit)
-			activity[tid].wake_cache++;
-		else if (thread_has_tasks())
+		if (thread_has_tasks())
 			activity[tid].wake_tasks++;
 		else if (signal_queue_len && tid == 0)
 			activity[tid].wake_signal++;
@@ -2514,9 +2512,6 @@ static void run_poll_loop()
 
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, next, wake);
-		if (sleeping_thread_mask & tid_bit)
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
-		fd_process_cached_events();
 
 		activity[tid].loops++;
 	}

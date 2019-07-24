@@ -175,7 +175,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (l->options & LI_O_ACC_CIP)
 		cli_conn->flags |= CO_FL_ACCEPT_CIP;
 
-	conn_xprt_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_conn;
 

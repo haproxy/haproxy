@@ -8,40 +8,6 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- * This code implements an events cache for file descriptors. It remembers the
- * readiness of a file descriptor after a return from poll() and the fact that
- * an I/O attempt failed on EAGAIN. Events in the cache which are still marked
- * ready and active are processed just as if they were reported by poll().
- *
- * This serves multiple purposes. First, it significantly improves performance
- * by avoiding to subscribe to polling unless absolutely necessary, so most
- * events are processed without polling at all, especially send() which
- * benefits from the socket buffers. Second, it is the only way to support
- * edge-triggered pollers (eg: EPOLL_ET). And third, it enables I/O operations
- * that are backed by invisible buffers. For example, SSL is able to read a
- * whole socket buffer and not deliver it to the application buffer because
- * it's full. Unfortunately, it won't be reported by a poller anymore until
- * some new activity happens. The only way to call it again thus is to keep
- * this readiness information in the cache and to access it without polling
- * once the FD is enabled again.
- *
- * One interesting feature of the cache is that it maintains the principle
- * of speculative I/O introduced in haproxy 1.3 : the first time an event is
- * enabled, the FD is considered as ready so that the I/O attempt is performed
- * via the cache without polling. And the polling happens only when EAGAIN is
- * first met. This avoids polling for HTTP requests, especially when the
- * defer-accept mode is used. It also avoids polling for sending short data
- * such as requests to servers or short responses to clients.
- *
- * The cache consists in a list of active events and a list of updates.
- * Active events are events that are expected to come and that we must report
- * to the application until it asks to stop or asks to poll. Updates are new
- * requests for changing an FD state. Updates are the only way to create new
- * events. This is important because it means that the number of cached events
- * cannot increase between updates and will only grow one at a time while
- * processing updates. All updates must always be processed, though events
- * might be processed by small batches if required.
- *
  * There is no direct link between the FD and the updates list. There is only a
  * bit in the fdtab[] to indicate than a file descriptor is already present in
  * the updates list. Once an fd is present in the updates list, it will have to
@@ -54,16 +20,6 @@
  * consists in only processing a part of the events at once, but one drawback
  * is that unhandled events will still wake the poller up. Using an edge-
  * triggered poller such as EPOLL_ET will solve this issue though.
- *
- * Since we do not want to scan all the FD list to find cached I/O events,
- * we store them in a list consisting in a linear array holding only the FD
- * indexes right now. Note that a closed FD cannot exist in the cache, because
- * it is closed by fd_delete() which in turn calls fd_release_cache_entry()
- * which always removes it from the list.
- *
- * The FD array has to hold a back reference to the cache. This reference is
- * always valid unless the FD is not in the cache and is not updated, in which
- * case the reference points to index 0.
  *
  * The event state for an FD, as found in fdtab[].state, is maintained for each
  * direction. The state field is built this way, with R bits in the low nibble
@@ -175,11 +131,7 @@ struct poller pollers[MAX_POLLERS];
 struct poller cur_poller;
 int nbpollers = 0;
 
-volatile struct fdlist fd_cache ; // FD events cache
-volatile struct fdlist fd_cache_local[MAX_THREADS]; // FD events local for each thread
 volatile struct fdlist update_list; // Global update list
-
-unsigned long fd_cache_mask = 0; // Mask of threads with events in the cache
 
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
@@ -379,7 +331,6 @@ static void fd_dodelete(int fd, int do_close)
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
 
-	fd_release_cache_entry(fd);
 	fdtab[fd].state = 0;
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
@@ -409,66 +360,6 @@ void fd_delete(int fd)
 void fd_remove(int fd)
 {
 	fd_dodelete(fd, 0);
-}
-
-static inline void fdlist_process_cached_events(volatile struct fdlist *fdlist)
-{
-	int fd, old_fd, e;
-	unsigned long locked;
-
-	for (old_fd = fd = fdlist->first; fd != -1; fd = fdtab[fd].cache.next) {
-		if (fd == -2) {
-			fd = old_fd;
-			continue;
-		} else if (fd <= -3)
-			fd = -fd - 4;
-		if (fd == -1)
-			break;
-		old_fd = fd;
-		if (!(fdtab[fd].thread_mask & tid_bit))
-			continue;
-		if (fdtab[fd].cache.next < -3)
-			continue;
-
-		_HA_ATOMIC_OR(&fd_cache_mask, tid_bit);
-		locked = atleast2(fdtab[fd].thread_mask);
-		if (locked && HA_SPIN_TRYLOCK(FD_LOCK, &fdtab[fd].lock)) {
-			activity[tid].fd_lock++;
-			continue;
-		}
-
-		e = fdtab[fd].state;
-		fdtab[fd].ev &= FD_POLL_STICKY;
-
-		if ((e & (FD_EV_READY_R | FD_EV_ACTIVE_R)) == (FD_EV_READY_R | FD_EV_ACTIVE_R))
-			fdtab[fd].ev |= FD_POLL_IN;
-
-		if ((e & (FD_EV_READY_W | FD_EV_ACTIVE_W)) == (FD_EV_READY_W | FD_EV_ACTIVE_W))
-			fdtab[fd].ev |= FD_POLL_OUT;
-
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
-			if (locked)
-				HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
-			fdtab[fd].iocb(fd);
-		}
-		else {
-			fd_release_cache_entry(fd);
-			if (locked)
-				HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
-		}
-	}
-}
-
-/* Scan and process the cached events. This should be called right after
- * the poller. The loop may cause new entries to be created, for example
- * if a listener causes an accept() to initiate a new incoming connection
- * wanting to attempt an recv().
- */
-void fd_process_cached_events()
-{
-	_HA_ATOMIC_AND(&fd_cache_mask, ~tid_bit);
-	fdlist_process_cached_events(&fd_cache_local[tid]);
-	fdlist_process_cached_events(&fd_cache);
 }
 
 #if defined(USE_CLOSEFROM)
@@ -640,7 +531,6 @@ int init_pollers()
 	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
 		goto fail_info;
 
-	fd_cache.first = fd_cache.last = -1;
 	update_list.first = update_list.last = -1;
 
 	for (p = 0; p < global.maxsock; p++) {
@@ -649,8 +539,6 @@ int init_pollers()
 		fdtab[p].cache.next = -3;
 		fdtab[p].update.next = -3;
 	}
-	for (p = 0; p < global.nbthread; p++)
-		fd_cache_local[p].first = fd_cache_local[p].last = -1;
 
 	do {
 		bp = NULL;
