@@ -53,7 +53,7 @@ static THREAD_LOCAL struct epoll_event ev;
 REGPRM1 static void __fd_clo(int fd)
 {
 	if (unlikely(fdtab[fd].cloned)) {
-		unsigned long m = polled_mask[fd];
+		unsigned long m = polled_mask[fd].poll_recv | polled_mask[fd].poll_send;
 		int i;
 
 		for (i = global.nbthread - 1; i >= 0; i--)
@@ -68,13 +68,35 @@ static void _update_fd(int fd)
 
 	en = fdtab[fd].state;
 
-	if (polled_mask[fd] & tid_bit) {
+	if ((polled_mask[fd].poll_send | polled_mask[fd].poll_recv) & tid_bit) {
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
 			/* fd removed from poll list */
 			opcode = EPOLL_CTL_DEL;
-			_HA_ATOMIC_AND(&polled_mask[fd], ~tid_bit);
+			if (polled_mask[fd].poll_recv & tid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			if (polled_mask[fd].poll_send & tid_bit)
+				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
 		}
 		else {
+			if (((en & FD_EV_POLLED_R) != 0) ==
+			    ((polled_mask[fd].poll_recv & tid_bit) != 0) &&
+			    ((en & FD_EV_POLLED_W) != 0) ==
+			    ((polled_mask[fd].poll_send & tid_bit) != 0))
+				return;
+			if (en & FD_EV_POLLED_R) {
+				if (!(polled_mask[fd].poll_recv & tid_bit))
+					_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+			} else {
+				if (polled_mask[fd].poll_recv & tid_bit)
+					_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			}
+			if (en & FD_EV_POLLED_W) {
+				if (!(polled_mask[fd].poll_send & tid_bit))
+					_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
+			} else {
+				if (polled_mask[fd].poll_send & tid_bit)
+					_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+			}
 			/* fd status changed */
 			opcode = EPOLL_CTL_MOD;
 		}
@@ -82,7 +104,10 @@ static void _update_fd(int fd)
 	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_POLLED_RW)) {
 		/* new fd in the poll list */
 		opcode = EPOLL_CTL_ADD;
-		_HA_ATOMIC_OR(&polled_mask[fd], tid_bit);
+		if (en & FD_EV_POLLED_R)
+			_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+		if (en & FD_EV_POLLED_W)
+			_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
 	}
 	else {
 		return;
@@ -188,7 +213,8 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 			/* FD has been migrated */
 			activity[tid].poll_skip++;
 			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
-			_HA_ATOMIC_AND(&polled_mask[fd], ~tid_bit);
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
 			continue;
 		}
 

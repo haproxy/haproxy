@@ -122,7 +122,7 @@
 #include <proto/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
-unsigned long *polled_mask = NULL; /* Array for the polled_mask of each fd */
+struct polled_mask *polled_mask = NULL; /* Array for the polled_mask of each fd */
 struct fdinfo *fdinfo = NULL;   /* less-often used infos for file descriptors */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
@@ -338,7 +338,7 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].owner = NULL;
 	fdtab[fd].thread_mask = 0;
 	if (do_close) {
-		polled_mask[fd] = 0;
+		polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 		close(fd);
 		_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	}
@@ -525,7 +525,7 @@ int init_pollers()
 	if ((fdtab = calloc(global.maxsock, sizeof(struct fdtab))) == NULL)
 		goto fail_tab;
 
-	if ((polled_mask = calloc(global.maxsock, sizeof(unsigned long))) == NULL)
+	if ((polled_mask = calloc(global.maxsock, sizeof(*polled_mask))) == NULL)
 		goto fail_polledmask;
 
 	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)

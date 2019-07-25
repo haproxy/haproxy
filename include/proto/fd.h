@@ -37,7 +37,11 @@
 
 extern volatile struct fdlist update_list;
 
-extern unsigned long *polled_mask;
+
+extern struct polled_mask {
+	unsigned long poll_recv;
+	unsigned long poll_send;
+} *polled_mask;
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
