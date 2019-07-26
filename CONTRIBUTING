@@ -454,7 +454,18 @@ do not think about them anymore after a few patches.
 
 11) Real commit messages please!
 
-   Please properly format your commit messages. To get an idea, just run
+   The commit message is how you're trying to convince a maintainer to adopt
+   your work and maintain it as long as possible. A dirty commit message almost
+   always comes with dirty code. Too short a commit message indicates that too
+   short an analysis was done and that side effects are extremely likely to be
+   encountered. It's the maintainer's job to decide to accept this work in its
+   current form or not, with the known constraints. Some patches which rework
+   architectural parts or fix sensitive bugs come with 20-30 lines of design
+   explanations, limitations, hypothesis or even doubts, and despite this it
+   happens when reading them 6 months later while trying to identify a bug that
+   developers still miss some information about corner cases.
+
+   So please properly format your commit messages. To get an idea, just run
    "git log" on the file you've just modified. Patches always have the format
    of an e-mail made of a subject, a description and the actual patch. If you
    are sending a patch as an e-mail formatted this way, it can quickly be
@@ -506,9 +517,17 @@ do not think about them anymore after a few patches.
 
    But in any case, it is important that there is a clean description of what
    the patch does, the motivation for what it does, why it's the best way to do
-   it, its impacts, and what it does not yet cover. Also, in HAProxy, like many
-   projects which take a great care of maintaining stable branches, patches are
-   reviewed later so that some of them can be backported to stable releases.
+   it, its impacts, and what it does not yet cover. And this is particularly
+   important for bugs. A patch tagged "BUG" must absolutely explain what the
+   problem is, why it is considered as a bug. Anybody, even non-developers,
+   should be able to tell whether or not a patch is likely to address an issue
+   they are facing. Indicating what the code will do after the fix doesn't help
+   if it does not say what problem is encountered without the patch. Note that
+   in some cases the bug is purely theorical and observed by reading the code.
+   In this case it's perfectly fine to provide an estimate about possible
+   effects. Also, in HAProxy, like many projects which take a great care of
+   maintaining stable branches, patches are reviewed later so that some of them
+   can be backported to stable releases.
 
    While reviewing hundreds of patches can seem cumbersome, with a proper
    formatting of the subject line it actually becomes very easy. For example,
@@ -630,13 +649,23 @@ patch types include :
 
   - BUG      fix for a bug. The severity of the bug should also be indicated
              when known. Similarly, if a backport is needed to older versions,
-             it should be indicated on the last line of the commit message. If
-             the bug has been identified as a regression brought by a specific
-             patch or version, this indication will be appreciated too. New
-             maintenance releases are generally emitted when a few of these
-             patches are merged. If the bug is a vulnerability for which a CVE
-             identifier was assigned before you publish the fix, you can mention
-             it in the commit message, it will help distro maintainers.
+             it should be indicated on the last line of the commit message. The
+             commit message MUST ABSOLUTELY describe the problem and its impact
+             to non-developers. Any user must be able to guess if this patch is
+             likely to fix a problem they are facing. Even if the bug was
+             discovered by accident while reading the code or running an
+             automated tool, it is mandatory to try to estimate what potential
+             issue it might cause and under what circumstances. There may even
+             be security implications sometimes so a minimum analysis is really
+             required. Also please think about stable maintainers who have to
+             build the release notes, they need to have enough input about the
+             bug's impact to explain it. If the bug has been identified as a
+             regression brought by a specific patch or version, this indication
+             will be appreciated too. New maintenance releases are generally
+             emitted when a few of these patches are merged. If the bug is a
+             vulnerability for which a CVE identifier was assigned before you
+             publish the fix, you can mention it in the commit message, it will
+             help distro maintainers.
 
   - CLEANUP  code cleanup, silence of warnings, etc... theoretically no impact.
              These patches will rarely be seen in stable branches, though they
