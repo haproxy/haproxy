@@ -944,8 +944,9 @@ static void sess_establish(struct stream *s)
 		si_chk_rcv(si);
 	}
 	req->wex = TICK_ETERNITY;
-	/* If we managed to get the whole response, switch to SI_ST_DIS now. */
-	if (rep->flags & CF_SHUTR)
+	/* If we managed to get the whole response, and we don't have anything
+	 * left to send, or can't, switch to SI_ST_DIS now. */
+	if (rep->flags & (CF_SHUTR | CF_SHUTW))
 		si->state = SI_ST_DIS;
 }
 
