@@ -2429,20 +2429,21 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 {
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c = h1s->h1c;
+	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
 
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
 		ret = h1_process_input(h1c, buf, count);
 
 	if (flags & CO_RFL_BUF_FLUSH) {
-		struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 
 		if (h1m->state != H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len))
 			h1s->flags |= H1S_F_BUF_FLUSH;
 	}
 	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
 		h1s->flags &= ~H1S_F_SPLICED_DATA;
-		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
+		if (h1m->state != H1_MSG_DONE &&
+				!(h1c->wait_event.events & SUB_RETRY_RECV))
 			tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 	return ret;
