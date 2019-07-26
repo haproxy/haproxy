@@ -1945,7 +1945,7 @@ static int h1_recv(struct h1c *h1c)
 		}
 	}
 
-	if (!h1_recv_allowed(h1c) || !buf_room_for_htx_data(&h1c->ibuf)) {
+	if (ret > 0 || !h1_recv_allowed(h1c) || !buf_room_for_htx_data(&h1c->ibuf)) {
 		rcvd = 1;
 		goto end;
 	}
