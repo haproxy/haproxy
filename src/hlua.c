@@ -5374,8 +5374,10 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	ic = &htxn->s->req;
 	oc = &htxn->s->res;
 
-	if (IS_HTX_STRM(htxn->s))
+	if (IS_HTX_STRM(htxn->s)) {
+		htxn->s->txn->status = 0;
 		http_reply_and_close(htxn->s, 0, NULL);
+	}
 	else {
 		channel_auto_read(ic);
 		channel_abort(ic);
@@ -5387,8 +5389,13 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		channel_auto_close(oc);
 		channel_shutr_now(oc);
 
-		ic->analysers = 0;
 	}
+
+	ic->analysers &= AN_REQ_FLT_END;
+	oc->analysers &= AN_RES_FLT_END;
+
+	if (!(htxn->s->flags & SF_ERR_MASK))      // this is not really an error but it is
+		htxn->s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
 
 	hlua->flags |= HLUA_STOP;
 	WILL_LJMP(hlua_done(L));
