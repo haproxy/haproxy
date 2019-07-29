@@ -246,11 +246,13 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 			ret = 1;
 		}
 		else if ((sz + delta) < headroom) {
+			uint32_t oldaddr = blk->addr;
+
 			/* Move the block's payload into the headroom */
 			blk->addr = htx->head_addr;
 			htx->tail_addr -= sz;
 			htx->head_addr += sz + delta;
-			if (blk->addr == htx->end_addr) {
+			if (oldaddr == htx->end_addr) {
 				if (htx->end_addr == htx->tail_addr) {
 					htx->tail_addr = htx->head_addr;
 					htx->head_addr = htx->end_addr = 0;
