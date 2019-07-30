@@ -2992,6 +2992,12 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 		goto end;
 	}
 
+	if (!X509_check_private_key(ckch->cert, ckch->key)) {
+		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+			  err && *err ? *err : "", path);
+		goto end;
+	}
+
 	/* Read Certificate Chain */
 	ckch->chain = sk_X509_new_null();
 	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL)))
@@ -3063,12 +3069,6 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			}
 	}
 #endif
-
-	if (SSL_CTX_check_private_key(ctx) <= 0) {
-		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
-				err && *err ? *err : "", path);
-		return 1;
-	}
 
 #ifndef OPENSSL_NO_DH
 	/* store a NULL pointer to indicate we have not yet loaded
