@@ -2693,17 +2693,17 @@ static int cfg_h1_headers_case_adjust_postparser()
 		err = NULL;
 		rc = add_hdr_case_adjust(key_beg, value_beg, &err);
 		if (rc < 0) {
-			free(err);
 			ha_alert("config : h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
 				 hdrs_map.name, err, line);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			free(err);
 			goto end;
 		}
 		if (rc > 0) {
-			free(err);
 			ha_warning("config : h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
 				   hdrs_map.name, err, line);
 			err_code |= ERR_WARN;
+			free(err);
 		}
 	}
 
