@@ -3424,7 +3424,6 @@ static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struc
 {
 	SSL_CTX *ctx;
 	int i;
-	int ret = -1;
 	int order = 0;
 	X509_NAME *xname;
 	char *str;
@@ -3502,16 +3501,12 @@ static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struc
 			}
 		}
 	}
-
-	ret = 0; /* the caller must not free the SSL_CTX argument anymore */
-
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
 
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-	ret = ssl_sock_load_ocsp(ctx, path);
-	if (ret < 0) {
+	if (ssl_sock_load_ocsp(ctx, path) < 0) {
 		if (err)
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				  *err ? *err : "", path);
@@ -3523,8 +3518,7 @@ static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struc
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	if (sctl_ex_index >= 0) {
-		ret = ssl_sock_load_sctl(ctx, path);
-		if (ret < 0) {
+		if (ssl_sock_load_sctl(ctx, path) < 0) {
 			if (err)
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 					  *err ? *err : "", path);
