@@ -2967,6 +2967,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 		goto end;
 	}
 
+#ifndef OPENSSL_NO_DH
 	/* Seek back to beginning of file */
 	if (BIO_reset(in) == -1) {
 		memprintf(err, "%san error occurred while reading the file '%s'.\n",
@@ -2976,6 +2977,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 
 	ckch->dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
 	/* no need to check for NULL there, dh is not mandatory */
+#endif
 
 	/* Seek back to beginning of file */
 	if (BIO_reset(in) == -1) {
