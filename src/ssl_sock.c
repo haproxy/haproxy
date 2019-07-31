@@ -3638,8 +3638,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						if ((ckchn = ckchn_lookup(fp)) == NULL)
 							ckchn =  ckchn_load_cert_file(fp, 1,  err);
 						if (!ckchn)
-							return 1;
-						cfgerr += ssl_sock_load_multi_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
+							cfgerr++;
+						else
+							cfgerr += ssl_sock_load_multi_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -3650,8 +3651,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				if ((ckchn = ckchn_lookup(fp)) == NULL)
 					ckchn =  ckchn_load_cert_file(fp, 0,  err);
 				if (!ckchn)
-					return 1;
-				cfgerr += ssl_sock_load_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
+					cfgerr++;
+				else
+					cfgerr += ssl_sock_load_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
 
 ignore_entry:
 				free(de);
@@ -3854,15 +3856,17 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 
 			ckchn =  ckchn_load_cert_file(crt_path, 0,  err);
 			if (!ckchn)
-				return 1;
-			cfgerr = ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
-							 &args[cur_arg], arg - cur_arg - 1, err);
+				cfgerr++;
+			else
+				cfgerr = ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
+							     &args[cur_arg], arg - cur_arg - 1, err);
 		} else {
 			ckchn =  ckchn_load_cert_file(crt_path, 1,  err);
 			if (!ckchn)
-				return 1;
-			cfgerr = ssl_sock_load_multi_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
-							  &args[cur_arg], arg - cur_arg - 1, err);
+				cfgerr++;
+			else
+				cfgerr = ssl_sock_load_multi_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
+								   &args[cur_arg], arg - cur_arg - 1, err);
 		}
 
 		if (cfgerr) {
