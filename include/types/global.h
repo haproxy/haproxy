@@ -289,6 +289,8 @@ void deinit(void);
 void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
 void hap_register_post_deinit(void (*fct)());
+void hap_register_proxy_deinit(void (*fct)(struct proxy *));
+void hap_register_server_deinit(void (*fct)(struct server *));
 
 void hap_register_per_thread_alloc(int (*fct)());
 void hap_register_per_thread_init(int (*fct)());
@@ -309,6 +311,14 @@ void mworker_reload();
 /* simplified way to declare a post-deinit callback in a file */
 #define REGISTER_POST_DEINIT(fct) \
 	INITCALL1(STG_REGISTER, hap_register_post_deinit, (fct))
+
+/* simplified way to declare a proxy-deinit callback in a file */
+#define REGISTER_PROXY_DEINIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_proxy_deinit, (fct))
+
+/* simplified way to declare a proxy-deinit callback in a file */
+#define REGISTER_SERVER_DEINIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_server_deinit, (fct))
 
 /* simplified way to declare a per-thread allocation callback in a file */
 #define REGISTER_PER_THREAD_ALLOC(fct) \

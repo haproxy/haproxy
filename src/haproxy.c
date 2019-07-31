@@ -299,6 +299,28 @@ struct post_deinit_fct {
 	void (*fct)();
 };
 
+/* These functions are called when freeing a proxy during the deinit, after
+ * everything isg stopped. They don't return anything. They should not release
+ * the proxy itself or any shared resources that are possibly used by other
+ * deinit functions, only close/release what is private.
+ */
+struct list proxy_deinit_list = LIST_HEAD_INIT(proxy_deinit_list);
+struct proxy_deinit_fct {
+	struct list list;
+	void (*fct)(struct proxy *);
+};
+
+/* These functions are called when freeing a server during the deinit, after
+ * everything isg stopped. They don't return anything. They should not release
+ * the proxy itself or any shared resources that are possibly used by other
+ * deinit functions, only close/release what is private.
+ */
+struct list server_deinit_list = LIST_HEAD_INIT(server_deinit_list);
+struct server_deinit_fct {
+	struct list list;
+	void (*fct)(struct server *);
+};
+
 /* These functions are called when freeing the global sections at the end of
  * deinit, after the thread deinit functions, to release unneeded memory
  * allocations. They don't return anything, and they work in best effort mode
@@ -369,6 +391,39 @@ void hap_register_post_deinit(void (*fct)())
 	}
 	b->fct = fct;
 	LIST_ADDQ(&post_deinit_list, &b->list);
+}
+
+/* used to register some per proxy de-initialization functions to call after
+ * everything has stopped.
+ */
+void hap_register_proxy_deinit(void (*fct)(struct proxy *))
+{
+	struct proxy_deinit_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&proxy_deinit_list, &b->list);
+}
+
+
+/* used to register some per server de-initialization functions to call after
+ * everything has stopped.
+ */
+void hap_register_server_deinit(void (*fct)(struct server *))
+{
+	struct server_deinit_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&server_deinit_list, &b->list);
 }
 
 /* used to register some allocation functions to call for each thread. */
@@ -2187,6 +2242,8 @@ void deinit(void)
 	struct bind_conf *bind_conf, *bind_back;
 	struct build_opts_str *bol, *bolb;
 	struct post_deinit_fct *pdf;
+	struct proxy_deinit_fct *pxdf;
+	struct server_deinit_fct *srvdf;
 	int i;
 
 	deinit_signals();
@@ -2355,6 +2412,10 @@ void deinit(void)
 					xprt_get(XPRT_SSL)->destroy_srv(s);
 			}
 			HA_SPIN_DESTROY(&s->lock);
+
+			list_for_each_entry(srvdf, &server_deinit_list, list)
+				srvdf->fct(s);
+
 			free(s);
 			s = s_next;
 		}/* end while(s) */
@@ -2389,6 +2450,9 @@ void deinit(void)
 		}
 
 		flt_deinit(p);
+
+		list_for_each_entry(pxdf, &proxy_deinit_list, list)
+			pxdf->fct(p);
 
 		free(p->desc);
 		free(p->fwdfor_hdr_name);
