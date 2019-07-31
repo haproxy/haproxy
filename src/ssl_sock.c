@@ -2858,10 +2858,8 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 	int ret = -1;
 	DH *dh = NULL;
 
-	if (ckch)
+	if (ckch && ckch->dh) {
 		dh = ckch->dh;
-
-	if (dh) {
 		ret = 1;
 		SSL_CTX_set_tmp_dh(ctx, dh);
 
@@ -2897,9 +2895,6 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 	}
 
 end:
-	if (dh)
-		DH_free(dh);
-
 	return ret;
 }
 #endif
