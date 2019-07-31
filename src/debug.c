@@ -29,6 +29,11 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
+/* mask of threads still having to dump, used to respect ordering. Only used
+ * when USE_THREAD_DUMP is set.
+ */
+volatile unsigned long threads_to_dump = 0;
+
 /* Dumps to the buffer some known information for the desired thread, and
  * optionally extra info for the current thread. The dump will be appended to
  * the buffer, so the caller is responsible for preliminary initializing it.
@@ -403,9 +408,6 @@ void ha_thread_dump_all_to_trash()
  * being debugged has no adverse effect.
  */
 #define DEBUGSIG SIGURG
-
-/* mask of threads still having to dump, used to respect ordering */
-static volatile unsigned long threads_to_dump;
 
 /* ID of the thread requesting the dump */
 static unsigned int thread_dump_tid;

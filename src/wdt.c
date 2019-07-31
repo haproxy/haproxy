@@ -75,7 +75,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (n - p < 1000000000UL)
 			goto update_and_leave;
 
-		if ((threads_harmless_mask|sleeping_thread_mask) & (1UL << thr)) {
+		if ((threads_harmless_mask|sleeping_thread_mask|threads_to_dump) & (1UL << thr)) {
 			/* This thread is currently doing exactly nothing
 			 * waiting in the poll loop (unlikely but possible),
 			 * waiting for all other threads to join the rendez-vous

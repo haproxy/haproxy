@@ -70,6 +70,7 @@
 
 struct task;
 struct buffer;
+extern volatile unsigned long threads_to_dump;
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx);
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid);
 void ha_thread_dump_all_to_trash();
