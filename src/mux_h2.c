@@ -2735,28 +2735,23 @@ static int h2_recv(struct h2c *h2c)
 		return 0;
 	}
 
-	do {
-		b_realign_if_empty(buf);
-		if (!b_data(buf)) {
-			/* try to pre-align the buffer like the
-			 * rxbufs will be to optimize memory copies. We'll make
-			 * sure that the frame header lands at the end of the
-			 * HTX block to alias it upon recv. We cannot use the
-			 * head because rcv_buf() will realign the buffer if
-			 * it's empty. Thus we cheat and pretend we already
-			 * have a few bytes there.
-			 */
-			max = buf_room_for_htx_data(buf) + 9;
-			buf->head = sizeof(struct htx) - 9;
-		}
-		else
-			max = b_room(buf);
+	b_realign_if_empty(buf);
+	if (!b_data(buf)) {
+		/* try to pre-align the buffer like the
+		 * rxbufs will be to optimize memory copies. We'll make
+		 * sure that the frame header lands at the end of the
+		 * HTX block to alias it upon recv. We cannot use the
+		 * head because rcv_buf() will realign the buffer if
+		 * it's empty. Thus we cheat and pretend we already
+		 * have a few bytes there.
+		 */
+		max = buf_room_for_htx_data(buf) + 9;
+		buf->head = sizeof(struct htx) - 9;
+	}
+	else
+		max = b_room(buf);
 
-		if (max)
-			ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0);
-		else
-			ret = 0;
-	} while (ret > 0);
+	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
 	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
@@ -2768,7 +2763,7 @@ static int h2_recv(struct h2c *h2c)
 
 	if (b_data(buf) == buf->size)
 		h2c->flags |= H2_CF_DEM_DFULL;
-	return 1;
+	return !!ret || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn);
 }
 
 /* Try to send data if possible.
