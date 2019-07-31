@@ -46,9 +46,39 @@
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
+/* this is used to convert raw connection buffers to htx */
+static THREAD_LOCAL struct buffer static_raw_htx_chunk;
+static THREAD_LOCAL char *static_raw_htx_buf;
 
 #define SMP_REQ_CHN(smp) (smp->strm ? &smp->strm->req : NULL)
 #define SMP_RES_CHN(smp) (smp->strm ? &smp->strm->res : NULL)
+
+/* This function returns the static htx chunk, where raw connections get
+ * converted to HTX as needed for samplxsing.
+ */
+struct buffer *get_raw_htx_chunk(void)
+{
+	chunk_reset(&static_raw_htx_chunk);
+	return &static_raw_htx_chunk;
+}
+
+static int alloc_raw_htx_chunk_per_thread()
+{
+	static_raw_htx_buf = malloc(global.tune.bufsize);
+	if (!static_raw_htx_buf)
+		return 0;
+	chunk_init(&static_raw_htx_chunk, static_raw_htx_buf, global.tune.bufsize);
+	return 1;
+}
+
+static void free_raw_htx_chunk_per_thread()
+{
+	free(static_raw_htx_buf);
+	static_raw_htx_buf = NULL;
+}
+
+REGISTER_PER_THREAD_ALLOC(alloc_raw_htx_chunk_per_thread);
+REGISTER_PER_THREAD_FREE(free_raw_htx_chunk_per_thread);
 
 /*
  * Returns the data from Authorization header. Function may be called more
@@ -234,7 +264,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol)
 		else if (h1m.flags & H1_MF_CLEN)
 			flags |= HTX_SL_F_CLEN;
 
-		htx = htx_from_buf(get_trash_chunk());
+		htx = htx_from_buf(get_raw_htx_chunk());
 		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
 		if (!sl || !htx_add_all_headers(htx, hdrs))
 			return NULL;
