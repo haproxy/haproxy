@@ -439,8 +439,8 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 *   1- wait for our turn, i.e. when all lower bits are gone.
 	 *   2- perform the action if our bit is set
 	 *   3- remove our bit to let the next one go, unless we're
-	 *      the last one and have to put them all but ours
-	 *   4- wait for zero and clear our bit if it's set
+	 *      the last one and have to put them all as a signal
+	 *   4- wait out bit to re-appear, then clear it and quit.
 	 */
 
 	/* wait for all previous threads to finish first */
@@ -453,7 +453,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 			ha_thread_dump(thread_dump_buffer, tid, thread_dump_tid);
 		if ((threads_to_dump & all_threads_mask) == tid_bit) {
 			/* last one */
-			HA_ATOMIC_STORE(&threads_to_dump, all_threads_mask & ~tid_bit);
+			HA_ATOMIC_STORE(&threads_to_dump, all_threads_mask);
 			thread_dump_buffer = NULL;
 		}
 		else
@@ -461,14 +461,13 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	}
 
 	/* now wait for all others to finish dumping. The last one will set all
-	 * bits again to broadcast the leaving condition.
+	 * bits again to broadcast the leaving condition so we'll see ourselves
+	 * present again. This way the threads_to_dump variable never passes to
+	 * zero until all visitors have stopped waiting.
 	 */
-	while (threads_to_dump & all_threads_mask) {
-		if (threads_to_dump & tid_bit)
-			HA_ATOMIC_AND(&threads_to_dump, ~tid_bit);
-		else
-			ha_thread_relax();
-	}
+	while (!(threads_to_dump & tid_bit))
+		ha_thread_relax();
+	HA_ATOMIC_AND(&threads_to_dump, ~tid_bit);
 
 	/* mark the current thread as stuck to detect it upon next invocation
 	 * if it didn't move.
