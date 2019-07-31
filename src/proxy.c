@@ -1457,7 +1457,20 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 					    &s->si[0].wait_event);
 				if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTTP)  == -1)
 					return 0;
-				s->flags |= SF_HTX;
+				if (!strcmp(conn->mux->name, "H2")) {
+					/* For HTTP/2, destroy the conn_stream,
+					 * disable logging, and pretend that we
+					 * failed, to that the stream is
+					 * silently destroyed. The new mux
+					 * will create new streams.
+					 */
+					cs_destroy(cs);
+					si_detach_endpoint(&s->si[0]);
+					s->logs.logwait = 0;
+					s->logs.level = 0;
+					s->flags |= SF_IGNORE;
+					return 0;
+				}
 			}
 		}
 
