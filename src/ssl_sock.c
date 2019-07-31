@@ -2801,7 +2801,6 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 /* The following code is used for loading multiple crt files into
  * SSL_CTX's based on CN/SAN
  */
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* This is used to preload the certifcate, private key
  * and Cert Chain of a file passed in via the crt
  * argument
@@ -2831,6 +2830,8 @@ struct ckch_node {
  */
 struct eb_root ckchn_tree = EB_ROOT_UNIQUE;
 
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+
 #define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
 
 struct key_combo_ctx {
@@ -2847,6 +2848,7 @@ struct sni_keytype {
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
+#endif
 
 /* Loads Diffie-Hellman parameter from a ckchn. Returns 1 if loaded, else -1
    if an error occurred, and 0 if parameter not found. */
@@ -3087,6 +3089,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	return 0;
 }
 
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
 static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root *sni_keytypes, int key_index)
 {
@@ -3121,6 +3124,8 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 
 }
 
+#endif
+
 /*
  * lookup a path into the ckchn tree.
  */
@@ -3141,8 +3146,6 @@ static inline struct ckch_node *ckchn_lookup(char *path)
 static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 {
 	struct ckch_node *ckchn;
-	char fp[MAXPATHLEN+1] = {0};
-	int n = 0;
 
 	ckchn = calloc(1, sizeof(*ckchn) + strlen(path) + 1);
 	if (!ckchn) {
@@ -3166,6 +3169,9 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 		ebst_insert(&ckchn_tree, &ckchn->node);
 	} else {
 		int found = 0;
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+		char fp[MAXPATHLEN+1] = {0};
+		int n = 0;
 
 		/* Load all possible certs and keys */
 		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
@@ -3178,6 +3184,7 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 				ckchn->multi = 1;
 			}
 		}
+#endif
 
 		if (!found) {
 			memprintf(err, "%sDidn't find any certificate.\n", err && *err ? *err : "");
@@ -3199,6 +3206,8 @@ end:
 
 	return NULL;
 }
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
 /*
  * Take a ckch_node which contains a multi-certificate bundle.
