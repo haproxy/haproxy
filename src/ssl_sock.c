@@ -3182,7 +3182,7 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 #endif
 
 		if (!found) {
-			memprintf(err, "%sDidn't find any certificate.\n", err && *err ? *err : "");
+			memprintf(err, "%sDidn't find any certificate for bundle '%s'.\n", err && *err ? *err : "", path);
 			goto end;
 		}
 		/* insert into the ckchn tree */
@@ -3664,7 +3664,7 @@ ignore_entry:
 		return cfgerr;
 	}
 
-	ckchn =  ckchn_load_cert_file(fp, 1,  err);
+	ckchn =  ckchn_load_cert_file(path, 1,  err);
 	if (!ckchn)
 		return 1;
 	cfgerr = ssl_sock_load_multi_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
