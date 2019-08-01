@@ -179,14 +179,6 @@ static inline const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 #define __OPENSSL_110_CONST__
 #endif
 
-#ifdef OPENSSL_IS_BORINGSSL
-
-static inline int EVP_PKEY_base_id(EVP_PKEY *pkey)
-{
-	return EVP_PKEY_type(pkey->type);
-}
-#endif
-
 /* ERR_remove_state() was deprecated in 1.0.0 in favor of
  * ERR_remove_thread_state(), which was in turn deprecated in
  * 1.1.0 and does nothing anymore. Let's simply silently kill
