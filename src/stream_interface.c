@@ -553,6 +553,16 @@ static void stream_int_notify(struct stream_interface *si)
 		task->expire = tick_first((tick_is_expired(task->expire, now_ms) ? 0 : task->expire),
 					  tick_first(tick_first(ic->rex, ic->wex),
 						     tick_first(oc->rex, oc->wex)));
+
+		task->expire = tick_first(task->expire, ic->analyse_exp);
+		task->expire = tick_first(task->expire, oc->analyse_exp);
+
+		if (si->exp)
+			task->expire = tick_first(task->expire, si->exp);
+
+		if (sio->exp)
+			task->expire = tick_first(task->expire, sio->exp);
+
 		task_queue(task);
 	}
 	if (ic->flags & CF_READ_ACTIVITY)
