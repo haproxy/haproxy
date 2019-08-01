@@ -147,7 +147,7 @@ haproxy h1 -conf {
 haproxy h1 -cli {
     barrier b1 sync
     send "show servers state"
-    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 6 0 0 0 - ${s4_port} -"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s4_port} -"
 }
 
 haproxy h1 -cli {
@@ -173,7 +173,7 @@ haproxy h1 -cli {
 haproxy h1 -cli {
     barrier b1 sync
     send "show servers state"
-    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 14 0 0 0 - ${s4_port} -"
+    expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord\n6 be1 1 srv1 ${s1_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s1_port} -\n7 be2 1 srv2 ${s2_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s2_port} -\n8 be3 1 srv3 ${s3_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s3_port} -\n9 be4 1 srv4 ${s4_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s4_port} -"
 }
 
 haproxy h1 -cli {
