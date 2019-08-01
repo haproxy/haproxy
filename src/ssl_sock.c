@@ -3398,9 +3398,6 @@ end:
 	if (names)
 		sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 
-	for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
-		ssl_sock_free_cert_key_and_chain_contents(&certs_and_keys[n]);
-
 	node = ebmb_first(&sni_keytypes_map);
 	while (node) {
 		next = ebmb_next(node);
