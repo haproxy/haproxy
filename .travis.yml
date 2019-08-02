@@ -23,39 +23,61 @@ cache:
 matrix:
   include:
   - os: linux
+    if: type != cron
     compiler: gcc
     env: TARGET=linux-glibc FIFTYONEDEGREES_SRC="contrib/51d/src/trie"
   - os: linux-ppc64le
+    if: type != cron
     compiler: gcc
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1c LABEL="linux-ppc64le"
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1c
   - os: linux
+    if: type == cron
+    compiler: clang
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1c COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC"
+    script:
+      - |
+        if [ ! -z ${COVERITY_SCAN_TOKEN+x} ]; then
+          make -C contrib/wurfl
+          curl -s "https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh" | bash || true
+        fi
+  - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0j
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2r
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=2.7.5 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc BORINGSSL=yes
   - os: linux
+    if: type != cron
     compiler: clang
     env: TARGET=linux-glibc FLAGS=
   - os: osx
+    if: type != cron
     compiler: clang
     env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1c
   - os: windows
+    if: type != cron
     install:
       - choco install bash make libssl-devel cygwin-devel gcc-core libgcc1 binutils lua-devel libpcre-devel zlib-devel --source cygwin
     script:
