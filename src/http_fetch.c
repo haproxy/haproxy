@@ -1193,6 +1193,87 @@ static int smp_fetch_http_first_req(const struct arg *args, struct sample *smp, 
 	return 1;
 }
 
+/* Fetch the authentication method if there is an Authorization header. It
+ * relies on get_http_auth()
+ */
+static int smp_fetch_http_auth_type(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn = SMP_REQ_CHN(smp);
+	struct htx *htx = smp_prefetch_htx(smp, chn, 1);
+	struct http_txn *txn;
+
+	if (!htx)
+		return 0;
+
+	txn = smp->strm->txn;
+	if (!get_http_auth(smp, htx))
+		return 0;
+
+	switch (txn->auth.method) {
+		case HTTP_AUTH_BASIC:
+			smp->data.u.str.area = "Basic";
+			smp->data.u.str.data = 5;
+			break;
+		case HTTP_AUTH_DIGEST:
+			/* Unexpected because not supported */
+			smp->data.u.str.area = "Digest";
+			smp->data.u.str.data = 6;
+			break;
+		default:
+			return 0;
+	}
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	return 1;
+}
+
+/* Fetch the user supplied if there is an Authorization header. It relies on
+ * get_http_auth()
+ */
+static int smp_fetch_http_auth_user(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn = SMP_REQ_CHN(smp);
+	struct htx *htx = smp_prefetch_htx(smp, chn, 1);
+	struct http_txn *txn;
+
+	if (!htx)
+		return 0;
+
+	txn = smp->strm->txn;
+	if (!get_http_auth(smp, htx))
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = txn->auth.user;
+	smp->data.u.str.data = strlen(txn->auth.user);
+	smp->flags = SMP_F_CONST;
+	return 1;
+}
+
+/* Fetch the password supplied if there is an Authorization header. It relies on
+ * get_http_auth()
+ */
+static int smp_fetch_http_auth_pass(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn = SMP_REQ_CHN(smp);
+	struct htx *htx = smp_prefetch_htx(smp, chn, 1);
+	struct http_txn *txn;
+
+	if (!htx)
+		return 0;
+
+	txn = smp->strm->txn;
+	if (!get_http_auth(smp, htx))
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = txn->auth.pass;
+	smp->data.u.str.data = strlen(txn->auth.pass);
+	smp->flags = SMP_F_CONST;
+	return 1;
+}
+
 /* Accepts exactly 1 argument of type userlist */
 static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1904,6 +1985,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "hdr_ip",             smp_fetch_hdr_ip,             ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "hdr_val",            smp_fetch_hdr_val,            ARG2(0,STR,SINT), val_hdr, SMP_T_SINT, SMP_USE_HRQHV },
 
+	{ "http_auth_type",     smp_fetch_http_auth_type,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "http_auth_user",     smp_fetch_http_auth_user,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "http_auth_pass",     smp_fetch_http_auth_pass,     0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_auth",          smp_fetch_http_auth,          ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
 	{ "http_auth_group",    smp_fetch_http_auth_grp,      ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",     smp_fetch_http_first_req,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
