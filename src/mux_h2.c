@@ -2753,7 +2753,7 @@ static int h2_recv(struct h2c *h2c)
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
-	if (h2_recv_allowed(h2c) && (b_data(buf) < buf->size))
+	if (max && !ret && h2_recv_allowed(h2c))
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
 
 	if (!b_data(buf)) {
