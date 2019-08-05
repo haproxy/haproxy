@@ -1041,9 +1041,9 @@ enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct pr
 	return ACT_RET_PRS_OK;
 }
 
-/* This produces a sha1 hash of the concatenation of the first
- * occurrence of the Host header followed by the path component if it
- * begins with a slash ('/'). */
+/* This produces a sha1 hash of the concatenation of the HTTP method,
+ * the first occurrence of the Host header followed by the path component
+ * if it begins with a slash ('/'). */
 int sha1_hosturi(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
@@ -1056,6 +1056,16 @@ int sha1_hosturi(struct stream *s)
 
 	trash = get_trash_chunk();
 	ctx.blk = NULL;
+
+	switch (txn->meth) {
+	case HTTP_METH_HEAD:
+	case HTTP_METH_GET:
+		chunk_memcat(trash, "GET", 3);
+		break;
+	default:
+		return 0;
+	}
+
 	if (!http_find_header(htx, ist("Host"), &ctx, 0))
 		return 0;
 	chunk_memcat(trash, ctx.value.ptr, ctx.value.len);
