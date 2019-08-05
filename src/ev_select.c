@@ -57,7 +57,7 @@ static void _update_fd(int fd, int *max_add_fd)
 		hap_fd_clr(fd, fd_evts[DIR_RD]);
 		hap_fd_clr(fd, fd_evts[DIR_WR]);
 		_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, 0);
-		_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, 0);
+		_HA_ATOMIC_AND(&polled_mask[fd].poll_send, 0);
 	}
 	else {
 		/* OK fd has to be monitored, it was either added or changed */
