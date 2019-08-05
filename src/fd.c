@@ -330,6 +330,7 @@ static void fd_dodelete(int fd, int do_close)
 	}
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
+	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 
 	fdtab[fd].state = 0;
 
@@ -338,7 +339,6 @@ static void fd_dodelete(int fd, int do_close)
 	fdtab[fd].owner = NULL;
 	fdtab[fd].thread_mask = 0;
 	if (do_close) {
-		polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 		close(fd);
 		_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	}
