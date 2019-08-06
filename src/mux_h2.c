@@ -2301,6 +2301,8 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		if (h2c->st0 == H2_CS_FRAME_H) {
+			h2c->rcvd_s = 0;
+
 			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr))
 				break;
 
