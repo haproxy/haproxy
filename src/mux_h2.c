@@ -2663,6 +2663,11 @@ static int h2_process_mux(struct h2c *h2c)
 	}
 
 	/* start by sending possibly pending window updates */
+	if (h2c->rcvd_s > 0 &&
+	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_MUX_MALLOC)) &&
+	    h2c_send_strm_wu(h2c) < 0)
+		goto fail;
+
 	if (h2c->rcvd_c > 0 &&
 	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_MUX_MALLOC)) &&
 	    h2c_send_conn_wu(h2c) < 0)
