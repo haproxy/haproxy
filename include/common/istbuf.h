@@ -64,6 +64,29 @@ static inline ssize_t b_isteq(const struct buffer *b, size_t o, size_t n, const 
 	return ist.len;
 }
 
+/* Same as b_isteq but case-insensitive */
+static inline ssize_t b_isteqi(const struct buffer *b, size_t o, size_t n, const struct ist ist)
+{
+	struct ist r = ist;
+	const char *p;
+	const char *end = b_wrap(b);
+
+	if (n < r.len)
+		return 0;
+
+	p = b_peek(b, o);
+	while (r.len--) {
+		if (*p != *r.ptr &&
+		    ist_lc[(unsigned char)*p] != ist_lc[(unsigned char)*r.ptr])
+			return -1;
+		p++;
+		r.ptr++;
+		if (unlikely(p == end))
+			p = b_orig(b);
+	}
+	return ist.len;
+}
+
 /* b_isteat() : "eats" string <ist> from the head of buffer <b>. Wrapping data
  * is explicitly supported. It matches a single byte per iteration so strings
  * should remain reasonably small. Returns :
