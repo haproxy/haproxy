@@ -2368,7 +2368,13 @@ static void h2_process_demux(struct h2c *h2c)
 			}
 		}
 
-		/* Only H2_CS_FRAME_P and H2_CS_FRAME_A here */
+		/* Only H2_CS_FRAME_P, H2_CS_FRAME_A and H2_CS_FRAME_E here.
+		 * H2_CS_FRAME_P indicates an incomplete previous operation
+		 * (most often the first attempt) and requires some validity
+		 * checks for the frame and the current state. The two other
+		 * ones are set after completion (or abortion) and must skip
+		 * validity checks.
+		 */
 		tmp_h2s = h2c_st_by_id(h2c, h2c->dsi);
 
 		if (tmp_h2s != h2s && h2s && h2s->cs &&
@@ -2385,6 +2391,9 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (h2c->st0 == H2_CS_FRAME_E)
 			goto strm_err;
+
+		if (h2c->st0 == H2_CS_FRAME_A)
+			goto valid_frame_type;
 
 		if (h2s->st == H2_SS_IDLE &&
 		    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
@@ -2507,6 +2516,7 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 #endif
 
+	valid_frame_type:
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
 			if (h2c->st0 == H2_CS_FRAME_P)
