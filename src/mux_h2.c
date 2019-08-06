@@ -2182,7 +2182,11 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * notify the stream about any change.
 	 */
 	if (!h2s->cs) {
-		error = H2_ERR_STREAM_CLOSED;
+		/* The upper layer has already closed, this may happen on
+		 * 4xx/redirects during POST, or when receiving a response
+		 * from an H2 server after the client has aborted.
+		 */
+		error = H2_ERR_CANCEL;
 		goto strm_err;
 	}
 
