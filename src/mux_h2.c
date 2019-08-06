@@ -3267,6 +3267,14 @@ static void h2_do_shutr(struct h2s *h2s)
 		 */
 		h2s_error(h2s, H2_ERR_REFUSED_STREAM);
 	}
+	else {
+		/* a final response was already provided, we don't want this
+		 * stream anymore. This may happen when the server responds
+		 * before the end of an upload and closes quickly (redirect,
+		 * deny, ...)
+		 */
+		h2s_error(h2s, H2_ERR_CANCEL);
+	}
 
 	if (!(h2s->flags & H2_SF_RST_SENT) &&
 	    h2s_send_rst_stream(h2c, h2s) <= 0)
@@ -3300,11 +3308,10 @@ static void h2_do_shutw(struct h2s *h2s)
 	struct h2c *h2c = h2s->h2c;
 	struct wait_event *sw = &h2s->wait_event;
 
-	if (h2s->st == H2_SS_CLOSED)
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_CLOSED)
 		goto done;
 
-	if (h2s->st != H2_SS_HLOC && h2s->st != H2_SS_ERROR &&
-	    (h2s->flags & H2_SF_HEADERS_SENT)) {
+	if (h2s->st != H2_SS_ERROR && (h2s->flags & H2_SF_HEADERS_SENT)) {
 		/* we can cleanly close using an empty data frame only after headers */
 
 		if (!(h2s->flags & (H2_SF_ES_SENT|H2_SF_RST_SENT)) &&
