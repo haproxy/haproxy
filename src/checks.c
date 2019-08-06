@@ -941,6 +941,10 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		if (!done && b_data(&check->bi) < strlen("000\r"))
 			goto wait_more_data;
 
+		/* do not reset when closing, servers don't like this */
+		if (conn_ctrl_ready(cs->conn))
+			fdtab[cs->conn->handle.fd].linger_risk = 0;
+
 		/* Check if the server speaks SMTP */
 		if ((b_data(&check->bi) < strlen("000\r")) ||
 		    (*(b_head(&check->bi) + 3) != ' ' && *(b_head(&check->bi) + 3) != '\r') ||
@@ -1174,6 +1178,10 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		if (!done && b_data(&check->bi) < 9)
 			goto wait_more_data;
 
+		/* do not reset when closing, servers don't like this */
+		if (conn_ctrl_ready(cs->conn))
+			fdtab[cs->conn->handle.fd].linger_risk = 0;
+
 		if (b_head(&check->bi)[0] == 'R') {
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
 		}
@@ -1202,6 +1210,10 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	case PR_O2_MYSQL_CHK:
 		if (!done && b_data(&check->bi) < 5)
 			goto wait_more_data;
+
+		/* do not reset when closing, servers don't like this */
+		if (conn_ctrl_ready(cs->conn))
+			fdtab[cs->conn->handle.fd].linger_risk = 0;
 
 		if (s->proxy->check_len == 0) { // old mode
 			if (*(b_head(&check->bi) + 4) != '\xff') {
