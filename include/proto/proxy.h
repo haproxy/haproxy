@@ -184,6 +184,21 @@ static inline int l7_status_match(struct proxy *p, int status)
 	}
 	return 0;
 }
+
+/* Return 1 if <p> proxy is in <list> list of proxies which are also stick-tables,
+ * 0 if not.
+ */
+static inline int in_proxies_list(struct proxy *list, struct proxy *proxy)
+{
+	struct proxy *p;
+
+	for (p = list; p; p = p->next_stkt_ref)
+		if (proxy == p)
+			return 1;
+
+	return 0;
+}
+
 #endif /* _PROTO_PROXY_H */
 
 /*
