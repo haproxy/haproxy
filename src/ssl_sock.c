@@ -6609,9 +6609,16 @@ smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const cha
 
 	smp->flags = 0;
 	smp->data.type = SMP_T_BOOL;
+#ifdef OPENSSL_IS_BORINGSSL
+	{
+		struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+		smp->data.u.sint = (SSL_in_early_data(ctx->ssl) &&
+				    SSL_early_data_accepted(ctx->ssl));
+	}
+#else
 	smp->data.u.sint = ((conn->flags & CO_FL_EARLY_DATA)  &&
 	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE))) ? 1 : 0;
-
+#endif
 	return 1;
 }
 
