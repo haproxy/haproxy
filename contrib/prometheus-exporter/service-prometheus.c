@@ -1126,11 +1126,11 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
 		types = promex_st_metric_types;
 	}
 
-	if (istcat(out, ist("#HELP "), max) == -1 ||
+	if (istcat(out, ist("# HELP "), max) == -1 ||
 	    istcat(out, name, max) == -1 ||
 	    istcat(out, ist(" "), max) == -1 ||
 	    istcat(out, desc[appctx->st2], max) == -1 ||
-	    istcat(out, ist("\n#TYPE "), max) == -1 ||
+	    istcat(out, ist("\n# TYPE "), max) == -1 ||
 	    istcat(out, name, max) == -1 ||
 	    istcat(out, ist(" "), max) == -1 ||
 	    istcat(out, types[appctx->st2], max) == -1 ||
