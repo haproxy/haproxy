@@ -2227,6 +2227,115 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	return 0;
 }
 
+/* check that the current frame described in h2c->{dsi,dft,dfl,dff,...} is
+ * valid for the current stream state. This is needed only after parsing the
+ * frame header but in practice it can be performed at any time during
+ * H2_CS_FRAME_P since no state transition happens there. Returns >0 on success
+ * or 0 in case of error, in which case either h2s or h2c will carry an error.
+ */
+static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
+{
+	if (h2s->st == H2_SS_IDLE &&
+	    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
+		/* RFC7540#5.1: any frame other than HEADERS or PRIORITY in
+		 * this state MUST be treated as a connection error
+		 */
+		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		if (!h2c->nb_streams) {
+			/* only log if no other stream can report the error */
+			sess_log(h2c->conn->owner);
+		}
+		return 0;
+	}
+
+	if (h2s->st == H2_SS_HREM && h2c->dft != H2_FT_WINDOW_UPDATE &&
+	    h2c->dft != H2_FT_RST_STREAM && h2c->dft != H2_FT_PRIORITY) {
+		/* RFC7540#5.1: any frame other than WU/PRIO/RST in
+		 * this state MUST be treated as a stream error.
+		 * 6.2, 6.6 and 6.10 further mandate that HEADERS/
+		 * PUSH_PROMISE/CONTINUATION cause connection errors.
+		 */
+		if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK)
+			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		else
+			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		return 0;
+	}
+
+	/* Below the management of frames received in closed state is a
+	 * bit hackish because the spec makes strong differences between
+	 * streams closed by receiving RST, sending RST, and seeing ES
+	 * in both directions. In addition to this, the creation of a
+	 * new stream reusing the identifier of a closed one will be
+	 * detected here. Given that we cannot keep track of all closed
+	 * streams forever, we consider that unknown closed streams were
+	 * closed on RST received, which allows us to respond with an
+	 * RST without breaking the connection (eg: to abort a transfer).
+	 * Some frames have to be silently ignored as well.
+	 */
+	if (h2s->st == H2_SS_CLOSED && h2c->dsi) {
+		if (!(h2c->flags & H2_CF_IS_BACK) && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
+			/* #5.1.1: The identifier of a newly
+			 * established stream MUST be numerically
+			 * greater than all streams that the initiating
+			 * endpoint has opened or reserved. This
+			 * governs streams that are opened using a
+			 * HEADERS frame and streams that are reserved
+			 * using PUSH_PROMISE. An endpoint that
+			 * receives an unexpected stream identifier
+			 * MUST respond with a connection error.
+			 */
+			h2c_error(h2c, H2_ERR_STREAM_CLOSED);
+			return 0;
+		}
+
+		if (h2s->flags & H2_SF_RST_RCVD && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
+			/* RFC7540#5.1:closed: an endpoint that
+			 * receives any frame other than PRIORITY after
+			 * receiving a RST_STREAM MUST treat that as a
+			 * stream error of type STREAM_CLOSED.
+			 *
+			 * Note that old streams fall into this category
+			 * and will lead to an RST being sent.
+			 *
+			 * However, we cannot generalize this to all frame types. Those
+			 * carrying compression state must still be processed before
+			 * being dropped or we'll desynchronize the decoder. This can
+			 * happen with request trailers received after sending an
+			 * RST_STREAM, or with header/trailers responses received after
+			 * sending RST_STREAM (aborted stream).
+			 */
+			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+			h2c->st0 = H2_CS_FRAME_E;
+			return 0;
+		}
+
+		/* RFC7540#5.1:closed: if this state is reached as a
+		 * result of sending a RST_STREAM frame, the peer that
+		 * receives the RST_STREAM might have already sent
+		 * frames on the stream that cannot be withdrawn. An
+		 * endpoint MUST ignore frames that it receives on
+		 * closed streams after it has sent a RST_STREAM
+		 * frame. An endpoint MAY choose to limit the period
+		 * over which it ignores frames and treat frames that
+		 * arrive after this time as being in error.
+		 */
+		if (h2s->id && !(h2s->flags & H2_SF_RST_SENT)) {
+			/* RFC7540#5.1:closed: any frame other than
+			 * PRIO/WU/RST in this state MUST be treated as
+			 * a connection error
+			 */
+			if (h2c->dft != H2_FT_RST_STREAM &&
+			    h2c->dft != H2_FT_PRIORITY &&
+			    h2c->dft != H2_FT_WINDOW_UPDATE) {
+				h2c_error(h2c, H2_ERR_STREAM_CLOSED);
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
 /* process Rx frames to be demultiplexed */
 static void h2_process_demux(struct h2c *h2c)
 {
@@ -2391,134 +2500,10 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 		h2s = tmp_h2s;
 
-		if (h2c->st0 == H2_CS_FRAME_E)
+		if (h2c->st0 == H2_CS_FRAME_E ||
+		    (h2c->st0 == H2_CS_FRAME_P && !h2_frame_check_vs_state(h2c, h2s)))
 			goto strm_err;
 
-		if (h2c->st0 == H2_CS_FRAME_A)
-			goto valid_frame_type;
-
-		if (h2s->st == H2_SS_IDLE &&
-		    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
-			/* RFC7540#5.1: any frame other than HEADERS or PRIORITY in
-			 * this state MUST be treated as a connection error
-			 */
-			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			if (!h2c->nb_streams) {
-				/* only log if no other stream can report the error */
-				sess_log(h2c->conn->owner);
-			}
-			break;
-		}
-
-		if (h2s->st == H2_SS_HREM && h2c->dft != H2_FT_WINDOW_UPDATE &&
-		    h2c->dft != H2_FT_RST_STREAM && h2c->dft != H2_FT_PRIORITY) {
-			/* RFC7540#5.1: any frame other than WU/PRIO/RST in
-			 * this state MUST be treated as a stream error.
-			 * 6.2, 6.6 and 6.10 further mandate that HEADERS/
-			 * PUSH_PROMISE/CONTINUATION cause connection errors.
-			 */
-			if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK)
-				h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-			else
-				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
-			goto strm_err;
-		}
-
-		/* Below the management of frames received in closed state is a
-		 * bit hackish because the spec makes strong differences between
-		 * streams closed by receiving RST, sending RST, and seeing ES
-		 * in both directions. In addition to this, the creation of a
-		 * new stream reusing the identifier of a closed one will be
-		 * detected here. Given that we cannot keep track of all closed
-		 * streams forever, we consider that unknown closed streams were
-		 * closed on RST received, which allows us to respond with an
-		 * RST without breaking the connection (eg: to abort a transfer).
-		 * Some frames have to be silently ignored as well.
-		 */
-		if (h2s->st == H2_SS_CLOSED && h2c->dsi) {
-			if (!(h2c->flags & H2_CF_IS_BACK) && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
-				/* #5.1.1: The identifier of a newly
-				 * established stream MUST be numerically
-				 * greater than all streams that the initiating
-				 * endpoint has opened or reserved. This
-				 * governs streams that are opened using a
-				 * HEADERS frame and streams that are reserved
-				 * using PUSH_PROMISE. An endpoint that
-				 * receives an unexpected stream identifier
-				 * MUST respond with a connection error.
-				 */
-				h2c_error(h2c, H2_ERR_STREAM_CLOSED);
-				goto strm_err;
-			}
-
-			if (h2s->flags & H2_SF_RST_RCVD && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
-				/* RFC7540#5.1:closed: an endpoint that
-				 * receives any frame other than PRIORITY after
-				 * receiving a RST_STREAM MUST treat that as a
-				 * stream error of type STREAM_CLOSED.
-				 *
-				 * Note that old streams fall into this category
-				 * and will lead to an RST being sent.
-				 *
-				 * However, we cannot generalize this to all frame types. Those
-				 * carrying compression state must still be processed before
-				 * being dropped or we'll desynchronize the decoder. This can
-				 * happen with request trailers received after sending an
-				 * RST_STREAM, or with header/trailers responses received after
-				 * sending RST_STREAM (aborted stream).
-				 */
-				h2s_error(h2s, H2_ERR_STREAM_CLOSED);
-				h2c->st0 = H2_CS_FRAME_E;
-				goto strm_err;
-			}
-
-			/* RFC7540#5.1:closed: if this state is reached as a
-			 * result of sending a RST_STREAM frame, the peer that
-			 * receives the RST_STREAM might have already sent
-			 * frames on the stream that cannot be withdrawn. An
-			 * endpoint MUST ignore frames that it receives on
-			 * closed streams after it has sent a RST_STREAM
-			 * frame. An endpoint MAY choose to limit the period
-			 * over which it ignores frames and treat frames that
-			 * arrive after this time as being in error.
-			 */
-			if (h2s->id && !(h2s->flags & H2_SF_RST_SENT)) {
-				/* RFC7540#5.1:closed: any frame other than
-				 * PRIO/WU/RST in this state MUST be treated as
-				 * a connection error
-				 */
-				if (h2c->dft != H2_FT_RST_STREAM &&
-				    h2c->dft != H2_FT_PRIORITY &&
-				    h2c->dft != H2_FT_WINDOW_UPDATE) {
-					h2c_error(h2c, H2_ERR_STREAM_CLOSED);
-					goto strm_err;
-				}
-			}
-		}
-
-#if 0
-		// problem below: it is not possible to completely ignore such
-		// streams as we need to maintain the compression state as well
-		// and for this we need to completely process these frames (eg:
-		// HEADERS frames) as well as counting DATA frames to emit
-		// proper WINDOW UPDATES and ensure the connection doesn't stall.
-		// This is a typical case of layer violation where the
-		// transported contents are critical to the connection's
-		// validity and must be ignored at the same time :-(
-
-		/* graceful shutdown, ignore streams whose ID is higher than
-		 * the one advertised in GOAWAY. RFC7540#6.8.
-		 */
-		if (unlikely(h2c->last_sid >= 0) && h2c->dsi > h2c->last_sid) {
-			ret = MIN(b_data(&h2c->dbuf), h2c->dfl);
-			b_del(&h2c->dbuf, ret);
-			h2c->dfl -= ret;
-			ret = h2c->dfl == 0;
-			goto strm_err;
-		}
-#endif
-
-	valid_frame_type:
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
 			if (h2c->st0 == H2_CS_FRAME_P)
