@@ -404,8 +404,8 @@ static void stream_free(struct stream *s)
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 	}
 	if (s->req.buf.size || s->res.buf.size) {
-		b_drop(&s->req.buf);
-		b_drop(&s->res.buf);
+		b_free(&s->req.buf);
+		b_free(&s->res.buf);
 		offer_buffers(NULL, tasks_run_queue);
 	}
 

@@ -112,7 +112,7 @@ static inline struct buffer *b_alloc_fast(struct buffer *buf)
 /* Releases buffer <buf> (no check of emptiness). The buffer's head is marked
  * empty.
  */
-static inline void __b_drop(struct buffer *buf)
+static inline void __b_free(struct buffer *buf)
 {
 	char *area = buf->area;
 
@@ -125,16 +125,10 @@ static inline void __b_drop(struct buffer *buf)
 }
 
 /* Releases buffer <buf> if allocated, and marks it empty. */
-static inline void b_drop(struct buffer *buf)
-{
-	if (buf->size)
-		__b_drop(buf);
-}
-
-/* Releases buffer <buf> if allocated, and marks it empty. */
 static inline void b_free(struct buffer *buf)
 {
-	b_drop(buf);
+	if (buf->size)
+		__b_free(buf);
 }
 
 /* Ensures that <buf> is allocated. If an allocation is needed, it ensures that
