@@ -231,7 +231,7 @@ unsigned int rlim_fd_max_at_boot = 0;
 struct mworker_proc *proc_self = NULL;
 
 /* list of the temporarily limited listeners because of lack of resource */
-struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
+struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
 static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state);
 
@@ -2747,7 +2747,7 @@ static struct task *manage_global_listener_queue(struct task *t, void *context, 
 {
 	int next = TICK_ETERNITY;
 	/* queue is empty, nothing to do */
-	if (LIST_ISEMPTY(&global_listener_queue))
+	if (MT_LIST_ISEMPTY(&global_listener_queue))
 		goto out;
 
 	/* If there are still too many concurrent connections, let's wait for

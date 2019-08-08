@@ -223,7 +223,7 @@ struct server {
 	struct list *priv_conns;		/* private idle connections attached to stream interfaces */
 	struct list *idle_conns;		/* sharable idle connections attached or not to a stream interface */
 	struct list *safe_conns;		/* safe idle connections attached to stream interfaces, shared */
-	struct list *idle_orphan_conns;         /* Orphan connections idling */
+	struct mt_list *idle_orphan_conns;         /* Orphan connections idling */
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections */

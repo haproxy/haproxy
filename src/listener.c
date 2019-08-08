@@ -273,7 +273,7 @@ static void disable_listener(struct listener *listener)
 		goto end;
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->fd);
-	LIST_DEL_LOCKED(&listener->wait_queue);
+	MT_LIST_DEL(&listener->wait_queue);
 	listener->state = LI_LISTEN;
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
@@ -309,7 +309,7 @@ int pause_listener(struct listener *l)
 			goto end;
 	}
 
-	LIST_DEL_LOCKED(&l->wait_queue);
+	MT_LIST_DEL(&l->wait_queue);
 
 	fd_stop_recv(l->fd);
 	l->state = LI_PAUSED;
@@ -337,7 +337,7 @@ int resume_listener(struct listener *l)
 	/* check that another thread didn't to the job in parallel (e.g. at the
 	 * end of listen_accept() while we'd come from dequeue_all_listeners().
 	 */
-	if (LIST_ADDED(&l->wait_queue))
+	if (MT_LIST_ADDED(&l->wait_queue))
 		goto end;
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
@@ -375,7 +375,7 @@ int resume_listener(struct listener *l)
 	if (l->state == LI_READY)
 		goto end;
 
-	LIST_DEL_LOCKED(&l->wait_queue);
+	MT_LIST_DEL(&l->wait_queue);
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
 		l->state = LI_FULL;
@@ -405,7 +405,7 @@ static void listener_full(struct listener *l)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state >= LI_READY) {
-		LIST_DEL_LOCKED(&l->wait_queue);
+		MT_LIST_DEL(&l->wait_queue);
 		if (l->state != LI_FULL) {
 			fd_stop_recv(l->fd);
 			l->state = LI_FULL;
@@ -417,11 +417,11 @@ static void listener_full(struct listener *l)
 /* Marks a ready listener as limited so that we only try to re-enable it when
  * resources are free again. It will be queued into the specified queue.
  */
-static void limit_listener(struct listener *l, struct list *list)
+static void limit_listener(struct listener *l, struct mt_list *list)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
-		LIST_ADDQ_LOCKED(list, &l->wait_queue);
+		MT_LIST_ADDQ(list, &l->wait_queue);
 		fd_stop_recv(l->fd);
 		l->state = LI_LIMITED;
 	}
@@ -464,11 +464,11 @@ int disable_all_listeners(struct protocol *proto)
 }
 
 /* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
-void dequeue_all_listeners(struct list *list)
+void dequeue_all_listeners(struct mt_list *list)
 {
 	struct listener *listener;
 
-	while ((listener = LIST_POP_LOCKED(list, struct listener *, wait_queue))) {
+	while ((listener = MT_LIST_POP(list, struct listener *, wait_queue))) {
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
@@ -484,7 +484,7 @@ void do_unbind_listener(struct listener *listener, int do_close)
 	if (listener->state == LI_READY && fd_updt)
 		fd_stop_recv(listener->fd);
 
-	LIST_DEL_LOCKED(&listener->wait_queue);
+	MT_LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
 		if (do_close) {
@@ -569,7 +569,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 
 		l->fd = fd;
 		memcpy(&l->addr, ss, sizeof(*ss));
-		LIST_INIT(&l->wait_queue);
+		MT_LIST_INIT(&l->wait_queue);
 		l->state = LI_INIT;
 
 		proto->add(l, port);
@@ -1062,10 +1062,10 @@ void listener_accept(int fd)
 		resume_listener(l);
 
 		/* Dequeues all of the listeners waiting for a resource */
-		if (!LIST_ISEMPTY(&global_listener_queue))
+		if (!MT_LIST_ISEMPTY(&global_listener_queue))
 			dequeue_all_listeners(&global_listener_queue);
 
-		if (p && !LIST_ISEMPTY(&p->listener_queue) &&
+		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
 			dequeue_all_listeners(&p->listener_queue);
 	}
@@ -1090,10 +1090,10 @@ void listener_release(struct listener *l)
 		resume_listener(l);
 
 	/* Dequeues all of the listeners waiting for a resource */
-	if (!LIST_ISEMPTY(&global_listener_queue))
+	if (!MT_LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
-	if (!LIST_ISEMPTY(&fe->listener_queue) &&
+	if (!MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
 		dequeue_all_listeners(&fe->listener_queue);
 }
@@ -1104,7 +1104,7 @@ static struct task *listener_queue_process(struct task *t, void *context, unsign
 	struct work_list *wl = context;
 	struct listener *l;
 
-	while ((l = LIST_POP_LOCKED(&wl->head, struct listener *, wait_queue))) {
+	while ((l = MT_LIST_POP(&wl->head, struct listener *, wait_queue))) {
 		/* The listeners are still in the LI_LIMITED state */
 		resume_listener(l);
 	}

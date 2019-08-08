@@ -1227,11 +1227,11 @@ int connect_server(struct stream *s)
 		else if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 			 (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) {
 			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
-		} else if (srv->idle_orphan_conns && !LIST_ISEMPTY(&srv->idle_orphan_conns[tid]) &&
+		} else if (srv->idle_orphan_conns && !MT_LIST_ISEMPTY(&srv->idle_orphan_conns[tid]) &&
 		    (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) ||
 		    (((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 		     s->txn && (s->txn->flags & TX_NOT_FIRST)))) {
-			srv_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[tid],
+			srv_conn = MT_LIST_POP(&srv->idle_orphan_conns[tid],
 			                           struct connection *, list);
 			if (srv_conn)
 				reuse_orphan = 1;
@@ -1275,7 +1275,7 @@ int connect_server(struct stream *s)
 		 * acceptable, attempt to kill an idling connection
 		 */
 		/* First, try from our own idle list */
-		tokill_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[tid],
+		tokill_conn = MT_LIST_POP(&srv->idle_orphan_conns[tid],
 		    struct connection *, list);
 		if (tokill_conn)
 			tokill_conn->mux->destroy(tokill_conn->ctx);
@@ -1293,13 +1293,13 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				tokill_conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i],
+				tokill_conn = MT_LIST_POP(&srv->idle_orphan_conns[i],
 				    struct connection *, list);
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
-					LIST_ADDQ_LOCKED(&toremove_connections[i],
-					    &tokill_conn->list);
+					MT_LIST_ADDQ(&toremove_connections[i],
+					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
 					break;
 				}

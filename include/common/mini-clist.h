@@ -34,6 +34,16 @@ struct list {
     struct list *p;	/* prev */
 };
 
+/* This is similar to struct list, but we want to be sure the compiler will
+ * yell at you if you use macroes for one when you're using the other. You have
+ * to expicitely cast if that's really what you want to do.
+ */
+struct mt_list {
+    struct mt_list *next;
+    struct mt_list *prev;
+};
+
+
 /* a back-ref is a pointer to a target list entry. It is used to detect when an
  * element being deleted is currently being tracked by another user. The best
  * example is a user dumping the session table. The table does not fit in the
@@ -189,7 +199,7 @@ struct cond_wordlist {
 	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
 
 #include <common/hathreads.h>
-#define LLIST_BUSY ((struct list *)1)
+#define MT_LIST_BUSY ((struct mt_list *)1)
 
 /*
  * Locked version of list manipulation macros.
@@ -197,95 +207,95 @@ struct cond_wordlist {
  * list is only used with the locked variants. The only "unlocked" macro you
  * can use with a locked list is LIST_INIT.
  */
-#define LIST_ADD_LOCKED(lh, el)                                            \
+#define MT_LIST_ADD(lh, el)                                                \
 	do {                                                               \
 		while (1) {                                                \
-			struct list *n;                                    \
-			struct list *p;                                    \
-			n = _HA_ATOMIC_XCHG(&(lh)->n, LLIST_BUSY);         \
-			if (n == LLIST_BUSY)                               \
+			struct mt_list *n;                                 \
+			struct mt_list *p;                                 \
+			n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);      \
+			if (n == MT_LIST_BUSY)                               \
 			        continue;                                  \
-			p = _HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);            \
-			if (p == LLIST_BUSY) {                             \
-				(lh)->n = n;                               \
+			p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);         \
+			if (p == MT_LIST_BUSY) {                             \
+				(lh)->next = n;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
 			}                                                  \
-			(el)->n = n;                                       \
-			(el)->p = p;                                       \
+			(el)->next = n;                                    \
+			(el)->prev = p;                                    \
 			__ha_barrier_store();                              \
-			n->p = (el);                                       \
+			n->prev = (el);                                    \
 			__ha_barrier_store();                              \
-			p->n = (el);                                       \
+			p->next = (el);                                    \
 			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
 	} while (0)
 
-#define LIST_ADDQ_LOCKED(lh, el)                                           \
+#define MT_LIST_ADDQ(lh, el)                                               \
 	do {                                                               \
 		while (1) {                                                \
-			struct list *n;                                    \
-			struct list *p;                                    \
-			p = _HA_ATOMIC_XCHG(&(lh)->p, LLIST_BUSY);         \
-			if (p == LLIST_BUSY)                               \
+			struct mt_list *n;                                 \
+			struct mt_list *p;                                 \
+			p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);      \
+			if (p == MT_LIST_BUSY)                               \
 			        continue;                                  \
-			n = _HA_ATOMIC_XCHG(&p->n, LLIST_BUSY);            \
-			if (n == LLIST_BUSY) {                             \
-				(lh)->p = p;                               \
+			n = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);         \
+			if (n == MT_LIST_BUSY) {                             \
+				(lh)->prev = p;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
 			}                                                  \
-			(el)->n = n;                                       \
-			(el)->p = p;                                       \
+			(el)->next = n;                                    \
+			(el)->prev = p;                                    \
 			__ha_barrier_store();                              \
-			p->n = (el);                                       \
+			p->next = (el);                                    \
 			__ha_barrier_store();                              \
-			n->p = (el);                                       \
+			n->prev = (el);                                    \
 			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
 	} while (0)
 
-#define LIST_DEL_LOCKED(el)                                                \
+#define MT_LIST_DEL(el)                                                    \
 	do {                                                               \
 		while (1) {                                                \
-			struct list *n, *n2;                               \
-			struct list *p, *p2 = NULL;                        \
-			n = _HA_ATOMIC_XCHG(&(el)->n, LLIST_BUSY);         \
-			if (n == LLIST_BUSY)                               \
+			struct mt_list *n, *n2;                            \
+			struct mt_list *p, *p2 = NULL;                     \
+			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);      \
+			if (n == MT_LIST_BUSY)                               \
 			        continue;                                  \
-			p = _HA_ATOMIC_XCHG(&(el)->p, LLIST_BUSY);         \
-			if (p == LLIST_BUSY) {                             \
-				(el)->n = n;                               \
+			p = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);      \
+			if (p == MT_LIST_BUSY) {                             \
+				(el)->next = n;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
 			}                                                  \
 			if (p != (el)) {                                   \
-			        p2 = _HA_ATOMIC_XCHG(&p->n, LLIST_BUSY);   \
-			        if (p2 == LLIST_BUSY) {                    \
-			                (el)->p = p;                       \
-					(el)->n = n;                       \
+			        p2 = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);\
+			        if (p2 == MT_LIST_BUSY) {                    \
+			                (el)->prev = p;                    \
+					(el)->next = n;                    \
 					__ha_barrier_store();              \
 					continue;                          \
 				}                                          \
 			}                                                  \
 			if (n != (el)) {                                   \
-			        n2 = _HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);   \
-				if (n2 == LLIST_BUSY) {                    \
+			        n2 = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);\
+				if (n2 == MT_LIST_BUSY) {                    \
 					if (p2 != NULL)                    \
-						p->n = p2;                 \
-					(el)->p = p;                       \
-					(el)->n = n;                       \
+						p->next = p2;              \
+					(el)->prev = p;                    \
+					(el)->next = n;                    \
 					__ha_barrier_store();              \
 					continue;                          \
 				}                                          \
 			}                                                  \
-			n->p = p;                                          \
-			p->n = n;                                          \
+			n->prev = p;                                       \
+			p->next = n;                                       \
 			__ha_barrier_store();                              \
-			(el)->p = (el);                                    \
-			(el)->n = (el);	                                   \
+			(el)->prev = (el);                                 \
+			(el)->next = (el);                                 \
 			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
@@ -293,54 +303,89 @@ struct cond_wordlist {
 
 
 /* Remove the first element from the list, and return it */
-#define LIST_POP_LOCKED(lh, pt, el)                                        \
+#define MT_LIST_POP(lh, pt, el)                                            \
 	({                                                                 \
 		 void *_ret;                                               \
 		 while (1) {                                               \
-			 struct list *n, *n2;                              \
-			 struct list *p, *p2;                              \
-			 n = _HA_ATOMIC_XCHG(&(lh)->n, LLIST_BUSY);        \
-			 if (n == LLIST_BUSY)                              \
+			 struct mt_list *n, *n2;                           \
+			 struct mt_list *p, *p2;                           \
+			 n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);     \
+			 if (n == MT_LIST_BUSY)                              \
 			         continue;                                 \
 			 if (n == (lh)) {                                  \
-				 (lh)->n = lh;                             \
+				 (lh)->next = lh;                          \
 				 __ha_barrier_store();                     \
 				 _ret = NULL;                              \
 				 break;                                    \
 			 }                                                 \
-			 p = _HA_ATOMIC_XCHG(&n->p, LLIST_BUSY);           \
-			 if (p == LLIST_BUSY) {                            \
-				 (lh)->n = n;                              \
+			 p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);        \
+			 if (p == MT_LIST_BUSY) {                            \
+				 (lh)->next = n;                           \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
 			 }                                                 \
-			 n2 = _HA_ATOMIC_XCHG(&n->n, LLIST_BUSY);          \
-			 if (n2 == LLIST_BUSY) {                           \
-				 n->p = p;                                 \
+			 n2 = _HA_ATOMIC_XCHG(&n->next, MT_LIST_BUSY);       \
+			 if (n2 == MT_LIST_BUSY) {                           \
+				 n->prev = p;                              \
 				 __ha_barrier_store();                     \
-				 (lh)->n = n;                              \
-				 __ha_barrier_store();                     \
-				 continue;                                 \
-			 }                                                 \
-			 p2 = _HA_ATOMIC_XCHG(&n2->p, LLIST_BUSY);         \
-			 if (p2 == LLIST_BUSY) {                           \
-				 n->n = n2;                                \
-				 n->p = p;                                 \
-				 __ha_barrier_store();                     \
-				 (lh)->n = n;                              \
+				 (lh)->next = n;                           \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
 			 }                                                 \
-			 (lh)->n = n2;                                     \
-			 (n2)->p = (lh);                                   \
+			 p2 = _HA_ATOMIC_XCHG(&n2->prev, MT_LIST_BUSY);      \
+			 if (p2 == MT_LIST_BUSY) {                           \
+				 n->next = n2;                             \
+				 n->prev = p;                              \
+				 __ha_barrier_store();                     \
+				 (lh)->next = n;                           \
+				 __ha_barrier_store();                     \
+				 continue;                                 \
+			 }                                                 \
+			 (lh)->next = n2;                                  \
+			 (n2)->prev = (lh);                                \
 			 __ha_barrier_store();                             \
-			 (n)->p = (n);                                     \
-			 (n)->n = (n);	                                   \
+			 (n)->prev = (n);                                  \
+			 (n)->next = (n);	                           \
 			 __ha_barrier_store();                             \
-			 _ret = LIST_ELEM(n, pt, el);                      \
+			 _ret = MT_LIST_ELEM(n, pt, el);                   \
 			 break;                                            \
 		 }                                                         \
 		 (_ret);                                                   \
 	 })
+
+#define MT_LIST_HEAD(a)	((void *)(&(a)))
+
+#define MT_LIST_INIT(l) ((l)->next = (l)->prev = (l))
+
+#define MT_LIST_HEAD_INIT(l) { &l, &l }
+/* returns a pointer of type <pt> to a structure containing a list head called
+ * <el> at address <lh>. Note that <lh> can be the result of a function or macro
+ * since it's used only once.
+ * Example: MT_LIST_ELEM(cur_node->args.next, struct node *, args)
+ */
+#define MT_LIST_ELEM(lh, pt, el) ((pt)(((void *)(lh)) - ((void *)&((pt)NULL)->el)))
+
+/* checks if the list head <lh> is empty or not */
+#define MT_LIST_ISEMPTY(lh) ((lh)->next == (lh))
+
+/* returns a pointer of type <pt> to a structure following the element
+ * which contains list head <lh>, which is known as element <el> in
+ * struct pt.
+ * Example: MT_LIST_NEXT(args, struct node *, list)
+ */
+#define MT_LIST_NEXT(lh, pt, el) (MT_LIST_ELEM((lh)->next, pt, el))
+
+
+/* returns a pointer of type <pt> to a structure preceding the element
+ * which contains list head <lh>, which is known as element <el> in
+ * struct pt.
+ */
+#undef MT_LIST_PREV
+#define MT_LIST_PREV(lh, pt, el) (MT_LIST_ELEM((lh)->prev, pt, el))
+
+/* checks if the list element <el> was added to a list or not. This only
+ * works when detached elements are reinitialized (using LIST_DEL_INIT)
+ */
+#define MT_LIST_ADDED(el) ((el)->next != (el))
 
 #endif /* _COMMON_MINI_CLIST_H */

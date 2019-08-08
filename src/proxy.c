@@ -868,7 +868,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->tcp_rep.inspect_rules);
 	LIST_INIT(&p->tcp_req.l4_rules);
 	LIST_INIT(&p->tcp_req.l5_rules);
-	LIST_INIT(&p->listener_queue);
+	MT_LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->logsrvs);
 	LIST_INIT(&p->logformat);
 	LIST_INIT(&p->logformat_sd);
@@ -1034,7 +1034,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 	}
 
 	/* The proxy is not limited so we can re-enable any waiting listener */
-	if (!LIST_ISEMPTY(&p->listener_queue))
+	if (!MT_LIST_ISEMPTY(&p->listener_queue))
 		dequeue_all_listeners(&p->listener_queue);
  out:
 	t->expire = next;
@@ -2033,7 +2033,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 			resume_listener(l);
 	}
 
-	if (px->maxconn > px->feconn && !LIST_ISEMPTY(&px->listener_queue))
+	if (px->maxconn > px->feconn && !MT_LIST_ISEMPTY(&px->listener_queue))
 		dequeue_all_listeners(&px->listener_queue);
 
 	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);

@@ -41,7 +41,7 @@ __decl_hathreads(extern HA_SPINLOCK_T idle_conn_srv_lock);
 extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
 extern struct task *idle_conn_cleanup[MAX_THREADS];
-extern struct list toremove_connections[MAX_THREADS];
+extern struct mt_list toremove_connections[MAX_THREADS];
 
 int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
@@ -262,7 +262,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			return 0;
 		}
 		LIST_DEL(&conn->list);
-		LIST_ADDQ_LOCKED(&srv->idle_orphan_conns[tid], &conn->list);
+		MT_LIST_ADDQ(&srv->idle_orphan_conns[tid], (struct mt_list *)&conn->list);
 		srv->curr_idle_thr[tid]++;
 
 		conn->idle_time = now_ms;

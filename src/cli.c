@@ -1374,7 +1374,7 @@ static int cli_parse_set_maxconn_global(char **args, char *payload, struct appct
 	global.maxconn = v;
 
 	/* Dequeues all of the listeners waiting for a resource */
-	if (!LIST_ISEMPTY(&global_listener_queue))
+	if (!MT_LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
 	return 1;
@@ -1493,7 +1493,7 @@ static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *ap
 	*res = v * mul;
 
 	/* Dequeues all of the listeners waiting for a resource */
-	if (!LIST_ISEMPTY(&global_listener_queue))
+	if (!MT_LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
 	return 1;

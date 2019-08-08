@@ -542,9 +542,9 @@ static inline int thread_has_tasks(void)
 }
 
 /* adds list item <item> to work list <work> and wake up the associated task */
-static inline void work_list_add(struct work_list *work, struct list *item)
+static inline void work_list_add(struct work_list *work, struct mt_list *item)
 {
-	LIST_ADDQ_LOCKED(&work->head, item);
+	MT_LIST_ADDQ(&work->head, item);
 	task_wakeup(work->task, TASK_WOKEN_OTHER);
 }
 

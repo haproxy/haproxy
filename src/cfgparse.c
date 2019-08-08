@@ -3640,14 +3640,14 @@ out_uri_auth_compat:
 							goto err;
 						idle_conn_cleanup[i]->process = srv_cleanup_toremove_connections;
 						idle_conn_cleanup[i]->context = NULL;
-						LIST_INIT(&toremove_connections[i]);
+						MT_LIST_INIT(&toremove_connections[i]);
 					}
 				}
 				newsrv->idle_orphan_conns = calloc((unsigned int)global.nbthread, sizeof(*newsrv->idle_orphan_conns));
 				if (!newsrv->idle_orphan_conns)
 					goto err;
 				for (i = 0; i < global.nbthread; i++)
-					LIST_INIT(&newsrv->idle_orphan_conns[i]);
+					MT_LIST_INIT(&newsrv->idle_orphan_conns[i]);
 				newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(int));
 				if (!newsrv->curr_idle_thr)
 					goto err;

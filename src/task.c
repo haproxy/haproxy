@@ -465,7 +465,7 @@ struct work_list *work_list_create(int nbthread,
 		goto fail;
 
 	for (i = 0; i < nbthread; i++) {
-		LIST_INIT(&wl[i].head);
+		MT_LIST_INIT(&wl[i].head);
 		wl[i].task = task_new(1UL << i);
 		if (!wl[i].task)
 			goto fail;

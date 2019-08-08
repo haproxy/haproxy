@@ -202,7 +202,7 @@ struct listener {
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */
-	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
+	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int thr_idx;           /* thread indexes for queue distribution : (t2<<16)+t1 */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */

@@ -118,7 +118,7 @@ struct tasklet {
  * TASK_WOKEN_OTHER and a context pointing to the work_list entry.
  */
 struct work_list {
-	struct list head;
+	struct mt_list head;
 	struct task *task;
 	void *arg;
 };

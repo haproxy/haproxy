@@ -65,7 +65,7 @@ __decl_hathreads(HA_SPINLOCK_T idle_conn_srv_lock);
 struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
 struct task *idle_conn_cleanup[MAX_THREADS] = { NULL };
-struct list toremove_connections[MAX_THREADS];
+struct mt_list toremove_connections[MAX_THREADS];
 __decl_hathreads(HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
 
 /* The server names dictionary */
@@ -5550,7 +5550,7 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 {
 	struct connection *conn;
 
-	while ((conn = LIST_POP_LOCKED(&toremove_connections[tid],
+	while ((conn = MT_LIST_POP(&toremove_connections[tid],
 	                               struct connection *, list)) != NULL) {
 		conn->mux->destroy(conn->ctx);
 	}
@@ -5596,11 +5596,11 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 
 			HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[i]);
 			for (j = 0; j < max_conn; j++) {
-				struct connection *conn = LIST_POP_LOCKED(&srv->idle_orphan_conns[i], struct connection *, list);
+				struct connection *conn = MT_LIST_POP(&srv->idle_orphan_conns[i], struct connection *, list);
 				if (!conn)
 					break;
 				did_remove = 1;
-				LIST_ADDQ_LOCKED(&toremove_connections[i], &conn->list);
+				MT_LIST_ADDQ(&toremove_connections[i], (struct mt_list *)&conn->list);
 			}
 			HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[i]);
 			if (did_remove && max_conn < srv->curr_idle_thr[i])
