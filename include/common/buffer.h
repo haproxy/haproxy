@@ -109,13 +109,22 @@ static inline struct buffer *b_alloc_fast(struct buffer *buf)
 	return buf;
 }
 
-/* Releases buffer <buf> (no check of emptiness) */
+/* Releases buffer <buf> (no check of emptiness). The buffer's head is marked
+ * empty.
+ */
 static inline void __b_drop(struct buffer *buf)
 {
-	pool_free(pool_head_buffer, buf->area);
+	char *area = buf->area;
+
+	/* let's first clear the area to save an occasional "show sess all"
+	 * glancing over our shoulder from getting a dangling pointer.
+	 */
+	*buf = BUF_NULL;
+	__ha_barrier_store();
+	pool_free(pool_head_buffer, area);
 }
 
-/* Releases buffer <buf> if allocated. */
+/* Releases buffer <buf> if allocated, and marks it empty. */
 static inline void b_drop(struct buffer *buf)
 {
 	if (buf->size)
@@ -126,7 +135,6 @@ static inline void b_drop(struct buffer *buf)
 static inline void b_free(struct buffer *buf)
 {
 	b_drop(buf);
-	*buf = BUF_NULL;
 }
 
 /* Ensures that <buf> is allocated. If an allocation is needed, it ensures that

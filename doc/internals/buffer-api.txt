@@ -568,10 +568,10 @@ b_alloc_fast        | buffer *buf      | allocates a buffer and assigns it to
                     |                  | even if some memory is available
 --------------------+------------------+---------------------------------------
 __b_drop            | buffer *buf      | releases <buf> which must be allocated
-                    | ret: void        |
+                    | ret: void        | and marks it empty
 --------------------+------------------+---------------------------------------
 b_drop              | buffer *buf      | releases <buf> only if it is allocated
-                    | ret: void        |
+                    | ret: void        | and marks it empty
 --------------------+------------------+---------------------------------------
 b_free              | buffer *buf      | releases <buf> only if it is allocated
                     | ret: void        | and marks it empty
