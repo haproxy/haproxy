@@ -416,9 +416,12 @@ static inline void pool_free_area(void *area, size_t __maybe_unused size)
 static inline void *pool_alloc_area(size_t size)
 {
 	size_t pad = (4096 - size) & 0xFF0;
+	int isolated;
 	void *ret;
 
-	thread_harmless_now();
+	isolated = thread_isolated();
+	if (!isolated)
+		thread_harmless_now();
 	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if (ret != MAP_FAILED) {
 		/* let's dereference the page before returning so that the real
@@ -431,7 +434,8 @@ static inline void *pool_alloc_area(size_t size)
 	} else {
 		ret = NULL;
 	}
-	thread_harmless_end();
+	if (!isolated)
+		thread_harmless_end();
 	return ret;
 }
 
