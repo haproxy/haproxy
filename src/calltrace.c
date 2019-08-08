@@ -1,5 +1,6 @@
 /*
  * Function call tracing for gcc >= 2.95
+ * WARNING! THIS CODE IS NOT THREAD-SAFE!
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
  *
@@ -29,7 +30,7 @@
  *
  * where <dir> is '>' when entering a function and '<' when leaving.
  *
- * It is also possible to emit comments using the trace() function which uses
+ * It is also possible to emit comments using the calltrace() function which uses
  * the printf() format. Such comments are then inserted by replacing the caller
  * pointer with a sharp ('#') like this :
  *
@@ -257,7 +258,7 @@ void __cyg_profile_func_exit(void *to,  void *from)
  * <timestamp> <level> # <string>
  */
 __attribute__((format(printf, 1, 2)))
-void trace(char *fmt, ...)
+void calltrace(char *fmt, ...)
 {
 	va_list ap;
 

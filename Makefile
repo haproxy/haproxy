@@ -785,7 +785,7 @@ EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/ebimtree.o $(EBTREE_DIR)/ebistree.o
 
 ifneq ($(TRACE),)
-OBJS += src/trace.o
+OBJS += src/calltrace.o
 endif
 
 ifneq ($(EXTRA_OBJS),)
@@ -837,7 +837,7 @@ objsize: haproxy
 # rebuild it every time
 .PHONY: src/version.c
 
-src/trace.o: src/trace.c $(DEP)
+src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
 
 src/haproxy.o:	src/haproxy.c $(DEP)
