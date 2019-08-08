@@ -775,7 +775,7 @@ OBJS = src/http_ana.o src/cfgparse-listen.o src/stream.o                      \
        src/http.o src/hpack-dec.o src/action.o src/proto_udp.o src/http_acl.o \
        src/xxhash.o src/hpack-enc.o src/h2.o src/freq_ctr.o src/lru.o         \
        src/protocol.o src/arg.o src/hpack-huff.o src/base64.o                 \
-       src/hash.o src/mailers.o src/activity.o src/version.o                  \
+       src/hash.o src/mailers.o src/activity.o src/version.o src/trace.o      \
        src/mworker.o src/mworker-prog.o src/debug.o src/wdt.o src/dict.o      \
        src/xprt_handshake.o
 
