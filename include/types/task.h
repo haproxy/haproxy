@@ -75,7 +75,6 @@ struct task_per_thread {
 		unsigned short state; /* task state : bitfield of TASK_	*/ \
 		short nice; /* task prio from -1024 to +1024, or -32768 for tasklets */ \
 		unsigned int calls; /* number of times process was called */ \
-		uint64_t cpu_time; /* total CPU time consumed */            \
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\
 	}
@@ -89,6 +88,7 @@ struct task {
 	unsigned long thread_mask;	/* mask of thread IDs authorized to process the task */
 	uint64_t call_date;		/* date of the last task wakeup or call */
 	uint64_t lat_time;		/* total latency time experienced */
+	uint64_t cpu_time;              /* total CPU time consumed */
 };
 
 /* lightweight tasks, without priority, mainly used for I/Os */
