@@ -34,6 +34,20 @@
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
+/* return a single char to describe a trace state */
+static inline char trace_state_char(enum trace_state st)
+{
+	return (st == TRACE_STATE_RUNNING) ? 'R' :
+	       (st == TRACE_STATE_WAITING) ? 'w' :
+	                                     '.';
+}
+
+/* return a single char to describe an event state */
+static inline char trace_event_char(uint64_t conf, uint64_t ev)
+{
+	return (conf & ev) ? '+' : '-';
+}
+
 /* registers trace source <source>. Modifies the list element!
  * The {start,pause,stop,report} events are not changed so the source may
  * preset them.
