@@ -3015,12 +3015,8 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
 			}
 		}
 
-		if (!p) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "No such peers\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!p)
+			return cli_err(appctx, "No such peers\n");
 	}
 
 	return 0;

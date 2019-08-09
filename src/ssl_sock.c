@@ -9376,12 +9376,8 @@ static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *app
 		appctx->ctx.cli.i0 = 1;
 	} else {
 		appctx->ctx.cli.p0 = tlskeys_ref_lookup_ref(args[2]);
-		if (!appctx->ctx.cli.p0) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "'show tls-keys' unable to locate referenced filename\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.cli.p0)
+			return cli_err(appctx, "'show tls-keys' unable to locate referenced filename\n");
 	}
 	appctx->io_handler = cli_io_handler_tlskeys_entries;
 	return 0;
@@ -9393,41 +9389,22 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 	int ret;
 
 	/* Expect two parameters: the filename and the new new TLS key in encoding */
-	if (!*args[3] || !*args[4]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl tls-key' expects a filename and the new TLS key in base64 encoding.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[3] || !*args[4])
+		return cli_err(appctx, "'set ssl tls-key' expects a filename and the new TLS key in base64 encoding.\n");
 
 	ref = tlskeys_ref_lookup_ref(args[3]);
-	if (!ref) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl tls-key' unable to locate referenced filename\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!ref)
+		return cli_err(appctx, "'set ssl tls-key' unable to locate referenced filename\n");
 
 	ret = base64dec(args[4], strlen(args[4]), trash.area, trash.size);
-	if (ret < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (ret < 0)
+		return cli_err(appctx, "'set ssl tls-key' received invalid base64 encoded TLS key.\n");
 
 	trash.data = ret;
-	if (ssl_sock_update_tlskey_ref(ref, &trash) < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl tls-key' received a key of wrong size.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = "TLS ticket key updated!\n";
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+	if (ssl_sock_update_tlskey_ref(ref, &trash) < 0)
+		return cli_err(appctx, "'set ssl tls-key' received a key of wrong size.\n");
 
+	return cli_msg(appctx, LOG_INFO, "TLS ticket key updated!\n");
 }
 #endif
 
@@ -9441,12 +9418,8 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 		payload = args[3];
 
 	/* Expect one parameter: the new response in base64 encoding */
-	if (!*payload) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*payload)
+		return cli_err(appctx, "'set ssl ocsp-response' expects response in base64 encoding.\n");
 
 	/* remove \r and \n from the payload */
 	for (i = 0, j = 0; payload[i]; i++) {
@@ -9457,36 +9430,20 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 	payload[j] = 0;
 
 	ret = base64dec(payload, j, trash.area, trash.size);
-	if (ret < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (ret < 0)
+		return cli_err(appctx, "'set ssl ocsp-response' received invalid base64 encoded response.\n");
 
 	trash.data = ret;
 	if (ssl_sock_update_ocsp_response(&trash, &err)) {
-		if (err) {
-			memprintf(&err, "%s.\n", err);
-			appctx->ctx.cli.err = err;
-			appctx->st0 = CLI_ST_PRINT_FREE;
-		}
-		else {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Failed to update OCSP response.\n";
-			appctx->st0 = CLI_ST_PRINT;
-		}
-		return 1;
+		if (err)
+			return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+		else
+			return cli_err(appctx, "Failed to update OCSP response.\n");
 	}
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = "OCSP Response updated!\n";
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+
+	return cli_msg(appctx, LOG_INFO, "OCSP Response updated!\n");
 #else
-	appctx->ctx.cli.severity = LOG_ERR;
-	appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n";
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
 #endif
 
 }

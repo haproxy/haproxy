@@ -3624,12 +3624,8 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[2]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Session pointer expected (use 'show sess').\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[2])
+		return cli_err(appctx, "Session pointer expected (use 'show sess').\n");
 
 	ptr = (void *)strtoul(args[2], NULL, 0);
 
@@ -3640,12 +3636,8 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 	}
 
 	/* do we have the stream ? */
-	if (strm != ptr) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "No such session (use 'show sess').\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (strm != ptr)
+		return cli_err(appctx, "No such session (use 'show sess').\n");
 
 	stream_shutdown(strm, SF_ERR_KILLED);
 	return 1;

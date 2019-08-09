@@ -189,31 +189,17 @@ static int debug_parse_cli_close(char **args, char *payload, struct appctx *appc
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[3]) {
-		appctx->ctx.cli.msg = "Missing file descriptor number.\n";
-		goto reterr;
-	}
+	if (!*args[3])
+		return cli_err(appctx, "Missing file descriptor number.\n");
 
 	fd = atoi(args[3]);
-	if (fd < 0 || fd >= global.maxsock) {
-		appctx->ctx.cli.msg = "File descriptor out of range.\n";
-		goto reterr;
-	}
+	if (fd < 0 || fd >= global.maxsock)
+		return cli_err(appctx, "File descriptor out of range.\n");
 
-	if (!fdtab[fd].owner) {
-		appctx->ctx.cli.msg = "File descriptor was already closed.\n";
-		goto retinfo;
-	}
+	if (!fdtab[fd].owner)
+		return cli_msg(appctx, LOG_INFO, "File descriptor was already closed.\n");
 
 	fd_delete(fd);
-	return 1;
- retinfo:
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
- reterr:
-	appctx->ctx.cli.severity = LOG_ERR;
-	appctx->st0 = CLI_ST_PRINT;
 	return 1;
 }
 
@@ -293,12 +279,8 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 	}
 
 	f = popen(trash.area, "re");
-	if (!f) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Failed to execute command.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!f)
+		return cli_err(appctx, "Failed to execute command.\n");
 
 	chunk_reset(&trash);
 	while (1) {
@@ -314,10 +296,7 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 
 	fclose(f);
 	trash.area[trash.data] = 0;
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = trash.area;
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
 /* parse a "debug dev hex" command. It always returns 1. */
@@ -328,16 +307,12 @@ static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[3]) {
-		appctx->ctx.cli.msg = "Missing memory address to dump from.\n";
-		goto reterr;
-	}
+	if (!*args[3])
+		return cli_err(appctx, "Missing memory address to dump from.\n");
 
 	start = strtoul(args[3], NULL, 0);
-	if (!start) {
-		appctx->ctx.cli.msg = "Will not dump from NULL address.\n";
-		goto reterr;
-	}
+	if (!start)
+		return cli_err(appctx, "Will not dump from NULL address.\n");
 
 	/* by default, dump ~128 till next block of 16 */
 	len = strtoul(args[4], NULL, 0);
@@ -347,14 +322,7 @@ static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx
 	chunk_reset(&trash);
 	dump_hex(&trash, "  ", (const void *)start, len, 1);
 	trash.area[trash.data] = 0;
-	appctx->ctx.cli.severity = LOG_INFO;
-	appctx->ctx.cli.msg = trash.area;
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
- reterr:
-	appctx->ctx.cli.severity = LOG_ERR;
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
 /* parse a "debug dev tkill" command. It always returns 1. */
@@ -369,12 +337,8 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	if (*args[3])
 		thr = atoi(args[3]);
 
-	if (thr < 0 || thr > global.nbthread) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Thread number out of range (use 0 for current).\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (thr < 0 || thr > global.nbthread)
+		return cli_err(appctx, "Thread number out of range (use 0 for current).\n");
 
 	if (*args[4])
 		sig = atoi(args[4]);

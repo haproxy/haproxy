@@ -599,31 +599,19 @@ static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, 
 
 		/* No parameter. */
 		if (!*args[2] || !*args[3]) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Missing map identifier and/or key.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Missing ACL identifier and/or key.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Missing map identifier and/or key.\n");
+			else
+				return cli_err(appctx, "Missing ACL identifier and/or key.\n");
 		}
 
 		/* lookup into the maps */
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 		if (!appctx->ctx.map.ref) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
 		/* copy input string. The string must be allocated because
@@ -633,12 +621,8 @@ static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, 
 		appctx->ctx.map.chunk.data = strlen(args[3]);
 		appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.data + 1;
 		appctx->ctx.map.chunk.area = strdup(args[3]);
-		if (!appctx->ctx.map.chunk.area) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Out of memory error.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.map.chunk.area)
+			return cli_err(appctx,  "Out of memory error.\n");
 
 		return 0;
 	}
@@ -676,16 +660,10 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 		if (!appctx->ctx.map.ref ||
 		    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 		appctx->io_handler = cli_io_handler_pat_list;
 		appctx->io_release = cli_release_show_map;
@@ -704,21 +682,13 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 		appctx->ctx.map.display_flags = PAT_REF_MAP;
 
 		/* Expect three parameters: map name, key and new value. */
-		if (!*args[2] || !*args[3] || !*args[4]) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "'set map' expects three parameters: map identifier, key and value.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!*args[2] || !*args[3] || !*args[4])
+			return cli_err(appctx, "'set map' expects three parameters: map identifier, key and value.\n");
 
 		/* Lookup the reference in the maps. */
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
-		if (!appctx->ctx.map.ref) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.map.ref)
+			return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
 
 		/* If the entry identifier start with a '#', it is considered as
 		 * pointer id
@@ -730,38 +700,23 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 
 			/* Convert argument to integer value. */
 			conv = strtoll(&args[3][1], &error, 16);
-			if (*error != '\0') {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
+			if (*error != '\0')
+				return cli_err(appctx, "Malformed identifier. Please use #<id> or <file>.\n");
 
 			/* Convert and check integer to pointer. */
 			ref = (struct pat_ref_elt *)(long)conv;
-			if ((long long int)(long)ref != conv) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
+			if ((long long int)(long)ref != conv)
+				return cli_err(appctx, "Malformed identifier. Please use #<id> or <file>.\n");
 
 			/* Try to modify the entry. */
 			err = NULL;
 			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4], &err)) {
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				if (err) {
-					memprintf(&err, "%s.\n", err);
-					appctx->ctx.cli.err = err;
-					appctx->st0 = CLI_ST_PRINT_FREE;
-				}
-				else {
-					appctx->ctx.cli.severity = LOG_ERR;
-					appctx->ctx.cli.msg = "Failed to update an entry.\n";
-					appctx->st0 = CLI_ST_PRINT;
-				}
-				return 1;
+				if (err)
+					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+				else
+					return cli_err(appctx, "Failed to update an entry.\n");
 			}
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		}
@@ -773,17 +728,10 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4], &err)) {
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-				if (err) {
-					memprintf(&err, "%s.\n", err);
-					appctx->ctx.cli.err = err;
-					appctx->st0 = CLI_ST_PRINT_FREE;
-				}
-				else {
-					appctx->ctx.cli.severity = LOG_ERR;
-					appctx->ctx.cli.msg = "Failed to update an entry.\n";
-					appctx->st0 = CLI_ST_PRINT;
-				}
-				return 1;
+				if (err)
+					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+				else
+					return cli_err(appctx, "Failed to update an entry.\n");
 			}
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		}
@@ -829,35 +777,21 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 		 */
 		if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
 			if ((!payload && (!*args[2] || !*args[3] || !*args[4])) ||
-			    (payload && !*args[2])) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "'add map' expects three parameters (map identifier, key and value) or one parameter (map identifier) and a payload\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
+			    (payload && !*args[2]))
+				return cli_err(appctx,
+					       "'add map' expects three parameters (map identifier, key and value)"
+					       " or one parameter (map identifier) and a payload\n");
 		}
-		else {
-			if (!*args[2] || !*args[3]) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "'add acl' expects two parameters: ACL identifier and pattern.\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
-		}
+		else if (!*args[2] || !*args[3])
+			return cli_err(appctx, "'add acl' expects two parameters: ACL identifier and pattern.\n");
 
 		/* Lookup for the reference. */
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 		if (!appctx->ctx.map.ref) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
 		/* The command "add acl" is prohibited if the reference
@@ -865,29 +799,19 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 		 */
 		if ((appctx->ctx.map.display_flags & PAT_REF_ACL) &&
 		    (appctx->ctx.map.ref->flags & PAT_REF_SMP)) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "This ACL is shared with a map containing samples. "
-				"You must use the command 'add map' to add values.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			return cli_err(appctx,
+				       "This ACL is shared with a map containing samples. "
+				       "You must use the command 'add map' to add values.\n");
 		}
-
 		/* Add value(s). */
 		err = NULL;
 		if (!payload) {
 			ret = map_add_key_value(appctx, args[3], args[4], &err);
 			if (!ret) {
-				if (err) {
-					memprintf(&err, "%s.\n", err);
-					appctx->ctx.cli.err = err;
-					appctx->st0 = CLI_ST_PRINT_FREE;
-				}
-				else {
-					appctx->ctx.cli.severity = LOG_ERR;
-					appctx->ctx.cli.msg = "Failed to add an entry.\n";
-					appctx->st0 = CLI_ST_PRINT;
-				}
-				return 1;
+				if (err)
+					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+				else
+					return cli_err(appctx, "Failed to add an entry.\n");
 			}
 		}
 		else {
@@ -902,12 +826,9 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				l = strcspn(key, " \t");
 				payload += l;
 
-				if (!*payload && appctx->ctx.map.display_flags == PAT_REF_MAP) {
-					memprintf(&err, "Missing value for key '%s'.\n", key);
-					appctx->ctx.cli.err = err;
-					appctx->st0 = CLI_ST_PRINT_FREE;
-					return 1;
-				}
+				if (!*payload && appctx->ctx.map.display_flags == PAT_REF_MAP)
+					return cli_dynerr(appctx, memprintf(&err, "Missing value for key '%s'.\n", key));
+
 				key[l] = 0;
 				payload++;
 
@@ -922,17 +843,10 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 
 				ret = map_add_key_value(appctx, key, value, &err);
 				if (!ret) {
-					if (err) {
-						memprintf(&err, "%s.\n", err);
-						appctx->ctx.cli.err = err;
-						appctx->st0 = CLI_ST_PRINT_FREE;
-					}
-					else {
-						appctx->ctx.cli.severity = LOG_ERR;
-						appctx->ctx.cli.msg = "Failed to add a key.\n";
-						appctx->st0 = CLI_ST_PRINT;
-					}
-					return 1;
+					if (err)
+						return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+					else
+						return cli_err(appctx, "Failed to add a key.\n");
 				}
 			}
 		}
@@ -953,33 +867,18 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 		appctx->ctx.map.display_flags = PAT_REF_ACL;
 
 	/* Expect two parameters: map name and key. */
-	if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-		if (!*args[2] || !*args[3]) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "This command expects two parameters: map identifier and key.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
-	}
-
-	else {
-		if (!*args[2] || !*args[3]) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "This command expects two parameters: ACL identifier and key.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+	if (!*args[2] || !*args[3]) {
+		if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+			return cli_err(appctx, "This command expects two parameters: map identifier and key.\n");
+		else
+			return cli_err(appctx, "This command expects two parameters: ACL identifier and key.\n");
 	}
 
 	/* Lookup the reference in the maps. */
 	appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 	if (!appctx->ctx.map.ref ||
-	    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags))
+		return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
 
 	/* If the entry identifier start with a '#', it is considered as
 	 * pointer id
@@ -991,31 +890,20 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 
 		/* Convert argument to integer value. */
 		conv = strtoll(&args[3][1], &error, 16);
-		if (*error != '\0') {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (*error != '\0')
+			return cli_err(appctx, "Malformed identifier. Please use #<id> or <file>.\n");
 
 		/* Convert and check integer to pointer. */
 		ref = (struct pat_ref_elt *)(long)conv;
-		if ((long long int)(long)ref != conv) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if ((long long int)(long)ref != conv)
+			return cli_err(appctx, "Malformed identifier. Please use #<id> or <file>.\n");
 
 		/* Try to delete the entry. */
 		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!pat_ref_delete_by_id(appctx->ctx.map.ref, ref)) {
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			/* The entry is not found, send message. */
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Key not found.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			return cli_err(appctx, "Key not found.\n");
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
@@ -1027,10 +915,7 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 		if (!pat_ref_delete(appctx->ctx.map.ref, args[3])) {
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 			/* The entry is not found, send message. */
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Key not found.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			return cli_err(appctx, "Key not found.\n");
 		}
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
@@ -1052,32 +937,20 @@ static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx
 
 		/* no parameter */
 		if (!*args[2]) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Missing map identifier.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Missing ACL identifier.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Missing map identifier.\n");
+			else
+				return cli_err(appctx, "Missing ACL identifier.\n");
 		}
 
 		/* lookup into the refs and check the map flag */
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 		if (!appctx->ctx.map.ref ||
 		    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
-			}
-			else {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
-			}
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
 		/* Clear all. */

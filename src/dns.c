@@ -2018,12 +2018,8 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 				break;
 			}
 		}
-		if (appctx->ctx.cli.p0 == NULL) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Can't find that resolvers section\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (appctx->ctx.cli.p0 == NULL)
+			return cli_err(appctx, "Can't find that resolvers section\n");
 	}
 	return 0;
 }

@@ -1681,17 +1681,13 @@ struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg)
 	struct proxy *px;
 
 	if (!*arg) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "A frontend name is expected.\n";
-		appctx->st0 = CLI_ST_PRINT;
+		cli_err(appctx, "A frontend name is expected.\n");
 		return NULL;
 	}
 
 	px = proxy_fe_by_name(arg);
 	if (!px) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "No such frontend.\n";
-		appctx->st0 = CLI_ST_PRINT;
+		cli_err(appctx, "No such frontend.\n");
 		return NULL;
 	}
 	return px;
@@ -1706,17 +1702,13 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 	struct proxy *px;
 
 	if (!*arg) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "A backend name is expected.\n";
-		appctx->st0 = CLI_ST_PRINT;
+		cli_err(appctx, "A backend name is expected.\n");
 		return NULL;
 	}
 
 	px = proxy_be_by_name(arg);
 	if (!px) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "No such backend.\n";
-		appctx->st0 = CLI_ST_PRINT;
+		cli_err(appctx, "No such backend.\n");
 		return NULL;
 	}
 	return px;
@@ -1736,12 +1728,9 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 		/* read server state from local file */
 		px = proxy_be_by_name(args[3]);
 
-		if (!px) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Can't find backend.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!px)
+			return cli_err(appctx, "Can't find backend.\n");
+
 		appctx->ctx.cli.p0 = px;
 		appctx->ctx.cli.i0 = px->uuid;
 	}
@@ -1984,20 +1973,12 @@ static int cli_parse_set_dyncookie_key_backend(char **args, char *payload, struc
 	if (!px)
 		return 1;
 
-	if (!*args[4]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "String value expected.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[4])
+		return cli_err(appctx, "String value expected.\n");
 
 	newkey = strdup(args[4]);
-	if (!newkey) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Failed to allocate memory.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!newkey)
+		return cli_err(appctx, "Failed to allocate memory.\n");
 
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
@@ -2033,20 +2014,12 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	if (!px)
 		return 1;
 
-	if (!*args[4]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Integer value expected.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[4])
+		return cli_err(appctx, "Integer value expected.\n");
 
 	v = atoi(args[4]);
-	if (v < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Value out of range.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (v < 0)
+		return cli_err(appctx, "Value out of range.\n");
 
 	/* OK, the value is fine, so we assign it to the proxy and to all of
 	 * its listeners. The blocked ones will be dequeued.
@@ -2082,12 +2055,8 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED) {
-		appctx->ctx.cli.severity = LOG_NOTICE;
-		appctx->ctx.cli.msg = "Frontend was already shut down.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (px->state == PR_STSTOPPED)
+		return cli_msg(appctx, LOG_NOTICE, "Frontend was already shut down.\n");
 
 	ha_warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
 		   px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
@@ -2114,30 +2083,19 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED) {
-		appctx->ctx.cli.severity = LOG_NOTICE;
-		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot disable.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (px->state == PR_STSTOPPED)
+		return cli_msg(appctx, LOG_NOTICE, "Frontend was previously shut down, cannot disable.\n");
 
-	if (px->state == PR_STPAUSED) {
-		appctx->ctx.cli.severity = LOG_NOTICE;
-		appctx->ctx.cli.msg = "Frontend is already disabled.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (px->state == PR_STPAUSED)
+		return cli_msg(appctx, LOG_NOTICE, "Frontend is already disabled.\n");
 
 	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
 	ret = pause_proxy(px);
 	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 
-	if (!ret) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Failed to pause frontend, check logs for precise cause.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!ret)
+		return cli_err(appctx, "Failed to pause frontend, check logs for precise cause.\n");
+
 	return 1;
 }
 
@@ -2157,30 +2115,18 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Frontend was previously shut down, cannot enable.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (px->state == PR_STSTOPPED)
+		return cli_err(appctx, "Frontend was previously shut down, cannot enable.\n");
 
-	if (px->state != PR_STPAUSED) {
-		appctx->ctx.cli.severity = LOG_NOTICE;
-		appctx->ctx.cli.msg = "Frontend is already enabled.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (px->state != PR_STPAUSED)
+		return cli_msg(appctx, LOG_NOTICE, "Frontend is already enabled.\n");
 
 	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
 	ret = resume_proxy(px);
 	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 
-	if (!ret) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Failed to resume frontend, check logs for precise cause (port conflict?).\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!ret)
+		return cli_err(appctx, "Failed to resume frontend, check logs for precise cause (port conflict?).\n");
 	return 1;
 }
 
@@ -2201,12 +2147,8 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 		else
 			appctx->ctx.errors.iid = atoi(args[2]);
 
-		if (!appctx->ctx.errors.iid) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "No such proxy.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.errors.iid)
+			return cli_err(appctx, "No such proxy.\n");
 	}
 	else
 		appctx->ctx.errors.iid	= -1; // dump all proxies

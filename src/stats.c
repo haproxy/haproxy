@@ -3783,12 +3783,8 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 		else
 			appctx->ctx.stats.iid = atoi(args[2]);
 
-		if (!appctx->ctx.stats.iid) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "No such proxy.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.stats.iid)
+			return cli_err(appctx, "No such proxy.\n");
 
 		appctx->ctx.stats.flags |= STAT_BOUND;
 		appctx->ctx.stats.type = atoi(args[3]);

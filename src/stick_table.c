@@ -3388,12 +3388,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	void *ptr;
 	struct freq_ctr_period *frqp;
 
-	if (!*args[4]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Key value expected\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[4])
+		return cli_err(appctx, "Key value expected\n");
 
 	switch (t->type) {
 	case SMP_T_IPV4:
@@ -3412,12 +3408,8 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 			val = strtoul(args[4], &endptr, 10);
 			if ((errno == ERANGE && val == ULONG_MAX) ||
 			    (errno != 0 && val == 0) || endptr == args[4] ||
-			    val > 0xffffffff) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Invalid key\n";
-				appctx->st0 = CLI_ST_PRINT;
-				return 1;
-			}
+			    val > 0xffffffff)
+				return cli_err(appctx, "Invalid key\n");
 			uint32_key = (uint32_t) val;
 			static_table_key.key = &uint32_key;
 			break;
@@ -3430,24 +3422,14 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	default:
 		switch (appctx->ctx.table.action) {
 		case STK_CLI_ACT_SHOW:
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
-			break;
+			return cli_err(appctx, "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n");
 		case STK_CLI_ACT_CLR:
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Removing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
-			break;
+			return cli_err(appctx, "Removing keys from tables of type other than ip, ipv6, string and integer is not supported\n");
 		case STK_CLI_ACT_SET:
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Inserting keys into tables of type other than ip, ipv6, string and integer is not supported\n";
-			break;
+			return cli_err(appctx, "Inserting keys into tables of type other than ip, ipv6, string and integer is not supported\n");
 		default:
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Unknown action\n";
-			break;
+			return cli_err(appctx, "Unknown action\n");
 		}
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
 	}
 
 	/* check permissions */
@@ -3481,30 +3463,20 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 
 		if (!stksess_kill(t, ts, 1)) {
 			/* don't delete an entry which is currently referenced */
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Entry currently in use, cannot remove\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			return cli_err(appctx, "Entry currently in use, cannot remove\n");
 		}
-
 		break;
 
 	case STK_CLI_ACT_SET:
 		ts = stktable_get_entry(t, &static_table_key);
 		if (!ts) {
 			/* don't delete an entry which is currently referenced */
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Unable to allocate a new entry\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
+			return cli_err(appctx, "Unable to allocate a new entry\n");
 		}
-
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
 			if (strncmp(args[cur_arg], "data.", 5) != 0) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
-				appctx->st0 = CLI_ST_PRINT;
+				cli_err(appctx, "\"data.<type>\" followed by a value expected\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(t, ts, 1);
 				return 1;
@@ -3512,27 +3484,21 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 
 			data_type = stktable_get_data_type(args[cur_arg] + 5);
 			if (data_type < 0) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Unknown data type\n";
-				appctx->st0 = CLI_ST_PRINT;
+				cli_err(appctx, "Unknown data type\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(t, ts, 1);
 				return 1;
 			}
 
 			if (!t->data_ofs[data_type]) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Data type not stored in this table\n";
-				appctx->st0 = CLI_ST_PRINT;
+				cli_err(appctx, "Data type not stored in this table\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(t, ts, 1);
 				return 1;
 			}
 
 			if (!*args[cur_arg+1] || strl2llrc(args[cur_arg+1], strlen(args[cur_arg+1]), &value) != 0) {
-				appctx->ctx.cli.severity = LOG_ERR;
-				appctx->ctx.cli.msg = "Require a valid integer value to store\n";
-				appctx->st0 = CLI_ST_PRINT;
+				cli_err(appctx, "Require a valid integer value to store\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 				stktable_touch_local(t, ts, 1);
 				return 1;
@@ -3572,10 +3538,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 		break;
 
 	default:
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Unknown action\n";
-		appctx->st0 = CLI_ST_PRINT;
-		break;
+		return cli_err(appctx, "Unknown action\n");
 	}
 	return 1;
 }
@@ -3585,44 +3548,24 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
  */
 static int table_prepare_data_request(struct appctx *appctx, char **args)
 {
-	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR)
+		return cli_err(appctx, "content-based lookup is only supported with the \"show\" and \"clear\" actions\n");
 
 	/* condition on stored data value */
 	appctx->ctx.table.data_type = stktable_get_data_type(args[3] + 5);
-	if (appctx->ctx.table.data_type < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Unknown data type\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (appctx->ctx.table.data_type < 0)
+		return cli_err(appctx, "Unknown data type\n");
 
 	if (!((struct proxy *)appctx->ctx.table.target)->table ||
-	    !((struct proxy *)appctx->ctx.table.target)->table->data_ofs[appctx->ctx.table.data_type]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Data type not stored in this table\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	    !((struct proxy *)appctx->ctx.table.target)->table->data_ofs[appctx->ctx.table.data_type])
+		return cli_err(appctx, "Data type not stored in this table\n");
 
 	appctx->ctx.table.data_op = get_std_op(args[4]);
-	if (appctx->ctx.table.data_op < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (appctx->ctx.table.data_op < 0)
+		return cli_err(appctx, "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n");
 
-	if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &appctx->ctx.table.value) != 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Require a valid integer value to compare against\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &appctx->ctx.table.value) != 0)
+		return cli_err(appctx, "Require a valid integer value to compare against\n");
 
 	/* OK we're done, all the fields are set */
 	return 0;
@@ -3638,12 +3581,8 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 
 	if (*args[2]) {
 		appctx->ctx.table.target = stktable_find_by_name(args[2]);
-		if (!appctx->ctx.table.target) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "No such table\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!appctx->ctx.table.target)
+			return cli_err(appctx, "No such table\n");
 	}
 	else {
 		if (appctx->ctx.table.action != STK_CLI_ACT_SHOW)
@@ -3663,24 +3602,14 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 err_args:
 	switch (appctx->ctx.table.action) {
 	case STK_CLI_ACT_SHOW:
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
-		break;
+		return cli_err(appctx, "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n");
 	case STK_CLI_ACT_CLR:
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n";
-		break;
+		return cli_err(appctx, "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n");
 	case STK_CLI_ACT_SET:
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Required arguments: <table> key <key> [data.<store_data_type> <value>]*\n";
-		break;
+		return cli_err(appctx, "Required arguments: <table> key <key> [data.<store_data_type> <value>]*\n");
 	default:
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Unknown action\n";
-		break;
+		return cli_err(appctx, "Unknown action\n");
 	}
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
 }
 
 /* This function is used to deal with table operations (dump or clear depending

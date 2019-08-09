@@ -67,12 +67,8 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (strcmp(args[2], "tasks") != 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Expects 'tasks'.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (strcmp(args[2], "tasks") != 0)
+		return cli_err(appctx, "Expects 'tasks'.\n");
 
 	if (strcmp(args[3], "on") == 0) {
 		unsigned int old = profiling;
@@ -89,12 +85,9 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF))
 			;
 	}
-	else {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Expects 'on', 'auto', or 'off'.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	else
+		return cli_err(appctx, "Expects 'on', 'auto', or 'off'.\n");
+
 	return 1;
 }
 

@@ -41,7 +41,6 @@
 #include <common/base64.h>
 
 #include <types/applet.h>
-#include <types/cli.h>
 #include <types/global.h>
 #include <types/dns.h>
 #include <types/stats.h>
@@ -50,6 +49,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/cli.h>
 #include <proto/compression.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
@@ -457,9 +457,7 @@ int cli_has_level(struct appctx *appctx, int level)
 {
 
 	if ((appctx->cli_level & ACCESS_LVL_MASK) < level) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = stats_permission_denied_msg;
-		appctx->st0 = CLI_ST_PRINT;
+		cli_err(appctx, stats_permission_denied_msg);
 		return 0;
 	}
 	return 1;
@@ -1303,12 +1301,9 @@ static int cli_parse_show_env(char **args, char *payload, struct appctx *appctx,
 			    (*var)[len] == '=')
 				break;
 		}
-		if (!*var) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Variable not found\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!*var)
+			return cli_err(appctx, "Variable not found\n");
+
 		appctx->st2 = STAT_ST_END;
 	}
 	appctx->ctx.cli.p0 = var;
@@ -1343,31 +1338,19 @@ static int cli_parse_set_timeout(char **args, char *payload, struct appctx *appc
 		unsigned timeout;
 		const char *res;
 
-		if (!*args[3]) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Expects an integer value.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (!*args[3])
+			return cli_err(appctx, "Expects an integer value.\n");
 
 		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
-		if (res || timeout < 1) {
-			appctx->ctx.cli.severity = LOG_ERR;
-			appctx->ctx.cli.msg = "Invalid timeout value.\n";
-			appctx->st0 = CLI_ST_PRINT;
-			return 1;
-		}
+		if (res || timeout < 1)
+			return cli_err(appctx, "Invalid timeout value.\n");
 
 		s->req.rto = s->res.wto = 1 + MS_TO_TICKS(timeout*1000);
 		task_wakeup(s->task, TASK_WOKEN_MSG); // recompute timeouts
 		return 1;
 	}
-	else {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+
+	return cli_err(appctx, "'set timeout' only supports 'cli'.\n");
 }
 
 /* parse a "set maxconn global" command. It always returns 1. */
@@ -1378,20 +1361,12 @@ static int cli_parse_set_maxconn_global(char **args, char *payload, struct appct
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[3]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Expects an integer value.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[3])
+		return cli_err(appctx, "Expects an integer value.\n");
 
 	v = atoi(args[3]);
-	if (v > global.hardmaxconn) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Value out of range.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (v > global.hardmaxconn)
+		return cli_err(appctx, "Value out of range.\n");
 
 	/* check for unlimited values */
 	if (v <= 0)
@@ -1429,30 +1404,21 @@ static int cli_parse_set_severity_output(char **args, char *payload, struct appc
 	if (*args[2] && set_severity_output(&appctx->cli_severity_output, args[2]))
 		return 0;
 
-	appctx->ctx.cli.severity = LOG_ERR;
-	appctx->ctx.cli.msg = "one of 'none', 'number', 'string' is a required argument\n";
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
+	return cli_err(appctx, "one of 'none', 'number', 'string' is a required argument\n");
 }
 
 
 /* show the level of the current CLI session */
 static int cli_parse_show_lvl(char **args, char *payload, struct appctx *appctx, void *private)
 {
-
-	appctx->ctx.cli.severity = LOG_INFO;
 	if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
-		appctx->ctx.cli.msg = "admin\n";
+		return cli_msg(appctx, LOG_INFO, "admin\n");
 	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
-		appctx->ctx.cli.msg = "operator\n";
+		return cli_msg(appctx, LOG_INFO, "operator\n");
 	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
-		appctx->ctx.cli.msg = "user\n";
+		return cli_msg(appctx, LOG_INFO, "user\n");
 	else
-		appctx->ctx.cli.msg = "unknown\n";
-
-	appctx->st0 = CLI_ST_PRINT;
-	return 1;
-
+		return cli_msg(appctx, LOG_INFO, "unknown\n");
 }
 
 /* parse and set the CLI level dynamically */
@@ -1508,33 +1474,22 @@ static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *ap
 		mul = 1024;
 	}
 	else {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg =
+		return cli_err(appctx,
 			"'set rate-limit' only supports :\n"
 			"   - 'connections global' to set the per-process maximum connection rate\n"
 			"   - 'sessions global' to set the per-process maximum session rate\n"
 #ifdef USE_OPENSSL
 			"   - 'ssl-sessions global' to set the per-process maximum SSL session rate\n"
 #endif
-			"   - 'http-compression global' to set the per-process maximum compression speed in kB/s\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
+			"   - 'http-compression global' to set the per-process maximum compression speed in kB/s\n");
 	}
 
-	if (!*args[4]) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Expects an integer value.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (!*args[4])
+		return cli_err(appctx, "Expects an integer value.\n");
 
 	v = atoi(args[4]);
-	if (v < 0) {
-		appctx->ctx.cli.severity = LOG_ERR;
-		appctx->ctx.cli.msg = "Value out of range.\n";
-		appctx->st0 = CLI_ST_PRINT;
-		return 1;
-	}
+	if (v < 0)
+		return cli_err(appctx, "Value out of range.\n");
 
 	*res = v * mul;
 
