@@ -1464,7 +1464,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 					 * silently destroyed. The new mux
 					 * will create new streams.
 					 */
-					cs_destroy(cs);
+					cs_free(cs);
 					si_detach_endpoint(&s->si[0]);
 					s->logs.logwait = 0;
 					s->logs.level = 0;
