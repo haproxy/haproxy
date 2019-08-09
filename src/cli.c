@@ -767,30 +767,47 @@ static void cli_io_handler(struct appctx *appctx)
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions */
+			const char *msg;
+			int sev;
+
 			switch (appctx->st0) {
 			case CLI_ST_PROMPT:
 				break;
-			case CLI_ST_PRINT:
-				if (cli_output_msg(res, appctx->ctx.cli.msg, appctx->ctx.cli.severity,
-							cli_get_severity_output(appctx)) != -1)
-					appctx->st0 = CLI_ST_PROMPT;
-				else
-					si_rx_room_blk(si);
-				break;
-			case CLI_ST_PRINT_FREE: {
-				const char *msg = appctx->ctx.cli.err;
+			case CLI_ST_PRINT:       /* print const message in msg */
+			case CLI_ST_PRINT_ERR:   /* print const error in msg */
+			case CLI_ST_PRINT_DYN:   /* print dyn message in msg, free */
+			case CLI_ST_PRINT_FREE:  /* print dyn error in err, free */
+				if (appctx->st0 == CLI_ST_PRINT || appctx->st0 == CLI_ST_PRINT_ERR) {
+					sev = appctx->st0 == CLI_ST_PRINT_ERR ?
+						LOG_ERR : appctx->ctx.cli.severity;
+					msg = appctx->ctx.cli.msg;
+				}
+				else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_FREE) {
+					sev = appctx->st0 == CLI_ST_PRINT_FREE ?
+						LOG_ERR : appctx->ctx.cli.severity;
+					msg = appctx->ctx.cli.err;
+					if (!msg) {
+						sev = LOG_ERR;
+						msg = "Out of memory.\n";
+					}
+				}
+				else {
+					sev = LOG_ERR;
+					msg = "Internal error.\n";
+				}
 
-				if (!msg)
-					msg = "Out of memory.\n";
-
-				if (cli_output_msg(res, msg, LOG_ERR, cli_get_severity_output(appctx)) != -1) {
-					free(appctx->ctx.cli.err);
+				if (cli_output_msg(res, msg, sev, cli_get_severity_output(appctx)) != -1) {
+					if (appctx->st0 == CLI_ST_PRINT_FREE ||
+					    appctx->st0 == CLI_ST_PRINT_DYN) {
+						free(appctx->ctx.cli.err);
+						appctx->ctx.cli.err = NULL;
+					}
 					appctx->st0 = CLI_ST_PROMPT;
 				}
 				else
 					si_rx_room_blk(si);
 				break;
-			}
+
 			case CLI_ST_CALLBACK: /* use custom pointer */
 				if (appctx->io_handler)
 					if (appctx->io_handler(appctx)) {
@@ -891,7 +908,7 @@ static void cli_release_handler(struct appctx *appctx)
 		appctx->io_release(appctx);
 		appctx->io_release = NULL;
 	}
-	else if (appctx->st0 == CLI_ST_PRINT_FREE) {
+	else if (appctx->st0 == CLI_ST_PRINT_FREE || appctx->st0 == CLI_ST_PRINT_DYN) {
 		free(appctx->ctx.cli.err);
 		appctx->ctx.cli.err = NULL;
 	}

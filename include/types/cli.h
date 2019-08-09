@@ -46,8 +46,10 @@ enum {
 	CLI_ST_GETREQ,     /* wait for a request */
 	CLI_ST_OUTPUT,     /* all states after this one are responses */
 	CLI_ST_PROMPT,     /* display the prompt (first output, same code) */
-	CLI_ST_PRINT,      /* display message in cli->msg */
-	CLI_ST_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
+	CLI_ST_PRINT,      /* display const message in cli->msg */
+	CLI_ST_PRINT_ERR,  /* display const error in cli->msg */
+	CLI_ST_PRINT_DYN,  /* display dynamic message in cli->err. After the display, free the pointer */
+	CLI_ST_PRINT_FREE, /* display dynamic error in cli->err. After the display, free the pointer */
 	CLI_ST_CALLBACK,   /* custom callback pointer */
 };
 
