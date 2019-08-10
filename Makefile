@@ -787,7 +787,7 @@ OBJS = src/http_ana.o src/cfgparse-listen.o src/stream.o                      \
        src/protocol.o src/arg.o src/hpack-huff.o src/base64.o src/ring.o      \
        src/hash.o src/mailers.o src/activity.o src/version.o src/trace.o      \
        src/mworker.o src/mworker-prog.o src/debug.o src/wdt.o src/dict.o      \
-       src/xprt_handshake.o
+       src/xprt_handshake.o src/h1_htx.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

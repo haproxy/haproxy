@@ -23,6 +23,7 @@
 #include <types/session.h>
 
 #include <proto/connection.h>
+#include <proto/h1_htx.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/session.h>
@@ -570,82 +571,6 @@ static void h1_parse_res_vsn(struct h1m *h1m, const struct htx_sl *sl)
 		h1m->flags |= H1_MF_VER_11;
 }
 
-/*
- * Check the validity of the request version. If the version is valid, it
- * returns 1. Otherwise, it returns 0.
- */
-static int h1_process_req_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
-{
-	struct h1c *h1c = h1s->h1c;
-
-	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
-	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
-	 */
-	if (!(h1c->px->options2 & PR_O2_REQBUG_OK)) {
-		if (sl.rq.v.len != 8)
-			return 0;
-
-		if (*(sl.rq.v.ptr + 4) != '/' ||
-		    !isdigit((unsigned char)*(sl.rq.v.ptr + 5)) ||
-		    *(sl.rq.v.ptr + 6) != '.' ||
-		    !isdigit((unsigned char)*(sl.rq.v.ptr + 7)))
-			return 0;
-	}
-	else if (!sl.rq.v.len) {
-		/* try to convert HTTP/0.9 requests to HTTP/1.0 */
-
-		/* RFC 1945 allows only GET for HTTP/0.9 requests */
-		if (sl.rq.meth != HTTP_METH_GET)
-			return 0;
-
-		/* HTTP/0.9 requests *must* have a request URI, per RFC 1945 */
-		if (!sl.rq.u.len)
-			return 0;
-
-		/* Add HTTP version */
-		sl.rq.v = ist("HTTP/1.0");
-		return 1;
-	}
-
-	if ((sl.rq.v.len == 8) &&
-	    ((*(sl.rq.v.ptr + 5) > '1') ||
-	     ((*(sl.rq.v.ptr + 5) == '1') && (*(sl.rq.v.ptr + 7) >= '1'))))
-		h1m->flags |= H1_MF_VER_11;
-	return 1;
-}
-
-/*
- * Check the validity of the response version. If the version is valid, it
- * returns 1. Otherwise, it returns 0.
- */
-static int h1_process_res_vsn(struct h1s *h1s, struct h1m *h1m, union h1_sl sl)
-{
-	struct h1c *h1c = h1s->h1c;
-
-	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
-	 * exactly one digit "." one digit. This check may be disabled using
-	 * option accept-invalid-http-request.
-	 */
-	if (!(h1c->px->options2 & PR_O2_RSPBUG_OK)) {
-		if (sl.st.v.len != 8)
-			return 0;
-
-		if (*(sl.st.v.ptr + 4) != '/' ||
-		    !isdigit((unsigned char)*(sl.st.v.ptr + 5)) ||
-		    *(sl.st.v.ptr + 6) != '.' ||
-		    !isdigit((unsigned char)*(sl.st.v.ptr + 7)))
-			return 0;
-	}
-
-	if ((sl.st.v.len == 8) &&
-	    ((*(sl.st.v.ptr + 5) > '1') ||
-	     ((*(sl.st.v.ptr + 5) == '1') && (*(sl.st.v.ptr + 7) >= '1'))))
-		h1m->flags |= H1_MF_VER_11;
-
-	return 1;
-}
-
 /* Deduce the connection mode of the client connection, depending on the
  * configuration and the H1 message flags. This function is called twice, the
  * first time when the request is parsed and the second time when the response
@@ -955,38 +880,115 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 	}
 }
 
-/* Estimate the size of the HTX headers after the parsing, including the EOH. */
-static size_t h1_eval_htx_hdrs_size(struct http_hdr *hdrs)
+/*
+ * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
+ * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
+ * flag. If relies on the function http_parse_msg_hdrs() to do the parsing.
+ */
+static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+				 struct buffer *buf, size_t *ofs, size_t max)
 {
-	size_t sz = 0;
-	int i;
+	union h1_sl h1sl;
+	int ret = 0;
 
-	for (i = 0; hdrs[i].n.len; i++)
-		sz += sizeof(struct htx_blk) + hdrs[i].n.len + hdrs[i].v.len;
-	sz += sizeof(struct htx_blk) + 1;
-	return sz;
+	if (!(h1m->flags & H1_MF_RESP)) {
+		/* Try to match H2 preface before parsing the request headers. */
+		ret = b_isteq(buf, 0, b_data(buf), ist(H2_CONN_PREFACE));
+		if (ret > 0)
+			goto h2c_upgrade;
+	}
+	else {
+		if (h1s->meth == HTTP_METH_CONNECT)
+			h1m->flags |= H1_MF_METH_CONNECT;
+		if (h1s->meth == HTTP_METH_HEAD)
+			h1m->flags |= H1_MF_METH_HEAD;
+	}
+
+	ret = h1_parse_msg_hdrs(h1m, &h1sl, htx, buf, *ofs, max);
+	if (!ret) {
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			h1s->cs->flags |= CS_FL_EOI;
+			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		}
+		goto end;
+	}
+
+	if (!(h1m->flags & H1_MF_RESP)) {
+		h1s->meth = h1sl.rq.meth;
+		if (h1m->state == H1_MSG_TUNNEL)
+			h1_set_req_tunnel_mode(h1s);
+	}
+	else {
+		h1s->status = h1sl.st.status;
+		if (h1m->state == H1_MSG_TUNNEL)
+			h1_set_res_tunnel_mode(h1s);
+	}
+	h1_process_input_conn_mode(h1s, h1m, htx);
+	*ofs += ret;
+
+  end:
+	return ret;
+
+  h2c_upgrade:
+	h1s->h1c->flags |= H1C_F_UPG_H2C;
+	h1s->cs->flags |= CS_FL_EOI;
+	htx->flags |= HTX_FL_UPGRADE;
+	ret = 0;
+	goto end;
 }
 
-/* Estimate the size of the HTX request after the parsing. */
-static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
+/*
+ * Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
+ * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag.
+ * If relies on the function http_parse_msg_data() to do the parsing.
+ */
+static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+			      struct buffer *buf, size_t *ofs, size_t max,
+			      struct buffer *htxbuf)
 {
-	size_t sz;
+	int ret;
 
-	/* size of the HTX start-line */
-	sz = sizeof(struct htx_blk) + sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
-	sz += h1_eval_htx_hdrs_size(hdrs);
-	return sz;
+
+	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
+	if (ret <= 0) {
+		if (ret < 0) {
+			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			h1s->cs->flags |= CS_FL_EOI;
+			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		}
+		return 0;
+	}
+
+	if (h1m->state == H1_MSG_DONE)
+		h1s->cs->flags |= CS_FL_EOI;
+	*ofs += ret;
+	return ret;
 }
 
-/* Estimate the size of the HTX response after the parsing. */
-static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct http_hdr *hdrs)
+/*
+ * Parse HTTP/1 trailers. It returns the number of bytes parsed if > 0, or 0 if
+ * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
+ * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
+ * responsible to update the parser state <h1m>.
+ */
+static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+				  struct buffer *buf, size_t *ofs, size_t max)
 {
-	size_t sz;
+	int ret;
 
-	/* size of the HTX start-line */
-	sz = sizeof(struct htx_blk) + sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
-	sz += h1_eval_htx_hdrs_size(hdrs);
-	return sz;
+	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
+	if (ret <= 0) {
+		if (ret < 0) {
+			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			h1s->cs->flags |= CS_FL_EOI;
+			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		}
+		return 0;
+	}
+	*ofs += ret;
+	h1s->flags |= H1S_F_HAVE_I_TLR;
+	return ret;
 }
 
 /*
@@ -1006,420 +1008,6 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 	h1m->state = H1_MSG_DONE;
 	h1s->cs->flags |= CS_FL_EOI;
 	return (sizeof(struct htx_blk) + 1);
-}
-
-/*
- * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
- * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsible to update the parser state <h1m>.
- */
-static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-				 struct buffer *buf, size_t *ofs, size_t max)
-{
-	struct htx_sl *sl;
-	struct http_hdr hdrs[global.tune.max_http_hdr];
-	union h1_sl h1sl;
-	unsigned int flags = HTX_SL_F_NONE;
-	size_t used;
-	int ret = 0;
-
-	if (!max || !b_data(buf))
-		goto end;
-
-	/* Realing input buffer if necessary */
-	if (b_head(buf) + b_data(buf) > b_wrap(buf))
-		b_slow_realign(buf, trash.area, 0);
-
-	if (!(h1m->flags & H1_MF_RESP)) {
-		/* Try to match H2 preface before parsing the request headers. */
-		ret = b_isteq(buf, 0, b_data(buf), ist(H2_CONN_PREFACE));
-		if (ret > 0)
-			goto h2c_upgrade;
-	}
-
-	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
-				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &h1sl);
-	if (ret <= 0) {
-		/* Incomplete or invalid message. If the input buffer only
-		 * contains headers and is full, which is detected by it being
-		 * full and the offset to be zero, it's an error because
-		 * headers are too large to be handled by the parser. */
-		if (ret < 0 || (!ret && !*ofs && !buf_room_for_htx_data(buf)))
-			goto error;
-		goto end;
-	}
-
-	/* messages headers fully parsed, do some checks to prepare the body
-	 * parsing.
-	 */
-
-	/* Save the request's method or the response's status, check if the body
-	 * length is known and check the VSN validity */
-	if (!(h1m->flags & H1_MF_RESP)) {
-		h1s->meth = h1sl.rq.meth;
-
-		/* By default, request have always a known length */
-		h1m->flags |= H1_MF_XFER_LEN;
-
-		if (h1s->meth == HTTP_METH_CONNECT) {
-			/* Switch CONNECT requests to tunnel mode */
-			h1_set_req_tunnel_mode(h1s);
-		}
-
-		if (!h1_process_req_vsn(h1s, h1m, h1sl)) {
-			h1m->err_pos = h1sl.rq.v.ptr - b_head(buf);
-			h1m->err_state = h1m->state;
-			goto vsn_error;
-		}
-	}
-	else {
-		h1s->status = h1sl.st.status;
-
-		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
-		    h1s->status == 101) {
-			/* Switch successfull replies to CONNECT requests and
-			 * protocol switching to tunnel mode. */
-			h1_set_res_tunnel_mode(h1s);
-		}
-		else if ((h1s->meth == HTTP_METH_HEAD) ||
-			 (h1s->status >= 100 && h1s->status < 200) ||
-			 (h1s->status == 204) || (h1s->status == 304)) {
-			/* Responses known to have no body. */
-			h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
-			h1m->flags |= H1_MF_XFER_LEN;
-			h1m->curr_len = h1m->body_len = 0;
-		}
-		else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
-			/* Responses with a known body length. */
-			h1m->flags |= H1_MF_XFER_LEN;
-		}
-		else {
-			/* Responses with an unknown body length */
-			h1m->state = H1_MSG_TUNNEL;
-		}
-
-		if (!h1_process_res_vsn(h1s, h1m, h1sl)) {
-			h1m->err_pos = h1sl.st.v.ptr - b_head(buf);
-			h1m->err_state = h1m->state;
-			goto vsn_error;
-		}
-	}
-
-	/* Set HTX start-line flags */
-	if (h1m->flags & H1_MF_VER_11)
-		flags |= HTX_SL_F_VER_11;
-	if (h1m->flags & H1_MF_XFER_ENC)
-		flags |= HTX_SL_F_XFER_ENC;
-	if (h1m->flags & H1_MF_XFER_LEN) {
-		flags |= HTX_SL_F_XFER_LEN;
-		if (h1m->flags & H1_MF_CHNK)
-			flags |= HTX_SL_F_CHNK;
-		else if (h1m->flags & H1_MF_CLEN) {
-			flags |= HTX_SL_F_CLEN;
-			if (h1m->body_len == 0)
-				flags |= HTX_SL_F_BODYLESS;
-		}
-		else
-			flags |= HTX_SL_F_BODYLESS;
-	}
-
-	used = htx_used_space(htx);
-	if (!(h1m->flags & H1_MF_RESP)) {
-		if (h1_eval_htx_req_size(h1m, &h1sl, hdrs) > max) {
-			if (htx_is_empty(htx))
-				goto error;
-			h1m_init_req(h1m);
-			h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-			ret = 0;
-			goto end;
-		}
-
-		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, h1sl.rq.m, h1sl.rq.u, h1sl.rq.v);
-		if (!sl || !htx_add_all_headers(htx, hdrs))
-			goto error;
-		sl->info.req.meth = h1s->meth;
-
-		/* Check if the uri contains an explicit scheme and if it is
-		 * "http" or "https". */
-		if (h1sl.rq.u.len && h1sl.rq.u.ptr[0] != '/') {
-			sl->flags |= HTX_SL_F_HAS_SCHM;
-			if (h1sl.rq.u.len > 4 && (h1sl.rq.u.ptr[0] | 0x20) == 'h')
-				sl->flags |= ((h1sl.rq.u.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
-		}
-	}
-	else {
-		if (h1_eval_htx_res_size(h1m, &h1sl, hdrs) > max) {
-			if (htx_is_empty(htx))
-				goto error;
-			h1m_init_res(h1m);
-			h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-			ret = 0;
-			goto end;
-		}
-
-		flags |= HTX_SL_F_IS_RESP;
-		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
-		if (!sl || !htx_add_all_headers(htx, hdrs))
-			goto error;
-		sl->info.res.status = h1s->status;
-	}
-
-	/* Set bytes used in the HTX mesage for the headers now */
-	sl->hdrs_bytes = htx_used_space(htx) - used;
-
-	h1_process_input_conn_mode(h1s, h1m, htx);
-
-	/* If body length cannot be determined, set htx->extra to
-	 * ULLONG_MAX. This value is impossible in other cases.
-	 */
-	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : ULLONG_MAX);
-	*ofs += ret;
-  end:
-	return ret;
-
-  error:
-	h1m->err_state = h1m->state;
-	h1m->err_pos = h1m->next;
-  vsn_error:
-	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
-	h1s->cs->flags |= CS_FL_EOI;
-	htx->flags |= HTX_FL_PARSING_ERROR;
-	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
-	ret = 0;
-	goto end;
-
-  h2c_upgrade:
-	h1s->h1c->flags |= H1C_F_UPG_H2C;
-	h1s->cs->flags |= CS_FL_EOI;
-	htx->flags |= HTX_FL_UPGRADE;
-	ret = 0;
-	goto end;
-}
-
-/*
- * Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
- * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag
- * and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsible to update the parser state <h1m>.
- */
-static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-			      struct buffer *buf, size_t *ofs, size_t max,
-			      struct buffer *htxbuf)
-{
-	size_t total = 0;
-	int32_t ret = 0;
-
-	if (h1m->flags & H1_MF_XFER_LEN) {
-		if (h1m->flags & H1_MF_CLEN) {
-			/* content-length: read only h2m->body_len */
-			ret = htx_get_max_blksz(htx, max);
-			if ((uint64_t)ret > h1m->curr_len)
-				ret = h1m->curr_len;
-			if (ret > b_contig_data(buf, *ofs))
-				ret = b_contig_data(buf, *ofs);
-
-			if (ret) {
-				/* very often with large files we'll face the following
-				 * situation :
-				 *   - htx is empty and points to <htxbuf>
-				 *   - ret == buf->data
-				 *   - buf->head == sizeof(struct htx)
-				 *   => we can swap the buffers and place an htx header into
-				 *      the target buffer instead
-				 */
-				int32_t try = ret;
-
-				if (unlikely(htx_is_empty(htx) && ret == b_data(buf) &&
-					     !*ofs && b_head_ofs(buf) == sizeof(struct htx))) {
-					void *raw_area = buf->area;
-					void *htx_area = htxbuf->area;
-					struct htx_blk *blk;
-
-					buf->area = htx_area;
-					htxbuf->area = raw_area;
-					htx = (struct htx *)htxbuf->area;
-					htx->size = htxbuf->size - sizeof(*htx);
-					htx_reset(htx);
-					b_set_data(htxbuf, b_size(htxbuf));
-
-					blk = htx_add_blk(htx, HTX_BLK_DATA, ret);
-					blk->info += ret;
-					/* nothing else to do, the old buffer now contains an
-					 * empty pre-initialized HTX header
-					 */
-				}
-				else {
-					ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
-				}
-				h1m->curr_len -= ret;
-				max -= sizeof(struct htx_blk) + ret;
-				*ofs += ret;
-				total += ret;
-				if (ret < try)
-					goto end;
-			}
-
-			if (!h1m->curr_len) {
-				if (!h1_process_eom(h1s, h1m, htx, max))
-					goto end;
-			}
-		}
-		else if (h1m->flags & H1_MF_CHNK) {
-		  new_chunk:
-			/* te:chunked : parse chunks */
-			if (h1m->state == H1_MSG_CHUNK_CRLF) {
-				ret = h1_skip_chunk_crlf(buf, *ofs, b_data(buf));
-				if (ret <= 0)
-					goto end;
-				h1m->state = H1_MSG_CHUNK_SIZE;
-
-				*ofs += ret;
-				total += ret;
-			}
-
-			if (h1m->state == H1_MSG_CHUNK_SIZE) {
-				unsigned int chksz;
-
-				ret = h1_parse_chunk_size(buf, *ofs, b_data(buf), &chksz);
-				if (ret <= 0)
-					goto end;
-				h1m->state = ((!chksz) ? H1_MSG_TRAILERS : H1_MSG_DATA);
-
-				h1m->curr_len  = chksz;
-				h1m->body_len += chksz;
-				*ofs += ret;
-				total += ret;
-
-				if (!h1m->curr_len)
-					goto end;
-			}
-
-			if (h1m->state == H1_MSG_DATA) {
-				ret = htx_get_max_blksz(htx, max);
-				if ((uint64_t)ret > h1m->curr_len)
-					ret = h1m->curr_len;
-				if (ret > b_contig_data(buf, *ofs))
-					ret = b_contig_data(buf, *ofs);
-
-				if (ret) {
-					int32_t try = ret;
-
-					ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
-					h1m->curr_len -= ret;
-					max -= sizeof(struct htx_blk) + ret;
-					*ofs += ret;
-					total += ret;
-					if (ret < try)
-						goto end;
-				}
-				if (!h1m->curr_len) {
-					h1m->state = H1_MSG_CHUNK_CRLF;
-					goto new_chunk;
-				}
-				goto end;
-			}
-		}
-		else {
-			/* XFER_LEN is set but not CLEN nor CHNK, it means there
-			 * is no body. Switch the message in DONE state
-			 */
-			if (!h1_process_eom(h1s, h1m, htx, max))
-				goto end;
-		}
-	}
-	else {
-		/* no content length, read till SHUTW */
-		ret = htx_get_max_blksz(htx, max);
-		if (ret > b_contig_data(buf, *ofs))
-			ret = b_contig_data(buf, *ofs);
-
-		if (ret) {
-			int32_t try = ret;
-
-			ret = htx_add_data(htx, ist2(b_peek(buf, *ofs), try));
-
-			*ofs += ret;
-			total = ret;
-			if (ret < try)
-				goto end;
-		}
-	}
-
-  end:
-	if (ret < 0) {
-		h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
-		h1s->cs->flags |= CS_FL_EOI;
-		htx->flags |= HTX_FL_PARSING_ERROR;
-		h1m->err_state = h1m->state;
-		h1m->err_pos = *ofs + max + ret;
-		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
-		return 0;
-	}
-	/* update htx->extra, only when the body length is known */
-	if (h1m->flags & H1_MF_XFER_LEN)
-		htx->extra = h1m->curr_len;
-	return total;
-}
-
-/*
- * Parse HTTP/1 trailers. It returns the number of bytes parsed if > 0, or 0 if
- * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
- * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
- * responsible to update the parser state <h1m>.
- */
-static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-				  struct buffer *buf, size_t *ofs, size_t max)
-{
-	struct http_hdr hdrs[global.tune.max_http_hdr];
-	struct h1m tlr_h1m;
-	int ret = 0;
-
-	if (!max || !b_data(buf))
-		goto end;
-
-	/* Realing input buffer if necessary */
-	if (b_peek(buf, *ofs) > b_tail(buf))
-		b_slow_realign(buf, trash.area, 0);
-
-	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
-	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
-				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &tlr_h1m, NULL);
-	if (ret <= 0) {
-		/* Incomplete or invalid trailers. If the input buffer only
-		 * contains trailers and is full, which is detected by it being
-		 * full and the offset to be zero, it's an error because
-		 * trailers are too large to be handled by the parser. */
-		if (ret < 0 || (!ret && !*ofs && !buf_room_for_htx_data(buf)))
-			goto error;
-		goto end;
-	}
-
-	/* messages trailers fully parsed. */
-	if (h1_eval_htx_hdrs_size(hdrs) > max) {
-		if (htx_is_empty(htx))
-			goto error;
-		ret = 0;
-		goto end;
-	}
-
-	if (!htx_add_all_trailers(htx, hdrs))
-		goto error;
-
-	*ofs += ret;
-	h1s->flags |= H1S_F_HAVE_I_TLR;
-  end:
-	return ret;
-
-  error:
-	h1m->err_state = h1m->state;
-	h1m->err_pos = h1m->next;
-	h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
-	h1s->cs->flags |= CS_FL_EOI;
-	htx->flags |= HTX_FL_PARSING_ERROR;
-	h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
-	ret = 0;
-	goto end;
 }
 
 /*

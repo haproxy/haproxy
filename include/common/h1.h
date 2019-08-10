@@ -94,6 +94,8 @@ enum h1m_state {
 #define H1_MF_NO_PHDR           0x00000400 // don't add pseudo-headers in the header list
 #define H1_MF_HDRS_ONLY         0x00000800 // parse headers only
 #define H1_MF_CLEAN_CONN_HDR    0x00001000 // skip close/keep-alive values of connection headers during parsing
+#define H1_MF_METH_CONNECT      0x00002000 // Set for a response to a CONNECT request
+#define H1_MF_METH_HEAD         0x00004000 // Set for a response to a HEAD request
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK
