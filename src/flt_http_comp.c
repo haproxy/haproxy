@@ -739,6 +739,8 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 					goto end;
 				}
 			}
+			else if (fconf->id == fcgi_flt_id)
+				continue;
 			else
 				explicit = 1;
 		}

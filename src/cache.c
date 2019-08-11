@@ -181,9 +181,11 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 		}
 		else if (f->id == http_comp_flt_id)
 			comp = 1;
+		else if (f->id == fcgi_flt_id)
+			continue;
 		else if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
 			/* Implicit declaration is only allowed with the
-			 * compression. For other filters, an implicit
+			 * compression and fcgi. For other filters, an implicit
 			 * declaration is required. */
 			ha_alert("config: %s '%s': require an explicit filter declaration "
 				 "to use the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
