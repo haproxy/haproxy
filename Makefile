@@ -764,7 +764,7 @@ OBJS = src/http_ana.o src/cfgparse-listen.o src/stream.o                      \
        src/sample.o src/stream_interface.o src/proto_tcp.o src/listener.o     \
        src/h1.o src/cfgparse-global.o src/cache.o src/http_rules.o            \
        src/http_act.o src/tcp_rules.o src/filters.o src/connection.o          \
-       src/session.o src/acl.o src/vars.o src/raw_sock.o src/map.o            \
+       src/session.o src/acl.o src/vars.o src/raw_sock.o src/map.o src/sink.o \
        src/proto_uxst.o src/payload.o src/fd.o src/queue.o src/flt_trace.o    \
        src/task.o src/lb_chash.o src/frontend.o src/applet.o src/mux_pt.o     \
        src/signal.o src/ev_select.o src/proto_sockpair.o src/compression.o    \
