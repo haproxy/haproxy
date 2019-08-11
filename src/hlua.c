@@ -5376,7 +5376,7 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	mark = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	conn_set_tos(objt_conn(htxn->s->sess->origin), mark);
+	conn_set_mark(objt_conn(htxn->s->sess->origin), mark);
 	return 0;
 }
 
