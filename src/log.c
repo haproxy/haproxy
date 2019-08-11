@@ -1479,7 +1479,8 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 		data_len = global.max_syslog_len;
 	va_end(argp);
 
-	__send_log(p, level, logline, data_len, default_rfc5424_sd_log_format, 2);
+	__send_log((p ? &p->logsrvs : NULL), (p ? &p->log_tag : NULL), level,
+		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 
 /*
@@ -1731,30 +1732,24 @@ send:
  * The arguments <sd> and <sd_size> are used for the structured-data part
  * in RFC5424 formatted syslog messages.
  */
-void __send_log(struct proxy *p, int level, char *message, size_t size, char *sd, size_t sd_size)
+void __send_log(struct list *logsrvs, struct buffer *tag, int level,
+		char *message, size_t size, char *sd, size_t sd_size)
 {
-	struct list *logsrvs = NULL;
 	struct logsrv *logsrv;
 	int nblogger;
 	static THREAD_LOCAL int curr_pid;
 	static THREAD_LOCAL char pidstr[100];
 	static THREAD_LOCAL struct buffer pid;
-	struct buffer *tag = &global.log_tag;
 
-	if (p == NULL) {
+	if (logsrvs == NULL) {
 		if (!LIST_ISEMPTY(&global.logsrvs)) {
 			logsrvs = &global.logsrvs;
 		}
-	} else {
-		if (!LIST_ISEMPTY(&p->logsrvs)) {
-			logsrvs = &p->logsrvs;
-		}
-		if (p->log_tag.area) {
-			tag = &p->log_tag;
-		}
 	}
+	if (!tag || !tag->area)
+		tag = &global.log_tag;
 
-	if (!logsrvs)
+	if (!logsrvs || LIST_ISEMPTY(logsrvs))
 		return;
 
 	if (unlikely(curr_pid != getpid())) {
@@ -2971,7 +2966,8 @@ void strm_log(struct stream *s)
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
-		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
+		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
+			   logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
 }
@@ -3009,8 +3005,26 @@ void sess_log(struct session *sess)
 	size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
-		__send_log(sess->fe, level, logline, size + 1, logline_rfc5424, sd_size);
+		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
+			   logline, size + 1, logline_rfc5424, sd_size);
 	}
+}
+
+void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *format, ...)
+{
+	va_list argp;
+	int  data_len;
+
+	if (level < 0 || format == NULL || logline == NULL)
+		return;
+
+	va_start(argp, format);
+	data_len = vsnprintf(logline, global.max_syslog_len, format, argp);
+	if (data_len < 0 || data_len > global.max_syslog_len)
+		data_len = global.max_syslog_len;
+	va_end(argp);
+
+	__send_log(logsrvs, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 
 static int cli_io_handler_show_startup_logs(struct appctx *appctx)
