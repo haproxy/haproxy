@@ -268,6 +268,28 @@ struct post_check_fct {
 	int (*fct)();
 };
 
+/* These functions are called for each proxy just after the config validity
+ * check. The functions must return 0 on success, or a combination of ERR_*
+ * flags (ERR_WARN, ERR_ABORT, ERR_FATAL, ...). The 2 latter cause and immediate
+ * exit, so the function must have emitted any useful error.
+ */
+struct list post_proxy_check_list = LIST_HEAD_INIT(post_proxy_check_list);
+struct post_proxy_check_fct {
+	struct list list;
+	int (*fct)(struct proxy *);
+};
+
+/* These functions are called for each server just after the config validity
+ * check. The functions must return 0 on success, or a combination of ERR_*
+ * flags (ERR_WARN, ERR_ABORT, ERR_FATAL, ...). The 2 latter cause and immediate
+ * exit, so the function must have emitted any useful error.
+ */
+struct list post_server_check_list = LIST_HEAD_INIT(post_server_check_list);
+struct post_server_check_fct {
+	struct list list;
+	int (*fct)(struct server *);
+};
+
 /* These functions are called for each thread just after the thread creation
  * and before running the init functions. They should be used to do per-thread
  * (re-)allocations that are needed by subsequent functoins. They must return 0
@@ -375,6 +397,38 @@ void hap_register_post_check(int (*fct)())
 	}
 	b->fct = fct;
 	LIST_ADDQ(&post_check_list, &b->list);
+}
+
+/* used to register some initialization functions to call for each proxy after
+ * the checks.
+ */
+void hap_register_post_proxy_check(int (*fct)(struct proxy *))
+{
+	struct post_proxy_check_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&post_proxy_check_list, &b->list);
+}
+
+/* used to register some initialization functions to call for each server after
+ * the checks.
+ */
+void hap_register_post_server_check(int (*fct)(struct server *))
+{
+	struct post_server_check_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_ADDQ(&post_server_check_list, &b->list);
 }
 
 /* used to register some de-initialization functions to call after everything
@@ -1799,6 +1853,18 @@ static void init(int argc, char **argv)
 	}
 
 	err_code |= check_config_validity();
+	for (px = proxies_list; px; px = px->next) {
+		struct server *srv;
+		struct post_proxy_check_fct *ppcf;
+		struct post_server_check_fct *pscf;
+
+		list_for_each_entry(pscf, &post_server_check_list, list) {
+			for (srv = px->srv; srv; srv = srv->next)
+				err_code |= pscf->fct(srv);
+		}
+		list_for_each_entry(ppcf, &post_proxy_check_list, list)
+			err_code |= ppcf->fct(px);
+	}
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Fatal errors found in configuration.\n");
 		exit(1);

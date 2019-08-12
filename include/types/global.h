@@ -288,6 +288,8 @@ int delete_oldpid(int pid);
 void deinit(void);
 void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
+void hap_register_post_proxy_check(int (*fct)(struct proxy *));
+void hap_register_post_server_check(int (*fct)(struct server *));
 void hap_register_post_deinit(void (*fct)());
 void hap_register_proxy_deinit(void (*fct)(struct proxy *));
 void hap_register_server_deinit(void (*fct)(struct server *));
@@ -307,6 +309,14 @@ void mworker_reload();
 /* simplified way to declare a post-check callback in a file */
 #define REGISTER_POST_CHECK(fct) \
 	INITCALL1(STG_REGISTER, hap_register_post_check, (fct))
+
+/* simplified way to declare a post-proxy-check callback in a file */
+#define REGISTER_POST_PROXY_CHECK(fct) \
+	INITCALL1(STG_REGISTER, hap_register_post_proxy_check, (fct))
+
+/* simplified way to declare a post-server-check callback in a file */
+#define REGISTER_POST_SERVER_CHECK(fct) \
+	INITCALL1(STG_REGISTER, hap_register_post_server_check, (fct))
 
 /* simplified way to declare a post-deinit callback in a file */
 #define REGISTER_POST_DEINIT(fct) \
