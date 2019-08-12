@@ -390,6 +390,44 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 
 }
 
+/* Copy data from <srbuf> into an DATA block in <dsthtx>. If possible, a
+ * zero-copy is performed. It returns the number of bytes copied.
+ */
+static int h1_copy_msg_data(struct htx *dsthtx, struct buffer *srcbuf, size_t ofs,
+			    size_t count, struct buffer *htxbuf)
+{
+	/* very often with large files we'll face the following
+	 * situation :
+	 *   - htx is empty and points to <htxbuf>
+	 *   - ret == srcbuf->data
+	 *   - srcbuf->head == sizeof(struct htx)
+	 *   => we can swap the buffers and place an htx header into
+	 *      the target buffer instead
+	 */
+	if (unlikely(htx_is_empty(dsthtx) && count == b_data(srcbuf) &&
+		     !ofs && b_head_ofs(srcbuf) == sizeof(struct htx))) {
+		void *raw_area = srcbuf->area;
+		void *htx_area = htxbuf->area;
+		struct htx_blk *blk;
+
+		srcbuf->area = htx_area;
+		htxbuf->area = raw_area;
+		dsthtx = (struct htx *)htxbuf->area;
+		dsthtx->size = htxbuf->size - sizeof(*dsthtx);
+		htx_reset(dsthtx);
+		b_set_data(htxbuf, b_size(htxbuf));
+
+		blk = htx_add_blk(dsthtx, HTX_BLK_DATA, count);
+		blk->info += count;
+		/* nothing else to do, the old buffer now contains an
+		 * empty pre-initialized HTX header
+		 */
+		return count;
+	}
+
+	return htx_add_data(dsthtx, ist2(b_peek(srcbuf, ofs), count));
+}
+
 /* Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
  * couldn't proceed. Parsing errors are reported by setting the htx flags
  * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
@@ -410,37 +448,9 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 		if (ret > b_contig_data(srcbuf, ofs))
 			ret = b_contig_data(srcbuf, ofs);
 		if (ret) {
-			/* very often with large files we'll face the following
-			 * situation :
-			 *   - htx is empty and points to <htxbuf>
-			 *   - ret == buf->data
-			 *   - buf->head == sizeof(struct htx)
-			 *   => we can swap the buffers and place an htx header into
-			 *      the target buffer instead
-			 */
 			int32_t try = ret;
 
-			if (unlikely(htx_is_empty(dsthtx) && ret == b_data(srcbuf) &&
-				     !ofs && b_head_ofs(srcbuf) == sizeof(struct htx))) {
-				void *raw_area = srcbuf->area;
-				void *htx_area = htxbuf->area;
-				struct htx_blk *blk;
-
-				srcbuf->area = htx_area;
-				htxbuf->area = raw_area;
-				dsthtx = (struct htx *)htxbuf->area;
-				dsthtx->size = htxbuf->size - sizeof(*dsthtx);
-				htx_reset(dsthtx);
-				b_set_data(htxbuf, b_size(htxbuf));
-
-				blk = htx_add_blk(dsthtx, HTX_BLK_DATA, ret);
-				blk->info += ret;
-				/* nothing else to do, the old buffer now contains an
-				 * empty pre-initialized HTX header
-				 */
-			}
-			else
-				ret = htx_add_data(dsthtx, ist2(b_peek(srcbuf, ofs), try));
+			ret = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
 			h1m->curr_len -= ret;
 			max -= sizeof(struct htx_blk) + ret;
 			ofs += ret;
@@ -489,7 +499,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 			if (ret) {
 				int32_t try = ret;
 
-				ret = htx_add_data(dsthtx, ist2(b_peek(srcbuf, ofs), try));
+				ret = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
 				h1m->curr_len -= ret;
 				max -= sizeof(struct htx_blk) + ret;
 				ofs += ret;
@@ -518,7 +528,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 		if (ret > b_contig_data(srcbuf, ofs))
 			ret = b_contig_data(srcbuf, ofs);
 		if (ret)
-			total = htx_add_data(dsthtx, ist2(b_peek(srcbuf, ofs), ret));
+			total += h1_copy_msg_data(dsthtx, srcbuf, ofs, ret, htxbuf);
 	}
 
   end:
