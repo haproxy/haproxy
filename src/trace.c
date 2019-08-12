@@ -49,8 +49,10 @@ REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 
 /* write a message for the given trace source */
-void __trace(uint64_t mask, struct trace_source *src, const struct ist msg)
+void __trace(uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
 {
+	struct ist line[8];
+
 	if (likely(src->state == TRACE_STATE_STOPPED))
 		return;
 
@@ -75,8 +77,20 @@ void __trace(uint64_t mask, struct trace_source *src, const struct ist msg)
 	if ((src->report_events & mask) == 0)
 		goto end;
 
+	/* log the logging location truncated to 10 chars from the right so that
+	 * the line number and the end of the file name are there.
+	 */
+	line[0] = ist("[");
+	line[1] = where;
+	if (line[1].len > 10) {
+		line[1].ptr += (line[1].len - 10);
+		line[1].len = 10;
+	}
+	line[2] = ist("] ");
+	line[3] = msg;
+
 	if (src->sink)
-		sink_write(src->sink, &msg, 1);
+		sink_write(src->sink, line, 4);
 
  end:
 	/* check if we need to stop the trace now */
