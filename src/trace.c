@@ -49,7 +49,7 @@ REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 
 /* write a message for the given trace source */
-void __trace(uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
 {
 	struct ist line[8];
 
@@ -74,7 +74,7 @@ void __trace(uint64_t mask, struct trace_source *src, const struct ist where, co
 	/* TODO: add check of lockon+lockon_ptr here, return if no match */
 	/* here the trace is running and is tracking a desired item */
 
-	if ((src->report_events & mask) == 0)
+	if ((src->report_events & mask) == 0 || level > src->level)
 		goto end;
 
 	/* log the logging location truncated to 10 chars from the right so that

@@ -34,7 +34,7 @@
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
-void __trace(uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg);
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg);
 
 /* return a single char to describe a trace state */
 static inline char trace_state_char(enum trace_state st)
@@ -66,10 +66,10 @@ static inline void trace_register_source(struct trace_source *source)
 }
 
 /* sends a trace for the given source */
-static inline void trace(uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
+static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
 {
 	if (unlikely(src->state != TRACE_STATE_STOPPED))
-		__trace(mask, src, where, msg);
+		__trace(level, mask, src, where, msg);
 }
 
 #endif /* _PROTO_TRACE_H */
