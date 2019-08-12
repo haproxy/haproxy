@@ -31,6 +31,35 @@
 #include <types/sink.h>
 #include <types/trace.h>
 
+/* Make a string from the location of the trace producer as "file:line" */
+#define TRC_LOC  _TRC_LOC(__FILE__, __LINE__)
+#define _TRC_LOC(f,l) __TRC_LOC(f, ":", l)
+#define __TRC_LOC(f,c,l) f c #l
+
+/* For convenience, TRACE() alone uses the file's default TRACE_LEVEL, most
+ * likely TRACE_LEVEL_DEVELOPER. The 4 arguments are the 4 source-specific
+ * arguments that are passed to the cb() callback dedicated to decoding, and
+ * which may be used for special tracking. These 4 arguments as well as the
+ * cb() function pointer may all be NULL, or simply omitted (in which case
+ * they will be replaced by a NULL). This ordering allows many TRACE() calls
+ * to be placed using copy-paste and just change the message at the end.
+ */
+
+#define TRACE(mask, a1, a2, a3, a4, cb, msg)    \
+	trace(TRACE_LEVEL, (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+
+/* and explicit trace levels (recommended) */
+#define TRACE_USER(mask, a1, a2, a3, a4, cb, msg)     \
+	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+#define TRACE_PAYLOAD(mask, a1, a2, a3, a4, cb, msg)  \
+	trace(TRACE_LEVEL_PAYLOAD,   (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+#define TRACE_PROTO(mask, a1, a2, a3, a4, cb, msg)    \
+	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+#define TRACE_STATE(mask, a1, a2, a3, a4, cb, msg)    \
+	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+#define TRACE_DEVEL(mask, a1, a2, a3, a4, cb, msg)    \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), DEFNULL(a1), DEFNULL(a2), DEFNULL(a3), DEFNULL(a4), DEFNULL(cb), ist(msg))
+
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
