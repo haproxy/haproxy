@@ -239,8 +239,63 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 	return 0;
 }
 
+/* parse the command, returns 1 if a message is returned, otherwise zero */
+static int cli_parse_show_trace(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct trace_source *src;
+	const struct sink *sink;
+	int i;
+
+	args++; // make args[1] the 1st arg
+
+	if (!*args[1]) {
+		/* no arg => report the list of supported sources */
+		chunk_printf(&trash,
+			     "Supported trace sources and states (.=stopped, w=waiting, R=running) :\n"
+			     );
+
+		list_for_each_entry(src, &trace_sources, source_link) {
+			sink = src->sink;
+			chunk_appendf(&trash, " [%c] %-10s -> %s [drp %u]  [%s]\n",
+				      trace_state_char(src->state), src->name.ptr,
+				      sink ? sink->name : "none",
+				      sink ? sink->ctx.dropped : 0,
+				      src->desc);
+		}
+
+		trash.area[trash.data] = 0;
+		return cli_msg(appctx, LOG_INFO, trash.area);
+	}
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	src = trace_find_source(args[1]);
+	if (!src)
+		return cli_err(appctx, "No such trace source");
+
+	sink = src->sink;
+	chunk_printf(&trash, "Trace status for %s:\n", src->name.ptr);
+	chunk_appendf(&trash, "  - sink: %s [%u dropped]\n",
+		      sink ? sink->name : "none", sink ? sink->ctx.dropped : 0);
+
+	chunk_appendf(&trash, "  - event name :     report    start    stop    pause\n");
+	for (i = 0; src->known_events && src->known_events[i].mask; i++) {
+		chunk_appendf(&trash, "    %-10s :        %c        %c        %c       %c\n",
+			      src->known_events[i].name,
+			      trace_event_char(src->report_events, src->known_events[i].mask),
+			      trace_event_char(src->start_events, src->known_events[i].mask),
+			      trace_event_char(src->stop_events, src->known_events[i].mask),
+			      trace_event_char(src->pause_events, src->known_events[i].mask));
+	}
+
+	trash.area[trash.data] = 0;
+	return cli_msg(appctx, LOG_WARNING, trash.area);
+}
+
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "trace", NULL }, "trace <module> [cmd [args...]] : manage live tracing", cli_parse_trace, NULL, NULL },
+	{ { "show", "trace", NULL }, "show trace [<module>] : show live tracing state", cli_parse_show_trace, NULL, NULL },
 	{{},}
 }};
 
