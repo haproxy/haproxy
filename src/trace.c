@@ -48,6 +48,46 @@ static void free_trace_buffers_per_thread()
 REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 
+/* write a message for the given trace source */
+void __trace(uint64_t mask, struct trace_source *src, const struct ist msg)
+{
+	if (likely(src->state == TRACE_STATE_STOPPED))
+		return;
+
+	/* check that at least one action is interested by this event */
+	if (((src->report_events | src->start_events | src->pause_events | src->stop_events) & mask) == 0)
+		return;
+
+	/* TODO: add handling of filters here, return if no match (not even update states) */
+
+	/* check if we need to start the trace now */
+	if (src->state == TRACE_STATE_WAITING) {
+		if ((src->start_events & mask) == 0)
+			return;
+
+		/* TODO: add update of lockon+lockon_ptr here */
+		HA_ATOMIC_STORE(&src->state, TRACE_STATE_RUNNING);
+	}
+
+	/* TODO: add check of lockon+lockon_ptr here, return if no match */
+	/* here the trace is running and is tracking a desired item */
+
+	if ((src->report_events & mask) == 0)
+		goto end;
+
+	if (src->sink)
+		sink_write(src->sink, &msg, 1);
+
+ end:
+	/* check if we need to stop the trace now */
+	if ((src->stop_events & mask) != 0) {
+		HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
+	}
+	else if ((src->pause_events & mask) != 0) {
+		HA_ATOMIC_STORE(&src->state, TRACE_STATE_WAITING);
+	}
+}
+
 struct trace_source *trace_find_source(const char *name)
 {
 	struct trace_source *src;
