@@ -721,6 +721,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	struct h2c *h2c;
 	struct task *t = NULL;
 
+	TRACE_ENTER(H2_EV_H2C_NEW, conn);
+
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
 		goto fail_no_h2c;
@@ -810,6 +812,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	/* prepare to read something */
 	h2c_restart_reading(h2c, 1);
+	TRACE_LEAVE(H2_EV_H2C_NEW, conn);
 	return 0;
   fail_stream:
 	hpack_dht_free(h2c->ddht);
@@ -819,6 +822,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		tasklet_free(h2c->wait_event.tasklet);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
+	TRACE_DEVEL("leaving in error", H2_EV_H2C_NEW|H2_EV_H2C_END|H2_EV_H2C_ERR, conn);
 	return -1;
 }
 
@@ -859,11 +863,14 @@ static void h2_release(struct h2c *h2c)
 {
 	struct connection *conn = NULL;;
 
+	TRACE_ENTER(H2_EV_H2C_END);
+
 	if (h2c) {
 		/* The connection must be aattached to this mux to be released */
 		if (h2c->conn && h2c->conn->ctx == h2c)
 			conn = h2c->conn;
 
+		TRACE_DEVEL("freeing h2c", H2_EV_H2C_END, conn);
 		hpack_dht_free(h2c->ddht);
 
 		if (LIST_ADDED(&h2c->buf_wait.list)) {
@@ -892,6 +899,7 @@ static void h2_release(struct h2c *h2c)
 	if (conn) {
 		conn->mux = NULL;
 		conn->ctx = NULL;
+		TRACE_DEVEL("freeing conn", H2_EV_H2C_END, conn);
 
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
@@ -899,6 +907,8 @@ static void h2_release(struct h2c *h2c)
 			conn->destroy_cb(conn);
 		conn_free(conn);
 	}
+
+	TRACE_LEAVE(H2_EV_H2C_END);
 }
 
 
@@ -935,6 +945,7 @@ static inline __maybe_unused int h2c_mux_busy(const struct h2c *h2c, const struc
 /* marks an error on the connection */
 static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 {
+	TRACE_POINT(H2_EV_H2C_ERR, h2c->conn,,, (void *)(long)(err));
 	h2c->errcode = err;
 	h2c->st0 = H2_CS_ERROR;
 }
@@ -945,6 +956,7 @@ static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 {
 	if (h2s->id && h2s->st != H2_SS_ERROR) {
+		TRACE_POINT(H2_EV_H2S_ERR, h2s->h2c->conn, h2s,, (void *)(long)(err));
 		h2s->errcode = err;
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -959,6 +971,7 @@ static void __maybe_unused h2s_notify_recv(struct h2s *h2s)
 	struct wait_event *sw;
 
 	if (h2s->recv_wait) {
+		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		sw = h2s->recv_wait;
 		sw->events &= ~SUB_RETRY_RECV;
 		tasklet_wakeup(sw->tasklet);
@@ -972,6 +985,7 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 	struct wait_event *sw;
 
 	if (h2s->send_wait && !LIST_ADDED(&h2s->sending_list)) {
+		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		sw = h2s->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
@@ -989,12 +1003,18 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
  */
 static void __maybe_unused h2s_alert(struct h2s *h2s)
 {
+	TRACE_ENTER(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
+
 	if (h2s->recv_wait || h2s->send_wait) {
 		h2s_notify_recv(h2s);
 		h2s_notify_send(h2s);
 	}
-	else if (h2s->cs && h2s->cs->data_cb->wake != NULL)
+	else if (h2s->cs && h2s->cs->data_cb->wake != NULL) {
+		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		h2s->cs->data_cb->wake(h2s->cs);
+	}
+
+	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
 }
 
 /* writes the 24-bit frame size <len> at address <frame> */
@@ -1093,6 +1113,7 @@ static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh
 static inline void h2s_close(struct h2s *h2s)
 {
 	if (h2s->st != H2_SS_CLOSED) {
+		TRACE_ENTER(H2_EV_H2S_END, h2s->h2c->conn, h2s);
 		h2s->h2c->nb_streams--;
 		if (!h2s->id)
 			h2s->h2c->nb_reserved--;
@@ -1100,6 +1121,7 @@ static inline void h2s_close(struct h2s *h2s)
 			if (!(h2s->cs->flags & CS_FL_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
+		TRACE_LEAVE(H2_EV_H2S_END, h2s->h2c->conn, h2s);
 	}
 	h2s->st = H2_SS_CLOSED;
 }
@@ -1107,6 +1129,10 @@ static inline void h2s_close(struct h2s *h2s)
 /* detaches an H2 stream from its H2C and releases it to the H2S pool. */
 static void h2s_destroy(struct h2s *h2s)
 {
+	struct connection *conn = h2s->h2c->conn;
+
+	TRACE_ENTER(H2_EV_H2S_END, conn, h2s);
+
 	h2s_close(h2s);
 	eb32_delete(&h2s->by_id);
 	if (b_size(&h2s->rxbuf)) {
@@ -1128,6 +1154,8 @@ static void h2s_destroy(struct h2s *h2s)
 	}
 	tasklet_free(h2s->wait_event.tasklet);
 	pool_free(pool_head_h2s, h2s);
+
+	TRACE_LEAVE(H2_EV_H2S_END, conn);
 }
 
 /* allocates a new stream <id> for connection <h2c> and adds it into h2c's
@@ -1139,6 +1167,8 @@ static void h2s_destroy(struct h2s *h2s)
 static struct h2s *h2s_new(struct h2c *h2c, int id)
 {
 	struct h2s *h2s;
+
+	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
 	h2s = pool_alloc(pool_head_h2s);
 	if (!h2s)
@@ -1186,11 +1216,13 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2c->nb_streams++;
 	h2c->stream_cnt++;
 
+	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn, h2s);
 	return h2s;
 
  out_free_h2s:
 	pool_free(pool_head_h2s, h2s);
  out:
+	TRACE_DEVEL("leaving in error", H2_EV_H2S_ERR|H2_EV_H2S_END, h2c->conn);
 	return NULL;
 }
 
@@ -1202,6 +1234,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	struct session *sess = h2c->conn->owner;
 	struct conn_stream *cs;
 	struct h2s *h2s;
+
+	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
 	if (h2c->nb_streams >= h2_settings_max_concurrent_streams)
 		goto out;
@@ -1234,6 +1268,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	/* OK done, the stream lives its own life now */
 	if (h2_frt_has_too_many_cs(h2c))
 		h2c->flags |= H2_CF_DEM_TOOMANY;
+	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn);
 	return h2s;
 
  out_free_cs:
@@ -1244,6 +1279,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	h2s_destroy(h2s);
  out:
 	sess_log(sess);
+	TRACE_LEAVE(H2_EV_H2S_NEW|H2_EV_H2S_ERR|H2_EV_H2S_END, h2c->conn);
 	return NULL;
 }
 
@@ -1254,6 +1290,8 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess)
 {
 	struct h2s *h2s = NULL;
+
+	TRACE_ENTER(H2_EV_H2S_NEW, h2c->conn);
 
 	if (h2c->nb_streams >= h2c->streams_limit)
 		goto out;
@@ -1272,6 +1310,10 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, s
 	h2c->nb_cs++;
 
  out:
+	if (likely(h2s))
+		TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn, h2s);
+	else
+		TRACE_LEAVE(H2_EV_H2S_NEW|H2_EV_H2S_ERR|H2_EV_H2S_END, h2c->conn, h2s);
 	return h2s;
 }
 
@@ -1285,11 +1327,13 @@ static int h2c_send_settings(struct h2c *h2c)
 	char buf_data[100]; // enough for 15 settings
 	struct buffer buf;
 	int mfs;
-	int ret;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn);
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	chunk_init(&buf, buf_data, sizeof(buf_data));
@@ -1353,7 +1397,7 @@ static int h2c_send_settings(struct h2c *h2c)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(buf.area, buf.data));
@@ -1363,13 +1407,14 @@ static int h2c_send_settings(struct h2c *h2c)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
 		}
 	}
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn);
 	return ret;
 }
 
@@ -1382,6 +1427,8 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	int ret1;
 	int ret2;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
+
 	ret1 = b_isteq(&h2c->dbuf, 0, b_data(&h2c->dbuf), ist(H2_CONN_PREFACE));
 
 	if (unlikely(ret1 <= 0)) {
@@ -1390,13 +1437,15 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 
 		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn))
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-		return 0;
+		ret2 = 0;
+		goto out;
 	}
 
 	ret2 = h2c_send_settings(h2c);
 	if (ret2 > 0)
 		b_del(&h2c->dbuf, ret1);
-
+ out:
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
 	return ret2;
 }
 
@@ -1407,11 +1456,13 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 static int h2c_bck_send_preface(struct h2c *h2c)
 {
 	struct buffer *res;
-	int ret;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_PREFACE, h2c->conn);
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	res = br_tail(h2c->mbuf);
@@ -1419,7 +1470,7 @@ static int h2c_bck_send_preface(struct h2c *h2c)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	if (!b_data(res)) {
@@ -1431,15 +1482,19 @@ static int h2c_bck_send_preface(struct h2c *h2c)
 					goto retry;
 				h2c->flags |= H2_CF_MUX_MFULL;
 				h2c->flags |= H2_CF_DEM_MROOM;
-				return 0;
+				goto out;
 			}
 			else {
 				h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-				return 0;
+				ret = 0;
+				goto out;
 			}
 		}
 	}
-	return h2c_send_settings(h2c);
+	ret = h2c_send_settings(h2c);
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_PREFACE, h2c->conn);
+	return ret;
 }
 
 /* try to send a GOAWAY frame on the connection to report an error or a graceful
@@ -1455,17 +1510,21 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer *res;
 	char str[17];
-	int ret;
+	int ret = 0;
 
-	if (h2c->flags & H2_CF_GOAWAY_FAILED)
-		return 1; // claim that it worked
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_GOAWAY, h2c->conn);
+
+	if (h2c->flags & H2_CF_GOAWAY_FAILED) {
+		ret = 1; // claim that it worked
+		goto out;
+	}
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		if (h2s)
 			h2s->flags |= H2_SF_BLK_MBUSY;
 		else
 			h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	/* len: 8, type: 7, flags: none, sid: 0 */
@@ -1485,7 +1544,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 			h2s->flags |= H2_SF_BLK_MROOM;
 		else
 			h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 17));
@@ -1498,7 +1557,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 				h2s->flags |= H2_SF_BLK_MROOM;
 			else
 				h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
+			goto out;
 		}
 		else {
 			/* we cannot report this error using GOAWAY, so we mark
@@ -1506,10 +1565,13 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 			 */
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
 			h2c->flags |= H2_CF_GOAWAY_FAILED;
-			return 1;
+			ret = 1;
+			goto out;
 		}
 	}
 	h2c->flags |= H2_CF_GOAWAY_SENT;
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_GOAWAY, h2c->conn);
 	return ret;
 }
 
@@ -1526,10 +1588,14 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer *res;
 	char str[13];
-	int ret;
+	int ret = 0;
 
-	if (!h2s || h2s->st == H2_SS_CLOSED)
-		return 1;
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_RST, h2c->conn, h2s);
+
+	if (!h2s || h2s->st == H2_SS_CLOSED) {
+		ret = 1;
+		goto out;
+	}
 
 	/* RFC7540#5.4.2: To avoid looping, an endpoint MUST NOT send a
 	 * RST_STREAM in response to a RST_STREAM frame.
@@ -1541,7 +1607,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	/* len: 4, type: 3, flags: none */
@@ -1554,7 +1620,7 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 13));
@@ -1564,17 +1630,20 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
-			return 0;
+			goto out;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
+			goto out;
 		}
 	}
 
  ignore:
 	h2s->flags |= H2_SF_RST_SENT;
 	h2s_close(h2s);
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_RST, h2c->conn, h2s);
 	return ret;
 }
 
@@ -1592,7 +1661,9 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer *res;
 	char str[13];
-	int ret;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_RST, h2c->conn, h2s);
 
 	/* RFC7540#5.4.2: To avoid looping, an endpoint MUST NOT send a
 	 * RST_STREAM in response to a RST_STREAM frame.
@@ -1604,7 +1675,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	/* len: 4, type: 3, flags: none */
@@ -1618,7 +1689,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 13));
@@ -1628,11 +1699,12 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
+			goto out;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
+			goto out;
 		}
 	}
 
@@ -1642,6 +1714,8 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		h2s_close(h2s);
 	}
 
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_RST, h2c->conn, h2s);
 	return ret;
 }
 
@@ -1656,14 +1730,18 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	struct h2c *h2c = h2s->h2c;
 	struct buffer *res;
 	char str[9];
-	int ret;
+	int ret = 0;
 
-	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED)
-		return 1;
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_TX_EOI, h2c->conn, h2s);
+
+	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_ERROR || h2s->st == H2_SS_CLOSED) {
+		ret = 1;
+		goto out;
+	}
 
 	if (h2c_mux_busy(h2c, h2s)) {
 		h2s->flags |= H2_SF_BLK_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	/* len: 0x000000, type: 0(DATA), flags: ES=1 */
@@ -1675,7 +1753,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 9));
@@ -1687,12 +1765,13 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
-		return 0;
 	}
 	else {
 		h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-		return 0;
+		ret = 0;
 	}
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_TX_EOI, h2c->conn, h2s);
 	return ret;
 }
 
@@ -1703,9 +1782,14 @@ static int h2_send_empty_data_es(struct h2s *h2s)
  */
 static void h2s_wake_one_stream(struct h2s *h2s)
 {
+	struct h2c *h2c = h2s->h2c;
+
+	TRACE_ENTER(H2_EV_H2S_WAKE, h2c->conn, h2s);
+
 	if (!h2s->cs) {
 		/* this stream was already orphaned */
 		h2s_destroy(h2s);
+		TRACE_DEVEL("leaving with no h2s", H2_EV_H2S_WAKE, h2c->conn);
 		return;
 	}
 
@@ -1727,6 +1811,7 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 	}
 
 	h2s_alert(h2s);
+	TRACE_LEAVE(H2_EV_H2S_WAKE, h2c->conn);
 }
 
 /* wake the streams attached to the connection, whose id is greater than <last>
@@ -1736,6 +1821,8 @@ static void h2_wake_some_streams(struct h2c *h2c, int last)
 {
 	struct eb32_node *node;
 	struct h2s *h2s;
+
+	TRACE_ENTER(H2_EV_H2S_WAKE, h2c->conn);
 
 	/* Wake all streams with ID > last */
 	node = eb32_lookup_ge(&h2c->streams_by_id, last + 1);
@@ -1754,6 +1841,8 @@ static void h2_wake_some_streams(struct h2c *h2c, int last)
 		node = eb32_next(node);
 		h2s_wake_one_stream(h2s);
 	}
+
+	TRACE_LEAVE(H2_EV_H2S_WAKE, h2c->conn);
 }
 
 /* Wake up all blocked streams whose window size has become positive after the
@@ -1765,6 +1854,8 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 	struct h2s *h2s;
 	struct eb32_node *node;
 
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
 	node = eb32_first(&h2c->streams_by_id);
 	while (node) {
 		h2s = container_of(node, struct h2s, by_id);
@@ -1775,6 +1866,8 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 		}
 		node = eb32_next(node);
 	}
+
+	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 }
 
 /* processes a SETTINGS frame whose payload is <payload> for <plen> bytes, and
@@ -1787,17 +1880,19 @@ static int h2c_handle_settings(struct h2c *h2c)
 	unsigned int offset;
 	int error;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn);
+
 	if (h2c->dff & H2_F_SETTINGS_ACK) {
 		if (h2c->dfl) {
 			error = H2_ERR_FRAME_SIZE_ERROR;
 			goto fail;
 		}
-		return 1;
+		goto done;
 	}
 
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
-		return 0;
+		goto out0;
 
 	/* parse the frame */
 	for (offset = 0; offset < h2c->dfl; offset += 6) {
@@ -1841,10 +1936,14 @@ static int h2c_handle_settings(struct h2c *h2c)
 
 	/* need to ACK this frame now */
 	h2c->st0 = H2_CS_FRAME_A;
+ done:
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn);
 	return 1;
  fail:
 	sess_log(h2c->conn->owner);
 	h2c_error(h2c, error);
+ out0:
+	TRACE_DEVEL("leaving with missing data or error", H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn);
 	return 0;
 }
 
@@ -1855,11 +1954,13 @@ static int h2c_ack_settings(struct h2c *h2c)
 {
 	struct buffer *res;
 	char str[9];
-	int ret = -1;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn);
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	memcpy(str,
@@ -1872,7 +1973,7 @@ static int h2c_ack_settings(struct h2c *h2c)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 9));
@@ -1882,13 +1983,14 @@ static int h2c_ack_settings(struct h2c *h2c)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
 		}
 	}
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn);
 	return ret;
 }
 
@@ -1913,11 +2015,13 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 {
 	struct buffer *res;
 	char str[13];
-	int ret = -1;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	/* length: 4, type: 8, flags: none */
@@ -1930,7 +2034,7 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 13));
@@ -1940,13 +2044,14 @@ static int h2c_send_window_update(struct h2c *h2c, int sid, uint32_t increment)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
 		}
 	}
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
 }
 
@@ -1958,8 +2063,10 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 {
 	int ret = 1;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
+
 	if (h2c->rcvd_c <= 0)
-		return 1;
+		goto out;
 
 	if (!(h2c->flags & H2_CF_WINDOW_OPENED)) {
 		/* increase the advertised connection window to 2G on
@@ -1974,6 +2081,8 @@ static int h2c_send_conn_wu(struct h2c *h2c)
 	if (ret > 0)
 		h2c->rcvd_c = 0;
 
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
 }
 
@@ -1985,14 +2094,17 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 {
 	int ret = 1;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
+
 	if (h2c->rcvd_s <= 0)
-		return 1;
+		goto out;
 
 	/* send WU for the stream */
 	ret = h2c_send_window_update(h2c, h2c->dsi, h2c->rcvd_s);
 	if (ret > 0)
 		h2c->rcvd_s = 0;
-
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 	return ret;
 }
 
@@ -2003,14 +2115,16 @@ static int h2c_ack_ping(struct h2c *h2c)
 {
 	struct buffer *res;
 	char str[17];
-	int ret = -1;
+	int ret = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_PING, h2c->conn);
 
 	if (b_data(&h2c->dbuf) < 8)
-		return 0;
+		goto out;
 
 	if (h2c_mux_busy(h2c, NULL)) {
 		h2c->flags |= H2_CF_DEM_MBUSY;
-		return 0;
+		goto out;
 	}
 
 	memcpy(str,
@@ -2026,7 +2140,7 @@ static int h2c_ack_ping(struct h2c *h2c)
 	if (!h2_get_buf(h2c, res)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2c->flags |= H2_CF_DEM_MROOM;
-		return 0;
+		goto out;
 	}
 
 	ret = b_istput(res, ist2(str, 17));
@@ -2036,13 +2150,14 @@ static int h2c_ack_ping(struct h2c *h2c)
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2c->flags |= H2_CF_DEM_MROOM;
-			return 0;
 		}
 		else {
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
-			return 0;
+			ret = 0;
 		}
 	}
+ out:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_PING, h2c->conn);
 	return ret;
 }
 
@@ -2056,9 +2171,11 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	int32_t inc;
 	int error;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
+
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
-		return 0;
+		goto out0;
 
 	inc = h2_get_n32(&h2c->dbuf, 0);
 
@@ -2067,7 +2184,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 
 		/* it's not an error to receive WU on a closed stream */
 		if (h2s->st == H2_SS_CLOSED)
-			return 1;
+			goto done;
 
 		if (!inc) {
 			error = H2_ERR_PROTOCOL_ERROR;
@@ -2101,15 +2218,20 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		h2c->mws += inc;
 	}
 
+ done:
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
 	return 1;
 
  conn_err:
 	h2c_error(h2c, error);
+ out0:
+	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
 	return 0;
 
  strm_err:
 	h2s_error(h2s, error);
 	h2c->st0 = H2_CS_FRAME_E;
+	TRACE_DEVEL("leaving on stream error", H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
 	return 0;
 }
 
@@ -2122,15 +2244,19 @@ static int h2c_handle_goaway(struct h2c *h2c)
 {
 	int last;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
 	/* process full frame only */
-	if (b_data(&h2c->dbuf) < h2c->dfl)
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
+		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
 		return 0;
+	}
 
 	last = h2_get_n32(&h2c->dbuf, 0);
 	h2c->errcode = h2_get_n32(&h2c->dbuf, 4);
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
 	h2_wake_some_streams(h2c, last);
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
 	return 1;
 }
 
@@ -2141,15 +2267,20 @@ static int h2c_handle_goaway(struct h2c *h2c)
  */
 static int h2c_handle_priority(struct h2c *h2c)
 {
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
+
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl)
+		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 		return 0;
 
 	if (h2_get_n32(&h2c->dbuf, 0) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 		return 0;
 	}
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 	return 1;
 }
 
@@ -2159,13 +2290,19 @@ static int h2c_handle_priority(struct h2c *h2c)
  */
 static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
+
 	/* process full frame only */
-	if (b_data(&h2c->dbuf) < h2c->dfl)
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
+		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 		return 0;
+	}
 
 	/* late RST, already handled */
-	if (h2s->st == H2_SS_CLOSED)
+	if (h2s->st == H2_SS_CLOSED) {
+		TRACE_DEVEL("leaving on stream closed", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 		return 1;
+	}
 
 	h2s->errcode = h2_get_n32(&h2c->dbuf, 0);
 	h2s_close(h2s);
@@ -2176,6 +2313,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	h2s->flags |= H2_SF_RST_RCVD;
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 	return 1;
 }
 
@@ -2193,11 +2331,13 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	uint32_t flags = 0;
 	int error;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
+
 	if (!b_size(&h2c->dbuf))
-		return NULL; // empty buffer
+		goto out; // empty buffer
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
-		return NULL; // incomplete frame
+		goto out; // incomplete frame
 
 	/* now either the frame is complete or the buffer is complete */
 	if (h2s->st != H2_SS_IDLE) {
@@ -2284,6 +2424,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->id > h2c->max_id)
 		h2c->max_id = h2s->id;
 
+	TRACE_USER("received H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn,, &rxbuf);
 	return h2s;
 
  conn_err:
@@ -2292,6 +2433,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
  out:
 	h2_release_buf(h2c, &rxbuf);
+	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return NULL;
 
  send_rst:
@@ -2301,6 +2443,9 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	 */
 	h2_release_buf(h2c, &rxbuf);
 	h2c->st0 = H2_CS_FRAME_E;
+
+	TRACE_USER("rejected H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn,, &rxbuf);
+	TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
 }
 
@@ -2313,33 +2458,35 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
+
 	if (!b_size(&h2c->dbuf))
-		return NULL; // empty buffer
+		goto fail; // empty buffer
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
-		return NULL; // incomplete frame
+		goto fail; // incomplete frame
 
 	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
-		return NULL;
+		goto fail;
 
 	if (h2s->st != H2_SS_OPEN && h2s->st != H2_SS_HLOC) {
 		/* RFC7540#5.1 */
 		h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 		h2c->st0 = H2_CS_FRAME_E;
-		return NULL;
+		goto fail;
 	}
 
 	if (error <= 0) {
 		if (error == 0)
-			return NULL; // missing data
+			goto fail; // missing data
 
 		/* stream error : send RST_STREAM */
 		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR);
 		h2c->st0 = H2_CS_FRAME_E;
-		return NULL;
+		goto fail;
 	}
 
 	if (h2c->dff & H2_F_HEADERS_END_STREAM)
@@ -2354,7 +2501,12 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
+	TRACE_USER("received H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn,, &h2s->rxbuf);
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
+ fail:
+	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
+	return NULL;
 }
 
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
@@ -2364,15 +2516,17 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+
 	/* note that empty DATA frames are perfectly valid and sometimes used
 	 * to signal an end of stream (with the ES flag).
 	 */
 
 	if (!b_size(&h2c->dbuf) && h2c->dfl)
-		return 0; // empty buffer
+		goto fail; // empty buffer
 
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
-		return 0; // incomplete frame
+		goto fail; // incomplete frame
 
 	/* now either the frame is complete or the buffer is complete */
 
@@ -2389,7 +2543,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (!h2_frt_transfer_data(h2s))
-		return 0;
+		goto fail;
 
 	/* call the upper layers to process the frame, then let the upper layer
 	 * notify the stream about any change.
@@ -2404,7 +2558,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (h2c->st0 >= H2_CS_ERROR)
-		return 0;
+		goto fail;
 
 	if (h2s->st >= H2_SS_ERROR) {
 		/* stream error : send RST_STREAM */
@@ -2415,7 +2569,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * FRAME_H once done.
 	 */
 	if (h2c->st0 == H2_CS_FRAME_P)
-		return 0;
+		goto fail;
 
 	/* last frame */
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
@@ -2432,11 +2586,14 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 1;
 
  strm_err:
 	h2s_error(h2s, error);
 	h2c->st0 = H2_CS_FRAME_E;
+ fail:
+	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 0;
 }
 
@@ -2448,6 +2605,8 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
  */
 static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 {
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn, h2s);
+
 	if (h2s->st == H2_SS_IDLE &&
 	    h2c->dft != H2_FT_HEADERS && h2c->dft != H2_FT_PRIORITY) {
 		/* RFC7540#5.1: any frame other than HEADERS or PRIORITY in
@@ -2458,6 +2617,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			/* only log if no other stream can report the error */
 			sess_log(h2c->conn->owner);
 		}
+		TRACE_DEVEL("leaving in error (idle&!hdrs&!prio)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -2472,6 +2632,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 		else
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		TRACE_DEVEL("leaving in error (hrem&!wu&!rst&!prio)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -2499,6 +2660,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			 * MUST respond with a connection error.
 			 */
 			h2c_error(h2c, H2_ERR_STREAM_CLOSED);
+			TRACE_DEVEL("leaving in error (closed&hdrmask)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 			return 0;
 		}
 
@@ -2520,6 +2682,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			 */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 			h2c->st0 = H2_CS_FRAME_E;
+			TRACE_DEVEL("leaving in error (rst_rcvd&hdrmask)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 			return 0;
 		}
 
@@ -2542,10 +2705,12 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			    h2c->dft != H2_FT_PRIORITY &&
 			    h2c->dft != H2_FT_WINDOW_UPDATE) {
 				h2c_error(h2c, H2_ERR_STREAM_CLOSED);
+				TRACE_DEVEL("leaving in error (rst_sent&!rst&!prio&!wu)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 				return 0;
 			}
 		}
 	}
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn, h2s);
 	return 1;
 }
 
@@ -2557,33 +2722,42 @@ static void h2_process_demux(struct h2c *h2c)
 	unsigned int padlen = 0;
 	int32_t old_iw = h2c->miw;
 
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
 	if (h2c->st0 >= H2_CS_ERROR)
-		return;
+		goto out;
 
 	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
 		if (h2c->st0 == H2_CS_PREFACE) {
+			TRACE_STATE("expecting preface", H2_EV_RX_PREFACE, h2c->conn);
 			if (h2c->flags & H2_CF_IS_BACK)
-				return;
+				goto out;
+
 			if (unlikely(h2c_frt_recv_preface(h2c) <= 0)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
 				if (h2c->st0 == H2_CS_ERROR) {
+					TRACE_PROTO("failed to receive preface", H2_EV_RX_PREFACE|H2_EV_PROTO_ERR, h2c->conn);
 					h2c->st0 = H2_CS_ERROR2;
 					sess_log(h2c->conn->owner);
 				}
 				goto fail;
 			}
+			TRACE_PROTO("received preface", H2_EV_RX_PREFACE, h2c->conn);
 
 			h2c->max_id = 0;
 			h2c->st0 = H2_CS_SETTINGS1;
+			TRACE_STATE("switching to SETTINGS1", H2_EV_RX_PREFACE, h2c->conn);
 		}
 
 		if (h2c->st0 == H2_CS_SETTINGS1) {
 			/* ensure that what is pending is a valid SETTINGS frame
 			 * without an ACK.
 			 */
+			TRACE_STATE("expecting settings", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS, h2c->conn);
 			if (!h2_get_frame_hdr(&h2c->dbuf, &hdr)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
 				if (h2c->st0 == H2_CS_ERROR) {
+					TRACE_PROTO("failed to receive settings", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
 					h2c->st0 = H2_CS_ERROR2;
 					sess_log(h2c->conn->owner);
 				}
@@ -2592,6 +2766,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 			if (hdr.sid || hdr.ft != H2_FT_SETTINGS || hdr.ff & H2_F_SETTINGS_ACK) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				TRACE_PROTO("unexpected frame type or flags", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
 				h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 				h2c->st0 = H2_CS_ERROR2;
 				sess_log(h2c->conn->owner);
@@ -2600,6 +2775,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				TRACE_PROTO("invalid settings frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
 				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 				h2c->st0 = H2_CS_ERROR2;
 				sess_log(h2c->conn->owner);
@@ -2616,19 +2792,28 @@ static void h2_process_demux(struct h2c *h2c)
 	}
 
 	/* process as many incoming frames as possible below */
-	while (b_data(&h2c->dbuf)) {
+	while (1) {
 		int ret = 0;
 
-		if (h2c->st0 >= H2_CS_ERROR)
+		if (!b_data(&h2c->dbuf)) {
+			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
 			break;
+		}
+
+		if (h2c->st0 >= H2_CS_ERROR) {
+			TRACE_STATE("end of connection reported", H2_EV_RX_FRAME|H2_EV_RX_EOI, h2c->conn);
+			break;
+		}
 
 		if (h2c->st0 == H2_CS_FRAME_H) {
 			h2c->rcvd_s = 0;
 
+			TRACE_STATE("expecting H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr))
 				break;
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
+				TRACE_PROTO("invalid H2 frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
 				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 				if (!h2c->nb_streams) {
 					/* only log if no other stream can report the error */
@@ -2647,6 +2832,7 @@ static void h2_process_demux(struct h2c *h2c)
 				 * padlen in the flow control, so it must be adjusted.
 				 */
 				if (hdr.len < 1) {
+					TRACE_PROTO("invalid H2 padded frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
 					h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 					sess_log(h2c->conn->owner);
 					goto fail;
@@ -2659,6 +2845,7 @@ static void h2_process_demux(struct h2c *h2c)
 				padlen = *(uint8_t *)b_peek(&h2c->dbuf, 9);
 
 				if (padlen > hdr.len) {
+					TRACE_PROTO("invalid H2 padding length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
 					/* RFC7540#6.1 : pad length = length of
 					 * frame payload or greater => error.
 					 */
@@ -2674,6 +2861,7 @@ static void h2_process_demux(struct h2c *h2c)
 				b_del(&h2c->dbuf, 1);
 			}
 			h2_skip_frame_hdr(&h2c->dbuf);
+			TRACE_STATE("received H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 
 		new_frame:
 			h2c->dfl = hdr.len;
@@ -2682,10 +2870,12 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->dff = hdr.ff;
 			h2c->dpl = padlen;
 			h2c->st0 = H2_CS_FRAME_P;
+			TRACE_STATE("switching to FRAME_P state", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 
 			/* check for minimum basic frame format validity */
 			ret = h2_frame_check(h2c->dft, 1, h2c->dsi, h2c->dfl, global.tune.bufsize);
 			if (ret != H2_ERR_NO_ERROR) {
+				TRACE_PROTO("received invalid H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
 				h2c_error(h2c, ret);
 				sess_log(h2c->conn->owner);
 				goto fail;
@@ -2708,35 +2898,48 @@ static void h2_process_demux(struct h2c *h2c)
 		     (h2s->flags & H2_SF_ES_RCVD) ||
 		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 			/* we may have to signal the upper layers */
+			TRACE_DEVEL("notifying stream before switching SID", H2_EV_RX_FRAME|H2_EV_STRM_WAKE, h2c->conn, h2s);
 			h2s->cs->flags |= CS_FL_RCV_MORE;
 			h2s_notify_recv(h2s);
 		}
 		h2s = tmp_h2s;
 
 		if (h2c->st0 == H2_CS_FRAME_E ||
-		    (h2c->st0 == H2_CS_FRAME_P && !h2_frame_check_vs_state(h2c, h2s)))
+		    (h2c->st0 == H2_CS_FRAME_P && !h2_frame_check_vs_state(h2c, h2s))) {
+			TRACE_PROTO("stream error reported", H2_EV_RX_FRAME|H2_EV_PROTO_ERR, h2c->conn, h2s);
 			goto strm_err;
+		}
 
 		switch (h2c->dft) {
 		case H2_FT_SETTINGS:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 SETTINGS frame", H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn, h2s);
 				ret = h2c_handle_settings(h2c);
+			}
 
-			if (h2c->st0 == H2_CS_FRAME_A)
+			if (h2c->st0 == H2_CS_FRAME_A) {
+				TRACE_PROTO("sending H2 SETTINGS ACK frame", H2_EV_TX_FRAME|H2_EV_RX_SETTINGS, h2c->conn, h2s);
 				ret = h2c_ack_settings(h2c);
+			}
 			break;
 
 		case H2_FT_PING:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 PING frame", H2_EV_RX_FRAME|H2_EV_RX_PING, h2c->conn, h2s);
 				ret = h2c_handle_ping(h2c);
+			}
 
-			if (h2c->st0 == H2_CS_FRAME_A)
+			if (h2c->st0 == H2_CS_FRAME_A) {
+				TRACE_PROTO("sending H2 PING ACK frame", H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn, h2s);
 				ret = h2c_ack_ping(h2c);
+			}
 			break;
 
 		case H2_FT_WINDOW_UPDATE:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 WINDOW_UPDATE frame", H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn, h2s);
 				ret = h2c_handle_window_update(h2c, h2s);
+			}
 			break;
 
 		case H2_FT_CONTINUATION:
@@ -2745,12 +2948,14 @@ static void h2_process_demux(struct h2c *h2c)
 			 * frames' parsers consume all following CONTINUATION
 			 * frames so this one is out of sequence.
 			 */
+			TRACE_PROTO("received unexpected H2 CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_CONT|H2_EV_H2C_ERR, h2c->conn, h2s);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			sess_log(h2c->conn->owner);
 			goto fail;
 
 		case H2_FT_HEADERS:
 			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 HEADERS frame", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 				if (h2c->flags & H2_CF_IS_BACK)
 					tmp_h2s = h2c_bck_handle_headers(h2c, h2s);
 				else
@@ -2763,30 +2968,41 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		case H2_FT_DATA:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 DATA frame", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 				ret = h2c_frt_handle_data(h2c, h2s);
+			}
 
-			if (h2c->st0 == H2_CS_FRAME_A)
+			if (h2c->st0 == H2_CS_FRAME_A) {
+				TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
 				ret = h2c_send_strm_wu(h2c);
+			}
 			break;
 
 		case H2_FT_PRIORITY:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 PRIORITY frame", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn, h2s);
 				ret = h2c_handle_priority(h2c);
+			}
 			break;
 
 		case H2_FT_RST_STREAM:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 RST_STREAM frame", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 				ret = h2c_handle_rst_stream(h2c, h2s);
+			}
 			break;
 
 		case H2_FT_GOAWAY:
-			if (h2c->st0 == H2_CS_FRAME_P)
+			if (h2c->st0 == H2_CS_FRAME_P) {
+				TRACE_PROTO("receiving H2 GOAWAY frame", H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn, h2s);
 				ret = h2c_handle_goaway(h2c);
+			}
 			break;
 
 			/* implement all extra frame types here */
 		default:
+			TRACE_PROTO("receiving H2 ignored frame", H2_EV_RX_FRAME, h2c->conn, h2s);
 			/* drop frames that we ignore. They may be larger than
 			 * the buffer so we drain all of their contents until
 			 * we reach the end.
@@ -2799,25 +3015,34 @@ static void h2_process_demux(struct h2c *h2c)
 
 	strm_err:
 		/* We may have to send an RST if not done yet */
-		if (h2s->st == H2_SS_ERROR)
+		if (h2s->st == H2_SS_ERROR) {
+			TRACE_STATE("stream error, switching to FRAME_E", H2_EV_RX_FRAME|H2_EV_H2S_ERR, h2c->conn, h2s);
 			h2c->st0 = H2_CS_FRAME_E;
+		}
 
-		if (h2c->st0 == H2_CS_FRAME_E)
+		if (h2c->st0 == H2_CS_FRAME_E) {
+			TRACE_PROTO("sending H2 RST_STREAM frame", H2_EV_TX_FRAME|H2_EV_TX_RST|H2_EV_TX_EOI, h2c->conn, h2s);
 			ret = h2c_send_rst_stream(h2c, h2s);
+		}
 
 		/* error or missing data condition met above ? */
-		if (ret <= 0)
+		if (ret <= 0) {
+			TRACE_DEVEL("insufficient data to proceed", H2_EV_RX_FRAME, h2c->conn, h2s);
 			break;
+		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
+			TRACE_STATE("switching to FRAME_H", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			b_del(&h2c->dbuf, h2c->dfl);
 			h2c->st0 = H2_CS_FRAME_H;
 		}
 	}
 
 	if (h2c->rcvd_c > 0 &&
-	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM)))
+	    !(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MBUSY | H2_CF_DEM_MROOM))) {
+		TRACE_PROTO("sending H2 WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn);
 		h2c_send_conn_wu(h2c);
+	}
 
  fail:
 	/* we can go here on missing data, blocked response or error */
@@ -2828,14 +3053,19 @@ static void h2_process_demux(struct h2c *h2c)
 	     (h2s->flags & H2_SF_ES_RCVD) ||
 	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 		/* we may have to signal the upper layers */
+		TRACE_DEVEL("notifying stream before switching SID", H2_EV_RX_FRAME|H2_EV_H2S_WAKE, h2c->conn, h2s);
 		h2s->cs->flags |= CS_FL_RCV_MORE;
 		h2s_notify_recv(h2s);
 	}
 
-	if (old_iw != h2c->miw)
+	if (old_iw != h2c->miw) {
+		TRACE_STATE("notifying streams about SFCTL increase", H2_EV_RX_FRAME|H2_EV_H2S_WAKE, h2c->conn);
 		h2c_unblock_sfctl(h2c);
+	}
 
 	h2c_restart_reading(h2c, 0);
+ out:
+	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 }
 
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
@@ -2844,6 +3074,8 @@ static void h2_process_demux(struct h2c *h2c)
 static int h2_process_mux(struct h2c *h2c)
 {
 	struct h2s *h2s, *h2s_back;
+
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
 
 	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
 		if (unlikely(h2c->st0 == H2_CS_PREFACE && (h2c->flags & H2_CF_IS_BACK))) {
@@ -2859,7 +3091,7 @@ static int h2_process_mux(struct h2c *h2c)
 		}
 		/* need to wait for the other side */
 		if (h2c->st0 < H2_CS_FRAME_H)
-			return 1;
+			goto done;
 	}
 
 	/* start by sending possibly pending window updates */
@@ -2925,14 +3157,18 @@ static int h2_process_mux(struct h2c *h2c)
 			if (h2c->max_id >= 0) {
 				h2c_send_goaway_error(h2c, NULL);
 				if (h2c->flags & H2_CF_MUX_BLOCK_ANY)
-					return 0;
+					goto out0;
 			}
 
 			h2c->st0 = H2_CS_ERROR2; // sent (or failed hard) !
 		}
-		return 1;
 	}
-	return (1);
+ done:
+	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
+	return 1;
+ out0:
+	TRACE_DEVEL("leaving in blocked situation", H2_EV_H2C_WAKE, h2c->conn);
+	return 0;
 }
 
 
@@ -2946,15 +3182,22 @@ static int h2_recv(struct h2c *h2c)
 	int max;
 	size_t ret;
 
-	if (h2c->wait_event.events & SUB_RETRY_RECV)
-		return (b_data(&h2c->dbuf));
+	TRACE_ENTER(H2_EV_H2C_RECV, h2c->conn);
 
-	if (!h2_recv_allowed(h2c))
+	if (h2c->wait_event.events & SUB_RETRY_RECV) {
+		TRACE_DEVEL("leaving on sub_recv", H2_EV_H2C_RECV, h2c->conn);
+		return (b_data(&h2c->dbuf));
+	}
+
+	if (!h2_recv_allowed(h2c)) {
+		TRACE_DEVEL("leaving on !recv_allowed", H2_EV_H2C_RECV, h2c->conn);
 		return 1;
+	}
 
 	buf = h2_get_buf(h2c, &h2c->dbuf);
 	if (!buf) {
 		h2c->flags |= H2_CF_DEM_DALLOC;
+		TRACE_DEVEL("leaving on !alloc", H2_EV_H2C_RECV, h2c->conn);
 		return 0;
 	}
 
@@ -2976,16 +3219,24 @@ static int h2_recv(struct h2c *h2c)
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
-	if (max && !ret && h2_recv_allowed(h2c))
+	if (max && !ret && h2_recv_allowed(h2c)) {
+		TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
+	} else if (ret)
+		TRACE_DATA("received data", H2_EV_H2C_RECV, h2c->conn,,, (void*)(long)ret);
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
+		TRACE_LEAVE(H2_EV_H2C_RECV, h2c->conn);
 		return (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn));
 	}
 
-	if (b_data(buf) == buf->size)
+	if (b_data(buf) == buf->size) {
 		h2c->flags |= H2_CF_DEM_DFULL;
+		TRACE_STATE("demux buffer full", H2_EV_H2C_RECV|H2_EV_H2C_BLK);
+	}
+
+	TRACE_LEAVE(H2_EV_H2C_RECV, h2c->conn);
 	return !!ret || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn);
 }
 
@@ -2998,9 +3249,12 @@ static int h2_send(struct h2c *h2c)
 	int done;
 	int sent = 0;
 
-	if (conn->flags & CO_FL_ERROR)
-		return 1;
+	TRACE_ENTER(H2_EV_H2C_SEND, h2c->conn);
 
+	if (conn->flags & CO_FL_ERROR) {
+		TRACE_DEVEL("leaving on error", H2_EV_H2C_SEND, h2c->conn);
+		return 1;
+	}
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
 		/* a handshake was requested */
@@ -3053,6 +3307,7 @@ static int h2_send(struct h2c *h2c)
 					break;
 				}
 				sent = 1;
+				TRACE_DATA("sent data", H2_EV_H2C_SEND, h2c->conn,, buf, (void*)(long)ret);
 				b_del(buf, ret);
 				if (b_data(buf)) {
 					done = 1;
@@ -3096,17 +3351,23 @@ static int h2_send(struct h2c *h2c)
 			}
 			h2s->flags &= ~H2_SF_BLK_ANY;
 			h2s->send_wait->events &= ~SUB_RETRY_SEND;
+			TRACE_DEVEL("waking up pending stream", H2_EV_H2C_SEND|H2_EV_H2S_WAKE, h2c->conn, h2s);
 			tasklet_wakeup(h2s->send_wait->tasklet);
 			LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
 		}
 	}
 	/* We're done, no more to send */
-	if (!br_data(h2c->mbuf))
+	if (!br_data(h2c->mbuf)) {
+		TRACE_DEVEL("leaving with everything sent", H2_EV_H2C_SEND, h2c->conn);
 		return sent;
+	}
 schedule:
-	if (!(conn->flags & CO_FL_ERROR) && !(h2c->wait_event.events & SUB_RETRY_SEND))
+	if (!(conn->flags & CO_FL_ERROR) && !(h2c->wait_event.events & SUB_RETRY_SEND)) {
+		TRACE_STATE("more data to send, subscribing", H2_EV_H2C_SEND, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h2c->wait_event);
+	}
 
+	TRACE_DEVEL("leaving with some data left to send", H2_EV_H2C_SEND, h2c->conn);
 	return sent;
 }
 
@@ -3116,12 +3377,16 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	struct h2c *h2c = ctx;
 	int ret = 0;
 
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		ret = h2_send(h2c);
 	if (!(h2c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h2_recv(h2c);
 	if (ret || b_data(&h2c->dbuf))
 		h2_process(h2c);
+
+	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return NULL;
 }
 
@@ -3132,6 +3397,8 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 static int h2_process(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
+
+	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 
 	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
 		h2_process_demux(h2c);
@@ -3149,6 +3416,7 @@ static int h2_process(struct h2c *h2c)
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.
 		 */
+		TRACE_STATE("proxy stopped, sending GOAWAY", H2_EV_H2C_WAKE|H2_EV_TX_FRAME, conn);
 		if (!(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
 			if (h2c->last_sid < 0)
 				h2c->last_sid = (1U << 31) - 1;
@@ -3185,6 +3453,7 @@ static int h2_process(struct h2c *h2c)
 		if (eb_is_empty(&h2c->streams_by_id)) {
 			/* no more stream, kill the connection now */
 			h2_release(h2c);
+			TRACE_DEVEL("leaving after releasing the connection", H2_EV_H2C_WAKE);
 			return -1;
 		}
 	}
@@ -3206,6 +3475,7 @@ static int h2_process(struct h2c *h2c)
 	}
 
 	h2_send(h2c);
+	TRACE_LEAVE(H2_EV_H2C_WAKE, conn);
 	return 0;
 }
 
@@ -3213,8 +3483,12 @@ static int h2_process(struct h2c *h2c)
 static int h2_wake(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
+	int ret;
 
-	return (h2_process(h2c));
+	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
+	ret = h2_process(h2c);
+	TRACE_LEAVE(H2_EV_H2C_WAKE);
+	return ret;
 }
 
 /* Connection timeout management. The principle is that if there's no receipt
@@ -3228,13 +3502,18 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	struct h2c *h2c = context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!expired && h2c)
+	TRACE_ENTER(H2_EV_H2C_WAKE, h2c ? h2c->conn : NULL);
+
+	if (!expired && h2c) {
+		TRACE_DEVEL("leaving (not expired)", H2_EV_H2C_WAKE, h2c->conn);
 		return t;
+	}
 
 	task_destroy(t);
 
 	if (!h2c) {
 		/* resources were already deleted */
+		TRACE_DEVEL("leaving (not more h2c)", H2_EV_H2C_WAKE);
 		return NULL;
 	}
 
@@ -3279,6 +3558,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	if (eb_is_empty(&h2c->streams_by_id))
 		h2_release(h2c);
 
+	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return NULL;
 }
 
@@ -3297,14 +3577,19 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
 	struct h2s *h2s;
 	struct h2c *h2c = conn->ctx;
 
+	TRACE_ENTER(H2_EV_H2S_NEW, conn);
 	cs = cs_new(conn);
-	if (!cs)
+	if (!cs) {
+		TRACE_DEVEL("leaving on CS allocation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
 		return NULL;
+	}
 	h2s = h2c_bck_stream_new(h2c, cs, sess);
 	if (!h2s) {
+		TRACE_DEVEL("leaving on stream creation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
 		cs_free(cs);
 		return NULL;
 	}
+	TRACE_LEAVE(H2_EV_H2S_NEW, conn, h2s);
 	return cs;
 }
 
@@ -3336,8 +3621,10 @@ static void h2_destroy(void *ctx)
 {
 	struct h2c *h2c = ctx;
 
+	TRACE_ENTER(H2_EV_H2C_END, h2c->conn);
 	if (eb_is_empty(&h2c->streams_by_id) || !h2c->conn || h2c->conn->ctx != h2c)
 		h2_release(h2c);
+	TRACE_LEAVE(H2_EV_H2C_END);
 }
 
 /*
@@ -3349,9 +3636,13 @@ static void h2_detach(struct conn_stream *cs)
 	struct h2c *h2c;
 	struct session *sess;
 
+	TRACE_ENTER(H2_EV_STRM_END, h2s ? h2s->h2c->conn : NULL, h2s);
+
 	cs->ctx = NULL;
-	if (!h2s)
+	if (!h2s) {
+		TRACE_LEAVE(H2_EV_STRM_END);
 		return;
+	}
 
 	/* The stream is about to die, so no need to attempt to run its task */
 	if (LIST_ADDED(&h2s->sending_list) &&
@@ -3389,8 +3680,10 @@ static void h2_detach(struct conn_stream *cs)
 	 */
 	if (!(cs->conn->flags & CO_FL_ERROR) &&
 	    (h2c->st0 < H2_CS_ERROR) &&
-	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) && (h2s->send_wait || h2s->recv_wait))
+	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) && (h2s->send_wait || h2s->recv_wait)) {
+		TRACE_DEVEL("leaving on stream blocked", H2_EV_STRM_END|H2_EV_H2S_BLK, h2c->conn, h2s);
 		return;
+	}
 
 	if ((h2c->flags & H2_CF_DEM_BLOCK_ANY && h2s->id == h2c->dsi) ||
 	    (h2c->flags & H2_CF_MUX_BLOCK_ANY && h2s->id == h2c->msi)) {
@@ -3415,6 +3708,7 @@ static void h2_detach(struct conn_stream *cs)
 						if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn))
 							/* The server doesn't want it, let's kill the connection right away */
 							h2c->conn->mux->destroy(h2c->conn);
+						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}
 				}
@@ -3422,6 +3716,7 @@ static void h2_detach(struct conn_stream *cs)
 			if (eb_is_empty(&h2c->streams_by_id)) {
 				if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0)
 					/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
+					TRACE_DEVEL("leaving with non-reusable idle connection", H2_EV_STRM_END, h2c->conn);
 					return;
 			}
 			/* Never ever allow to reuse a connection from a non-reuse backend */
@@ -3448,12 +3743,16 @@ static void h2_detach(struct conn_stream *cs)
 	 */
 	if (h2c_is_dead(h2c)) {
 		/* no more stream will come, kill it now */
+		TRACE_DEVEL("leaving and killing dead connection", H2_EV_STRM_END, h2c->conn);
 		h2_release(h2c);
 	}
 	else if (h2c->task) {
 		h2c->task->expire = tick_add(now_ms, h2c->last_sid < 0 ? h2c->timeout : h2c->shut_timeout);
 		task_queue(h2c->task);
+		TRACE_DEVEL("leaving, refreshing connection's timeout", H2_EV_STRM_END, h2c->conn);
 	}
+	else
+		TRACE_DEVEL("leaving", H2_EV_STRM_END, h2c->conn);
 }
 
 /* Performs a synchronous or asynchronous shutr(). */
@@ -3465,6 +3764,8 @@ static void h2_do_shutr(struct h2s *h2s)
 	if (h2s->st == H2_SS_CLOSED)
 		goto done;
 
+	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
+
 	/* a connstream may require us to immediately kill the whole connection
 	 * for example because of a "tcp-request content reject" rule that is
 	 * normally used to limit abuse. In this case we schedule a goaway to
@@ -3472,6 +3773,7 @@ static void h2_do_shutr(struct h2s *h2s)
 	 */
 	if ((h2s->flags & H2_SF_KILL_CONN) &&
 	    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+		TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 		h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
 	}
@@ -3480,6 +3782,7 @@ static void h2_do_shutr(struct h2s *h2s)
 		 * REFUSED_STREAM error to let the client retry the
 		 * request.
 		 */
+		TRACE_STATE("no headers sent yet, trying a retryable abort", H2_EV_STRM_SHUT, h2c->conn, h2s);
 		h2s_error(h2s, H2_ERR_REFUSED_STREAM);
 	}
 	else {
@@ -3500,6 +3803,7 @@ static void h2_do_shutr(struct h2s *h2s)
 	h2s_close(h2s);
  done:
 	h2s->flags &= ~H2_SF_WANT_SHUTR;
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 add_to_list:
 	if (!LIST_ADDED(&h2s->list)) {
@@ -3514,6 +3818,7 @@ add_to_list:
 	}
 	/* Let the handler know we want shutr */
 	h2s->flags |= H2_SF_WANT_SHUTR;
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 }
 
@@ -3525,6 +3830,8 @@ static void h2_do_shutw(struct h2s *h2s)
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_CLOSED)
 		goto done;
+
+	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
 	if (h2s->st != H2_SS_ERROR && (h2s->flags & H2_SF_HEADERS_SENT)) {
 		/* we can cleanly close using an empty data frame only after headers */
@@ -3545,6 +3852,7 @@ static void h2_do_shutw(struct h2s *h2s)
 		 */
 		if ((h2s->flags & H2_SF_KILL_CONN) &&
 		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+			TRACE_STATE("stream wants to kill the connection", H2_EV_STRM_SHUT, h2c->conn, h2s);
 			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 			h2s_error(h2s, H2_ERR_ENHANCE_YOUR_CALM);
 		}
@@ -3553,6 +3861,7 @@ static void h2_do_shutw(struct h2s *h2s)
 			 * REFUSED_STREAM error to let the client retry the
 			 * request.
 			 */
+			TRACE_STATE("no headers sent yet, trying a retryable abort", H2_EV_STRM_SHUT, h2c->conn, h2s);
 			h2s_error(h2s, H2_ERR_REFUSED_STREAM);
 		}
 
@@ -3565,6 +3874,9 @@ static void h2_do_shutw(struct h2s *h2s)
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		tasklet_wakeup(h2c->wait_event.tasklet);
+
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
+
  done:
 	h2s->flags &= ~H2_SF_WANT_SHUTW;
 	return;
@@ -3582,6 +3894,7 @@ static void h2_do_shutw(struct h2s *h2s)
 	}
 	/* let the handler know we want to shutw */
 	h2s->flags |= H2_SF_WANT_SHUTW;
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 }
 
@@ -3593,6 +3906,8 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 {
 	struct h2s *h2s = ctx;
 	struct h2c *h2c = h2s->h2c;
+
+	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
 	LIST_DEL_INIT(&h2s->sending_list);
 	if (h2s->flags & H2_SF_WANT_SHUTW)
@@ -3612,6 +3927,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 		}
 	}
 
+	TRACE_LEAVE(H2_EV_STRM_SHUT);
 	return NULL;
 }
 
@@ -3620,13 +3936,14 @@ static void h2_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
 
+	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (cs->flags & CS_FL_KILL_CONN)
 		h2s->flags |= H2_SF_KILL_CONN;
 
-	if (!mode)
-		return;
+	if (mode)
+		h2_do_shutr(h2s);
 
-	h2_do_shutr(h2s);
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
 /* shutw() called by the conn_stream (mux_ops.shutw) */
@@ -3634,10 +3951,12 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	struct h2s *h2s = cs->ctx;
 
+	TRACE_ENTER(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 	if (cs->flags & CS_FL_KILL_CONN)
 		h2s->flags |= H2_SF_KILL_CONN;
 
 	h2_do_shutw(h2s);
+	TRACE_LEAVE(H2_EV_STRM_SHUT, h2s->h2c->conn, h2s);
 }
 
 /* Decode the payload of a HEADERS frame and produce the HTX request or response
@@ -3708,6 +4027,8 @@ static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *f
 	int outlen;
 	int wrap;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
+
 next_frame:
 	if (b_data(&h2c->dbuf) - hole < h2c->dfl)
 		goto leave; // incomplete input frame
@@ -3723,6 +4044,7 @@ next_frame:
 		struct h2_fh hdr;
 		int clen; // CONTINUATION frame's payload length
 
+		TRACE_STATE("EH missing, expecting continuation frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR, h2c->conn);
 		if (!h2_peek_frame_hdr(&h2c->dbuf, h2c->dfl + hole, &hdr)) {
 			/* no more data, the buffer may be full, either due to
 			 * too large a frame or because of too large a hole that
@@ -3733,18 +4055,21 @@ next_frame:
 
 		if (hdr.ft != H2_FT_CONTINUATION) {
 			/* RFC7540#6.10: frame of unexpected type */
+			TRACE_STATE("not continuation!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			goto fail;
 		}
 
 		if (hdr.sid != h2c->dsi) {
 			/* RFC7540#6.10: frame of different stream */
+			TRACE_STATE("different stream ID!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			goto fail;
 		}
 
 		if ((unsigned)hdr.len > (unsigned)global.tune.bufsize) {
 			/* RFC7540#4.2: invalid frame length */
+			TRACE_STATE("too large frame!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}
@@ -3765,6 +4090,7 @@ next_frame:
 		h2c->dfl += clen - h2c->dpl;
 		hole     += h2c->dpl + 9;
 		h2c->dpl  = 0;
+		TRACE_STATE("waiting for next continuation frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_CONT|H2_EV_RX_HDR, h2c->conn);
 		goto next_frame;
 	}
 
@@ -3775,6 +4101,7 @@ next_frame:
 	if (wrap < h2c->dfl) {
 		copy = alloc_trash_chunk();
 		if (!copy) {
+			TRACE_DEVEL("failed to allocate temporary buffer", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_INTERNAL_ERROR);
 			goto fail;
 		}
@@ -3787,11 +4114,13 @@ next_frame:
 	if (h2c->dff & H2_F_HEADERS_PRIORITY) {
 		if (read_n32(hdrs) == h2c->dsi) {
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
+			TRACE_STATE("invalid stream dependency!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			goto fail;
 		}
 
 		if (flen < 5) {
+			TRACE_STATE("frame too short for priority!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}
@@ -3801,6 +4130,7 @@ next_frame:
 	}
 
 	if (!h2_get_buf(h2c, rxbuf)) {
+		TRACE_STATE("waiting for h2c rxbuf allocation", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_BLK, h2c->conn);
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		goto leave;
 	}
@@ -3812,6 +4142,7 @@ next_frame:
 	 */
 	htx = htx_from_buf(rxbuf);
 	if (!htx_is_empty(htx)) {
+		TRACE_STATE("waiting for room in h2c rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_BLK, h2c->conn);
 		h2c->flags |= H2_CF_DEM_SFULL;
 		goto leave;
 	}
@@ -3820,6 +4151,7 @@ next_frame:
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
 	if (outlen < 0) {
+		TRACE_STATE("failed to decompress HPACK", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
 		goto fail;
 	}
@@ -3846,6 +4178,7 @@ next_frame:
 
 	if (outlen < 0) {
 		/* too large headers? this is a stream error only */
+		TRACE_STATE("request headers too large", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		goto fail;
 	}
 
@@ -3869,8 +4202,10 @@ next_frame:
 
 	if ((h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* Mark the end of message using EOM */
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
+		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+			TRACE_STATE("failed to append HTX EOM block into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
 			goto fail;
+		}
 	}
 
 	/* success */
@@ -3896,6 +4231,7 @@ next_frame:
 	if (htx)
 		htx_to_buf(htx, rxbuf);
 	free_trash_chunk(copy);
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
 	return ret;
 
  fail:
@@ -3906,13 +4242,16 @@ next_frame:
 	/* This is the last HEADERS frame hence a trailer */
 	if (!(h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* It's a trailer but it's missing ES flag */
+		TRACE_STATE("missing EH on trailers frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 		goto fail;
 	}
 
 	/* Trailers terminate a DATA sequence */
-	if (h2_make_htx_trailers(list, htx) <= 0)
+	if (h2_make_htx_trailers(list, htx) <= 0) {
+		TRACE_STATE("failed to append HTX trailers into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
 		goto fail;
+	}
 	goto done;
 }
 
@@ -3934,11 +4273,14 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 	struct buffer *csbuf;
 	unsigned int sent;
 
+	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+
 	h2c->flags &= ~H2_CF_DEM_SFULL;
 
 	csbuf = h2_get_buf(h2c, &h2s->rxbuf);
 	if (!csbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
+		TRACE_STATE("waiting for an h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto fail;
 	}
 	htx = htx_from_buf(csbuf);
@@ -3957,6 +4299,7 @@ try_again:
 	block = htx_free_data_space(htx);
 	if (!block) {
 		h2c->flags |= H2_CF_DEM_SFULL;
+		TRACE_STATE("h2s rxbuf is full", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto fail;
 	}
 	if (flen > block)
@@ -3968,6 +4311,7 @@ try_again:
 		flen = block;
 
 	sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
+	TRACE_DATA("move some data to h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s,, (void *)(long)sent);
 
 	b_del(&h2c->dbuf, sent);
 	h2c->dfl    -= sent;
@@ -3981,6 +4325,7 @@ try_again:
 
 	if (sent < flen) {
 		h2c->flags |= H2_CF_DEM_SFULL;
+		TRACE_STATE("h2s rxbuf is full", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto fail;
 	}
 
@@ -3993,6 +4338,7 @@ try_again:
 
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
 		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+			TRACE_STATE("h2s rxbuf is full, failed to add EOM", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 			h2c->flags |= H2_CF_DEM_SFULL;
 			goto fail;
 		}
@@ -4003,10 +4349,12 @@ try_again:
 	h2c->dpl = 0;
 	h2c->st0 = H2_CS_FRAME_A; // send the corresponding window update
 	htx_to_buf(htx, csbuf);
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 1;
  fail:
 	if (htx)
 		htx_to_buf(htx, csbuf);
+	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 	return 0;
 }
 
@@ -4034,8 +4382,12 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	int hdr;
 	int idx;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+
 	if (h2c_mux_busy(h2c, h2s)) {
+		TRACE_STATE("mux output busy", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -4060,8 +4412,10 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	ALREADY_CHECKED(blk);
 	sl = htx_get_blk_ptr(htx, blk);
 	h2s->status = sl->info.res.status;
-	if (h2s->status < 100 || h2s->status > 999)
+	if (h2s->status < 100 || h2s->status > 999) {
+		TRACE_PROTO("will not encode an invalid status code", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 		goto fail;
+	}
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
@@ -4077,8 +4431,10 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		if (type != HTX_BLK_HDR)
 			break;
 
-		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
+		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
+			TRACE_PROTO("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 			goto fail;
+		}
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
@@ -4098,6 +4454,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -4165,6 +4522,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
+	TRACE_USER("sent H2 response", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
@@ -4175,6 +4533,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	if (es_now) {
 		h2s->flags |= H2_SF_ES_SENT;
+		TRACE_PROTO("setting ES on HEADERS frame", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HLOC;
 		else
@@ -4201,6 +4560,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		htx_remove_blk(htx, blk_end);
 	}
  end:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 	return ret;
  full:
 	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
@@ -4208,6 +4568,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
+	TRACE_STATE("mux buffer full", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 	goto end;
  fail:
 	/* unparsable HTX messages, too large ones to be produced in the local
@@ -4243,8 +4604,12 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	int hdr;
 	int idx;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+
 	if (h2c_mux_busy(h2c, h2s)) {
+		TRACE_STATE("mux output busy", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -4285,8 +4650,10 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		if (type != HTX_BLK_HDR)
 			break;
 
-		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
+		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
+			TRACE_PROTO("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 			goto fail;
+		}
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
@@ -4301,6 +4668,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 		return 0;
 	}
 
@@ -4426,11 +4794,13 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
+	TRACE_USER("sent H2 request", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
 
 	if (es_now) {
+		TRACE_PROTO("setting ES on HEADERS frame", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 		// trim any possibly pending data (eg: inconsistent content-length)
 		h2s->flags |= H2_SF_ES_SENT;
 		h2s->st = H2_SS_HLOC;
@@ -4462,6 +4832,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
+	TRACE_STATE("mux buffer full", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 	goto end;
  fail:
 	/* unparsable HTX messages, too large ones to be produced in the local
@@ -4492,8 +4863,12 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 	enum htx_blk_type type;
 	int idx;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+
 	if (h2c_mux_busy(h2c, h2s)) {
+		TRACE_STATE("mux output busy", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4531,6 +4906,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4565,14 +4941,17 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 			 */
 			if (fsize + 9 <= b_room(mbuf) &&
 			    (b_data(mbuf) <= b_size(mbuf) / 4 ||
-			     (fsize <= b_size(mbuf) / 4 && fsize + 9 <= b_contig_space(mbuf))))
+			     (fsize <= b_size(mbuf) / 4 && fsize + 9 <= b_contig_space(mbuf)))) {
+				TRACE_STATE("small data present in output buffer, appending", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 				goto copy;
+			}
 
 			if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
 				goto retry;
 
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
+			TRACE_STATE("too large data present in output buffer, waiting for emptiness", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 			goto end;
 		}
 
@@ -4595,6 +4974,8 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 		buf->area = old_area;
 		buf->data = buf->head = 0;
 		total += fsize;
+
+		TRACE_PROTO("sent H2 DATA frame (zero-copy)", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4614,6 +4995,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 			goto retry;
 		h2c->flags |= H2_CF_MUX_MFULL;
 		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("output buffer full", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4644,6 +5026,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 		h2s->flags |= H2_SF_BLK_SFCTL;
 		if (LIST_ADDED(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
+		TRACE_STATE("stream window <=0, flow-controlled", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_FCTL, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4673,12 +5056,14 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 				goto retry;
 			h2c->flags |= H2_CF_MUX_MFULL;
 			h2s->flags |= H2_SF_BLK_MROOM;
+			TRACE_STATE("output buffer full", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 			goto end;
 		}
 	}
 
 	if (h2c->mws <= 0) {
 		h2s->flags |= H2_SF_BLK_MFCTL;
+		TRACE_STATE("connection window <=0, stream flow-controlled", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2C_FCTL, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4714,8 +5099,10 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 	total += fsize;
 	if (fsize == bsize) {
 		htx_remove_blk(htx, blk);
-		if (fsize)
+		if (fsize) {
+			TRACE_DEVEL("more data available, trying to send another frame", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 			goto new_frame;
+		}
 	} else {
 		/* we've truncated this block */
 		htx_cut_data_blk(htx, blk, fsize);
@@ -4728,9 +5115,11 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 			h2s_close(h2s);
 
 		h2s->flags |= H2_SF_ES_SENT;
+		TRACE_PROTO("ES flag set on outgoing frame", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_TX_EOI, h2c->conn, h2s);
 	}
 
  end:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 	return total;
 }
 
@@ -4756,8 +5145,12 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	int hdr;
 	int idx;
 
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+
 	if (h2c_mux_busy(h2c, h2s)) {
+		TRACE_STATE("mux output busy", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4783,8 +5176,10 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		if (type != HTX_BLK_TLR)
 			break;
 
-		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1))
+		if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
+			TRACE_PROTO("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 			goto fail;
+		}
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
@@ -4799,6 +5194,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	if (!h2_get_buf(h2c, mbuf)) {
 		h2c->flags |= H2_CF_MUX_MALLOC;
 		h2s->flags |= H2_SF_BLK_MROOM;
+		TRACE_STATE("waiting for room in output buffer", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 		goto end;
 	}
 
@@ -4858,6 +5254,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
 	/* commit the H2 response */
+	TRACE_PROTO("sent H2 trailers HEADERS frame", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_TX_EOI, h2c->conn, h2s);
 	b_add(mbuf, outbuf.data);
 	h2s->flags |= H2_SF_ES_SENT;
 
@@ -4883,6 +5280,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	}
 
  end:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 	return ret;
  full:
 	if ((mbuf = br_tail_add(h2c->mbuf)) != NULL)
@@ -4890,6 +5288,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	h2c->flags |= H2_CF_MUX_MFULL;
 	h2s->flags |= H2_SF_BLK_MROOM;
 	ret = 0;
+	TRACE_STATE("mux buffer full", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_BLK, h2c->conn, h2s);
 	goto end;
  fail:
 	/* unparsable HTX messages, too large ones to be produced in the local
@@ -4913,7 +5312,9 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
 
+	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);
 	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("subscribe(recv)", H2_EV_STRM_RECV, h2c->conn, h2s);
 		sw = param;
 		BUG_ON(h2s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
 		sw->events |= SUB_RETRY_RECV;
@@ -4921,6 +5322,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 		event_type &= ~SUB_RETRY_RECV;
 	}
 	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2c->conn, h2s);
 		sw = param;
 		BUG_ON(h2s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
 		sw->events |= SUB_RETRY_SEND;
@@ -4934,6 +5336,7 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 		}
 		event_type &= ~SUB_RETRY_SEND;
 	}
+	TRACE_LEAVE(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);
 	if (event_type != 0)
 		return -1;
 	return 0;
@@ -4949,13 +5352,16 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 	struct wait_event *sw;
 	struct h2s *h2s = cs->ctx;
 
+	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("unsubscribe(recv)", H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 		sw = param;
 		BUG_ON(h2s->recv_wait != sw);
 		sw->events &= ~SUB_RETRY_RECV;
 		h2s->recv_wait = NULL;
 	}
 	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 		sw = param;
 		BUG_ON(h2s->send_wait != sw);
 		LIST_DEL(&h2s->list);
@@ -4969,6 +5375,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		}
 		h2s->send_wait = NULL;
 	}
+	TRACE_LEAVE(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 	return 0;
 }
 
@@ -4981,6 +5388,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
 	size_t ret = 0;
+
+	TRACE_ENTER(H2_EV_STRM_RECV, h2c->conn, h2s);
 
 	/* transfer possibly pending data to the upper layer */
 	h2s_htx = htx_from_buf(&h2s->rxbuf);
@@ -5040,6 +5449,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		h2c_restart_reading(h2c, 1);
 	}
 
+	TRACE_LEAVE(H2_EV_STRM_RECV, h2c->conn, h2s);
 	return ret;
 }
 
@@ -5072,13 +5482,17 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	uint32_t bsize;
 	int32_t idx;
 
+	TRACE_ENTER(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
+
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
 	 */
 	if (!LIST_ADDED(&h2s->sending_list) &&
-	    (!LIST_ISEMPTY(&h2s->h2c->send_list) || !LIST_ISEMPTY(&h2s->h2c->fctl_list)))
+	    (!LIST_ISEMPTY(&h2s->h2c->send_list) || !LIST_ISEMPTY(&h2s->h2c->fctl_list))) {
+		TRACE_DEVEL("other streams already waiting, going to the queue and leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		return 0;
+	}
 	LIST_DEL_INIT(&h2s->sending_list);
 
 	/* We couldn't set it to NULL before, because we needed it in case
@@ -5086,8 +5500,10 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	 */
 	h2s->send_wait = NULL;
 
-	if (h2s->h2c->st0 < H2_CS_FRAME_H)
+	if (h2s->h2c->st0 < H2_CS_FRAME_H) {
+		TRACE_DEVEL("connection not ready, leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		return 0;
+	}
 
 	htx = htx_from_buf(buf);
 
@@ -5099,6 +5515,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 		if (id < 0) {
 			cs->flags |= CS_FL_ERROR;
+			TRACE_DEVEL("couldn't get a stream ID, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 			return 0;
 		}
 
@@ -5188,6 +5605,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	/* RST are sent similarly to frame acks */
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
+		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		cs_set_error(cs);
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s_close(h2s);
@@ -5197,11 +5615,14 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	/* The mux is full, cancel the pending tasks */
 	if ((h2s->h2c->flags & H2_CF_MUX_BLOCK_ANY) ||
-	    (h2s->flags & H2_SF_BLK_MBUSY))
+	    (h2s->flags & H2_SF_BLK_MBUSY)) {
+		TRACE_DEVEL("mux full, stopping senders", H2_EV_H2S_SEND|H2_EV_H2C_BLK|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		h2_stop_senders(h2s->h2c);
+	}
 
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.events & SUB_RETRY_SEND))
+			TRACE_DEVEL("data queued, waking up h2c sender", H2_EV_H2S_SEND|H2_EV_H2C_SEND, h2s->h2c->conn, h2s);
 			tasklet_wakeup(h2s->h2c->wait_event.tasklet);
 
 	}
@@ -5212,6 +5633,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	if (conn_xprt_read0_pending(h2s->h2c->conn) &&
 	    !b_data(&h2s->h2c->dbuf) &&
 	    (h2s->flags & (H2_SF_BLK_SFCTL | H2_SF_BLK_MFCTL))) {
+		TRACE_DEVEL("fctl with shutr, reporting error to app-layer", H2_EV_H2S_SEND|H2_EV_STRM_SEND|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		if (cs->flags & CS_FL_EOS)
 			cs->flags |= CS_FL_ERROR;
 		else
@@ -5221,6 +5643,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		/* Ok we managed to send something, leave the send_list */
 		LIST_DEL_INIT(&h2s->list);
 	}
+	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return total;
 }
 
