@@ -106,7 +106,7 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			       "Supported commands:\n"
 			       "  event   : list/enable/disable source-specific event reporting\n"
 			       //"  filter  : list/enable/disable generic filters\n"
-			       //"  level   : list/set detail level\n"
+			       "  level   : list/set detail level\n"
 			       //"  lock    : automatic lock on thread/connection/stream/...\n"
 			       "  pause   : pause and automatically restart after a specific event\n"
 			       "  sink    : list/set event sinks\n"
@@ -200,6 +200,38 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		}
 
 		HA_ATOMIC_STORE(&src->sink, sink);
+	}
+	else if (strcmp(args[2], "level") == 0) {
+		const char *name = args[3];
+
+		if (!*name) {
+			chunk_printf(&trash, "Supported detail levels for source %s:\n", src->name.ptr);
+			chunk_appendf(&trash, "  %c user       : information useful to the end user\n",
+				      src->level == TRACE_LEVEL_USER ? '*' : ' ');
+			chunk_appendf(&trash, "  %c payload    : add information relevant to the payload\n",
+				      src->level == TRACE_LEVEL_PAYLOAD ? '*' : ' ');
+			chunk_appendf(&trash, "  %c proto      : add information relevant to the protocol\n",
+				      src->level == TRACE_LEVEL_PROTO ? '*' : ' ');
+			chunk_appendf(&trash, "  %c state      : add information relevant to the state machine\n",
+				      src->level == TRACE_LEVEL_STATE ? '*' : ' ');
+			chunk_appendf(&trash, "  %c developer  : add information useful only to the developer\n",
+				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
+			trash.area[trash.data] = 0;
+			return cli_msg(appctx, LOG_WARNING, trash.area);
+		}
+
+		if (strcmp(name, "user") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_USER);
+		else if (strcmp(name, "payload") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PAYLOAD);
+		else if (strcmp(name, "proto") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PROTO);
+		else if (strcmp(name, "state") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_STATE);
+		else if (strcmp(name, "developer") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
+		else
+			return cli_err(appctx, "No such trace level");
 	}
 	else
 		return cli_err(appctx, "Unknown trace keyword");
