@@ -4525,6 +4525,10 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		    isteq(list[hdr].n, ist("transfer-encoding")))
 			continue;
 
+		/* Skip all pseudo-headers */
+		if (*(list[hdr].n.ptr) == ':')
+			continue;
+
 		if (isteq(list[hdr].n, ist("")))
 			break; // end
 
@@ -4791,6 +4795,10 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		    isteq(list[hdr].n, ist("keep-alive")) ||
 		    isteq(list[hdr].n, ist("upgrade")) ||
 		    isteq(list[hdr].n, ist("transfer-encoding")))
+			continue;
+
+		/* Skip all pseudo-headers */
+		if (*(list[hdr].n.ptr) == ':')
 			continue;
 
 		if (isteq(list[hdr].n, ist("")))
@@ -5261,6 +5269,10 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		    isteq(list[idx].n, ist("upgrade")) ||
 		    isteq(list[idx].n, ist("te")) ||
 		    isteq(list[idx].n, ist("transfer-encoding")))
+			continue;
+
+		/* Skip all pseudo-headers */
+		if (*(list[idx].n.ptr) == ':')
 			continue;
 
 		if (!hpack_encode_header(&outbuf, list[idx].n, list[idx].v)) {

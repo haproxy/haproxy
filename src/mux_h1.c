@@ -1270,6 +1270,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				n = htx_get_blk_name(chn_htx, blk);
 				v = htx_get_blk_value(chn_htx, blk);
 
+				/* Skip all pseudo-headers */
+				if (*(n.ptr) == ':')
+					goto skip_hdr;
+
 				if (isteqi(n, ist("transfer-encoding")))
 					h1_parse_xfer_enc_header(h1m, v);
 				else if (isteqi(n, ist("content-length"))) {
