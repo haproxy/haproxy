@@ -415,6 +415,8 @@ static inline void fd_update_events(int fd, int evts)
 
 	if (fdtab[fd].iocb)
 		fdtab[fd].iocb(fd);
+
+	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 }
 
 /* Prepares <fd> for being polled */
