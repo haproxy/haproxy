@@ -86,6 +86,14 @@ struct cond_wordlist {
 /* adds an element at the end of a list ; returns the element */
 #define LIST_ADDQ(lh, el) ({ (el)->p = (lh)->p; (el)->p->n = (lh)->p = (el); (el)->n = (lh); (el); })
 
+/* adds the contents of a list <old> at the beginning of another list <new>. The old list head remains untouched. */
+#define LIST_SPLICE(new, old) do {				     \
+		if (!LIST_ISEMPTY(old)) {			     \
+			(old)->p->n = (new)->n; (old)->n->p = (new); \
+			(new)->n->p = (old)->p; (new)->n = (old)->n; \
+		}						     \
+	} while (0)
+
 /* removes an element from a list and returns it */
 #define LIST_DEL(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
 
