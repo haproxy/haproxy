@@ -32,6 +32,7 @@
 #include <types/trace.h>
 
 extern struct list trace_sources;
+extern THREAD_LOCAL struct buffer trace_buf;
 
 /* registers trace source <source>. Modifies the list element!
  * The {start,pause,stop,report} events are not changed so the source may

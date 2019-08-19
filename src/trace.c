@@ -27,7 +27,24 @@
 #include <proto/trace.h>
 
 struct list trace_sources = LIST_HEAD_INIT(trace_sources);
+THREAD_LOCAL struct buffer trace_buf = { };
 
+/* allocates the trace buffers. Returns 0 in case of failure. It is safe to
+ * call to call this function multiple times if the size changes.
+ */
+static int alloc_trace_buffers_per_thread()
+{
+	chunk_init(&trace_buf, my_realloc2(trace_buf.area, global.tune.bufsize), global.tune.bufsize);
+	return !!trash.area;
+}
+
+static void free_trace_buffers_per_thread()
+{
+	chunk_destroy(&trace_buf);
+}
+
+REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
+REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 /*
  * Local variables:
  *  c-indent-level: 8
