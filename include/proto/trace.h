@@ -34,7 +34,11 @@
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
-void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg);
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+             const void *a1, const void *a2, const void *a3, const void *a4,
+             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+                        const void *a1, const void *a2, const void *a3, const void *a4),
+             const struct ist msg);
 
 /* return a single char to describe a trace state */
 static inline char trace_state_char(enum trace_state st)
@@ -66,10 +70,14 @@ static inline void trace_register_source(struct trace_source *source)
 }
 
 /* sends a trace for the given source */
-static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
+static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+                         const void *a1, const void *a2, const void *a3, const void *a4,
+                         void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+                                    const void *a1, const void *a2, const void *a3, const void *a4),
+                         const struct ist msg)
 {
 	if (unlikely(src->state != TRACE_STATE_STOPPED))
-		__trace(level, mask, src, where, msg);
+		__trace(level, mask, src, where, a1, a2, a3, a4, cb, msg);
 }
 
 #endif /* _PROTO_TRACE_H */

@@ -49,7 +49,11 @@ REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 
 /* write a message for the given trace source */
-void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where, const struct ist msg)
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+             const void *a1, const void *a2, const void *a3, const void *a4,
+             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+                        const void *a1, const void *a2, const void *a3, const void *a4),
+             const struct ist msg)
 {
 	struct ist line[8];
 
@@ -87,7 +91,20 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 		line[1].len = 10;
 	}
 	line[2] = ist("] ");
-	line[3] = msg;
+
+	if (cb) {
+		/* decode function passed, we want to pre-fill the
+		 * buffer with the message and let the decode function
+		 * do its job, possibly even overwriting it.
+		 */
+		b_reset(&trace_buf);
+		b_istput(&trace_buf, msg);
+		cb(level, mask, src, where, a1, a2, a3, a4);
+		line[3].ptr = trace_buf.area;
+		line[3].len = trace_buf.data;
+	}
+	else
+		line[3] = msg;
 
 	if (src->sink)
 		sink_write(src->sink, line, 4);
