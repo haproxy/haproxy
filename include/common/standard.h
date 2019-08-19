@@ -61,6 +61,12 @@
  * power of 2, and 0 otherwise */
 #define POWEROF2(x) (((x) & ((x)-1)) == 0)
 
+/* DEFNULL() returns either the argument as-is, or NULL if absent. This is for
+ * use in macros arguments.
+ */
+#define DEFNULL(...) _FIRST_ARG(NULL, ##__VA_ARGS__, NULL)
+#define _FIRST_ARG(a, b, ...) b
+
 /* operators to compare values. They're ordered that way so that the lowest bit
  * serves as a negation for the test and contains all tests that are not equal.
  */
