@@ -223,6 +223,10 @@ struct h2_fh {
 };
 
 /* trace source and events */
+static void h2_trace(enum trace_level level, uint64_t mask, \
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
 
 /* The event representation is split like this :
  *   strm  - application layer
@@ -358,6 +362,7 @@ static struct trace_source trace_h2 = {
 	.name = IST("h2"),
 	.desc = "HTTP/2 multiplexer",
 	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
+	.default_cb = h2_trace,
 	.known_events = h2_trace_events,
 	.lockon_args = h2_trace_lockon_args,
 	.decoding = h2_trace_decoding,
@@ -439,6 +444,68 @@ static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
 static void h2s_alert(struct h2s *h2s);
+
+/* the H2 traces always expect that arg1, if non-null, is of type connection
+ * (from which we can derive h2c), that arg2, if non-null, is of type h2s, and
+ * that arg3, if non-null, is either of type htx for tx headers, or of type
+ * buffer for everything else.
+ */
+static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct h2c *h2c    = conn ? conn->ctx : NULL;
+	const struct h2s *h2s    = a2;
+	const struct buffer *buf = a3;
+	const struct htx *htx;
+	int pos;
+
+	if (!h2c) // nothing to add
+		return;
+
+	if (h2c->st0 < H2_CS_FRAME_H) // nothing to add for now
+		return;
+
+	if (src->level >= TRACE_LEVEL_STATE) {
+		if (!h2s)
+			chunk_appendf(&trace_buf, " : h2c=%p st=%d", h2c, h2c->st0);
+		else if (h2s->id <= 0)
+			chunk_appendf(&trace_buf, " : h2c=%p st=%d dsi=%d (st=%d)", h2c, h2c->st0, h2c->dsi, h2s->st);
+		else
+			chunk_appendf(&trace_buf, " : h2c=%p st=%d h2s=%p id=%d st=%d", h2c, h2c->st0, h2s, h2s->id, h2s->st);
+	}
+
+	/* Let's dump decoded requests and responses right after parsing. They
+	 * are traced at level USER with a few recognizable flags.
+	 */
+	if ((mask == (H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW) ||
+	     mask == (H2_EV_RX_FRAME|H2_EV_RX_HDR)) && buf)
+		htx = htxbuf(buf); // recv req/res
+	else if (mask == (H2_EV_TX_FRAME|H2_EV_TX_HDR))
+		htx = a3; // send req/res
+	else
+		htx = NULL;
+
+	if (level == TRACE_LEVEL_USER && htx && (pos = htx_get_head(htx)) != -1) {
+		const struct htx_blk    *blk  = htx_get_blk(htx, pos);
+		const struct htx_sl     *sl   = htx_get_blk_ptr(htx, blk);
+		enum htx_blk_type        type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_REQ_SL)
+			chunk_appendf(&trace_buf, " : [%d] H2 REQ: %.*s %.*s %.*s",
+				      h2c->dsi,
+				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
+				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
+				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
+		else if (type == HTX_BLK_RES_SL)
+			chunk_appendf(&trace_buf, " : [%d] H2 RES: %.*s %.*s %.*s",
+				      h2c->dsi,
+				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
+				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
+				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
+	}
+}
 
 static __inline int
 h2c_is_dead(struct h2c *h2c)
