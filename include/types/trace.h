@@ -96,6 +96,10 @@ enum trace_lockon {
 	TRACE_LOCKON_CONNECTION,  // lock on the connection that started the trace
 	TRACE_LOCKON_SESSION,     // lock on the session that started the trace
 	TRACE_LOCKON_STREAM,      // lock on the stream that started the trace
+	TRACE_LOCKON_ARG1,        // lock on arg1, totally source-dependent
+	TRACE_LOCKON_ARG2,        // lock on arg2, totally source-dependent
+	TRACE_LOCKON_ARG3,        // lock on arg3, totally source-dependent
+	TRACE_LOCKON_ARG4,        // lock on arg4, totally source-dependent
 };
 
 /* Each trace event maps a name to a mask in an uint64_t. Multiple bits are
@@ -110,6 +114,15 @@ struct trace_event {
 	const char *desc;
 };
 
+/* add a name and description for each arg that we know we can track. Those
+ * with a non-null name will be presented in the menu and will be usable for
+ * trace lock-on.
+ */
+struct trace_lockon_arg {
+	const char *name;
+	const char *desc;
+};
+
 struct trace_source {
 	/* source definition */
 	const struct ist name;
@@ -117,6 +130,7 @@ struct trace_source {
 	const struct trace_event *known_events;
 	struct list source_link; // element in list of known trace sources
 	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
+	const struct trace_lockon_arg *lockon_args; // must be 4 entries if not NULL
 	/* trace configuration, adjusted by "trace <module>" on CLI */
 	enum trace_lockon lockon;
 	uint64_t start_events;   // what will start the trace. default: 0=nothing
