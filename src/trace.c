@@ -180,7 +180,7 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			       "  event   : list/enable/disable source-specific event reporting\n"
 			       //"  filter  : list/enable/disable generic filters\n"
 			       "  level   : list/set detail level\n"
-			       //"  lock    : automatic lock on thread/connection/stream/...\n"
+			       "  lock    : automatic lock on thread/connection/stream/...\n"
 			       "  pause   : pause and automatically restart after a specific event\n"
 			       "  sink    : list/set event sinks\n"
 			       "  start   : start immediately or after a specific event\n"
@@ -310,6 +310,123 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
 		else
 			return cli_err(appctx, "No such trace level");
+	}
+	else if (strcmp(args[2], "lock") == 0) {
+		const char *name = args[3];
+
+		if (!*name) {
+			chunk_printf(&trash, "Supported lock-on criteria for source %s:\n", src->name.ptr);
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM))
+				chunk_appendf(&trash, "  %c backend    : lock on the backend that started the trace\n",
+				              src->lockon == TRACE_LOCKON_BACKEND ? '*' : ' ');
+
+			if (src->arg_def & TRC_ARGS_CONN)
+				chunk_appendf(&trash, "  %c connection : lock on the connection that started the trace\n",
+				              src->lockon == TRACE_LOCKON_CONNECTION ? '*' : ' ');
+
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+				chunk_appendf(&trash, "  %c frontend   : lock on the frontend that started the trace\n",
+				              src->lockon == TRACE_LOCKON_FRONTEND ? '*' : ' ');
+
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+				chunk_appendf(&trash, "  %c listener   : lock on the listener that started the trace\n",
+				              src->lockon == TRACE_LOCKON_LISTENER ? '*' : ' ');
+
+			chunk_appendf(&trash, "  %c nothing    : do not lock on anything\n",
+				      src->lockon == TRACE_LOCKON_NOTHING ? '*' : ' ');
+
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM))
+				chunk_appendf(&trash, "  %c server     : lock on the server that started the trace\n",
+				              src->lockon == TRACE_LOCKON_SERVER ? '*' : ' ');
+
+			if (src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM))
+				chunk_appendf(&trash, "  %c session    : lock on the session that started the trace\n",
+				              src->lockon == TRACE_LOCKON_SESSION ? '*' : ' ');
+
+			if (src->arg_def & TRC_ARGS_STRM)
+				chunk_appendf(&trash, "  %c stream     : lock on the stream that started the trace\n",
+				              src->lockon == TRACE_LOCKON_STREAM ? '*' : ' ');
+
+			chunk_appendf(&trash, "  %c thread     : lock on the thread that started the trace\n",
+				      src->lockon == TRACE_LOCKON_THREAD ? '*' : ' ');
+
+			if (src->lockon_args && src->lockon_args[0].name)
+				chunk_appendf(&trash, "  %c %-10s : %s\n",
+				              src->lockon == TRACE_LOCKON_ARG1 ? '*' : ' ',
+				              src->lockon_args[0].name, src->lockon_args[0].desc);
+
+			if (src->lockon_args && src->lockon_args[1].name)
+				chunk_appendf(&trash, "  %c %-10s : %s\n",
+				              src->lockon == TRACE_LOCKON_ARG2 ? '*' : ' ',
+				              src->lockon_args[1].name, src->lockon_args[1].desc);
+
+			if (src->lockon_args && src->lockon_args[2].name)
+				chunk_appendf(&trash, "  %c %-10s : %s\n",
+				              src->lockon == TRACE_LOCKON_ARG3 ? '*' : ' ',
+				              src->lockon_args[2].name, src->lockon_args[2].desc);
+
+			if (src->lockon_args && src->lockon_args[3].name)
+				chunk_appendf(&trash, "  %c %-10s : %s\n",
+				              src->lockon == TRACE_LOCKON_ARG4 ? '*' : ' ',
+				              src->lockon_args[3].name, src->lockon_args[3].desc);
+
+			trash.area[trash.data] = 0;
+			return cli_msg(appctx, LOG_WARNING, trash.area);
+		}
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM)) && strcmp(name, "backend") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_BACKEND);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & TRC_ARGS_CONN) && strcmp(name, "connection") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_CONNECTION);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "frontend") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_FRONTEND);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "listener") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_LISTENER);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (strcmp(name, "nothing") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_NOTHING);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM)) && strcmp(name, "server") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_SERVER);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_SESS|TRC_ARGS_STRM)) && strcmp(name, "session") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_SESSION);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & TRC_ARGS_STRM) && strcmp(name, "stream") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_STREAM);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (strcmp(name, "thread") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_THREAD);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (src->lockon_args && src->lockon_args[0].name && strcmp(name, src->lockon_args[0].name) == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_ARG1);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (src->lockon_args && src->lockon_args[1].name && strcmp(name, src->lockon_args[1].name) == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_ARG2);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (src->lockon_args && src->lockon_args[2].name && strcmp(name, src->lockon_args[2].name) == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_ARG3);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if (src->lockon_args && src->lockon_args[3].name && strcmp(name, src->lockon_args[3].name) == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_ARG4);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else
+			return cli_err(appctx, "Unsupported lock-on criterion");
 	}
 	else
 		return cli_err(appctx, "Unknown trace keyword");
