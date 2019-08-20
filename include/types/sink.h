@@ -28,10 +28,11 @@
 #include <common/ist.h>
 
 /* A sink may be of several types. For now the following types are supported:
- * (none yet)
+ *   - file descriptor (such as stdout)
  */
 enum sink_type {
 	SINK_TYPE_NEW,      // not yet initialized
+	SINK_TYPE_FD,       // events sent to a file descriptor
 };
 
 /* This indicates the default event format, which is the destination's
@@ -59,6 +60,7 @@ struct sink {
 	struct {
 		unsigned int dropped; // dropped events since last one.
 		__decl_hathreads(HA_RWLOCK_T lock); // used by some types
+		int fd;               // fd num for FD type sink
 	} ctx;
 };
 

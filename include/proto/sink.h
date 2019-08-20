@@ -28,6 +28,7 @@
 extern struct list sink_list;
 
 struct sink *sink_find(const char *name);
+struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, int fd);
 void sink_write(struct sink *sink, const struct ist msg[], size_t nmsg);
 
 #endif /* _PROTO_SINK_H */
