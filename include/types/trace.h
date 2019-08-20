@@ -29,6 +29,49 @@
 #include <common/mini-clist.h>
 #include <types/sink.h>
 
+/* the macros below define an optional type for each of the 4 args passed to
+ * the trace() call. When such a type is set, the caller commits to exclusively
+ * using a valid pointer when this argument is not null. This allows the trace()
+ * function to automatically start or stop the lock-on mechanism when it detects
+ * a type that it can dereference such as a connection or a stream. Each value
+ * is represented as an exclusive bit and each arg is represented by a distinct
+ * byte. The reason for using a single bit per value is to speed up tests using
+ * bitmasks. Users must not declare args with multiple bits set for the same arg.
+ * By default arguments are private, corresponding to value 0.
+ */
+
+/* for use only in macro definitions above */
+#define TRC_ARG_PRIV  (0)
+#define TRC_ARG_CONN  (1 << 0)
+#define TRC_ARG_SESS  (1 << 1)
+#define TRC_ARG_STRM  (1 << 2)
+
+#define TRC_ARG1_PRIV (TRC_ARG_PRIV << 0)
+#define TRC_ARG1_CONN (TRC_ARG_CONN << 0)
+#define TRC_ARG1_SESS (TRC_ARG_SESS << 0)
+#define TRC_ARG1_STRM (TRC_ARG_STRM << 0)
+
+#define TRC_ARG2_PRIV (TRC_ARG_PRIV << 8)
+#define TRC_ARG2_CONN (TRC_ARG_CONN << 8)
+#define TRC_ARG2_SESS (TRC_ARG_SESS << 8)
+#define TRC_ARG2_STRM (TRC_ARG_STRM << 8)
+
+#define TRC_ARG3_PRIV (TRC_ARG_PRIV << 16)
+#define TRC_ARG3_CONN (TRC_ARG_CONN << 16)
+#define TRC_ARG3_SESS (TRC_ARG_SESS << 16)
+#define TRC_ARG3_STRM (TRC_ARG_STRM << 16)
+
+#define TRC_ARG4_PRIV (TRC_ARG_PRIV << 24)
+#define TRC_ARG4_CONN (TRC_ARG_CONN << 24)
+#define TRC_ARG4_SESS (TRC_ARG_SESS << 24)
+#define TRC_ARG4_STRM (TRC_ARG_STRM << 24)
+
+/* usable to detect the presence of any arg of the desired type */
+#define TRC_ARGS_CONN (TRC_ARG_CONN * 0x01010101U)
+#define TRC_ARGS_SESS (TRC_ARG_SESS * 0x01010101U)
+#define TRC_ARGS_STRM (TRC_ARG_STRM * 0x01010101U)
+
+
 enum trace_state {
 	TRACE_STATE_STOPPED = 0,  // completely disabled
 	TRACE_STATE_WAITING,      // waiting for the start condition to happen
@@ -73,6 +116,7 @@ struct trace_source {
 	const char *desc;
 	const struct trace_event *known_events;
 	struct list source_link; // element in list of known trace sources
+	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
 	/* trace configuration, adjusted by "trace <module>" on CLI */
 	enum trace_lockon lockon;
 	uint64_t start_events;   // what will start the trace. default: 0=nothing
