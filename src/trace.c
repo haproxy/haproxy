@@ -112,9 +112,11 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
  end:
 	/* check if we need to stop the trace now */
 	if ((src->stop_events & mask) != 0) {
+		HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
 	}
 	else if ((src->pause_events & mask) != 0) {
+		HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		HA_ATOMIC_STORE(&src->state, TRACE_STATE_WAITING);
 	}
 }
@@ -222,12 +224,17 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 
 		if (strcmp(name, "now") == 0 && ev_ptr != &src->report_events) {
 			HA_ATOMIC_STORE(ev_ptr, 0);
-			if (ev_ptr == &src->pause_events)
+			if (ev_ptr == &src->pause_events) {
+				HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 				HA_ATOMIC_STORE(&src->state, TRACE_STATE_WAITING);
-			else if (ev_ptr == &src->start_events)
+			}
+			else if (ev_ptr == &src->start_events) {
 				HA_ATOMIC_STORE(&src->state, TRACE_STATE_RUNNING);
-			else if (ev_ptr == &src->stop_events)
+			}
+			else if (ev_ptr == &src->stop_events) {
+				HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 				HA_ATOMIC_STORE(&src->state, TRACE_STATE_STOPPED);
+			}
 			return 0;
 		}
 
