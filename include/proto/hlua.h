@@ -27,6 +27,9 @@
 void hlua_ctx_destroy(struct hlua *lua);
 void hlua_init();
 int hlua_post_init();
+void hlua_applet_tcp_fct(struct appctx *ctx);
+void hlua_applet_http_fct(struct appctx *ctx);
+struct task *hlua_process_task(struct task *task, void *context, unsigned short state);
 
 #else /* USE_LUA */
 

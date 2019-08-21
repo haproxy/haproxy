@@ -5596,7 +5596,7 @@ __LJMP static int hlua_set_nice(lua_State *L)
  * Task wrapper are longjmp safe because the only one Lua code
  * executed is the safe hlua_ctx_resume();
  */
-static struct task *hlua_process_task(struct task *task, void *context, unsigned short state)
+struct task *hlua_process_task(struct task *task, void *context, unsigned short state)
 {
 	struct hlua *hlua = context;
 	enum hlua_exec status;
@@ -6404,7 +6404,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	return 1;
 }
 
-static void hlua_applet_tcp_fct(struct appctx *ctx)
+void hlua_applet_tcp_fct(struct appctx *ctx)
 {
 	struct stream_interface *si = ctx->owner;
 	struct stream *strm = si_strm(si);
@@ -6596,7 +6596,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	return 1;
 }
 
-static void hlua_applet_http_fct(struct appctx *ctx)
+void hlua_applet_http_fct(struct appctx *ctx)
 {
 	struct stream_interface *si = ctx->owner;
 	struct stream *strm = si_strm(si);
