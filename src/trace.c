@@ -48,6 +48,26 @@ static void free_trace_buffers_per_thread()
 REGISTER_PER_THREAD_ALLOC(alloc_trace_buffers_per_thread);
 REGISTER_PER_THREAD_FREE(free_trace_buffers_per_thread);
 
+/* pick the lowest non-null argument with a non-null arg_def mask */
+static inline const void *trace_pick_arg(uint32_t arg_def, const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	if (arg_def & 0x0000FFFF) {
+		if ((arg_def & 0x000000FF) && a1)
+			return a1;
+		if ((arg_def & 0x0000FF00) && a2)
+			return a2;
+	}
+
+	if (arg_def & 0xFFFF0000) {
+		if ((arg_def & 0x00FF0000) && a3)
+			return a3;
+		if ((arg_def & 0xFF000000) && a4)
+			return a4;
+	}
+
+	return NULL;
+}
+
 /* write a message for the given trace source */
 void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
              const void *a1, const void *a2, const void *a3, const void *a4,
@@ -55,6 +75,14 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
                         const void *a1, const void *a2, const void *a3, const void *a4),
              const struct ist msg)
 {
+	const struct listener *li = NULL;
+	const struct proxy *fe = NULL;
+	const struct proxy *be = NULL;
+	const struct server *srv = NULL;
+	const struct session *sess = NULL;
+	const struct stream *strm = NULL;
+	const struct connection *conn = NULL;
+	const void *lockon_ptr = NULL;
 	struct ist line[8];
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
@@ -63,6 +91,46 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	/* check that at least one action is interested by this event */
 	if (((src->report_events | src->start_events | src->pause_events | src->stop_events) & mask) == 0)
 		return;
+
+	/* retrieve available information from the caller's arguments */
+	if (src->arg_def & TRC_ARGS_CONN)
+		conn = trace_pick_arg(src->arg_def & TRC_ARGS_CONN, a1, a2, a3, a4);
+
+	if (src->arg_def & TRC_ARGS_SESS)
+		sess = trace_pick_arg(src->arg_def & TRC_ARGS_SESS, a1, a2, a3, a4);
+
+	if (src->arg_def & TRC_ARGS_STRM)
+		strm = trace_pick_arg(src->arg_def & TRC_ARGS_STRM, a1, a2, a3, a4);
+
+	if (!sess && strm)
+		sess = strm->sess;
+	else if (!sess && conn)
+		sess = conn->owner;
+
+	if (sess) {
+		fe = sess->fe;
+		li = sess->listener;
+	}
+
+	if (!li && conn)
+		li = objt_listener(conn->target);
+
+	if (li && !fe)
+		fe = li->bind_conf->frontend;
+
+	if (strm) {
+		be = strm->be;
+		srv = strm->srv_conn;
+	}
+
+	if (!srv && conn)
+		srv = objt_server(conn->target);
+
+	if (srv && !be)
+		be = srv->proxy;
+
+	if (!be && conn)
+		be = objt_proxy(conn->target);
 
 	/* TODO: add handling of filters here, return if no match (not even update states) */
 
@@ -75,7 +143,31 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 		HA_ATOMIC_STORE(&src->state, TRACE_STATE_RUNNING);
 	}
 
-	/* TODO: add check of lockon+lockon_ptr here, return if no match */
+	/* we may want to lock on a particular object */
+	if (src->lockon != TRACE_LOCKON_NOTHING) {
+		switch (src->lockon) {
+		case TRACE_LOCKON_BACKEND:    lockon_ptr = be;   break;
+		case TRACE_LOCKON_CONNECTION: lockon_ptr = conn; break;
+		case TRACE_LOCKON_FRONTEND:   lockon_ptr = fe;   break;
+		case TRACE_LOCKON_LISTENER:   lockon_ptr = li;   break;
+		case TRACE_LOCKON_SERVER:     lockon_ptr = srv;  break;
+		case TRACE_LOCKON_SESSION:    lockon_ptr = sess; break;
+		case TRACE_LOCKON_STREAM:     lockon_ptr = strm; break;
+		case TRACE_LOCKON_THREAD:     lockon_ptr = ti;   break;
+		case TRACE_LOCKON_ARG1:       lockon_ptr = a1;   break;
+		case TRACE_LOCKON_ARG2:       lockon_ptr = a2;   break;
+		case TRACE_LOCKON_ARG3:       lockon_ptr = a3;   break;
+		case TRACE_LOCKON_ARG4:       lockon_ptr = a4;   break;
+		default: break; // silence stupid gcc -Wswitch
+		}
+
+		if (src->lockon_ptr && src->lockon_ptr != lockon_ptr)
+			return;
+
+		if (!src->lockon_ptr && lockon_ptr && src->state == TRACE_STATE_RUNNING)
+			HA_ATOMIC_STORE(&src->lockon_ptr, lockon_ptr);
+	}
+
 	/* here the trace is running and is tracking a desired item */
 
 	if ((src->report_events & mask) == 0 || level > src->level)
