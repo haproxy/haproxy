@@ -3709,6 +3709,41 @@ char *indent_msg(char **out, int level)
 	return ret;
 }
 
+/* makes a copy of message <in> into <out>, with each line prefixed with <pfx>
+ * and end of lines replaced with <eol> if not 0. The first line to indent has
+ * to be indicated in <first> (starts at zero), so that it is possible to skip
+ * indenting the first line if it has to be appended after an existing message.
+ * Empty strings are never indented, and NULL strings are considered empty both
+ * for <in> and <pfx>. It returns non-zero if an EOL was appended as the last
+ * character, non-zero otherwise.
+ */
+int append_prefixed_str(struct buffer *out, const char *in, const char *pfx, char eol, int first)
+{
+	int bol, lf;
+	int pfxlen = pfx ? strlen(pfx) : 0;
+
+	if (!in)
+		return 0;
+
+	bol = 1;
+	lf = 0;
+	while (*in) {
+		if (bol && pfxlen) {
+			if (first > 0)
+				first--;
+			else
+				b_putblk(out, pfx, pfxlen);
+			bol = 0;
+		}
+
+		lf = (*in == '\n');
+		bol |= lf;
+		b_putchr(out, (lf && eol) ? eol : *in);
+		in++;
+	}
+	return lf;
+}
+
 /* removes environment variable <name> from the environment as found in
  * environ. This is only provided as an alternative for systems without
  * unsetenv() (old Solaris and AIX versions). THIS IS NOT THREAD SAFE.

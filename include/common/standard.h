@@ -1238,6 +1238,7 @@ char *memprintf(char **out, const char *format, ...)
  *   free(err);
  */
 char *indent_msg(char **out, int level);
+int append_prefixed_str(struct buffer *out, const char *in, const char *pfx, char eol, int first);
 
 /* removes environment variable <name> from the environment as found in
  * environ. This is only provided as an alternative for systems without
