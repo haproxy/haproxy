@@ -89,6 +89,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 {
 	const struct stream *s = NULL;
+	const struct appctx __maybe_unused *appctx = NULL;
 
 	if (!task) {
 		chunk_appendf(buf, "0\n");
@@ -109,7 +110,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		              task->call_date ? " ns ago" : "");
 
 	chunk_appendf(buf, "%s"
-	              "  fct=%p (%s) ctx=%p\n",
+	              "  fct=%p (%s) ctx=%p",
 	              pfx,
 	              task->process,
 	              task->process == process_stream ? "process_stream" :
@@ -117,6 +118,11 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
 		      "?",
 	              task->context);
+
+	if (task->process == task_run_applet && (appctx = task->context))
+		chunk_appendf(buf, "(%s)\n", appctx->applet->name);
+	else
+		chunk_appendf(buf, "\n");
 
 	if (task->process == process_stream && task->context)
 		s = (struct stream *)task->context;
