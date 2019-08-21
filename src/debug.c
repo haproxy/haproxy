@@ -26,6 +26,7 @@
 
 #include <proto/cli.h>
 #include <proto/fd.h>
+#include <proto/hlua.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -90,6 +91,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 {
 	const struct stream *s = NULL;
 	const struct appctx __maybe_unused *appctx = NULL;
+	struct hlua __maybe_unused *hlua = NULL;
 
 	if (!task) {
 		chunk_appendf(buf, "0\n");
@@ -116,6 +118,9 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	              task->process == process_stream ? "process_stream" :
 	              task->process == task_run_applet ? "task_run_applet" :
 	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
+#ifdef USE_LUA
+		      task->process == hlua_process_task ? "hlua_process_task" :
+#endif
 		      "?",
 	              task->context);
 
@@ -133,6 +138,30 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 
 	if (s)
 		stream_dump(buf, s, pfx, '\n');
+
+#ifdef USE_LUA
+	hlua = NULL;
+	if (s && (hlua = s->hlua)) {
+		chunk_appendf(buf, "%sCurrent executing Lua from a stream analyser -- ", pfx);
+	}
+	else if (task->process == hlua_process_task && (hlua = task->context)) {
+		chunk_appendf(buf, "%sCurrent executing a Lua task -- ", pfx);
+	}
+	else if (task->process == task_run_applet && (appctx = task->context) &&
+		 (appctx->applet->fct == hlua_applet_tcp_fct && (hlua = appctx->ctx.hlua_apptcp.hlua))) {
+		chunk_appendf(buf, "%sCurrent executing a Lua TCP service -- ", pfx);
+	}
+	else if (task->process == task_run_applet && (appctx = task->context) &&
+		 (appctx->applet->fct == hlua_applet_http_fct && (hlua = appctx->ctx.hlua_apphttp.hlua))) {
+		chunk_appendf(buf, "%sCurrent executing a Lua HTTP service -- ", pfx);
+	}
+
+	if (hlua) {
+		luaL_traceback(hlua->T, hlua->T, NULL, 0);
+		if (!append_prefixed_str(buf, lua_tostring(hlua->T, -1), pfx, '\n', 1))
+			b_putchr(buf, '\n');
+	}
+#endif
 }
 
 /* This function dumps all profiling settings. It returns 0 if the output
