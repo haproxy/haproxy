@@ -2426,7 +2426,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (h1m->state != H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len))
 			h1s->flags |= H1S_F_BUF_FLUSH;
 	}
-	else if (ret > 0 || (h1s->flags & H1S_F_SPLICED_DATA)) {
+	else {
 		h1s->flags &= ~H1S_F_SPLICED_DATA;
 		if (h1m->state != H1_MSG_DONE &&
 				!(h1c->wait_event.events & SUB_RETRY_RECV))
