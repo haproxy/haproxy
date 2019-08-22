@@ -142,7 +142,7 @@ struct trace_source {
 	struct sink *sink;       // where to send the trace
 	/* trace state part below */
 	enum trace_state state;
-	void *lockon_ptr;        // what to lockon when lockon is set
+	const void *lockon_ptr;  // what to lockon when lockon is set
 };
 
 #endif /* _TYPES_TRACE_H */
