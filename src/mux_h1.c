@@ -68,7 +68,8 @@
 #define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
 #define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
 #define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
-/* 0x00001000 .. 0x00002000 unused */
+#define H1S_F_APPEND_EOM     0x00001000 /* Send EOM to the HTX buffer */
+/* 0x00002000 .. 0x00002000 unused */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
 /* H1 connection descriptor */
@@ -996,9 +997,12 @@ static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
  */
 static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t max)
 {
-	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
+	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM)) {
+		h1s->flags |= H1S_F_APPEND_EOM;
 		return 0;
+	}
 
+	h1s->flags &= ~H1S_F_APPEND_EOM;
 	h1m->state = H1_MSG_DONE;
 	h1s->cs->flags |= CS_FL_EOI;
 	return (sizeof(struct htx_blk) + 1);
@@ -1514,7 +1518,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	else if (h1s_data_pending(h1s) && !htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
-	if ((h1s->flags & H1S_F_REOS) && (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
+	if (((h1s->flags & (H1S_F_REOS|H1S_F_APPEND_EOM)) == H1S_F_REOS) &&
+	    (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
 		if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 			h1s->cs->flags |= CS_FL_ERROR;
