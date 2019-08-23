@@ -1553,8 +1553,8 @@ enable agent <backend>/<server>
   level "admin".
 
 enable dynamic-cookie backend <backend>
-  Enable the generation of dynamic cookies fot the backend <backend>
-  A secret key must also be provided
+  Enable the generation of dynamic cookies for the backend <backend>.
+  A secret key must also be provided.
 
 enable frontend <frontend>
   Resume a frontend which was temporarily stopped. It is possible that some of
