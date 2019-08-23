@@ -4340,6 +4340,26 @@ int parse_dotted_uints(const char *str, unsigned int **nums, size_t *sz)
 	return 1;
 }
 
+
+/* returns the number of bytes needed to encode <v> as a varint. An inline
+ * version exists for use with constants (__varint_bytes()).
+ */
+int varint_bytes(uint64_t v)
+{
+	int len = 1;
+
+	if (v >= 240) {
+		v = (v - 240) >> 4;
+		while (1) {
+			len++;
+			if (v < 128)
+				break;
+			v = (v - 128) >> 7;
+		}
+	}
+	return len;
+}
+
 /* do nothing, just a placeholder for debugging calls, the real one is in trace.c */
 #ifndef USE_OBSOLETE_LINKER
 __attribute__((weak,format(printf, 1, 2)))
