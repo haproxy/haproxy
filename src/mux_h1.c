@@ -1037,10 +1037,11 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, &h1sl);
 	if (ret <= 0) {
-		/* Incomplete or invalid message. If the buffer is full, it's an
-		 * error because headers are too large to be handled by the
-		 * parser. */
-		if (ret < 0 || (!ret && !buf_room_for_htx_data(buf)))
+		/* Incomplete or invalid message. If the input buffer only
+		 * contains headers and is full, which is detected by it being
+		 * full and the offset to be zero, it's an error because
+		 * headers are too large to be handled by the parser. */
+		if (ret < 0 || (!ret && !*ofs && !buf_room_for_htx_data(buf)))
 			goto error;
 		goto end;
 	}
@@ -1381,10 +1382,11 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 	ret = h1_headers_to_hdr_list(b_peek(buf, *ofs), b_tail(buf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &tlr_h1m, NULL);
 	if (ret <= 0) {
-		/* Incomplete or invalid trailers. If the buffer is full, it's
-		 * an error because traliers are too large to be handled by the
-		 * parser. */
-		if (ret < 0 || (!ret && !buf_room_for_htx_data(buf)))
+		/* Incomplete or invalid trailers. If the input buffer only
+		 * contains trailers and is full, which is detected by it being
+		 * full and the offset to be zero, it's an error because
+		 * trailers are too large to be handled by the parser. */
+		if (ret < 0 || (!ret && !*ofs && !buf_room_for_htx_data(buf)))
 			goto error;
 		goto end;
 	}
