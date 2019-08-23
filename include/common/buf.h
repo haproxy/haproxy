@@ -674,6 +674,164 @@ static inline int b_rep_blk(struct buffer *b, char *pos, char *end, const char *
 }
 
 
+/* __b_put_varint(): encode 64-bit value <v> as a varint into buffer <b>. The
+ * caller must have checked that the encoded value fits in the buffer so that
+ * there are no length checks. Wrapping is supported. You don't want to use
+ * this function but b_put_varint() instead.
+ */
+static inline void __b_put_varint(struct buffer *b, uint64_t v)
+{
+	size_t data = b->data;
+	size_t size = b_size(b);
+	char  *wrap = b_wrap(b);
+	char  *tail = b_tail(b);
+
+	if (v >= 0xF0) {
+		/* more than one byte, first write the 4 least significant
+		 * bits, then follow with 7 bits per byte.
+		 */
+		*tail = v | 0xF0;
+		v = (v - 0xF0) >> 4;
+
+		while (1) {
+			if (tail++ == wrap)
+				tail -= size;
+			data++;
+			if (v < 0x80)
+				break;
+			*tail = v | 0x80;
+			v = (v - 0x80) >> 7;
+		}
+	}
+
+	/* last byte */
+	*tail = v;
+	data++;
+	b->data = data;
+}
+
+/* b_put_varint(): try to encode value <v> as a varint into buffer <b>. Returns
+ * the number of bytes written in case of success, or 0 if there is not enough
+ * room. Wrapping is supported. No partial writes will be performed.
+ */
+static inline int b_put_varint(struct buffer *b, uint64_t v)
+{
+	size_t data = b->data;
+	size_t size = b_size(b);
+	char  *wrap = b_wrap(b);
+	char  *tail = b_tail(b);
+
+	if (data != size && v >= 0xF0) {
+		/* more than one byte, first write the 4 least significant
+		 * bits, then follow with 7 bits per byte.
+		 */
+		*tail = v | 0xF0;
+		v = (v - 0xF0) >> 4;
+
+		while (1) {
+			if (tail++ == wrap)
+				tail -= size;
+			data++;
+			if (data == size || v < 0x80)
+				break;
+			*tail = v | 0x80;
+			v = (v - 0x80) >> 7;
+		}
+	}
+
+	/* last byte */
+	if (data == size)
+		return 0;
+
+	*tail = v;
+	data++;
+
+	size = data - b->data;
+	b->data = data;
+	return size;
+}
+
+/* b_get_varint(): try to decode a varint from buffer <b> into value <vptr>.
+ * Returns the number of bytes read in case of success, or 0 if there were not
+ * enough bytes. Wrapping is supported. No partial reads will be performed.
+ */
+static inline int b_get_varint(struct buffer *b, uint64_t *vptr)
+{
+	const uint8_t *head = (const uint8_t *)b_head(b);
+	const uint8_t *wrap = (const uint8_t *)b_wrap(b);
+	size_t data = b->data;
+	size_t size = b_size(b);
+	uint64_t v = 0;
+	int bits = 0;
+
+	if (data != 0 && (*head >= 0xF0)) {
+		v = *head;
+		bits += 4;
+		while (1) {
+			if (head++ == wrap)
+				head -= size;
+			data--;
+			if (!data || !(*head & 0x80))
+				break;
+			v += (uint64_t)*head << bits;
+			bits += 7;
+		}
+	}
+
+	/* last byte */
+	if (!data)
+		return 0;
+
+	v += (uint64_t)*head << bits;
+	*vptr = v;
+	data--;
+	size = b->data - data;
+	b_del(b, size);
+	return size;
+}
+
+/* b_peek_varint(): try to decode a varint from buffer <b> at offset <ofs>
+ * relative to head, into value <vptr>. Returns the number of bytes parsed in
+ * case of success, or 0 if there were not enough bytes, in which case the
+ * contents of <vptr> are not updated. Wrapping is supported. The buffer's head
+ * will NOT be updated. It is illegal to call this function with <ofs> greater
+ * than b->data.
+ */
+static inline int b_peek_varint(struct buffer *b, size_t ofs, uint64_t *vptr)
+{
+	const uint8_t *head = (const uint8_t *)b_peek(b, ofs);
+	const uint8_t *wrap = (const uint8_t *)b_wrap(b);
+	size_t data = b_data(b) - ofs;
+	size_t size = b_size(b);
+	uint64_t v = 0;
+	int bits = 0;
+
+	if (data != 0 && (*head >= 0xF0)) {
+		v = *head;
+		bits += 4;
+		while (1) {
+			if (head++ == wrap)
+				head -= size;
+			data--;
+			if (!data || !(*head & 0x80))
+				break;
+			v += (uint64_t)*head << bits;
+			bits += 7;
+		}
+	}
+
+	/* last byte */
+	if (!data)
+		return 0;
+
+	v += (uint64_t)*head << bits;
+	*vptr = v;
+	data--;
+	size = b->data - ofs - data;
+	return size;
+}
+
+
 /*
  * Buffer ring management.
  *
