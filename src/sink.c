@@ -25,6 +25,7 @@
 #include <common/ist.h>
 #include <common/mini-clist.h>
 #include <proto/log.h>
+#include <proto/ring.h>
 #include <proto/sink.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
@@ -101,6 +102,45 @@ struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, 
 	return sink;
 }
 
+/* creates a sink called <name> of type BUF of size <size>, format <fmt>,
+ * and description <desc>. Returns NULL on allocation failure or conflict.
+ * Perfect duplicates are merged (same type and name). If sizes differ, the
+ * largest one is kept.
+ */
+struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt, size_t size)
+{
+	struct sink *sink;
+
+	sink = __sink_new(name, desc, fmt);
+	if (!sink)
+		goto fail;
+
+	if (sink->type == SINK_TYPE_BUFFER) {
+		/* such a buffer already exists, we may have to resize it */
+		if (!ring_resize(sink->ctx.ring, size))
+			goto fail;
+		goto end;
+	}
+
+	if (sink->type != SINK_TYPE_NEW) {
+		/* already exists of another type */
+		goto fail;
+	}
+
+	sink->ctx.ring = ring_new(size);
+	if (!sink->ctx.ring) {
+		LIST_DEL(&sink->sink_list);
+		free(sink);
+		goto fail;
+	}
+
+	sink->type = SINK_TYPE_BUFFER;
+ end:
+	return sink;
+ fail:
+	return NULL;
+}
+
 /* tries to send <nmsg> message parts (up to 8, ignored above) from message
  * array <msg> to sink <sink>. Formating according to the sink's preference is
  * done here. Lost messages are accounted for in the sink's counter.
@@ -124,6 +164,11 @@ void sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
 
 	if (sink->type == SINK_TYPE_FD) {
 		sent = fd_write_frag_line(sink->ctx.fd, sink->maxlen, pfx, npfx, msg, nmsg, 1);
+		/* sent > 0 if the message was delivered */
+	}
+	else if (sink->type == SINK_TYPE_BUFFER) {
+		sent = ring_write(sink->ctx.ring, sink->maxlen, pfx, npfx, msg, nmsg);
+		/* sent > 0 if the message was delivered */
 	}
 
 	/* account for errors now */
@@ -135,9 +180,23 @@ static void sink_init()
 {
 	sink_new_fd("stdout", "standard output (fd#1)", SINK_FMT_RAW, 1);
 	sink_new_fd("stderr", "standard output (fd#2)", SINK_FMT_RAW, 2);
+	sink_new_buf("buf0",  "in-memory ring buffer", SINK_FMT_RAW, 1048576);
+}
+
+static void sink_deinit()
+{
+	struct sink *sink, *sb;
+
+	list_for_each_entry_safe(sink, sb, &sink_list, sink_list) {
+		if (sink->type == SINK_TYPE_BUFFER)
+			ring_free(sink->ctx.ring);
+		LIST_DEL(&sink->sink_list);
+		free(sink);
+	}
 }
 
 INITCALL0(STG_REGISTER, sink_init);
+REGISTER_POST_DEINIT(sink_deinit);
 
 /*
  * Local variables:

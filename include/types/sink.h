@@ -27,12 +27,14 @@
 #include <common/config.h>
 #include <common/ist.h>
 
-/* A sink may be of several types. For now the following types are supported:
+/* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)
+ *   - ring buffer, readable from CLI
  */
 enum sink_type {
 	SINK_TYPE_NEW,      // not yet initialized
 	SINK_TYPE_FD,       // events sent to a file descriptor
+	SINK_TYPE_BUFFER,   // events sent to a ring buffer
 };
 
 /* This indicates the default event format, which is the destination's
@@ -58,6 +60,7 @@ struct sink {
 	uint8_t syslog_minlvl;     // used by syslog & short formats
 	uint32_t maxlen;           // max message length (truncated above)
 	struct {
+		struct ring *ring;    // used by ring buffer and STRM sender
 		unsigned int dropped; // dropped events since last one.
 		__decl_hathreads(HA_RWLOCK_T lock); // used by some types
 		int fd;               // fd num for FD type sink
