@@ -695,6 +695,7 @@ void mworker_reload()
 	}
 
 	ha_warning("Reexecuting Master process\n");
+	signal(SIGPROF, SIG_IGN);
 	execvp(next_argv[0], next_argv);
 
 	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
