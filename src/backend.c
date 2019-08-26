@@ -2286,6 +2286,38 @@ static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *p
 	return 1;
 }
 
+static int
+sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
+{
+	struct proxy *px;
+	struct server *srv;
+	char *bksep;
+
+	if (!smp_make_safe(smp))
+		return 0;
+
+	bksep = strchr(smp->data.u.str.area, '/');
+
+	if (bksep) {
+		*bksep = '\0';
+		px = proxy_find_by_name(smp->data.u.str.area, PR_CAP_BE, 0);
+		if (!px)
+			return 0;
+		smp->data.u.str.area = bksep + 1;
+	} else {
+		if (!(smp->px->cap & PR_CAP_BE))
+			return 0;
+		px = smp->px;
+	}
+
+	srv = server_find_by_name(px, smp->data.u.str.area);
+	if (!srv)
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = srv->nbpend;
+	return 1;
+}
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -2313,7 +2345,8 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-	{ "nbsrv", sample_conv_nbsrv, 0, NULL, SMP_T_STR, SMP_T_SINT },
+	{ "nbsrv",     sample_conv_nbsrv,     0, NULL, SMP_T_STR, SMP_T_SINT },
+	{ "srv_queue", sample_conv_srv_queue, 0, NULL, SMP_T_STR, SMP_T_SINT },
 	{ /* END */ },
 }};
 

@@ -13622,6 +13622,13 @@ sha2([<bits>])
   Please note that this converter is only available when haproxy has been
   compiled with USE_OPENSSL.
 
+srv_queue
+  Takes an input value of type string, either a server name or <backend>/<server>
+  format and returns the number of queued sessions on that server. Can be used
+  in places where we want to look up queued sessions from a dynamic name, like a
+  cookie value (e.g. req.cook(SRVID),srv_queue) and then make a decision to break
+  persistence or direct a request elsewhere.
+
 strcmp(<var>)
   Compares the contents of <var> with the input value of type string. Returns
   the result as a signed integer compatible with strcmp(3): 0 if both strings
