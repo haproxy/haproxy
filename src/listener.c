@@ -595,17 +595,17 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
  */
 void delete_listener(struct listener *listener)
 {
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_ASSIGNED) {
 		listener->state = LI_INIT;
-		HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 		LIST_DEL(&listener->proto_list);
 		listener->proto->nb_listeners--;
-		HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 		_HA_ATOMIC_SUB(&jobs, 1);
 		_HA_ATOMIC_SUB(&listeners, 1);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
 /* Returns a suitable value for a listener's backlog. It uses the listener's,
