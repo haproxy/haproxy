@@ -1786,10 +1786,6 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
-	while (path.len > 0 && *(path.ptr) != '?') {
-		path.ptr++;
-		path.len--;
-	}
 	if (path.len && *(path.ptr) == '/') {
 		while (path.len--)
 			hash = *(path.ptr++) + (hash << 6) + (hash << 16) - hash;
