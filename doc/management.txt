@@ -1964,6 +1964,11 @@ show errors [<iid>|<proxy>] [request|response]
     is the slash ('/') in header name "header/bizarre", which is not a valid
     HTTP character for a header name.
 
+show events [<sink>]
+  With no option, this lists all known event sinks and their types. With an
+  option, it will dump all available events in the designated sink if it is of
+  type buffer.
+
 show fd [<fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
   if specified. This is only aimed at developers who need to observe internal

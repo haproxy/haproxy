@@ -24,9 +24,11 @@
 #include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
+#include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/ring.h>
 #include <proto/sink.h>
+#include <proto/stream_interface.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 
@@ -176,6 +178,42 @@ void sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
 		HA_ATOMIC_ADD(&sink->ctx.dropped, 1);
 }
 
+/* parse the "show events" command, returns 1 if a message is returned, otherwise zero */
+static int cli_parse_show_events(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct sink *sink;
+
+	args++; // make args[1] the 1st arg
+
+	if (!*args[1]) {
+		/* no arg => report the list of supported sink */
+		chunk_printf(&trash, "Supported events sinks:\n");
+		list_for_each_entry(sink, &sink_list, sink_list) {
+			chunk_appendf(&trash, "    %-10s : type=%s, %u dropped, %s\n",
+				      sink->name,
+				      sink->type == SINK_TYPE_NEW ? "init" :
+				      sink->type == SINK_TYPE_FD ? "fd" :
+				      sink->type == SINK_TYPE_BUFFER ? "buffer" : "?",
+				      sink->ctx.dropped, sink->desc);
+		}
+
+		trash.area[trash.data] = 0;
+		return cli_msg(appctx, LOG_WARNING, trash.area);
+	}
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	sink = sink_find(args[1]);
+	if (!sink)
+		return cli_err(appctx, "No such event sink");
+
+	if (sink->type != SINK_TYPE_BUFFER)
+		return cli_msg(appctx, LOG_NOTICE, "Nothing to report for this sink");
+
+	return ring_attach_cli(sink->ctx.ring, appctx);
+}
+
 static void sink_init()
 {
 	sink_new_fd("stdout", "standard output (fd#1)", SINK_FMT_RAW, 1);
@@ -197,6 +235,13 @@ static void sink_deinit()
 
 INITCALL0(STG_REGISTER, sink_init);
 REGISTER_POST_DEINIT(sink_deinit);
+
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "events", NULL }, "show events [<sink>] : show event sink state", cli_parse_show_events, cli_io_handler_show_ring, cli_io_release_show_ring },
+	{{},}
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * Local variables:
