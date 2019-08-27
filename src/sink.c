@@ -19,6 +19,8 @@
  */
 
 #include <sys/uio.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/ist.h>
@@ -89,6 +91,11 @@ struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, 
 		goto end;
 	}
 
+	/* FD not yet initialized to non-blocking mode.
+	 * DON'T DO IT ON A TERMINAL!
+	 */
+	if (!isatty(fd))
+		fcntl(fd, F_SETFL, O_NONBLOCK);
 	sink->type = SINK_TYPE_FD;
 	sink->ctx.fd = fd;
  end:
