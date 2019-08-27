@@ -22,11 +22,14 @@
 #ifndef _PROTO_RING_H
 #define _PROTO_RING_H
 
+#include <stdlib.h>
+#include <common/ist.h>
 #include <types/ring.h>
 
 struct ring *ring_new(size_t size);
 struct ring *ring_resize(struct ring *ring, size_t size);
 void ring_free(struct ring *ring);
+ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg);
 
 #endif /* _PROTO_RING_H */
 
