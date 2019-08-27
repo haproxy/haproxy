@@ -60,9 +60,9 @@ struct sink {
 	uint8_t syslog_minlvl;     // used by syslog & short formats
 	uint32_t maxlen;           // max message length (truncated above)
 	struct {
+		__decl_hathreads(HA_RWLOCK_T lock); // shared/excl for dropped
 		struct ring *ring;    // used by ring buffer and STRM sender
 		unsigned int dropped; // dropped events since last one.
-		__decl_hathreads(HA_RWLOCK_T lock); // used by some types
 		int fd;               // fd num for FD type sink
 	} ctx;
 };
