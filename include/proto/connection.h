@@ -35,6 +35,7 @@
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
 extern struct pool_head *pool_head_sockaddr;
+extern struct pool_head *pool_head_authority;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
 
@@ -471,6 +472,7 @@ static inline void conn_init(struct connection *conn)
 	conn->idle_time = 0;
 	conn->src = NULL;
 	conn->dst = NULL;
+	conn->proxy_authority = NULL;
 }
 
 /* sets <owner> as the connection's owner */
@@ -616,6 +618,11 @@ static inline void conn_free(struct connection *conn)
 
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
+
+	if (conn->proxy_authority != NULL) {
+		pool_free(pool_head_authority, conn->proxy_authority);
+		conn->proxy_authority = NULL;
+	}
 
 	/* By convention we always place a NULL where the ctx points to if the
 	 * mux is null. It may have been used to store the connection as a

@@ -461,7 +461,9 @@ struct connection {
 	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
+	char *proxy_authority;	      /* Value of authority TLV received via PROXYv2 */
 	unsigned int idle_time;                 /* Time the connection was added to the idle list, or 0 if not in the idle list */
+	uint8_t proxy_authority_len;  /* Length of authority TLV received via PROXYv2 */
 };
 
 /* PROTO token registration */
@@ -578,6 +580,8 @@ struct tlv_ssl {
 #define PP2_CLIENT_CERT_CONN     0x02
 #define PP2_CLIENT_CERT_SESS     0x04
 
+/* Max length of the authority TLV */
+#define PP2_AUTHORITY_MAX 255
 
 /*
  * Linux seems to be able to send 253 fds per sendmsg(), not sure

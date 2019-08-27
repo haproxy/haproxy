@@ -32,6 +32,7 @@
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 DECLARE_POOL(pool_head_sockaddr,   "sockaddr",    sizeof(struct sockaddr_storage));
+DECLARE_POOL(pool_head_authority,  "authority",   PP2_AUTHORITY_MAX);
 
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
@@ -631,6 +632,16 @@ int conn_recv_proxy(struct connection *conn, int flag)
 					break;
 				}
 #endif
+				case PP2_TYPE_AUTHORITY: {
+					if (tlv_len > PP2_AUTHORITY_MAX)
+						goto bad_header;
+					conn->proxy_authority = pool_alloc(pool_head_authority);
+					if (conn->proxy_authority == NULL)
+						goto fail;
+					memcpy(conn->proxy_authority, (const char *)tlv_packet->value, tlv_len);
+					conn->proxy_authority_len = tlv_len;
+					break;
+				}
 				default:
 					break;
 				}
@@ -1415,6 +1426,31 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
+/* fetch the authority TLV from a PROXY protocol header */
+int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (conn->proxy_authority == NULL)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = conn->proxy_authority;
+	smp->data.u.str.data = conn->proxy_authority_len;
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -1424,6 +1460,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
+	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 
