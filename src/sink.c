@@ -18,7 +18,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <sys/uio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <common/compat.h>
@@ -108,48 +107,23 @@ struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, 
  */
 void sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
 {
-	struct iovec iovec[10];
 	char short_hdr[4];
-	size_t maxlen = sink->maxlen ? sink->maxlen : ~0;
+	struct ist pfx[4];
+	size_t npfx = 0;
 	size_t sent = 0;
-	int vec = 0;
-
-	/* keep one char for a possible trailing '\n' in any case */
-	maxlen--;
 
 	if (sink->fmt == SINK_FMT_SHORT) {
 		short_hdr[0] = '<';
 		short_hdr[1] = '0' + sink->syslog_minlvl;
 		short_hdr[2] = '>';
 
-		iovec[vec].iov_base = short_hdr;
-		iovec[vec].iov_len  = MIN(maxlen, 3);
-		maxlen -= iovec[vec].iov_len;
-		vec++;
-	}
-
-	/* copy the remaining entries from the original message. Skip empty fields and
-	 * truncate the whole message to maxlen.
-	 */
-	while (nmsg && vec < (sizeof(iovec) / sizeof(iovec[0]) - 1)) {
-		iovec[vec].iov_base = msg->ptr;
-		iovec[vec].iov_len  = MIN(maxlen, msg->len);
-		maxlen -= iovec[vec].iov_len;
-		if (iovec[vec].iov_len)
-			vec++;
-		msg++; nmsg--;
-	}
+		pfx[npfx].ptr = short_hdr;
+		pfx[npfx].len = 3;
+		npfx++;
+        }
 
 	if (sink->type == SINK_TYPE_FD) {
-		/* For the FD we always emit the trailing \n. It was already provisioned above. */
-		iovec[vec].iov_base = "\n";
-		iovec[vec].iov_len  = 1;
-		vec++;
-
-		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &sink->ctx.lock);
-		sent = writev(sink->ctx.fd, iovec, vec);
-		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
-		/* sent > 0 if the message was delivered */
+		sent = fd_write_frag_line(sink->ctx.fd, sink->maxlen, pfx, npfx, msg, nmsg, 1);
 	}
 
 	/* account for errors now */
