@@ -60,6 +60,8 @@ void fd_delete(int fd);
  */
 void fd_remove(int fd);
 
+ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg, int nl);
+
 /* close all FDs starting from <start> */
 void my_closefrom(int start);
 

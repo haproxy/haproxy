@@ -106,6 +106,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/resource.h>
+#include <sys/uio.h>
 
 #if defined(USE_POLL)
 #include <poll.h>
@@ -360,6 +361,65 @@ void fd_delete(int fd)
 void fd_remove(int fd)
 {
 	fd_dodelete(fd, 0);
+}
+
+/* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
+ * optionally followed by a newline if <nl> is non-null, to file descriptor
+ * <fd>. The message is sent atomically using writev(). It may be truncated to
+ * <maxlen> bytes if <maxlen> is non-null. There is no distinction between the
+ * two lists, it's just a convenience to help the caller prepend some prefixes
+ * when necessary. It takes the fd's lock to make sure no other thread will
+ * write to the same fd in parallel. Returns the number of bytes sent, or <=0
+ * on failure. A limit to 31 total non-empty segments is enforced. The caller
+ * is responsible for taking care of making the fd non-blocking.
+ */
+ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg, int nl)
+{
+	struct iovec iovec[32];
+	size_t totlen = 0;
+	size_t sent = 0;
+	int vec = 0;
+
+	if (!maxlen)
+		maxlen = ~0;
+
+	/* keep one char for a possible trailing '\n' in any case */
+	maxlen--;
+
+	/* make an iovec from the concatenation of all parts of the original
+	 * message. Skip empty fields and truncate the whole message to maxlen,
+	 * leaving one spare iovec for the '\n'.
+	 */
+	while (vec < (sizeof(iovec) / sizeof(iovec[0]) - 1)) {
+		if (!npfx) {
+			pfx = msg;
+			npfx = nmsg;
+			nmsg = 0;
+			if (!npfx)
+				break;
+		}
+
+		iovec[vec].iov_base = pfx->ptr;
+		iovec[vec].iov_len  = MIN(maxlen, pfx->len);
+		maxlen -= iovec[vec].iov_len;
+		totlen += iovec[vec].iov_len;
+		if (iovec[vec].iov_len)
+			vec++;
+		pfx++; npfx--;
+	};
+
+	if (nl) {
+		iovec[vec].iov_base = "\n";
+		iovec[vec].iov_len  = 1;
+		vec++;
+	}
+
+	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	sent = writev(fd, iovec, vec);
+	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+
+	/* sent > 0 if the message was delivered */
+	return sent;
 }
 
 #if defined(USE_CLOSEFROM)
