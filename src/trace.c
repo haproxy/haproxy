@@ -184,6 +184,9 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	}
 	line[2] = ist("] ");
 
+	if (!cb)
+		cb = src->default_cb;
+
 	if (cb) {
 		/* decode function passed, we want to pre-fill the
 		 * buffer with the message and let the decode function
