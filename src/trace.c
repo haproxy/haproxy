@@ -178,9 +178,9 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	 */
 	line[0] = ist("[");
 	line[1] = where;
-	if (line[1].len > 10) {
-		line[1].ptr += (line[1].len - 10);
-		line[1].len = 10;
+	if (line[1].len > 13) {
+		line[1].ptr += (line[1].len - 13);
+		line[1].len = 13;
 	}
 	line[2] = ist("] ");
 
