@@ -85,6 +85,7 @@ struct cache_entry {
 #define CACHE_ENTRY_MAX_AGE 2147483648U
 
 static struct list caches = LIST_HEAD_INIT(caches);
+static struct list caches_config = LIST_HEAD_INIT(caches_config); /* cache config to init */
 static struct cache *tmp_cache_config = NULL;
 
 DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
@@ -149,13 +150,14 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	struct cache *cache;
 	int comp = 0;
 
-	/* resolve the cache name to a ptr in the filter config */
-	list_for_each_entry(cache, &caches, list) {
-		if (!strcmp(cache->id, cconf->c.name)) {
-			free(cconf->c.name);
-			cconf->c.cache = cache;
+	/* Find the cache corresponding to the name in the filter config.  The
+	*  cache will not be referenced now in the filter config because it is
+	*  not fully allocated. This step will be performed during the cache
+	*  post_check.
+	*/
+	list_for_each_entry(cache, &caches_config, list) {
+		if (!strcmp(cache->id, cconf->c.name))
 			goto found;
-		}
 	}
 
 	ha_alert("config: %s '%s': unable to find the cache '%s' referenced by the filter 'cache'.\n",
@@ -1299,12 +1301,9 @@ out:
 
 int cfg_post_parse_section_cache()
 {
-	struct shared_context *shctx;
 	int err_code = 0;
-	int ret_shctx;
 
 	if (tmp_cache_config) {
-		struct cache *cache;
 
 		if (tmp_cache_config->maxblocks <= 0) {
 			ha_alert("Size not specified for cache '%s'\n", tmp_cache_config->id);
@@ -1323,8 +1322,32 @@ int cfg_post_parse_section_cache()
 			goto out;
 		}
 
-		ret_shctx = shctx_init(&shctx, tmp_cache_config->maxblocks, CACHE_BLOCKSIZE,
-		                       tmp_cache_config->maxobjsz, sizeof(struct cache), 1);
+		/* add to the list of cache to init and reinit tmp_cache_config
+		 * for next cache section, if any.
+		 */
+		LIST_ADDQ(&caches_config, &tmp_cache_config->list);
+		tmp_cache_config = NULL;
+		return err_code;
+	}
+out:
+	free(tmp_cache_config);
+	tmp_cache_config = NULL;
+	return err_code;
+
+}
+
+int post_check_cache()
+{
+	struct proxy *px;
+	struct cache *back, *cache_config, *cache;
+	struct shared_context *shctx;
+	int ret_shctx;
+	int err_code = 0;
+
+	list_for_each_entry_safe(cache_config, back, &caches_config, list) {
+
+		ret_shctx = shctx_init(&shctx, cache_config->maxblocks, CACHE_BLOCKSIZE,
+		                       cache_config->maxobjsz, sizeof(struct cache), 1);
 
 		if (ret_shctx <= 0) {
 			if (ret_shctx == SHCTX_E_INIT_LOCK)
@@ -1336,14 +1359,38 @@ int cfg_post_parse_section_cache()
 			goto out;
 		}
 		shctx->free_block = cache_free_blocks;
-		memcpy(shctx->data, tmp_cache_config, sizeof(struct cache));
+		/* the cache structure is stored in the shctx and added to the
+		 * caches list, we can remove the entry from the caches_config
+		 * list */
+		memcpy(shctx->data, cache_config, sizeof(struct cache));
 		cache = (struct cache *)shctx->data;
 		cache->entries = EB_ROOT_UNIQUE;
 		LIST_ADDQ(&caches, &cache->list);
+		LIST_DEL(&cache_config->list);
+		free(cache_config);
+
+		/* Find all references for this cache in the existing filters
+		 * (over all proxies) and reference it in matching filters.
+		 */
+		for (px = proxies_list; px; px = px->next) {
+			struct flt_conf *fconf;
+			struct cache_flt_conf *cconf;
+
+			list_for_each_entry(fconf, &px->filter_configs, list) {
+				if (fconf->id != cache_store_flt_id)
+					continue;
+
+				cconf = fconf->conf;
+				if (!strcmp(cache->id, cconf->c.name)) {
+					free(cconf->c.name);
+					cconf->c.cache = cache;
+					break;
+				}
+			}
+		}
 	}
+
 out:
-	free(tmp_cache_config);
-	tmp_cache_config = NULL;
 	return err_code;
 
 }
@@ -1545,3 +1592,4 @@ struct applet http_cache_applet = {
 
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("cache", cfg_parse_cache, cfg_post_parse_section_cache);
+REGISTER_POST_CHECK(post_check_cache);
