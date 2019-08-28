@@ -83,6 +83,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	const struct stream *strm = NULL;
 	const struct connection *conn = NULL;
 	const void *lockon_ptr = NULL;
+	char tnum[4];
 	struct ist line[8];
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
@@ -177,12 +178,19 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	 * the line number and the end of the file name are there.
 	 */
 	line[0] = ist("[");
-	line[1] = where;
-	if (line[1].len > 13) {
-		line[1].ptr += (line[1].len - 13);
-		line[1].len = 13;
+	tnum[0] = '0' + tid / 10;
+	tnum[1] = '0' + tid % 10;
+	tnum[2] = '|';
+	tnum[3] = 0;
+	line[1] = ist(tnum);
+	line[2] = src->name;
+	line[3] = ist("|");
+	line[4] = where;
+	if (line[4].len > 13) {
+		line[4].ptr += (line[4].len - 13);
+		line[4].len = 13;
 	}
-	line[2] = ist("] ");
+	line[5] = ist("] ");
 
 	if (!cb)
 		cb = src->default_cb;
@@ -195,14 +203,14 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 		b_reset(&trace_buf);
 		b_istput(&trace_buf, msg);
 		cb(level, mask, src, where, a1, a2, a3, a4);
-		line[3].ptr = trace_buf.area;
-		line[3].len = trace_buf.data;
+		line[6].ptr = trace_buf.area;
+		line[6].len = trace_buf.data;
 	}
 	else
-		line[3] = msg;
+		line[6] = msg;
 
 	if (src->sink)
-		sink_write(src->sink, line, 4);
+		sink_write(src->sink, line, 7);
 
  end:
 	/* check if we need to stop the trace now */
