@@ -55,8 +55,8 @@
 #define TRACE_USER(msg, mask, ...)			\
 	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
-#define TRACE_PAYLOAD(msg, mask, ...)  \
-	trace(TRACE_LEVEL_PAYLOAD,   (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_DATA(msg, mask, ...)  \
+	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_PROTO(msg, mask, ...)    \
 	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))

@@ -2642,15 +2642,15 @@ trace <source> event [ [+|-|!]<name> ]
   this source will instantly be totally ignored.
 
 trace <source> level [<level>]
-  Without argument, this will list all detail levels for this source, and the
+  Without argument, this will list all trace levels for this source, and the
   current one will be indicated by a star ('*') prepended in front of it. With
-  an argument, this will change the detail level to the specified level. Detail
+  an argument, this will change the trace level to the specified level. Detail
   levels are a form of filters that are applied before reporting the events.
-  These filters are used to report a level of detail suitable for the use case.
-  For example a developer might need to know precisely where in the code an
-  HTTP header was considered invalid while the end user may not even care about
-  this header's validity at all. There are currently 5 distinct levels for a
-  trace :
+  These filters are used to selectively include or exclude events depending on
+  their level of importance. For example a developer might need to know
+  precisely where in the code an HTTP header was considered invalid while the
+  end user may not even care about this header's validity at all. There are
+  currently 5 distinct levels for a trace :
 
       user         this will report information that are suitable for use by a
                    regular haproxy user who wants to observe his traffic.
@@ -2658,20 +2658,18 @@ trace <source> level [<level>]
                    without much detail. Most sources will set this as the
                    default level to ease operations.
 
-      payload      in addition to what is reported at the "user" level, it will
-                   also display more detailed information about the contents,
-                   which may be HTTP headers, or unencoded contents.
-
-      proto        in addition to what is reported at the "payload" level, it
-                   also display protocol-level information. This can for
-                   example be the raw data exchanged over the wire after
-                   encoding or frames received before decoding.
+      proto        in addition to what is reported at the "user" level, it also
+                   displays protocol-level updates. This can for example be the
+                   frame types or HTTP headers after decoding.
 
       state        in addition to what is reported at the "proto" level, it
                    will also display state transitions (or failed transitions)
                    which happen in parsers, so this will show attempts to
                    perform an operation while the "proto" level only shows
                    the final operation.
+
+      data         in addition to what is reported at the "state" level, it
+                   will also include data transfers between the various layers.
 
       developer    it reports everything available, which can include advanced
                    information such as "breaking out of this loop" that are

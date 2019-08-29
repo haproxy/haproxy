@@ -282,7 +282,7 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			       "Supported commands:\n"
 			       "  event   : list/enable/disable source-specific event reporting\n"
 			       //"  filter  : list/enable/disable generic filters\n"
-			       "  level   : list/set detail level\n"
+			       "  level   : list/set trace reporting level\n"
 			       "  lock    : automatic lock on thread/connection/stream/...\n"
 			       "  pause   : pause and automatically restart after a specific event\n"
 			       "  sink    : list/set event sinks\n"
@@ -386,16 +386,16 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		const char *name = args[3];
 
 		if (!*name) {
-			chunk_printf(&trash, "Supported detail levels for source %s:\n", src->name.ptr);
+			chunk_printf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
 			chunk_appendf(&trash, "  %c user       : information useful to the end user\n",
 				      src->level == TRACE_LEVEL_USER ? '*' : ' ');
-			chunk_appendf(&trash, "  %c payload    : add information relevant to the payload\n",
-				      src->level == TRACE_LEVEL_PAYLOAD ? '*' : ' ');
-			chunk_appendf(&trash, "  %c proto      : add information relevant to the protocol\n",
+			chunk_appendf(&trash, "  %c proto      : also protocol-level updates\n",
 				      src->level == TRACE_LEVEL_PROTO ? '*' : ' ');
-			chunk_appendf(&trash, "  %c state      : add information relevant to the state machine\n",
+			chunk_appendf(&trash, "  %c state      : also report internal state changes\n",
 				      src->level == TRACE_LEVEL_STATE ? '*' : ' ');
-			chunk_appendf(&trash, "  %c developer  : add information useful only to the developer\n",
+			chunk_appendf(&trash, "  %c data       : also report data transfers\n",
+				      src->level == TRACE_LEVEL_DATA ? '*' : ' ');
+			chunk_appendf(&trash, "  %c developer  : also report information useful only to the developer\n",
 				      src->level == TRACE_LEVEL_DEVELOPER ? '*' : ' ');
 			trash.area[trash.data] = 0;
 			return cli_msg(appctx, LOG_WARNING, trash.area);
@@ -403,12 +403,12 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 
 		if (strcmp(name, "user") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_USER);
-		else if (strcmp(name, "payload") == 0)
-			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PAYLOAD);
 		else if (strcmp(name, "proto") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PROTO);
 		else if (strcmp(name, "state") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_STATE);
+		else if (strcmp(name, "data") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DATA);
 		else if (strcmp(name, "developer") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_DEVELOPER);
 		else

@@ -78,12 +78,15 @@ enum trace_state {
 	TRACE_STATE_RUNNING,      // waiting for the stop or pause conditions
 };
 
+/* trace levels, from least detailed to most detailed. Traces emitted at a
+ * lower level are always reported at higher levels.
+ */
 enum trace_level {
 	TRACE_LEVEL_USER = 0,     // info useful to the end user
-	TRACE_LEVEL_PAYLOAD,      // add info relevant to the payload
-	TRACE_LEVEL_PROTO,        // add info relevant to the protocol
-	TRACE_LEVEL_STATE,        // add info relevant to the state machine
-	TRACE_LEVEL_DEVELOPER,    // add info useful only to the developer
+	TRACE_LEVEL_PROTO,        // also report protocol-level updates
+	TRACE_LEVEL_STATE,        // also report state changes
+	TRACE_LEVEL_DATA,         // also report data exchanges
+	TRACE_LEVEL_DEVELOPER,    // functions entry/exit and any other developer info
 };
 
 enum trace_lockon {
