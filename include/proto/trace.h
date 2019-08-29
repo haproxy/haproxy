@@ -110,7 +110,7 @@ static inline void trace_register_source(struct trace_source *source)
 {
 	source->lockon = TRACE_LOCKON_NOTHING;
 	source->level = TRACE_LEVEL_USER;
-	source->detail_level = LOG_NOTICE;
+	source->verbosity = 1;
 	source->sink = NULL;
 	source->state = TRACE_STATE_STOPPED;
 	source->lockon_ptr = NULL;

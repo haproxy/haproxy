@@ -2752,6 +2752,25 @@ trace <source> sink [<sink>]
    sink change. In the worst case some may be lost if an invalid sink is used
    (or "none"), but operations do continue to a different destination.
 
+trace <source> verbosity [<level>]
+  Without argument, this will list all verbosity levels for this source, and the
+  current one will be indicated by a star ('*') prepended in front of it. With
+  an argument, this will change the verbosity level to the specified one.
+
+  Verbosity levels indicate how far the trace decoder should go to provide
+  detailed information. It depends on the trace source, since some sources will
+  not even provide a specific decoder. Level "quiet" is always available and
+  disables any decoding. It can be useful when trying to figure what's
+  happening before trying to understand the details, since it will have a very
+  low impact on performance and trace size. When no verbosity levels are
+  declared by a source, level "default" is available and will cause a decoder
+  to be called when specified in the traces. It is an opportunistic decoding.
+  When the source declares some verbosity levels, these ones are listed with
+  a description of what they correspond to. In this case the trace decoder
+  provided by the source will be as accurate as possible based on the
+  information available at the trace point. The first level above "quiet" is
+  set by default.
+
 
 9.4. Master CLI
 ---------------

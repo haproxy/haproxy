@@ -117,6 +117,12 @@ struct trace_event {
 	const char *desc;
 };
 
+/* Regarding the verbosity, if <decoding> is not NULL, it must point to a NULL-
+ * terminated array of name:description, which will define verbosity levels
+ * implemented by the decoding callback. The verbosity value will default to
+ * 1. When verbosity levels are defined, levels 1 and above are described by
+ * these levels. At level zero, the callback is never called.
+ */
 struct trace_source {
 	/* source definition */
 	const struct ist name;
@@ -129,6 +135,7 @@ struct trace_source {
 	                   const void *a1, const void *a2, const void *a3, const void *a4);
 	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
 	const struct name_desc *lockon_args; // must be 4 entries if not NULL
+	const struct name_desc *decoding;    // null-terminated if not NULL
 	/* trace configuration, adjusted by "trace <module>" on CLI */
 	enum trace_lockon lockon;
 	uint64_t start_events;   // what will start the trace. default: 0=nothing
@@ -136,7 +143,7 @@ struct trace_source {
 	uint64_t stop_events;    // what will stop the trace. default: 0=nothing
 	uint64_t report_events;  // mask of which events need to be reported.
 	enum trace_level level;  // report traces up to this level of info
-	int detail_level;        // report events with this level of detail (LOG_*)
+	unsigned int verbosity;  // decoder's level of detail among <decoding> (0=no cb)
 	struct sink *sink;       // where to send the trace
 	/* trace state part below */
 	enum trace_state state;

@@ -207,7 +207,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	if (!cb)
 		cb = src->default_cb;
 
-	if (cb) {
+	if (cb && src->verbosity) {
 		/* decode function passed, we want to pre-fill the
 		 * buffer with the message and let the decode function
 		 * do its job, possibly even overwriting it.
@@ -219,8 +219,14 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 		line[words].len = trace_buf.data;
 		words++;
 	}
-	else
+	else {
+		/* Note that here we could decide to print some args whose type
+		 * is known, when verbosity is above the quiet level, and even
+		 * to print the name and values of those which are declared for
+		 * lock-on.
+		 */
 		line[words++] = msg;
+	}
 
 	if (src->sink)
 		sink_write(src->sink, line, words);
@@ -293,14 +299,15 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 	if (!*args[2]) {
 		return cli_msg(appctx, LOG_WARNING,
 			       "Supported commands:\n"
-			       "  event   : list/enable/disable source-specific event reporting\n"
-			       //"  filter  : list/enable/disable generic filters\n"
-			       "  level   : list/set trace reporting level\n"
-			       "  lock    : automatic lock on thread/connection/stream/...\n"
-			       "  pause   : pause and automatically restart after a specific event\n"
-			       "  sink    : list/set event sinks\n"
-			       "  start   : start immediately or after a specific event\n"
-			       "  stop    : stop immediately or after a specific event\n"
+			       "  event     : list/enable/disable source-specific event reporting\n"
+			       //"  filter    : list/enable/disable generic filters\n"
+			       "  level     : list/set trace reporting level\n"
+			       "  lock      : automatic lock on thread/connection/stream/...\n"
+			       "  pause     : pause and automatically restart after a specific event\n"
+			       "  sink      : list/set event sinks\n"
+			       "  start     : start immediately or after a specific event\n"
+			       "  stop      : stop immediately or after a specific event\n"
+			       "  verbosity : list/set trace output verbosity\n"
 			       );
 	}
 	else if ((strcmp(args[2], "event") == 0 && (ev_ptr = &src->report_events)) ||
@@ -543,6 +550,45 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		}
 		else
 			return cli_err(appctx, "Unsupported lock-on criterion");
+	}
+	else if (strcmp(args[2], "verbosity") == 0) {
+		const char *name = args[3];
+		const struct name_desc *nd;
+
+		if (!*name) {
+			chunk_printf(&trash, "Supported trace verbosities for source %s:\n", src->name.ptr);
+			chunk_appendf(&trash, "  %c quiet      : only report basic information with no decoding\n",
+				      src->verbosity == 0 ? '*' : ' ');
+			if (!src->decoding || !src->decoding[0].name) {
+				chunk_appendf(&trash, "  %c default    : report extra information when available\n",
+					      src->verbosity > 0 ? '*' : ' ');
+			} else {
+				for (nd = src->decoding; nd->name && nd->desc; nd++)
+					chunk_appendf(&trash, "  %c %-10s : %s\n",
+					              nd == (src->decoding + src->verbosity - 1) ? '*' : ' ',
+						      nd->name, nd->desc);
+			}
+			trash.area[trash.data] = 0;
+			return cli_msg(appctx, LOG_WARNING, trash.area);
+		}
+
+		if (strcmp(name, "quiet") == 0)
+			HA_ATOMIC_STORE(&src->verbosity, 0);
+		else if (!src->decoding || !src->decoding[0].name) {
+			if (strcmp(name, "default") == 0)
+				HA_ATOMIC_STORE(&src->verbosity, 1);
+			else
+				return cli_err(appctx, "No such verbosity level");
+		} else {
+			for (nd = src->decoding; nd->name && nd->desc; nd++)
+				if (strcmp(name, nd->name) == 0)
+					break;
+
+			if (!nd->name || !nd->desc)
+				return cli_err(appctx, "No such verbosity level");
+
+			HA_ATOMIC_STORE(&src->verbosity, (nd - src->decoding) + 1);
+		}
 	}
 	else
 		return cli_err(appctx, "Unknown trace keyword");
