@@ -2674,7 +2674,8 @@ trace <source> level [<level>]
       developer    it reports everything available, which can include advanced
                    information such as "breaking out of this loop" that are
                    only relevant to a developer trying to understand a bug that
-                   only happens once in a while in field.
+                   only happens once in a while in field. Function names are
+                   only reported at this level.
 
   It is highly recommended to always use the "user" level only and switch to
   other levels only if instructed to do so by a developer. Also it is a good

@@ -47,32 +47,44 @@
  * These 4 arguments as well as the cb() function pointer may all be NULL, or
  * simply omitted (in which case they will be replaced by a NULL). This
  * ordering allows many TRACE() calls to be placed using copy-paste and just
- * change the message at the beginning.
+ * change the message at the beginning. Only TRACE_DEVEL(), TRACE_ENTER() and
+ * TRACE_LEAVE() will report the calling function's name.
  */
 #define TRACE(msg, mask, ...)    \
-	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_USER(msg, mask, ...)			\
-	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_DATA(msg, mask, ...)  \
-	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_PROTO(msg, mask, ...)    \
-	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_STATE(msg, mask, ...)    \
-	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
 
 #define TRACE_DEVEL(msg, mask, ...)    \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+
+#define TRACE_ENTER(mask, ...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("entering"))
+
+#define TRACE_LEAVE(mask, ...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("leaving"))
+
+#define TRACE_POINT(mask, ...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("in"))
 
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
-void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
+             const struct ist where, const char *func,
              const void *a1, const void *a2, const void *a3, const void *a4,
-             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                        const struct ist where, const struct ist func,
                         const void *a1, const void *a2, const void *a3, const void *a4),
              const struct ist msg);
 
@@ -106,14 +118,16 @@ static inline void trace_register_source(struct trace_source *source)
 }
 
 /* sends a trace for the given source */
-static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src,
+                         const struct ist where, const char *func,
                          const void *a1, const void *a2, const void *a3, const void *a4,
-                         void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+                         void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                                    const struct ist where, const struct ist func,
                                     const void *a1, const void *a2, const void *a3, const void *a4),
                          const struct ist msg)
 {
 	if (unlikely(src->state != TRACE_STATE_STOPPED))
-		__trace(level, mask, src, where, a1, a2, a3, a4, cb, msg);
+		__trace(level, mask, src, where, func, a1, a2, a3, a4, cb, msg);
 }
 
 #endif /* _PROTO_TRACE_H */

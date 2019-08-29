@@ -124,7 +124,8 @@ struct trace_source {
 	const struct trace_event *known_events;
 	struct list source_link; // element in list of known trace sources
 	void (*default_cb)(enum trace_level level, uint64_t mask,
-	                   const struct trace_source *src, const struct ist where,
+	                   const struct trace_source *src,
+	                   const struct ist where, const struct ist func,
 	                   const void *a1, const void *a2, const void *a3, const void *a4);
 	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
 	const struct name_desc *lockon_args; // must be 4 entries if not NULL

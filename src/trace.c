@@ -69,9 +69,11 @@ static inline const void *trace_pick_arg(uint32_t arg_def, const void *a1, const
 }
 
 /* write a message for the given trace source */
-void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, const struct ist where,
+void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
+             const struct ist where, const char *func,
              const void *a1, const void *a2, const void *a3, const void *a4,
-             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src, const struct ist where,
+             void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                        const struct ist where, const struct ist func,
                         const void *a1, const void *a2, const void *a3, const void *a4),
              const struct ist msg)
 {
@@ -83,8 +85,10 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	const struct stream *strm = NULL;
 	const struct connection *conn = NULL;
 	const void *lockon_ptr = NULL;
+	struct ist ist_func = ist(func);
 	char tnum[4];
-	struct ist line[8];
+	struct ist line[10];
+	int words = 0;
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
 		return;
@@ -177,20 +181,26 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 	/* log the logging location truncated to 10 chars from the right so that
 	 * the line number and the end of the file name are there.
 	 */
-	line[0] = ist("[");
+	line[words++] = ist("[");
 	tnum[0] = '0' + tid / 10;
 	tnum[1] = '0' + tid % 10;
 	tnum[2] = '|';
 	tnum[3] = 0;
-	line[1] = ist(tnum);
-	line[2] = src->name;
-	line[3] = ist("|");
-	line[4] = where;
-	if (line[4].len > 13) {
-		line[4].ptr += (line[4].len - 13);
-		line[4].len = 13;
+	line[words++] = ist(tnum);
+	line[words++] = src->name;
+	line[words++] = ist("|");
+	line[words] = where;
+	if (line[words].len > 13) {
+		line[words].ptr += (line[words].len - 13);
+		line[words].len = 13;
 	}
-	line[5] = ist("] ");
+	words++;
+	line[words++] = ist("] ");
+
+	if (ist_func.ptr) {
+		line[words++] = ist_func;
+		line[words++] = ist("(): ");
+	}
 
 	if (!cb)
 		cb = src->default_cb;
@@ -202,15 +212,16 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src, co
 		 */
 		b_reset(&trace_buf);
 		b_istput(&trace_buf, msg);
-		cb(level, mask, src, where, a1, a2, a3, a4);
-		line[6].ptr = trace_buf.area;
-		line[6].len = trace_buf.data;
+		cb(level, mask, src, where, ist_func, a1, a2, a3, a4);
+		line[words].ptr = trace_buf.area;
+		line[words].len = trace_buf.data;
+		words++;
 	}
 	else
-		line[6] = msg;
+		line[words++] = msg;
 
 	if (src->sink)
-		sink_write(src->sink, line, 7);
+		sink_write(src->sink, line, words);
 
  end:
 	/* check if we need to stop the trace now */
