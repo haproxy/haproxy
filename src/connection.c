@@ -1308,16 +1308,26 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_ALPN, value_len, value);
 	}
 
-#ifdef USE_OPENSSL
 	if (srv->pp_opts & SRV_PP_V2_AUTHORITY) {
-		value = ssl_sock_get_sni(remote);
+		value = NULL;
+		if (remote && remote->proxy_authority) {
+			value = remote->proxy_authority;
+			value_len = remote->proxy_authority_len;
+		}
+#ifdef USE_OPENSSL
+		else {
+			if (value = ssl_sock_get_sni(remote))
+				value_len = strlen(value);
+		}
+#endif
 		if (value) {
 			if ((buf_len - ret) < sizeof(struct tlv))
 				return 0;
-			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_AUTHORITY, strlen(value), value);
+			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_AUTHORITY, value_len, value);
 		}
 	}
 
+#ifdef USE_OPENSSL
 	if (srv->pp_opts & SRV_PP_V2_SSL) {
 		struct tlv_ssl *tlv;
 		int ssl_tlv_len = 0;
