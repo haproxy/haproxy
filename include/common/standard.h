@@ -87,6 +87,12 @@ struct split_url {
 	int host_len;
 };
 
+/* generic structure associating a name and a value, for use in arrays */
+struct name_desc {
+	const char *name;
+	const char *desc;
+};
+
 extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
 
 /*
