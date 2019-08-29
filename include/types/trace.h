@@ -114,15 +114,6 @@ struct trace_event {
 	const char *desc;
 };
 
-/* add a name and description for each arg that we know we can track. Those
- * with a non-null name will be presented in the menu and will be usable for
- * trace lock-on.
- */
-struct trace_lockon_arg {
-	const char *name;
-	const char *desc;
-};
-
 struct trace_source {
 	/* source definition */
 	const struct ist name;
@@ -133,7 +124,7 @@ struct trace_source {
 	                   const struct trace_source *src, const struct ist where,
 	                   const void *a1, const void *a2, const void *a3, const void *a4);
 	uint32_t arg_def;        // argument definitions (sum of TRC_ARG{1..4}_*)
-	const struct trace_lockon_arg *lockon_args; // must be 4 entries if not NULL
+	const struct name_desc *lockon_args; // must be 4 entries if not NULL
 	/* trace configuration, adjusted by "trace <module>" on CLI */
 	enum trace_lockon lockon;
 	uint64_t start_events;   // what will start the trace. default: 0=nothing
