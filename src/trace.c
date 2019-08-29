@@ -87,7 +87,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	const void *lockon_ptr = NULL;
 	struct ist ist_func = ist(func);
 	char tnum[4];
-	struct ist line[10];
+	struct ist line[12];
 	int words = 0;
 
 	if (likely(src->state == TRACE_STATE_STOPPED))
@@ -188,6 +188,8 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	tnum[3] = 0;
 	line[words++] = ist(tnum);
 	line[words++] = src->name;
+	line[words++] = ist("|");
+	line[words++] = ist2("01234" + level, 1); // "0" to "4"
 	line[words++] = ist("|");
 	line[words] = where;
 	if (line[words].len > 13) {
