@@ -2462,7 +2462,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->id > h2c->max_id)
 		h2c->max_id = h2s->id;
 
-	TRACE_USER("received H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn,, &rxbuf);
+	TRACE_USER("rcvd H2 request ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn,, &rxbuf);
 	return h2s;
 
  conn_err:
@@ -2539,7 +2539,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
-	TRACE_USER("received H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn,, &h2s->rxbuf);
+	TRACE_USER("rcvd H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn,, &h2s->rxbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
  fail:
@@ -2899,7 +2899,7 @@ static void h2_process_demux(struct h2c *h2c)
 				b_del(&h2c->dbuf, 1);
 			}
 			h2_skip_frame_hdr(&h2c->dbuf);
-			TRACE_STATE("received H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
+			TRACE_STATE("rcvd H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 
 		new_frame:
 			h2c->dfl = hdr.len;
