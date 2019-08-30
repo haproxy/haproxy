@@ -999,6 +999,10 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	}
 
 	/* now, back to the address */
+	logsrv->type = LOG_TARGET_DGRAM;
+	if (strncmp(args[1], "fd@", 3) == 0)
+		logsrv->type = LOG_TARGET_FD;
+
 	sk = str2sa_range(args[1], NULL, &port1, &port2, err, NULL, NULL, 1);
 	if (!sk)
 		goto error;
@@ -1502,7 +1506,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 
 	dataptr = message;
 
-	if (logsrv->addr.ss_family == AF_UNSPEC) {
+	if (logsrv->type == LOG_TARGET_FD) {
 		/* the socket's address is a file descriptor */
 		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
 	}

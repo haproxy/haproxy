@@ -47,6 +47,12 @@ enum {
 	LOG_FORMATS,          /* number of supported log formats, must always be last */
 };
 
+/* log target types */
+enum log_tgt {
+	LOG_TARGET_DGRAM = 0, // datagram address (udp, unix socket)
+	LOG_TARGET_FD,        // file descriptor
+};
+
 /* lists of fields that can be logged */
 enum {
 
@@ -197,6 +203,7 @@ struct logsrv {
 	struct list list;
 	struct sockaddr_storage addr;
 	struct smp_info lb;
+	enum log_tgt type;
 	int format;
 	int facility;
 	int level;
