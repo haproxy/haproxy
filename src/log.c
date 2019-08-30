@@ -36,6 +36,7 @@
 
 #include <proto/applet.h>
 #include <proto/cli.h>
+#include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/sample.h>
@@ -1504,14 +1505,6 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	if (logsrv->addr.ss_family == AF_UNSPEC) {
 		/* the socket's address is a file descriptor */
 		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
-		if (!fdtab[*plogfd].initialized) {
-			/* FD not yet initialized to non-blocking mode.
-			 * DON'T DO IT ON A TERMINAL!
-			 */
-			fdtab[*plogfd].initialized = 1;
-			if (!isatty(*plogfd))
-				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
-		}
 	}
 	else if (logsrv->addr.ss_family == AF_UNIX)
 		plogfd = &logfdunix;
@@ -1654,35 +1647,38 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 
 	max = MIN(size, maxlen - sd_max) - 1;
 send:
-	iovec[0].iov_base = hdr_ptr;
-	iovec[0].iov_len  = hdr_max;
-	iovec[1].iov_base = tag_str;
-	iovec[1].iov_len  = tag_max;
-	iovec[2].iov_base = pid_sep1;
-	iovec[2].iov_len  = pid_sep1_max;
-	iovec[3].iov_base = pid_str;
-	iovec[3].iov_len  = pid_max;
-	iovec[4].iov_base = pid_sep2;
-	iovec[4].iov_len  = pid_sep2_max;
-	iovec[5].iov_base = sd;
-	iovec[5].iov_len  = sd_max;
-	iovec[6].iov_base = dataptr;
-	iovec[6].iov_len  = max;
-	iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
-	iovec[7].iov_len  = 1;
-
 	if (logsrv->addr.ss_family == AF_UNSPEC) {
-		/* the target is a direct file descriptor. While writev() guarantees
-		 * to write everything, it doesn't guarantee that it will not be
-		 * interrupted while doing so. This occasionally results in interleaved
-		 * messages when the output is a tty, hence the lock. There's no real
-		 * performance concern here for such type of output.
-		 */
-		HA_SPIN_LOCK(LOGSRV_LOCK, &logsrv->lock);
-		sent = writev(*plogfd, iovec, 8);
-		HA_SPIN_UNLOCK(LOGSRV_LOCK, &logsrv->lock);
+		/* the target is a direct file descriptor */
+		struct ist msg[7];
+
+		msg[0].ptr = hdr_ptr;  msg[0].len = hdr_max;
+		msg[1].ptr = tag_str;  msg[1].len = tag_max;
+		msg[2].ptr = pid_sep1; msg[2].len = pid_sep1_max;
+		msg[3].ptr = pid_str;  msg[3].len = pid_max;
+		msg[4].ptr = pid_sep2; msg[4].len = pid_sep2_max;
+		msg[5].ptr = sd;       msg[5].len = sd_max;
+		msg[6].ptr = dataptr;  msg[6].len = max;
+
+		sent = fd_write_frag_line(*plogfd, ~0, NULL, 0, msg, 7, 1);
 	}
 	else {
+		iovec[0].iov_base = hdr_ptr;
+		iovec[0].iov_len  = hdr_max;
+		iovec[1].iov_base = tag_str;
+		iovec[1].iov_len  = tag_max;
+		iovec[2].iov_base = pid_sep1;
+		iovec[2].iov_len  = pid_sep1_max;
+		iovec[3].iov_base = pid_str;
+		iovec[3].iov_len  = pid_max;
+		iovec[4].iov_base = pid_sep2;
+		iovec[4].iov_len  = pid_sep2_max;
+		iovec[5].iov_base = sd;
+		iovec[5].iov_len  = sd_max;
+		iovec[6].iov_base = dataptr;
+		iovec[6].iov_len  = max;
+		iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
+		iovec[7].iov_len  = 1;
+
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
 
