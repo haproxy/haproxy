@@ -117,7 +117,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	struct appctx *appctx;
 	size_t totlen = 0;
 	size_t lenlen;
-	size_t dellen;
+	uint64_t dellen;
 	int dellenlen;
 	ssize_t sent = 0;
 	int i;
