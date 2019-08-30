@@ -525,7 +525,7 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	else
 		htx = NULL;
 
-	if (level == TRACE_LEVEL_USER && htx && (pos = htx_get_head(htx)) != -1) {
+	if (level == TRACE_LEVEL_USER && src->verbosity != H2_VERB_MINIMAL && htx && (pos = htx_get_head(htx)) != -1) {
 		const struct htx_blk    *blk  = htx_get_blk(htx, pos);
 		const struct htx_sl     *sl   = htx_get_blk_ptr(htx, blk);
 		enum htx_blk_type        type = htx_get_blk_type(blk);
