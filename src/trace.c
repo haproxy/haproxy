@@ -333,11 +333,11 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		if (!*name) {
 			chunk_printf(&trash, "Supported events for source %s (+=enabled, -=disabled):\n", src->name.ptr);
 			if (ev_ptr != &src->report_events)
-				chunk_appendf(&trash, "  - now        : don't wait for events, immediately change the state\n");
-			chunk_appendf(&trash, "  - none       : disable all event types\n");
-			chunk_appendf(&trash, "  - any        : enable all event types\n");
+				chunk_appendf(&trash, "  - now          : don't wait for events, immediately change the state\n");
+			chunk_appendf(&trash, "  - none         : disable all event types\n");
+			chunk_appendf(&trash, "  - any          : enable all event types\n");
 			for (i = 0; src->known_events && src->known_events[i].mask; i++) {
-				chunk_appendf(&trash, "  %c %-10s : %s\n",
+				chunk_appendf(&trash, "  %c %-12s : %s\n",
 					      trace_event_char(*ev_ptr, src->known_events[i].mask),
 					      src->known_events[i].name, src->known_events[i].desc);
 			}
@@ -636,9 +636,9 @@ static int cli_parse_show_trace(char **args, char *payload, struct appctx *appct
 	chunk_appendf(&trash, "  - sink: %s [%u dropped]\n",
 		      sink ? sink->name : "none", sink ? sink->ctx.dropped : 0);
 
-	chunk_appendf(&trash, "  - event name :     report    start    stop    pause\n");
+	chunk_appendf(&trash, "  - event name   :     report    start    stop    pause\n");
 	for (i = 0; src->known_events && src->known_events[i].mask; i++) {
-		chunk_appendf(&trash, "    %-10s :        %c        %c        %c       %c\n",
+		chunk_appendf(&trash, "    %-12s :        %c        %c        %c       %c\n",
 			      src->known_events[i].name,
 			      trace_event_char(src->report_events, src->known_events[i].mask),
 			      trace_event_char(src->start_events, src->known_events[i].mask),
