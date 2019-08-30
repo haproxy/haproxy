@@ -237,109 +237,109 @@ static void h2_trace(enum trace_level level, uint64_t mask, \
  */
 static const struct trace_event h2_trace_events[] = {
 #define           H2_EV_H2C_NEW       (1ULL <<  0)
-	{ .mask = H2_EV_H2C_NEW,      .name = "H2C_NEW",     .desc = "new H2 connection" },
+	{ .mask = H2_EV_H2C_NEW,      .name = "h2c_new",     .desc = "new H2 connection" },
 #define           H2_EV_H2C_RECV      (1ULL <<  1)
-	{ .mask = H2_EV_H2C_RECV,     .name = "H2C_RECV",    .desc = "Rx on H2 connection" },
+	{ .mask = H2_EV_H2C_RECV,     .name = "h2c_recv",    .desc = "Rx on H2 connection" },
 #define           H2_EV_H2C_SEND      (1ULL <<  2)
-	{ .mask = H2_EV_H2C_SEND,     .name = "H2C_SEND",    .desc = "Tx on H2 connection" },
+	{ .mask = H2_EV_H2C_SEND,     .name = "h2c_send",    .desc = "Tx on H2 connection" },
 #define           H2_EV_H2C_FCTL      (1ULL <<  3)
-	{ .mask = H2_EV_H2C_FCTL,     .name = "H2C_FCTL",    .desc = "H2 connection flow-controlled" },
+	{ .mask = H2_EV_H2C_FCTL,     .name = "h2c_fctl",    .desc = "H2 connection flow-controlled" },
 #define           H2_EV_H2C_BLK       (1ULL <<  4)
-	{ .mask = H2_EV_H2C_BLK,      .name = "H2C_BLK",     .desc = "H2 connection blocked" },
+	{ .mask = H2_EV_H2C_BLK,      .name = "h2c_blk",     .desc = "H2 connection blocked" },
 #define           H2_EV_H2C_WAKE      (1ULL <<  5)
-	{ .mask = H2_EV_H2C_WAKE,     .name = "H2C_WAKE",    .desc = "H2 connection woken up" },
+	{ .mask = H2_EV_H2C_WAKE,     .name = "h2c_wake",    .desc = "H2 connection woken up" },
 #define           H2_EV_H2C_END       (1ULL <<  6)
-	{ .mask = H2_EV_H2C_END,      .name = "H2C_END",     .desc = "H2 connection terminated" },
+	{ .mask = H2_EV_H2C_END,      .name = "h2c_end",     .desc = "H2 connection terminated" },
 #define           H2_EV_H2C_ERR       (1ULL <<  7)
-	{ .mask = H2_EV_H2C_ERR,      .name = "H2C_ERR",     .desc = "error on H2 connection" },
+	{ .mask = H2_EV_H2C_ERR,      .name = "h2c_err",     .desc = "error on H2 connection" },
 #define           H2_EV_RX_FHDR       (1ULL <<  8)
-	{ .mask = H2_EV_RX_FHDR,      .name = "RX_FHDR",     .desc = "H2 frame header received" },
+	{ .mask = H2_EV_RX_FHDR,      .name = "rx_fhdr",     .desc = "H2 frame header received" },
 #define           H2_EV_RX_FRAME      (1ULL <<  9)
-	{ .mask = H2_EV_RX_FRAME,     .name = "RX_FRAME",    .desc = "receipt of any H2 frame" },
+	{ .mask = H2_EV_RX_FRAME,     .name = "rx_frame",    .desc = "receipt of any H2 frame" },
 #define           H2_EV_RX_EOI        (1ULL << 10)
-	{ .mask = H2_EV_RX_EOI,       .name = "RX_EOI",      .desc = "receipt of end of H2 input (ES or RST)" },
+	{ .mask = H2_EV_RX_EOI,       .name = "rx_eoi",      .desc = "receipt of end of H2 input (ES or RST)" },
 #define           H2_EV_RX_PREFACE    (1ULL << 11)
-	{ .mask = H2_EV_RX_PREFACE,   .name = "RX_PREFACE",  .desc = "receipt of H2 preface" },
+	{ .mask = H2_EV_RX_PREFACE,   .name = "rx_preface",  .desc = "receipt of H2 preface" },
 #define           H2_EV_RX_DATA       (1ULL << 12)
-	{ .mask = H2_EV_RX_DATA,      .name = "RX_DATA",     .desc = "receipt of H2 DATA frame" },
+	{ .mask = H2_EV_RX_DATA,      .name = "rx_data",     .desc = "receipt of H2 DATA frame" },
 #define           H2_EV_RX_HDR        (1ULL << 13)
-	{ .mask = H2_EV_RX_HDR,       .name = "RX_HDR",      .desc = "receipt of H2 HEADERS frame" },
+	{ .mask = H2_EV_RX_HDR,       .name = "rx_hdr",      .desc = "receipt of H2 HEADERS frame" },
 #define           H2_EV_RX_PRIO       (1ULL << 14)
-	{ .mask = H2_EV_RX_PRIO,      .name = "RX_PRIO",     .desc = "receipt of H2 PRIORITY frame" },
+	{ .mask = H2_EV_RX_PRIO,      .name = "rx_prio",     .desc = "receipt of H2 PRIORITY frame" },
 #define           H2_EV_RX_RST        (1ULL << 15)
-	{ .mask = H2_EV_RX_RST,       .name = "RX_RST",      .desc = "receipt of H2 RST_STREAM frame" },
+	{ .mask = H2_EV_RX_RST,       .name = "rx_rst",      .desc = "receipt of H2 RST_STREAM frame" },
 #define           H2_EV_RX_SETTINGS   (1ULL << 16)
-	{ .mask = H2_EV_RX_SETTINGS,  .name = "RX_SETTINGS", .desc = "receipt of H2 SETTINGS frame" },
+	{ .mask = H2_EV_RX_SETTINGS,  .name = "rx_settings", .desc = "receipt of H2 SETTINGS frame" },
 #define           H2_EV_RX_PUSH       (1ULL << 17)
-	{ .mask = H2_EV_RX_PUSH,      .name = "RX_PUSH",     .desc = "receipt of H2 PUSH_PROMISE frame" },
+	{ .mask = H2_EV_RX_PUSH,      .name = "rx_push",     .desc = "receipt of H2 PUSH_PROMISE frame" },
 #define           H2_EV_RX_PING       (1ULL << 18)
-	{ .mask = H2_EV_RX_PING,      .name = "RX_PING",     .desc = "receipt of H2 PING frame" },
+	{ .mask = H2_EV_RX_PING,      .name = "rx_ping",     .desc = "receipt of H2 PING frame" },
 #define           H2_EV_RX_GOAWAY     (1ULL << 19)
-	{ .mask = H2_EV_RX_GOAWAY,    .name = "RX_GOAWAY",   .desc = "receipt of H2 GOAWAY frame" },
+	{ .mask = H2_EV_RX_GOAWAY,    .name = "rx_goaway",   .desc = "receipt of H2 GOAWAY frame" },
 #define           H2_EV_RX_WU         (1ULL << 20)
-	{ .mask = H2_EV_RX_WU,        .name = "RX_WU",       .desc = "receipt of H2 WINDOW_UPDATE frame" },
+	{ .mask = H2_EV_RX_WU,        .name = "rx_wu",       .desc = "receipt of H2 WINDOW_UPDATE frame" },
 #define           H2_EV_RX_CONT       (1ULL << 21)
-	{ .mask = H2_EV_RX_CONT,      .name = "RX_CONT",     .desc = "receipt of H2 CONTINUATION frame" },
+	{ .mask = H2_EV_RX_CONT,      .name = "rx_cont",     .desc = "receipt of H2 CONTINUATION frame" },
 #define           H2_EV_TX_FRAME      (1ULL << 22)
-	{ .mask = H2_EV_TX_FRAME,     .name = "TX_FRAME",    .desc = "transmission of any H2 frame" },
+	{ .mask = H2_EV_TX_FRAME,     .name = "tx_frame",    .desc = "transmission of any H2 frame" },
 #define           H2_EV_TX_EOI        (1ULL << 23)
-	{ .mask = H2_EV_TX_EOI,       .name = "TX_EOI",      .desc = "transmission of H2 end of input (ES or RST)" },
+	{ .mask = H2_EV_TX_EOI,       .name = "tx_eoi",      .desc = "transmission of H2 end of input (ES or RST)" },
 #define           H2_EV_TX_PREFACE    (1ULL << 24)
-	{ .mask = H2_EV_TX_PREFACE,   .name = "TX_PREFACE",  .desc = "transmission of H2 preface" },
+	{ .mask = H2_EV_TX_PREFACE,   .name = "tx_preface",  .desc = "transmission of H2 preface" },
 #define           H2_EV_TX_DATA       (1ULL << 25)
-	{ .mask = H2_EV_TX_DATA,      .name = "TX_DATA",     .desc = "transmission of H2 DATA frame" },
+	{ .mask = H2_EV_TX_DATA,      .name = "tx_data",     .desc = "transmission of H2 DATA frame" },
 #define           H2_EV_TX_HDR        (1ULL << 26)
-	{ .mask = H2_EV_TX_HDR,       .name = "TX_HDR",      .desc = "transmission of H2 HEADERS frame" },
+	{ .mask = H2_EV_TX_HDR,       .name = "tx_hdr",      .desc = "transmission of H2 HEADERS frame" },
 #define           H2_EV_TX_PRIO       (1ULL << 27)
-	{ .mask = H2_EV_TX_PRIO,      .name = "TX_PRIO",     .desc = "transmission of H2 PRIORITY frame" },
+	{ .mask = H2_EV_TX_PRIO,      .name = "tx_prio",     .desc = "transmission of H2 PRIORITY frame" },
 #define           H2_EV_TX_RST        (1ULL << 28)
-	{ .mask = H2_EV_TX_RST,       .name = "TX_RST",      .desc = "transmission of H2 RST_STREAM frame" },
+	{ .mask = H2_EV_TX_RST,       .name = "tx_rst",      .desc = "transmission of H2 RST_STREAM frame" },
 #define           H2_EV_TX_SETTINGS   (1ULL << 29)
-	{ .mask = H2_EV_TX_SETTINGS,  .name = "TX_SETTINGS", .desc = "transmission of H2 SETTINGS frame" },
+	{ .mask = H2_EV_TX_SETTINGS,  .name = "tx_settings", .desc = "transmission of H2 SETTINGS frame" },
 #define           H2_EV_TX_PUSH       (1ULL << 30)
-	{ .mask = H2_EV_TX_PUSH,      .name = "TX_PUSH",     .desc = "transmission of H2 PUSH_PROMISE frame" },
+	{ .mask = H2_EV_TX_PUSH,      .name = "tx_push",     .desc = "transmission of H2 PUSH_PROMISE frame" },
 #define           H2_EV_TX_PING       (1ULL << 31)
-	{ .mask = H2_EV_TX_PING,      .name = "TX_PING",     .desc = "transmission of H2 PING frame" },
+	{ .mask = H2_EV_TX_PING,      .name = "tx_ping",     .desc = "transmission of H2 PING frame" },
 #define           H2_EV_TX_GOAWAY     (1ULL << 32)
-	{ .mask = H2_EV_TX_GOAWAY,    .name = "TX_GOAWAY",   .desc = "transmission of H2 GOAWAY frame" },
+	{ .mask = H2_EV_TX_GOAWAY,    .name = "tx_goaway",   .desc = "transmission of H2 GOAWAY frame" },
 #define           H2_EV_TX_WU         (1ULL << 33)
-	{ .mask = H2_EV_TX_WU,        .name = "TX_WU",       .desc = "transmission of H2 WINDOW_UPDATE frame" },
+	{ .mask = H2_EV_TX_WU,        .name = "tx_wu",       .desc = "transmission of H2 WINDOW_UPDATE frame" },
 #define           H2_EV_TX_CONT       (1ULL << 34)
-	{ .mask = H2_EV_TX_CONT,      .name = "TX_CONT",     .desc = "transmission of H2 CONTINUATION frame" },
+	{ .mask = H2_EV_TX_CONT,      .name = "tx_cont",     .desc = "transmission of H2 CONTINUATION frame" },
 #define           H2_EV_H2S_NEW       (1ULL << 35)
-	{ .mask = H2_EV_H2S_NEW,      .name = "H2S_NEW",     .desc = "new H2 stream" },
+	{ .mask = H2_EV_H2S_NEW,      .name = "h2s_new",     .desc = "new H2 stream" },
 #define           H2_EV_H2S_RECV      (1ULL << 36)
-	{ .mask = H2_EV_H2S_RECV,     .name = "H2S_RECV",    .desc = "Rx for H2 stream" },
+	{ .mask = H2_EV_H2S_RECV,     .name = "h2s_recv",    .desc = "Rx for H2 stream" },
 #define           H2_EV_H2S_SEND      (1ULL << 37)
-	{ .mask = H2_EV_H2S_SEND,     .name = "H2S_SEND",    .desc = "Tx for H2 stream" },
+	{ .mask = H2_EV_H2S_SEND,     .name = "h2s_send",    .desc = "Tx for H2 stream" },
 #define           H2_EV_H2S_FCTL      (1ULL << 38)
-	{ .mask = H2_EV_H2S_FCTL,     .name = "H2S_FCTL",    .desc = "H2 stream flow-controlled" },
+	{ .mask = H2_EV_H2S_FCTL,     .name = "h2s_fctl",    .desc = "H2 stream flow-controlled" },
 #define           H2_EV_H2S_BLK       (1ULL << 39)
-	{ .mask = H2_EV_H2S_BLK,      .name = "H2S_BLK",     .desc = "H2 stream blocked" },
+	{ .mask = H2_EV_H2S_BLK,      .name = "h2s_blk",     .desc = "H2 stream blocked" },
 #define           H2_EV_H2S_WAKE      (1ULL << 40)
-	{ .mask = H2_EV_H2S_WAKE,     .name = "H2S_WAKE",    .desc = "H2 stream woken up" },
+	{ .mask = H2_EV_H2S_WAKE,     .name = "h2s_wake",    .desc = "H2 stream woken up" },
 #define           H2_EV_H2S_END       (1ULL << 41)
-	{ .mask = H2_EV_H2S_END,      .name = "H2S_END",     .desc = "H2 stream terminated" },
+	{ .mask = H2_EV_H2S_END,      .name = "h2s_end",     .desc = "H2 stream terminated" },
 #define           H2_EV_H2S_ERR       (1ULL << 42)
-	{ .mask = H2_EV_H2S_ERR,      .name = "H2S_ERR",     .desc = "error on H2 stream" },
+	{ .mask = H2_EV_H2S_ERR,      .name = "h2s_err",     .desc = "error on H2 stream" },
 #define           H2_EV_STRM_NEW      (1ULL << 43)
-	{ .mask = H2_EV_STRM_NEW,     .name = "STRM_NEW",    .desc = "app-layer stream creation" },
+	{ .mask = H2_EV_STRM_NEW,     .name = "strm_new",    .desc = "app-layer stream creation" },
 #define           H2_EV_STRM_RECV     (1ULL << 44)
-	{ .mask = H2_EV_STRM_RECV,    .name = "STRM_RECV",   .desc = "receiving data for stream" },
+	{ .mask = H2_EV_STRM_RECV,    .name = "strm_recv",   .desc = "receiving data for stream" },
 #define           H2_EV_STRM_SEND     (1ULL << 45)
-	{ .mask = H2_EV_STRM_SEND,    .name = "STRM_SEND",   .desc = "sending data for stream" },
+	{ .mask = H2_EV_STRM_SEND,    .name = "strm_send",   .desc = "sending data for stream" },
 #define           H2_EV_STRM_FULL     (1ULL << 46)
-	{ .mask = H2_EV_STRM_FULL,    .name = "STRM_FULL",   .desc = "stream buffer full" },
+	{ .mask = H2_EV_STRM_FULL,    .name = "strm_full",   .desc = "stream buffer full" },
 #define           H2_EV_STRM_WAKE     (1ULL << 47)
-	{ .mask = H2_EV_STRM_WAKE,    .name = "STRM_WAKE",   .desc = "stream woken up" },
+	{ .mask = H2_EV_STRM_WAKE,    .name = "strm_wake",   .desc = "stream woken up" },
 #define           H2_EV_STRM_SHUT     (1ULL << 48)
-	{ .mask = H2_EV_STRM_SHUT,    .name = "STRM_SHUT",   .desc = "stream shutdown" },
+	{ .mask = H2_EV_STRM_SHUT,    .name = "strm_shut",   .desc = "stream shutdown" },
 #define           H2_EV_STRM_END      (1ULL << 49)
-	{ .mask = H2_EV_STRM_END,     .name = "STRM_END",    .desc = "detaching app-layer stream" },
+	{ .mask = H2_EV_STRM_END,     .name = "strm_end",    .desc = "detaching app-layer stream" },
 #define           H2_EV_STRM_ERR      (1ULL << 50)
-	{ .mask = H2_EV_STRM_ERR,     .name = "STRM_ERR",    .desc = "stream error" },
+	{ .mask = H2_EV_STRM_ERR,     .name = "strm_err",    .desc = "stream error" },
 #define           H2_EV_PROTO_ERR     (1ULL << 51)
-	{ .mask = H2_EV_PROTO_ERR,    .name = "PROTO_ERR",   .desc = "protocol error" },
+	{ .mask = H2_EV_PROTO_ERR,    .name = "proto_err",   .desc = "protocol error" },
 	{ }
 };
 
