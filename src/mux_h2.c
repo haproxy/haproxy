@@ -532,13 +532,13 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 		if (type == HTX_BLK_REQ_SL)
 			chunk_appendf(&trace_buf, " : [%d] H2 REQ: %.*s %.*s %.*s",
-				      h2c->dsi,
+				      h2s ? h2s->id : h2c->dsi,
 				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
 				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 		else if (type == HTX_BLK_RES_SL)
 			chunk_appendf(&trace_buf, " : [%d] H2 RES: %.*s %.*s %.*s",
-				      h2c->dsi,
+				      h2s ? h2s->id : h2c->dsi,
 				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
 				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
