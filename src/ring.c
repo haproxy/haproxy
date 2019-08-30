@@ -48,6 +48,7 @@ struct ring *ring_new(size_t size)
 		goto fail;
 
 	HA_RWLOCK_INIT(&ring->lock);
+	LIST_INIT(&ring->waiters);
 	ring->readers_count = 0;
 	ring->ofs = 0;
 	ring->buf = b_make(area, size, 0, 0);
@@ -113,6 +114,7 @@ void ring_free(struct ring *ring)
 ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg)
 {
 	struct buffer *buf = &ring->buf;
+	struct appctx *appctx;
 	size_t totlen = 0;
 	size_t lenlen;
 	size_t dellen;
@@ -187,6 +189,11 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	*b_tail(buf) = 0; buf->data++;; // new read counter
 	sent = lenlen + totlen + 1;
+
+	/* notify potential readers */
+	list_for_each_entry(appctx, &ring->waiters, ctx.cli.l0)
+		appctx_wakeup(appctx);
+
  done_buf:
 	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 	return sent;
@@ -216,9 +223,12 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 
 /* This function dumps all events from the ring whose pointer is in <p0> into
  * the appctx's output buffer, and takes from <o0> the seek offset into the
- * buffer's history (0 for oldest known event). It returns 0 if the output
- * buffer is full and it needs to be called again, otherwise non-zero. It is
- * meant to be used with cli_release_show_ring() to clean up.
+ * buffer's history (0 for oldest known event). It looks at <i0> for boolean
+ * options: bit0 means it must wait for new data or any key to be pressed. Bit1
+ * means it must seek directly to the end to wait for new contents. It returns
+ * 0 if the output buffer or events are missing is full and it needs to be
+ * called again, otherwise non-zero. It is meant to be used with
+ * cli_release_show_ring() to clean up.
  */
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
@@ -235,6 +245,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
 
+	LIST_DEL_INIT(&appctx->ctx.cli.l0);
+
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
 	 * dropped events because we'd take a reference on the oldest message
@@ -244,8 +256,14 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	 * value cannot be produced after initialization.
 	 */
 	if (unlikely(ofs == ~0)) {
-		HA_ATOMIC_ADD(b_head(buf), 1);
-		ofs = ring->ofs;
+		ofs = 0;
+
+		/* going to the end means looking at tail-1 */
+		if (appctx->ctx.cli.i0 & 2)
+			ofs += b_data(buf) - 1;
+
+		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		ofs += ring->ofs;
 	}
 
 	/* we were already there, adjust the offset to be relative to
@@ -291,6 +309,20 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	ofs += ring->ofs;
 	appctx->ctx.cli.o0 = ofs;
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+
+	if (ret && (appctx->ctx.cli.i0 & 1)) {
+		/* we've drained everything and are configured to wait for more
+		 * data or an event (keypress, close)
+		 */
+		if (!si_oc(si)->output && !(si_oc(si)->flags & CF_SHUTW)) {
+			/* let's be woken up once new data arrive */
+			LIST_ADDQ(&ring->waiters, &appctx->ctx.cli.l0);
+			si_rx_endp_done(si);
+			ret = 0;
+		}
+		/* always drain all the request */
+		co_skip(si_oc(si), si_oc(si)->output);
+	}
 	return ret;
 }
 
@@ -308,6 +340,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 		/* reader was still attached */
 		ofs -= ring->ofs;
 		BUG_ON(ofs >= b_size(&ring->buf));
+		LIST_DEL_INIT(&appctx->ctx.cli.l0);
 		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
 	}
 	HA_ATOMIC_SUB(&ring->readers_count, 1);

@@ -1964,10 +1964,16 @@ show errors [<iid>|<proxy>] [request|response]
     is the slash ('/') in header name "header/bizarre", which is not a valid
     HTTP character for a header name.
 
-show events [<sink>]
+show events [<sink>] [-w] [-n]
   With no option, this lists all known event sinks and their types. With an
   option, it will dump all available events in the designated sink if it is of
-  type buffer.
+  type buffer. If option "-w" is passed after the sink name, then once the end
+  of the buffer is reached, the command will wait for new events and display
+  them. It is possible to stop the operation by entering any input (which will
+  be discarded) or by closing the session. Finally, option "-n" is used to
+  directly seek to the end of the buffer, which is often convenient when
+  combined with "-w" to only report new events. For convenience, "-wn" or "-nw"
+  may be used to enable both options at once.
 
 show fd [<fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
