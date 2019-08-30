@@ -351,9 +351,15 @@ static const struct name_desc h2_trace_lockon_args[4] = {
 };
 
 static const struct name_desc h2_trace_decoding[] = {
+#define H2_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define H2_VERB_MINIMAL  2
 	{ .name="minimal",  .desc="report only h2c/h2s state and flags, no real decoding" },
+#define H2_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add request/response status line or frame info when available" },
+#define H2_VERB_ADVANCED 4
 	{ .name="advanced", .desc="add header fields or frame decoding when available" },
+#define H2_VERB_COMPLETE 5
 	{ .name="complete", .desc="add full data dump when available" },
 	{ /* end */ }
 };
