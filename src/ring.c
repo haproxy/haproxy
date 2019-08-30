@@ -202,7 +202,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 	int users = ring->readers_count;
 
 	do {
-		if (users >= 1)
+		if (users >= 255)
 			return cli_err(appctx,
 				       "Sorry, too many watchers (255) on this ring buffer. "
 				       "What could it have so interesting to attract so many watchers ?");
@@ -210,12 +210,12 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 	} while (!_HA_ATOMIC_CAS(&ring->readers_count, &users, users + 1));
 
 	appctx->ctx.cli.p0 = ring;
-	appctx->ctx.cli.p1 = 0; // start from the oldest event
+	appctx->ctx.cli.o0 = ~0; // start from the oldest event
 	return 0;
 }
 
 /* This function dumps all events from the ring whose pointer is in <p0> into
- * the appctx's output buffer, and takes from <p1> the seek offset into the
+ * the appctx's output buffer, and takes from <o0> the seek offset into the
  * buffer's history (0 for oldest known event). It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
  * meant to be used with cli_release_show_ring() to clean up.
@@ -225,7 +225,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct ring *ring = appctx->ctx.cli.p0;
 	struct buffer *buf = &ring->buf;
-	size_t ofs = (unsigned long)appctx->ctx.cli.p1;
+	size_t ofs = appctx->ctx.cli.o0;
 	uint64_t msg_len;
 	size_t len, cnt;
 	int ret;
@@ -240,11 +240,12 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	 * dropped events because we'd take a reference on the oldest message
 	 * and keep it while being scheduled. Thus instead let's take it the
 	 * first time we enter here so that we have a chance to pass many
-	 * existing messages before grabbing a reference to a location.
+	 * existing messages before grabbing a reference to a location. This
+	 * value cannot be produced after initialization.
 	 */
-	if (unlikely(!ofs)) {
+	if (unlikely(ofs == ~0)) {
 		HA_ATOMIC_ADD(b_head(buf), 1);
-		ofs += ring->ofs;
+		ofs = ring->ofs;
 	}
 
 	/* we were already there, adjust the offset to be relative to
@@ -288,7 +289,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
 	ofs += ring->ofs;
-	appctx->ctx.cli.p1 = (void *)ofs;
+	appctx->ctx.cli.o0 = ofs;
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 	return ret;
 }
@@ -297,15 +298,18 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 void cli_io_release_show_ring(struct appctx *appctx)
 {
 	struct ring *ring = appctx->ctx.cli.p0;
-	size_t ofs = (unsigned long)appctx->ctx.cli.p1;
+	size_t ofs = appctx->ctx.cli.o0;
 
 	if (!ring)
 		return;
 
 	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
-	ofs -= ring->ofs;
-	BUG_ON(ofs >= b_size(&ring->buf));
-	HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
+	if (ofs != ~0) {
+		/* reader was still attached */
+		ofs -= ring->ofs;
+		BUG_ON(ofs >= b_size(&ring->buf));
+		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
+	}
 	HA_ATOMIC_SUB(&ring->readers_count, 1);
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
 }
