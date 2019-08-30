@@ -2305,9 +2305,10 @@ static int h2c_handle_priority(struct h2c *h2c)
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 
 	/* process full frame only */
-	if (b_data(&h2c->dbuf) < h2c->dfl)
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 		return 0;
+	}
 
 	if (h2_get_n32(&h2c->dbuf, 0) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
