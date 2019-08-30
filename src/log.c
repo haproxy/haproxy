@@ -1504,13 +1504,13 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	if (logsrv->addr.ss_family == AF_UNSPEC) {
 		/* the socket's address is a file descriptor */
 		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
-		if (unlikely(!((struct sockaddr_in *)&logsrv->addr)->sin_port)) {
+		if (!fdtab[*plogfd].initialized) {
 			/* FD not yet initialized to non-blocking mode.
 			 * DON'T DO IT ON A TERMINAL!
 			 */
+			fdtab[*plogfd].initialized = 1;
 			if (!isatty(*plogfd))
 				fcntl(*plogfd, F_SETFL, O_NONBLOCK);
-			((struct sockaddr_in *)&logsrv->addr)->sin_port = 1;
 		}
 	}
 	else if (logsrv->addr.ss_family == AF_UNIX)

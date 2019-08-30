@@ -414,6 +414,12 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 		vec++;
 	}
 
+	if (unlikely(!fdtab[fd].initialized)) {
+		fdtab[fd].initialized = 1;
+		if (!isatty(fd))
+			fcntl(fd, F_SETFL, O_NONBLOCK);
+	}
+
 	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
 	sent = writev(fd, iovec, vec);
 	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
