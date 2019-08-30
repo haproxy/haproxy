@@ -127,6 +127,7 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
+	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */
 }
 #ifdef USE_THREAD
 /* only align on cache lines when using threads; 32-bit small archs
