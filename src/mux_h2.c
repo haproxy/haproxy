@@ -502,11 +502,8 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	if (!h2c) // nothing to add
 		return;
 
-	if (h2c->st0 < H2_CS_FRAME_H) // nothing to add for now
-		return;
-
 	if (src->verbosity > H2_VERB_CLEAN) {
-		if (!h2s)
+		if (!h2s || h2c->st0 < H2_CS_FRAME_H)
 			chunk_appendf(&trace_buf, " : h2c=%p(%s)", h2c, h2c_st_to_str(h2c->st0));
 		else if (h2s->id <= 0)
 			chunk_appendf(&trace_buf, " : h2c=%p(%s) dsi=%d h2s=%p(%d,%s)", h2c, h2c_st_to_str(h2c->st0), h2c->dsi, h2s, h2s->id, h2s_st_to_str(h2s->st));
