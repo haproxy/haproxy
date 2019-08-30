@@ -3214,11 +3214,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d fd.tmask=0x%lx\n",
+			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
 			              conn->handle.fd,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache.next >= -2 : 0,
 			              conn->handle.fd >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
 				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 
@@ -3251,11 +3250,10 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
-			              "      flags=0x%08x fd=%d fd.state=%02x fd.cache=%d updt=%d fd.tmask=0x%lx\n",
+			              "      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n",
 			              conn->flags,
 			              conn->handle.fd,
 			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].state : 0,
-			              conn->handle.fd >= 0 ? fdtab[conn->handle.fd].cache.next >= -2 : 0,
 			              conn->handle.fd >= 0 ? !!(fdtab[conn->handle.fd].update_mask & tid_bit) : 0,
 				      conn->handle.fd >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
 

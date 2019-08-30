@@ -120,7 +120,6 @@ struct fdtab {
 	__decl_hathreads(HA_SPINLOCK_T lock);
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
-	struct fdlist_entry cache;           /* Entry in the fdcache */
 	struct fdlist_entry update;          /* Entry in the global update list */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
@@ -128,7 +127,14 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
-};
+}
+#ifdef USE_THREAD
+/* only align on cache lines when using threads; 32-bit small archs
+ * can put everything in 32-bytes when threads are disabled.
+ */
+__attribute__((aligned(64)))
+#endif
+;
 
 /* less often used information */
 struct fdinfo {

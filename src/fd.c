@@ -596,7 +596,6 @@ int init_pollers()
 	for (p = 0; p < global.maxsock; p++) {
 		HA_SPIN_INIT(&fdtab[p].lock);
 		/* Mark the fd as out of the fd cache */
-		fdtab[p].cache.next = -3;
 		fdtab[p].update.next = -3;
 	}
 
