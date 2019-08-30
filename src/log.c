@@ -39,7 +39,9 @@
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
+#include <proto/ring.h>
 #include <proto/sample.h>
+#include <proto/sink.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
@@ -1000,6 +1002,20 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 
 	/* now, back to the address */
 	logsrv->type = LOG_TARGET_DGRAM;
+	if (strncmp(args[1], "ring@", 5) == 0) {
+		struct sink *sink = sink_find(args[1] + 5);
+
+		if (!sink || sink->type != SINK_TYPE_BUFFER) {
+			memprintf(err, "cannot find ring buffer '%s'", args[1] + 5);
+			goto error;
+		}
+
+		logsrv->addr.ss_family = AF_UNSPEC;
+		logsrv->type = LOG_TARGET_BUFFER;
+		logsrv->ring = sink->ctx.ring;
+		goto done;
+	}
+
 	if (strncmp(args[1], "fd@", 3) == 0)
 		logsrv->type = LOG_TARGET_FD;
 
@@ -1017,6 +1033,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		if (!port1)
 			set_host_port(&logsrv->addr, SYSLOG_PORT);
 	}
+ done:
 	LIST_ADDQ(logsrvs, &logsrv->list);
 	return 1;
 
@@ -1510,12 +1527,15 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 		/* the socket's address is a file descriptor */
 		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
 	}
+	else if (logsrv->type == LOG_TARGET_BUFFER) {
+		plogfd = NULL;
+	}
 	else if (logsrv->addr.ss_family == AF_UNIX)
 		plogfd = &logfdunix;
 	else
 		plogfd = &logfdinet;
 
-	if (unlikely(*plogfd < 0)) {
+	if (plogfd && unlikely(*plogfd < 0)) {
 		/* socket not successfully initialized yet */
 		if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
 							  (logsrv->addr.ss_family == AF_UNIX) ? 0 : IPPROTO_UDP)) < 0) {
@@ -1652,7 +1672,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	max = MIN(size, maxlen - sd_max) - 1;
 send:
 	if (logsrv->addr.ss_family == AF_UNSPEC) {
-		/* the target is a direct file descriptor */
+		/* the target is a file descriptor or a ring buffer */
 		struct ist msg[7];
 
 		msg[0].ptr = hdr_ptr;  msg[0].len = hdr_max;
@@ -1663,7 +1683,10 @@ send:
 		msg[5].ptr = sd;       msg[5].len = sd_max;
 		msg[6].ptr = dataptr;  msg[6].len = max;
 
-		sent = fd_write_frag_line(*plogfd, ~0, NULL, 0, msg, 7, 1);
+		if (logsrv->type == LOG_TARGET_BUFFER)
+			sent = ring_write(logsrv->ring, ~0, NULL, 0, msg, 7);
+		else /* LOG_TARGET_FD */
+			sent = fd_write_frag_line(*plogfd, ~0, NULL, 0, msg, 7, 1);
 	}
 	else {
 		iovec[0].iov_base = hdr_ptr;

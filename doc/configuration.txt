@@ -933,6 +933,12 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
         - "stdout" / "stderr", which are respectively aliases for "fd@1" and
           "fd@2", see above.
 
+        - A ring buffer in the form "ring@<name>", which will correspond to an
+          in-memory ring buffer accessible over the CLI using the "show events"
+          command, which will also list existing rings and their sizes. Such
+          buffers are lost on reload or restart but when used as a complement
+          this can help troubleshooting by having the logs instantly available.
+
         You may want to reference some environment variables in the address
         parameter, see section 2.3 about environment variables.
 
@@ -5384,6 +5390,13 @@ no log
 
                - "stdout" / "stderr", which are respectively aliases for "fd@1"
                  and "fd@2", see above.
+
+               - A ring buffer in the form "ring@<name>", which will correspond
+                 to an in-memory ring buffer accessible over the CLI using the
+                 "show events" command, which will also list existing rings and
+                 their sizes. Such buffers are lost on reload or restart but
+                 when used as a complement this can help troubleshooting by
+                 having the logs instantly available.
 
                You may want to reference some environment variables in the
                address parameter, see section 2.3 about environment variables.

@@ -28,6 +28,7 @@
 #include <common/config.h>
 #include <common/hathreads.h>
 #include <common/mini-clist.h>
+#include <types/ring.h>
 
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8
@@ -51,6 +52,7 @@ enum {
 enum log_tgt {
 	LOG_TARGET_DGRAM = 0, // datagram address (udp, unix socket)
 	LOG_TARGET_FD,        // file descriptor
+	LOG_TARGET_BUFFER,    // ring buffer
 };
 
 /* lists of fields that can be logged */
@@ -203,6 +205,7 @@ struct logsrv {
 	struct list list;
 	struct sockaddr_storage addr;
 	struct smp_info lb;
+	struct ring *ring;
 	enum log_tgt type;
 	int format;
 	int facility;
