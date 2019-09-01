@@ -355,7 +355,7 @@ endif
 # Mac OS/X
 ifeq ($(TARGET),osx)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_KQUEUE)
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_KQUEUE)
   EXPORT_SYMBOL  = -export_dynamic
 endif
 
@@ -452,7 +452,9 @@ BUILD_FEATURES := $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt
 OPTIONS_CFLAGS += $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
 
 ifneq ($(USE_LIBCRYPT),)
+ifneq ($(TARGET),osx)
 OPTIONS_LDFLAGS += -lcrypt
+endif
 endif
 
 ifneq ($(USE_SLZ),)

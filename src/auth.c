@@ -49,7 +49,7 @@ __decl_hathreads(static HA_SPINLOCK_T auth_lock);
 #endif
 #endif
 
-/* find targets for selected gropus. The function returns pointer to
+/* find targets for selected groups. The function returns pointer to
  * the userlist struct ot NULL if name is NULL/empty or unresolvable.
  */
 
