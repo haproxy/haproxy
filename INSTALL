@@ -370,18 +370,19 @@ and section 3 (build environment). It often refers to section 4 (dependencies).
 To build haproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
 
-  - linux-glibc for Linux kernel 2.6.28 and above
-  - solaris     for Solaris 8 or 10 (others untested)
-  - freebsd     for FreeBSD 5 to 12 (others untested)
-  - netbsd      for NetBSD
-  - osx         for Mac OS/X
-  - openbsd     for OpenBSD 5.7 and above
-  - aix51       for AIX 5.1
-  - aix52       for AIX 5.2
-  - cygwin      for Cygwin
-  - haiku       for Haiku
-  - generic     for any other OS or version.
-  - custom      to manually adjust every setting
+  - linux-glibc         for Linux kernel 2.6.28 and above
+  - linux-glibc-legacy  for Linux kernel 2.6.28 and above without new features
+  - solaris             for Solaris 8 or 10 (others untested)
+  - freebsd             for FreeBSD 5 to 12 (others untested)
+  - netbsd              for NetBSD
+  - osx                 for Mac OS/X
+  - openbsd             for OpenBSD 5.7 and above
+  - aix51               for AIX 5.1
+  - aix52               for AIX 5.2
+  - cygwin              for Cygwin
+  - haiku               for Haiku
+  - generic             for any other OS or version.
+  - custom              to manually adjust every setting
 
 You may also choose your CPU to benefit from some optimizations. This is
 particularly important on UltraSparc machines. For this, you can assign
