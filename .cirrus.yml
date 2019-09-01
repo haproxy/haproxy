@@ -12,3 +12,16 @@ FreeBSD_task:
     - ldd haproxy
     - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
 
+centos_6_task:
+  container:
+    image: centos:centos6
+  script:
+    - yum install -q -y gcc git openssl-devel pcre-devel epel-release
+    - yum install -q -y python34
+    - git clone https://github.com/VTest/VTest.git ../vtest
+    # Special flags due to: https://github.com/vtest/VTest/issues/12
+    - make -C ../vtest FLAGS="-O2 -s -Wall -lrt"
+    - make CC=cc V=1 TARGET=linux-glibc-legacy USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1
+    - ./haproxy -vv
+    - ldd haproxy
+    - env VTEST_PROGRAM=../vtest/vtest make reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
