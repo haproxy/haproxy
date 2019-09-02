@@ -1316,7 +1316,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		}
 #ifdef USE_OPENSSL
 		else {
-			if (value = ssl_sock_get_sni(remote))
+			if ((value = ssl_sock_get_sni(remote)))
 				value_len = strlen(value);
 		}
 #endif
