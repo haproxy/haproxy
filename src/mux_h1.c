@@ -1476,7 +1476,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				if (!ret)
 					break;
 			}
-			if (!h1_process_eom(h1s, h1m, htx, count))
+			else if (!h1_process_eom(h1s, h1m, htx, count))
 				break;
 		}
 		else if (h1m->state == H1_MSG_DONE) {
