@@ -1496,7 +1496,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & errflag) && count);
+	} while (!(h1s->flags & errflag));
 
 	if (h1s->flags & errflag)
 		goto parsing_err;
