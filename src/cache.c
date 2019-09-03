@@ -548,6 +548,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	unsigned int key = *(unsigned int *)txn->cache_hash;
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
+	size_t hdrs_len = 0;
 	int32_t pos;
 
 	/* Don't cache if the response came from a cache */
@@ -618,11 +619,16 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 
+		hdrs_len += sizeof(*blk) + sz;
 		chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
 		chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 		if (type == HTX_BLK_EOH)
 			break;
 	}
+
+	/* Do not cache objects if the headers are too big. */
+	if (hdrs_len > htx->size - global.tune.maxrewrite)
+		goto out;
 
 	shctx_lock(shctx);
 	first = shctx_row_reserve_hot(shctx, NULL, sizeof(struct cache_entry) + trash.data);
