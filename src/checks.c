@@ -2177,7 +2177,7 @@ static struct task *process_chk_proc(struct task *t, void *context, unsigned sho
 			/* a success was detected */
 			check_notify_success(check);
 		}
-		task_set_affinity(t, MAX_THREADS_MASK);
+		task_set_affinity(t, 1);
 		check->state &= ~CHK_ST_INPROGRESS;
 
 		pid_list_del(check->curpid);
@@ -2425,8 +2425,13 @@ static int start_check_task(struct check *check, int mininter,
 			    int nbcheck, int srvpos)
 {
 	struct task *t;
+	unsigned long thread_mask = MAX_THREADS_MASK;
+
+	if (check->type == PR_O2_EXT_CHK)
+		thread_mask = 1;
+
 	/* task for the check */
-	if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
+	if ((t = task_new(thread_mask)) == NULL) {
 		ha_alert("Starting [%s:%s] check: out of memory.\n",
 			 check->server->proxy->id, check->server->id);
 		return 0;
