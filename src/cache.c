@@ -716,6 +716,7 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct htx_blk *blk;
+	char *ptr;
 	unsigned int max, total;
 	uint32_t blksz;
 
@@ -734,12 +735,14 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 
 	blk->info = info;
 	total = 4;
+	ptr = htx_get_blk_ptr(htx, blk);
 	while (blksz) {
 		max = MIN(blksz, shctx->block_size - offset);
-		memcpy(htx_get_blk_ptr(htx, blk), (const char *)shblk->data + offset, max);
+		memcpy(ptr, (const char *)shblk->data + offset, max);
 		offset += max;
 		blksz  -= max;
 		total  += max;
+		ptr    += max;
 		if (blksz || offset == shctx->block_size) {
 			shblk = LIST_NEXT(&shblk->list, typeof(shblk), list);
 			offset = 0;
