@@ -3257,6 +3257,36 @@ stats_error_parsing:
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 	}
+	else if (!strcmp(args[0], "tcp-keepalive-time")) {  /* TCP keep-alive idle time */
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curproxy->tcp_keepalive_time = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcp-keepalive-interval")) {  /* TCP keep-alive probe retry interval */
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curproxy->tcp_keepalive_interval = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcp-keepalive-count")) {  /* TCP keep-alive probe retry count */
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curproxy->tcp_keepalive_count = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
 		int port1, port2;

@@ -389,6 +389,52 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (be->options & PR_O_TCP_SRV_KA)
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
 
+#ifdef TCP_KEEPALIVE
+	/* Darwin */
+	if (be->tcp_keepalive_time &&
+	    (setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE
+			&be->tcp_keepalive_time,
+			sizeof(be->tcp_keepalive_time)) == -1)) {
+		ha_alert("Failed to set TCP keepalive time: %s. Aborting.\n",
+			strerror(errno));
+		return SF_ERR_INTERNAL;
+	}
+#endif
+
+#ifdef TCP_KEEPIDLE
+	/* Linux, NetBSD */
+	if (be->tcp_keepalive_time &&
+	    (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE,
+			&be->tcp_keepalive_time,
+			sizeof(be->tcp_keepalive_time)) == -1)) {
+		ha_alert("Failed to set TCP keepalive time: %s. Aborting.\n",
+			strerror(errno));
+		return SF_ERR_INTERNAL;
+	}
+#endif
+
+#ifdef TCP_KEEPINTVL
+	if (be->tcp_keepalive_interval &&
+	    (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL,
+			&be->tcp_keepalive_interval,
+			sizeof(be->tcp_keepalive_interval)) == -1)) {
+		ha_alert("Failed to set TCP keepalive interval: %s. Aborting.\n",
+			strerror(errno));
+		return SF_ERR_INTERNAL;
+	}
+#endif
+
+#ifdef TCP_KEEPCNT
+	if (be->tcp_keepalive_count &&
+	    (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT,
+			&be->tcp_keepalive_count,
+			sizeof(be->tcp_keepalive_count)) == -1)) {
+		ha_alert("Failed to set TCP keepalive count: %s. Aborting.\n",
+			strerror(errno));
+		return SF_ERR_INTERNAL;
+	}
+#endif
+
 	/* allow specific binding :
 	 * - server-specific at first
 	 * - proxy-specific next

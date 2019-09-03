@@ -234,6 +234,44 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		if (p->options & PR_O_TCP_CLI_KA)
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
+#ifdef TCP_KEEPALIVE
+		/* Darwin */
+		if (p->tcp_keepalive_time &&
+				(setsockopt(cfd, IPPROTO_TCP, TCP_KEEPALIVE,
+					    &p->tcp_keepalive_time,
+					    sizeof(p->tcp_keepalive_time)) == -1)) {
+			DPRINTF(stderr, "Failed to set TCP keepalive time: %s\n", strerror(errno));
+		}
+#endif
+
+#ifdef TCP_KEEPIDLE
+		/* Linux, NetBSD */
+		if (p->tcp_keepalive_time &&
+				(setsockopt(cfd, IPPROTO_TCP, TCP_KEEPIDLE,
+					    &p->tcp_keepalive_time,
+					    sizeof(p->tcp_keepalive_time)) == -1)) {
+			DPRINTF(stderr, "Failed to set TCP keepalive time: %s\n", strerror(errno));
+		}
+#endif
+
+#ifdef TCP_KEEPINTVL
+		if (p->tcp_keepalive_interval &&
+				(setsockopt(cfd, IPPROTO_TCP, TCP_KEEPINTVL,
+					    &p->tcp_keepalive_interval,
+					    sizeof(p->tcp_keepalive_interval)) == -1)) {
+			DPRINTF(stderr, "Failed to set TCP keepalive interval: %s\n", strerror(errno));
+		}
+#endif
+
+#ifdef TCP_KEEPCNT
+		if (p->tcp_keepalive_count &&
+				(setsockopt(cfd, IPPROTO_TCP, TCP_KEEPCNT,
+					    &p->tcp_keepalive_count,
+					    sizeof(p->tcp_keepalive_count)) == -1)) {
+			DPRINTF(stderr, "Failed to set TCP keepalive count: %s\n", strerror(errno));
+		}
+#endif
+
 		if (p->options & PR_O_TCP_NOLING)
 			fdtab[cfd].linger_risk = 1;
 

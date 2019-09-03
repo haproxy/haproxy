@@ -431,6 +431,9 @@ struct proxy {
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned long bind_proc;		/* bitmask of processes using this proxy */
+	int tcp_keepalive_time;			/* TCP keep-alive idle time */
+	int tcp_keepalive_interval;		/* TCP keep-alive probe retry interval */
+	int tcp_keepalive_count;		/* TCP keep-alive probe retry count */
 
 	/* warning: these structs are huge, keep them at the bottom */
 	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */

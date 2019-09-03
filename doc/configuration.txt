@@ -2530,6 +2530,9 @@ tcp-check connect                         -          -         X         X
 tcp-check expect                          -          -         X         X
 tcp-check send                            -          -         X         X
 tcp-check send-binary                     -          -         X         X
+tcp-keepalive-time                        X          X         X         X
+tcp-keepalive-interval                    X          X         X         X
+tcp-keepalive-count                       X          X         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
 tcp-request inspect-delay                 -          X         X         X
@@ -5958,9 +5961,10 @@ no option clitcpka
   components decides to expire a session which has remained idle for too long.
 
   Enabling socket-level TCP keep-alives makes the system regularly send packets
-  to the other end of the connection, leaving it active. The delay between
-  keep-alive probes is controlled by the system only and depends both on the
-  operating system and its tuning parameters.
+  to the other end of the connection, leaving it active. The operating system
+  provides defaults for keep-alive idle time, probe interval and probe retry
+  count, but they are also configurable using "tcp-keepalive-time",
+  "tcp-keepalive-interval" and "tcp-keepalive-count".
 
   It is important to understand that keep-alive packets are neither emitted nor
   received at the application level. It is only the network stacks which sees
@@ -5977,7 +5981,8 @@ no option clitcpka
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option srvtcpka", "option tcpka"
+  See also : "option srvtcpka", "option tcpka", "tcp-keepalive-time",
+             "tcp-keepalive-interval", "tcp-keepalive-count"
 
 
 option contstats
@@ -7159,9 +7164,10 @@ no option srvtcpka
   components decides to expire a session which has remained idle for too long.
 
   Enabling socket-level TCP keep-alives makes the system regularly send packets
-  to the other end of the connection, leaving it active. The delay between
-  keep-alive probes is controlled by the system only and depends both on the
-  operating system and its tuning parameters.
+  to the other end of the connection, leaving it active. The operating system
+  provides defaults for keep-alive idle time, retry interval and probe count,
+  but they are also configurable using "tcp-keepalive-time",
+  "tcp-keepalive-interval" and "tcp-keepalive-count".
 
   It is important to understand that keep-alive packets are neither emitted nor
   received at the application level. It is only the network stacks which sees
@@ -7178,7 +7184,8 @@ no option srvtcpka
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option clitcpka", "option tcpka"
+  See also : "option clitcpka", "option tcpka", "tcp-keepalive-time",
+             "tcp-keepalive-interval", "tcp-keepalive-count"
 
 
 option ssl-hello-chk
@@ -7362,9 +7369,10 @@ option tcpka
   components decides to expire a session which has remained idle for too long.
 
   Enabling socket-level TCP keep-alives makes the system regularly send packets
-  to the other end of the connection, leaving it active. The delay between
-  keep-alive probes is controlled by the system only and depends both on the
-  operating system and its tuning parameters.
+  to the other end of the connection, leaving it active. The operating system
+  provides defaults for keep-alive idle time, retry interval and probe count,
+  but they are also configurable using "tcp-keepalive-time",
+  "tcp-keepalive-interval" and "tcp-keepalive-count".
 
   It is important to understand that keep-alive packets are neither emitted nor
   received at the application level. It is only the network stacks which sees
@@ -7383,7 +7391,8 @@ option tcpka
   "option srvtcpka" when the configuration is split between frontends and
   backends.
 
-  See also : "option clitcpka", "option srvtcpka"
+  See also : "option clitcpka", "option srvtcpka", "tcp-keepalive-time",
+             "tcp-keepalive-interval", "tcp-keepalive-count"
 
 
 option tcplog
@@ -9231,6 +9240,74 @@ tcp-check send-binary <hexstring>
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
              "tcp-check send", tune.chksize
+
+
+tcp-keepalive-time <number>
+  Set the idle time before TCP keep-alive probes are sent
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <number>  is the number of seconds a connection needs to be idle before TCP
+              begins sending out keep-alive probes.
+
+  If enabled using "option tcpka", "option clitcpka" or "option srvtcpka",
+  TCP keep-alive probes are sent to confirm that a connection is still active.
+  This is useful not only for the connection endpoints, but also for in-between
+  systems that track the state of the connection, such as firewalls and NAT
+  gateways.
+
+  The "tcp-keepalive-time" parameter specifies how long a connection has to
+  idle before TCP keep-alive probes are sent.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  See also : "option tcpka", "option clitcpka", "option srvtcpka",
+             "tcp-keepalive-interval", "tcp-keepalive-count"
+
+
+tcp-keepalive-interval <number>
+  Set the wait interval between TCP keep-alive probes
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <number>  is the number of seconds to wait between keep-alive probes.
+
+  If enabled using "option tcpka", "option clitcpka" or "option srvtcpka",
+  TCP keep-alive probes are sent to confirm that a connection is still active.
+  This is useful not only for the connection endpoints, but also for in-between
+  systems that track the state of the connection, such as firewalls and NAT
+  gateways.
+
+  The "tcp-keepalive-interval" parameter specifies the interval between
+  keep-alive probes.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  See also : "option tcpka", "option clitcpka", "option srvtcpka",
+             "tcp-keepalive-time", "tcp-keepalive-count"
+
+
+tcp-keepalive-count <number>
+  Set the TCP keep-alive probe count before giving up the connection
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <number>  is the number of unanswered keep-alive probes to send before
+              giving up the connection.
+
+  If enabled using "option tcpka", "option clitcpka" or "option srvtcpka",
+  TCP keep-alive probes are sent to confirm that a connection is still active.
+  This is useful not only for the connection endpoints, but also for in-between
+  systems that track the state of the connection, such as firewalls and NAT
+  gateways.
+
+  The "tcp-keepalive-count" parameter specifies the number of unanswered
+  keep-alive probes to send before giving up the connection.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  See also : "option tcpka", "option clitcpka", "option srvtcpka",
+             "tcp-keepalive-time", "tcp-keepalive-interval"
 
 
 tcp-request connection <action> [{if | unless} <condition>]
