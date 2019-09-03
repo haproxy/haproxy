@@ -973,7 +973,7 @@ static size_t h1_eval_htx_req_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 	size_t sz;
 
 	/* size of the HTX start-line */
-	sz = sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
+	sz = sizeof(struct htx_blk) + sizeof(struct htx_sl) + h1sl->rq.m.len + h1sl->rq.u.len + h1sl->rq.v.len;
 	sz += h1_eval_htx_hdrs_size(hdrs);
 	return sz;
 }
@@ -984,7 +984,7 @@ static size_t h1_eval_htx_res_size(struct h1m *h1m, union h1_sl *h1sl, struct ht
 	size_t sz;
 
 	/* size of the HTX start-line */
-	sz = sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
+	sz = sizeof(struct htx_blk) + sizeof(struct htx_sl) + h1sl->st.v.len + h1sl->st.c.len + h1sl->st.r.len;
 	sz += h1_eval_htx_hdrs_size(hdrs);
 	return sz;
 }
