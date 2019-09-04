@@ -268,20 +268,6 @@ static inline void __conn_xprt_stop_recv(struct connection *c)
 	c->flags &= ~CO_FL_XPRT_RD_ENA;
 }
 
-/* this one is used only to stop speculative recv(). It doesn't stop it if the
- * fd is already polled in order to avoid expensive polling status changes.
- * Since it might require the upper layer to re-enable reading, we'll return 1
- * if we've really stopped something otherwise zero.
- */
-static inline int __conn_xprt_done_recv(struct connection *c)
-{
-	if (!conn_ctrl_ready(c) || !fd_recv_polled(c->handle.fd)) {
-		c->flags &= ~CO_FL_XPRT_RD_ENA;
-		return 1;
-	}
-	return 0;
-}
-
 static inline void __conn_xprt_want_send(struct connection *c)
 {
 	c->flags |= CO_FL_XPRT_WR_ENA;

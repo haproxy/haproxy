@@ -14,90 +14,64 @@
  * be considered even if its changes are reverted in the middle or if the fd is
  * replaced.
  *
- * It is important to understand that as long as all expected events are
- * processed, they might starve the polled events, especially because polled
- * I/O starvation quickly induces more cached I/O. One solution to this
- * consists in only processing a part of the events at once, but one drawback
- * is that unhandled events will still wake the poller up. Using an edge-
- * triggered poller such as EPOLL_ET will solve this issue though.
- *
  * The event state for an FD, as found in fdtab[].state, is maintained for each
  * direction. The state field is built this way, with R bits in the low nibble
  * and W bits in the high nibble for ease of access and debugging :
  *
  *               7    6    5    4   3    2    1    0
- *             [ 0 | PW | RW | AW | 0 | PR | RR | AR ]
+ *             [ 0 |  0 | RW | AW | 0 |  0 | RR | AR ]
  *
  *                   A* = active     *R = read
- *                   P* = polled     *W = write
- *                   R* = ready
+ *                   R* = ready      *W = write
  *
  * An FD is marked "active" when there is a desire to use it.
- * An FD is marked "polled" when it is registered in the polling.
  * An FD is marked "ready" when it has not faced a new EAGAIN since last wake-up
- * (it is a cache of the last EAGAIN regardless of polling changes).
+ * (it is a cache of the last EAGAIN regardless of polling changes). Each poller
+ * has its own "polled" state for the same fd, as stored in the polled_mask.
  *
- * We have 8 possible states for each direction based on these 3 flags :
+ * We have 4 possible states for each direction based on these 2 flags :
  *
- *   +---+---+---+----------+---------------------------------------------+
- *   | P | R | A | State    | Description				  |
- *   +---+---+---+----------+---------------------------------------------+
- *   | 0 | 0 | 0 | DISABLED | No activity desired, not ready.		  |
- *   | 0 | 0 | 1 | MUSTPOLL | Activity desired via polling.		  |
- *   | 0 | 1 | 0 | STOPPED  | End of activity without polling.		  |
- *   | 0 | 1 | 1 | ACTIVE   | Activity desired without polling.		  |
- *   | 1 | 0 | 0 | ABORT    | Aborted poll(). Not frequently seen.	  |
- *   | 1 | 0 | 1 | POLLED   | FD is being polled.			  |
- *   | 1 | 1 | 0 | PAUSED   | FD was paused while ready (eg: buffer full) |
- *   | 1 | 1 | 1 | READY    | FD was marked ready by poll()		  |
- *   +---+---+---+----------+---------------------------------------------+
+ *   +---+---+----------+---------------------------------------------+
+ *   | R | A | State    | Description                                 |
+ *   +---+---+----------+---------------------------------------------+
+ *   | 0 | 0 | DISABLED | No activity desired, not ready.             |
+ *   | 0 | 1 | ACTIVE   | Activity desired.                           |
+ *   | 1 | 0 | STOPPED  | End of activity.                            |
+ *   | 1 | 1 | READY    | Activity desired and reported.              |
+ *   +---+---+----------+---------------------------------------------+
  *
  * The transitions are pretty simple :
  *   - fd_want_*() : set flag A
  *   - fd_stop_*() : clear flag A
  *   - fd_cant_*() : clear flag R (when facing EAGAIN)
  *   - fd_may_*()  : set flag R (upon return from poll())
- *   - sync()      : if (A) { if (!R) P := 1 } else { P := 0 }
  *
- * The PAUSED, ABORT and MUSTPOLL states are transient for level-trigerred
- * pollers and are fixed by the sync() which happens at the beginning of the
- * poller. For event-triggered pollers, only the MUSTPOLL state will be
- * transient and ABORT will lead to PAUSED. The ACTIVE state is the only stable
- * one which has P != A.
+ * Each poller then computes its own polled state :
+ *     if (A) { if (!R) P := 1 } else { P := 0 }
  *
- * The READY state is a bit special as activity on the FD might be notified
- * both by the poller or by the cache. But it is needed for some multi-layer
- * protocols (eg: SSL) where connection activity is not 100% linked to FD
- * activity. Also some pollers might prefer to implement it as ACTIVE if
- * enabling/disabling the FD is cheap. The READY and ACTIVE states are the
- * two states for which a cache entry is allocated.
+ * The state transitions look like the diagram below.
  *
- * The state transitions look like the diagram below. Only the 4 right states
- * have polling enabled :
- *
- *          (POLLED=0)          (POLLED=1)
- *
- *          +----------+  sync  +-------+
- *          | DISABLED | <----- | ABORT |         (READY=0, ACTIVE=0)
- *          +----------+        +-------+
- *         clr |  ^           set |  ^
- *             |  |               |  |
- *             v  | set           v  | clr
- *          +----------+  sync  +--------+
- *          | MUSTPOLL | -----> | POLLED |        (READY=0, ACTIVE=1)
- *          +----------+        +--------+
- *                ^          poll |  ^
- *                |               |  |
- *                | EAGAIN        v  | EAGAIN
- *           +--------+         +-------+
- *           | ACTIVE |         | READY |         (READY=1, ACTIVE=1)
- *           +--------+         +-------+
- *         clr |  ^           set |  ^
- *             |  |               |  |
- *             v  | set           v  | clr
- *          +---------+   sync  +--------+
- *          | STOPPED | <------ | PAUSED |        (READY=1, ACTIVE=0)
- *          +---------+         +--------+
+ *     may  +----------+
+ *     ,----| DISABLED |    (READY=0, ACTIVE=0)
+ *     |    +----------+
+ *     |  want |  ^
+ *     |       |  |
+ *     |       v  | stop
+ *     |    +----------+
+ *     |    |  ACTIVE  |    (READY=0, ACTIVE=1)
+ *     |    +----------+
+ *     |       |  ^
+ *     |  may  |  |
+ *     |       v  | EAGAIN (cant)
+ *     |     +--------+
+ *     |     | READY  |     (READY=1, ACTIVE=1)
+ *     |     +--------+
+ *     |  stop |  ^
+ *     |       |  |
+ *     |       v  | want
+ *     |    +---------+
+ *     `--->| STOPPED |     (READY=1, ACTIVE=0)
+ *          +---------+
  */
 
 #include <stdio.h>

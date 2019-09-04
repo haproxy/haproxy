@@ -47,21 +47,17 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
+/* FD bits used for different polling states in each direction */
 #define FD_EV_ACTIVE    1U
 #define FD_EV_READY     2U
-#define FD_EV_POLLED    4U
 
 /* bits positions for a few flags */
 #define FD_EV_READY_R_BIT 1
 #define FD_EV_READY_W_BIT 5
 
-#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED | FD_EV_READY)
+#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_READY)
 #define FD_EV_STATUS_R  (FD_EV_STATUS)
 #define FD_EV_STATUS_W  (FD_EV_STATUS << 4)
-
-#define FD_EV_POLLED_R  (FD_EV_POLLED)
-#define FD_EV_POLLED_W  (FD_EV_POLLED << 4)
-#define FD_EV_POLLED_RW (FD_EV_POLLED_R | FD_EV_POLLED_W)
 
 #define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
 #define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 4)
@@ -70,17 +66,6 @@ enum {
 #define FD_EV_READY_R   (FD_EV_READY)
 #define FD_EV_READY_W   (FD_EV_READY << 4)
 #define FD_EV_READY_RW  (FD_EV_READY_R | FD_EV_READY_W)
-
-enum fd_states {
-	FD_ST_DISABLED = 0,
-	FD_ST_MUSTPOLL,
-	FD_ST_STOPPED,
-	FD_ST_ACTIVE,
-	FD_ST_ABORT,
-	FD_ST_POLLED,
-	FD_ST_PAUSED,
-	FD_ST_READY
-};
 
 
 /* This is the value used to mark a file descriptor as dead. This value is

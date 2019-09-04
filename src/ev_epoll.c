@@ -69,7 +69,7 @@ static void _update_fd(int fd)
 	en = fdtab[fd].state;
 
 	if ((polled_mask[fd].poll_send | polled_mask[fd].poll_recv) & tid_bit) {
-		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_POLLED_RW)) {
+		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
 			/* fd removed from poll list */
 			opcode = EPOLL_CTL_DEL;
 			if (polled_mask[fd].poll_recv & tid_bit)
@@ -78,19 +78,19 @@ static void _update_fd(int fd)
 				_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
 		}
 		else {
-			if (((en & FD_EV_POLLED_R) != 0) ==
+			if (((en & FD_EV_ACTIVE_R) != 0) ==
 			    ((polled_mask[fd].poll_recv & tid_bit) != 0) &&
-			    ((en & FD_EV_POLLED_W) != 0) ==
+			    ((en & FD_EV_ACTIVE_W) != 0) ==
 			    ((polled_mask[fd].poll_send & tid_bit) != 0))
 				return;
-			if (en & FD_EV_POLLED_R) {
+			if (en & FD_EV_ACTIVE_R) {
 				if (!(polled_mask[fd].poll_recv & tid_bit))
 					_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
 			} else {
 				if (polled_mask[fd].poll_recv & tid_bit)
 					_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
 			}
-			if (en & FD_EV_POLLED_W) {
+			if (en & FD_EV_ACTIVE_W) {
 				if (!(polled_mask[fd].poll_send & tid_bit))
 					_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
 			} else {
@@ -101,12 +101,12 @@ static void _update_fd(int fd)
 			opcode = EPOLL_CTL_MOD;
 		}
 	}
-	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_POLLED_RW)) {
+	else if ((fdtab[fd].thread_mask & tid_bit) && (en & FD_EV_ACTIVE_RW)) {
 		/* new fd in the poll list */
 		opcode = EPOLL_CTL_ADD;
-		if (en & FD_EV_POLLED_R)
+		if (en & FD_EV_ACTIVE_R)
 			_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
-		if (en & FD_EV_POLLED_W)
+		if (en & FD_EV_ACTIVE_W)
 			_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
 	}
 	else {
@@ -115,10 +115,10 @@ static void _update_fd(int fd)
 
 	/* construct the epoll events based on new state */
 	ev.events = 0;
-	if (en & FD_EV_POLLED_R)
+	if (en & FD_EV_ACTIVE_R)
 		ev.events |= EPOLLIN | EPOLLRDHUP;
 
-	if (en & FD_EV_POLLED_W)
+	if (en & FD_EV_ACTIVE_W)
 		ev.events |= EPOLLOUT;
 
 	ev.data.fd = fd;

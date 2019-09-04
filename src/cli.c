@@ -1000,13 +1000,11 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%02x(R:%c%c%c W:%c%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
+			     "  %5d : st=0x%02x(R:%c%c W:%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
 			     fd,
 			     fdt.state,
-			     (fdt.state & FD_EV_POLLED_R) ? 'P' : 'p',
 			     (fdt.state & FD_EV_READY_R)  ? 'R' : 'r',
 			     (fdt.state & FD_EV_ACTIVE_R) ? 'A' : 'a',
-			     (fdt.state & FD_EV_POLLED_W) ? 'P' : 'p',
 			     (fdt.state & FD_EV_READY_W)  ? 'R' : 'r',
 			     (fdt.state & FD_EV_ACTIVE_W) ? 'A' : 'a',
 			     fdt.ev,

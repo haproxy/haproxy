@@ -184,14 +184,6 @@ static inline int fd_recv_ready(const int fd)
 }
 
 /*
- * returns true if the FD is polled for recv
- */
-static inline int fd_recv_polled(const int fd)
-{
-	return (unsigned)fdtab[fd].state & FD_EV_POLLED_R;
-}
-
-/*
  * returns the FD's send state (FD_EV_*)
  */
 static inline int fd_send_state(const int fd)
@@ -216,14 +208,6 @@ static inline int fd_send_ready(const int fd)
 }
 
 /*
- * returns true if the FD is polled for send
- */
-static inline int fd_send_polled(const int fd)
-{
-	return (unsigned)fdtab[fd].state & FD_EV_POLLED_W;
-}
-
-/*
  * returns true if the FD is active for recv or send
  */
 static inline int fd_active(const int fd)
@@ -241,11 +225,8 @@ static inline void fd_stop_recv(int fd)
 		if (!(old & FD_EV_ACTIVE_R))
 			return;
 		new = old & ~FD_EV_ACTIVE_R;
-		new &= ~FD_EV_POLLED_R;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_R)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Disable processing send events on fd <fd> */
@@ -258,11 +239,8 @@ static inline void fd_stop_send(int fd)
 		if (!(old & FD_EV_ACTIVE_W))
 			return;
 		new = old & ~FD_EV_ACTIVE_W;
-		new &= ~FD_EV_POLLED_W;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_W)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
@@ -275,11 +253,8 @@ static inline void fd_stop_both(int fd)
 		if (!(old & FD_EV_ACTIVE_RW))
 			return;
 		new = old & ~FD_EV_ACTIVE_RW;
-		new &= ~FD_EV_POLLED_RW;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_RW)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
@@ -292,12 +267,7 @@ static inline void fd_cant_recv(const int fd)
 		if (!(old & FD_EV_READY_R))
 			return;
 		new = old & ~FD_EV_READY_R;
-		if (new & FD_EV_ACTIVE_R)
-			new |= FD_EV_POLLED_R;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_R)
-		updt_fd_polling(fd);
 }
 
 /* Report that FD <fd> may receive again without polling. */
@@ -320,15 +290,11 @@ static inline void fd_done_recv(const int fd)
 
 	old = fdtab[fd].state;
 	do {
-		if ((old & (FD_EV_POLLED_R|FD_EV_READY_R)) != (FD_EV_POLLED_R|FD_EV_READY_R))
+		if ((old & (FD_EV_ACTIVE_R|FD_EV_READY_R)) != (FD_EV_ACTIVE_R|FD_EV_READY_R))
 			return;
 		new = old & ~FD_EV_READY_R;
-		if (new & FD_EV_ACTIVE_R)
-			new |= FD_EV_POLLED_R;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_R)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
@@ -341,12 +307,7 @@ static inline void fd_cant_send(const int fd)
 		if (!(old & FD_EV_READY_W))
 			return;
 		new = old & ~FD_EV_READY_W;
-		if (new & FD_EV_ACTIVE_W)
-			new |= FD_EV_POLLED_W;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_W)
-		updt_fd_polling(fd);
 }
 
 /* Report that FD <fd> may send again without polling (EAGAIN not detected). */
@@ -367,11 +328,9 @@ static inline void fd_want_recv(int fd)
 	do {
 		if (old & FD_EV_ACTIVE_R)
 			return;
-		new = old | FD_EV_ACTIVE_R | FD_EV_POLLED_R;
+		new = old | FD_EV_ACTIVE_R;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_R)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Prepare FD <fd> to try to send */
@@ -383,11 +342,9 @@ static inline void fd_want_send(int fd)
 	do {
 		if (old & FD_EV_ACTIVE_W)
 			return;
-		new = old | FD_EV_ACTIVE_W | FD_EV_POLLED_W;
+		new = old | FD_EV_ACTIVE_W;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-
-	if ((old ^ new) & FD_EV_POLLED_W)
-		updt_fd_polling(fd);
+	updt_fd_polling(fd);
 }
 
 /* Update events seen for FD <fd> and its state if needed. This should be called
