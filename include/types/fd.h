@@ -52,7 +52,10 @@ enum {
 #define FD_EV_READY     2U
 
 /* bits positions for a few flags */
+#define FD_EV_ACTIVE_R_BIT 0
 #define FD_EV_READY_R_BIT 1
+
+#define FD_EV_ACTIVE_W_BIT 4
 #define FD_EV_READY_W_BIT 5
 
 #define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_READY)

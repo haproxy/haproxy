@@ -218,28 +218,18 @@ static inline int fd_active(const int fd)
 /* Disable processing recv events on fd <fd> */
 static inline void fd_stop_recv(int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (!(old & FD_EV_ACTIVE_R))
-			return;
-		new = old & ~FD_EV_ACTIVE_R;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	if (!(fdtab[fd].state & FD_EV_ACTIVE_R) ||
+	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_ACTIVE_R_BIT))
+		return;
 	updt_fd_polling(fd);
 }
 
 /* Disable processing send events on fd <fd> */
 static inline void fd_stop_send(int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (!(old & FD_EV_ACTIVE_W))
-			return;
-		new = old & ~FD_EV_ACTIVE_W;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	if (!(fdtab[fd].state & FD_EV_ACTIVE_W) ||
+	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_ACTIVE_W_BIT))
+		return;
 	updt_fd_polling(fd);
 }
 
@@ -260,14 +250,10 @@ static inline void fd_stop_both(int fd)
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
 static inline void fd_cant_recv(const int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (!(old & FD_EV_READY_R))
-			return;
-		new = old & ~FD_EV_READY_R;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	/* marking ready never changes polled status */
+	if (!(fdtab[fd].state & FD_EV_READY_R) ||
+	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_READY_R_BIT))
+		return;
 }
 
 /* Report that FD <fd> may receive again without polling. */
@@ -279,35 +265,26 @@ static inline void fd_may_recv(const int fd)
 		return;
 }
 
-/* Disable readiness when polled. This is useful to interrupt reading when it
+/* Disable readiness when active. This is useful to interrupt reading when it
  * is suspected that the end of data might have been reached (eg: short read).
  * This can only be done using level-triggered pollers, so if any edge-triggered
  * is ever implemented, a test will have to be added here.
  */
 static inline void fd_done_recv(const int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if ((old & (FD_EV_ACTIVE_R|FD_EV_READY_R)) != (FD_EV_ACTIVE_R|FD_EV_READY_R))
-			return;
-		new = old & ~FD_EV_READY_R;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-	updt_fd_polling(fd);
+	/* removing ready never changes polled status */
+	if ((fdtab[fd].state & (FD_EV_ACTIVE_R|FD_EV_READY_R)) != (FD_EV_ACTIVE_R|FD_EV_READY_R) ||
+	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_READY_R_BIT))
+		return;
 }
 
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
 static inline void fd_cant_send(const int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (!(old & FD_EV_READY_W))
-			return;
-		new = old & ~FD_EV_READY_W;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	/* removing ready never changes polled status */
+	if (!(fdtab[fd].state & FD_EV_READY_W) ||
+	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_READY_W_BIT))
+		return;
 }
 
 /* Report that FD <fd> may send again without polling (EAGAIN not detected). */
@@ -322,28 +299,18 @@ static inline void fd_may_send(const int fd)
 /* Prepare FD <fd> to try to receive */
 static inline void fd_want_recv(int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (old & FD_EV_ACTIVE_R)
-			return;
-		new = old | FD_EV_ACTIVE_R;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	if ((fdtab[fd].state & FD_EV_ACTIVE_R) ||
+	    HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_ACTIVE_R_BIT))
+		return;
 	updt_fd_polling(fd);
 }
 
 /* Prepare FD <fd> to try to send */
 static inline void fd_want_send(int fd)
 {
-	unsigned char old, new;
-
-	old = fdtab[fd].state;
-	do {
-		if (old & FD_EV_ACTIVE_W)
-			return;
-		new = old | FD_EV_ACTIVE_W;
-	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
+	if ((fdtab[fd].state & FD_EV_ACTIVE_W) ||
+	    HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_ACTIVE_W_BIT))
+		return;
 	updt_fd_polling(fd);
 }
 
