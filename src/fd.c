@@ -337,6 +337,27 @@ void fd_remove(int fd)
 	fd_dodelete(fd, 0);
 }
 
+void updt_fd_polling(const int fd)
+{
+	if ((fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
+
+		/* note: we don't have a test-and-set yet in hathreads */
+
+		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+			return;
+
+		fd_updt[fd_nbupdt++] = fd;
+	} else {
+		unsigned long update_mask = fdtab[fd].update_mask;
+		do {
+			if (update_mask == fdtab[fd].thread_mask)
+				return;
+		} while (!_HA_ATOMIC_CAS(&fdtab[fd].update_mask, &update_mask,
+		    fdtab[fd].thread_mask));
+		fd_add_to_fd_list(&update_list, fd, offsetof(struct fdtab, update));
+	}
+}
+
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
  * optionally followed by a newline if <nl> is non-null, to file descriptor
  * <fd>. The message is sent atomically using writev(). It may be truncated to
