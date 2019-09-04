@@ -2382,7 +2382,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_event *sw;
 	struct h1s *h1s = cs->ctx;
-	struct h1c *h1c = h1s->h1c;
+	struct h1c *h1c;
 
 	if (!h1s)
 		return -1;
@@ -2405,6 +2405,7 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 			 * probably means the connection wasn't established
 			 * yet, so we have to subscribe.
 			 */
+			h1c = h1s->h1c;
 			if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 				h1c->conn->xprt->subscribe(h1c->conn,
 				                           h1c->conn->xprt_ctx,
