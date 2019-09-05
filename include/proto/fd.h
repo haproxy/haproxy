@@ -241,6 +241,26 @@ static inline void fd_may_recv(const int fd)
 		return;
 }
 
+/* Report that FD <fd> may receive again without polling but only if its not
+ * active yet. This is in order to speculatively try to enable I/Os when it's
+ * highly likely that these will succeed, but without interfering with polling.
+ */
+static inline void fd_cond_recv(const int fd)
+{
+	if ((fdtab[fd].state & (FD_EV_ACTIVE_R|FD_EV_READY_R)) == 0)
+		HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_READY_R_BIT);
+}
+
+/* Report that FD <fd> may send again without polling but only if its not
+ * active yet. This is in order to speculatively try to enable I/Os when it's
+ * highly likely that these will succeed, but without interfering with polling.
+ */
+static inline void fd_cond_send(const int fd)
+{
+	if ((fdtab[fd].state & (FD_EV_ACTIVE_W|FD_EV_READY_W)) == 0)
+		HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_READY_W_BIT);
+}
+
 /* Report that FD <fd> may receive and send without polling. Used at FD
  * initialization.
  */
