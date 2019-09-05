@@ -3196,6 +3196,30 @@ static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, cons
 	return 1;
 }
 
+// Generate a RFC4122 v4 UUID (fully random)
+
+char smp_fetch_uuid_res[37];
+
+static int
+smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+    sprintf(smp_fetch_uuid_res, "%8.8x-%4.4x-4%3.3x-%4.4x-%7.7x%5.5x",
+            (unsigned int) ((random() + 2*random()) % 4294967296), // random() only gives 31 bits of randomness, using it twice to get 32 bits
+            (unsigned int) (random() % 65536), // getting 16 bits
+            (unsigned int) (random() % 4096),  // getting 12 bits
+            (unsigned int) (random() % 16384) + 32768,  // getting 14 bits, setting the first two bits to 1 and 0...
+            (unsigned int) (random() % 268435456), // getting 28 bits
+            (unsigned int) (random() % 1048576) // getting 20 bits
+    );
+
+    smp->data.type = SMP_T_STR;
+    smp->flags = SMP_F_MAY_CHANGE;
+    smp->data.u.str.area = smp_fetch_uuid_res;
+    smp->data.u.str.data = strlen(smp_fetch_uuid_res);
+    return 1;
+
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -3214,6 +3238,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
+	{ "uuid",         smp_fetch_uuid,  0,            NULL, SMP_T_STR, SMP_USE_INTRN },
 
 	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
