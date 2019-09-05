@@ -1378,7 +1378,13 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	}
 
 	default:
-		/* for other checks (eg: pure TCP), delegate to the main task */
+		/* good connection is enough for pure TCP check */
+		if ((conn->flags & CO_FL_CONNECTED) && !check->type) {
+			if (check->use_ssl)
+				set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
+			else
+				set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
+		}
 		break;
 	} /* switch */
 
