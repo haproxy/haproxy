@@ -241,6 +241,14 @@ static inline void fd_may_recv(const int fd)
 		return;
 }
 
+/* Report that FD <fd> may receive and send without polling. Used at FD
+ * initialization.
+ */
+static inline void fd_may_both(const int fd)
+{
+	HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_RW);
+}
+
 /* Disable readiness when active. This is useful to interrupt reading when it
  * is suspected that the end of data might have been reached (eg: short read).
  * This can only be done using level-triggered pollers, so if any edge-triggered
@@ -339,6 +347,8 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	 */
 	if (locked)
 		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	/* the two directions are ready until proven otherwise */
+	fd_may_both(fd);
 	_HA_ATOMIC_ADD(&ha_used_fds, 1);
 }
 

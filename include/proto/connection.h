@@ -123,9 +123,6 @@ static inline void conn_ctrl_init(struct connection *conn)
 		int fd = conn->handle.fd;
 
 		fd_insert(fd, conn, conn_fd_handler, tid_bit);
-		/* mark the fd as ready so as not to needlessly poll at the beginning */
-		fd_may_recv(fd);
-		fd_may_send(fd);
 		conn->flags |= CO_FL_CTRL_READY;
 	}
 }
