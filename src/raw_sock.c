@@ -207,8 +207,10 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 		done += ret;
 		pipe->data -= ret;
 	}
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done) {
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+		fd_cond_recv(conn->handle.fd);
+	}
 
 	return done;
 }
@@ -387,8 +389,10 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			break;
 		}
 	}
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done) {
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+		fd_cond_recv(conn->handle.fd);
+	}
 
 	if (done > 0) {
 		/* we count the total bytes sent, and the send rate for 32-byte

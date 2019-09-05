@@ -86,6 +86,15 @@ void conn_fd_handler(int fd)
 		__conn_xprt_stop_send(conn);
 	}
 
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
+		/* still waiting for a connection to establish and nothing was
+		 * attempted yet to probe the connection. Then let's retry the
+		 * connect().
+		 */
+		if (!tcp_connect_probe(conn))
+			goto leave;
+	}
+
 	/* The data transfer starts here and stops on error and handshakes. Note
 	 * that we must absolutely test conn->xprt at each step in case it suddenly
 	 * changes due to a quick unexpected close().
@@ -105,14 +114,6 @@ void conn_fd_handler(int fd)
 		__conn_xprt_stop_recv(conn);
 	}
 
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
-		/* still waiting for a connection to establish and nothing was
-		 * attempted yet to probe the connection. Then let's retry the
-		 * connect().
-		 */
-		if (!tcp_connect_probe(conn))
-			goto leave;
-	}
  leave:
 	/* Verify if the connection just established. */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
@@ -227,8 +228,14 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	} while (ret < 0 && errno == EINTR);
 
 
-	if (ret > 0)
+	if (ret > 0) {
+		if (conn->flags & CO_FL_WAIT_L4_CONN) {
+			conn->flags &= ~CO_FL_WAIT_L4_CONN;
+			fd_may_send(conn->handle.fd);
+			fd_cond_recv(conn->handle.fd);
+		}
 		return ret;
+	}
 
 	if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
 	wait:
