@@ -791,6 +791,9 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		}
 	}
 
+	if (!b_data(&check->bo))
+		conn_xprt_stop_send(conn);
+
 	/* full request sent, we allow up to <timeout.check> if nonzero for a response */
 	if (s->proxy->timeout.check) {
 		t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
