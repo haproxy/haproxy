@@ -2248,8 +2248,14 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 				t->expire = tick_first(t->expire, t_con);
 			}
 
-			if (check->type)
+			if (check->type) {
+				/* send the request if we have one. We avoid receiving
+				 * if not connected, unless we didn't subscribe for
+				 * sending since otherwise we won't be woken up.
+				 */
+				__event_srv_chk_w(cs);
 				__event_srv_chk_r(cs);
+			}
 
 			task_set_affinity(t, tid_bit);
 			goto reschedule;
