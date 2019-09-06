@@ -50,15 +50,21 @@ enum {
 /* FD bits used for different polling states in each direction */
 #define FD_EV_ACTIVE    1U
 #define FD_EV_READY     2U
+#define FD_EV_SHUT      4U
+#define FD_EV_ERR       8U
 
 /* bits positions for a few flags */
 #define FD_EV_ACTIVE_R_BIT 0
-#define FD_EV_READY_R_BIT 1
+#define FD_EV_READY_R_BIT  1
+#define FD_EV_SHUT_R_BIT   2
+#define FD_EV_ERR_R_BIT    3
 
 #define FD_EV_ACTIVE_W_BIT 4
-#define FD_EV_READY_W_BIT 5
+#define FD_EV_READY_W_BIT  5
+#define FD_EV_SHUT_W_BIT   6
+#define FD_EV_ERR_W_BIT    7
 
-#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_READY)
+#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_READY | FD_EV_SHUT | FD_EV_ERR)
 #define FD_EV_STATUS_R  (FD_EV_STATUS)
 #define FD_EV_STATUS_W  (FD_EV_STATUS << 4)
 
@@ -69,6 +75,16 @@ enum {
 #define FD_EV_READY_R   (FD_EV_READY)
 #define FD_EV_READY_W   (FD_EV_READY << 4)
 #define FD_EV_READY_RW  (FD_EV_READY_R | FD_EV_READY_W)
+
+/* note that when FD_EV_SHUT is set, ACTIVE and READY are cleared */
+#define FD_EV_SHUT_R    (FD_EV_SHUT)
+#define FD_EV_SHUT_W    (FD_EV_SHUT << 4)
+#define FD_EV_SHUT_RW   (FD_EV_SHUT_R | FD_EV_SHUT_W)
+
+/* note that when FD_EV_ERR is set, SHUT is also set */
+#define FD_EV_ERR_R     (FD_EV_ERR)
+#define FD_EV_ERR_W     (FD_EV_ERR << 4)
+#define FD_EV_ERR_RW    (FD_EV_ERR_R | FD_EV_ERR_W)
 
 
 /* This is the value used to mark a file descriptor as dead. This value is
