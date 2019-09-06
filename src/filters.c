@@ -982,6 +982,7 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 		       unsigned int an_bit, int ret)
 {
 	int finst;
+	int status = 0;
 
 	if (ret < 0)
 		goto return_bad_req;
@@ -1003,21 +1004,23 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 	if (!(chn->flags & CF_ISRESP)) {
 		s->req.analysers &= AN_REQ_FLT_END;
 		finst = SF_FINST_R;
+		status = 400;
 		/* FIXME: incr counters */
 	}
 	else {
 		s->res.analysers &= AN_RES_FLT_END;
 		finst = SF_FINST_H;
+		status = 502;
 		/* FIXME: incr counters */
 	}
 
 	if (IS_HTX_STRM(s)) {
 		/* Do not do that when we are waiting for the next request */
-		if (s->txn->status)
+		if (s->txn->status > 0)
 			http_reply_and_close(s, s->txn->status, NULL);
 		else {
-			s->txn->status = 400;
-			http_reply_and_close(s, 400, http_error_message(s));
+			s->txn->status = status;
+			http_reply_and_close(s, status, http_error_message(s));
 		}
 	}
 
