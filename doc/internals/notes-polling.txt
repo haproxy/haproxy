@@ -1,0 +1,192 @@
+2019-09-03
+
+u8 fd.state;
+u8 fd.ev;
+
+
+ev = one of :
+	#define FD_POLL_IN	0x01
+	#define FD_POLL_PRI	0x02
+	#define FD_POLL_OUT	0x04
+	#define FD_POLL_ERR	0x08
+	#define FD_POLL_HUP	0x10
+
+Could we instead have :
+
+  FD_WAIT_IN  0x01
+  FD_WAIT_OUT 0x02
+  FD_WAIT_PRI 0x04
+  FD_SEEN_HUP 0x08
+  FD_SEEN_HUP 0x10
+  FD_WAIT_CON 0x20  <<= shouldn't this be in the connection itself in fact ?
+
+=> not needed, covered by the state instead.
+
+What is missing though is :
+  - FD_DATA_PENDING  -- overlaps with READY_R, OK if passed by pollers only
+  - FD_EOI_PENDING
+  - FD_ERR_PENDING
+  - FD_EOI
+  - FD_SHW
+  - FD_ERR
+
+fd_update_events() could do that :
+
+    if ((fd_data_pending|fd_eoi_pending|fd_err_pending) && !(fd_err|fd_eoi))
+        may_recv()
+
+    if (fd_send_ok && !(fd_err|fd_shw))
+        may_send()
+
+    if (fd_err)
+        wake()
+
+the poller could do that :
+  HUP+OUT => always indicates a failed connect(), it should not lack ERR. Is this err_pending ?
+
+   ERR  HUP  OUT   IN
+    0    0    0    0  => nothing
+    0    0    0    1  => FD_DATA_PENDING
+    0    0    1    0  => FD_SEND_OK
+    0    0    1    1  => FD_DATA_PENDING|FD_SEND_OK
+    0    1    0    0  => FD_EOI (|FD_SHW)
+    0    1    0    1  => FD_DATA_PENDING|FD_EOI_PENDING (|FD_SHW)
+    0    1    1    0  => FD_EOI |FD_ERR (|FD_SHW)
+    0    1    1    1  => FD_EOI_PENDING (|FD_ERR_PENDING) |FD_DATA_PENDING (|FD_SHW)
+    1    X    0    0  => FD_ERR | FD_EOI (|FD_SHW)
+    1    X    X    1  => FD_ERR_PENDING | FD_EOI_PENDING | FD_DATA_PENDING (|FD_SHW)
+    1    X    1    0  => FD_ERR | FD_EOI (|FD_SHW)
+
+   OUT+HUP,OUT+HUP+ERR => FD_ERR
+
+This reorders to:
+
+    IN  ERR  HUP  OUT 
+    0    0    0    0   => nothing
+    0    0    0    1   => FD_SEND_OK
+    0    0    1    0   => FD_EOI (|FD_SHW)
+
+    0    X    1    1   => FD_ERR | FD_EOI (|FD_SHW)
+    0    1    X    0   => FD_ERR | FD_EOI (|FD_SHW)
+    0    1    X    1   => FD_ERR | FD_EOI (|FD_SHW)
+
+    1    0    0    0   => FD_DATA_PENDING
+    1    0    0    1   => FD_DATA_PENDING|FD_SEND_OK
+    1    0    1    0   => FD_DATA_PENDING|FD_EOI_PENDING (|FD_SHW)
+    1    0    1    1   => FD_EOI_PENDING (|FD_ERR_PENDING) |FD_DATA_PENDING (|FD_SHW)
+    1    1    X    X   => FD_ERR_PENDING | FD_EOI_PENDING | FD_DATA_PENDING (|FD_SHW)
+
+Regarding "|SHW", it's normally useless since it will already have been done,
+except on connect() error where this indicates there's no need for SHW.
+
+FD_EOI and FD_SHW could be part of the state (FD_EV_SHUT_R, FD_EV_SHUT_W).
+Then all states having these bit and another one would be transient and need
+to resync. We could then have "fd_shut_recv" and "fd_shut_send" to turn these
+states.
+
+The FD's ev then only needs to update EOI_PENDING, ERR_PENDING, ERR, DATA_PENDING.
+With this said, these are not exactly polling states either, as err/eoi/shw are
+orthogonal to the other states and are required to update them so that the polling
+state really is DISABLED in the end. So we need more of an operational status for
+the FD containing EOI_PENDING, EOI, ERR_PENDING, ERR, SHW, CLO?. These could be
+classified in 3 categories: read:(OPEN, EOI_PENDING, EOI); write:(OPEN,SHW),
+ctrl:(OPEN,ERR_PENDING,ERR,CLO). That would be 2 bits for R, 1 for W, 2 for ctrl
+or total 5 vs 6 for individual ones, but would be harder to manipulate.
+
+Proposal:
+  - rename fdtab[].state to "polling_state"
+  - rename fdtab[].ev    to "status"
+
+Note: POLLHUP is also reported is a listen() socket has gone in shutdown()
+TEMPORARILY! Thus we may not always consider this as a final error.
+
+
+Work hypothesis:
+
+SHUT RDY ACT
+  0   0   0   => disabled
+  0   0   1   => active
+  0   1   0   => stopped
+  0   1   1   => ready
+  1   0   0   => final shut
+  1   0   1   => shut pending without data
+  1   1   0   => shut pending, stopped
+  1   1   1   => shut pending
+
+PB: we can land into final shut if one thread disables the FD while another
+    one that was waiting on it reports it as shut. Theorically it should be
+    implicitly ready though, since reported. But if no data is reported, it
+    will be reportedly shut only. And no event will be reported then. This
+    might still make sense since it's not active, thus we don't want events.
+    But it will not be enabled later either in this case so the shut really
+    risks not to be properly reported. The issue is that there's no difference
+    between a shut coming from the bottom and a shut coming from the top, and
+    we need an event to report activity here. Or we may consider that a poller
+    never leaves a final shut by itself (100) and always reports it as
+    shut+stop (thus ready) if it was not active. Alternately, if active is
+    disabled, shut should possibly be ignored, then a poller cannot report
+    shut. But shut+stopped seems the most suitable as it corresponds to
+    disabled->stopped transition.
+
+Now let's add ERR. ERR necessarily implies SHUT as there doesn't seem to be a
+valid case of ERR pending without shut pending.
+
+ERR SHUT RDY ACT
+ 0    0   0   0   => disabled
+ 0    0   0   1   => active
+ 0    0   1   0   => stopped
+ 0    0   1   1   => ready
+
+ 0    1   0   0   => final shut, no error
+ 0    1   0   1   => shut pending without data
+ 0    1   1   0   => shut pending, stopped
+ 0    1   1   1   => shut pending
+
+ 1    0   X   X   => invalid
+
+ 1    1   0   0   => final shut, error encountered
+ 1    1   0   1   => error pending without data
+ 1    1   1   0   => error pending after data, stopped
+ 1    1   1   1   => error pending
+
+So the algorithm for the poller is:
+  - if (shutdown_pending or error) reported and ACT==0,
+    report SHUT|RDY or SHUT|ERR|RDY
+
+For read handlers :
+  - if (!(flags & (RDY|ACT)))
+     return
+  - if (ready)
+     try_to_read
+  - if (err)
+     report error
+  - if (shut)
+     read0
+
+For write handlers:
+  - if (!(flags & (RDY|ACT)))
+     return
+  - if (err||shut)
+     report error
+  - if (ready)
+     try_to_write
+
+For listeners:
+  - if (!(flags & (RDY|ACT)))
+     return
+  - if (err||shut)
+     pause
+  - if (ready)
+     try_to_accept
+
+Kqueue reports events differently, it says EV_EOF() on READ or WRITE, that
+we currently map to FD_POLL_HUP and FD_POLL_ERR. Thus kqueue reports only
+POLLRDHUP and not POLLHUP, so for now a direct mapping of POLLHUP to
+FD_POLL_HUP does NOT imply write closed with kqueue while it does for others.
+
+Other approach, use the {RD,WR}_{ERR,SHUT,RDY} flags to build a composite
+status in each poller and pass this to fd_update_events(). We normally
+have enough to be precise, and this latter will rework the events.
+
+FIXME: Normally on KQUEUE we're supposed to look at kev[].fflags to get the error
+on EV_EOF() on read or write.

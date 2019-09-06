@@ -1,0 +1,281 @@
+tcp mode 8001->8008
+
+
+Remote test:
+============
+
+willy@up1:~$ echo bar | ncat -lp8008
+willy@wtap:haproxy$ echo foo | ncat 127.1 8001
+
+17:09:53.663154 epoll_wait(3, [{EPOLLIN, {u32=5, u64=5}}], 200, 1000) = 1
+17:09:54.582146 accept4(5, {sa_family=AF_INET, sin_port=htons(33378), sin_addr=inet_addr("127.0.0.1")}, [128->16], SOCK_NONBLOCK) = 8
+17:09:54.582299 setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:09:54.582527 accept4(5, 0x7ffc4a8bf330, [128], SOCK_NONBLOCK) = -1 EAGAIN (Resource temporarily unavailable)
+17:09:54.582655 recvfrom(8, "foo\n", 15360, 0, NULL, NULL) = 4
+17:09:54.582727 recvfrom(8, "", 15356, 0, NULL, NULL) = 0
+17:09:54.582827 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 9
+17:09:54.582878 setsockopt(9, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:09:54.582897 connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("10.0.3.82")}, 16) = -1 EINPROGRESS (Operation now in progress)
+17:09:54.582941 sendto(9, "foo\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = -1 EAGAIN (Resource temporarily unavailable)
+17:09:54.582968 epoll_ctl(3, EPOLL_CTL_ADD, 9, {EPOLLOUT, {u32=9, u64=9}}) = 0
+17:09:54.582997 epoll_wait(3, [{EPOLLOUT, {u32=9, u64=9}}], 200, 1000) = 1
+17:09:54.583686 connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("10.0.3.82")}, 16) = 0
+17:09:54.583706 sendto(9, "foo\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 4
+17:09:54.583733 recvfrom(9, 0x19c2300, 15360, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+17:09:54.583755 shutdown(9, SHUT_WR)    = 0
+17:09:54.583775 epoll_ctl(3, EPOLL_CTL_MOD, 9, {EPOLLIN|EPOLLRDHUP, {u32=9, u64=9}}) = 0
+17:09:54.583802 epoll_wait(3, [{EPOLLIN, {u32=9, u64=9}}], 200, 1000) = 1
+17:09:54.584672 recvfrom(9, "bar\n", 16384, 0, NULL, NULL) = 4
+17:09:54.584713 recvfrom(9, "", 16380, 0, NULL, NULL) = 0
+17:09:54.584743 sendto(8, "bar\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE, NULL, 0) = 4
+17:09:54.584819 epoll_wait(3, [], 200, 0) = 0
+17:09:54.584901 epoll_wait(3, [], 200, 1000) = 0
+
+
+Notes:
+  - we had data available to try the connect() (see first attempt), despite
+    this during the retry we sent the connect again!
+
+  - why do we wait before sending the shutw to the server if we already know
+    it's needed ? missing CF_SHUTW_NOW ? Missing request forwarding ? Missing
+    auto-close ?
+
+  - response didn't feature HUP nor RDHUP
+
+
+Local:
+
+17:15:43.010786 accept4(5, {sa_family=AF_INET, sin_port=htons(33506), sin_addr=inet_addr("127.0.0.1")}, [128->16], SOCK_NONBLOCK) = 8
+17:15:43.011013 setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:15:43.011181 accept4(5, 0x7ffcd9092cd0, [128], SOCK_NONBLOCK) = -1 EAGAIN (Resource temporarily unavailable)
+17:15:43.011231 recvfrom(8, "foo\n", 15360, 0, NULL, NULL) = 4
+17:15:43.011296 recvfrom(8, "", 15356, 0, NULL, NULL) = 0
+17:15:43.011318 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 9
+17:15:43.011340 setsockopt(9, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:15:43.011353 connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 EINPROGRESS (Operation now in progress)
+17:15:43.011395 sendto(9, "foo\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 4
+17:15:43.011425 shutdown(9, SHUT_WR)    = 0
+17:15:43.011459 recvfrom(9, "bar\n", 16384, 0, NULL, NULL) = 4
+17:15:43.011491 recvfrom(9, "", 16380, 0, NULL, NULL) = 0
+17:15:43.011525 sendto(8, "bar\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE, NULL, 0) = 4
+17:15:43.011584 epoll_wait(3, [], 200, 0) = 0
+
+Notes:
+  - the shutdown() was properly done right after the sendto(), proving that
+    CF_SHUTW_NOW and auto-close were present. Maybe difference is sync vs async
+    send.
+
+
+Local with delay before closing client:
+
+17:18:17.155349 epoll_wait(3, [{EPOLLIN, {u32=5, u64=5}}], 200, 1000) = 1
+17:18:17.727327 accept4(5, {sa_family=AF_INET, sin_port=htons(33568), sin_addr=inet_addr("127.0.0.1")}, [128->16], SOCK_NONBLOCK) = 8
+17:18:17.727553 setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:18:17.727661 accept4(5, 0x7fff4eb9a0b0, [128], SOCK_NONBLOCK) = -1 EAGAIN (Resource temporarily unavailable)
+17:18:17.727798 recvfrom(8, 0xbda300, 15360, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+17:18:17.727830 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 9
+17:18:17.727858 setsockopt(9, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:18:17.727877 connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 EINPROGRESS (Operation now in progress)
+17:18:17.727923 epoll_ctl(3, EPOLL_CTL_ADD, 8, {EPOLLIN|EPOLLRDHUP, {u32=8, u64=8}}) = 0
+17:18:17.727945 epoll_ctl(3, EPOLL_CTL_ADD, 9, {EPOLLOUT, {u32=9, u64=9}}) = 0
+17:18:17.727989 epoll_wait(3, [{EPOLLOUT, {u32=9, u64=9}}], 200, 1000) = 1
+17:18:17.728010 connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("127.0.0.1")}, 16) = 0
+17:18:17.728027 recvfrom(9, "bar\n", 15360, 0, NULL, NULL) = 4
+17:18:17.728055 recvfrom(9, 0xbd62f4, 15356, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+17:18:17.728073 sendto(8, "bar\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 4
+17:18:17.728104 epoll_ctl(3, EPOLL_CTL_MOD, 9, {EPOLLIN|EPOLLRDHUP, {u32=9, u64=9}}) = 0
+17:18:17.728127 epoll_wait(3, [], 200, 1000) = 0
+17:18:18.729411 epoll_wait(3, [], 200, 1000) = 0
+17:18:19.730654 epoll_wait(3, [{EPOLLIN|EPOLLRDHUP, {u32=8, u64=8}}], 200, 1000) = 1
+17:18:20.299268 recvfrom(8, "", 16384, 0, NULL, NULL) = 0
+17:18:20.299336 epoll_ctl(3, EPOLL_CTL_DEL, 8, 0x7ff3a969f7d0) = 0
+17:18:20.299379 epoll_wait(3, [], 200, 0) = 0
+17:18:20.299401 shutdown(9, SHUT_WR)    = 0
+17:18:20.299523 epoll_wait(3, [{EPOLLIN|EPOLLHUP|EPOLLRDHUP, {u32=9, u64=9}}], 200, 1000) = 1
+17:18:20.299678 recvfrom(9, "", 16384, 0, NULL, NULL) = 0
+17:18:20.299761 epoll_wait(3, [], 200, 0) = 0
+
+Notes: server sent the response in two parts ("bar" then EOF) just due to
+netcat's implementation. The second epoll_wait() caught it.
+
+Here we clearly see that :
+  - read0 alone returns EPOLLIN|EPOLLRDHUP
+  - read0 after shutw returns EPOLLIN|EPOLLRDHUP|EPOLLHUP
+  => difference indeed is "cannot write"
+
+
+Local with a delay before closing the server:
+
+17:30:32.527157 epoll_wait(3, [{EPOLLIN, {u32=5, u64=5}}], 200, 1000) = 1
+17:30:33.216827 accept4(5, {sa_family=AF_INET, sin_port=htons(33908), sin_addr=inet_addr("127.0.0.1")}, [128->16], SOCK_NONBLOCK) = 8
+17:30:33.216957 setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:30:33.216984 accept4(5, 0x7ffc1a1fb0c0, [128], SOCK_NONBLOCK) = -1 EAGAIN (Resource temporarily unavailable)
+17:30:33.217071 recvfrom(8, "GET / HTTP/1.0\r\n\r\n\n", 15360, 0, NULL, NULL) = 19
+17:30:33.217115 recvfrom(8, "", 15341, 0, NULL, NULL) = 0
+17:30:33.217135 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 9
+17:30:33.217176 setsockopt(9, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+17:30:33.217190 connect(9, {sa_family=AF_INET, sin_port=htons(8000), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 EINPROGRESS (Operation now in progress)
+17:30:33.217233 sendto(9, "GET / HTTP/1.0\r\n\r\n\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 19
+17:30:33.217272 shutdown(9, SHUT_WR)    = 0
+17:30:33.217318 recvfrom(9, 0x109b2f0, 16384, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+17:30:33.217332 epoll_ctl(3, EPOLL_CTL_ADD, 9, {EPOLLIN|EPOLLRDHUP, {u32=9, u64=9}}) = 0
+17:30:33.217355 epoll_wait(3, [{EPOLLIN|EPOLLHUP|EPOLLRDHUP, {u32=9, u64=9}}], 200, 1000) = 1
+17:30:33.217377 recvfrom(9, "HTTP/1.0 200\r\nContent-length: 0\r\nX-req: size=19, time=0 ms\r\nX-rsp: id=dummy, code=200, cache=1, size=0, time=0 ms (0 real)\r\n\r\n", 16384, 0, NULL, NULL) = 126
+17:30:33.217395 close(9)                = 0
+17:30:33.217411 sendto(8, "HTTP/1.0 200\r\nContent-length: 0\r\nX-req: size=19, time=0 ms\r\nX-rsp: id=dummy, code=200, cache=1, size=0, time=0 ms (0 real)\r\n\r\n", 126, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE, NULL, 0) = 126
+17:30:33.217464 close(8)                = 0
+17:30:33.217496 epoll_wait(3, [], 200, 0) = 0
+
+
+Notes:
+  - RDHUP is properly present while some data remain pending.
+  - HUP is present since RDHUP + shutw
+
+It could be concluded that HUP indicates RDHUP+shutw and in no way indicates
+the ability to avoid reading.
+
+Below HUP|ERR|OUT are reported on connection failures, thus WITHOUT read:
+
+accept4(5, {sa_family=AF_INET, sin_port=htons(39080), sin_addr=inet_addr("127.0.0.1")}, [128->16], SOCK_NONBLOCK) = 8
+setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+accept4(5, 0x7ffffba55730, [128], SOCK_NONBLOCK) = -1 EAGAIN (Resource temporarily unavailable)
+recvfrom(8, "foo\n", 15360, 0, NULL, NULL) = 4
+recvfrom(8, 0x7f634dcfeff4, 15356, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 9
+fcntl(9, F_SETFL, O_RDONLY|O_NONBLOCK)  = 0
+setsockopt(9, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+connect(9, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("10.0.3.82")}, 16) = -1 EINPROGRESS (Operation now in progress)
+sendto(9, "foo\n", 4, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = -1 EAGAIN (Resource temporarily unavailable)
+epoll_ctl(3, EPOLL_CTL_ADD, 8, {EPOLLIN|EPOLLRDHUP, {u32=8, u64=8}}) = 0
+epoll_ctl(3, EPOLL_CTL_ADD, 9, {EPOLLOUT, {u32=9, u64=9}}) = 0
+epoll_wait(3, [{EPOLLOUT|EPOLLERR|EPOLLHUP, {u32=9, u64=9}}], 200, 1000) = 1
+getsockopt(9, SOL_SOCKET, SO_ERROR, [111], [4]) = 0
+recvfrom(9, "", 15360, 0, NULL, NULL)   = 0
+close(9)                                = 0
+
+
+On a failed connect attempt immediately followed by a failed recv (all flags
+set), we can see this:
+
+socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 8
+fcntl(8, F_SETFL, O_RDONLY|O_NONBLOCK)  = 0
+setsockopt(8, SOL_TCP, TCP_NODELAY, [1], 4) = 0
+connect(8, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("10.0.3.82")}, 16) = -1 EINPROGRESS (Operation now in progress)
+recvfrom(8, 0x1084a20, 16384, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+epoll_ctl(3, EPOLL_CTL_ADD, 8, {EPOLLIN|EPOLLOUT|EPOLLRDHUP, {u32=8, u64=8}}) = 0
+epoll_wait(3, [{EPOLLIN|EPOLLOUT|EPOLLERR|EPOLLHUP|EPOLLRDHUP, {u32=8, u64=8}}], 200, 1000) = 1
+connect(8, {sa_family=AF_INET, sin_port=htons(8008), sin_addr=inet_addr("10.0.3.82")}, 16) = -1 ECONNREFUSED (Connection refused)
+close(8)                                = 0
+
+=> all flags are reported in case of error.
+
+It's also interesting to note that POLLOUT is still reported after a shutw,
+and no send error is ever reported after shutw:
+
+  shutdown(4, SHUT_WR)                    = 0
+  poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLOUT}])
+
+and:
+  shutdown(4, SHUT_WR)                    = 0
+  sendto(5, "foo", 3, MSG_NOSIGNAL, NULL, 0) = 3
+  poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLIN|POLLOUT}])
+
+and:
+  shutdown(4, SHUT_WR)                    = 0
+  sendto(4, "bar", 3, MSG_NOSIGNAL, NULL, 0) = -1 EPIPE (Broken pipe)
+  poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLOUT}])
+
+
+POLLOUT is still reported after a SHUTWR:
+
+socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 3
+setsockopt(3, SOL_SOCKET, SO_REUSEADDR, [1], 4) = 0
+bind(3, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+listen(3, 1000)                         = 0
+getsockname(3, {sa_family=AF_INET, sin_port=htons(34729), sin_addr=inet_addr("0.0.0.0")}, [16]) = 0
+socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 4
+connect(4, {sa_family=AF_INET, sin_port=htons(34729), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+accept(3, 0x7ffcd6a68300, [0->16])      = 5
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 3), ...}) = 0
+brk(NULL)                               = 0xc4e000
+brk(0xc6f000)                           = 0xc6f000
+write(1, "\n", 1
+)                       = 1
+shutdown(4, SHUT_WR)                    = 0
+poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLOUT}])
+write(1, "ret=1 ev={fd:4 ev:4}\n", 21ret=1 ev={fd:4 ev:4}
+)  = 21
+close(5)                                = 0
+close(4)                                = 0
+close(3)                                = 0
+
+Performing a write() on it reports a SIGPIPE:
+
+shutdown(4, SHUT_WR)                    = 0
+sendto(4, "bar", 3, MSG_NOSIGNAL, NULL, 0) = -1 EPIPE (Broken pipe)
+poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLOUT}])
+
+
+On SHUT_RD we see POLLIN|POLLOUT|POLLRDHUP (there's no data pending here) :
+shutdown(4, SHUT_RD)                    = 0
+poll([{fd=4, events=POLLIN|POLLOUT|POLLRDHUP}], 1, 0) = 1 ([{fd=4, revents=POLLIN|POLLOUT|POLLRDHUP}])
+
+
+What is observed in the end :
+  - POLLOUT is always reported for anything SHUT_WR even if it would cause a broken pipe, including listeners if they're also SHUT_RD
+  - POLLHUP is always reported for anything SHUT_WR + having a SHUT_RD pending with or without anything to read, including listeners
+  - POLLIN is always reported for anything to read or a pending zero
+  - POLLIN is NOT reported for SHUT_RD listeners, even with pending connections, only OUT+HUP are reported
+  - POLLIN and POLLRDHUP are always reported after a SHUTR
+  - POLLERR also enables IN,OUT,HUP,RHUP
+
+
+
+
+
+
+
+Currently there's a bit of an issue with connect() being too impatient to read:
+
+16:26:06.818521 connect(9, {sa_family=AF_INET, sin_port=htons(8000), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 EINPROGRESS (Operation now in progress)
+16:26:06.818558 recvfrom(9, 0x1db9400, 16320, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+16:26:06.818571 epoll_ctl(3, EPOLL_CTL_ADD, 9, {EPOLLIN|EPOLLOUT|EPOLLRDHUP, {u32=9, u64=9}}) = 0
+16:26:06.818588 epoll_wait(3, [{EPOLLOUT, {u32=9, u64=9}}], 200, 1000) = 1
+16:26:06.818603 connect(9, {sa_family=AF_INET, sin_port=htons(8000), sin_addr=inet_addr("127.0.0.1")}, 16) = 0
+16:26:06.818617 sendto(9, "GET /?s=10k HTTP/1.1\r\nhost: 127.0.0.1:4445\r\nuser-agent: curl/7.54.1\r\naccept: */*\r\n\r\n", 84, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 84
+16:26:06.818660 epoll_ctl(3, EPOLL_CTL_MOD, 9, {EPOLLIN|EPOLLRDHUP, {u32=9, u64=9}}) = 0
+16:26:06.818696 epoll_wait(3, [{EPOLLIN, {u32=9, u64=9}}], 200, 1000) = 1
+16:26:06.818711 recvfrom(9, "HTTP/1.1 200\r\nContent-length: 10240\r\nX-req: size=84, time=0 ms\r\nX-rsp: id=dummy, code=200, cache=1, size=10240, time=0 ms (0 real)\r\n\r\n89.123456789.12345678\n.123456789.123456789.123456789.123456789.123"..., 16320, 0, NULL, NULL) = 10374
+16:26:06.818735 recvfrom(9, 0x1dd75f6, 5946, 0, NULL, NULL) = -1 EAGAIN (Resource temporarily unavailable)
+16:26:06.818790 epoll_ctl(3, EPOLL_CTL_DEL, 9, 0x7ffa818fd7d0) = 0
+16:26:06.818804 epoll_wait(3, [], 200, 0) = 0
+
+
+
+
+This one shows that the error is not definitive, it disappears once it's
+been signaled, then only shut remains! Also it's a proof that an error
+may well be reported after a shutw, so the r/w error may not be merged
+with a shutw since it may appear after an deliberate shutw.
+
+$ ./contrib/debug/poll -v -c snd,shw -s pol,rcv,pol,rcv,pol,snd,lin,clo -c pol,rcv,pol,rcv,pol,rcv,pol
+#### BEGIN ####
+cmd #1 stp #1: do_snd(4): ret=3
+cmd #1 stp #2: do_shw(4): ret=0
+cmd #2 stp #0: do_acc(3): ret=5
+cmd #2 stp #1: do_pol(5): ret=1 ev=0x2005 (IN OUT RDHUP)
+cmd #2 stp #2: do_rcv(5): ret=3
+cmd #2 stp #3: do_pol(5): ret=1 ev=0x2005 (IN OUT RDHUP)
+cmd #2 stp #4: do_rcv(5): ret=0
+cmd #2 stp #5: do_pol(5): ret=1 ev=0x2005 (IN OUT RDHUP)
+cmd #2 stp #6: do_snd(5): ret=3
+cmd #2 stp #7: do_lin(5): ret=0
+cmd #2 stp #8: do_clo(5): ret=0
+cmd #3 stp #1: do_pol(4): ret=1 ev=0x201d (IN OUT ERR HUP RDHUP)
+cmd #3 stp #2: do_rcv(4): ret=3
+cmd #3 stp #3: do_pol(4): ret=1 ev=0x201d (IN OUT ERR HUP RDHUP)
+cmd #3 stp #4: do_rcv(4): ret=-1 (Connection reset by peer)
+cmd #3 stp #5: do_pol(4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+cmd #3 stp #6: do_rcv(4): ret=0
+cmd #3 stp #7: do_pol(4): ret=1 ev=0x2015 (IN OUT HUP RDHUP)
+#### END ####
