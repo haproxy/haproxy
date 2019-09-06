@@ -659,7 +659,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_ERESP]          = IST("Total number of response errors."),
 	[ST_F_WRETR]          = IST("Total number of retry warnings."),
 	[ST_F_WREDIS]         = IST("Total number of redispatch warnings."),
-	[ST_F_STATUS]         = IST("Current status of the service (frontend: 0=STOP, 1=UP, 2=FULL - backend/server: 0=DOWN, 1=UP)."),
+	[ST_F_STATUS]         = IST("Current status of the service (frontend: 0=STOP, 1=UP, 2=FULL - backend: 0=DOWN, 1=UP - server: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB)."),
 	[ST_F_WEIGHT]         = IST("Service weight."),
 	[ST_F_ACT]            = IST("Current number of active servers."),
 	[ST_F_BCK]            = IST("Current number of backup servers."),
@@ -1044,25 +1044,21 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CACHE_HITS]     = IST("counter"),
 };
 
-/* Return the server status: 1=UP and 0=DOWN. */
+/* Return the server status: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB. */
 static int promex_srv_status(struct server *sv)
 {
-	struct server *via, *ref;
 	int state = 0;
-
-	/* we have "via" which is the tracked server as described in the configuration,
-	 * and "ref" which is the checked server and the end of the chain.
-	 */
-	via = sv->track ? sv->track : sv;
-	ref = via;
-	while (ref->track)
-		ref = ref->track;
 
 	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
 		state = 1;
 		if (sv->cur_admin & SRV_ADMF_DRAIN)
-			state = 0;
+			state = 3;
 	}
+	else if (sv->cur_state == SRV_ST_STOPPING)
+		state = 4;
+
+	if (sv->cur_admin & SRV_ADMF_MAINT)
+		state = 2;
 
 	return state;
 }
