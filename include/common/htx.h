@@ -144,7 +144,8 @@
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000
 #define HTX_FL_PARSING_ERROR     0x00000001 /* Set when a parsing error occurred */
-#define HTX_FL_UPGRADE           0x00000002 /* Set when an upgrade is in progress */
+#define HTX_FL_PROCESSING_ERROR  0x00000002 /* Set when a processing error occurred */
+#define HTX_FL_UPGRADE           0x00000004 /* Set when an upgrade is in progress */
 
 
 /* HTX block's type (max 15). */
@@ -753,7 +754,8 @@ static inline struct htx *htx_from_buf(struct buffer *buf)
 /* Update <buf> accordingly to the HTX message <htx> */
 static inline void htx_to_buf(struct htx *htx, struct buffer *buf)
 {
-	if ((htx->head == -1) && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_UPGRADE))) {
+	if ((htx->head == -1) &&
+	    !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR|HTX_FL_UPGRADE))) {
 		htx_reset(htx);
 		b_set_data(buf, 0);
 	}
