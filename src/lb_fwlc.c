@@ -48,13 +48,15 @@ static inline void fwlc_dequeue_srv(struct server *s)
  * for using #conns+1 is to sort by weights in case the server is picked
  * and not before it is picked. This provides a better load accuracy for
  * low connection counts when weights differ and makes sure the round-robin
- * applies between servers of highest weight first.
+ * applies between servers of highest weight first. However servers with no
+ * connection are always picked first so that under low loads, it's not
+ * always the single server with the highest weight that gets picked.
  *
  * The server's lock and the lbprm's lock must be held.
  */
 static inline void fwlc_queue_srv(struct server *s)
 {
-	s->lb_node.key = (s->served + 1) * SRV_EWGHT_MAX / s->next_eweight;
+	s->lb_node.key = s->served ? (s->served + 1) * SRV_EWGHT_MAX / s->next_eweight : 0;
 	eb32_insert(s->lb_tree, &s->lb_node);
 }
 
