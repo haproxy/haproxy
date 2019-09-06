@@ -231,25 +231,15 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 			continue;
 		}
 
-		/* it looks complicated but gcc can optimize it away when constants
-		 * have same values... In fact it depends on gcc :-(
-		 */
-		if (POLLIN == FD_POLL_IN && POLLOUT == FD_POLL_OUT &&
-		    POLLERR == FD_POLL_ERR && POLLHUP == FD_POLL_HUP) {
-			n = e & (POLLIN|POLLOUT|POLLERR|POLLHUP);
-		}
-		else {
-			n =     ((e & POLLIN ) ? FD_POLL_IN  : 0) |
-				((e & POLLOUT) ? FD_POLL_OUT : 0) |
-				((e & POLLERR) ? FD_POLL_ERR : 0) |
-				((e & POLLHUP) ? FD_POLL_HUP : 0);
-		}
+		n = ((e & POLLIN)    ? FD_EV_READY_R : 0) |
+		    ((e & POLLOUT)   ? FD_EV_READY_W : 0) |
+		    ((e & POLLRDHUP) ? FD_EV_SHUT_R  : 0) |
+		    ((e & POLLHUP)   ? FD_EV_SHUT_RW : 0) |
+		    ((e & POLLERR)   ? FD_EV_ERR_RW  : 0);
 
-		/* always remap RDHUP to HUP as they're used similarly */
-		if (e & POLLRDHUP) {
+		if ((e & POLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
 			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
-			n |= FD_POLL_HUP;
-		}
+
 		fd_update_events(fd, n);
 	}
 

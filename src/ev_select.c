@@ -210,10 +210,10 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 			}
 
 			if (FD_ISSET(fd, tmp_evts[DIR_RD]))
-				n |= FD_POLL_IN;
+				n |= FD_EV_READY_R;
 
 			if (FD_ISSET(fd, tmp_evts[DIR_WR]))
-				n |= FD_POLL_OUT;
+				n |= FD_EV_READY_W;
 
 			fd_update_events(fd, n);
 		}

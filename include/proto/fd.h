@@ -318,20 +318,32 @@ static inline void fd_want_send(int fd)
 	updt_fd_polling(fd);
 }
 
-/* Update events seen for FD <fd> and its state if needed. This should be called
- * by the poller to set FD_POLL_* flags. */
-static inline void fd_update_events(int fd, int evts)
+/* Update events seen for FD <fd> and its state if needed. This should be
+ * called by the poller, passing FD_EV_*_{R,W,RW} in <evts>. FD_EV_ERR_*
+ * doesn't need to also pass FD_EV_SHUT_*, it's implied. ERR and SHUT are
+ * allowed to be reported regardless of R/W readiness.
+ */
+static inline void fd_update_events(int fd, unsigned char evts)
 {
 	unsigned long locked = atleast2(fdtab[fd].thread_mask);
 	unsigned char old, new;
+	int new_flags;
+
+	new_flags =
+	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |
+	      ((evts & FD_EV_READY_W) ? FD_POLL_OUT : 0) |
+	      ((evts & FD_EV_SHUT_R)  ? FD_POLL_HUP : 0) |
+	      ((evts & FD_EV_SHUT_W)  ? FD_POLL_ERR : 0) |
+	      ((evts & FD_EV_ERR_R)   ? FD_POLL_ERR : 0) |
+	      ((evts & FD_EV_ERR_W)   ? FD_POLL_ERR : 0);
 
 	old = fdtab[fd].ev;
-	new = (old & FD_POLL_STICKY) | evts;
+	new = (old & FD_POLL_STICKY) | new_flags;
 
 	if (unlikely(locked)) {
 		/* Locked FDs (those with more than 2 threads) are atomically updated */
 		while (unlikely(new != old && !_HA_ATOMIC_CAS(&fdtab[fd].ev, &old, new)))
-			new = (old & FD_POLL_STICKY) | evts;
+			new = (old & FD_POLL_STICKY) | new_flags;
 	} else {
 		if (new != old)
 			fdtab[fd].ev = new;

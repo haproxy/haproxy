@@ -241,14 +241,10 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 		/*
 		 * Set bits based on the events we received from the port:
 		 */
-		if (events & POLLIN)
-			n |= FD_POLL_IN;
-		if (events & POLLOUT)
-			n |= FD_POLL_OUT;
-		if (events & POLLERR)
-			n |= FD_POLL_ERR;
-		if (events & POLLHUP)
-			n |= FD_POLL_HUP;
+		n = ((e & POLLIN)    ? FD_EV_READY_R : 0) |
+		    ((e & POLLOUT)   ? FD_EV_READY_W : 0) |
+		    ((e & POLLHUP)   ? FD_EV_SHUT_RW : 0) |
+		    ((e & POLLERR)   ? FD_EV_ERR_RW  : 0);
 
 		/*
 		 * Call connection processing callbacks.  Note that it's
