@@ -249,6 +249,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 {
 	if (srv && srv->pool_purge_delay > 0 &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
+	    (srv->cur_sess + srv->curr_idle_conns <= srv->counters.cur_sess_max) &&
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn) &&
