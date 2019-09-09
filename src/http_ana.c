@@ -4399,15 +4399,31 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 
 	for (h = lookup; h <= end - 4; h++) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			appctx->ctx.stats.flags &= ~STAT_FMT_HTML;
+			appctx->ctx.stats.flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
 			break;
 		}
 	}
 
 	for (h = lookup; h <= end - 6; h++) {
 		if (memcmp(h, ";typed", 6) == 0) {
-			appctx->ctx.stats.flags &= ~STAT_FMT_HTML;
+			appctx->ctx.stats.flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
 			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
+			break;
+		}
+	}
+
+	for (h = lookup; h <= end - 5; h++) {
+		if (memcmp(h, ";json", 5) == 0) {
+			appctx->ctx.stats.flags &= ~(STAT_FMT_MASK|STAT_JSON_SCHM);
+			appctx->ctx.stats.flags |= STAT_FMT_JSON;
+			break;
+		}
+	}
+
+	for (h = lookup; h <= end - 12; h++) {
+		if (memcmp(h, ";json-schema", 12) == 0) {
+			appctx->ctx.stats.flags &= ~STAT_FMT_MASK;
+			appctx->ctx.stats.flags |= STAT_JSON_SCHM;
 			break;
 		}
 	}

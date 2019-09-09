@@ -251,6 +251,7 @@ static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 /* one line of stats */
 static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
+static void stats_dump_json_schema(struct buffer *out);
 
 static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 {
@@ -2527,6 +2528,12 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 		      scope_txt);
 
 	chunk_appendf(&trash,
+	              "<li><a href=\"%s;json%s%s\">JSON export</a> (<a href=\"%s;json-schema\">schema</a>)<br>\n",
+	              uri->uri_prefix,
+	              (uri->refresh > 0) ? ";norefresh" : "",
+		      scope_txt, uri->uri_prefix);
+
+	chunk_appendf(&trash,
 	              "</ul></td>"
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>External resources:</b><ul style=\"margin-top: 0.25em;\">\n"
@@ -2682,6 +2689,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 	case STAT_ST_HEAD:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 			stats_dump_html_head(uri);
+		else if (appctx->ctx.stats.flags & STAT_JSON_SCHM)
+			stats_dump_json_schema(&trash);
 		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
 			stats_dump_json_header();
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
@@ -2690,6 +2699,10 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 		if (!stats_putchk(rep, htx, &trash))
 			goto full;
 
+		if (appctx->ctx.stats.flags & STAT_JSON_SCHM) {
+			appctx->st2 = STAT_ST_FIN;
+			return 1;
+		}
 		appctx->st2 = STAT_ST_INFO;
 		/* fall through */
 
@@ -3122,6 +3135,10 @@ static int stats_send_http_headers(struct stream_interface *si, struct htx *htx)
 		goto full;
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		if (!htx_add_header(htx, ist("Content-Type"), ist("text/html")))
+			goto full;
+	}
+	else if (appctx->ctx.stats.flags & (STAT_FMT_JSON|STAT_JSON_SCHM)) {
+		if (!htx_add_header(htx, ist("Content-Type"), ist("application/json")))
 			goto full;
 	}
 	else {
