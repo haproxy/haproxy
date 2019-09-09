@@ -98,11 +98,14 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	htx = htxbuf(&req->buf);
 
 	/* Parsing errors are caught here */
-	if (htx->flags & HTX_FL_PARSING_ERROR) {
+	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
 		stream_inc_http_req_ctr(s);
 		stream_inc_http_err_ctr(s);
 		proxy_inc_fe_req_ctr(sess->fe);
-		goto return_bad_req;
+		if (htx->flags & HTX_FL_PARSING_ERROR)
+			goto return_bad_req;
+		else
+			goto return_int_err;
 	}
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
@@ -349,7 +352,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (ret) {
 				/* we fail this request, let's return 503 service unavail */
 				txn->status = 503;
-				http_reply_and_close(s, txn->status, http_error_message(s));
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 				goto return_prx_cond;
@@ -358,7 +360,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* nothing to fail, let's reply normally */
 		txn->status = 200;
-		http_reply_and_close(s, txn->status, http_error_message(s));
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 		goto return_prx_cond;
@@ -431,16 +432,29 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	return 1;
 
+ return_int_err:
+	txn->status = 500;
+	txn->req.err_state = txn->req.msg_state;
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	goto return_prx_cond;
+
  return_bad_req:
 	txn->status = 400;
 	txn->req.err_state = txn->req.msg_state;
 	txn->req.msg_state = HTTP_MSG_ERROR;
-	http_reply_and_close(s, txn->status, http_error_message(s));
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	/* fall through */
 
  return_prx_cond:
+	http_reply_and_close(s, txn->status, http_error_message(s));
+
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
@@ -1016,6 +1030,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
 	if (htx->flags & HTX_FL_PARSING_ERROR)
 		goto return_bad_req;
+	if (htx->flags & HTX_FL_PROCESSING_ERROR)
+		goto return_int_err;
 
 	if (msg->msg_state < HTTP_MSG_BODY)
 		goto missing_data;
@@ -1043,7 +1059,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
  missing_data:
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
-		http_reply_and_close(s, txn->status, http_error_message(s));
 
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_CLITO;
@@ -1073,18 +1088,31 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	req->analyse_exp = TICK_ETERNITY;
 	return 1;
 
+ return_int_err:
+	txn->req.err_state = txn->req.msg_state;
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 500;
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+	goto return_err_msg;
+
  return_bad_req: /* let's centralize all bad requests */
 	txn->req.err_state = txn->req.msg_state;
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
+	/* fall through */
 
  return_err_msg:
+	http_reply_and_close(s, txn->status, http_error_message(s));
+
 	req->analysers &= AN_REQ_FLT_END;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
@@ -1122,11 +1150,17 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	htx = htxbuf(&req->buf);
 
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_req;
+	if (htx->flags & HTX_FL_PROCESSING_ERROR)
+		goto return_int_err;
+
 	if ((req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((req->flags & CF_SHUTW) && (req->to_forward || co_data(req)))) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
+
 		/* Don't abort yet if we had L7 retries activated and it
 		 * was a write error, we may recover.
 		 */
@@ -1261,9 +1295,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (req->flags & CF_SHUTW)
 		goto return_srv_abort;
 
-	if (htx->flags & HTX_FL_PARSING_ERROR)
-		goto return_bad_req;
-
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
 	 * And when content-length is used, we never want to let the possible
@@ -1306,6 +1337,12 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
 	status = 502;
+	goto return_error;
+
+  return_int_err:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	status = 500;
 	goto return_error;
 
   return_bad_req:
@@ -1415,6 +1452,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	/* Parsing errors are caught here */
 	if (htx->flags & HTX_FL_PARSING_ERROR)
 		goto return_bad_res;
+	if (htx->flags & HTX_FL_PROCESSING_ERROR)
+		goto return_int_err;
 
 	/*
 	 * Now we quickly check if we have found a full valid response.
@@ -1752,7 +1791,14 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	channel_auto_close(rep);
 	return 1;
 
- return_bad_res:
+ return_int_err:
+	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	txn->status = 500;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	goto return_error;
+
+  return_bad_res:
 	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 	if (objt_server(s->target)) {
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
@@ -1763,14 +1809,19 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	    do_l7_retry(s, si_b) == 0)
 		return 0;
 	txn->status = 502;
-	s->si[1].flags |= SI_FL_NOLINGER;
+	/* fall through */
+
+ return_error:
 	http_reply_and_close(s, txn->status, http_error_message(s));
-	rep->analysers &= AN_RES_FLT_END;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
+
+	s->si[1].flags |= SI_FL_NOLINGER;
+	rep->analysers &= AN_RES_FLT_END;
+	rep->analyse_exp = TICK_ETERNITY;
 	return 0;
 
  abort_keep_alive:
@@ -2105,6 +2156,11 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	htx = htxbuf(&res->buf);
 
+	if (htx->flags & HTX_FL_PARSING_ERROR)
+		goto return_bad_res;
+	if (htx->flags & HTX_FL_PROCESSING_ERROR)
+		goto return_int_err;
+
 	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((res->flags & CF_SHUTW) && (res->to_forward || co_data(res)))) {
 		/* Output closed while we were sending data. We must abort and
@@ -2208,9 +2264,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (res->flags & CF_SHUTW)
 		goto return_cli_abort;
 
-	if (htx->flags & HTX_FL_PARSING_ERROR)
-		goto return_bad_res;
-
 	/* stop waiting for data if the input is closed before the end. If the
 	 * client side was already closed, it means that the client has aborted,
 	 * so we don't want to count this as a server abort. Otherwise it's a
@@ -2263,6 +2316,12 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_CLICL;
+	goto return_error;
+
+  return_int_err:
+	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
 	goto return_error;
 
   return_bad_res:
