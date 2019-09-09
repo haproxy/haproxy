@@ -158,8 +158,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			txn->status = 400;
-			msg->err_state = msg->msg_state;
-			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, NULL);
 			req->analysers &= AN_REQ_FLT_END;
 
@@ -187,8 +185,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			txn->status = 408;
-			msg->err_state = msg->msg_state;
-			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 			req->analysers &= AN_REQ_FLT_END;
 
@@ -216,8 +212,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 			txn->status = 400;
-			msg->err_state = msg->msg_state;
-			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 			req->analysers &= AN_REQ_FLT_END;
 
@@ -434,8 +428,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
  return_int_err:
 	txn->status = 500;
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
@@ -445,8 +437,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
  return_bad_req:
 	txn->status = 400;
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
@@ -684,8 +674,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	goto return_prx_cond;
 
  return_bad_req:
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -753,8 +741,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		struct ist uri, path;
 
 		if (!sockaddr_alloc(&s->target_addr)) {
-			txn->req.err_state = txn->req.msg_state;
-			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
 			req->analysers &= AN_REQ_FLT_END;
 			http_reply_and_close(s, txn->status, http_error_message(s));
@@ -944,8 +930,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	return 1;
 
  return_bad_req: /* let's centralize all bad requests */
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	req->analysers &= AN_REQ_FLT_END;
 	http_reply_and_close(s, txn->status, http_error_message(s));
@@ -1089,8 +1073,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	return 1;
 
  return_int_err:
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 500;
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -1100,8 +1082,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	goto return_err_msg;
 
  return_bad_req: /* let's centralize all bad requests */
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -1167,7 +1147,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		if (!(req->flags & (CF_READ_ERROR | CF_READ_TIMEOUT)) &&
 		    (s->si[1].flags & SI_FL_L7_RETRY))
 			return 0;
-		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_end_request(s);
 		http_end_response(s);
@@ -1354,8 +1333,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	status = 400;
 
   return_error:
-	txn->req.err_state = txn->req.msg_state;
-	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (txn->status > 0) {
 		/* Note: we don't send any error if some data were already sent */
 		http_reply_and_close(s, txn->status, NULL);
@@ -2166,7 +2143,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
-		msg->err_state = msg->msg_state;
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_end_response(s);
 		http_end_request(s);
@@ -2334,8 +2310,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		s->flags |= SF_ERR_SRVCL;
 
    return_error:
-	txn->rsp.err_state = txn->rsp.msg_state;
-	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
 	res->analysers   &= AN_RES_FLT_END;
@@ -4773,7 +4747,6 @@ static void http_end_request(struct stream *s)
 			goto http_msg_closed;
 		}
 		else if (chn->flags & CF_SHUTW) {
-			txn->req.err_state = txn->req.msg_state;
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			goto end;
 		}
@@ -4882,7 +4855,6 @@ static void http_end_response(struct stream *s)
 			goto http_msg_closed;
 		}
 		else if (chn->flags & CF_SHUTW) {
-			txn->rsp.err_state = txn->rsp.msg_state;
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
 			_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 			if (objt_server(s->target))
