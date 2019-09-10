@@ -6142,7 +6142,7 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 /* used for ppv2 pkey alog (can be used for logging) */
 int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 	struct pkey_info *pkinfo;
 	int bits = 0;
 	int sig = TLSEXT_signature_anonymous;
@@ -6150,7 +6150,7 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
-
+	ctx = conn->xprt_ctx;
 	pkinfo = SSL_CTX_get_ex_data(SSL_get_SSL_CTX(ctx->ssl), ssl_pkey_info_index);
 	if (pkinfo) {
 		sig = pkinfo->sig;
@@ -6201,13 +6201,14 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 /* used for ppv2 cert signature (can be used for logging) */
 const char *ssl_sock_get_cert_sig(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	__OPENSSL_110_CONST__ ASN1_OBJECT *algorithm;
 	X509 *crt;
 
 	if (!ssl_sock_is_ssl(conn))
 		return NULL;
+	ctx = conn->xprt_ctx;
 	crt = SSL_get_certificate(ctx->ssl);
 	if (!crt)
 		return NULL;
@@ -6219,10 +6220,11 @@ const char *ssl_sock_get_cert_sig(struct connection *conn)
 const char *ssl_sock_get_sni(struct connection *conn)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return NULL;
+	ctx = conn->xprt_ctx;
 	return SSL_get_servername(ctx->ssl, TLSEXT_NAMETYPE_host_name);
 #else
 	return NULL;
@@ -6232,22 +6234,22 @@ const char *ssl_sock_get_sni(struct connection *conn)
 /* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_cipher_name(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return NULL;
-
+	ctx = conn->xprt_ctx;
 	return SSL_get_cipher_name(ctx->ssl);
 }
 
 /* used for logging/ppv2, may be changed for a sample fetch later */
 const char *ssl_sock_get_proto_version(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return NULL;
-
+	ctx = conn->xprt_ctx;
 	return SSL_get_version(ctx->ssl);
 }
 
@@ -6453,11 +6455,11 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out)
 void ssl_sock_set_alpn(struct connection *conn, const unsigned char *alpn, int len)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return;
-
+	ctx = conn->xprt_ctx;
 	SSL_set_alpn_protos(ctx->ssl, alpn, len);
 #endif
 }
@@ -6468,12 +6470,13 @@ void ssl_sock_set_alpn(struct connection *conn, const unsigned char *alpn, int l
 void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	char *prev_name;
 
 	if (!ssl_sock_is_ssl(conn))
 		return;
+	ctx = conn->xprt_ctx;
 
 	/* if the SNI changes, we must destroy the reusable context so that a
 	 * new connection will present a new SNI. As an optimization we could
@@ -6498,7 +6501,7 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 int ssl_sock_get_remote_common_name(struct connection *conn,
 				    struct buffer *dest)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 	X509 *crt = NULL;
 	X509_NAME *name;
 	const char find_cn[] = "CN";
@@ -6510,6 +6513,7 @@ int ssl_sock_get_remote_common_name(struct connection *conn,
 
 	if (!ssl_sock_is_ssl(conn))
 		goto out;
+	ctx = conn->xprt_ctx;
 
 	/* SSL_get_peer_certificate, it increase X509 * ref count */
 	crt = SSL_get_peer_certificate(ctx->ssl);
@@ -6531,11 +6535,12 @@ out:
 /* returns 1 if client passed a certificate for this session, 0 if not */
 int ssl_sock_get_cert_used_sess(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 	X509 *crt = NULL;
 
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
+	ctx = conn->xprt_ctx;
 
 	/* SSL_get_peer_certificate, it increase X509 * ref count */
 	crt = SSL_get_peer_certificate(ctx->ssl);
@@ -6549,22 +6554,22 @@ int ssl_sock_get_cert_used_sess(struct connection *conn)
 /* returns 1 if client passed a certificate for this connection, 0 if not */
 int ssl_sock_get_cert_used_conn(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
-
+	ctx = conn->xprt_ctx;
 	return SSL_SOCK_ST_FL_VERIFY_DONE & ctx->xprt_st ? 1 : 0;
 }
 
 /* returns result from SSL verify */
 unsigned int ssl_sock_get_verify_result(struct connection *conn)
 {
-	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+	struct ssl_sock_ctx *ctx;
 
 	if (!ssl_sock_is_ssl(conn))
 		return (unsigned int)X509_V_ERR_APPLICATION_VERIFICATION;
-
+	ctx = conn->xprt_ctx;
 	return (unsigned int)SSL_get_verify_result(ctx->ssl);
 }
 
