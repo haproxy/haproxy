@@ -14391,6 +14391,11 @@ thread : integer
   the function, between 0 and (global.nbthread-1). This is useful for logging
   and debugging purposes.
 
+uuid([<version>]) : string
+  Returns a random UUID, following the RFC4122 standard. If the version is not
+  specified, a UUID version 4 (fully random) is returned.
+  Currently, only version 4 is supported.
+
 var(<var-name>) : undefined
   Returns a variable with the stored type. If the variable is not set, the
   sample fetch fails. The name of the variable starts with an indication
