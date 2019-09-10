@@ -1065,7 +1065,7 @@ void listener_accept(int fd)
 		if (!LIST_ISEMPTY(&global_listener_queue))
 			dequeue_all_listeners(&global_listener_queue);
 
-		if (!LIST_ISEMPTY(&p->listener_queue) &&
+		if (p && !LIST_ISEMPTY(&p->listener_queue) &&
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
 			dequeue_all_listeners(&p->listener_queue);
 	}
