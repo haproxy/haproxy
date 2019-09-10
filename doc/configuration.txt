@@ -14316,6 +14316,11 @@ rand([<range>]) : integer
   needed to take some routing decisions for example, or just for debugging
   purposes. This random must not be used for security purposes.
 
+uuid([<version>]) : string
+  Returns a UUID following the RFC4122 standard. If the version is not
+  specified, a UUID version 4 (fully random) is returned.
+  Currently, only version 4 is supported.
+
 srv_conn([<backend>/]<server>) : integer
   Returns an integer value corresponding to the number of currently established
   connections on the designated server, possibly including the connection being

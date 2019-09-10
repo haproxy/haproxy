@@ -3196,6 +3196,60 @@ static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, cons
 	return 1;
 }
 
+// This function checks the "uuid" sample's arguments.
+// Function won't get called when no parameter is specified (maybe a bug?)
+static int smp_check_uuid(struct arg *args, char **err)
+{
+	if (!args[0].type) {
+		args[0].type = ARGT_SINT;
+		args[0].data.sint = 4;
+	}
+	else if (args[0].data.sint != 4) {
+		memprintf(err, "Unsupported UUID version: '%lld'", args[0].data.sint);
+		return 0;
+	}
+
+	return 1;
+}
+
+// Generate a RFC4122 UUID (default is v4 = fully random)
+static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (args[0].data.sint == 4 || !args[0].type) {
+		uint32_t rnd[4] = { 0, 0, 0, 0 };
+		uint64_t last = 0;
+		int byte = 0;
+		uint8_t bits = 0;
+		unsigned int rand_max_bits = my_flsl(RAND_MAX);
+
+		while (byte < 4) {
+			while (bits < 32) {
+				last |= (uint64_t)random() << bits;
+				bits += rand_max_bits;
+			}
+			rnd[byte++] = last;
+			last >>= 32u;
+			bits  -= 32;
+		}
+
+		chunk_printf(&trash, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
+			     rnd[0],
+			     rnd[1] & 0xFFFF,
+			     ((rnd[1] >> 16u) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
+			     (rnd[2] & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
+			     (long long)((rnd[2] >> 14u) | ((uint64_t) rnd[3] << 18u)) & 0xFFFFFFFFFFFFull
+			);
+
+		smp->data.type = SMP_T_STR;
+		smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+		smp->data.u.str = trash;
+		return 1;
+	}
+
+	// more implementations of other uuid formats possible here
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -3214,6 +3268,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
+	{ "uuid",         smp_fetch_uuid,  ARG1(0, SINT),      smp_check_uuid, SMP_T_STR, SMP_USE_INTRN },
 
 	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
