@@ -3196,27 +3196,44 @@ static int smp_fetch_const_meth(const struct arg *args, struct sample *smp, cons
 	return 1;
 }
 
-// Generate a RFC4122 v4 UUID (fully random)
-
-char smp_fetch_uuid_res[37];
-
+// Generate a RFC4122 UUID (default is v4 = fully random)
 static int
 smp_fetch_uuid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-    sprintf(smp_fetch_uuid_res, "%8.8x-%4.4x-4%3.3x-%4.4x-%7.7x%5.5x",
-            (unsigned int) ((random() + 2*random()) % 4294967296), // random() only gives 31 bits of randomness, using it twice to get 32 bits
-            (unsigned int) (random() % 65536), // getting 16 bits
-            (unsigned int) (random() % 4096),  // getting 12 bits
-            (unsigned int) (random() % 16384) + 32768,  // getting 14 bits, setting the first two bits to 1 and 0...
-            (unsigned int) (random() % 268435456), // getting 28 bits
-            (unsigned int) (random() % 1048576) // getting 20 bits
-    );
+    if (!args[0].data.sint || args[0].data.sint == 4) {
+        uint32_t rnd[4] = { 0, 0, 0, 0 };
+        uint64_t last = 0;
+        int byte = 0;
+        uint8_t bits = 0;
+        unsigned int rand_max_bits = my_flsl(RAND_MAX);
 
-    smp->data.type = SMP_T_STR;
-    smp->flags = SMP_F_MAY_CHANGE;
-    smp->data.u.str.area = smp_fetch_uuid_res;
-    smp->data.u.str.data = strlen(smp_fetch_uuid_res);
-    return 1;
+        while (byte < 4) {
+            while (bits < 32) {
+                last |= (uint64_t)random() << bits;
+                bits += rand_max_bits;
+            }
+            rnd[byte++] = last;
+            last >>= 32u;
+            bits  -= 32;
+        }
+
+        chunk_printf(&trash, "%8.8x-%4.4x-4%3.3x-%4.4x-%12.12llx",
+                     rnd[0], // first 32 bits
+                     rnd[1] % 65536, // getting fist 16 bits
+                     (rnd[1] >> 16u) % 4096,  // getting bits 17 - 28 (12 bits), leaving out bits 29 - 32
+                     (rnd[2] % 16384) + 32768,  // getting first 14 bits, setting the first two bits to 1 and 0...
+                     (*(((uint64_t*) rnd) + 1) >> 14u) % 281474976710656 // getting 48 bits (last 18 of rnd[2] + first 30 of rnd[3], 281474976710656 = 2^48)
+        );
+
+        smp->data.type = SMP_T_STR;
+        smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;;
+        smp->data.u.str = trash;
+
+        return 1;
+    }
+
+    // more implementations of other uuid formats possible here
+    return 0;
 
 }
 
@@ -3238,7 +3255,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
-	{ "uuid",         smp_fetch_uuid,  0,            NULL, SMP_T_STR, SMP_USE_INTRN },
+	{ "uuid",         smp_fetch_uuid,  ARG1(0, SINT),      NULL, SMP_T_STR, SMP_USE_INTRN },
 
 	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
