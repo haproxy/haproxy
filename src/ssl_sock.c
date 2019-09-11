@@ -2797,58 +2797,11 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 	return order;
 }
 
-
-/* The following code is used for loading multiple crt files into
- * SSL_CTX's based on CN/SAN
- */
-/* This is used to preload the certifcate, private key
- * and Cert Chain of a file passed in via the crt
- * argument
- *
- * This way, we do not have to read the file multiple times
- */
-struct cert_key_and_chain {
-	X509 *cert;
-	EVP_PKEY *key;
-	STACK_OF(X509) *chain;
-	DH *dh;
-};
-
-/*
- * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
- * metadata.
- */
-struct ckch_store {
-	struct cert_key_and_chain *ckch;
-	int multi; /* is it a multi-cert bundle ? */
-	struct ebmb_node node;
-	char path[0];
-};
-
 /*
  * tree used to store the ckchs ordered by filename/bundle name
  */
 struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-
-#define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
-
-struct key_combo_ctx {
-	SSL_CTX *ctx;
-	int order;
-};
-
-/* Map used for processing multiple keypairs for a single purpose
- *
- * This maps CN/SNI name to certificate type
- */
-struct sni_keytype {
-	int keytypes;			  /* BITMASK for keytypes */
-	struct ebmb_node name;    /* node holding the servername value */
-};
-
-#endif
 
 /* Loads Diffie-Hellman parameter from a ckchs. Returns 1 if loaded, else -1
    if an error occurred, and 0 if parameter not found. */
