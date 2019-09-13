@@ -3362,9 +3362,9 @@ int main(int argc, char **argv)
 		pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
 		/* Create nbthread-1 thread. The first thread is the current process */
-		thread_info[0].pthread = pthread_self();
+		ha_thread_info[0].pthread = pthread_self();
 		for (i = 1; i < global.nbthread; i++)
-			pthread_create(&thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
+			pthread_create(&ha_thread_info[i].pthread, NULL, &run_thread_poll_loop, (void *)(long)i);
 
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
@@ -3391,7 +3391,7 @@ int main(int argc, char **argv)
 					CPU_SET(j - 1, &cpuset);
 					cpu_map &= ~(1UL << (j - 1));
 				}
-				pthread_setaffinity_np(thread_info[i].pthread,
+				pthread_setaffinity_np(ha_thread_info[i].pthread,
 						       sizeof(cpuset), &cpuset);
 			}
 		}
@@ -3405,7 +3405,7 @@ int main(int argc, char **argv)
 
 		/* Wait the end of other threads */
 		for (i = 1; i < global.nbthread; i++)
-			pthread_join(thread_info[i].pthread, NULL);
+			pthread_join(ha_thread_info[i].pthread, NULL);
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 		show_lock_stats();

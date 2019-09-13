@@ -29,8 +29,8 @@
 #include <types/global.h>
 #include <proto/fd.h>
 
-struct thread_info thread_info[MAX_THREADS] = { };
-THREAD_LOCAL struct thread_info *ti = &thread_info[0];
+struct thread_info ha_thread_info[MAX_THREADS] = { };
+THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];
 
 #ifdef USE_THREAD
 
@@ -134,7 +134,7 @@ void thread_sync_release()
 /* send signal <sig> to thread <thr> */
 void ha_tkill(unsigned int thr, int sig)
 {
-	pthread_kill(thread_info[thr].pthread, sig);
+	pthread_kill(ha_thread_info[thr].pthread, sig);
 }
 
 /* send signal <sig> to all threads. The calling thread is signaled last in
@@ -149,7 +149,7 @@ void ha_tkillall(int sig)
 			continue;
 		if (thr == tid)
 			continue;
-		pthread_kill(thread_info[thr].pthread, sig);
+		pthread_kill(ha_thread_info[thr].pthread, sig);
 	}
 	raise(sig);
 }

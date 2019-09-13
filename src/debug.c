@@ -45,9 +45,9 @@ volatile unsigned long threads_to_dump = 0;
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 {
 	unsigned long thr_bit = 1UL << thr;
-	unsigned long long p = thread_info[thr].prev_cpu_time;
-	unsigned long long n = now_cpu_time_thread(&thread_info[thr]);
-	int stuck = !!(thread_info[thr].flags & TI_FL_STUCK);
+	unsigned long long p = ha_thread_info[thr].prev_cpu_time;
+	unsigned long long n = now_cpu_time_thread(&ha_thread_info[thr]);
+	int stuck = !!(ha_thread_info[thr].flags & TI_FL_STUCK);
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"

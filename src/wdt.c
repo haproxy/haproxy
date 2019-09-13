@@ -43,7 +43,7 @@ int wdt_ping(int thr)
 
 	its.it_value.tv_sec    = 1; its.it_value.tv_nsec    = 0;
 	its.it_interval.tv_sec = 0; its.it_interval.tv_nsec = 0;
-	return timer_settime(thread_info[thr].wd_timer, 0, &its, NULL) == 0;
+	return timer_settime(ha_thread_info[thr].wd_timer, 0, &its, NULL) == 0;
 }
 
 /* This is the WDTSIG signal handler */
@@ -68,8 +68,8 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (thr < 0 || thr >= global.nbthread)
 			break;
 
-		p = thread_info[thr].prev_cpu_time;
-		n = now_cpu_time_thread(&thread_info[thr]);
+		p = ha_thread_info[thr].prev_cpu_time;
+		n = now_cpu_time_thread(&ha_thread_info[thr]);
 
 		/* not yet reached the deadline of 1 sec */
 		if (n - p < 1000000000UL)
@@ -94,8 +94,8 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 * If it's already set, then it's our second call with no
 		 * progress and the thread is dead.
 		 */
-		if (!(thread_info[thr].flags & TI_FL_STUCK)) {
-			_HA_ATOMIC_OR(&thread_info[thr].flags, TI_FL_STUCK);
+		if (!(ha_thread_info[thr].flags & TI_FL_STUCK)) {
+			_HA_ATOMIC_OR(&ha_thread_info[thr].flags, TI_FL_STUCK);
 			goto update_and_leave;
 		}
 
@@ -118,7 +118,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	 * the current one not involved in this.
 	 */
 	if (thr != tid)
-		pthread_kill(thread_info[thr].pthread, sig);
+		pthread_kill(ha_thread_info[thr].pthread, sig);
 	else
 		ha_panic();
 	return;
