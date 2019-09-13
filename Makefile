@@ -356,7 +356,7 @@ endif
 # Mac OS/X
 ifeq ($(TARGET),osx)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_KQUEUE)
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE)
   EXPORT_SYMBOL  = -export_dynamic
 endif
 
