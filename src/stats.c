@@ -244,6 +244,8 @@ const char *stat_field_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = "reuse",
 	[ST_F_CACHE_LOOKUPS]  = "cache_lookups",
 	[ST_F_CACHE_HITS]     = "cache_hits",
+	[ST_F_SRV_ICUR]       = "srv_icur",
+	[ST_F_SRV_ILIM]       = "src_ilim"
 };
 
 /* one line of info */
