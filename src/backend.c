@@ -1268,7 +1268,7 @@ int connect_server(struct stream *s)
 	}
 
 	if (((!reuse || (srv_conn && !(srv_conn->flags & CO_FL_CONNECTED)))
-	    && ha_used_fds > global.tune.pool_high_count) && srv->idle_orphan_conns) {
+	    && ha_used_fds > global.tune.pool_high_count) && srv && srv->idle_orphan_conns) {
 		struct connection *tokill_conn;
 
 		/* We can't reuse a connection, and e have more FDs than deemd
