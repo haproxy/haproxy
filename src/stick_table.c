@@ -3556,8 +3556,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 	if (appctx->ctx.table.data_type < 0)
 		return cli_err(appctx, "Unknown data type\n");
 
-	if (!((struct proxy *)appctx->ctx.table.target)->table ||
-	    !((struct proxy *)appctx->ctx.table.target)->table->data_ofs[appctx->ctx.table.data_type])
+	if (!((struct stktable *)appctx->ctx.table.target)->data_ofs[appctx->ctx.table.data_type])
 		return cli_err(appctx, "Data type not stored in this table\n");
 
 	appctx->ctx.table.data_op = get_std_op(args[4]);
