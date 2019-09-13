@@ -176,9 +176,8 @@ enum h2_ss {
 
 /* stream flags indicating how data is supposed to be sent */
 #define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
-#define H2_SF_DATA_CHNK         0x00000200 // data sent using chunked-encoding
 
-/* unused flags: 0x00000400, 0x00000800 */
+/* unused flags: 0x00000200, 0x00000400, 0x00000800 */
 
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
 #define H2_SF_OUTGOING_DATA     0x00002000  // set whenever we've seen outgoing data
@@ -4042,7 +4041,6 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * The <flags> field must point to either the stream's flags or to a copy of it
  * so that the function can update the following flags :
  *   - H2_SF_DATA_CLEN when content-length is seen
- *   - H2_SF_DATA_CHNK when chunking should be used for the H1 conversion
  *   - H2_SF_HEADERS_RCVD once the frame is successfully decoded
  *
  * The H2_SF_HEADERS_RCVD flag is also looked at in the <flags> field prior to
@@ -4224,8 +4222,6 @@ next_frame:
 			*flags |= H2_SF_DATA_CLEN;
 			htx->extra = *body_len;
 		}
-		else if (!(msgf & H2_MSGF_BODY_TUNNEL) && !htx)
-			*flags |= H2_SF_DATA_CHNK;
 	}
 
  done:
