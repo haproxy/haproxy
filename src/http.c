@@ -980,3 +980,34 @@ int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, str
 
         return 1;
 }
+
+/* Parses value of a Status header with the following format: "Status: Code[
+ * Reason]".  The parsing is pretty naive and just skip spaces. It return the
+ * numeric value of the status code.
+ */
+int http_parse_status_val(const struct ist value, struct ist *status, struct ist *reason)
+{
+	char *p   = value.ptr;
+        char *end = p + value.len;
+	uint16_t code;
+
+	status->len = reason->len = 0;
+
+	/* Skip leading spaces */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+        /* Set the status part */
+        status->ptr = p;
+        for (; p < end && HTTP_IS_TOKEN(*p); p++);
+        status->len = p - status->ptr;
+
+	/* Skip spaces between status and reason */
+        for (; p < end && HTTP_IS_SPHT(*p); p++);
+
+	/* the remaining is the reason */
+        reason->ptr = p;
+        reason->len = end - p;
+
+	code = strl2ui(status->ptr, status->len);
+	return code;
+}

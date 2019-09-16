@@ -154,6 +154,7 @@ int http_find_next_url_param(const char **chunks,
 
 int http_parse_header(const struct ist hdr, struct ist *name, struct ist *value);
 int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, struct ist *p3);
+int http_parse_status_val(const struct ist value, struct ist *status, struct ist *reason);
 
 /*
  * Given a path string and its length, find the position of beginning of the
