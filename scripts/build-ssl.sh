@@ -79,6 +79,10 @@ fi
 
 if [ ! -z ${BORINGSSL+x} ]; then
 	(
+
+	# travis-ci comes with go-1.11, while boringssl requires go-1.13
+	eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=1.13 bash)"
+
         download_boringssl
 	cd download-cache/boringssl
         if [ -d build ]; then rm -rf build; fi
