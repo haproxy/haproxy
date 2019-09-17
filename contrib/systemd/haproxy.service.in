@@ -11,6 +11,7 @@ ExecStart=@SBINDIR@/haproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
 ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q $EXTRAOPTS
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
+LimitNOFILE=infinity
 Restart=always
 SuccessExitStatus=143
 Type=notify
