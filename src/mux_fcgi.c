@@ -982,9 +982,11 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		params->cont_len = ist2(b_tail(params->p), end - b_tail(params->p));
 		params->p->data += params->cont_len.len;
 	}
+#ifdef USE_OPENSSL
 	if (!(params->mask & FCGI_SP_HTTPS)) {
 		params->https = ssl_sock_is_ssl(cli_conn);
 	}
+#endif
 	if ((params->mask & FCGI_SP_URI_MASK) != FCGI_SP_URI_MASK) {
 		/* one of scriptname, pathinfo or query_string is no set */
 		struct ist path = http_get_path(params->uri);
