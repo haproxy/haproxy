@@ -244,7 +244,6 @@ struct spoe_agent {
 	} timeout;
 
 	/* Config info */
-	char                 *engine_id;      /* engine-id string */
 	char                 *var_pfx;        /* Prefix used for vars set by the agent */
 	char                 *var_on_error;   /* Variable to set when an error occurred, in the TXN scope */
 	char                 *var_t_process;  /* Variable to set to report the processing time of the last event/group, in the TXN scope */
@@ -264,6 +263,7 @@ struct spoe_agent {
 
 	/* running info */
 	struct {
+		char           *engine_id;      /* engine-id string */
 		unsigned int    frame_size;     /* current maximum frame size, only used to encode messages */
 		unsigned int    processing;
 		struct freq_ctr processing_per_sec;
