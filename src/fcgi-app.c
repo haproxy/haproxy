@@ -620,8 +620,6 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	fcgi_conf->name = strdup(args[1]);
 	LIST_INIT(&fcgi_conf->param_rules);
 	LIST_INIT(&fcgi_conf->hdr_rules);
-	if (!fcgi_conf)
-		goto err;
 
 	/* Register the filter */
 	fconf = calloc(1, sizeof(*fconf));
