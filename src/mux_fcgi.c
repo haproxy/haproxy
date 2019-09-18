@@ -576,7 +576,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 		}
 		if (fconn->wait_event.tasklet)
 			tasklet_free(fconn->wait_event.tasklet);
-		if (fconn->wait_event.events != 0)
+		if (conn && fconn->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
 						&fconn->wait_event);
 	}
