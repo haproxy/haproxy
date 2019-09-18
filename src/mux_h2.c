@@ -923,9 +923,9 @@ static void h2_release(struct h2c *h2c)
 		}
 		if (h2c->wait_event.tasklet)
 			tasklet_free(h2c->wait_event.tasklet);
-		if (h2c->wait_event.events != 0)
+		if (conn && h2c->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
-			    &h2c->wait_event);
+						&h2c->wait_event);
 
 		pool_free(pool_head_h2c, h2c);
 	}
