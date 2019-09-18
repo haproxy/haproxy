@@ -525,18 +525,17 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	int pos = *cur_arg;
 
 	/* Get the fcgi-app name*/
-	if (!strcmp(args[pos], "fcgi-app")) {
-		if (!*args[pos + 1]) {
-			memprintf(err, "%s : expects a <name> argument", args[pos]);
-			goto err;
-		}
-		name = strdup(args[pos + 1]);
-		if (!name) {
-			memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
-			goto err;
-		}
-		pos += 2;
+	if (!*args[pos + 1]) {
+		memprintf(err, "%s : expects a <name> argument", args[pos]);
+		goto err;
 	}
+	name = strdup(args[pos + 1]);
+	if (!name) {
+		memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
+		goto err;
+	}
+	pos += 2;
+
 	/* Check if an fcgi-app filter with the same name already exists */
 	list_for_each_entry_safe(f, back, &px->filter_configs, list) {
 		if (f->id != fcgi_flt_id)
@@ -575,7 +574,6 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	return 0;
   err:
 	free(name);
-	//free(fcgi_conf);
 	return -1;
 }
 
