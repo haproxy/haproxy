@@ -353,7 +353,7 @@ static int ssl_locking_init(void)
 
 #endif
 
-
+__decl_hathreads(HA_SPINLOCK_T ckch_lock);
 
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
@@ -2356,6 +2356,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	}
 	trash.area[i] = 0;
 
+	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 	/* lookup in full qualified names */
 	node = ebst_lookup(&s->sni_ctx, trash.area);
 
@@ -2417,8 +2418,11 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				if (conf->early_data)
 					allow_early = 1;
 			}
+			HA_RWLOCK_RDUNLOCK(CKCH_LOCK, &s->sni_lock);
 			goto allow_early;
 	}
+
+	HA_RWLOCK_RDUNLOCK(CKCH_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 	if (s->generate_certs && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
@@ -2485,6 +2489,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	}
 	trash.area[i] = 0;
 
+	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 	/* lookup in full qualified names */
 	node = ebst_lookup(&s->sni_ctx, trash.area);
 
@@ -2503,9 +2508,11 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		if (s->generate_certs && ssl_sock_generate_certificate(servername, s, ssl)) {
 			/* switch ctx done in ssl_sock_generate_certificate */
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		if (s->strict_sni)
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
@@ -2514,6 +2521,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 
 	/* switch ctx */
 	ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
+	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif /* (!) OPENSSL_IS_BORINGSSL */
@@ -3270,6 +3278,10 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 
 	certs_and_keys = ckchs->ckch;
 
+	/* at least one of the instances is using filters during the config
+	 * parsing, that's ok to inherit this during loading on CLI */
+	ckchs->filters = !!fcount;
+
 	/* Process each ckch and update keytypes for each CN/SAN
 	 * for example, if CN/SAN www.a.com is associated with
 	 * certs with keytype 0 and 2, then at the end of the loop,
@@ -3442,6 +3454,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 	}
 
 	ckch_inst->bind_conf = bind_conf;
+	ckch_inst->ssl_conf = ssl_conf;
 end:
 
 	if (names)
@@ -3513,6 +3526,10 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 		return NULL;
 
 	ckch = ckchs->ckch;
+
+	/* at least one of the instances is using filters during the config
+	 * parsing, that's ok to inherit this during loading on CLI */
+	ckchs->filters = !!fcount;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
@@ -3635,6 +3652,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 
 	/* everything succeed, the ckch instance can be used */
 	ckch_inst->bind_conf = bind_conf;
+	ckch_inst->ssl_conf = ssl_conf;
 
 	return ckch_inst;
 
@@ -9545,6 +9563,159 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 }
 #endif
 
+static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *ckchs = NULL;
+	struct cert_key_and_chain *ckch;
+	struct list tmp_ckchi_list;
+	BIO *mem;
+	char *err = NULL;
+	char *end = NULL;
+	int j, i;
+	int found = 0;
+	int bundle = -1;
+	int ret = 0;
+
+	if (!*args[3] || !payload)
+		return cli_err(appctx, "'set ssl cert expects a filename and a certificat as a payload\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
+
+	LIST_INIT(&tmp_ckchi_list);
+
+	mem = BIO_new_mem_buf(payload, -1);
+	if (!mem) {
+		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+		ret = 1;
+		goto end;
+	}
+
+	/* do 2 iterations, first one with a non-bundle entry, second one with a bundle entry */
+	for (i = 0; i < 2; i++) {
+
+		if ((ckchs = ckchs_lookup(args[3])) != NULL) {
+			struct ckch_inst *ckchi, *ckchis;
+
+			/* only the bundle name is in the tree and you should never update a bundle name, only a filename */
+			if (bundle < 0 && ckchs->multi) {
+				memprintf(&err, "%s%s is a multi-cert bundle. Try updating %s.{dsa,rsa,ecdsa}\n",
+				          err ? err : "", args[3], args[3]);
+				ret = 1;
+				goto end;
+			}
+
+			if (bundle < 0)
+				ckch = ckchs->ckch;
+			else
+				ckch = &ckchs->ckch[bundle];
+
+			if (ckchs->filters) {
+				memprintf(&err, "%sCertificates used in crt-list with filters are not supported!\n",
+				          err ? err : "");
+				ret = 1;
+				goto end;
+			}
+
+			found = 1;
+
+			if (ssl_sock_load_crt_file_into_ckch(args[3], mem, ckch, &err) != 0) {
+				ret = 1;
+				goto end;
+			}
+
+			/* walk through ckch_inst and creates new ckch_inst using the updated ckch */
+			list_for_each_entry(ckchi, &ckchs->ckch_inst, by_ckchs) {
+				struct ckch_inst *new_inst;
+
+				if (ckchs->multi)
+					new_inst = ckch_inst_new_load_multi_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &err);
+				else
+					new_inst = ckch_inst_new_load_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &err);
+
+				if (!new_inst) {
+					ret = 1;
+					goto end;
+				}
+
+				/* link temporary the new ckch_inst */
+				LIST_ADDQ(&tmp_ckchi_list, &new_inst->by_ckchs);
+			}
+
+			/* once every allocation is done, delete the old sni_ctx & the old ckch_insts */
+			list_for_each_entry_safe(ckchi, ckchis, &ckchs->ckch_inst, by_ckchs) {
+				struct sni_ctx *sc0, *sc0s;
+
+				HA_RWLOCK_WRLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+					ebmb_delete(&sc0->name);
+					LIST_DEL(&sc0->by_ckch_inst);
+					free(sc0);
+				}
+				HA_RWLOCK_WRUNLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				LIST_DEL(&ckchi->by_ckchs);
+				free(ckchi);
+				ckchi = NULL;
+			}
+			/* insert every new ckch instance in the actual list and insert the sni_ctx in the trees  */
+			list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
+				LIST_DEL(&ckchi->by_ckchs);
+				LIST_ADD(&ckchs->ckch_inst, &ckchi->by_ckchs);
+				HA_RWLOCK_WRLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+				HA_RWLOCK_WRUNLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+			}
+		}
+
+		 /* check if it was also used as a bundle by removing the
+		*   .dsa/.rsa/.ecdsa at the end of the filename */
+		if (bundle >= 0)
+			break;
+		end = strrchr(args[3], '.');
+		for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
+			if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
+				bundle = j; /* keep the type of certificate so we insert it at the right place */
+				*end = '\0'; /* it's a bundle let's end the string*/
+				break;
+			}
+		}
+	}
+
+	if (!found) {
+		ret = 1;
+		memprintf(&err, "%sCan't replace a certificate name which is not referenced by the configuration!\n",
+		          err ? err : "");
+	}
+
+end:
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	BIO_free(mem);
+
+	if (ret != 0) {
+		struct ckch_inst *ckchi, *ckchis;
+		/* if the allocation failed, we need to free everything from the temporary list */
+		list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
+			struct sni_ctx *sc0, *sc0s;
+
+			list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+				if (sc0->order == 0) /* we only free if it's the first inserted */
+					SSL_CTX_free(sc0->ctx);
+				LIST_DEL(&sc0->by_ckch_inst);
+				free(sc0);
+			}
+			LIST_DEL(&ckchi->by_ckchs);
+			free(ckchi);
+		}
+		return cli_dynerr(appctx, memprintf(&err, "%sCan't update the certificate!\n", err ? err : ""));
+	} else {
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&err, "Certificate updated!"));
+	}
+}
+
 static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
@@ -9724,6 +9895,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "tls-key", NULL }, "set ssl tls-key [id|keyfile] <tlskey>: set the next TLS key for the <id> or <keyfile> listener to <tlskey>", cli_parse_set_tlskeys, NULL },
 #endif
 	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
+	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
@@ -10133,6 +10305,8 @@ static void __ssl_sock_init(void)
 	BIO_meth_set_destroy(ha_meth, ha_ssl_free);
 	BIO_meth_set_puts(ha_meth, ha_ssl_puts);
 	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
+
+	HA_SPIN_INIT(&ckch_lock);
 }
 
 /* Compute and register the version string */

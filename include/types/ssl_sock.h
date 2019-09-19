@@ -106,7 +106,8 @@ struct cert_key_and_chain {
  */
 struct ckch_store {
 	struct cert_key_and_chain *ckch;
-	int multi; /* is it a multi-cert bundle ? */
+	int multi:1; /* is it a multi-cert bundle ? */
+	int filters:1; /* one of the instances is using filters, TODO:remove this flag once filters are supported */
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct ebmb_node node;
 	char path[0];
@@ -121,6 +122,7 @@ struct ckch_store {
  */
 struct ckch_inst {
 	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
+	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
 };
