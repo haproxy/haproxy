@@ -2934,28 +2934,34 @@ static int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
 }
 #endif
 
-/* Loads the contents of a crt file (path) into a cert_key_and_chain
- * This allows us to carry the contents of the file without having to
- * read the file multiple times.
- * The caller must call ssl_sock_free_cert_key_and_chain_contents.
+/* Loads the contents of a crt file (path) or BIO into a cert_key_and_chain
+ * This allows us to carry the contents of the file without having to read the
+ * file multiple times.  The caller must call
+ * ssl_sock_free_cert_key_and_chain_contents.
  *
  * returns:
  *      0 on Success
  *      1 on SSL Failure
  */
-static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
+static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct cert_key_and_chain *ckch, char **err)
 {
 
-	BIO *in;
+	BIO *in = NULL;
 	X509 *ca;
 	int ret = 1;
 
-	in = BIO_new(BIO_s_file());
-	if (in == NULL)
-		goto end;
+	if (buf != NULL && path != NULL) {
+		in = buf;
+	} else if (path != NULL) {
+		in = BIO_new(BIO_s_file());
+		if (in == NULL)
+			goto end;
 
-	if (BIO_read_filename(in, path) <= 0)
+		if (BIO_read_filename(in, path) <= 0)
+			goto end;
+	} else {
 		goto end;
+	}
 
 	/* Read Private Key */
 	ckch->key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
@@ -3019,7 +3025,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, struct cert_key_an
 end:
 
 	ERR_clear_error();
-	if (in)
+	if (in && !buf)
 		BIO_free(in);
 
 	/* Something went wrong in one of the reads */
@@ -3166,7 +3172,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 
 	if (!multi) {
 
-		if (ssl_sock_load_crt_file_into_ckch(path, ckchs->ckch, err) == 1)
+		if (ssl_sock_load_crt_file_into_ckch(path, NULL, ckchs->ckch, err) == 1)
 			goto end;
 
 		/* insert into the ckchs tree */
@@ -3183,7 +3189,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 			struct stat buf;
 			snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
 			if (stat(fp, &buf) == 0) {
-				if (ssl_sock_load_crt_file_into_ckch(fp, &ckchs->ckch[n], err) == 1)
+				if (ssl_sock_load_crt_file_into_ckch(fp, NULL, &ckchs->ckch[n], err) == 1)
 					goto end;
 				found = 1;
 				ckchs->multi = 1;
