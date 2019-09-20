@@ -368,9 +368,11 @@ void process_runnable_tasks()
 		}
 #endif
 
+		/* Make sure the entry doesn't appear to be in a list */
+		MT_LIST_INIT(&((struct tasklet *)t)->list);
 		/* And add it to the local task list */
 		tasklet_insert_into_tasklet_list((struct tasklet *)t);
-		task_per_thread[tid].task_list_size++;
+		HA_ATOMIC_ADD(&task_per_thread[tid].task_list_size, 1);
 		activity[tid].tasksw++;
 	}
 
@@ -380,18 +382,19 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	while (max_processed > 0 && !LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
+	while (max_processed > 0 && !MT_LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
 		struct task *t;
 		unsigned short state;
 		void *ctx;
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 
-		t = (struct task *)LIST_ELEM(task_per_thread[tid].task_list.n, struct tasklet *, list);
+		t = (struct task *)MT_LIST_POP(&task_per_thread[tid].task_list, struct tasklet *, list);
+		if (!t)
+			break;
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
-		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
 		if (!TASK_IS_TASKLET(t))
-			task_per_thread[tid].task_list_size--;
+			_HA_ATOMIC_SUB(&task_per_thread[tid].task_list_size, 1);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -443,7 +446,7 @@ void process_runnable_tasks()
 		max_processed--;
 	}
 
-	if (!LIST_ISEMPTY(&task_per_thread[tid].task_list))
+	if (!MT_LIST_ISEMPTY(&task_per_thread[tid].task_list))
 		activity[tid].long_rq++;
 }
 
@@ -547,7 +550,7 @@ static void init_task()
 #endif
 	memset(&task_per_thread, 0, sizeof(task_per_thread));
 	for (i = 0; i < MAX_THREADS; i++) {
-		LIST_INIT(&task_per_thread[i].task_list);
+		MT_LIST_INIT(&task_per_thread[i].task_list);
 	}
 }
 

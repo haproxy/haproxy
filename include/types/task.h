@@ -61,7 +61,7 @@ struct notification {
 struct task_per_thread {
 	struct eb_root timers;  /* tree constituting the per-thread wait queue */
 	struct eb_root rqueue;  /* tree constituting the per-thread run queue */
-	struct list task_list;  /* List of tasks to be run, mixing tasks and tasklets */
+	struct mt_list task_list; /* List of tasks to be run, mixing tasks and tasklets */
 	int task_list_size;     /* Number of tasks in the task_list */
 	int rqueue_size;        /* Number of elements in the per-thread run queue */
 	__attribute__((aligned(64))) char end[0];
@@ -94,7 +94,8 @@ struct task {
 /* lightweight tasks, without priority, mainly used for I/Os */
 struct tasklet {
 	TASK_COMMON;			/* must be at the beginning! */
-	struct list list;
+	struct mt_list list;
+	int tid;                        /* TID of the tasklet owner */
 };
 
 #define TASK_IS_TASKLET(t) ((t)->nice == -32768)

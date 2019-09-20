@@ -57,7 +57,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	              !!(global_tasks_mask & thr_bit),
 	              !eb_is_empty(&task_per_thread[thr].timers),
 	              !eb_is_empty(&task_per_thread[thr].rqueue),
-	              !LIST_ISEMPTY(&task_per_thread[thr].task_list),
+	              !MT_LIST_ISEMPTY(&task_per_thread[thr].task_list),
 	              task_per_thread[thr].task_list_size,
 	              task_per_thread[thr].rqueue_size,
 	              stuck,

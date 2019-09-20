@@ -1638,6 +1638,8 @@ static int connect_conn_chk(struct task *t)
 	conn = cs->conn;
 	/* Maybe there were an older connection we were waiting on */
 	check->wait_list.events = 0;
+	tasklet_set_tid(check->wait_list.tasklet, tid);
+
 
 	if (!sockaddr_alloc(&conn->dst))
 		return SF_ERR_RESOURCE;
@@ -2890,6 +2892,8 @@ static int tcpcheck_main(struct check *check)
 				tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
 				cs_destroy(check->cs);
 			}
+
+			tasklet_set_tid(check->wait_list.tasklet, tid);
 
 			check->cs = cs;
 			conn = cs->conn;
