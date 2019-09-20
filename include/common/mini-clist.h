@@ -204,10 +204,17 @@ struct cond_wordlist {
 /*
  * Locked version of list manipulation macros.
  * It is OK to use those concurrently from multiple threads, as long as the
- * list is only used with the locked variants. The only "unlocked" macro you
- * can use with a locked list is LIST_INIT.
+ * list is only used with the locked variants.
+ */
+
+/*
+ * Add an item at the beginning of a list.
+ * Returns 1 if we added the item, 0 otherwise (because it was already in a
+ * list).
  */
 #define MT_LIST_ADD(lh, el)                                                \
+     ({                                                                    \
+        int _ret = 0;                                                      \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n;                                 \
@@ -233,11 +240,21 @@ struct cond_wordlist {
 			__ha_barrier_store();                              \
 			p->next = (el);                                    \
 			__ha_barrier_store();                              \
+			_ret = 1;                                          \
 			break;                                             \
 		}                                                          \
-	} while (0)
+	} while (0);                                                       \
+	(_ret);                                                            \
+     })
 
+/*
+ * Add an item at the end of a list.
+ * Returns 1 if we added the item, 0 otherwise (because it was already in a
+ * list).
+ */
 #define MT_LIST_ADDQ(lh, el)                                               \
+    ({                                                                     \
+	    int _ret = 0;                                   \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n;                                 \
@@ -263,11 +280,19 @@ struct cond_wordlist {
 			__ha_barrier_store();                              \
 			n->prev = (el);                                    \
 			__ha_barrier_store();                              \
+			_ret = 1;                                          \
 			break;                                             \
 		}                                                          \
-	} while (0)
+	} while (0);                                                       \
+	(_ret);                                                            \
+    })
 
+/* Remove an item from a list.
+ * Returns 1 if we removed the item, 0 otherwise (because it was in no list).
+ */
 #define MT_LIST_DEL(el)                                                    \
+    ({                                                                     \
+        int _ret = 0;                                                      \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n, *n2;                            \
@@ -303,13 +328,17 @@ struct cond_wordlist {
 			}                                                  \
 			n->prev = p;                                       \
 			p->next = n;                                       \
+			if (p != (el) && n != (el))                        \
+				_ret = 1;                                  \
 			__ha_barrier_store();                              \
 			(el)->prev = (el);                                 \
 			(el)->next = (el);                                 \
 			__ha_barrier_store();                              \
 			break;                                             \
 		}                                                          \
-	} while (0)
+	} while (0);                                                       \
+	(_ret);                                                            \
+    })
 
 
 /* Remove the first element from the list, and return it */
