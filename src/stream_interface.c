@@ -646,10 +646,6 @@ int si_cs_send(struct conn_stream *cs)
 	int ret;
 	int did_send = 0;
 
-	/* We're already waiting to be able to send, give up */
-	if (si->wait_event.events & SUB_RETRY_SEND)
-		return 0;
-
 	if (conn->flags & CO_FL_ERROR || cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING)) {
 		/* We're probably there because the tasklet was woken up,
 		 * but process_stream() ran before, detected there were an
@@ -662,6 +658,10 @@ int si_cs_send(struct conn_stream *cs)
 		si->flags |= SI_FL_ERR;
 		return 1;
 	}
+
+	/* We're already waiting to be able to send, give up */
+	if (si->wait_event.events & SUB_RETRY_SEND)
+		return 0;
 
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH || oc->flags & CF_SHUTW)
