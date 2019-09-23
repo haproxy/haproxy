@@ -2491,6 +2491,9 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
  */
 static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
+	struct buffer rxbuf = BUF_NULL;
+	unsigned long long body_len = 0;
+	uint32_t flags = 0;
 	int error;
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
@@ -2501,7 +2504,18 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
 		goto fail; // incomplete frame
 
-	error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len);
+	if (h2s->st != H2_SS_CLOSED) {
+		error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len);
+	}
+	else {
+		/* the connection was already killed by an RST, let's consume
+		 * the data and send another RST.
+		 */
+		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
+		h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		h2c->st0 = H2_CS_FRAME_E;
+		goto send_rst;
+	}
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -2542,6 +2556,18 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
  fail:
 	TRACE_DEVEL("leaving on missing data or error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return NULL;
+
+ send_rst:
+	/* make the demux send an RST for the current stream. We may only
+	 * do this if we're certain that the HEADERS frame was properly
+	 * decompressed so that the HPACK decoder is still kept up to date.
+	 */
+	h2_release_buf(h2c, &rxbuf);
+	h2c->st0 = H2_CS_FRAME_E;
+
+	TRACE_USER("rejected H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn,, &rxbuf);
+	TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
+	return h2s;
 }
 
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
@@ -2699,7 +2725,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			return 0;
 		}
 
-		if (h2s->flags & H2_SF_RST_RCVD && h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
+		if (h2s->flags & H2_SF_RST_RCVD && !(h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK)) {
 			/* RFC7540#5.1:closed: an endpoint that
 			 * receives any frame other than PRIORITY after
 			 * receiving a RST_STREAM MUST treat that as a
@@ -2717,7 +2743,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			 */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
 			h2c->st0 = H2_CS_FRAME_E;
-			TRACE_DEVEL("leaving in error (rst_rcvd&hdrmask)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
+			TRACE_DEVEL("leaving in error (rst_rcvd&!hdrmask)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 			return 0;
 		}
 
