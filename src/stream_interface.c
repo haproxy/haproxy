@@ -917,12 +917,6 @@ void si_sync_send(struct stream_interface *si)
 	if (!cs)
 		return;
 
-	if (cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING))
-		return;
-
-	if (cs->conn->flags & CO_FL_ERROR)
-		return;
-
 	si_cs_send(cs);
 }
 
