@@ -38,6 +38,8 @@
 #include <types/global.h>
 #include <types/task.h>
 
+#include <proto/fd.h>
+
 /* Principle of the wait queue.
  *
  * We want to be able to tell whether an expiration date is before of after the
@@ -226,8 +228,13 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
-	if (MT_LIST_ADDQ(&task_per_thread[tl->tid].task_list, &tl->list) == 1)
+	if (MT_LIST_ADDQ(&task_per_thread[tl->tid].task_list, &tl->list) == 1) {
 		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+		if (sleeping_thread_mask & (1 << tl->tid)) {
+			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1 << tl->tid));
+			wake_thread(tl->tid);
+		}
+	}
 
 }
 

@@ -2634,7 +2634,7 @@ static void run_poll_loop()
 		else {
 			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
 			__ha_barrier_atomic_store();
-			if (global_tasks_mask & tid_bit) {
+			if ((global_tasks_mask & tid_bit) || thread_has_tasks()) {
 				activity[tid].wake_tasks++;
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 			} else
