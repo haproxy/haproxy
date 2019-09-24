@@ -875,6 +875,9 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		}
 	}
 
+	/* the rest of the code below expects the connection to be ready! */
+	if (!(conn->flags & CO_FL_CONNECTED) && !done)
+		goto wait_more_data;
 
 	/* Intermediate or complete response received.
 	 * Terminate string in b_head(&check->bi) buffer.
