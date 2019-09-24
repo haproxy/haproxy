@@ -431,7 +431,7 @@ void process_runnable_tasks()
 		 * immediately, else we defer it into wait queue
 		 */
 		if (t != NULL) {
-			if (unlikely(!TASK_IS_TASKLET(t) && t->call_date)) {
+			if (unlikely(t->call_date)) {
 				t->cpu_time += now_mono_time() - t->call_date;
 				t->call_date = 0;
 			}
