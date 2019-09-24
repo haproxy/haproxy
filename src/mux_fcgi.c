@@ -613,12 +613,6 @@ static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 /* functions below are for the FCGI protocol processing */
 /********************************************************/
 
-/* Returns the stream if of stream <fstrm> or 0 if <strm> is NULL */
-static inline int fcgi_strm_id(const struct fcgi_strm *fstrm)
-{
-	return (fstrm ? fstrm->id : 0);
-}
-
 /* Marks an error on the stream. */
 static inline void fcgi_strm_error(struct fcgi_strm *fstrm)
 {
