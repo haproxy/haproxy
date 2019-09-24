@@ -1079,6 +1079,7 @@ static int promex_metric_to_str(struct buffer *out, struct field *f, size_t max)
 		case FF_U32:   ret = chunk_appendf(out, "%u\n", f->u.u32); break;
 		case FF_S64:   ret = chunk_appendf(out, "%lld\n", (long long)f->u.s64); break;
 		case FF_U64:   ret = chunk_appendf(out, "%llu\n", (unsigned long long)f->u.u64); break;
+		case FF_FLT:   ret = chunk_appendf(out, "%f\n", f->u.flt); break;
 		case FF_STR:   ret = chunk_strcat(out,  "Nan\n"); break;
 		default:       ret = chunk_strcat(out,  "Nan\n"); break;
 	}
@@ -1607,6 +1608,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 	uint32_t weight;
+	double secs;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
 		while (appctx->ctx.stats.px) {
@@ -1657,16 +1659,20 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
 					break;
 				case ST_F_QTIME:
-					metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES));
+					secs = (double)swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
+					metric = mkf_flt(FN_AVG, secs);
 					break;
 				case ST_F_CTIME:
-					metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES));
+					secs = (double)swrate_avg(px->be_counters.c_time, TIME_STATS_SAMPLES) / 1000.0;
+					metric = mkf_flt(FN_AVG, secs);
 					break;
 				case ST_F_RTIME:
-					metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES));
+					secs = (double)swrate_avg(px->be_counters.d_time, TIME_STATS_SAMPLES) / 1000.0;
+					metric = mkf_flt(FN_AVG, secs);
 					break;
 				case ST_F_TTIME:
-					metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES));
+					secs = (double)swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES) / 1000.0;
+					metric = mkf_flt(FN_AVG, secs);
 					break;
 				case ST_F_DREQ:
 					metric = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
@@ -1828,6 +1834,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 	uint32_t weight;
+	double secs;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
 		while (appctx->ctx.stats.px) {
@@ -1878,16 +1885,20 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						metric = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
 						break;
 					case ST_F_QTIME:
-						metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES));
+						secs = (double)swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
+						metric = mkf_flt(FN_AVG, secs);
 						break;
 					case ST_F_CTIME:
-						metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES));
+						secs = (double)swrate_avg(sv->counters.c_time, TIME_STATS_SAMPLES) / 1000.0;
+						metric = mkf_flt(FN_AVG, secs);
 						break;
 					case ST_F_RTIME:
-						metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
+						secs = (double)swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES) / 1000.0;
+						metric = mkf_flt(FN_AVG, secs);
 						break;
 					case ST_F_TTIME:
-						metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
+						secs = (double)swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES) / 1000.0;
+						metric = mkf_flt(FN_AVG, secs);
 						break;
 					case ST_F_CONNECT:
 						metric = mkf_u64(FN_COUNTER, sv->counters.connect);
