@@ -51,7 +51,7 @@ struct xfer_sock_list *xfer_sock_list = NULL;
 
 /* there is one listener queue per thread so that a thread unblocking the
  * global queue can wake up listeners bound only to foreing threads by
- * moving them to the remote queues and waking up the associated task.
+ * moving them to the remote queues and waking up the associated tasklet.
  */
 static struct work_list *local_listener_queue;
 
@@ -194,27 +194,27 @@ static struct task *accept_queue_process(struct task *t, void *context, unsigned
 
 	/* ran out of budget ? Let's come here ASAP */
 	if (!max_accept)
-		task_wakeup(t, TASK_WOKEN_IO);
+		tasklet_wakeup(ring->tasklet);
 
-	return t;
+	return NULL;
 }
 
 /* Initializes the accept-queues. Returns 0 on success, otherwise ERR_* flags */
 static int accept_queue_init()
 {
-	struct task *t;
+	struct tasklet *t;
 	int i;
 
 	for (i = 0; i < global.nbthread; i++) {
-		t = task_new(1UL << i);
+		t = tasklet_new();
 		if (!t) {
 			ha_alert("Out of memory while initializing accept queue for thread %d\n", i);
 			return ERR_FATAL|ERR_ABORT;
 		}
-		t->nice = -1024;
+		t->tid = i;
 		t->process = accept_queue_process;
 		t->context = &accept_queue_rings[i];
-		accept_queue_rings[i].task = t;
+		accept_queue_rings[i].tasklet = t;
 	}
 	return 0;
 }
@@ -994,7 +994,7 @@ void listener_accept(int fd)
 			ring = &accept_queue_rings[t];
 			if (accept_queue_push_mp(ring, cfd, l, &addr, laddr)) {
 				_HA_ATOMIC_ADD(&activity[t].accq_pushed, 1);
-				task_wakeup(ring->task, TASK_WOKEN_IO);
+				tasklet_wakeup(ring->tasklet);
 				continue;
 			}
 			/* If the ring is full we do a synchronous accept on

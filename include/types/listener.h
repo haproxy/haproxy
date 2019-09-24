@@ -292,7 +292,7 @@ struct accept_queue_entry {
 struct accept_queue_ring {
 	unsigned int head;
 	unsigned int tail;
-	struct task *task;  /* task of the thread owning this ring */
+	struct tasklet *tasklet;  /* tasklet of the thread owning this ring */
 	struct accept_queue_entry entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
 };
 
