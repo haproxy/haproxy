@@ -4739,6 +4739,17 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		hdr++;
 	}
 
+	/* Now add the server name to a header (if requested) */
+	if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name) {
+		struct server *srv = objt_server(h2c->conn->target);
+
+		if (srv) {
+			list[hdr].n = ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len);
+			list[hdr].v = ist(srv->id);
+			hdr++;
+		}
+	}
+
 	/* marker for end of headers */
 	list[hdr].n = ist("");
 

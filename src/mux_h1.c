@@ -70,7 +70,8 @@
 #define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
 #define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
 #define H1S_F_APPEND_EOM     0x00001000 /* Send EOM to the HTX buffer */
-/* 0x00002000 .. 0x00002000 unused */
+/* 0x00002000 .. 0x00001000 unused */
+#define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
 /* H1 connection descriptor */
@@ -1329,6 +1330,20 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					if (!chunk_memcat(&tmp, "transfer-encoding: chunked\r\n", 28))
 						goto copy;
 					h1m->flags |= H1_MF_CHNK;
+				}
+
+				/* Now add the server name to a header (if requested) */
+				if (!(h1s->flags & H1S_F_HAVE_SRV_NAME) &&
+				    !(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name) {
+					struct server *srv = objt_server(h1c->conn->target);
+
+					if (srv) {
+						n = ist2(h1c->px->server_id_hdr_name, h1c->px->server_id_hdr_len);
+						v = ist(srv->id);
+						if (!htx_hdr_to_h1(n, v, &tmp))
+							goto copy;
+					}
+					h1s->flags |= H1S_F_HAVE_SRV_NAME;
 				}
 
 				if (!chunk_memcat(&tmp, "\r\n", 2))

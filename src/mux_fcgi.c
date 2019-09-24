@@ -1603,6 +1603,24 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				break;
 
 			case HTX_BLK_EOH:
+				if (fconn->proxy->server_id_hdr_name) {
+					struct server *srv = objt_server(fconn->conn->target);
+
+					if (!srv)
+						goto done;
+
+					memcpy(trash.area, "http_", 5);
+					memcpy(trash.area+5, fconn->proxy->server_id_hdr_name, fconn->proxy->server_id_hdr_len);
+					p.n = ist2(trash.area, fconn->proxy->server_id_hdr_len+5);
+					p.v = ist(srv->id);
+
+					if (!fcgi_encode_param(&outbuf, &p)) {
+						if (b_space_wraps(mbuf))
+							goto realign_again;
+						if (outbuf.data == 8)
+							goto full;
+					}
+				}
 				goto done;
 
 			default:
