@@ -333,6 +333,7 @@ int stats_emit_raw_data_field(struct buffer *out, const struct field *f)
 	case FF_U32:   return chunk_appendf(out, "%u", f->u.u32);
 	case FF_S64:   return chunk_appendf(out, "%lld", (long long)f->u.s64);
 	case FF_U64:   return chunk_appendf(out, "%llu", (unsigned long long)f->u.u64);
+	case FF_FLT:   return chunk_appendf(out, "%f", f->u.flt);
 	case FF_STR:   return csv_enc_append(field_str(f, 0), 1, out) != NULL;
 	default:       return chunk_appendf(out, "[INCORRECT_FIELD_TYPE_%08x]", f->type);
 	}
@@ -350,6 +351,7 @@ int stats_emit_typed_data_field(struct buffer *out, const struct field *f)
 	case FF_U32:   return chunk_appendf(out, "u32:%u", f->u.u32);
 	case FF_S64:   return chunk_appendf(out, "s64:%lld", (long long)f->u.s64);
 	case FF_U64:   return chunk_appendf(out, "u64:%llu", (unsigned long long)f->u.u64);
+	case FF_FLT:   return chunk_appendf(out, "flt:%f", f->u.flt);
 	case FF_STR:   return chunk_appendf(out, "str:%s", field_str(f, 0));
 	default:       return chunk_appendf(out, "%08x:?", f->type);
 	}
@@ -389,6 +391,8 @@ int stats_emit_json_data_field(struct buffer *out, const struct field *f)
 		       type = "\"u64\"";
 		       snprintf(buf, sizeof(buf), "%llu",
 				(unsigned long long) f->u.u64);
+	case FF_FLT:   type = "\"flt\"";
+		       snprintf(buf, sizeof(buf), "%f", f->u.flt);
 		       break;
 	case FF_STR:   type = "\"str\"";
 		       value = field_str(f, 0);

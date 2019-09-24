@@ -198,6 +198,7 @@ enum field_format {
 	FF_S64      = 0x00000003,
 	FF_U64      = 0x00000004,
 	FF_STR      = 0x00000005,
+	FF_FLT      = 0x00000006,
 	FF_MASK     = 0x000000FF,
 };
 
@@ -245,6 +246,7 @@ struct field {
 		uint32_t    u32; /* FF_U32 */
 		int64_t     s64; /* FF_S64 */
 		uint64_t    u64; /* FF_U64 */
+		double      flt; /* FF_FLT */
 		const char *str; /* FF_STR */
 	} u;
 };

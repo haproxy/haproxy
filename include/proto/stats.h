@@ -84,6 +84,12 @@ static inline struct field mkf_str(uint32_t type, const char *value)
 	return f;
 }
 
+static inline struct field mkf_flt(uint32_t type, double value)
+{
+	struct field f = { .type = FF_FLT | type, .u.flt = value };
+	return f;
+}
+
 extern const char *stat_status_codes[];
 
 /* These two structs contains all field names according with
