@@ -91,7 +91,7 @@ extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
-extern THREAD_LOCAL struct task *curr_task; /* task currently running or NULL */
+extern THREAD_LOCAL struct task_per_thread *sched; /* current's thread scheduler context */
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
@@ -132,11 +132,11 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 	struct eb_root *root;
 
 	if (t->thread_mask == tid_bit || global.nbthread == 1)
-		root = &task_per_thread[tid].rqueue;
+		root = &sched->rqueue;
 	else
 		root = &rqueue;
 #else
-	struct eb_root *root = &task_per_thread[tid].rqueue;
+	struct eb_root *root = &sched->rqueue;
 #endif
 
 	state = _HA_ATOMIC_OR(&t->state, f);
@@ -201,7 +201,7 @@ static inline struct task *__task_unlink_rq(struct task *t)
 		global_rqueue_size--;
 	} else
 #endif
-		task_per_thread[tid].rqueue_size--;
+		sched->rqueue_size--;
 	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
 		_HA_ATOMIC_SUB(&niced_tasks, 1);
@@ -236,7 +236,7 @@ static inline void tasklet_wakeup(struct tasklet *tl)
  */
 static inline void tasklet_insert_into_tasklet_list(struct tasklet *tl)
 {
-	if (MT_LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list) == 1)
+	if (MT_LIST_ADDQ(&sched->task_list, &tl->list) == 1)
 		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 }
 
@@ -317,8 +317,8 @@ static inline struct task *task_new(unsigned long thread_mask)
  */
 static inline void __task_free(struct task *t)
 {
-	if (t == curr_task) {
-		curr_task = NULL;
+	if (t == sched->current) {
+		sched->current = NULL;
 		__ha_barrier_store();
 	}
 	pool_free(pool_head_task, t);
@@ -346,7 +346,7 @@ static inline void task_destroy(struct task *t)
 	/* There's no need to protect t->state with a lock, as the task
 	 * has to run on the current thread.
 	 */
-	if (t == curr_task || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
+	if (t == sched->current || !(t->state & (TASK_QUEUED | TASK_RUNNING)))
 		__task_free(t);
 	else
 		t->process = NULL;
@@ -401,7 +401,7 @@ static inline void task_queue(struct task *task)
 #endif
 	{
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &task_per_thread[tid].timers);
+			__task_queue(task, &sched->timers);
 	}
 }
 
@@ -434,7 +434,7 @@ static inline void task_schedule(struct task *task, int when)
 
 		task->expire = when;
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &task_per_thread[tid].timers);
+			__task_queue(task, &sched->timers);
 	}
 }
 
@@ -537,8 +537,8 @@ static inline int notification_registered(struct list *wake)
 static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
-	        (task_per_thread[tid].rqueue_size > 0) |
-	        !MT_LIST_ISEMPTY(&task_per_thread[tid].task_list));
+	        (sched->rqueue_size > 0) |
+	        !MT_LIST_ISEMPTY(&sched->task_list));
 }
 
 /* adds list item <item> to work list <work> and wake up the associated task */

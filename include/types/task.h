@@ -64,6 +64,7 @@ struct task_per_thread {
 	struct mt_list task_list; /* List of tasks to be run, mixing tasks and tasklets */
 	int task_list_size;     /* Number of tasks in the task_list */
 	int rqueue_size;        /* Number of elements in the per-thread run queue */
+	struct task *current;   /* current task (not tasklet) */
 	__attribute__((aligned(64))) char end[0];
 };
 

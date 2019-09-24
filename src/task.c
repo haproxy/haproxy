@@ -41,7 +41,7 @@ unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
-THREAD_LOCAL struct task *curr_task = NULL; /* task (not tasklet) currently running or NULL */
+THREAD_LOCAL struct task_per_thread *sched = &task_per_thread[0]; /* scheduler context for the current thread */
 
 __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
 __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
@@ -159,7 +159,7 @@ void __task_queue(struct task *task, struct eb_root *wq)
  */
 int wake_expired_tasks()
 {
-	struct task_per_thread * const tt = &task_per_thread[tid]; // thread's tasks
+	struct task_per_thread * const tt = sched; // thread's tasks
 	struct task *task;
 	struct eb32_node *eb;
 	int ret = TICK_ETERNITY;
@@ -300,7 +300,7 @@ leave:
  */
 void process_runnable_tasks()
 {
-	struct task_per_thread * const tt = &task_per_thread[tid]; // thread's tasks
+	struct task_per_thread * const tt = sched;
 	struct eb32sc_node *lrq = NULL; // next local run queue entry
 	struct eb32sc_node *grq = NULL; // next global run queue entry
 	struct task *t;
@@ -418,7 +418,7 @@ void process_runnable_tasks()
 			t->call_date = now_ns;
 		}
 
-		curr_task = t;
+		sched->current = t;
 		__ha_barrier_store();
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
@@ -426,7 +426,7 @@ void process_runnable_tasks()
 			t = process(t, ctx, state);
 		else {
 			__task_free(t);
-			curr_task = NULL;
+			sched->current = NULL;
 			__ha_barrier_store();
 			/* We don't want max_processed to be decremented if
 			 * we're just freeing a destroyed task, we should only
@@ -434,7 +434,7 @@ void process_runnable_tasks()
 			 */
 			continue;
 		}
-		curr_task = NULL;
+		sched->current = NULL;
 		__ha_barrier_store();
 		/* If there is a pending state  we have to wake up the task
 		 * immediately, else we defer it into wait queue

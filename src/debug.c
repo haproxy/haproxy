@@ -77,7 +77,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		return;
 
 	chunk_appendf(buf, "             curr_task=");
-	ha_task_dump(buf, curr_task, "             ");
+	ha_task_dump(buf, sched->current, "             ");
 }
 
 
