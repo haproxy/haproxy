@@ -159,6 +159,7 @@ void __task_queue(struct task *task, struct eb_root *wq)
  */
 int wake_expired_tasks()
 {
+	struct task_per_thread * const tt = &task_per_thread[tid]; // thread's tasks
 	struct task *task;
 	struct eb32_node *eb;
 	int ret = TICK_ETERNITY;
@@ -166,13 +167,13 @@ int wake_expired_tasks()
 
 	while (1) {
   lookup_next_local:
-		eb = eb32_lookup_ge(&task_per_thread[tid].timers, now_ms - TIMER_LOOK_BACK);
+		eb = eb32_lookup_ge(&tt->timers, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
 			/* we might have reached the end of the tree, typically because
 			* <now_ms> is in the first half and we're first scanning the last
 			* half. Let's loop back to the beginning of the tree now.
 			*/
-			eb = eb32_first(&task_per_thread[tid].timers);
+			eb = eb32_first(&tt->timers);
 			if (likely(!eb))
 				break;
 		}
@@ -202,7 +203,7 @@ int wake_expired_tasks()
 		 */
 		if (!tick_is_expired(task->expire, now_ms)) {
 			if (tick_isset(task->expire))
-				__task_queue(task, &task_per_thread[tid].timers);
+				__task_queue(task, &tt->timers);
 			goto lookup_next_local;
 		}
 		task_wakeup(task, TASK_WOKEN_TIMER);
@@ -299,6 +300,7 @@ leave:
  */
 void process_runnable_tasks()
 {
+	struct task_per_thread * const tt = &task_per_thread[tid]; // thread's tasks
 	struct eb32sc_node *lrq = NULL; // next local run queue entry
 	struct eb32sc_node *grq = NULL; // next global run queue entry
 	struct task *t;
@@ -320,7 +322,7 @@ void process_runnable_tasks()
 
 	/* Note: the grq lock is always held when grq is not null */
 
-	while (task_per_thread[tid].task_list_size < max_processed) {
+	while (tt->task_list_size < max_processed) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -340,9 +342,9 @@ void process_runnable_tasks()
 		 */
 
 		if (!lrq) {
-			lrq = eb32sc_lookup_ge(&task_per_thread[tid].rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			lrq = eb32sc_lookup_ge(&tt->rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!lrq))
-				lrq = eb32sc_first(&task_per_thread[tid].rqueue, tid_bit);
+				lrq = eb32sc_first(&tt->rqueue, tid_bit);
 		}
 
 		if (!lrq && !grq)
@@ -372,7 +374,7 @@ void process_runnable_tasks()
 		MT_LIST_INIT(&((struct tasklet *)t)->list);
 		/* And add it to the local task list */
 		tasklet_insert_into_tasklet_list((struct tasklet *)t);
-		HA_ATOMIC_ADD(&task_per_thread[tid].task_list_size, 1);
+		HA_ATOMIC_ADD(&tt->task_list_size, 1);
 		activity[tid].tasksw++;
 	}
 
@@ -382,19 +384,19 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	while (max_processed > 0 && !MT_LIST_ISEMPTY(&task_per_thread[tid].task_list)) {
+	while (max_processed > 0 && !MT_LIST_ISEMPTY(&tt->task_list)) {
 		struct task *t;
 		unsigned short state;
 		void *ctx;
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 
-		t = (struct task *)MT_LIST_POP(&task_per_thread[tid].task_list, struct tasklet *, list);
+		t = (struct task *)MT_LIST_POP(&tt->task_list, struct tasklet *, list);
 		if (!t)
 			break;
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
 		if (!TASK_IS_TASKLET(t))
-			_HA_ATOMIC_SUB(&task_per_thread[tid].task_list_size, 1);
+			_HA_ATOMIC_SUB(&tt->task_list_size, 1);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -446,7 +448,7 @@ void process_runnable_tasks()
 		max_processed--;
 	}
 
-	if (!MT_LIST_ISEMPTY(&task_per_thread[tid].task_list))
+	if (!MT_LIST_ISEMPTY(&tt->task_list))
 		activity[tid].long_rq++;
 }
 
