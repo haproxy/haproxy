@@ -359,10 +359,6 @@ static inline void tasklet_free(struct tasklet *tl)
 			_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
 
-	if ((struct task *)tl == curr_task) {
-		curr_task = NULL;
-		__ha_barrier_store();
-	}
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
 		pool_flush(pool_head_tasklet);

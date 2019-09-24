@@ -41,7 +41,7 @@ unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
-THREAD_LOCAL struct task *curr_task = NULL; /* task currently running or NULL */
+THREAD_LOCAL struct task *curr_task = NULL; /* task (not tasklet) currently running or NULL */
 
 __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
 __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
@@ -395,8 +395,6 @@ void process_runnable_tasks()
 			break;
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
-		if (!TASK_IS_TASKLET(t))
-			_HA_ATOMIC_SUB(&tt->task_list_size, 1);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -404,19 +402,28 @@ void process_runnable_tasks()
 		process = t->process;
 		t->calls++;
 
-		if (unlikely(!TASK_IS_TASKLET(t) && t->call_date)) {
+		if (TASK_IS_TASKLET(t)) {
+			process(NULL, ctx, state);
+			max_processed--;
+			continue;
+		}
+
+		/* OK then this is a regular task */
+
+		_HA_ATOMIC_SUB(&tt->task_list_size, 1);
+		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
 
 			t->lat_time += now_ns - t->call_date;
 			t->call_date = now_ns;
 		}
 
-		curr_task = (struct task *)t;
+		curr_task = t;
 		__ha_barrier_store();
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
 		else if (process != NULL)
-			t = process(TASK_IS_TASKLET(t) ? NULL : t, ctx, state);
+			t = process(t, ctx, state);
 		else {
 			__task_free(t);
 			curr_task = NULL;
