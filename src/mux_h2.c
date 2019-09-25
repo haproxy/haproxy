@@ -3399,7 +3399,7 @@ static int h2_send(struct h2c *h2c)
 	/* We're not full anymore, so we can wake any task that are waiting
 	 * for us.
 	 */
-	if (!(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM))) {
+	if (!(h2c->flags & (H2_CF_MUX_MFULL | H2_CF_DEM_MROOM)) && h2c->st0 >= H2_CS_FRAME_H) {
 		struct h2s *h2s;
 
 		list_for_each_entry(h2s, &h2c->send_list, list) {
