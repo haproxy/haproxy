@@ -502,12 +502,18 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	if (src->verbosity > H2_VERB_CLEAN) {
-		if (!h2s || h2c->st0 < H2_CS_FRAME_H)
-			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
-		else if (h2s->id <= 0)
-			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s) dsi=%d h2s=%p(%d,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0), h2c->dsi, h2s, h2s->id, h2s_st_to_str(h2s->st));
-		else
-			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s) h2s=%p(%d,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0), h2s, h2s->id, h2s_st_to_str(h2s->st));
+		chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
+
+		if (h2c->dsi >= 0 &&
+		    (mask & (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) == (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) {
+			chunk_appendf(&trace_buf, " dft=%s/%02x", h2_ft_str(h2c->dft), h2c->dff);
+		}
+
+		if (h2s) {
+			if (h2s->id <= 0)
+				chunk_appendf(&trace_buf, " dsi=%d", h2c->dsi);
+			chunk_appendf(&trace_buf, " h2s=%p(%d,%s)", h2s, h2s->id, h2s_st_to_str(h2s->st));
+		}
 	}
 
 	/* Let's dump decoded requests and responses right after parsing. They
@@ -2922,7 +2928,6 @@ static void h2_process_demux(struct h2c *h2c)
 				b_del(&h2c->dbuf, 1);
 			}
 			h2_skip_frame_hdr(&h2c->dbuf);
-			TRACE_STATE("rcvd H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 
 		new_frame:
 			h2c->dfl = hdr.len;
@@ -2930,8 +2935,8 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->dft = hdr.ft;
 			h2c->dff = hdr.ff;
 			h2c->dpl = padlen;
+			TRACE_STATE("rcvd H2 frame header, switching to FRAME_P state", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			h2c->st0 = H2_CS_FRAME_P;
-			TRACE_STATE("switching to FRAME_P state", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 
 			/* check for minimum basic frame format validity */
 			ret = h2_frame_check(h2c->dft, 1, h2c->dsi, h2c->dfl, global.tune.bufsize);
@@ -3093,8 +3098,9 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
-			TRACE_STATE("switching to FRAME_H", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			b_del(&h2c->dbuf, h2c->dfl);
+			h2c->dsi = -1;
+			TRACE_STATE("switching to FRAME_H", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 			h2c->st0 = H2_CS_FRAME_H;
 		}
 	}
