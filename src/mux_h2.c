@@ -503,11 +503,11 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 	if (src->verbosity > H2_VERB_CLEAN) {
 		if (!h2s || h2c->st0 < H2_CS_FRAME_H)
-			chunk_appendf(&trace_buf, " : h2c=%p(%s)", h2c, h2c_st_to_str(h2c->st0));
+			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
 		else if (h2s->id <= 0)
-			chunk_appendf(&trace_buf, " : h2c=%p(%s) dsi=%d h2s=%p(%d,%s)", h2c, h2c_st_to_str(h2c->st0), h2c->dsi, h2s, h2s->id, h2s_st_to_str(h2s->st));
+			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s) dsi=%d h2s=%p(%d,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0), h2c->dsi, h2s, h2s->id, h2s_st_to_str(h2s->st));
 		else
-			chunk_appendf(&trace_buf, " : h2c=%p(%s) h2s=%p(%d,%s)", h2c, h2c_st_to_str(h2c->st0), h2s, h2s->id, h2s_st_to_str(h2s->st));
+			chunk_appendf(&trace_buf, " : h2c=%p(%c,%s) h2s=%p(%d,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0), h2s, h2s->id, h2s_st_to_str(h2s->st));
 	}
 
 	/* Let's dump decoded requests and responses right after parsing. They
