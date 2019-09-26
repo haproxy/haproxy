@@ -250,7 +250,7 @@ static void sink_init()
 {
 	sink_new_fd("stdout", "standard output (fd#1)", SINK_FMT_RAW, 1);
 	sink_new_fd("stderr", "standard output (fd#2)", SINK_FMT_RAW, 2);
-	sink_new_buf("buf0",  "in-memory ring buffer", SINK_FMT_RAW, 1048576);
+	sink_new_buf("buf0",  "in-memory ring buffer", SINK_FMT_TIMED, 1048576);
 }
 
 static void sink_deinit()
