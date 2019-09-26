@@ -22,6 +22,7 @@
 #include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
+#include <common/time.h>
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/ring.h>
@@ -149,13 +150,19 @@ ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
 	struct ist pfx[4];
 	size_t npfx = 0;
 
-	if (sink->fmt == SINK_FMT_SHORT) {
+	if (sink->fmt == SINK_FMT_SHORT || sink->fmt == SINK_FMT_TIMED) {
 		short_hdr[0] = '<';
 		short_hdr[1] = '0' + sink->syslog_minlvl;
 		short_hdr[2] = '>';
 
 		pfx[npfx].ptr = short_hdr;
 		pfx[npfx].len = 3;
+		npfx++;
+        }
+
+	if (sink->fmt == SINK_FMT_ISO || sink->fmt == SINK_FMT_TIMED) {
+		pfx[npfx].ptr = timeofday_as_iso_us(1);
+		pfx[npfx].len = 27;
 		npfx++;
         }
 
