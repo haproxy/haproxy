@@ -103,6 +103,8 @@ REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
  */
 REGPRM2 void tv_update_date(int max_wait, int interrupted);
 
+char *timeofday_as_iso_us(int pad);
+
 /*
  * sets a struct timeval to its highest value so that it can never happen
  * note that only tv_usec is necessary to detect it since a tv_usec > 999999
