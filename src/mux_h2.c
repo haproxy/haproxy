@@ -3786,10 +3786,11 @@ static void h2_detach(struct conn_stream *cs)
 				}
 			}
 			if (eb_is_empty(&h2c->streams_by_id)) {
-				if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0)
+				if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
 					/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
 					TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
 					return;
+				}
 			}
 			/* Never ever allow to reuse a connection from a non-reuse backend */
 			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
