@@ -2518,7 +2518,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 * the data and send another RST.
 		 */
 		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
-		h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		h2s = (struct h2s*)h2_error_stream;
 		h2c->st0 = H2_CS_FRAME_E;
 		goto send_rst;
 	}
