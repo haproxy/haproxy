@@ -1090,7 +1090,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 // FIXME: Add rep.fcgi smp_fetch
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fcgi.docroot",        smp_fetch_fcgi_docroot,        0, NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "fcgi.index",          smp_fetch_fcgi_index,          0, NULL,    SMP_T_STR,  SMP_USE_HRQHV }
+	{ "fcgi.index",          smp_fetch_fcgi_index,          0, NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ /* END */ }
 }};
 
 /* Declare the filter parser for "fcgi-app" keyword */
