@@ -2440,7 +2440,7 @@ show stat [{<iid>|<proxy>} <type> <sid>] [typed|json]
   $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
     python -m json.tool
 
-show stat resolvers [<resolvers section id>]
+show resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections
   if no section is supplied.
 
