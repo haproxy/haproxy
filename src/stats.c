@@ -391,6 +391,7 @@ int stats_emit_json_data_field(struct buffer *out, const struct field *f)
 		       type = "\"u64\"";
 		       snprintf(buf, sizeof(buf), "%llu",
 				(unsigned long long) f->u.u64);
+		       break;
 	case FF_FLT:   type = "\"flt\"";
 		       snprintf(buf, sizeof(buf), "%f", f->u.flt);
 		       break;
