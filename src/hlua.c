@@ -713,8 +713,8 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			memcpy(trash.area, argp[idx].data.str.area,
 			       argp[idx].data.str.data);
 			trash.area[argp[idx].data.str.data] = 0;
-			argp[idx].data.prx = proxy_tbl_by_name(trash.area);
-			if (!argp[idx].data.prx)
+			argp[idx].data.t = stktable_find_by_name(trash.area);
+			if (!argp[idx].data.t)
 				WILL_LJMP(luaL_argerror(L, first + idx, "table doesn't exist"));
 			argp[idx].type = ARGT_TAB;
 			break;
