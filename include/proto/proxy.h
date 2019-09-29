@@ -97,14 +97,6 @@ static inline struct proxy *proxy_be_by_name(const char *name)
 	return proxy_find_by_name(name, PR_CAP_BE, 0);
 }
 
-/* Find the table having name <name>. The name may also start with a '#' to
- * reference a numeric id. NULL is returned if not found.
- */
-static inline struct proxy *proxy_tbl_by_name(const char *name)
-{
-	return proxy_find_by_name(name, 0, 1);
-}
-
 /* this function initializes all timeouts for proxy p */
 static inline void proxy_reset_timeouts(struct proxy *proxy)
 {
