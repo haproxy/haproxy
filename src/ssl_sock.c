@@ -2925,11 +2925,12 @@ static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain 
 
 /* checks if a key and cert exists in the ckch
  */
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 static int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
 {
 	return (ckch->cert != NULL && ckch->key != NULL);
 }
-
+#endif
 
 /* Loads the contents of a crt file (path) into a cert_key_and_chain
  * This allows us to carry the contents of the file without having to
