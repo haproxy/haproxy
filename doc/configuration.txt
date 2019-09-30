@@ -18049,8 +18049,8 @@ no option get-values
     * FCGI_MAX_REQS     The maximum number of concurrent requests this
                         application will accept.
 
-    * FCGI_MPXS_CONNS   “0” if this application does not multiplex connections,
-                        “1” otherwise.
+    * FCGI_MPXS_CONNS   "0" if this application does not multiplex connections,
+                        "1" otherwise.
 
   Some FastCGI applications does not support this feature. Some others close
   the connexion immediately after sending their response. So, by default, this
