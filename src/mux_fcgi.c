@@ -2626,14 +2626,14 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 
 }
 
-static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
+static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx **htx,
 				   struct buffer *buf, size_t *ofs, size_t max, struct buffer *htxbuf)
 {
 	int ret;
 
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
 	if (ret <= 0) {
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
+		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -2703,8 +2703,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			}
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
-			ret = fcgi_strm_parse_data(fstrm, h1m, htx, &fstrm->rxbuf, &total, count, buf);
-			htx = htx_from_buf(buf);
+			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
 			if (!ret)
 				break;
 		}
@@ -2725,8 +2724,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
-			ret = fcgi_strm_parse_data(fstrm, h1m, htx, &fstrm->rxbuf, &total, count, buf);
-			htx = htx_from_buf(buf);
+			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
 			if (fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
 				if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) == H1_MF_VER_11) {

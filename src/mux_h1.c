@@ -944,7 +944,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag.
  * If relies on the function http_parse_msg_data() to do the parsing.
  */
-static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
 			      struct buffer *buf, size_t *ofs, size_t max,
 			      struct buffer *htxbuf)
 {
@@ -1054,8 +1054,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			}
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
-			htx = htx_from_buf(buf);
+			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (!ret)
 				break;
 		}
@@ -1074,8 +1073,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
-			ret = h1_process_data(h1s, h1m, htx, &h1c->ibuf, &total, count, buf);
-			htx = htx_from_buf(buf);
+			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (!ret)
 				break;
 		}

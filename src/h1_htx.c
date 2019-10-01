@@ -393,9 +393,11 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 /* Copy data from <srbuf> into an DATA block in <dsthtx>. If possible, a
  * zero-copy is performed. It returns the number of bytes copied.
  */
-static int h1_copy_msg_data(struct htx *dsthtx, struct buffer *srcbuf, size_t ofs,
+static int h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t ofs,
 			    size_t count, struct buffer *htxbuf)
 {
+	struct htx *tmp_htx = *dsthtx;
+
 	/* very often with large files we'll face the following
 	 * situation :
 	 *   - htx is empty and points to <htxbuf>
@@ -404,7 +406,7 @@ static int h1_copy_msg_data(struct htx *dsthtx, struct buffer *srcbuf, size_t of
 	 *   => we can swap the buffers and place an htx header into
 	 *      the target buffer instead
 	 */
-	if (unlikely(htx_is_empty(dsthtx) && count == b_data(srcbuf) &&
+	if (unlikely(htx_is_empty(tmp_htx) && count == b_data(srcbuf) &&
 		     !ofs && b_head_ofs(srcbuf) == sizeof(struct htx))) {
 		void *raw_area = srcbuf->area;
 		void *htx_area = htxbuf->area;
@@ -412,20 +414,22 @@ static int h1_copy_msg_data(struct htx *dsthtx, struct buffer *srcbuf, size_t of
 
 		srcbuf->area = htx_area;
 		htxbuf->area = raw_area;
-		dsthtx = (struct htx *)htxbuf->area;
-		dsthtx->size = htxbuf->size - sizeof(*dsthtx);
-		htx_reset(dsthtx);
+		tmp_htx = (struct htx *)htxbuf->area;
+		tmp_htx->size = htxbuf->size - sizeof(*tmp_htx);
+		htx_reset(tmp_htx);
 		b_set_data(htxbuf, b_size(htxbuf));
 
-		blk = htx_add_blk(dsthtx, HTX_BLK_DATA, count);
+		blk = htx_add_blk(tmp_htx, HTX_BLK_DATA, count);
 		blk->info += count;
+
+		*dsthtx = tmp_htx;
 		/* nothing else to do, the old buffer now contains an
 		 * empty pre-initialized HTX header
 		 */
 		return count;
 	}
 
-	return htx_add_data(dsthtx, ist2(b_peek(srcbuf, ofs), count));
+	return htx_add_data(*dsthtx, ist2(b_peek(srcbuf, ofs), count));
 }
 
 /* Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
@@ -433,7 +437,7 @@ static int h1_copy_msg_data(struct htx *dsthtx, struct buffer *srcbuf, size_t of
  * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
  * functions is responsible to update the parser state <h1m>.
  */
-int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
+int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max,
 		      struct buffer *htxbuf)
 {
@@ -442,7 +446,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 
 	if (h1m->flags & H1_MF_CLEN) {
 		/* content-length: read only h2m->body_len */
-		ret = htx_get_max_blksz(dsthtx, max);
+		ret = htx_get_max_blksz(*dsthtx, max);
 		if ((uint64_t)ret > h1m->curr_len)
 			ret = h1m->curr_len;
 		if (ret > b_contig_data(srcbuf, ofs))
@@ -460,7 +464,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 		}
 
 		if (!h1m->curr_len) {
-			if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(dsthtx, HTX_BLK_EOM))
+			if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(*dsthtx, HTX_BLK_EOM))
 				goto end;
 			h1m->state = H1_MSG_DONE;
 		}
@@ -491,7 +495,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 				goto end;
 		}
 		if (h1m->state == H1_MSG_DATA) {
-			ret = htx_get_max_blksz(dsthtx, max);
+			ret = htx_get_max_blksz(*dsthtx, max);
 			if ((uint64_t)ret > h1m->curr_len)
 				ret = h1m->curr_len;
 			if (ret > b_contig_data(srcbuf, ofs))
@@ -518,13 +522,13 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 		/* XFER_LEN is set but not CLEN nor CHNK, it means there is no
 		 * body. Switch the message in DONE state
 		 */
-		if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(dsthtx, HTX_BLK_EOM))
+		if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(*dsthtx, HTX_BLK_EOM))
 			goto end;
 		h1m->state = H1_MSG_DONE;
 	}
 	else {
 		/* no content length, read till SHUTW */
-		ret = htx_get_max_blksz(dsthtx, max);
+		ret = htx_get_max_blksz(*dsthtx, max);
 		if (ret > b_contig_data(srcbuf, ofs))
 			ret = b_contig_data(srcbuf, ofs);
 		if (ret)
@@ -533,7 +537,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 
   end:
 	if (ret < 0) {
-		dsthtx->flags |= HTX_FL_PARSING_ERROR;
+		(*dsthtx)->flags |= HTX_FL_PARSING_ERROR;
 		h1m->err_state = h1m->state;
 		h1m->err_pos = ofs;
 		total = 0;
@@ -541,7 +545,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx *dsthtx,
 
 	/* update htx->extra, only when the body length is known */
 	if (h1m->flags & H1_MF_XFER_LEN)
-		dsthtx->extra = h1m->curr_len;
+		(*dsthtx)->extra = h1m->curr_len;
 	return total;
 }
 
