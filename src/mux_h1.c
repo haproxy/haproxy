@@ -29,6 +29,7 @@
 #include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
+#include <proto/trace.h>
 
 /*
  *  H1 Connection flags (32 bits)
@@ -126,6 +127,120 @@ struct h1_hdr_entry  {
 static struct h1_hdrs_map hdrs_map = { .name = NULL, .map  = EB_ROOT };
 
 
+/* trace source and events */
+static void h1_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
+
+/* The event representation is split like this :
+ *   h1c   - internal H1 connection
+ *   h1s   - internal H1 stream
+ *   strm  - application layer
+ *   rx    - data receipt
+ *   tx    - data transmission
+ *
+ */
+static const struct trace_event h1_trace_events[] = {
+#define           H1_EV_H1C_NEW       (1ULL <<  0)
+	{ .mask = H1_EV_H1C_NEW,      .name = "h1c_new",      .desc = "new H1 connection" },
+#define           H1_EV_H1C_RECV      (1ULL <<  1)
+	{ .mask = H1_EV_H1C_RECV,     .name = "h1c_recv",     .desc = "Rx on H1 connection" },
+#define           H1_EV_H1C_SEND      (1ULL <<  2)
+	{ .mask = H1_EV_H1C_SEND,     .name = "h1c_send",     .desc = "Tx on H1 connection" },
+#define           H1_EV_H1C_BLK       (1ULL <<  3)
+	{ .mask = H1_EV_H1C_BLK,      .name = "h1c_blk",      .desc = "H1 connection blocked" },
+#define           H1_EV_H1C_WAKE      (1ULL <<  4)
+	{ .mask = H1_EV_H1C_WAKE,     .name = "h1c_wake",     .desc = "H1 connection woken up" },
+#define           H1_EV_H1C_END       (1ULL <<  5)
+	{ .mask = H1_EV_H1C_END,      .name = "h1c_end",      .desc = "H1 connection terminated" },
+#define           H1_EV_H1C_ERR       (1ULL <<  6)
+	{ .mask = H1_EV_H1C_ERR,      .name = "h1c_err",      .desc = "error on H1 connection" },
+
+#define           H1_EV_RX_DATA       (1ULL <<  7)
+	{ .mask = H1_EV_RX_DATA,      .name = "rx_data",      .desc = "receipt of any H1 data" },
+#define           H1_EV_RX_EOI        (1ULL <<  8)
+	{ .mask = H1_EV_RX_EOI,       .name = "rx_eoi",       .desc = "receipt of end of H1 input" },
+#define           H1_EV_RX_HDRS       (1ULL <<  9)
+	{ .mask = H1_EV_RX_HDRS,      .name = "rx_headers",   .desc = "receipt of H1 headers" },
+#define           H1_EV_RX_BODY       (1ULL << 10)
+	{ .mask = H1_EV_RX_BODY,      .name = "rx_body",      .desc = "receipt of H1 body" },
+#define           H1_EV_RX_TLRS       (1ULL << 11)
+	{ .mask = H1_EV_RX_TLRS,      .name = "rx_trailerus", .desc = "receipt of H1 trailers" },
+
+#define           H1_EV_TX_DATA       (1ULL << 12)
+	{ .mask = H1_EV_TX_DATA,      .name = "tx_data",      .desc = "transmission of any H1 data" },
+#define           H1_EV_TX_EOI        (1ULL << 13)
+	{ .mask = H1_EV_TX_EOI,       .name = "tx_eoi",       .desc = "transmission of end of H1 input" },
+#define           H1_EV_TX_HDRS       (1ULL << 14)
+	{ .mask = H1_EV_TX_HDRS,      .name = "tx_headers",   .desc = "transmission of all headers" },
+#define           H1_EV_TX_BODY       (1ULL << 15)
+	{ .mask = H1_EV_TX_BODY,      .name = "tx_body",      .desc = "transmission of H1 body" },
+#define           H1_EV_TX_TLRS       (1ULL << 16)
+	{ .mask = H1_EV_TX_TLRS,      .name = "tx_trailerus", .desc = "transmission of H1 trailers" },
+
+#define           H1_EV_H1S_NEW       (1ULL << 17)
+	{ .mask = H1_EV_H1S_NEW,      .name = "h1s_new",     .desc = "new H1 stream" },
+#define           H1_EV_H1S_BLK       (1ULL << 18)
+	{ .mask = H1_EV_H1S_BLK,      .name = "h1s_blk",     .desc = "H1 stream blocked" },
+#define           H1_EV_H1S_END       (1ULL << 19)
+	{ .mask = H1_EV_H1S_END,      .name = "h1s_end",     .desc = "H1 stream terminated" },
+#define           H1_EV_H1S_ERR       (1ULL << 20)
+	{ .mask = H1_EV_H1S_ERR,      .name = "h1s_err",     .desc = "error on H1 stream" },
+
+#define           H1_EV_STRM_NEW      (1ULL << 21)
+	{ .mask = H1_EV_STRM_NEW,     .name = "strm_new",    .desc = "app-layer stream creation" },
+#define           H1_EV_STRM_RECV     (1ULL << 22)
+	{ .mask = H1_EV_STRM_RECV,    .name = "strm_recv",   .desc = "receiving data for stream" },
+#define           H1_EV_STRM_SEND     (1ULL << 23)
+	{ .mask = H1_EV_STRM_SEND,    .name = "strm_send",   .desc = "sending data for stream" },
+#define           H1_EV_STRM_WAKE     (1ULL << 24)
+	{ .mask = H1_EV_STRM_WAKE,    .name = "strm_wake",   .desc = "stream woken up" },
+#define           H1_EV_STRM_SHUT     (1ULL << 25)
+	{ .mask = H1_EV_STRM_SHUT,    .name = "strm_shut",   .desc = "stream shutdown" },
+#define           H1_EV_STRM_END      (1ULL << 26)
+	{ .mask = H1_EV_STRM_END,     .name = "strm_end",    .desc = "detaching app-layer stream" },
+#define           H1_EV_STRM_ERR      (1ULL << 27)
+	{ .mask = H1_EV_STRM_ERR,     .name = "strm_err",    .desc = "stream error" },
+
+	{ }
+};
+
+static const struct name_desc h1_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the connection */ },
+	/* arg2 */ { .name="h1s", .desc="H1 stream" },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc h1_trace_decoding[] = {
+#define H1_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define H1_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report only h1c/h1s state and flags, no real decoding" },
+#define H1_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add request/response status line or htx info when available" },
+#define H1_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add header fields or frame decoding when available" },
+#define H1_VERB_COMPLETE 5
+	{ .name="complete", .desc="add full data dump when available" },
+	{ /* end */ }
+};
+
+static struct trace_source trace_h1 = {
+	.name = IST("h1"),
+	.desc = "HTTP/1 multiplexer",
+	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
+	.default_cb = h1_trace,
+	.known_events = h1_trace_events,
+	.lockon_args = h1_trace_lockon_args,
+	.decoding = h1_trace_decoding,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_h1
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
 /* the h1c and h1s pools */
 DECLARE_STATIC_POOL(pool_head_h1c, "h1c", sizeof(struct h1c));
 DECLARE_STATIC_POOL(pool_head_h1s, "h1s", sizeof(struct h1s));
@@ -136,6 +251,94 @@ static int h1_process(struct h1c *h1c);
 static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
 static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static struct task *h1_timeout_task(struct task *t, void *context, unsigned short state);
+
+/* the H1 traces always expect that arg1, if non-null, is of type connection
+ * (from which we can derive h1c), that arg2, if non-null, is of type h1s, and
+ * that arg3, if non-null, is a htx for rx/tx headers.
+ */
+static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct h1c *h1c = conn ? conn->ctx : NULL;
+	const struct h1s *h1s = a2;
+	const struct htx *htx = a3;
+	const size_t     *val = a4;
+
+	if (!h1c)
+		h1c = (h1s ? h1s->h1c : NULL);
+
+	if (!h1c || src->verbosity < H1_VERB_CLEAN)
+		return;
+
+	/* Display frontend/backend info by default */
+	chunk_appendf(&trace_buf, " : [%c]", (conn_is_back(h1c->conn) ? 'B' : 'F'));
+
+	/* Display request and response states if h1s is defined */
+	if (h1s)
+		chunk_appendf(&trace_buf, " [%s, %s]",
+			      h1m_state_str(h1s->req.state), h1m_state_str(h1s->res.state));
+
+	if (src->verbosity == H1_VERB_CLEAN)
+		return;
+
+	/* Display the value to the 4th argument (level > STATE) */
+	if (src->level > TRACE_LEVEL_STATE && val)
+		chunk_appendf(&trace_buf, " - VAL=%lu", *val);
+
+	/* Display status-line if possible (verbosity > MINIMAL) */
+	if (src->verbosity > H1_VERB_MINIMAL && htx && htx_nbblks(htx)) {
+		const struct htx_blk *blk = htx_get_head_blk(htx);
+		const struct htx_sl  *sl  = htx_get_blk_ptr(htx, blk);
+		enum htx_blk_type    type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)
+			chunk_appendf(&trace_buf, " - \"%.*s %.*s %.*s\"",
+				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
+				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
+				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
+	}
+
+	/* Display h1c info and, if defined, h1s info (pointer + flags) */
+	chunk_appendf(&trace_buf, " - h1c=%p(0x%08x)", h1c, h1c->flags);
+	if (h1s)
+		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
+
+	if (src->verbosity == H1_VERB_MINIMAL)
+		return;
+
+	/* Display input and output buffer info (level > USER & verbosity > SIMPLE) */
+	if (src->level > TRACE_LEVEL_USER) {
+		if (src->verbosity == H1_VERB_COMPLETE ||
+		    (src->verbosity == H1_VERB_ADVANCED && (mask & (H1_EV_H1C_RECV|H1_EV_STRM_RECV))))
+			chunk_appendf(&trace_buf, " ibuf=%u@%p+%u/%u",
+				      (unsigned int)b_data(&h1c->ibuf), b_orig(&h1c->ibuf),
+				      (unsigned int)b_head_ofs(&h1c->ibuf), (unsigned int)b_size(&h1c->ibuf));
+		if (src->verbosity == H1_VERB_COMPLETE ||
+		    (src->verbosity == H1_VERB_ADVANCED && (mask & (H1_EV_H1C_SEND|H1_EV_STRM_SEND))))
+			chunk_appendf(&trace_buf, " obuf=%u@%p+%u/%u",
+				      (unsigned int)b_data(&h1c->obuf), b_orig(&h1c->obuf),
+				      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf));
+	}
+
+	/* Display htx info if defined (level > USER) */
+	if (src->level > TRACE_LEVEL_USER && htx) {
+		int full = 0;
+
+		/* Full htx info (level > STATE && verbosity > SIMPLE) */
+		if (src->level > TRACE_LEVEL_STATE) {
+			if (src->verbosity == H1_VERB_COMPLETE)
+				full = 1;
+			else if (src->verbosity == H1_VERB_ADVANCED && (mask & (H1_EV_RX_HDRS|H1_EV_TX_HDRS)))
+				full = 1;
+		}
+
+		chunk_memcat(&trace_buf, "\n\t", 2);
+		htx_dump(&trace_buf, htx, full);
+	}
+}
+
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -160,15 +363,20 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
-	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)))
+	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN))) {
+		TRACE_DEVEL("recv not allowed because of (error|shudown) on h1c", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
+	}
 
-	if (h1c->conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(h1c->conn))
+	if (h1c->conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(h1c->conn)) {
+		TRACE_DEVEL("recv not allowed because of (error|read0) on connection", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
+	}
 
 	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_BUSY)))
 		return 1;
 
+	TRACE_DEVEL("recv not allowed because input is blocked", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 	return 0;
 }
 
@@ -183,6 +391,7 @@ static int h1_buf_available(void *target)
 	struct h1c *h1c = target;
 
 	if ((h1c->flags & H1C_F_IN_ALLOC) && b_alloc_margin(&h1c->ibuf, 0)) {
+		TRACE_STATE("unblocking h1c, ibuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
 		h1c->flags &= ~H1C_F_IN_ALLOC;
 		if (h1_recv_allowed(h1c))
 			tasklet_wakeup(h1c->wait_event.tasklet);
@@ -190,6 +399,7 @@ static int h1_buf_available(void *target)
 	}
 
 	if ((h1c->flags & H1C_F_OUT_ALLOC) && b_alloc_margin(&h1c->obuf, 0)) {
+		TRACE_STATE("unblocking h1s, obuf allocated", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
 		tasklet_wakeup(h1c->wait_event.tasklet);
 		return 1;
@@ -267,17 +477,24 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 {
 	struct conn_stream *cs;
 
+	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	cs = cs_new(h1s->h1c->conn);
-	if (!cs)
+	if (!cs) {
+		TRACE_DEVEL("leaving on CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
+	}
 	h1s->cs = cs;
 	cs->ctx = h1s;
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
 
-	if (stream_create_from_cs(cs) < 0)
+	if (stream_create_from_cs(cs) < 0) {
+		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
+	}
+
+	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return cs;
 
   err:
@@ -289,6 +506,8 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
 {
 	struct h1s *h1s;
+
+	TRACE_ENTER(H1_EV_H1S_NEW, h1c->conn);
 
 	h1s = pool_alloc(pool_head_h1s);
 	if (!h1s)
@@ -363,10 +582,12 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 		if (!cs)
 			goto fail;
 	}
+	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
   fail:
 	pool_free(pool_head_h1s, h1s);
+	TRACE_DEVEL("leaving in error", H1_EV_H1S_NEW|H1_EV_H1S_END|H1_EV_H1S_ERR, h1c->conn);
 	return NULL;
 }
 
@@ -375,6 +596,7 @@ static void h1s_destroy(struct h1s *h1s)
 	if (h1s) {
 		struct h1c *h1c = h1s->h1c;
 
+		TRACE_POINT(H1_EV_H1S_END, h1c->conn, h1s);
 		h1c->h1s = NULL;
 
 		if (h1s->recv_wait != NULL)
@@ -384,8 +606,10 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1c->flags &= ~H1C_F_IN_BUSY;
 		h1c->flags |= H1C_F_WAIT_NEXT_REQ;
-		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR))
+		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR)) {
 			h1c->flags |= H1C_F_CS_ERROR;
+			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
+		}
 		pool_free(pool_head_h1s, h1s);
 	}
 }
@@ -412,6 +636,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 {
 	struct h1c *h1c;
 	struct task *t = NULL;
+	void *conn_ctx = conn->ctx;
+
+	TRACE_ENTER(H1_EV_H1C_NEW);
 
 	h1c = pool_alloc(pool_head_h1c);
 	if (!h1c)
@@ -453,12 +680,11 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		t->expire = tick_add(now_ms, h1c->timeout);
 	}
 
-	/* Always Create a new H1S */
-	if (!h1s_create(h1c, conn->ctx, sess))
-		goto fail;
-
 	conn->ctx = h1c;
 
+	/* Always Create a new H1S */
+	if (!h1s_create(h1c, conn_ctx, sess))
+		goto fail;
 
 	if (t)
 		task_queue(t);
@@ -467,6 +693,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	tasklet_wakeup(h1c->wait_event.tasklet);
 
 	/* mux->wake will be called soon to complete the operation */
+	TRACE_LEAVE(H1_EV_H1C_NEW, conn, h1c->h1s);
 	return 0;
 
   fail:
@@ -475,6 +702,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		tasklet_free(h1c->wait_event.tasklet);
 	pool_free(pool_head_h1c, h1c);
  fail_h1c:
+	conn->ctx = conn_ctx; // restore saved context
+	TRACE_DEVEL("leaving in error", H1_EV_H1C_NEW|H1_EV_H1C_END|H1_EV_H1C_ERR);
 	return -1;
 }
 
@@ -485,12 +714,17 @@ static void h1_release(struct h1c *h1c)
 {
 	struct connection *conn = NULL;
 
+	TRACE_POINT(H1_EV_H1C_END);
+
 	if (h1c) {
 		/* The connection must be aattached to this mux to be released */
 		if (h1c->conn && h1c->conn->ctx == h1c)
 			conn = h1c->conn;
 
+		TRACE_DEVEL("freeing h1c", H1_EV_H1C_END, conn);
+
 		if (conn && h1c->flags & H1C_F_UPG_H2C) {
+			TRACE_DEVEL("upgrading H1 to H2", H1_EV_H1C_END, conn);
 			h1c->flags &= ~H1C_F_UPG_H2C;
 			/* Make sure we're no longer subscribed to anything */
 			if (h1c->wait_event.events)
@@ -501,6 +735,7 @@ static void h1_release(struct h1c *h1c)
 				 * mux was already released */
 				return;
 			}
+			TRACE_DEVEL("h2 upgrade failed", H1_EV_H1C_END|H1_EV_H1C_ERR, conn);
 			sess_log(conn->owner); /* Log if the upgrade failed */
 		}
 
@@ -534,6 +769,7 @@ static void h1_release(struct h1c *h1c)
 	if (conn) {
 		conn->mux = NULL;
 		conn->ctx = NULL;
+		TRACE_DEVEL("freeing conn", H1_EV_H1C_END, conn);
 
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
@@ -595,6 +831,7 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			 * for responses with status 101 (eg: see RFC2817 about TLS).
 			 */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
+			TRACE_STATE("set tunnel mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 		else if (h1s->flags & H1S_F_WANT_KAL) {
 			/* By default the client is in KAL mode. CLOSE mode mean
@@ -603,11 +840,13 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			if (!(h1m->flags & H1_MF_XFER_LEN) || (h1m->flags & H1_MF_CONN_CLO)) {
 				/* no length known or explicit close => close */
 				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+				TRACE_STATE("detect close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			}
 			else if (!(h1m->flags & H1_MF_CONN_KAL) &&
 				 (fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO) {
 				/* no explict keep-alive and option httpclose => close */
 				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+				TRACE_STATE("force close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			}
 		}
 	}
@@ -616,12 +855,15 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		if (!(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL)) || h1m->flags & H1_MF_CONN_CLO)  {
 			/* no explicit keep-alive in HTTP/1.0 or explicit close => close*/
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("detect close mode (req)", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		}
 	}
 
 	/* If KAL, check if the frontend is stopping. If yes, switch in CLO mode */
-	if (h1s->flags & H1S_F_WANT_KAL && fe->state == PR_STSTOPPED)
+	if (h1s->flags & H1S_F_WANT_KAL && fe->state == PR_STSTOPPED) {
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	}
 }
 
 /* Deduce the connection mode of the client connection, depending on the
@@ -637,7 +879,6 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 
 	if (h1m->flags & H1_MF_RESP) {
 		/* Input direction: second pass */
-
 		if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) ||
 		    h1s->status == 101) {
 			/* Either we've established an explicit tunnel, or we're
@@ -650,6 +891,7 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			 * for responses with status 101 (eg: see RFC2817 about TLS).
 			 */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_TUN;
+			TRACE_STATE("set tunnel mode (resp)", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		}
 		else if (h1s->flags & H1S_F_WANT_KAL) {
 			/* By default the server is in KAL mode. CLOSE mode mean
@@ -659,6 +901,7 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			    !(h1m->flags & (H1_MF_VER_11|H1_MF_CONN_KAL))){
 				/* no length known or explicit close or no explicit keep-alive in HTTP/1.0 => close */
 				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+				TRACE_STATE("detect close mode (resp)", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 			}
 		}
 	}
@@ -667,6 +910,7 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 		if (h1m->flags & H1_MF_CONN_CLO) {
 			/* explicit close => close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("detect close mode (req)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 		else if (!(h1m->flags & H1_MF_CONN_KAL) &&
 			 ((fe_flags & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
@@ -675,12 +919,15 @@ static void h1_set_srv_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			  (be->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)) {
 			/* no explicit keep-alive option httpclose/server-close => close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("force close mode (req)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 	}
 
 	/* If KAL, check if the backend is stopping. If yes, switch in CLO mode */
-	if (h1s->flags & H1S_F_WANT_KAL && be->state == PR_STSTOPPED)
+	if (h1s->flags & H1S_F_WANT_KAL && be->state == PR_STSTOPPED) {
 		h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+		TRACE_STATE("stopping, set close mode", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	}
 }
 
 static void h1_update_req_conn_value(struct h1s *h1s, struct h1m *h1m, struct ist *conn_val)
@@ -694,12 +941,16 @@ static void h1_update_req_conn_value(struct h1s *h1s, struct h1m *h1m, struct is
 		return;
 
 	if (h1s->flags & H1S_F_WANT_KAL || px->options2 & PR_O2_FAKE_KA) {
-		if (!(h1m->flags & H1_MF_VER_11))
+		if (!(h1m->flags & H1_MF_VER_11)) {
+			TRACE_STATE("add \"Connection: keep-alive\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			*conn_val = ist("keep-alive");
+		}
 	}
 	else { /* H1S_F_WANT_CLO && !PR_O2_FAKE_KA */
-		if (h1m->flags & H1_MF_VER_11)
+		if (h1m->flags & H1_MF_VER_11) {
+			TRACE_STATE("add \"Connection: close\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			*conn_val = ist("close");
+		}
 	}
 }
 
@@ -713,12 +964,16 @@ static void h1_update_res_conn_value(struct h1s *h1s, struct h1m *h1m, struct is
 
 	if (h1s->flags & H1S_F_WANT_KAL) {
 		if (!(h1m->flags & H1_MF_VER_11) ||
-		    !((h1m->flags & h1s->req.flags) & H1_MF_VER_11))
+		    !((h1m->flags & h1s->req.flags) & H1_MF_VER_11)) {
+			TRACE_STATE("add \"Connection: keep-alive\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			*conn_val = ist("keep-alive");
+		}
 	}
 	else { /* H1S_F_WANT_CLO */
-		if (h1m->flags & H1_MF_VER_11)
+		if (h1m->flags & H1_MF_VER_11) {
+			TRACE_STATE("add \"Connection: close\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			*conn_val = ist("close");
+		}
 	}
 }
 
@@ -855,8 +1110,10 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
 {
 	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->req.state = H1_MSG_TUNNEL;
-	if (!conn_is_back(h1s->h1c->conn))
+	if (!conn_is_back(h1s->h1c->conn)) {
 		h1s->h1c->flags |= H1C_F_IN_BUSY;
+		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+	}
 }
 
 /*
@@ -869,14 +1126,17 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 {
 	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->res.state = H1_MSG_TUNNEL;
-	if (conn_is_back(h1s->h1c->conn) && h1s->req.state < H1_MSG_DONE)
+	if (conn_is_back(h1s->h1c->conn) && h1s->req.state < H1_MSG_DONE) {
 		h1s->h1c->flags |= H1C_F_IN_BUSY;
+		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+	}
 	else {
 		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 		h1s->req.state = H1_MSG_TUNNEL;
 		if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 			h1s->h1c->flags &= ~H1C_F_IN_BUSY;
 			tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+			TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 		}
 	}
 }
@@ -892,11 +1152,14 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	union h1_sl h1sl;
 	int ret = 0;
 
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s,, (size_t[]){max});
+
 	if (!(h1s->flags & H1S_F_NOT_FIRST) && !(h1m->flags & H1_MF_RESP)) {
 		/* Try to match H2 preface before parsing the request headers. */
 		ret = b_isteq(buf, 0, b_data(buf), ist(H2_CONN_PREFACE));
-		if (ret > 0)
+		if (ret > 0) {
 			goto h2c_upgrade;
+		}
 	}
 	else {
 		if (h1s->meth == HTTP_METH_CONNECT)
@@ -907,9 +1170,18 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
 	ret = h1_parse_msg_hdrs(h1m, &h1sl, htx, buf, *ofs, max);
 	if (!ret) {
+		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			if (!(h1m->flags & H1_MF_RESP)) {
+				h1s->flags |= H1S_F_REQ_ERROR;
+				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
+			else {
+				h1s->flags |= H1S_F_RES_ERROR;
+				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
 			h1s->cs->flags |= CS_FL_EOI;
+			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
@@ -917,26 +1189,31 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
 	if (!(h1m->flags & H1_MF_RESP)) {
 		h1s->meth = h1sl.rq.meth;
-		if (h1m->state == H1_MSG_TUNNEL)
+		if (h1m->state == H1_MSG_TUNNEL) {
 			h1_set_req_tunnel_mode(h1s);
+			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
+		}
 	}
 	else {
 		h1s->status = h1sl.st.status;
-		if (h1m->state == H1_MSG_TUNNEL)
+		if (h1m->state == H1_MSG_TUNNEL) {
 			h1_set_res_tunnel_mode(h1s);
+			TRACE_STATE("switch H1 response in tunnel mode", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
+		}
 	}
 	h1_process_input_conn_mode(h1s, h1m, htx);
 	*ofs += ret;
 
   end:
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 
   h2c_upgrade:
 	h1s->h1c->flags |= H1C_F_UPG_H2C;
 	h1s->cs->flags |= CS_FL_EOI;
 	htx->flags |= HTX_FL_UPGRADE;
-	ret = 0;
-	goto end;
+	TRACE_DEVEL("leaving on H2 update", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
+	return 0;
 }
 
 /*
@@ -950,20 +1227,33 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 {
 	int ret;
 
-
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
 	if (ret <= 0) {
+		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if (ret < 0) {
-			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			if (!(h1m->flags & H1_MF_RESP)) {
+				h1s->flags |= H1S_F_REQ_ERROR;
+				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
+			else {
+				h1s->flags |= H1S_F_RES_ERROR;
+				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
 			h1s->cs->flags |= CS_FL_EOI;
+			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		return 0;
 	}
 
-	if (h1m->state == H1_MSG_DONE)
+	if (h1m->state == H1_MSG_DONE) {
 		h1s->cs->flags |= CS_FL_EOI;
+		TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_RX_EOI, h1s->h1c->conn);
+	}
+
 	*ofs += ret;
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
 
@@ -978,17 +1268,29 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 {
 	int ret;
 
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
 	if (ret <= 0) {
+		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if (ret < 0) {
-			h1s->flags |= (!(h1m->flags & H1_MF_RESP) ? H1S_F_REQ_ERROR : H1S_F_RES_ERROR);
+			if (!(h1m->flags & H1_MF_RESP)) {
+				h1s->flags |= H1S_F_REQ_ERROR;
+				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
+			else {
+				h1s->flags |= H1S_F_RES_ERROR;
+				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
 			h1s->cs->flags |= CS_FL_EOI;
+			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		return 0;
 	}
+
 	*ofs += ret;
 	h1s->flags |= H1S_F_HAVE_I_TLR;
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
 
@@ -1000,14 +1302,18 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
  */
 static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t max)
 {
+	TRACE_ENTER(H1_EV_RX_DATA, h1s->h1c->conn, h1s,, (size_t[]){max});
 	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM)) {
 		h1s->flags |= H1S_F_APPEND_EOM;
+		TRACE_STATE("leaving on append_eom", H1_EV_RX_DATA, h1s->h1c->conn);
 		return 0;
 	}
 
 	h1s->flags &= ~H1S_F_APPEND_EOM;
 	h1m->state = H1_MSG_DONE;
 	h1s->cs->flags |= CS_FL_EOI;
+	TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
+	TRACE_LEAVE(H1_EV_RX_DATA, h1s->h1c->conn, h1s);
 	return (sizeof(struct htx_blk) + 1);
 }
 
@@ -1026,6 +1332,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	int errflag;
 
 	htx = htx_from_buf(buf);
+	TRACE_ENTER(H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){count});
 
 	if (!conn_is_back(h1c->conn)) {
 		h1m = &h1s->req;
@@ -1044,38 +1351,65 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		size_t used = htx_used_space(htx);
 
 		if (h1m->state <= H1_MSG_LAST_LF) {
+			TRACE_PROTO("parsing message headers", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s);
 			ret = h1_process_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (!ret)
 				break;
+
+			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request headers" : "rcvd H1 response headers"),
+				   H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s, htx, (size_t[]){ret});
+
 			if ((h1m->flags & H1_MF_RESP) &&
 			    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 				h1m_init_res(&h1s->res);
 				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+				TRACE_STATE("1xx response rcvd", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s);
 			}
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
+			TRACE_PROTO("parsing message payload", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (!ret)
 				break;
+
+			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request payload data" : "rcvd H1 response payload data"),
+				    H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
+
+			if (h1m->state == H1_MSG_DONE)
+				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
+					   H1_EV_RX_DATA, h1c->conn, h1s, htx);
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			if (!(h1s->flags & H1S_F_HAVE_I_TLR)) {
+				TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
 				ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 				if (!ret)
 					break;
+
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request trailers" : "rcvd H1 response trailers"),
+					    H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s, htx, (size_t[]){ret});
 			}
 			else if (!h1_process_eom(h1s, h1m, htx, count))
 				break;
+
+			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
+				   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
 		}
 		else if (h1m->state == H1_MSG_DONE) {
-			if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE)
+			if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
 				h1c->flags |= H1C_F_IN_BUSY;
+				TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+			}
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
+			TRACE_PROTO("parsing tunneled data", H1_EV_RX_DATA, h1c->conn, h1s);
 			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (!ret)
 				break;
+
+			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request tunneled data" : "rcvd H1 response tunneled data"),
+				    H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx, (size_t[]){ret});
 		}
 		else {
 			h1s->flags |= errflag;
@@ -1085,16 +1419,19 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		count -= htx_used_space(htx) - used;
 	} while (!(h1s->flags & errflag));
 
-	if (h1s->flags & errflag)
+	if (h1s->flags & errflag) {
+		TRACE_PROTO("parsing error", H1_EV_RX_DATA, h1c->conn, h1s);
 		goto parsing_err;
+	}
 
 	b_del(&h1c->ibuf, total);
 
   end:
 	htx_to_buf(htx, buf);
 	ret = htx->data - data;
-	if (h1c->flags & H1C_F_IN_FULL && buf_room_for_htx_data(&h1c->ibuf)) {
+	if ((h1c->flags & H1C_F_IN_FULL) && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
+		TRACE_STATE("h1c ibuf not full anymore", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE);
 		tasklet_wakeup(h1c->wait_event.tasklet);
 	}
 
@@ -1112,11 +1449,13 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			h1s->cs->flags |= CS_FL_ERROR;
 	}
 
+	TRACE_LEAVE(H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){ret});
 	return ret;
 
   parsing_err:
 	b_reset(&h1c->ibuf);
 	htx_to_buf(htx, buf);
+	TRACE_DEVEL("leaving on error", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return 0;
 }
 
@@ -1129,7 +1468,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
-	struct htx *chn_htx;
+	struct htx *chn_htx = NULL;
 	struct htx_blk *blk;
 	struct buffer tmp;
 	size_t total = 0;
@@ -1139,11 +1478,14 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		goto end;
 
 	chn_htx = htxbuf(buf);
+	TRACE_ENTER(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){count});
+
 	if (htx_is_empty(chn_htx))
 		goto end;
 
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
 		h1c->flags |= H1C_F_OUT_ALLOC;
+		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		goto end;
 	}
 
@@ -1184,12 +1526,16 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		    htx_get_blk_value(chn_htx, blk).len == count) {
 			void *old_area = h1c->obuf.area;
 
+			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
 			h1c->obuf.area = buf->area;
 			h1c->obuf.head = sizeof(struct htx) + blk->addr;
 			h1c->obuf.data = count;
 
 			buf->area = old_area;
 			buf->data = buf->head = 0;
+
+			chn_htx = (struct htx *)buf->area;
+			htx_reset(chn_htx);
 
 			/* The message is chunked. We need to emit the chunk
 			 * size. We have at least the size of the struct htx to
@@ -1201,6 +1547,12 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			}
 
 			total += count;
+			if (h1m->state == H1_MSG_DATA)
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){count});
+			else
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){count});
 			goto out;
 		}
 		tmp.area = h1c->obuf.area + h1c->obuf.head;
@@ -1231,6 +1583,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			case H1_MSG_RQBEFORE:
 				if (type != HTX_BLK_REQ_SL)
 					goto error;
+				TRACE_USER("sending request headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, chn_htx);
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
@@ -1245,6 +1598,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			case H1_MSG_RPBEFORE:
 				if (type != HTX_BLK_RES_SL)
 					goto error;
+				TRACE_USER("sending response headers", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s, chn_htx);
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
@@ -1265,6 +1619,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto last_lf;
 				if (type != HTX_BLK_HDR)
 					goto error;
+
 				h1m->state = H1_MSG_HDR_NAME;
 				n = htx_get_blk_name(chn_htx, blk);
 				v = htx_get_blk_value(chn_htx, blk);
@@ -1327,6 +1682,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					/* chunking needed but header not seen */
 					if (!chunk_memcat(&tmp, "transfer-encoding: chunked\r\n", 28))
 						goto copy;
+					TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 					h1m->flags |= H1_MF_CHNK;
 				}
 
@@ -1341,29 +1697,38 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						if (!htx_hdr_to_h1(n, v, &tmp))
 							goto copy;
 					}
+					TRACE_STATE("add server name header", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 					h1s->flags |= H1S_F_HAVE_SRV_NAME;
 				}
 
 				if (!chunk_memcat(&tmp, "\r\n", 2))
 					goto copy;
 
+				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
+					    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
 					/* a CONNECT request is sent to the server. Switch it to tunnel mode. */
 					h1_set_req_tunnel_mode(h1s);
+					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
 				else if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) || h1s->status == 101) {
 					/* a successfull reply to a CONNECT or a protocol switching is sent
 					 * to the client . Switch the response to tunnel mode. */
 					h1_set_res_tunnel_mode(h1s);
+					TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 					h1m_init_res(&h1s->res);
 					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 					h1s->flags &= ~H1S_F_HAVE_O_CONN;
+					TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if ((h1m->flags & H1_MF_RESP) &&  h1s->meth == HTTP_METH_HEAD)
+				else if ((h1m->flags & H1_MF_RESP) &&  h1s->meth == HTTP_METH_HEAD) {
 					h1m->state = H1_MSG_DONE;
+					TRACE_STATE("HEAD response processed", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+				}
 				else
 					h1m->state = H1_MSG_DATA;
 				break;
@@ -1383,14 +1748,24 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					 * add the last chunk. */
 					if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "0\r\n", 3))
 						goto copy;
+					TRACE_PROTO("sending message trailers", H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s, chn_htx);
 					goto trailers;
 				}
 				else if (type != HTX_BLK_DATA)
 					goto error;
+
+				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
 				if (!htx_data_to_h1(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto copy;
+
+				if (h1m->state == H1_MSG_DATA)
+					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){v.len});
+				else
+					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){v.len});
 				break;
 
 			case H1_MSG_TRAILERS:
@@ -1408,6 +1783,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (type == HTX_BLK_EOT) {
 					if (!chunk_memcat(&tmp, "\r\n", 2))
 						goto copy;
+					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers xferred" : "H1 response trailers xferred"),
+						    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
 				}
 				else { // HTX_BLK_TLR
 					n = htx_get_blk_name(chn_htx, blk);
@@ -1429,15 +1806,22 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 					h1s->h1c->flags &= ~H1C_F_IN_BUSY;
 					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+					TRACE_STATE("h1c no more busy", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
+
+				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
+					   H1_EV_TX_DATA, h1c->conn, h1s);
 				break;
 
 			default:
 			  error:
+				TRACE_PROTO("formatting error", H1_EV_TX_DATA, h1c->conn, h1s);
 				/* Unexpected error during output processing */
 				chn_htx->flags |= HTX_FL_PROCESSING_ERROR;
 				h1s->flags |= errflag;
 				h1c->flags |= H1C_F_CS_ERROR;
+				TRACE_STATE("processing error, set error on h1c/h1s", H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+				TRACE_DEVEL("unexpected error", H1_EV_TX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 				break;
 		}
 
@@ -1462,10 +1846,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		b_putblk(&h1c->obuf, tmp.area, tmp.data);
 
 	htx_to_buf(chn_htx, buf);
- out:
-	if (!buf_room_for_htx_data(&h1c->obuf))
+  out:
+	if (!buf_room_for_htx_data(&h1c->obuf)) {
+		TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		h1c->flags |= H1C_F_OUT_FULL;
+	}
   end:
+	TRACE_LEAVE(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){total});
 	return total;
 }
 
@@ -1475,6 +1862,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 static void h1_wake_stream_for_recv(struct h1s *h1s)
 {
 	if (h1s && h1s->recv_wait) {
+		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
 		h1s->recv_wait->events &= ~SUB_RETRY_RECV;
 		tasklet_wakeup(h1s->recv_wait->tasklet);
 		h1s->recv_wait = NULL;
@@ -1483,6 +1871,7 @@ static void h1_wake_stream_for_recv(struct h1s *h1s)
 static void h1_wake_stream_for_send(struct h1s *h1s)
 {
 	if (h1s && h1s->send_wait) {
+		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
 		h1s->send_wait->events &= ~SUB_RETRY_SEND;
 		tasklet_wakeup(h1s->send_wait->tasklet);
 		h1s->send_wait = NULL;
@@ -1495,20 +1884,26 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 static int h1_recv(struct h1c *h1c)
 {
 	struct connection *conn = h1c->conn;
-		struct h1s *h1s = h1c->h1s;
+	struct h1s *h1s = h1c->h1s;
 	size_t ret = 0, max;
 	int rcvd = 0;
 
-	if (h1c->wait_event.events & SUB_RETRY_RECV)
+	TRACE_ENTER(H1_EV_H1C_RECV, h1c->conn);
+
+	if (h1c->wait_event.events & SUB_RETRY_RECV) {
+		TRACE_DEVEL("leaving on sub_recv", H1_EV_H1C_RECV, h1c->conn);
 		return (b_data(&h1c->ibuf));
+	}
 
 	if (!h1_recv_allowed(h1c)) {
+		TRACE_DEVEL("leaving on !recv_allowed", H1_EV_H1C_RECV, h1c->conn);
 		rcvd = 1;
 		goto end;
 	}
 
 	if (!h1_get_buf(h1c, &h1c->ibuf)) {
 		h1c->flags |= H1C_F_IN_ALLOC;
+		TRACE_STATE("waiting for h1c ibuf allocation", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		goto end;
 	}
 
@@ -1516,6 +1911,7 @@ static int h1_recv(struct h1c *h1c)
 		if (!h1s_data_pending(h1s))
 			h1_wake_stream_for_recv(h1s);
 		rcvd = 1;
+		TRACE_DEVEL("leaving on (buf_flush|spliced_data)", H1_EV_H1C_RECV, h1c->conn);
 		goto end;
 	}
 
@@ -1528,7 +1924,10 @@ static int h1_recv(struct h1c *h1c)
 
 	max = buf_room_for_htx_data(&h1c->ibuf);
 	if (max) {
-		h1c->flags &= ~H1C_F_IN_FULL;
+		if (h1c->flags & H1C_F_IN_FULL) {
+			h1c->flags &= ~H1C_F_IN_FULL;
+			TRACE_STATE("h1c ibuf not full anymore", H1_EV_H1C_RECV|H1_EV_H1C_BLK);
+		}
 
 		b_realign_if_empty(&h1c->ibuf);
 		if (!b_data(&h1c->ibuf)) {
@@ -1540,6 +1939,7 @@ static int h1_recv(struct h1c *h1c)
 		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, 0);
 	}
 	if (ret > 0) {
+		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn,,, (size_t[]){ret});
 		rcvd = 1;
 		if (h1s && h1s->cs) {
 			h1s->cs->flags |= (CS_FL_READ_PARTIAL|CS_FL_RCV_MORE);
@@ -1553,6 +1953,7 @@ static int h1_recv(struct h1c *h1c)
 		goto end;
 	}
 
+	TRACE_STATE("failed to receive data, subscribing", H1_EV_H1C_RECV, h1c->conn);
 	conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
   end:
@@ -1561,13 +1962,18 @@ static int h1_recv(struct h1c *h1c)
 
 	if (conn_xprt_read0_pending(conn) && h1s) {
 		h1s->flags |= H1S_F_REOS;
+		TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
 		rcvd = 1;
 	}
 
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-	else if (!buf_room_for_htx_data(&h1c->ibuf))
+	else if (!buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags |= H1C_F_IN_FULL;
+		TRACE_STATE("h1c ibuf full", H1_EV_H1C_RECV|H1_EV_H1C_BLK);
+	}
+
+	TRACE_LEAVE(H1_EV_H1C_RECV, h1c->conn);
 	return rcvd;
 }
 
@@ -1582,8 +1988,12 @@ static int h1_send(struct h1c *h1c)
 	size_t ret;
 	int sent = 0;
 
-	if (conn->flags & CO_FL_ERROR)
+	TRACE_ENTER(H1_EV_H1C_SEND, h1c->conn);
+
+	if (conn->flags & CO_FL_ERROR) {
+		TRACE_DEVEL("leaving on connection error", H1_EV_H1C_SEND, h1c->conn);
 		return 0;
+	}
 
 	if (!b_data(&h1c->obuf))
 		goto end;
@@ -1593,12 +2003,17 @@ static int h1_send(struct h1c *h1c)
 
 	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), flags);
 	if (ret > 0) {
-		h1c->flags &= ~H1C_F_OUT_FULL;
+		TRACE_DATA("data sent", H1_EV_H1C_SEND, h1c->conn,,, (size_t[]){ret});
+		if (h1c->flags & H1C_F_OUT_FULL) {
+			h1c->flags &= ~H1C_F_OUT_FULL;
+			TRACE_STATE("h1c obuf not full anymore", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn);
+		}
 		b_del(&h1c->obuf, ret);
 		sent = 1;
 	}
 
 	if (conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) {
+		TRACE_DEVEL("connection error or output closed", H1_EV_H1C_SEND, h1c->conn);
 		/* error or output closed, nothing to send, clear the buffer to release it */
 		b_reset(&h1c->obuf);
 	}
@@ -1609,13 +2024,19 @@ static int h1_send(struct h1c *h1c)
 
 	/* We're done, no more to send */
 	if (!b_data(&h1c->obuf)) {
+		TRACE_DEVEL("leaving with everything sent", H1_EV_H1C_SEND, h1c->conn);
 		h1_release_buf(h1c, &h1c->obuf);
-		if (h1c->flags & H1C_F_CS_SHUTW_NOW)
+		if (h1c->flags & H1C_F_CS_SHUTW_NOW) {
+			TRACE_STATE("process pending shutdown for writes", H1_EV_H1C_SEND, h1c->conn);
 			h1_shutw_conn(conn, CS_SHW_NORMAL);
+		}
 	}
-	else if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+	else if (!(h1c->wait_event.events & SUB_RETRY_SEND)) {
+		TRACE_STATE("more data to send, subscribing", H1_EV_H1C_SEND, h1c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
+	}
 
+	TRACE_LEAVE(H1_EV_H1C_SEND, h1c->conn);
 	return sent;
 }
 
@@ -1629,6 +2050,8 @@ static int h1_process(struct h1c * h1c)
 	struct connection *conn = h1c->conn;
 	struct h1s *h1s = h1c->h1s;
 
+	TRACE_ENTER(H1_EV_H1C_WAKE, conn);
+
 	if (!conn->ctx)
 		return -1;
 
@@ -1638,6 +2061,7 @@ static int h1_process(struct h1c * h1c)
 		    conn_xprt_read0_pending(conn))
 			goto release;
 		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))) {
+			TRACE_STATE("K/A incoming connection, create new H1 stream", H1_EV_H1C_WAKE, conn);
 			if (!h1s_create(h1c, NULL, NULL))
 				goto release;
 		}
@@ -1649,14 +2073,17 @@ static int h1_process(struct h1c * h1c)
 	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
 		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 
-	if (conn_xprt_read0_pending(conn))
+	if (conn_xprt_read0_pending(conn)) {
 		h1s->flags |= H1S_F_REOS;
+		TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
+	}
 
 	if (!h1s_data_pending(h1s) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
 	    (h1s->flags & H1S_F_REOS || h1c->flags & H1C_F_CS_ERROR ||
 	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		if (h1c->flags & H1C_F_CS_ERROR || conn->flags & CO_FL_ERROR)
 			h1s->cs->flags |= CS_FL_ERROR;
+		TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 		h1s->cs->data_cb->wake(h1s->cs);
 	}
   end:
@@ -1669,10 +2096,12 @@ static int h1_process(struct h1c * h1c)
 			task_queue(h1c->task);
 		}
 	}
+	TRACE_LEAVE(H1_EV_H1C_WAKE, conn);
 	return 0;
 
   release:
 	h1_release(h1c);
+	TRACE_DEVEL("leaving after releasing the connection", H1_EV_H1C_WAKE);
 	return -1;
 }
 
@@ -1680,6 +2109,8 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct h1c *h1c = ctx;
 	int ret = 0;
+
+	TRACE_POINT(H1_EV_H1C_WAKE, h1c->conn);
 
 	if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 		ret = h1_send(h1c);
@@ -1700,13 +2131,17 @@ static int h1_wake(struct connection *conn)
 	struct h1c *h1c = conn->ctx;
 	int ret;
 
+	TRACE_POINT(H1_EV_H1C_WAKE, conn);
+
 	h1_send(h1c);
 	ret = h1_process(h1c);
 	if (ret == 0) {
 		struct h1s *h1s = h1c->h1s;
 
-		if (h1s && h1s->cs && h1s->cs->data_cb->wake)
+		if (h1s && h1s->cs && h1s->cs->data_cb->wake) {
+			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			ret = h1s->cs->data_cb->wake(h1s->cs);
+		}
 	}
 	return ret;
 }
@@ -1719,13 +2154,18 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	struct h1c *h1c = context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!expired && h1c)
+	TRACE_POINT(H1_EV_H1C_WAKE, h1c ? h1c->conn : NULL);
+
+	if (!expired && h1c) {
+		TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn);
 		return t;
+	}
 
 	task_destroy(t);
 
 	if (!h1c) {
 		/* resources were already deleted */
+		TRACE_DEVEL("leaving (not more h1c)", H1_EV_H1C_WAKE);
 		return NULL;
 	}
 
@@ -1734,10 +2174,13 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	 * for the stream's timeout. Otherwise, release the mux. This is only ok
 	 * because same timeouts are used.
 	 */
-	if (h1c->h1s && h1c->h1s->cs)
+	if (h1c->h1s && h1c->h1s->cs) {
 		h1c->flags |= H1C_F_CS_ERROR;
+		TRACE_STATE("error on h1c, h1s still attached (expired)", H1_EV_H1C_WAKE|H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
+	}
 	else
 		h1_release(h1c);
+
 	return NULL;
 }
 
@@ -1755,17 +2198,25 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 	struct conn_stream *cs = NULL;
 	struct h1s *h1s;
 
-	if (h1c->flags & H1C_F_CS_ERROR)
+	TRACE_ENTER(H1_EV_STRM_NEW, conn);
+	if (h1c->flags & H1C_F_CS_ERROR) {
+		TRACE_DEVEL("leaving on h1c error", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;
+	}
 
 	cs = cs_new(h1c->conn);
-	if (!cs)
+	if (!cs) {
+		TRACE_DEVEL("leaving on CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;
+	}
 
 	h1s = h1s_create(h1c, cs, sess);
-	if (h1s == NULL)
+	if (h1s == NULL) {
+		TRACE_DEVEL("leaving on h1s creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;
+	}
 
+	TRACE_LEAVE(H1_EV_STRM_NEW, conn, h1s);
 	return cs;
   end:
 	cs_free(cs);
@@ -1790,6 +2241,7 @@ static void h1_destroy(void *ctx)
 {
 	struct h1c *h1c = ctx;
 
+	TRACE_POINT(H1_EV_H1C_END, h1c->conn);
 	if (!h1c->h1s || !h1c->conn || h1c->conn->ctx != h1c)
 		h1_release(h1c);
 }
@@ -1805,9 +2257,13 @@ static void h1_detach(struct conn_stream *cs)
 	int has_keepalive;
 	int is_not_first;
 
+	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
+
 	cs->ctx = NULL;
-	if (!h1s)
+	if (!h1s) {
+		TRACE_LEAVE(H1_EV_STRM_END);
 		return;
+	}
 
 	sess = h1s->sess;
 	h1c = h1s->h1c;
@@ -1828,6 +2284,7 @@ static void h1_detach(struct conn_stream *cs)
 		if (b_data(&h1c->ibuf)) {
 			h1_release_buf(h1c, &h1c->ibuf);
 			h1c->flags |= H1C_F_CS_SHUTW_NOW;
+			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
 			goto release;
 		}
 
@@ -1839,27 +2296,33 @@ static void h1_detach(struct conn_stream *cs)
 			h1c->conn->owner = sess;
 			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
 				h1c->conn->owner = NULL;
-				if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn))
+				if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn)) {
 					/* The server doesn't want it, let's kill the connection right away */
 					h1c->conn->mux->destroy(h1c->conn);
-				else
-					tasklet_wakeup(h1c->wait_event.tasklet);
-				return;
-
+					TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
+					goto end;
+				}
+				tasklet_wakeup(h1c->wait_event.tasklet);
+				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
+				goto end;
 			}
 		}
 		if (h1c->conn->owner == sess) {
 			int ret = session_check_idle_conn(sess, h1c->conn);
-			if (ret == -1)
+			if (ret == -1) {
 				/* The connection got destroyed, let's leave */
-				return;
+				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
+				goto end;
+			}
 			else if (ret == 1) {
 				/* The connection was added to the server list,
 				 * wake the task so we can subscribe to events
 				 */
 				tasklet_wakeup(h1c->wait_event.tasklet);
-				return;
+				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
+				goto end;
 			}
+			TRACE_DEVEL("connection in idle session list", H1_EV_STRM_END, h1c->conn);
 		}
 		/* we're in keep-alive with an idle connection, monitor it if not already done */
 		if (LIST_ISEMPTY(&h1c->conn->list)) {
@@ -1872,6 +2335,7 @@ static void h1_detach(struct conn_stream *cs)
 					LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
 				else
 					LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
+				TRACE_DEVEL("connection in idle server list", H1_EV_STRM_END, h1c->conn);
 			}
 		}
 	}
@@ -1881,8 +2345,10 @@ static void h1_detach(struct conn_stream *cs)
 	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN|H1C_F_UPG_H2C)) ||
 	    (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) ||
 	    ((h1c->flags & H1C_F_CS_SHUTW_NOW) && !b_data(&h1c->obuf)) ||
-	    !h1c->conn->owner)
+	    !h1c->conn->owner) {
+		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
 		h1_release(h1c);
+	}
 	else {
 		tasklet_wakeup(h1c->wait_event.tasklet);
 		if (h1c->task) {
@@ -1892,9 +2358,12 @@ static void h1_detach(struct conn_stream *cs)
 								      ? h1c->shut_timeout
 								      : h1c->timeout));
 				task_queue(h1c->task);
+				TRACE_DEVEL("refreshing connection's timeout", H1_EV_STRM_END, h1c->conn);
 			}
 		}
 	}
+  end:
+	TRACE_LEAVE(H1_EV_STRM_END);
 }
 
 
@@ -1907,21 +2376,33 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
-		goto do_shutr;
+	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
 
-	if ((h1c->flags & H1C_F_UPG_H2C) || (h1s->flags & H1S_F_WANT_KAL))
-		return;
+	if (cs->flags & CS_FL_KILL_CONN) {
+		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto do_shutr;
+	}
+	if (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
+		TRACE_STATE("shutdown on connection (error|rd_sh|wr_sh)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto do_shutr;
+	}
+
+	if ((h1c->flags & H1C_F_UPG_H2C) || (h1s->flags & H1S_F_WANT_KAL)) {
+		TRACE_STATE("keep connection alive (upg_h2c|want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto end;
+	}
 
   do_shutr:
 	/* NOTE: Be sure to handle abort (cf. h2_shutr) */
 	if (cs->flags & CS_FL_SHR)
-		return;
+		goto end;
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
-		    (mode == CS_SHR_DRAIN));
+				      (mode == CS_SHR_DRAIN));
 	if ((cs->conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
 		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
+  end:
+	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
 static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -1933,29 +2414,42 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		return;
 	h1c = h1s->h1c;
 
-	if ((cs->flags & CS_FL_KILL_CONN) || (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
+	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
+
+	if (cs->flags & CS_FL_KILL_CONN) {
+		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutw;
+	}
+	if (h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
+		TRACE_STATE("shutdown on connection (error|rd_sh|wr_sh)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto do_shutw;
+	}
 
 	if ((h1c->flags & H1C_F_UPG_H2C) ||
-	    ((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE))
-		return;
+	    ((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)) {
+		TRACE_STATE("keep connection alive (upg_h2c|want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto end;
+	}
 
   do_shutw:
 	h1c->flags |= H1C_F_CS_SHUTW_NOW;
 	if ((cs->flags & CS_FL_SHW) || b_data(&h1c->obuf))
-		return;
-
+		goto end;
 	h1_shutw_conn(cs->conn, mode);
+  end:
+	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
 
 static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 {
 	struct h1c *h1c = conn->ctx;
 
+	TRACE_ENTER(H1_EV_STRM_SHUT, conn, h1c->h1s);
 	conn_xprt_shutw(conn);
 	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
 	if ((conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
 		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
+	TRACE_LEAVE(H1_EV_STRM_SHUT, conn, h1c->h1s);
 }
 
 /* Called from the upper layer, to unsubscribe to events */
@@ -1968,12 +2462,14 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		return 0;
 
 	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("unsubscribe(recv)", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);
 		sw = param;
 		BUG_ON(h1s->recv_wait != sw);
 		sw->events &= ~SUB_RETRY_RECV;
 		h1s->recv_wait = NULL;
 	}
 	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("unsubscribe(send)", H1_EV_STRM_SEND, h1s->h1c->conn, h1s);
 		sw = param;
 		BUG_ON(h1s->send_wait != sw);
 		sw->events &= ~SUB_RETRY_SEND;
@@ -1992,35 +2488,37 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 	if (!h1s)
 		return -1;
 
-	switch (event_type) {
-		case SUB_RETRY_RECV:
-			sw = param;
-			BUG_ON(h1s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
-			sw->events |= SUB_RETRY_RECV;
-			h1s->recv_wait = sw;
-			return 0;
-		case SUB_RETRY_SEND:
-			sw = param;
-			BUG_ON(h1s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
-			sw->events |= SUB_RETRY_SEND;
-			h1s->send_wait = sw;
-			/*
-			 * If the conn_stream attempt to subscribe, and the
-			 * mux isn't subscribed to the connection, then it
-			 * probably means the connection wasn't established
-			 * yet, so we have to subscribe.
-			 */
-			h1c = h1s->h1c;
-			if (!(h1c->wait_event.events & SUB_RETRY_SEND))
-				h1c->conn->xprt->subscribe(h1c->conn,
-				                           h1c->conn->xprt_ctx,
-							   SUB_RETRY_SEND,
-							   &h1c->wait_event);
-			return 0;
-		default:
-			break;
+	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("subscribe(recv)", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);
+		sw = param;
+		BUG_ON(h1s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
+		sw->events |= SUB_RETRY_RECV;
+		h1s->recv_wait = sw;
+		event_type &= ~SUB_RETRY_RECV;
 	}
-	return -1;
+	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("subscribe(send)", H1_EV_STRM_SEND, h1s->h1c->conn, h1s);
+		sw = param;
+		BUG_ON(h1s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
+		sw->events |= SUB_RETRY_SEND;
+		h1s->send_wait = sw;
+		event_type &= ~SUB_RETRY_SEND;
+		/*
+		 * If the conn_stream attempt to subscribe, and the
+		 * mux isn't subscribed to the connection, then it
+		 * probably means the connection wasn't established
+		 * yet, so we have to subscribe.
+		 */
+		h1c = h1s->h1c;
+		if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+			h1c->conn->xprt->subscribe(h1c->conn,
+						   h1c->conn->xprt_ctx,
+						   SUB_RETRY_SEND,
+						   &h1c->wait_event);
+	}
+	if (event_type != 0)
+		return -1;
+	return 0;
 }
 
 /* Called from the upper layer, to receive data */
@@ -2031,20 +2529,27 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
 
+	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s,, (size_t[]){count});
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
 		ret = h1_process_input(h1c, buf, count);
+	else
+		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
 	if (flags & CO_RFL_BUF_FLUSH) {
-
-		if (h1m->state != H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len))
+		if (h1m->state != H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len)) {
 			h1s->flags |= H1S_F_BUF_FLUSH;
+			TRACE_STATE("flush stream's buffer", H1_EV_STRM_RECV, h1c->conn, h1s);
+		}
 	}
 	else {
-		h1s->flags &= ~H1S_F_SPLICED_DATA;
-		if (h1m->state != H1_MSG_DONE &&
-				!(h1c->wait_event.events & SUB_RETRY_RECV))
+		if (h1s->flags & H1S_F_SPLICED_DATA) {
+			h1s->flags &= ~H1S_F_SPLICED_DATA;
+			TRACE_STATE("disable splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
+		}
+		if (h1m->state != H1_MSG_DONE && !(h1c->wait_event.events & SUB_RETRY_RECV))
 			tasklet_wakeup(h1c->wait_event.tasklet);
 	}
+	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
 
@@ -2058,22 +2563,27 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	if (!h1s)
 		return 0;
-
 	h1c = h1s->h1c;
+
+	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s,, (size_t[]){count});
 
 	/* If we're not connected yet, or we're waiting for a handshake, stop
 	 * now, as we don't want to remove everything from the channel buffer
 	 * before we're sure we can send it.
 	 */
 	if (!(h1c->conn->flags & CO_FL_CONNECTED) ||
-	    (h1c->conn->flags & CO_FL_HANDSHAKE))
+	    (h1c->conn->flags & CO_FL_HANDSHAKE)) {
+		TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s);
 		return 0;
+	}
 
 	while (count) {
 		size_t ret = 0;
 
 		if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
 			ret = h1_process_output(h1c, buf, count);
+		else
+			TRACE_DEVEL("h1c obuf not allocated", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 		if (!ret)
 			break;
 		total += ret;
@@ -2082,6 +2592,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 	}
 
+	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s,, (size_t[]){total});
 	return total;
 }
 
@@ -2093,35 +2604,47 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	int ret = 0;
 
+	TRACE_ENTER(H1_EV_STRM_RECV, cs->conn, h1s,, (size_t[]){count});
+
 	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
 		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
-		if (!(h1s->h1c->wait_event.events & SUB_RETRY_RECV))
+		TRACE_STATE("disable splicing on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, cs->conn, h1s);
+		if (!(h1s->h1c->wait_event.events & SUB_RETRY_RECV)) {
+			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, cs->conn, h1s);
 			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_RECV, &h1s->h1c->wait_event);
+		}
 		goto end;
 	}
 
 	if (h1s_data_pending(h1s)) {
 		h1s->flags |= H1S_F_BUF_FLUSH;
+		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 		goto end;
 	}
 
 	h1s->flags &= ~H1S_F_BUF_FLUSH;
 	h1s->flags |= H1S_F_SPLICED_DATA;
+	TRACE_STATE("enable splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 	if (h1m->state == H1_MSG_DATA && count > h1m->curr_len)
 		count = h1m->curr_len;
 	ret = cs->conn->xprt->rcv_pipe(cs->conn, cs->conn->xprt_ctx, pipe, count);
 	if (h1m->state == H1_MSG_DATA && ret >= 0) {
 		h1m->curr_len -= ret;
-		if (!h1m->curr_len)
+		if (!h1m->curr_len) {
 			h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
+			TRACE_STATE("disable splicing on !curr_len", H1_EV_STRM_RECV, cs->conn, h1s);
+		}
 	}
 
   end:
 	if (conn_xprt_read0_pending(cs->conn)) {
 		h1s->flags |= H1S_F_REOS;
+		TRACE_STATE("read0 on connection", H1_EV_STRM_RECV, cs->conn, h1s);
 		if (!pipe->data)
 			cs->flags |= CS_FL_EOS;
 	}
+
+	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s);
 	return ret;
 }
 
@@ -2130,15 +2653,21 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	struct h1s *h1s = cs->ctx;
 	int ret = 0;
 
+	TRACE_ENTER(H1_EV_STRM_SEND, cs->conn, h1s,, (size_t[]){pipe->data});
+
 	if (b_data(&h1s->h1c->obuf))
 		goto end;
 
 	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
   end:
 	if (pipe->data) {
-		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND))
+		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND)) {
+			TRACE_STATE("more data to send, subscribing", H1_EV_STRM_SEND, cs->conn, h1s);
 			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_SEND, &h1s->h1c->wait_event);
+		}
 	}
+
+	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s);
 	return ret;
 }
 #endif
