@@ -333,9 +333,12 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |
 	      ((evts & FD_EV_READY_W) ? FD_POLL_OUT : 0) |
 	      ((evts & FD_EV_SHUT_R)  ? FD_POLL_HUP : 0) |
-	      ((evts & FD_EV_SHUT_W)  ? FD_POLL_ERR : 0) |
 	      ((evts & FD_EV_ERR_R)   ? FD_POLL_ERR : 0) |
 	      ((evts & FD_EV_ERR_W)   ? FD_POLL_ERR : 0);
+
+	/* SHUTW reported while FD was active for writes is an error */
+	if ((fdtab[fd].ev & FD_EV_ACTIVE_W) && (evts & FD_EV_SHUT_W))
+		new_flags |= FD_POLL_ERR;
 
 	old = fdtab[fd].ev;
 	new = (old & FD_POLL_STICKY) | new_flags;
