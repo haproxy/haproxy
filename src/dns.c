@@ -2150,6 +2150,9 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	/* we have a response to our DNS resolution */
 	if (s->dns_ctx.dns_requester && s->dns_ctx.dns_requester->resolution != NULL) {
 		resolution = s->dns_ctx.dns_requester->resolution;
+		if (resolution->step == RSLV_STEP_RUNNING) {
+			return ACT_RET_YIELD;
+		}
 		if (resolution->step == RSLV_STEP_NONE) {
 			/* We update the variable only if we have a valid response. */
 			if (resolution->status == RSLV_STATUS_VALID) {
