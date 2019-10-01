@@ -563,8 +563,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (!(txn->req.flags & HTTP_MSGF_VER_11))
 		goto out;
 
-	/* cache only GET or OPTIONS method */
-	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_OPTIONS)
+	/* cache only GET method */
+	if (txn->meth != HTTP_METH_GET)
 		goto out;
 
 	/* cache key was not computed */
@@ -1069,9 +1069,6 @@ int sha1_hosturi(struct stream *s)
 	ctx.blk = NULL;
 
 	switch (txn->meth) {
-	case HTTP_METH_OPTIONS:
-		chunk_memcat(trash, "OPTIONS", 7);
-		break;
 	case HTTP_METH_HEAD:
 	case HTTP_METH_GET:
 		chunk_memcat(trash, "GET", 3);
@@ -1107,10 +1104,10 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct cache *cache = cconf->c.cache;
 
-	/* Ignore cache for HTTP/1.0 requests and for requests other than GET,
-	 * HEAD and OPTIONS */
+	/* Ignore cache for HTTP/1.0 requests and for requests other than GET
+	 * and HEAD */
 	if (!(txn->req.flags & HTTP_MSGF_VER_11) ||
-	    (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_OPTIONS))
+	    (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD))
 		txn->flags |= TX_CACHE_IGNORE;
 
 	http_check_request_for_cacheability(s, &s->req);
