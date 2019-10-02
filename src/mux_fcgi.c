@@ -1588,6 +1588,11 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 					if (isteq(p.n, ist("host")))
 						params.srv_name = p.v;
 
+					/* Skip header if same name is used to add the server name */
+					if (fconn->proxy->server_id_hdr_name &&
+					    isteq(p.n, ist2(fconn->proxy->server_id_hdr_name, fconn->proxy->server_id_hdr_len)))
+						break;
+
 					memcpy(trash.area, "http_", 5);
 					memcpy(trash.area+5, p.n.ptr, p.n.len);
 					p.n = ist2(trash.area, p.n.len+5);

@@ -4776,6 +4776,12 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 		list[hdr].n = htx_get_blk_name(htx, blk);
 		list[hdr].v = htx_get_blk_value(htx, blk);
+
+		/* Skip header if same name is used to add the server name */
+		if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name &&
+		    isteq(list[hdr].n, ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len)))
+			continue;
+
 		hdr++;
 	}
 

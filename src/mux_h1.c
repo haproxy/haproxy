@@ -1641,6 +1641,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						goto skip_hdr;
 				}
 
+				/* Skip header if same name is used to add the server name */
+				if (!(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name &&
+				    isteqi(n, ist2(h1c->px->server_id_hdr_name, h1c->px->server_id_hdr_len)))
+					goto skip_hdr;
+
 				/* Try to adjust the case of the header name */
 				if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 					h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
