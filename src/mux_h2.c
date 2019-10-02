@@ -3310,7 +3310,7 @@ static int h2_recv(struct h2c *h2c)
 
 	if (b_data(buf) == buf->size) {
 		h2c->flags |= H2_CF_DEM_DFULL;
-		TRACE_STATE("demux buffer full", H2_EV_H2C_RECV|H2_EV_H2C_BLK);
+		TRACE_STATE("demux buffer full", H2_EV_H2C_RECV|H2_EV_H2C_BLK, h2c->conn);
 	}
 
 	TRACE_LEAVE(H2_EV_H2C_RECV, h2c->conn);
