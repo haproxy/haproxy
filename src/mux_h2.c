@@ -131,6 +131,7 @@ struct h2c {
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
+	struct list blocked_list; /* list of streams blocked for other reasons (e.g. sfctl, dep) */
 	struct list sending_list; /* list of h2s scheduled to send data */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
@@ -169,9 +170,9 @@ enum h2_ss {
 
 /* stream flags indicating the reason the stream is blocked */
 #define H2_SF_BLK_MBUSY         0x00000010 // blocked waiting for mux access (transient)
-#define H2_SF_BLK_MROOM         0x00000020 // blocked waiting for room in the mux
-#define H2_SF_BLK_MFCTL         0x00000040 // blocked due to mux fctl
-#define H2_SF_BLK_SFCTL         0x00000080 // blocked due to stream fctl
+#define H2_SF_BLK_MROOM         0x00000020 // blocked waiting for room in the mux (must be in send list)
+#define H2_SF_BLK_MFCTL         0x00000040 // blocked due to mux fctl (must be in fctl list)
+#define H2_SF_BLK_SFCTL         0x00000080 // blocked due to stream fctl (must be in blocked list)
 #define H2_SF_BLK_ANY           0x000000F0 // any of the reasons above
 
 /* stream flags indicating how data is supposed to be sent */
@@ -829,6 +830,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->streams_by_id = EB_ROOT;
 	LIST_INIT(&h2c->send_list);
 	LIST_INIT(&h2c->fctl_list);
+	LIST_INIT(&h2c->blocked_list);
 	LIST_INIT(&h2c->sending_list);
 	LIST_INIT(&h2c->buf_wait.list);
 
@@ -1901,7 +1903,8 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 		h2s = container_of(node, struct h2s, by_id);
 		if (h2s->flags & H2_SF_BLK_SFCTL && h2s_mws(h2s) > 0) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait && !LIST_ADDED(&h2s->list))
+			LIST_DEL_INIT(&h2s->list);
+			if (h2s->send_wait)
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 		node = eb32_next(node);
@@ -2239,7 +2242,8 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		h2s->sws += inc;
 		if (h2s_mws(h2s) > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
-			if (h2s->send_wait && !LIST_ADDED(&h2s->list))
+			LIST_DEL_INIT(&h2s->list);
+			if (h2s->send_wait)
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 	}
@@ -5120,6 +5124,7 @@ static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t
 		h2s->flags |= H2_SF_BLK_SFCTL;
 		if (LIST_ADDED(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
+		LIST_ADDQ(&h2c->blocked_list, &h2s->list);
 		TRACE_STATE("stream window <=0, flow-controlled", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_FCTL, h2c->conn, h2s);
 		goto end;
 	}
@@ -5737,10 +5742,12 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		else
 			cs->flags |= CS_FL_ERR_PENDING;
 	}
-	if (total > 0) {
-		/* Ok we managed to send something, leave the send_list */
+
+	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL)) {
+		/* Ok we managed to send something, leave the send_list if we were still there */
 		LIST_DEL_INIT(&h2s->list);
 	}
+
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return total;
 }
