@@ -520,13 +520,13 @@ __eb_insert_dup(struct eb_node *sub, struct eb_node *new)
 \**************************************/
 
 /* Return non-zero if the tree is empty, otherwise zero */
-static inline int eb_is_empty(struct eb_root *root)
+static inline int eb_is_empty(const struct eb_root *root)
 {
 	return !root->b[EB_LEFT];
 }
 
 /* Return non-zero if the node is a duplicate, otherwise zero */
-static inline int eb_is_dup(struct eb_node *node)
+static inline int eb_is_dup(const struct eb_node *node)
 {
 	return node->bit < 0;
 }
