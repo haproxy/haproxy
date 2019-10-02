@@ -1699,6 +1699,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					if (srv) {
 						n = ist2(h1c->px->server_id_hdr_name, h1c->px->server_id_hdr_len);
 						v = ist(srv->id);
+
+						/* Try to adjust the case of the header name */
+						if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
+							h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
 						if (!htx_hdr_to_h1(n, v, &tmp))
 							goto copy;
 					}
