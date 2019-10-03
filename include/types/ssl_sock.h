@@ -39,6 +39,7 @@ struct sni_ctx {
 	uint8_t neg;              /* reject if match */
 	struct pkey_info kinfo;   /* pkey info */
 	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
+	struct list by_ckch_inst; /* chained in ckch_inst's list of sni_ctx */
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
@@ -105,10 +106,23 @@ struct cert_key_and_chain {
 struct ckch_store {
 	struct cert_key_and_chain *ckch;
 	int multi; /* is it a multi-cert bundle ? */
+	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct ebmb_node node;
 	char path[0];
 };
 
+/*
+ * This structure describe a ckch instance. An instance is generated for each
+ * bind_conf.  The instance contains a linked list of the sni ctx which uses
+ * the ckch in this bind_conf.
+ *
+ * XXX: the instance may evolve to handle ssl_bind_conf instead of bind_conf.
+ */
+struct ckch_inst {
+	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
+	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
+	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
+};
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 

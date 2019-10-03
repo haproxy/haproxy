@@ -2740,8 +2740,23 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename)
 }
 #endif
 
-static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_bind_conf *conf,
-				 struct pkey_info kinfo, char *name, int order)
+/* Alloc and init a ckch_inst */
+static struct ckch_inst *ckch_inst_new()
+{
+	struct ckch_inst *ckch_inst;
+
+	ckch_inst = calloc(1, sizeof *ckch_inst);
+	if (ckch_inst)
+		LIST_INIT(&ckch_inst->sni_ctx);
+
+	return ckch_inst;
+}
+
+
+/* This function allocates a sni_ctx and adds it to the ckch_inst */
+static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
+                                 struct bind_conf *s, struct ssl_bind_conf *conf,
+                                 struct pkey_info kinfo, char *name, int order)
 {
 	struct sni_ctx *sc;
 	int wild = 0, neg = 0;
@@ -2793,6 +2808,9 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, struct ssl_b
 			ebst_insert(&s->sni_w_ctx, &sc->name);
 		else
 			ebst_insert(&s->sni_ctx, &sc->name);
+
+		if (ckch_inst != NULL) /* TODO: remove this test later once the code is converted */
+			LIST_ADDQ(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
 	}
 	return order;
 }
@@ -3113,6 +3131,8 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 		goto end;
 	}
 
+	LIST_INIT(&ckchs->ckch_inst);
+
 	if (!multi) {
 
 		if (ssl_sock_load_crt_file_into_ckch(path, ckchs->ckch, err) == 1)
@@ -3177,7 +3197,7 @@ end:
  * TODO: This function shouldn't access files anymore, sctl and ocsp file access
  * should be migrated to the ssl_sock_load_crt_file_into_ckch() function
  */
-static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
+static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs, struct ckch_inst *ckch_inst,
                                      struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
                                      char **sni_filter, int fcount, char **err)
 {
@@ -3355,7 +3375,8 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 		}
 
 		/* Update SNI Tree */
-		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, bind_conf, ssl_conf,
+
+		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, ckch_inst, bind_conf, ssl_conf,
 		                                              kinfo, str, key_combos[i-1].order);
 		if (key_combos[i-1].order < 0) {
 			memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3405,8 +3426,10 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 
 #endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
-static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-				   char **sni_filter, int fcount, char **err)
+static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
+                               struct ckch_inst *ckch_inst, struct bind_conf
+                               *bind_conf, struct ssl_bind_conf *ssl_conf, char
+                               **sni_filter, int fcount, char **err)
 {
 	SSL_CTX *ctx;
 	int i;
@@ -3456,7 +3479,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struc
 
 	if (fcount) {
 		while (fcount--) {
-			order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
+			order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
 			if (order < 0) {
 				memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
 				return 1;
@@ -3471,7 +3494,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struc
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, str, order);
+						order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
 						OPENSSL_free(str);
 						if (order < 0) {
 							memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3491,7 +3514,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struc
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-				order = ssl_sock_add_cert_sni(ctx, bind_conf, ssl_conf, kinfo, str, order);
+				order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
 				OPENSSL_free(str);
 				if (order < 0) {
 					memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3538,6 +3561,10 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struc
 		bind_conf->default_ssl_conf = ssl_conf;
 	}
 
+	/* everything succeed, the ckch instance can be used */
+	ckch_inst->bind_conf = bind_conf;
+	LIST_ADDQ(&ckchs->ckch_inst, &ckch_inst->by_ckchs);
+
 	return 0;
 }
 
@@ -3555,14 +3582,23 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	int is_bundle;
 	int j;
 #endif
+	struct ckch_inst *ckch_inst;
 
 	if ((ckchs = ckchs_lookup(path))) {
+		/* For each certificate (or bundle) used in the configuration, create
+		 * a certificate instance */
+		ckch_inst = ckch_inst_new();
+		if (!ckch_inst) {
+			memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+				  err && *err ? *err : "", path);
+			return 1;
+		}
 
 		/* we found the ckchs in the tree, we can use it directly */
 		if (ckchs->multi)
-			return ssl_sock_load_multi_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+			return ssl_sock_load_multi_ckchs(path, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
 		else
-			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+			return ssl_sock_load_ckchs(path, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
 
 	}
 
@@ -3572,7 +3608,13 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 			ckchs =  ckchs_load_cert_file(path, 0,  err);
 			if (!ckchs)
 				return 1;
-			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+			ckch_inst = ckch_inst_new();
+			if (!ckch_inst) {
+				memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+					  err && *err ? *err : "", path);
+				return 1;
+			}
+			return ssl_sock_load_ckchs(path, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
 		}
 
 		/* strip trailing slashes, including first one */
@@ -3637,8 +3679,15 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 							ckchs =  ckchs_load_cert_file(fp, 1,  err);
 						if (!ckchs)
 							cfgerr++;
-						else
-							cfgerr += ssl_sock_load_multi_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, err);
+						else {
+							ckch_inst = ckch_inst_new();
+							if (!ckch_inst) {
+								memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+									  err && *err ? *err : "", path);
+								return 1;
+							}
+							cfgerr += ssl_sock_load_multi_ckchs(fp, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
+						}
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -3650,8 +3699,15 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 					ckchs =  ckchs_load_cert_file(fp, 0,  err);
 				if (!ckchs)
 					cfgerr++;
-				else
-					cfgerr += ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, err);
+				else {
+					ckch_inst = ckch_inst_new();
+					if (!ckch_inst) {
+						memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+						          err && *err ? *err : "", path);
+						return 1;
+					}
+					cfgerr += ssl_sock_load_ckchs(fp, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
+				}
 
 ignore_entry:
 				free(de);
@@ -3665,7 +3721,13 @@ ignore_entry:
 	ckchs =  ckchs_load_cert_file(path, 1,  err);
 	if (!ckchs)
 		return 1;
-	cfgerr = ssl_sock_load_multi_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+	ckch_inst = ckch_inst_new();
+	if (!ckch_inst) {
+		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+			  err && *err ? *err : "", path);
+		return 1;
+	}
+	cfgerr = ssl_sock_load_multi_ckchs(path, ckchs, ckch_inst, bind_conf, NULL, NULL, 0, err);
 
 	return cfgerr;
 }
