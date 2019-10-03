@@ -393,6 +393,7 @@ void process_runnable_tasks()
 		t = (struct task *)MT_LIST_POP(&tt->task_list, struct tasklet *, list);
 		if (!t)
 			break;
+		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
 
