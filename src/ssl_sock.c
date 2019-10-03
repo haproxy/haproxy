@@ -2754,13 +2754,12 @@ static struct ckch_inst *ckch_inst_new()
 
 
 /* This function allocates a sni_ctx and adds it to the ckch_inst */
-static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
+static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
                                  struct bind_conf *s, struct ssl_bind_conf *conf,
                                  struct pkey_info kinfo, char *name, int order)
 {
 	struct sni_ctx *sc;
 	int wild = 0, neg = 0;
-	struct ebmb_node *node;
 
 	if (*name == '!') {
 		neg = 1;
@@ -2782,17 +2781,6 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 			return -1;
 		trash.area[j] = 0;
 
-		/* Check for duplicates. */
-		if (wild)
-			node = ebst_lookup(&s->sni_w_ctx, trash.area);
-		else
-			node = ebst_lookup(&s->sni_ctx, trash.area);
-		for (; node; node = ebmb_next_dup(node)) {
-			sc = ebmb_entry(node, struct sni_ctx, name);
-			if (sc->ctx == ctx && sc->conf == conf && sc->neg == neg)
-				return order;
-		}
-
 		sc = malloc(sizeof(struct sni_ctx) + len + 1);
 		if (!sc)
 			return -1;
@@ -2802,17 +2790,60 @@ static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 		sc->kinfo = kinfo;
 		sc->order = order++;
 		sc->neg = neg;
+		sc->wild = wild;
+		sc->name.node.leaf_p = NULL;
 		if (kinfo.sig != TLSEXT_signature_anonymous)
 			SSL_CTX_set_ex_data(ctx, ssl_pkey_info_index, &sc->kinfo);
-		if (wild)
-			ebst_insert(&s->sni_w_ctx, &sc->name);
-		else
-			ebst_insert(&s->sni_ctx, &sc->name);
 
-		if (ckch_inst != NULL) /* TODO: remove this test later once the code is converted */
-			LIST_ADDQ(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
+		LIST_ADDQ(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
 	}
 	return order;
+}
+
+/*
+ * Insert the sni_ctxs that are listed in the ckch_inst, in the bind_conf's sni_ctx tree
+ * This function can't return an error.
+ *
+ * *CAUTION*: The caller must lock the sni tree if called in multithreading mode
+ */
+static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_conf)
+{
+
+	struct sni_ctx *sc0, *sc0b, *sc1;
+	struct ebmb_node *node;
+
+	list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
+
+		/* ignore if sc0 was already inserted in a tree */
+		if (sc0->name.node.leaf_p)
+			continue;
+
+		/* Check for duplicates. */
+		if (sc0->wild)
+			node = ebst_lookup(&bind_conf->sni_w_ctx, (char *)sc0->name.key);
+		else
+			node = ebst_lookup(&bind_conf->sni_ctx, (char *)sc0->name.key);
+
+		for (; node; node = ebmb_next_dup(node)) {
+			sc1 = ebmb_entry(node, struct sni_ctx, name);
+			if (sc1->ctx == sc0->ctx && sc1->conf == sc0->conf
+			    && sc1->neg == sc0->neg && sc1->wild == sc0->wild) {
+				/* it's a duplicate, we should remove and free it */
+				LIST_DEL(&sc0->by_ckch_inst);
+				free(sc0);
+				sc0 = NULL;
+			}
+		}
+
+		/* if duplicate, ignore the insertion */
+		if (!sc0)
+			continue;
+
+		if (sc0->wild)
+			ebst_insert(&bind_conf->sni_w_ctx, &sc0->name);
+		else
+			ebst_insert(&bind_conf->sni_ctx, &sc0->name);
+	}
 }
 
 /*
@@ -3376,7 +3407,7 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 
 		/* Update SNI Tree */
 
-		key_combos[i-1].order = ssl_sock_add_cert_sni(cur_ctx, ckch_inst, bind_conf, ssl_conf,
+		key_combos[i-1].order = ckch_inst_add_cert_sni(cur_ctx, ckch_inst, bind_conf, ssl_conf,
 		                                              kinfo, str, key_combos[i-1].order);
 		if (key_combos[i-1].order < 0) {
 			memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3398,6 +3429,7 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 		}
 	}
 
+	ssl_sock_load_cert_sni(ckch_inst, bind_conf);
 end:
 
 	if (names)
@@ -3455,6 +3487,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		return 1;
 	}
 
+	/* TODO: replace every 'return 1' by an error fallback which free everything */
+
 	if (ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err) != 0) {
 		SSL_CTX_free(ctx);
 		return 1;
@@ -3479,7 +3513,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 
 	if (fcount) {
 		while (fcount--) {
-			order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
+			order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
 			if (order < 0) {
 				memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
 				return 1;
@@ -3494,7 +3528,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
+						order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
 						OPENSSL_free(str);
 						if (order < 0) {
 							memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3514,7 +3548,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-				order = ssl_sock_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
+				order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, str, order);
 				OPENSSL_free(str);
 				if (order < 0) {
 					memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
@@ -3560,6 +3594,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		bind_conf->default_ctx = ctx;
 		bind_conf->default_ssl_conf = ssl_conf;
 	}
+
+	ssl_sock_load_cert_sni(ckch_inst, bind_conf);
 
 	/* everything succeed, the ckch instance can be used */
 	ckch_inst->bind_conf = bind_conf;
