@@ -104,6 +104,19 @@ struct cond_wordlist {
 		}						     \
 	} while (0)
 
+/* adds the contents of a list whose first element is <old> and last one is
+ * <old->prev> at the end of another list <new>. The old list DOES NOT have
+ * any head here.
+ */
+#define LIST_SPLICE_END_DETACHED(new, old) do {              \
+		typeof(new) __t;                             \
+		(new)->p->n = (old);                         \
+		(old)->p->n = (new);                         \
+		__t = (old)->p;                              \
+		(old)->p = (new)->p;                         \
+		(new)->p = __t;                              \
+	} while (0)
+
 /* removes an element from a list and returns it */
 #define LIST_DEL(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
 
