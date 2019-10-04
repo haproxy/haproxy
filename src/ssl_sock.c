@@ -3379,7 +3379,6 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 					/* Key combo contains ckch[n] */
 					snprintf(cur_file, MAXPATHLEN+1, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
 					if (ssl_sock_put_ckch_into_ctx(cur_file, &certs_and_keys[n], cur_ctx, err) != 0) {
-						SSL_CTX_free(cur_ctx);
 						rv = 1;
 						goto end;
 					}
@@ -3391,7 +3390,6 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 						if (err)
 							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 							          *err ? *err : "", cur_file);
-						SSL_CTX_free(cur_ctx);
 						rv = 1;
 						goto end;
 					}
@@ -3441,6 +3439,24 @@ end:
 		ebmb_delete(node);
 		free(ebmb_entry(node, struct sni_keytype, name));
 		node = next;
+	}
+
+	if (rv > 0) {
+		struct sni_ctx *sc0, *sc0b;
+
+		/* free the SSL_CTX in case of error */
+		for (i = 0; i < SSL_SOCK_POSSIBLE_KT_COMBOS; i++) {
+			if (key_combos[i].ctx)
+				SSL_CTX_free(key_combos[i].ctx);
+		}
+
+		/* free the sni_ctx in case of error */
+		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
+
+			ebmb_delete(&sc0->name);
+			LIST_DEL(&sc0->by_ckch_inst);
+			free(sc0);
+		}
 	}
 
 	return rv;
