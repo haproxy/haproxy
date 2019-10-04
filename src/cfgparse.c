@@ -3903,7 +3903,7 @@ out_uri_auth_compat:
 					stop_proxy(curpeers->peers_fe);
 				curpeers->peers_fe = NULL;
 			}
-			else if (!curpeers->peers_fe) {
+			else if (!curpeers->peers_fe || !curpeers->peers_fe->id) {
 				ha_warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
 					   curpeers->id, localpeer);
 			}
