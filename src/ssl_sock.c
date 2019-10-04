@@ -3474,6 +3474,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	STACK_OF(GENERAL_NAME) *names;
 #endif
 	struct cert_key_and_chain *ckch;
+	int rv;
 
 	if (!ckchs || !ckchs->ckch)
 		return 1;
@@ -3487,11 +3488,9 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		return 1;
 	}
 
-	/* TODO: replace every 'return 1' by an error fallback which free everything */
-
 	if (ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err) != 0) {
-		SSL_CTX_free(ctx);
-		return 1;
+		rv = 1;
+		goto error;
 	}
 
 	pkey = X509_get_pubkey(ckch->cert);
@@ -3516,7 +3515,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 			order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
 			if (order < 0) {
 				memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
-				return 1;
+				rv = 1;
+				goto error;
 			}
 		}
 	}
@@ -3532,7 +3532,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 						OPENSSL_free(str);
 						if (order < 0) {
 							memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
-							return 1;
+							rv = 1;
+							goto error;
 						}
 					}
 				}
@@ -3552,7 +3553,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 				OPENSSL_free(str);
 				if (order < 0) {
 					memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
-					return 1;
+					rv = 1;
+					goto error;
 				}
 			}
 		}
@@ -3566,7 +3568,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		if (err)
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				  *err ? *err : "", path);
-		return 1;
+		rv = 1;
+		goto error;
 	}
 #elif (defined OPENSSL_IS_BORINGSSL)
 	ssl_sock_set_ocsp_response_from_file(ctx, path);
@@ -3578,7 +3581,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 			if (err)
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 					  *err ? *err : "", path);
-			return 1;
+			rv = 1;
+			goto error;
 		}
 	}
 #endif
@@ -3587,7 +3591,8 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	if (bind_conf->default_ctx) {
 		memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
 		          err && *err ? *err : "");
-		return 1;
+		rv = 1;
+		goto error;
 	}
 #endif
 	if (!bind_conf->default_ctx) {
@@ -3602,6 +3607,23 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	LIST_ADDQ(&ckchs->ckch_inst, &ckch_inst->by_ckchs);
 
 	return 0;
+
+error:
+	/* free the allocated sni_ctxs */
+	{
+		struct sni_ctx *sc0, *sc0b;
+
+		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
+
+			ebmb_delete(&sc0->name);
+			LIST_DEL(&sc0->by_ckch_inst);
+			free(sc0);
+		}
+	}
+	/* We only created 1 SSL_CTX so we can free it there */
+	SSL_CTX_free(ctx);
+
+	return rv;
 }
 
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
