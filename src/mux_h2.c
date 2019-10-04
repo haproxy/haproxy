@@ -781,8 +781,9 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 {
 	struct h2c *h2c;
 	struct task *t = NULL;
+	void *conn_ctx = conn->ctx;
 
-	TRACE_ENTER(H2_EV_H2C_NEW, conn);
+	TRACE_ENTER(H2_EV_H2C_NEW);
 
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
@@ -854,6 +855,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	LIST_INIT(&h2c->sending_list);
 	LIST_INIT(&h2c->buf_wait.list);
 
+	conn->ctx = h2c;
+
 	if (t)
 		task_queue(t);
 
@@ -861,16 +864,14 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		/* FIXME: this is temporary, for outgoing connections we need
 		 * to immediately allocate a stream until the code is modified
 		 * so that the caller calls ->attach(). For now the outgoing cs
-		 * is stored as conn->ctx by the caller.
+		 * is stored as conn->ctx by the caller and saved in conn_ctx.
 		 */
 		struct h2s *h2s;
 
-		h2s = h2c_bck_stream_new(h2c, conn->ctx, sess);
+		h2s = h2c_bck_stream_new(h2c, conn_ctx, sess);
 		if (!h2s)
 			goto fail_stream;
 	}
-
-	conn->ctx = h2c;
 
 	/* prepare to read something */
 	h2c_restart_reading(h2c, 1);
@@ -884,7 +885,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		tasklet_free(h2c->wait_event.tasklet);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
-	TRACE_DEVEL("leaving in error", H2_EV_H2C_NEW|H2_EV_H2C_END|H2_EV_H2C_ERR, conn);
+	conn->ctx = conn_ctx; /* restore saved ctx */
+	TRACE_DEVEL("leaving in error", H2_EV_H2C_NEW|H2_EV_H2C_END|H2_EV_H2C_ERR);
 	return -1;
 }
 
