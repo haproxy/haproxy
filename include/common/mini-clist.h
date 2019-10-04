@@ -300,6 +300,47 @@ struct cond_wordlist {
 	(_ret);                                                            \
     })
 
+/*
+ * Detach a list from its head. A pointer to the first element is returned
+ * and the list is closed. If the list was empty, NULL is returned. This may
+ * exclusively be used with lists modified by MT_LIST_ADD/MT_LIST_ADDQ. This
+ * is incompatible with MT_LIST_DEL run concurrently.
+ */
+#define MT_LIST_BEHEAD(lh) ({                                       \
+	struct mt_list *_n;                                         \
+	struct mt_list *_p;                                         \
+	while (1) {                                                 \
+		_p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);    \
+		if (_p == MT_LIST_BUSY)                             \
+		        continue;                                   \
+		if (_p == (lh)) {                                   \
+			(lh)->prev = _p;                            \
+			_n = NULL;                                  \
+			break;                                      \
+		}                                                   \
+		_n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);    \
+		if (_n == MT_LIST_BUSY) {                           \
+			(lh)->prev = _p;                            \
+			__ha_barrier_store();                       \
+			continue;                                   \
+		}                                                   \
+		if (_n == (lh)) {                                   \
+			(lh)->next = _n;                            \
+			(lh)->prev = _p;                            \
+			_n = NULL;                                  \
+			break;                                      \
+		}                                                   \
+		(lh)->next = (lh);                                  \
+		(lh)->prev = (lh);                                  \
+		_n->prev = _p;                                      \
+		_p->next = _n;                                      \
+		__ha_barrier_store();                               \
+		break;                                              \
+	}                                                           \
+	(_n);                                                       \
+})
+
+
 /* Remove an item from a list.
  * Returns 1 if we removed the item, 0 otherwise (because it was in no list).
  */
