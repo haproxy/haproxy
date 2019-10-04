@@ -32,6 +32,7 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
+#include <proto/trace.h>
 
 /* FCGI Connection flags (32 bits) */
 #define FCGI_CF_NONE           0x00000000
@@ -212,6 +213,142 @@ struct fcgi_strm_params {
 /* Maximum amount of data we're OK with re-aligning for buffer optimizations */
 #define MAX_DATA_REALIGN 1024
 
+/* trace source and events */
+static void fcgi_trace(enum trace_level level, uint64_t mask,
+		       const struct trace_source *src,
+		       const struct ist where, const struct ist func,
+		       const void *a1, const void *a2, const void *a3, const void *a4);
+
+/* The event representation is split like this :
+ *   fconn - internal FCGI connection
+ *   fstrm - internal FCGI stream
+ *   strm  - application layer
+ *   rx    - data receipt
+ *   tx    - data transmission
+ *   rsp   - response parsing
+ */
+static const struct trace_event fcgi_trace_events[] = {
+#define           FCGI_EV_FCONN_NEW     (1ULL <<  0)
+	{ .mask = FCGI_EV_FCONN_NEW,    .name = "fconn_new",        .desc = "new FCGI connection" },
+#define           FCGI_EV_FCONN_RECV    (1ULL <<  1)
+	{ .mask = FCGI_EV_FCONN_RECV,   .name = "fconn_recv",       .desc = "Rx on FCGI connection" },
+#define           FCGI_EV_FCONN_SEND    (1ULL <<  2)
+	{ .mask = FCGI_EV_FCONN_SEND,   .name = "fconn_send",       .desc = "Tx on FCGI connection" },
+#define           FCGI_EV_FCONN_BLK     (1ULL <<  3)
+	{ .mask = FCGI_EV_FCONN_BLK,    .name = "fconn_blk",        .desc = "FCGI connection blocked" },
+#define           FCGI_EV_FCONN_WAKE    (1ULL <<  4)
+	{ .mask = FCGI_EV_FCONN_WAKE,   .name = "fconn_wake",       .desc = "FCGI connection woken up" },
+#define           FCGI_EV_FCONN_END     (1ULL <<  5)
+	{ .mask = FCGI_EV_FCONN_END,    .name = "fconn_end",        .desc = "FCGI connection terminated" },
+#define           FCGI_EV_FCONN_ERR     (1ULL <<  6)
+	{ .mask = FCGI_EV_FCONN_ERR,    .name = "fconn_err",        .desc = "error on FCGI connection" },
+
+#define           FCGI_EV_RX_FHDR       (1ULL <<  7)
+	{ .mask = FCGI_EV_RX_FHDR,      .name = "rx_fhdr",          .desc = "FCGI record header received" },
+#define           FCGI_EV_RX_RECORD     (1ULL <<  8)
+	{ .mask = FCGI_EV_RX_RECORD,    .name = "rx_record",        .desc = "receipt of any FCGI record" },
+#define           FCGI_EV_RX_EOI        (1ULL <<  9)
+	{ .mask = FCGI_EV_RX_EOI,       .name = "rx_eoi",           .desc = "receipt of end of FCGI input" },
+#define           FCGI_EV_RX_GETVAL     (1ULL << 10)
+	{ .mask = FCGI_EV_RX_GETVAL,    .name = "rx_get_values",    .desc = "receipt of FCGI GET_VALUES_RESULT record" },
+#define           FCGI_EV_RX_STDOUT     (1ULL << 11)
+	{ .mask = FCGI_EV_RX_STDOUT,    .name = "rx_stdout",        .desc = "receipt of FCGI STDOUT record" },
+#define           FCGI_EV_RX_STDERR     (1ULL << 12)
+	{ .mask = FCGI_EV_RX_STDERR,    .name = "rx_stderr",        .desc = "receipt of FCGI STDERR record" },
+#define           FCGI_EV_RX_ENDREQ     (1ULL << 13)
+	{ .mask = FCGI_EV_RX_ENDREQ,    .name = "rx_end_req",       .desc = "receipt of FCGI END_REQUEST record" },
+
+#define           FCGI_EV_TX_RECORD     (1ULL << 14)
+	{ .mask = FCGI_EV_TX_RECORD,    .name = "tx_record",        .desc = "transmission of any FCGI record" },
+#define           FCGI_EV_TX_EOI        (1ULL << 15)
+	{ .mask = FCGI_EV_TX_EOI,       .name = "tx_eoi",           .desc = "transmission of FCGI end of input" },
+#define           FCGI_EV_TX_BEGREQ     (1ULL << 16)
+	{ .mask = FCGI_EV_TX_BEGREQ,    .name = "tx_begin_request", .desc = "transmission of FCGI BEGIN_REQUEST record" },
+#define           FCGI_EV_TX_GETVAL     (1ULL << 17)
+	{ .mask = FCGI_EV_TX_GETVAL,    .name = "tx_get_values",    .desc = "transmission of FCGI GET_VALUES record" },
+#define           FCGI_EV_TX_PARAMS     (1ULL << 18)
+	{ .mask = FCGI_EV_TX_PARAMS,    .name = "tx_params",        .desc = "transmission of FCGI PARAMS record" },
+#define           FCGI_EV_TX_STDIN      (1ULL << 19)
+	{ .mask = FCGI_EV_TX_STDIN,     .name = "tx_stding",        .desc = "transmission of FCGI STDIN record" },
+#define           FCGI_EV_TX_ABORT      (1ULL << 20)
+	{ .mask = FCGI_EV_TX_ABORT,     .name = "tx_abort",         .desc = "transmission of FCGI ABORT record" },
+
+#define           FCGI_EV_RSP_DATA      (1ULL << 21)
+	{ .mask = FCGI_EV_RSP_DATA,     .name = "rsp_data",         .desc = "parse any data of H1 response" },
+#define           FCGI_EV_RSP_EOM       (1ULL << 22)
+	{ .mask = FCGI_EV_RSP_EOM,      .name = "rsp_eom",          .desc = "reach the end of message of H1 response" },
+#define           FCGI_EV_RSP_HDRS      (1ULL << 23)
+	{ .mask = FCGI_EV_RSP_HDRS,     .name = "rsp_headers",      .desc = "parse headers of H1 response" },
+#define           FCGI_EV_RSP_BODY      (1ULL << 24)
+	{ .mask = FCGI_EV_RSP_BODY,     .name = "rsp_body",         .desc = "parse body part of H1 response" },
+#define           FCGI_EV_RSP_TLRS      (1ULL << 25)
+	{ .mask = FCGI_EV_RSP_TLRS,     .name = "rsp_trailerus",    .desc = "parse trailers of H1 response" },
+
+#define           FCGI_EV_FSTRM_NEW     (1ULL << 26)
+	{ .mask = FCGI_EV_FSTRM_NEW,    .name = "fstrm_new",        .desc = "new FCGI stream" },
+#define           FCGI_EV_FSTRM_BLK     (1ULL << 27)
+	{ .mask = FCGI_EV_FSTRM_BLK,    .name = "fstrm_blk",        .desc = "FCGI stream blocked" },
+#define           FCGI_EV_FSTRM_END     (1ULL << 28)
+	{ .mask = FCGI_EV_FSTRM_END,    .name = "fstrm_end",        .desc = "FCGI stream terminated" },
+#define           FCGI_EV_FSTRM_ERR     (1ULL << 29)
+	{ .mask = FCGI_EV_FSTRM_ERR,    .name = "fstrm_err",        .desc = "error on FCGI stream" },
+
+#define           FCGI_EV_STRM_NEW      (1ULL << 30)
+	{ .mask = FCGI_EV_STRM_NEW,     .name = "strm_new",         .desc = "app-layer stream creation" },
+#define           FCGI_EV_STRM_RECV     (1ULL << 31)
+	{ .mask = FCGI_EV_STRM_RECV,    .name = "strm_recv",        .desc = "receiving data for stream" },
+#define           FCGI_EV_STRM_SEND     (1ULL << 32)
+	{ .mask = FCGI_EV_STRM_SEND,    .name = "strm_send",        .desc = "sending data for stream" },
+#define           FCGI_EV_STRM_FULL     (1ULL << 33)
+	{ .mask = FCGI_EV_STRM_FULL,    .name = "strm_full",        .desc = "stream buffer full" },
+#define           FCGI_EV_STRM_WAKE     (1ULL << 34)
+	{ .mask = FCGI_EV_STRM_WAKE,    .name = "strm_wake",        .desc = "stream woken up" },
+#define           FCGI_EV_STRM_SHUT     (1ULL << 35)
+	{ .mask = FCGI_EV_STRM_SHUT,    .name = "strm_shut",        .desc = "stream shutdown" },
+#define           FCGI_EV_STRM_END      (1ULL << 36)
+	{ .mask = FCGI_EV_STRM_END,     .name = "strm_end",         .desc = "detaching app-layer stream" },
+#define           FCGI_EV_STRM_ERR      (1ULL << 37)
+	{ .mask = FCGI_EV_STRM_ERR,     .name = "strm_err",         .desc = "stream error" },
+
+	{ }
+};
+
+static const struct name_desc fcgi_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the connection */ },
+	/* arg2 */ { .name="fstrm", .desc="FCGI stream" },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+
+static const struct name_desc fcgi_trace_decoding[] = {
+#define FCGI_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define FCGI_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report only fconn/fstrm state and flags, no real decoding" },
+#define FCGI_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add request/response status line or htx info when available" },
+#define FCGI_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add header fields or record decoding when available" },
+#define FCGI_VERB_COMPLETE 5
+	{ .name="complete", .desc="add full data dump when available" },
+	{ /* end */ }
+};
+
+static struct trace_source trace_fcgi = {
+	.name = IST("fcgi"),
+	.desc = "FastCGI multiplexer",
+	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
+	.default_cb = fcgi_trace,
+	.known_events = fcgi_trace_events,
+	.lockon_args = fcgi_trace_lockon_args,
+	.decoding = fcgi_trace_decoding,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_fcgi
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
 /* FCGI connection and stream pools */
 DECLARE_STATIC_POOL(pool_head_fcgi_conn, "fcgi_conn", sizeof(struct fcgi_conn));
 DECLARE_STATIC_POOL(pool_head_fcgi_strm, "fcgi_strm", sizeof(struct fcgi_strm));
@@ -222,6 +359,8 @@ static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int id);
 static struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct conn_stream *cs, struct session *sess);
+static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm);
+static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
 static void fcgi_strm_alert(struct fcgi_strm *fstrm);
 static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm);
 
@@ -243,6 +382,135 @@ static const struct fcgi_strm *fcgi_unknown_stream = &(const struct fcgi_strm){
 	.id        = 0,
 };
 
+/* returns a fconn state as an abbreviated 3-letter string, or "???" if unknown */
+static inline const char *fconn_st_to_str(enum fcgi_conn_st st)
+{
+	switch (st) {
+		case FCGI_CS_INIT     : return "INI";
+		case FCGI_CS_SETTINGS : return "STG";
+		case FCGI_CS_RECORD_H : return "RDH";
+		case FCGI_CS_RECORD_D : return "RDD";
+		case FCGI_CS_RECORD_P : return "RDP";
+		case FCGI_CS_CLOSED   : return "CLO";
+		default               : return "???";
+	}
+}
+
+/* returns a fstrm state as an abbreviated 3-letter string, or "???" if unknown */
+static inline const char *fstrm_st_to_str(enum fcgi_strm_st st)
+{
+	switch (st) {
+		case FCGI_SS_IDLE   : return "IDL";
+		case FCGI_SS_OPEN   : return "OPN";
+		case FCGI_SS_HREM   : return "RCL";
+		case FCGI_SS_HLOC   : return "HCL";
+		case FCGI_SS_ERROR  : return "ERR";
+		case FCGI_SS_CLOSED : return "CLO";
+		default             : return "???";
+	}
+}
+
+
+/* the FCGI traces always expect that arg1, if non-null, is of type connection
+ * (from which we can derive fconn), that arg2, if non-null, is of type fstrm,
+ * and that arg3, if non-null, is a htx for rx/tx headers.
+ */
+static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+		       const struct ist where, const struct ist func,
+		       const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct connection *conn = a1;
+	const struct fcgi_conn *fconn = conn ? conn->ctx : NULL;
+	const struct fcgi_strm *fstrm = a2;
+	const struct htx *htx = a3;
+	const size_t     *val = a4;
+
+	if (!fconn)
+		fconn = (fstrm ? fstrm->fconn : NULL);
+
+	if (!fconn || src->verbosity < FCGI_VERB_CLEAN)
+		return;
+
+	/* Display the response state if fstrm is defined */
+	if (fstrm)
+		chunk_appendf(&trace_buf, " [rsp:%s]", h1m_state_str(fstrm->h1m.state));
+
+	if (src->verbosity == FCGI_VERB_CLEAN)
+		return;
+
+	/* Display the value to the 4th argument (level > STATE) */
+	if (src->level > TRACE_LEVEL_STATE && val)
+		chunk_appendf(&trace_buf, " - VAL=%lu", *val);
+
+	/* Display status-line if possible (verbosity > MINIMAL) */
+	if (src->verbosity > FCGI_VERB_MINIMAL && htx && htx_nbblks(htx)) {
+		const struct htx_blk *blk = htx_get_head_blk(htx);
+		const struct htx_sl  *sl  = htx_get_blk_ptr(htx, blk);
+		enum htx_blk_type    type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)
+			chunk_appendf(&trace_buf, " - \"%.*s %.*s %.*s\"",
+				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
+				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
+				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
+	}
+
+	/* Display fconn info and, if defined, fstrm info */
+	chunk_appendf(&trace_buf, " - fconn=%p(%s,0x%08x)", fconn, fconn_st_to_str(fconn->state), fconn->flags);
+	if (fstrm)
+		chunk_appendf(&trace_buf, " fstrm=%p(%d,%s,0x%08x)", fstrm, fstrm->id, fstrm_st_to_str(fstrm->state), fstrm->flags);
+
+	if (!fstrm || fstrm->id <= 0)
+		chunk_appendf(&trace_buf, " dsi=%d", fconn->dsi);
+	if (fconn->dsi >= 0 && (mask & FCGI_EV_RX_FHDR))
+		chunk_appendf(&trace_buf, " drt=%s", fcgi_rt_str(fconn->drt));
+
+	if (src->verbosity == FCGI_VERB_MINIMAL)
+		return;
+
+	/* Display mbuf and dbuf info (level > USER & verbosity > SIMPLE) */
+	if (src->level > TRACE_LEVEL_USER) {
+		if (src->verbosity == FCGI_VERB_COMPLETE ||
+		    (src->verbosity == FCGI_VERB_ADVANCED && (mask & (FCGI_EV_FCONN_RECV|FCGI_EV_RX_RECORD))))
+			chunk_appendf(&trace_buf, " dbuf=%u@%p+%u/%u",
+				      (unsigned int)b_data(&fconn->dbuf), b_orig(&fconn->dbuf),
+				      (unsigned int)b_head_ofs(&fconn->dbuf), (unsigned int)b_size(&fconn->dbuf));
+		if (src->verbosity == FCGI_VERB_COMPLETE ||
+		    (src->verbosity == FCGI_VERB_ADVANCED && (mask & (FCGI_EV_FCONN_SEND|FCGI_EV_TX_RECORD)))) {
+			struct buffer *hmbuf = br_head((struct buffer *)fconn->mbuf);
+			struct buffer *tmbuf = br_tail((struct buffer *)fconn->mbuf);
+
+			chunk_appendf(&trace_buf, " .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+				      br_head_idx(fconn->mbuf), br_tail_idx(fconn->mbuf), br_size(fconn->mbuf),
+				      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
+				      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
+				      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
+				      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
+		}
+
+		if (fstrm && (src->verbosity == FCGI_VERB_COMPLETE ||
+			      (src->verbosity == FCGI_VERB_ADVANCED && (mask & (FCGI_EV_STRM_RECV|FCGI_EV_RSP_DATA)))))
+			chunk_appendf(&trace_buf, " rxbuf=%u@%p+%u/%u",
+				      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
+				      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf));
+	}
+
+	/* Display htx info if defined (level > USER) */
+	if (src->level > TRACE_LEVEL_USER && htx) {
+		int full = 0;
+
+		/* Full htx info (level > STATE && verbosity > SIMPLE) */
+		if (src->level > TRACE_LEVEL_STATE) {
+			if (src->verbosity == FCGI_VERB_COMPLETE)
+				full = 1;
+			else if (src->verbosity == FCGI_VERB_ADVANCED && (mask & (FCGI_EV_RSP_HDRS|FCGI_EV_TX_PARAMS)))
+				full = 1;
+		}
+
+		chunk_memcat(&trace_buf, "\n\t", 2);
+		htx_dump(&trace_buf, htx, full);
+	}
+}
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */
@@ -302,14 +570,15 @@ static int fcgi_buf_available(void *target)
 	struct fcgi_strm *fstrm;
 
 	if ((fconn->flags & FCGI_CF_DEM_DALLOC) && b_alloc_margin(&fconn->dbuf, 0)) {
+		TRACE_STATE("unblocking fconn, dbuf allocated", FCGI_EV_FCONN_RECV|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_DEM_DALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
 		return 1;
 	}
 
 	if ((fconn->flags & FCGI_CF_MUX_MALLOC) && b_alloc_margin(br_tail(fconn->mbuf), 0)) {
+		TRACE_STATE("unblocking fconn, mbuf allocated", FCGI_EV_FCONN_SEND|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_MUX_MALLOC;
-
 		if (fconn->flags & FCGI_CF_DEM_MROOM) {
 			fconn->flags &= ~FCGI_CF_DEM_MROOM;
 			fcgi_conn_restart_reading(fconn, 1);
@@ -320,8 +589,10 @@ static int fcgi_buf_available(void *target)
 	if ((fconn->flags & FCGI_CF_DEM_SALLOC) &&
 	    (fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi)) && fstrm->cs &&
 	    b_alloc_margin(&fstrm->rxbuf, 0)) {
+		TRACE_STATE("unblocking fstrm, rxbuf allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fconn->flags &= ~FCGI_CF_DEM_SALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
+		fcgi_strm_notify_recv(fstrm);
 		return 1;
 	}
 
@@ -429,6 +700,9 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	struct fcgi_strm *fstrm;
 	struct fcgi_app *app = get_px_fcgi_app(px);
 	struct task *t = NULL;
+	void *conn_ctx = conn->ctx;
+
+	TRACE_ENTER(FCGI_EV_FSTRM_NEW);
 
 	if (!app)
 		goto fail_conn;
@@ -491,22 +765,24 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	LIST_INIT(&fconn->sending_list);
 	LIST_INIT(&fconn->buf_wait.list);
 
+	conn->ctx = fconn;
+
 	if (t)
 		task_queue(t);
 
 	/* FIXME: this is temporary, for outgoing connections we need to
 	 * immediately allocate a stream until the code is modified so that the
 	 * caller calls ->attach(). For now the outgoing cs is stored as
-	 * conn->ctx by the caller.
+	 * conn->ctx by the caller and saved in conn_ctx.
 	 */
-	fstrm = fcgi_conn_stream_new(fconn, conn->ctx, sess);
+	fstrm = fcgi_conn_stream_new(fconn, conn_ctx, sess);
 	if (!fstrm)
 		goto fail;
 
-	conn->ctx = fconn;
 
 	/* Repare to read something */
 	fcgi_conn_restart_reading(fconn, 1);
+	TRACE_LEAVE(FCGI_EV_FCONN_NEW, conn);
 	return 0;
 
   fail:
@@ -515,6 +791,8 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 		tasklet_free(fconn->wait_event.tasklet);
 	pool_free(pool_head_fcgi_conn, fconn);
   fail_conn:
+	conn->ctx = conn_ctx; // restore saved ctx
+	TRACE_DEVEL("leaving in error", FCGI_EV_FCONN_NEW|FCGI_EV_FCONN_END|FCGI_EV_FCONN_ERR);
 	return -1;
 }
 
@@ -555,10 +833,14 @@ static void fcgi_release(struct fcgi_conn *fconn)
 {
 	struct connection *conn = NULL;;
 
+	TRACE_POINT(FCGI_EV_FCONN_END);
+
 	if (fconn) {
 		/* The connection must be attached to this mux to be released */
 		if (fconn->conn && fconn->conn->ctx == fconn)
 			conn = fconn->conn;
+
+		TRACE_DEVEL("freeing fconn", FCGI_EV_FCONN_END, conn);
 
 		if (LIST_ADDED(&fconn->buf_wait.list)) {
 			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
@@ -584,6 +866,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 	if (conn) {
 		conn->mux = NULL;
 		conn->ctx = NULL;
+		TRACE_DEVEL("freeing conn", FCGI_EV_FCONN_END, conn);
 
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
@@ -617,8 +900,11 @@ static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 static inline void fcgi_strm_error(struct fcgi_strm *fstrm)
 {
 	if (fstrm->id && fstrm->state != FCGI_SS_ERROR) {
-		if (fstrm->state < FCGI_SS_ERROR)
+		TRACE_POINT(FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+		if (fstrm->state < FCGI_SS_ERROR) {
 			fstrm->state = FCGI_SS_ERROR;
+			TRACE_STATE("switching to ERROR", FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+		}
 		if (fstrm->cs)
 			cs_set_error(fstrm->cs);
 	}
@@ -630,6 +916,7 @@ static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm)
 	struct wait_event *sw;
 
 	if (fstrm->recv_wait) {
+		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
 		sw = fstrm->recv_wait;
 		sw->events &= ~SUB_RETRY_RECV;
 		tasklet_wakeup(sw->tasklet);
@@ -643,6 +930,7 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm)
 	struct wait_event *sw;
 
 	if (fstrm->send_wait && !LIST_ADDED(&fstrm->sending_list)) {
+		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
 		sw = fstrm->send_wait;
 		sw->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&fstrm->fconn->sending_list, &fstrm->sending_list);
@@ -661,12 +949,15 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm)
  */
 static void fcgi_strm_alert(struct fcgi_strm *fstrm)
 {
+	TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
 	if (fstrm->recv_wait || fstrm->send_wait) {
 		fcgi_strm_notify_recv(fstrm);
 		fcgi_strm_notify_send(fstrm);
 	}
-	else if (fstrm->cs && fstrm->cs->data_cb->wake != NULL)
+	else if (fstrm->cs && fstrm->cs->data_cb->wake != NULL) {
+		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
 		fstrm->cs->data_cb->wake(fstrm->cs);
+	}
 }
 
 /* Writes the 16-bit record size <len> at address <record> */
@@ -694,6 +985,7 @@ static inline void fcgi_set_record_id(void *record, uint16_t id)
 static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 {
 	if (fstrm->state != FCGI_SS_CLOSED) {
+		TRACE_ENTER(FCGI_EV_FSTRM_END, fstrm->fconn->conn, fstrm);
 		fstrm->fconn->nb_streams--;
 		if (!fstrm->id)
 			fstrm->fconn->nb_reserved--;
@@ -701,8 +993,10 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 			if (!(fstrm->cs->flags & CS_FL_EOS) && !b_data(&fstrm->rxbuf))
 				fcgi_strm_notify_recv(fstrm);
 		}
+		fstrm->state = FCGI_SS_CLOSED;
+		TRACE_STATE("switching to CLOSED", FCGI_EV_FSTRM_END, fstrm->fconn->conn, fstrm);
+		TRACE_LEAVE(FCGI_EV_FSTRM_END, fstrm->fconn->conn, fstrm);
 	}
-	fstrm->state = FCGI_SS_CLOSED;
 }
 
 /* Detaches a FCGI stream from its FCGI connection and releases it to the
@@ -710,6 +1004,10 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
  */
 static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 {
+	struct connection *conn = fstrm->fconn->conn;
+
+	TRACE_ENTER(FCGI_EV_FSTRM_END, conn, fstrm);
+
 	fcgi_strm_close(fstrm);
 	eb32_delete(&fstrm->by_id);
 	if (b_size(&fstrm->rxbuf)) {
@@ -731,6 +1029,8 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 	}
 	tasklet_free(fstrm->wait_event.tasklet);
 	pool_free(pool_head_fcgi_strm, fstrm);
+
+	TRACE_LEAVE(FCGI_EV_FSTRM_END, conn);
 }
 
 /* Allocates a new stream <id> for connection <fconn> and adds it into fconn's
@@ -742,6 +1042,8 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 {
 	struct fcgi_strm *fstrm;
+
+	TRACE_ENTER(FCGI_EV_FSTRM_NEW, fconn->conn);
 
 	fstrm = pool_alloc(pool_head_fcgi_strm);
 	if (!fstrm)
@@ -780,9 +1082,11 @@ static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 	fconn->nb_streams++;
 	fconn->stream_cnt++;
 
+	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, fconn->conn, fstrm);
 	return fstrm;
 
   out:
+	TRACE_DEVEL("leaving in error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR|FCGI_EV_FSTRM_END, fconn->conn);
 	return NULL;
 }
 
@@ -795,24 +1099,34 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 {
 	struct fcgi_strm *fstrm = NULL;
 
-	if (fconn->nb_streams >= fconn->streams_limit)
+	TRACE_ENTER(FCGI_EV_FSTRM_NEW, fconn->conn);
+	if (fconn->nb_streams >= fconn->streams_limit) {
+		TRACE_DEVEL("leaving on streams_limit reached", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
+	}
 
-	if (fcgi_streams_left(fconn) < 1)
+	if (fcgi_streams_left(fconn) < 1) {
+		TRACE_DEVEL("leaving on !streams_left", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
+	}
 
 	/* Defer choosing the ID until we send the first message to create the stream */
 	fstrm = fcgi_strm_new(fconn, 0);
-	if (!fstrm)
+	if (!fstrm) {
+		TRACE_DEVEL("leaving on fstrm creation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
+	}
 
 	fstrm->cs = cs;
 	fstrm->sess = sess;
 	cs->ctx = fstrm;
 	fconn->nb_cs++;
 
-  out:
+	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, fconn->conn, fstrm);
 	return fstrm;
+
+  out:
+	return NULL;
 }
 
 /* Wakes a specific stream and assign its conn_stream some CS_FL_* flags among
@@ -822,28 +1136,40 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
  */
 static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 {
+	struct fcgi_conn *fconn = fstrm->fconn;
+
+	TRACE_ENTER(FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
+
 	if (!fstrm->cs) {
 		/* this stream was already orphaned */
 		fcgi_strm_destroy(fstrm);
+		TRACE_DEVEL("leaving with no fstrm", FCGI_EV_STRM_WAKE, fconn->conn);
 		return;
 	}
 
-	if (conn_xprt_read0_pending(fstrm->fconn->conn)) {
-		if (fstrm->state == FCGI_SS_OPEN)
+	if (conn_xprt_read0_pending(fconn->conn)) {
+		if (fstrm->state == FCGI_SS_OPEN) {
 			fstrm->state = FCGI_SS_HREM;
+			TRACE_STATE("swtiching to HREM", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
+		}
 		else if (fstrm->state == FCGI_SS_HLOC)
 			fcgi_strm_close(fstrm);
 	}
 
-	if ((fstrm->fconn->state == FCGI_CS_CLOSED || fstrm->fconn->conn->flags & CO_FL_ERROR)) {
+	if ((fconn->state == FCGI_CS_CLOSED || fconn->conn->flags & CO_FL_ERROR)) {
 		fstrm->cs->flags |= CS_FL_ERR_PENDING;
 		if (fstrm->cs->flags & CS_FL_EOS)
 			fstrm->cs->flags |= CS_FL_ERROR;
-		if (fstrm->state < FCGI_SS_ERROR)
+
+		if (fstrm->state < FCGI_SS_ERROR) {
 			fstrm->state = FCGI_SS_ERROR;
+			TRACE_STATE("switching to ERROR", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
+		}
 	}
 
 	fcgi_strm_alert(fstrm);
+
+	TRACE_LEAVE(FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 }
 
 /* Wakes unassigned streams (ID == 0) attached to the connection. */
@@ -870,6 +1196,8 @@ static void fcgi_wake_some_streams(struct fcgi_conn *fconn, int last)
 	struct eb32_node *node;
 	struct fcgi_strm *fstrm;
 
+	TRACE_ENTER(FCGI_EV_STRM_WAKE, fconn->conn);
+
 	/* Wake all streams with ID > last */
 	node = eb32_lookup_ge(&fconn->streams_by_id, last + 1);
 	while (node) {
@@ -878,6 +1206,8 @@ static void fcgi_wake_some_streams(struct fcgi_conn *fconn, int last)
 		fcgi_strm_wake_one_stream(fstrm);
 	}
 	fcgi_wake_unassigned_streams(fconn);
+
+	TRACE_LEAVE(FCGI_EV_STRM_WAKE, fconn->conn);
 }
 
 static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fstrm,
@@ -1170,14 +1500,18 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 	struct buffer *mbuf;
 	struct fcgi_param max_reqs   = { .n = ist("FCGI_MAX_REQS"),   .v = ist("")};
 	struct fcgi_param mpxs_conns = { .n = ist("FCGI_MPXS_CONNS"), .v = ist("")};
-	int ret;
+	int ret = 0;
+
+	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn);
 
 	mbuf = br_tail(fconn->mbuf);
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
 		fconn->flags |= FCGI_CF_MUX_MALLOC;
 		fconn->flags |= FCGI_CF_DEM_MROOM;
-		return 0;
+		TRACE_STATE("waiting for fconn mbuf ring allocation", FCGI_EV_TX_RECORD|FCGI_EV_FCONN_BLK, fconn->conn);
+		ret = 0;
+		goto end;
 	}
 
 	while (1) {
@@ -1203,11 +1537,13 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 		goto full;
 
 	/* update the record's size now */
+	TRACE_PROTO("FCGI GET_VALUES record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn,,, (size_t[]){outbuf.data-8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 	ret = 1;
 
   end:
+	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn);
 	return ret;
   full:
 	/* Too large to be encoded. For GET_VALUES records, it is an error */
@@ -1218,12 +1554,14 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fconn->flags |= FCGI_CF_DEM_MROOM;
+	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FCONN_BLK, fconn->conn);
 	ret = 0;
 	goto end;
   fail:
 	fconn->state = FCGI_CS_CLOSED;
-	ret = 0;
-	goto end;
+	TRACE_STATE("switching to CLOSED", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL|FCGI_EV_FCONN_END, fconn->conn);
+	TRACE_DEVEL("leaving on error", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
+	return 0;
 }
 
 /* Processes a GET_VALUES_RESULT record. Returns > 0 on success, 0 if it
@@ -1237,6 +1575,8 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 	struct buffer *dbuf;
 	size_t offset;
 
+	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
+
 	dbuf = &fconn->dbuf;
 
 	/* Record too large to be fully decoded */
@@ -1244,8 +1584,10 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 		goto fail;
 
 	/* process full record only */
-	if (b_data(dbuf) < (fconn->drl + fconn->drp))
+	if (b_data(dbuf) < (fconn->drl + fconn->drp)) {
+		TRACE_DEVEL("leaving on missing data", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
 		return 0;
+	}
 
 	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < fconn->drl)) {
 		/* Realign the dmux buffer if the record wraps. It is unexpected
@@ -1269,13 +1611,18 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 		offset += ret;
 
 		if (isteqi(p.n, ist("FCGI_MPXS_CONNS"))) {
-			if (isteq(p.v, ist("1")))
+			if (isteq(p.v, ist("1"))) {
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){1});
 				fconn->flags |= FCGI_CF_MPXS_CONNS;
-			else
+			}
+			else {
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){0});
 				fconn->flags &= ~FCGI_CF_MPXS_CONNS;
+			}
 		}
 		else if (isteqi(p.n, ist("FCGI_MAX_REQS"))) {
 			fconn->streams_limit = strl2ui(p.v.ptr, p.v.len);
+			TRACE_STATE("set streams_limit", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){fconn->streams_limit});
 		}
 		/*
 		 * Ignore all other params
@@ -1285,8 +1632,10 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 	/* Reset the number of concurrent streams supported if the FCGI
 	 * application does not support connection multiplexing
 	 */
-	if (!(fconn->flags & FCGI_CF_MPXS_CONNS))
+	if (!(fconn->flags & FCGI_CF_MPXS_CONNS)) {
 		fconn->streams_limit = 1;
+		TRACE_STATE("no mpxs for streams_limit to 1", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
+	}
 
 	/* We must be sure to have read exactly the announced record length, no
 	 * more no less
@@ -1294,14 +1643,19 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 	if (offset != fconn->drl)
 		goto fail;
 
+	TRACE_PROTO("FCGI GET_VALUES_RESULT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){fconn->drl});
 	b_del(&fconn->dbuf, fconn->drl + fconn->drp);
 	fconn->drl = 0;
 	fconn->drp = 0;
 	fconn->state = FCGI_CS_RECORD_H;
 	fcgi_wake_unassigned_streams(fconn);
+	TRACE_STATE("switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
+	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
 	return 1;
   fail:
 	fconn->state = FCGI_CS_CLOSED;
+	TRACE_STATE("switching to CLOSED", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
+	TRACE_DEVEL("leaving on error", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 	return 0;
 }
 
@@ -1314,6 +1668,8 @@ static int fcgi_conn_send_aborts(struct fcgi_conn *fconn)
 	struct eb32_node *node;
 	struct fcgi_strm *fstrm;
 
+	TRACE_ENTER(FCGI_EV_TX_RECORD, fconn->conn);
+
 	node = eb32_lookup_ge(&fconn->streams_by_id, 1);
 	while (node) {
 		fstrm = container_of(node, struct fcgi_strm, by_id);
@@ -1324,6 +1680,8 @@ static int fcgi_conn_send_aborts(struct fcgi_conn *fconn)
 			return 0;
 	}
 	fconn->flags |= FCGI_CF_ABRTS_SENT;
+	TRACE_STATE("aborts sent to all fstrms", FCGI_EV_TX_RECORD, fconn->conn);
+	TRACE_LEAVE(FCGI_EV_TX_RECORD, fconn->conn);
 	return 1;
 }
 
@@ -1338,12 +1696,16 @@ static int fcgi_strm_send_begin_request(struct fcgi_conn *fconn, struct fcgi_str
 	struct fcgi_begin_request rec = { .role = FCGI_RESPONDER, .flags = 0};
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
+
 	mbuf = br_tail(fconn->mbuf);
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
 		fconn->flags |= FCGI_CF_MUX_MALLOC;
-		fconn->flags |= FCGI_CF_DEM_MROOM;
-		return 0;
+		fstrm->flags |= FCGI_SF_BLK_MROOM;
+		TRACE_STATE("waiting for fconn mbuf ring allocation", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
+		ret = 0;
+		goto end;
 	}
 
 	while (1) {
@@ -1363,25 +1725,30 @@ static int fcgi_strm_send_begin_request(struct fcgi_conn *fconn, struct fcgi_str
 	fcgi_set_record_id(outbuf.area, fstrm->id);
 	outbuf.data = 8;
 
-	if (fconn->flags & FCGI_CF_KEEP_CONN)
+	if (fconn->flags & FCGI_CF_KEEP_CONN) {
+		TRACE_STATE("keep connection opened", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
 		rec.flags |= FCGI_KEEP_CONN;
+	}
 	if (!fcgi_encode_begin_request(&outbuf, &rec))
 		goto full;
 
 	/* commit the record */
+	TRACE_PROTO("FCGI BEGIN_REQUEST record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm,, (size_t[]){0});
 	b_add(mbuf, outbuf.data);
 	fstrm->flags |= FCGI_SF_BEGIN_SENT;
 	fstrm->state = FCGI_SS_OPEN;
-
+	TRACE_STATE("switching to OPEN", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
 	ret = 1;
 
   end:
+	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
 	return ret;
   full:
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fstrm->flags |= FCGI_SF_BLK_MROOM;
+	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn);
 	ret = 0;
 	goto end;
 }
@@ -1397,12 +1764,15 @@ static int fcgi_strm_send_empty_record(struct fcgi_conn *fconn, struct fcgi_strm
 	struct buffer *mbuf;
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_TX_RECORD, fconn->conn, fstrm);
 	mbuf = br_tail(fconn->mbuf);
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
 		fconn->flags |= FCGI_CF_MUX_MALLOC;
-		fconn->flags |= FCGI_CF_DEM_MROOM;
-		return 0;
+		fstrm->flags |= FCGI_SF_BLK_MROOM;
+		TRACE_STATE("waiting for fconn mbuf ring allocation", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
+		ret = 0;
+		goto end;
 	}
 
 	while (1) {
@@ -1428,12 +1798,14 @@ static int fcgi_strm_send_empty_record(struct fcgi_conn *fconn, struct fcgi_strm
 	ret = 1;
 
   end:
+	TRACE_LEAVE(FCGI_EV_TX_RECORD, fconn->conn, fstrm);
 	return ret;
   full:
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fstrm->flags |= FCGI_SF_BLK_MROOM;
+	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
 	ret = 0;
 	goto end;
 }
@@ -1444,7 +1816,13 @@ static int fcgi_strm_send_empty_record(struct fcgi_conn *fconn, struct fcgi_strm
  */
 static int fcgi_strm_send_empty_params(struct fcgi_conn *fconn, struct fcgi_strm *fstrm)
 {
-	return fcgi_strm_send_empty_record(fconn, fstrm, FCGI_PARAMS);
+	int ret;
+
+	TRACE_POINT(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
+	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_PARAMS);
+	if (ret)
+		TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){0});
+	return ret;
 }
 
 /* Sends an empty STDIN record. It relies on fcgi_strm_send_empty_record(). It
@@ -1454,9 +1832,14 @@ static int fcgi_strm_send_empty_stdin(struct fcgi_conn *fconn, struct fcgi_strm 
 {
 	int ret;
 
+	TRACE_POINT(FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN|FCGI_EV_TX_EOI, fconn->conn, fstrm);
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_STDIN);
-	if (ret)
+	if (ret) {
 		fstrm->flags |= FCGI_SF_ES_SENT;
+		TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){0});
+		TRACE_USER("FCGI request fully xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN|FCGI_EV_TX_EOI, fconn->conn, fstrm);
+		TRACE_STATE("stdin data fully sent", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN|FCGI_EV_TX_EOI, fconn->conn, fstrm);
+	}
 	return ret;
 }
 
@@ -1467,9 +1850,14 @@ static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm
 {
 	int ret;
 
+	TRACE_POINT(FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_ABORT_REQUEST);
-	if (ret)
+	if (ret) {
 		fstrm->flags |= FCGI_SF_ABRT_SENT;
+		TRACE_PROTO("FCGI ABORT record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm,, (size_t[]){0});
+		TRACE_USER("FCGI request aborted", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
+		TRACE_STATE("abort sent", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
+	}
 	return ret;
 }
 
@@ -1488,6 +1876,8 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	struct fcgi_strm_params params;
 	size_t total = 0;
 
+	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
+
 	memset(&params, 0, sizeof(params));
 	params.p = get_trash_chunk();
 
@@ -1495,8 +1885,9 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
 		fconn->flags |= FCGI_CF_MUX_MALLOC;
-		fconn->flags |= FCGI_CF_DEM_MROOM;
-		return 0;
+		fstrm->flags |= FCGI_SF_BLK_MROOM;
+		TRACE_STATE("waiting for fconn mbuf ring allocation", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
+		goto end;
 	}
 
 	while (1) {
@@ -1625,6 +2016,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 						if (outbuf.data == 8)
 							goto full;
 					}
+					TRACE_STATE("add server name header", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
 				}
 				goto done;
 
@@ -1658,22 +2050,26 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 		goto error;
 
 	/* update the record's size */
+	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm,, (size_t[]){outbuf.data - 8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 
   end:
+	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx, (size_t[]){total});
 	return total;
   full:
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fstrm->flags |= FCGI_SF_BLK_MROOM;
+	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
 	if (total)
 		goto error;
 	goto end;
 
   error:
 	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	TRACE_PROTO("processing error", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 	fcgi_strm_error(fstrm);
 	goto end;
 }
@@ -1691,6 +2087,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	uint32_t size;
 	size_t total = 0;
 
+	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){count});
 	if (!count)
 		goto end;
 
@@ -1698,8 +2095,9 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
 		fconn->flags |= FCGI_CF_MUX_MALLOC;
-		fconn->flags |= FCGI_CF_DEM_MROOM;
-		return 0;
+		fstrm->flags |= FCGI_SF_BLK_MROOM;
+		TRACE_STATE("waiting for fconn mbuf ring allocation", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
+		goto end;
 	}
 
 	/* Perform some optimizations to reduce the number of buffer copies.
@@ -1737,15 +2135,10 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 			    (b_data(mbuf) <= b_size(mbuf) / 4 ||
 			     (size <= b_size(mbuf) / 4 && size + 8 <= b_contig_space(mbuf))))
 				goto copy;
-
-			if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
-				goto retry;
-
-			fconn->flags |= FCGI_CF_MUX_MFULL;
-			fstrm->flags |= FCGI_SF_BLK_MROOM;
-			goto end;
+			goto full;
 		}
 
+		TRACE_PROTO("sending stding data (zero-copy)", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){size});
 		/* map a FCGI record to the HTX block so that we can put the
 		 * record header there.
 		 */
@@ -1761,6 +2154,9 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		buf->area = old_area;
 		buf->data = buf->head = 0;
 		total += size;
+
+		htx = (struct htx *)buf->area;
+		htx_reset(htx);
 		goto end;
 	}
 
@@ -1790,6 +2186,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 		switch (type) {
 			case HTX_BLK_DATA:
+				TRACE_PROTO("sending stding data", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){size});
 				v = htx_get_blk_value(htx, blk);
 				if (v.len > count)
 					v.len = count;
@@ -1831,16 +2228,19 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
   done:
 	/* update the record's size */
+	TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){outbuf.data - 8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 
   end:
+	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){total});
 	return total;
   full:
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fstrm->flags |= FCGI_SF_BLK_MROOM;
+	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
 	goto end;
 }
 
@@ -1853,6 +2253,8 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	struct buffer *dbuf;
 	size_t ret;
 	size_t max;
+
+	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 
 	dbuf = &fconn->dbuf;
 
@@ -1867,7 +2269,8 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 	if (!fcgi_get_buf(fconn, &fstrm->rxbuf)) {
 		fconn->flags |= FCGI_CF_DEM_SALLOC;
-		return 0;
+		TRACE_STATE("waiting for fstrm rxbuf allocation", FCGI_EV_RX_RECORD|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
+		goto fail;
 	}
 
 	/*max = MIN(b_room(&fstrm->rxbuf), fconn->drl);*/
@@ -1881,9 +2284,13 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
+	TRACE_DATA("move some data to fstrm rxbuf", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){ret});
 
-	if (!buf_room_for_htx_data(&fstrm->rxbuf))
+	if (!buf_room_for_htx_data(&fstrm->rxbuf)) {
 		fconn->flags |= FCGI_CF_DEM_SFULL;
+		TRACE_STATE("fstrm rxbuf full", FCGI_EV_RX_RECORD|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
+	}
 
 	if (fconn->drl)
 		goto fail;
@@ -1898,8 +2305,11 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto fail;
 
 	fconn->state = FCGI_CS_RECORD_H;
+	TRACE_STATE("switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn, fstrm);
+	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 	return 1;
   fail:
+	TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 	return 0;
 }
 
@@ -1912,16 +2322,24 @@ static int fcgi_strm_handle_empty_stdout(struct fcgi_conn *fconn, struct fcgi_st
 {
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
+
 	fconn->state = FCGI_CS_RECORD_P;
+	TRACE_STATE("switching to RECORD_P", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 	fconn->drl += fconn->drp;
 	fconn->drp = 0;
 	ret = MIN(b_data(&fconn->dbuf), fconn->drl);
 	b_del(&fconn->dbuf, ret);
 	fconn->drl -= ret;
-	if (fconn->drl)
+	if (fconn->drl) {
+		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 		return 0;
+	}
 	fconn->state = FCGI_CS_RECORD_H;
 	fstrm->state |= FCGI_SF_ES_RCVD;
+	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){0});
+	TRACE_STATE("stdout data fully send, switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_EOI, fconn->conn, fstrm);
+	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 	return 1;
 }
 
@@ -1934,6 +2352,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	struct buffer tag;
 	size_t ret;
 
+	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm);
 	dbuf = &fconn->dbuf;
 
 	/* Only padding remains */
@@ -1950,6 +2369,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
+	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm, (size_t[]){ret});
 
 	trash.area[ret]   = '\n';
 	trash.area[ret+1] = '\0';
@@ -1968,8 +2388,11 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (fconn->drl)
 		goto fail;
 	fconn->state = FCGI_CS_RECORD_H;
+	TRACE_STATE("switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn, fstrm);
+	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm);
 	return 1;
   fail:
+	TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm);
 	return 0;
 }
 
@@ -1985,6 +2408,7 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 	struct buffer *dbuf;
 	struct fcgi_end_request endreq;
 
+	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm);
 	dbuf = &fconn->dbuf;
 
 	/* Record too large to be fully decoded */
@@ -1992,8 +2416,10 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 		goto fail;
 
 	/* process full record only */
-	if (b_data(dbuf) < (fconn->drl + fconn->drp))
+	if (b_data(dbuf) < (fconn->drl + fconn->drp)) {
+		TRACE_DEVEL("leaving on missing data", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn);
 		return 0;
+	}
 
 	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < fconn->drl)) {
 		/* Realign the dmux buffer if the record wraps. It is unexpected
@@ -2009,6 +2435,8 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 		goto fail;
 
 	fstrm->flags |= FCGI_SF_ES_RCVD;
+	TRACE_STATE("end of script reported", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_RX_EOI, fconn->conn, fstrm);
+	TRACE_PROTO("FCGI END_REQUEST record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm,, (size_t[]){fconn->drl});
 	fstrm->proto_status = endreq.errcode;
 	fcgi_strm_close(fstrm);
 
@@ -2016,10 +2444,13 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 	fconn->drl = 0;
 	fconn->drp = 0;
 	fconn->state = FCGI_CS_RECORD_H;
+	TRACE_STATE("switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn, fstrm);
+	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm);
 	return 1;
 
   fail:
 	fcgi_strm_error(fstrm);
+	TRACE_DEVEL("leaving on error", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_FSTRM_ERR, fconn->conn, fstrm);
 	return 0;
 }
 
@@ -2030,14 +2461,19 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 	struct fcgi_header hdr;
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_FCONN_WAKE, fconn->conn);
+
 	if (fconn->state == FCGI_CS_CLOSED)
 		return;
 
 	if (unlikely(fconn->state < FCGI_CS_RECORD_H)) {
-		if (fconn->state == FCGI_CS_INIT)
-				return;
+		if (fconn->state == FCGI_CS_INIT) {
+			TRACE_STATE("waiting FCGI GET_VALUES to be sent", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL, fconn->conn);
+			return;
+		}
 		if (fconn->state == FCGI_CS_SETTINGS) {
 			/* ensure that what is pending is a valid GET_VALUES_RESULT record. */
+			TRACE_STATE("receiving FCGI record header", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
 			ret = fcgi_decode_record_hdr(&fconn->dbuf, 0, &hdr);
 			if (!ret)
 				goto fail;
@@ -2045,19 +2481,28 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 
 			if (hdr.id || (hdr.type != FCGI_GET_VALUES_RESULT && hdr.type != FCGI_UNKNOWN_TYPE)) {
 				fconn->state = FCGI_CS_CLOSED;
+				TRACE_PROTO("unexpected record type or flags", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
+				TRACE_STATE("switching to CLOSED", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 				goto fail;
 			}
 			goto new_record;
 		}
 	}
 
-	/* process as many incoming frames as possible below */
-	while (b_data(&fconn->dbuf)) {
-
-		if (fconn->state == FCGI_CS_CLOSED)
+	/* process as many incoming records as possible below */
+	while (1) {
+		if (!b_data(&fconn->dbuf)) {
+			TRACE_DEVEL("no more Rx data", FCGI_EV_RX_RECORD, fconn->conn);
 			break;
+		}
+
+		if (fconn->state == FCGI_CS_CLOSED) {
+			TRACE_STATE("end of connection reported", FCGI_EV_RX_RECORD|FCGI_EV_RX_EOI, fconn->conn);
+			break;
+		}
 
 		if (fconn->state == FCGI_CS_RECORD_H) {
+			TRACE_PROTO("receiving FCGI record header", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
 			ret = fcgi_decode_record_hdr(&fconn->dbuf, 0, &hdr);
 			if (!ret)
 				break;
@@ -2069,6 +2514,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 			fconn->drl = hdr.len;
 			fconn->drp = hdr.padding;
 			fconn->state = FCGI_CS_RECORD_D;
+			TRACE_STATE("FCGI record header rcvd, switching to RECORD_D", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
 		}
 
 		/* Only FCGI_CS_RECORD_D or FCGI_CS_RECORD_P */
@@ -2081,6 +2527,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 		     (fstrm->flags & FCGI_SF_ES_RCVD) ||
 		     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 			/* we may have to signal the upper layers */
+			TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 			fstrm->cs->flags |= CS_FL_RCV_MORE;
 			fcgi_strm_notify_recv(fstrm);
 		}
@@ -2097,6 +2544,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 
 		switch (fconn->drt) {
 			case FCGI_GET_VALUES_RESULT:
+				TRACE_PROTO("receiving FCGI GET_VALUES_RESULT record", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
 				ret = fcgi_conn_handle_values_result(fconn);
 				break;
 
@@ -2104,6 +2552,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 				if (fstrm->flags & FCGI_SF_ES_RCVD)
 					goto ignore_record;
 
+				TRACE_PROTO("receiving FCGI STDOUT record", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 				if (fconn->drl)
 					ret = fcgi_strm_handle_stdout(fconn, fstrm);
 				else
@@ -2111,14 +2560,16 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 				break;
 
 			case FCGI_STDERR:
+				TRACE_PROTO("receiving FCGI STDERR record", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm);
 				ret = fcgi_strm_handle_stderr(fconn, fstrm);
 				break;
 
 			case FCGI_END_REQUEST:
+				TRACE_PROTO("receiving FCGI END_REQUEST record", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm);
 				ret = fcgi_strm_handle_end_request(fconn, fstrm);
 				break;
 
-			/* implement all extra frame types here */
+			/* implement all extra record types here */
 			default:
 			  ignore_record:
 				/* drop records that we ignore. They may be
@@ -2129,17 +2580,23 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 				fconn->drl += fconn->drp;
 				fconn->drp = 0;
 				ret = MIN(b_data(&fconn->dbuf), fconn->drl);
+				TRACE_PROTO("receiving FCGI ignored record", FCGI_EV_RX_RECORD, fconn->conn, fstrm,, (size_t[]){ret});
+				TRACE_STATE("switching to RECORD_P", FCGI_EV_RX_RECORD, fconn->conn, fstrm);
 				b_del(&fconn->dbuf, ret);
 				fconn->drl -= ret;
 				ret = (fconn->drl == 0);
 		}
 
 		/* error or missing data condition met above ? */
-		if (ret <= 0)
+		if (ret <= 0) {
+			TRACE_DEVEL("insufficient data to proceed", FCGI_EV_RX_RECORD, fconn->conn, fstrm);
 			break;
+		}
 
-		if (fconn->state != FCGI_CS_RECORD_H && !(fconn->drl+fconn->drp))
+		if (fconn->state != FCGI_CS_RECORD_H && !(fconn->drl+fconn->drp)) {
 			fconn->state = FCGI_CS_RECORD_H;
+			TRACE_STATE("switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
+		}
 	}
 
  fail:
@@ -2151,6 +2608,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 	     (fstrm->flags & FCGI_SF_ES_RCVD) ||
 	     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
 		/* we may have to signal the upper layers */
+		TRACE_DEVEL("notifying stream before switching SID", FCGI_EV_RX_RECORD|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fstrm->cs->flags |= CS_FL_RCV_MORE;
 		fcgi_strm_notify_recv(fstrm);
 	}
@@ -2165,20 +2623,25 @@ static int fcgi_process_mux(struct fcgi_conn *fconn)
 {
 	struct fcgi_strm *fstrm, *fstrm_back;
 
+	TRACE_ENTER(FCGI_EV_FCONN_WAKE, fconn->conn);
+
 	if (unlikely(fconn->state < FCGI_CS_RECORD_H)) {
 		if (unlikely(fconn->state == FCGI_CS_INIT)) {
 			if (!(fconn->flags & FCGI_CF_GET_VALUES)) {
 				fconn->state = FCGI_CS_RECORD_H;
+				TRACE_STATE("switching to RECORD_H", FCGI_EV_TX_RECORD|FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
 				fcgi_wake_unassigned_streams(fconn);
 				goto mux;
 			}
+			TRACE_PROTO("sending FCGI GET_VALUES record", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn);
 			if (unlikely(!fcgi_conn_send_get_values(fconn)))
 				goto fail;
 			fconn->state = FCGI_CS_SETTINGS;
+			TRACE_STATE("switching to SETTINGS", FCGI_EV_TX_RECORD|FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn);
 		}
 		/* need to wait for the other side */
 		if (fconn->state < FCGI_CS_RECORD_H)
-			return 1;
+			goto done;
 	}
 
   mux:
@@ -2196,6 +2659,7 @@ static int fcgi_process_mux(struct fcgi_conn *fconn)
 			LIST_DEL_INIT(&fstrm->send_list);
 			continue;
 		}
+		TRACE_POINT(FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fstrm->flags &= ~FCGI_SF_BLK_ANY;
 		fstrm->send_wait->events &= ~SUB_RETRY_SEND;
 		LIST_ADDQ(&fconn->sending_list, &fstrm->sending_list);
@@ -2206,10 +2670,15 @@ static int fcgi_process_mux(struct fcgi_conn *fconn)
 	if (fconn->state == FCGI_CS_CLOSED) {
 		if (fconn->stream_cnt - fconn->nb_reserved > 0) {
 			fcgi_conn_send_aborts(fconn);
-			if (fconn->flags & FCGI_CF_MUX_BLOCK_ANY)
+			if (fconn->flags & FCGI_CF_MUX_BLOCK_ANY) {
+				TRACE_DEVEL("leaving in blocked situation", FCGI_EV_FCONN_WAKE|FCGI_EV_FCONN_BLK, fconn->conn);
 				return 0;
+			}
 		}
 	}
+
+  done:
+	TRACE_LEAVE(FCGI_EV_FCONN_WAKE, fconn->conn);
 	return 1;
 }
 
@@ -2224,14 +2693,21 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 	int max;
 	size_t ret;
 
-	if (fconn->wait_event.events & SUB_RETRY_RECV)
-		return (b_data(&fconn->dbuf));
+	TRACE_ENTER(FCGI_EV_FCONN_RECV, conn);
 
-	if (!fcgi_recv_allowed(fconn))
+	if (fconn->wait_event.events & SUB_RETRY_RECV) {
+		TRACE_DEVEL("leaving on sub_recv", FCGI_EV_FCONN_RECV, conn);
+		return (b_data(&fconn->dbuf));
+	}
+
+	if (!fcgi_recv_allowed(fconn)) {
+		TRACE_DEVEL("leaving on !recv_allowed", FCGI_EV_FCONN_RECV, conn);
 		return 1;
+	}
 
 	buf = fcgi_get_buf(fconn, &fconn->dbuf);
 	if (!buf) {
+		TRACE_DEVEL("waiting for fconn dbuf allocation", FCGI_EV_FCONN_RECV|FCGI_EV_FCONN_BLK, conn);
 		fconn->flags |= FCGI_CF_DEM_DALLOC;
 		return 0;
 	}
@@ -2240,7 +2716,7 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 	if (!b_data(buf)) {
 		/* try to pre-align the buffer like the
 		 * rxbufs will be to optimize memory copies. We'll make
-		 * sure that the frame header lands at the end of the
+		 * sure that the record header lands at the end of the
 		 * HTX block to alias it upon recv. We cannot use the
 		 * head because rcv_buf() will realign the buffer if
 		 * it's empty. Thus we cheat and pretend we already
@@ -2254,17 +2730,25 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
-	if (max && !ret && fcgi_recv_allowed(fconn))
+	if (max && !ret && fcgi_recv_allowed(fconn)) {
+		TRACE_DATA("failed to receive data, subscribing", FCGI_EV_FCONN_RECV, conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &fconn->wait_event);
+	}
+	else
+		TRACE_DATA("send data", FCGI_EV_FCONN_RECV, conn,,, (size_t[]){ret});
 
 	if (!b_data(buf)) {
 		fcgi_release_buf(fconn, &fconn->dbuf);
+		TRACE_LEAVE(FCGI_EV_FCONN_RECV, conn);
 		return (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn));
 	}
 
-	if (ret == max)
+	if (ret == max) {
+		TRACE_DEVEL("fconn dbuf full", FCGI_EV_FCONN_RECV|FCGI_EV_FCONN_BLK, conn);
 		fconn->flags |= FCGI_CF_DEM_DFULL;
+	}
 
+	TRACE_LEAVE(FCGI_EV_FCONN_RECV, conn);
 	return !!ret || (conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn);
 }
 
@@ -2278,8 +2762,12 @@ static int fcgi_send(struct fcgi_conn *fconn)
 	int done;
 	int sent = 0;
 
-	if (conn->flags & CO_FL_ERROR)
+	TRACE_ENTER(FCGI_EV_FCONN_SEND, conn);
+
+	if (conn->flags & CO_FL_ERROR) {
+		TRACE_DEVEL("leaving on connection error", FCGI_EV_FCONN_SEND, conn);
 		return 1;
+	}
 
 
 	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
@@ -2335,6 +2823,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 					break;
 				}
 				sent = 1;
+				TRACE_DATA("send data", FCGI_EV_FCONN_SEND, conn,,, (size_t[]){ret});
 				b_del(buf, ret);
 				if (b_data(buf)) {
 					done = 1;
@@ -2349,6 +2838,8 @@ static int fcgi_send(struct fcgi_conn *fconn)
 			offer_buffers(NULL, tasks_run_queue);
 
 		/* wrote at least one byte, the buffer is not full anymore */
+		if (fconn->flags & (FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM))
+			TRACE_STATE("fconn mbuf ring not fill anymore", FCGI_EV_FCONN_SEND|FCGI_EV_FCONN_BLK, conn);
 		fconn->flags &= ~(FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM);
 	}
 
@@ -2359,7 +2850,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 	/* We're not full anymore, so we can wake any task that are waiting
 	 * for us.
 	 */
-	if (!(fconn->flags & (FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM))) {
+	if (!(fconn->flags & (FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM)) && fconn->state >= FCGI_CS_RECORD_H) {
 		struct fcgi_strm *fstrm;
 
 		list_for_each_entry(fstrm, &fconn->send_list, send_list) {
@@ -2378,17 +2869,23 @@ static int fcgi_send(struct fcgi_conn *fconn)
 			}
 			fstrm->flags &= ~FCGI_SF_BLK_ANY;
 			fstrm->send_wait->events &= ~SUB_RETRY_SEND;
+			TRACE_DEVEL("waking up pending stream", FCGI_EV_FCONN_SEND|FCGI_EV_STRM_WAKE, conn, fstrm);
 			tasklet_wakeup(fstrm->send_wait->tasklet);
 			LIST_ADDQ(&fconn->sending_list, &fstrm->sending_list);
 		}
 	}
 	/* We're done, no more to send */
-	if (!br_data(fconn->mbuf))
+	if (!br_data(fconn->mbuf)) {
+		TRACE_DEVEL("leaving with everything sent", FCGI_EV_FCONN_SEND, conn);
 		return sent;
+	}
 schedule:
-	if (!(conn->flags & CO_FL_ERROR) && !(fconn->wait_event.events & SUB_RETRY_SEND))
+	if (!(conn->flags & CO_FL_ERROR) && !(fconn->wait_event.events & SUB_RETRY_SEND)) {
+		TRACE_STATE("more data to send, subscribing", FCGI_EV_FCONN_SEND, conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &fconn->wait_event);
+	}
 
+	TRACE_DEVEL("leaving with some data left to send", FCGI_EV_FCONN_SEND, conn);
 	return sent;
 }
 
@@ -2397,6 +2894,8 @@ static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct fcgi_conn *fconn = ctx;
 	int ret = 0;
+
+	TRACE_POINT(FCGI_EV_FCONN_WAKE, fconn->conn);
 
 	if (!(fconn->wait_event.events & SUB_RETRY_SEND))
 		ret = fcgi_send(fconn);
@@ -2415,6 +2914,8 @@ static int fcgi_process(struct fcgi_conn *fconn)
 {
 	struct connection *conn = fconn->conn;
 
+	TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
+
 	if (b_data(&fconn->dbuf) && !(fconn->flags & FCGI_CF_DEM_BLOCK_ANY)) {
 		fcgi_process_demux(fconn);
 
@@ -2431,6 +2932,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.
 		 */
+		TRACE_STATE("proxy stopped, sending ABORT to all streams", FCGI_EV_FCONN_WAKE|FCGI_EV_TX_RECORD, conn);
 		if (!(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
 			if (fconn->stream_cnt - fconn->nb_reserved > 0)
 				fcgi_conn_send_aborts(fconn);
@@ -2465,6 +2967,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 		if (eb_is_empty(&fconn->streams_by_id)) {
 			/* no more stream, kill the connection now */
 			fcgi_release(fconn);
+			TRACE_DEVEL("leaving after releasing the connection", FCGI_EV_FCONN_WAKE);
 			return -1;
 		}
 	}
@@ -2483,6 +2986,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 	}
 
 	fcgi_send(fconn);
+	TRACE_LEAVE(FCGI_EV_FCONN_WAKE, conn);
 	return 0;
 }
 
@@ -2492,6 +2996,7 @@ static int fcgi_wake(struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 
+	TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
 	return (fcgi_process(fconn));
 }
 
@@ -2499,20 +3004,25 @@ static int fcgi_wake(struct connection *conn)
  * nor sending for a certain amount of time, the connection is closed. If the
  * MUX buffer still has lying data or is not allocatable, the connection is
  * immediately killed. If it's allocatable and empty, we attempt to send a
- * GOAWAY frame.
+ * ABORT records.
  */
 static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short state)
 {
 	struct fcgi_conn *fconn = context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!expired && fconn)
+	TRACE_ENTER(FCGI_EV_FCONN_WAKE, (fconn ? fconn->conn : NULL));
+
+	if (!expired && fconn) {
+		TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
 		return t;
+	}
 
 	task_destroy(t);
 
 	if (!fconn) {
 		/* resources were already deleted */
+		TRACE_DEVEL("leaving (not more fconn)", FCGI_EV_FCONN_WAKE);
 		return NULL;
 	}
 
@@ -2560,6 +3070,7 @@ static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned sh
 	if (eb_is_empty(&fconn->streams_by_id))
 		fcgi_release(fconn);
 
+	TRACE_LEAVE(FCGI_EV_FCONN_WAKE);
 	return NULL;
 }
 
@@ -2616,9 +3127,12 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 {
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_hdrs(h1m, NULL, htx, buf, *ofs, max);
 	if (!ret) {
+		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -2627,6 +3141,7 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 
 	*ofs += ret;
   end:
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 
 }
@@ -2636,9 +3151,12 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 {
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
 	if (ret <= 0) {
+		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm);
 		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
+			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -2646,6 +3164,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 	}
 	*ofs += ret;
   end:
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 }
 
@@ -2654,9 +3173,12 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 {
 	int ret;
 
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
 	if (ret <= 0) {
+		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -2665,26 +3187,33 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 	*ofs += ret;
 	fstrm->flags |= FCGI_SF_HAVE_I_TLR;
   end:
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 }
 
 static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
 				size_t max)
 {
+	TRACE_ENTER(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
 		return 0;
 
 	h1m->state = H1_MSG_DONE;
+	TRACE_STATE("end of response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
+	TRACE_LEAVE(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm);
 	return (sizeof(struct htx_blk) + 1);
 }
 
 static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *buf, size_t count)
 {
+	struct fcgi_conn *fconn = fstrm->fconn;
 	struct htx *htx;
 	struct h1m *h1m = &fstrm->h1m;
 	size_t ret, data, total = 0;
 
 	htx = htx_from_buf(buf);
+	TRACE_ENTER(FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx, (size_t[]){count});
+
 	data = htx->data;
 	if (fstrm->state == FCGI_SS_ERROR)
 		goto end;
@@ -2693,9 +3222,13 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		size_t used = htx_used_space(htx);
 
 		if (h1m->state <= H1_MSG_LAST_LF) {
+			TRACE_PROTO("parsing response headers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_headers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
 			if (!ret)
 				break;
+
+			TRACE_USER("rcvd H1 response headers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fconn->conn, fstrm, htx);
+
 			if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) == H1_MF_VER_11) {
 				struct htx_blk *blk = htx_get_head_blk(htx);
 				struct htx_sl *sl;
@@ -2708,54 +3241,75 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			}
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
+			TRACE_PROTO("parsing response payload", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
 			if (!ret)
 				break;
+
+			TRACE_PROTO("rcvd response payload data", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm, htx);
+
+			if (h1m->state == H1_MSG_DONE)
+				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			if (!(fstrm->flags & FCGI_SF_HAVE_I_TLR)) {
+				TRACE_PROTO("parsing response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm);
 				ret = fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
 				if (!ret)
 					break;
+
+				TRACE_PROTO("rcvd H1 response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm, htx);
 			}
 			else if (!fcgi_strm_add_eom(fstrm, h1m, htx, count))
 				break;
+
+			if (h1m->state == H1_MSG_DONE)
+				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 		}
 		else if (h1m->state == H1_MSG_DONE) {
 			if (b_data(&fstrm->rxbuf) > total) {
 				htx->flags |= HTX_FL_PARSING_ERROR;
+				TRACE_PROTO("too much data, parsing error", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
 				fcgi_strm_error(fstrm);
 			}
 			break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
+			TRACE_PROTO("parsing response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
 			if (fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
+				TRACE_DEVEL("end of tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
 				if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) == H1_MF_VER_11) {
 					if (!fcgi_strm_add_eom(fstrm, h1m, htx, count))
 						break;
+					TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 				}
 				else {
 					h1m->state = H1_MSG_DONE;
+					TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 					break;
 				}
 			}
 			if (!ret)
 				break;
+
+			TRACE_PROTO("rcvd H1 response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx);
 		}
 		else {
 			htx->flags |= HTX_FL_PROCESSING_ERROR;
+			TRACE_PROTO("processing error", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			break;
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (fstrm->state != FCGI_SS_ERROR/* /\*fstrm->state == FCGI_SS_OPEN && *\/count */);
+	} while (fstrm->state != FCGI_SS_ERROR);
 
 	if (fstrm->state == FCGI_SS_ERROR) {
 		b_reset(&fstrm->rxbuf);
 		htx_to_buf(htx, buf);
+		TRACE_DEVEL("leaving on error", FCGI_EV_RSP_DATA|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		return 0;
 	}
 
@@ -2764,6 +3318,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
   end:
 	htx_to_buf(htx, buf);
 	ret = htx->data - data;
+	TRACE_LEAVE(FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx, (size_t[]){ret});
 	return ret;
 }
 
@@ -2777,14 +3332,19 @@ static struct conn_stream *fcgi_attach(struct connection *conn, struct session *
 	struct fcgi_strm *fstrm;
 	struct fcgi_conn *fconn = conn->ctx;
 
+	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
 	cs = cs_new(conn);
-	if (!cs)
+	if (!cs) {
+		TRACE_DEVEL("leaving on CS allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
 		return NULL;
+	}
 	fstrm = fcgi_conn_stream_new(fconn, cs, sess);
 	if (!fstrm) {
+		TRACE_DEVEL("leaving on stream creation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
 		cs_free(cs);
 		return NULL;
 	}
+	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, conn, fstrm);
 	return cs;
 }
 
@@ -2816,6 +3376,7 @@ static void fcgi_destroy(void *ctx)
 {
 	struct fcgi_conn *fconn = ctx;
 
+	TRACE_POINT(FCGI_EV_FCONN_END, fconn->conn);
 	if (eb_is_empty(&fconn->streams_by_id) || !fconn->conn || fconn->conn->ctx != fconn)
 		fcgi_release(fconn);
 }
@@ -2829,9 +3390,13 @@ static void fcgi_detach(struct conn_stream *cs)
 	struct fcgi_conn *fconn;
 	struct session *sess;
 
+	TRACE_ENTER(FCGI_EV_STRM_END, (fstrm ? fstrm->fconn->conn : NULL), fstrm);
+
 	cs->ctx = NULL;
-	if (!fstrm)
+	if (!fstrm) {
+		TRACE_LEAVE(FCGI_EV_STRM_END);
 		return;
+	}
 
 	/* The stream is about to die, so no need to attempt to run its task */
 	if (LIST_ADDED(&fstrm->sending_list)  &&
@@ -2873,8 +3438,10 @@ static void fcgi_detach(struct conn_stream *cs)
 	 */
 	if (!(cs->conn->flags & CO_FL_ERROR) &&
 	    (fconn->state != FCGI_CS_CLOSED) &&
-	    (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) && (fstrm->send_wait || fstrm->recv_wait))
+	    (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) && (fstrm->send_wait || fstrm->recv_wait)) {
+		TRACE_DEVEL("leaving on stream blocked", FCGI_EV_STRM_END|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 		return;
+	}
 
 	if ((fconn->flags & FCGI_CF_DEM_BLOCK_ANY && fstrm->id == fconn->dsi)) {
 		/* unblock the connection if it was blocked on this stream. */
@@ -2891,18 +3458,29 @@ static void fcgi_detach(struct conn_stream *cs)
 			if (!session_add_conn(sess, fconn->conn, fconn->conn->target)) {
 				fconn->conn->owner = NULL;
 				if (eb_is_empty(&fconn->streams_by_id)) {
-					if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn))
+					if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn)) {
 						/* The server doesn't want it, let's kill the connection right away */
 						fconn->conn->mux->destroy(fconn->conn);
+						TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
+					}
+					TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 					return;
 				}
 			}
 		}
 		if (eb_is_empty(&fconn->streams_by_id)) {
-			if (session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0)
-				/* At this point either the connection is destroyed,
-				   or it's been added to the server idle list, just stop */
+			int ret = session_check_idle_conn(fconn->conn->owner, fconn->conn);
+			if (ret == -1) {
+				/* The connection is destroyed, let's leave */
+				TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 				return;
+			}
+			else if (ret == 1) {
+				/* The connection was added to the server idle list, just stop */
+				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
+				return;
+			}
+			TRACE_DEVEL("connection in idle session list", FCGI_EV_STRM_END, fconn->conn);
 		}
 		/* Never ever allow to reuse a connection from a non-reuse backend */
 		if ((fconn->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
@@ -2916,22 +3494,25 @@ static void fcgi_detach(struct conn_stream *cs)
 				else
 					LIST_ADD(&srv->idle_conns[tid], &fconn->conn->list);
 			}
+			TRACE_DEVEL("connection in idle server list", FCGI_EV_STRM_END, fconn->conn);
 		}
 	}
 
 	/* We don't want to close right now unless we're removing the last
-	 * stream, and either the connection is in error, or it reached the ID
-	 * already specified in a GOAWAY frame received or sent (as seen by
-	 * last_sid >= 0).
+	 * stream and the connection is in error.
 	 */
 	if (fcgi_conn_is_dead(fconn)) {
 		/* no more stream will come, kill it now */
+		TRACE_DEVEL("leaving, killing dead connection", FCGI_EV_STRM_END, fconn->conn);
 		fcgi_release(fconn);
 	}
 	else if (fconn->task) {
 		fconn->task->expire = tick_add(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
 		task_queue(fconn->task);
+		TRACE_DEVEL("leaving, refreshing connection's timeout", FCGI_EV_STRM_END, fconn->conn);
 	}
+	else
+		TRACE_DEVEL("leaving", FCGI_EV_STRM_END, fconn->conn);
 }
 
 
@@ -2941,6 +3522,8 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	struct fcgi_conn *fconn = fstrm->fconn;
 	struct wait_event *sw = &fstrm->wait_event;
 
+	TRACE_ENTER(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
+
 	if (fstrm->state == FCGI_SS_CLOSED)
 		goto done;
 
@@ -2949,9 +3532,12 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	 * normally used to limit abuse.
 	 */
 	if ((fstrm->flags & FCGI_SF_KILL_CONN) &&
-	    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED)))
+	    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
+		TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 		fconn->state = FCGI_CS_CLOSED;
+	}
 	else if (fstrm->flags & FCGI_SF_BEGIN_SENT) {
+		TRACE_STATE("no headers sent yet, trying a retryable abort", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 		if (!(fstrm->flags & (FCGI_SF_ES_SENT|FCGI_SF_ABRT_SENT)) &&
 		    !fcgi_strm_send_abort(fconn, fstrm))
 			goto add_to_list;
@@ -2963,6 +3549,7 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 		tasklet_wakeup(fconn->wait_event.tasklet);
   done:
 	fstrm->flags &= ~FCGI_SF_WANT_SHUTR;
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 	return;
 
   add_to_list:
@@ -2975,6 +3562,7 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	}
 	/* Let the handler know we want shutr */
 	fstrm->flags |= FCGI_SF_WANT_SHUTR;
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 	return;
 }
 
@@ -2983,6 +3571,8 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 {
 	struct fcgi_conn *fconn = fstrm->fconn;
 	struct wait_event *sw = &fstrm->wait_event;
+
+	TRACE_ENTER(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 
 	if (fstrm->state != FCGI_SS_HLOC || fstrm->state == FCGI_SS_CLOSED)
 		goto done;
@@ -3002,8 +3592,10 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 		 * normally used to limit abuse.
 		 */
 		if ((fstrm->flags & FCGI_SF_KILL_CONN) &&
-		    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED)))
+		    !(fconn->flags & (FCGI_CF_ABRTS_SENT|FCGI_CF_ABRTS_FAILED))) {
+			TRACE_STATE("stream wants to kill the connection", FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 			fconn->state = FCGI_CS_CLOSED;
+		}
 
 		fcgi_strm_close(fstrm);
 	}
@@ -3012,6 +3604,7 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 		tasklet_wakeup(fconn->wait_event.tasklet);
   done:
 	fstrm->flags &= ~FCGI_SF_WANT_SHUTW;
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 	return;
 
   add_to_list:
@@ -3024,17 +3617,20 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 	}
 	/* let the handler know we want to shutw */
 	fstrm->flags |= FCGI_SF_WANT_SHUTW;
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 	return;
 }
 
 /* This is the tasklet referenced in fstrm->wait_event.tasklet, it is used for
  * deferred shutdowns when the fcgi_detach() was done but the mux buffer was full
- * and prevented the last frame from being emitted.
+ * and prevented the last record from being emitted.
  */
 static struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct fcgi_strm *fstrm = ctx;
 	struct fcgi_conn *fconn = fstrm->fconn;
+
+	TRACE_ENTER(FCGI_EV_STRM_SHUT, fconn->conn, fstrm);
 
 	LIST_DEL_INIT(&fstrm->sending_list);
 	if (fstrm->flags & FCGI_SF_WANT_SHUTW)
@@ -3054,6 +3650,7 @@ static struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short
 		}
 	}
 
+	TRACE_LEAVE(FCGI_EV_STRM_SHUT);
 	return NULL;
 }
 
@@ -3062,6 +3659,7 @@ static void fcgi_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 {
 	struct fcgi_strm *fstrm = cs->ctx;
 
+	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (cs->flags & CS_FL_KILL_CONN)
 		fstrm->flags |= FCGI_SF_KILL_CONN;
 
@@ -3076,6 +3674,7 @@ static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 {
 	struct fcgi_strm *fstrm = cs->ctx;
 
+	TRACE_POINT(FCGI_EV_STRM_SHUT, fstrm->fconn->conn, fstrm);
 	if (cs->flags & CS_FL_KILL_CONN)
 		fstrm->flags |= FCGI_SF_KILL_CONN;
 
@@ -3096,6 +3695,7 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, void *param)
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("unsubscribe(recv)", FCGI_EV_STRM_RECV, fconn->conn, fstrm);
 		sw = param;
 		BUG_ON(fstrm->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
 		sw->events |= SUB_RETRY_RECV;
@@ -3103,6 +3703,7 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, void *param)
 		event_type &= ~SUB_RETRY_RECV;
 	}
 	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("unsubscribe(send)", FCGI_EV_STRM_SEND, fconn->conn, fstrm);
 		sw = param;
 		BUG_ON(fstrm->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
 		sw->events |= SUB_RETRY_SEND;
@@ -3125,14 +3726,17 @@ static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 {
 	struct wait_event *sw;
 	struct fcgi_strm *fstrm = cs->ctx;
+	struct fcgi_conn *fconn = fstrm->fconn;
 
 	if (event_type & SUB_RETRY_RECV) {
+		TRACE_DEVEL("subscribe(recv)", FCGI_EV_STRM_RECV, fconn->conn, fstrm);
 		sw = param;
 		BUG_ON(fstrm->recv_wait != sw);
 		sw->events &= ~SUB_RETRY_RECV;
 		fstrm->recv_wait = NULL;
 	}
 	if (event_type & SUB_RETRY_SEND) {
+		TRACE_DEVEL("subscribe(send)", FCGI_EV_STRM_SEND, fconn->conn, fstrm);
 		sw = param;
 		BUG_ON(fstrm->send_wait != sw);
 		LIST_DEL(&fstrm->send_list);
@@ -3155,8 +3759,12 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	struct fcgi_conn *fconn = fstrm->fconn;
 	size_t ret = 0;
 
+	TRACE_ENTER(FCGI_EV_STRM_RECV, fconn->conn, fstrm);
+
 	if (!(fconn->flags & FCGI_CF_DEM_SALLOC))
 		ret = fcgi_strm_parse_response(fstrm, buf, count);
+	else
+		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
 	if (b_data(&fstrm->rxbuf))
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
@@ -3180,6 +3788,7 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		fcgi_conn_restart_reading(fconn, 1);
 	}
 
+	TRACE_LEAVE(FCGI_EV_STRM_RECV, fconn->conn, fstrm);
 	return ret;
 }
 
@@ -3214,12 +3823,16 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	struct htx_blk *blk;
 	uint32_t bsize;
 
+	TRACE_ENTER(FCGI_EV_STRM_SEND, fconn->conn, fstrm,, (size_t[]){count});
+
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
 	 */
-	if (!LIST_ADDED(&fstrm->sending_list) && !LIST_ISEMPTY(&fconn->send_list))
+	if (!LIST_ADDED(&fstrm->sending_list) && !LIST_ISEMPTY(&fconn->send_list)) {
+		TRACE_STATE("other streams already waiting, going to the queue and leaving", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 		return 0;
+	}
 	LIST_DEL_INIT(&fstrm->sending_list);
 
 	/* We couldn't set it to NULL before, because we needed it in case
@@ -3227,8 +3840,10 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	 */
 	fstrm->send_wait = NULL;
 
-	if (fconn->state < FCGI_CS_RECORD_H)
+	if (fconn->state < FCGI_CS_RECORD_H) {
+		TRACE_STATE("connection not ready, leaving", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 		return 0;
+	}
 
 	htx = htxbuf(buf);
 	if (fstrm->id == 0) {
@@ -3237,6 +3852,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		if (id < 0) {
 			fcgi_strm_close(fstrm);
 			cs->flags |= CS_FL_ERROR;
+			TRACE_DEVEL("couldn't get a stream ID, leaving in error", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			return 0;
 		}
 
@@ -3259,6 +3875,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	}
 
 	if (!(fstrm->flags & FCGI_SF_BEGIN_SENT)) {
+		TRACE_PROTO("sending FCGI BEGIN_REQUEST record", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
 		if (!fcgi_strm_send_begin_request(fconn, fstrm))
 			goto done;
 	}
@@ -3275,6 +3892,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		switch (htx_get_blk_type(blk)) {
 			case HTX_BLK_REQ_SL:
 			case HTX_BLK_HDR:
+				TRACE_USER("sending FCGI PARAMS record", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
 				ret = fcgi_strm_send_params(fconn, fstrm, htx);
 				if (!ret) {
 					goto done;
@@ -3284,12 +3902,14 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 				break;
 
 			case HTX_BLK_EOH:
+				TRACE_PROTO("sending FCGI PARAMS record", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
 				ret = fcgi_strm_send_empty_params(fconn, fstrm);
 				if (!ret)
 					goto done;
 				goto remove_blk;
 
 			case HTX_BLK_DATA:
+				TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 				ret = fcgi_strm_send_stdin(fconn, fstrm, htx, count, buf);
 				if (ret > 0) {
 					htx = htx_from_buf(buf);
@@ -3301,6 +3921,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 				break;
 
 			case HTX_BLK_EOM:
+				TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 				ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
 				if (!ret)
 					goto done;
@@ -3325,6 +3946,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	}
 
 	if (fstrm->state == FCGI_SS_ERROR) {
+		TRACE_DEVEL("reporting error to the app-layer stream", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		cs_set_error(cs);
 		if (!(fstrm->flags & FCGI_SF_BEGIN_SENT) || fcgi_strm_send_abort(fconn, fstrm))
 			fcgi_strm_close(fstrm);
@@ -3334,16 +3956,22 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		htx_to_buf(htx, buf);
 
 	/* The mux is full, cancel the pending tasks */
-	if ((fconn->flags & FCGI_CF_MUX_BLOCK_ANY) || (fstrm->flags & FCGI_SF_BLK_MBUSY))
+	if ((fconn->flags & FCGI_CF_MUX_BLOCK_ANY) || (fstrm->flags & FCGI_SF_BLK_MBUSY)) {
+		TRACE_DEVEL("mux full, stopping senders", FCGI_EV_STRM_SEND|FCGI_EV_FCONN_BLK|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 		fcgi_stop_senders(fconn);
+	}
 
 	if (total > 0) {
-		if (!(fconn->wait_event.events & SUB_RETRY_SEND))
+		if (!(fconn->wait_event.events & SUB_RETRY_SEND)) {
+			TRACE_DEVEL("data queued, waking up fconn sender", FCGI_EV_STRM_SEND|FCGI_EV_FCONN_SEND|FCGI_EV_FCONN_WAKE, fconn->conn, fstrm);
 			tasklet_wakeup(fconn->wait_event.tasklet);
+		}
 
 		/* Ok we managed to send something, leave the send_list */
 		LIST_DEL_INIT(&fstrm->send_list);
 	}
+
+	TRACE_LEAVE(FCGI_EV_STRM_SEND, fconn->conn, fstrm, htx, (size_t[]){total});
 	return total;
 }
 
