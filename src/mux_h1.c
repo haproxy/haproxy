@@ -251,6 +251,8 @@ static int h1_process(struct h1c *h1c);
 static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
 static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static struct task *h1_timeout_task(struct task *t, void *context, unsigned short state);
+static void h1_wake_stream_for_recv(struct h1s *h1s);
+static void h1_wake_stream_for_send(struct h1s *h1s);
 
 /* the H1 traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive h1c), that arg2, if non-null, is of type h1s, and
@@ -402,6 +404,8 @@ static int h1_buf_available(void *target)
 		TRACE_STATE("unblocking h1s, obuf allocated", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
 		tasklet_wakeup(h1c->wait_event.tasklet);
+		if (h1c->h1s)
+			h1_wake_stream_for_send(h1c->h1s);
 		return 1;
 	}
 
