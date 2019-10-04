@@ -157,6 +157,8 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
 	bind_conf->severity_output = CLI_SEVERITY_NONE;
+	bind_conf->sni_ctx = EB_ROOT;
+	bind_conf->sni_w_ctx = EB_ROOT;
 
 	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;
