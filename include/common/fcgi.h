@@ -51,6 +51,7 @@ enum fcgi_record_type {
 	FCGI_ENTRIES
 } __attribute__((packed));
 
+
 enum fcgi_role {
 	FCGI_RESPONDER  = 1,
 	FCGI_AUTHORIZER = 2, /* Unsupported */
@@ -94,6 +95,24 @@ struct fcgi_unknown_type {
     uint8_t type;
 };
 
+
+static inline const char *fcgi_rt_str(int type)
+{
+        switch (type) {
+        case FCGI_BEGIN_REQUEST     : return "BEGIN_REQUEST";
+        case FCGI_ABORT_REQUEST     : return "ABORT_REQUEST";
+        case FCGI_END_REQUEST       : return "END_REQUEST";
+        case FCGI_PARAMS            : return "PARAMS";
+        case FCGI_STDIN             : return "STDIN";
+        case FCGI_STDOUT            : return "STDOUT";
+        case FCGI_STDERR            : return "STDERR";
+        case FCGI_DATA              : return "DATA";
+        case FCGI_GET_VALUES        : return "GET_VALUES";
+        case FCGI_GET_VALUES_RESULT : return "GET_VALUES_RESULT";
+        case FCGI_UNKNOWN_TYPE      : return "UNKNOWN_TYPE";
+        default                     : return "_UNKNOWN_";
+        }
+}
 
 
 int    fcgi_encode_record_hdr(struct buffer *out, const struct fcgi_header *h);
