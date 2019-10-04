@@ -3178,7 +3178,7 @@ static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
 {
 	int i = 0, n = 0;
 	struct cert_key_and_chain *certs_and_keys;
-	struct eb_root sni_keytypes_map = { {0} };
+	struct eb_root sni_keytypes_map = EB_ROOT;
 	struct ebmb_node *node;
 	struct ebmb_node *next;
 	/* Array of SSL_CTX pointers corresponding to each possible combo
