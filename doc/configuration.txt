@@ -5200,17 +5200,27 @@ http-reuse { never | safe | aggressive | always }
 
 http-send-name-header [<header>]
   Add the server name to a request. Use the header string given by <header>
-
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
-
   Arguments :
-
     <header>  The header string to use to send the server name
 
-  The "http-send-name-header" statement causes the name of the target
-  server to be added to the headers of an HTTP request. The name
-  is added with the header string proved.
+  The "http-send-name-header" statement causes the header field named <header>
+  to be set to the name of the target server at the moment the request is about
+  to be sent on the wire. Any existing occurrences of this header are removed.
+  Upon retries and redispatches, the header field is updated to always reflect
+  the server being attempted to connect to. Given that this header is modified
+  very late in the connection setup, it may have unexpected effects on already
+  modified headers. For example using it with transport-level header such as
+  connection, content-length, transfer-encoding and so on will likely result in
+  invalid requests being sent to the server. Additionally it has been reported
+  that this directive is currently being used as a way to overwrite the Host
+  header field in outgoing requests; while this trick has been known to work
+  as a side effect of the feature for some time, it is not officially supported
+  and might possibly not work anymore in a future version depending on the
+  technical difficulties this feature induces. A long-term solution instead
+  consists in fixing the application which required this trick so that it binds
+  to the correct host name.
 
   See also : "server"
 
