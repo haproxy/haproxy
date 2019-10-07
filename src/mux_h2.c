@@ -1170,6 +1170,54 @@ static inline __maybe_unused int h2_get_frame_hdr(struct buffer *b, struct h2_fh
 	return ret;
 }
 
+
+/* try to fragment the headers frame present at the beginning of buffer <b>,
+ * enforcing a limit of <mfs> bytes per frame. Returns 0 on failure, 1 on
+ * success. Typical causes of failure include a buffer not large enough to
+ * add extra frame headers. The existing frame size is read in the current
+ * frame. Its EH flag will be cleared if CONTINUATION frames need to be added,
+ * and its length will be adjusted. The stream ID for continuation frames will
+ * be copied from the initial frame's.
+ */
+static int h2_fragment_headers(struct buffer *b, uint32_t mfs)
+{
+	size_t remain    = b->data - 9;
+	int extra_frames = (remain - 1) / mfs;
+	size_t fsize;
+	char *fptr;
+	int frame;
+
+	if (b->data <= mfs + 9)
+		return 1;
+
+	/* Too large a frame, we need to fragment it using CONTINUATION
+	 * frames. We start from the end and move tails as needed.
+	 */
+	if (b->data + extra_frames * 9 > b->size)
+		return 0;
+
+	for (frame = extra_frames; frame; frame--) {
+		fsize = ((remain - 1) % mfs) + 1;
+		remain -= fsize;
+
+		/* move data */
+		fptr = b->area + 9 + remain + (frame - 1) * 9;
+		memmove(fptr + 9, b->area + 9 + remain, fsize);
+		b->data += 9;
+
+		/* write new frame header */
+		h2_set_frame_size(fptr, fsize);
+		fptr[3] = H2_FT_CONTINUATION;
+		fptr[4] = (frame == extra_frames) ? H2_F_HEADERS_END_HEADERS : 0;
+		write_n32(fptr + 5, read_n32(b->area + 5));
+	}
+
+	b->area[4] &= ~H2_F_HEADERS_END_HEADERS;
+	h2_set_frame_size(b->area, remain);
+	return 1;
+}
+
+
 /* marks stream <h2s> as CLOSED and decrement the number of active streams for
  * its connection if the stream was not yet closed. Please use this exclusively
  * before closing a stream to ensure stream count is well maintained.
@@ -4623,6 +4671,18 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+	/* update the frame's size */
+	h2_set_frame_size(outbuf.area, outbuf.data - 9);
+
+	if (outbuf.data > h2c->mfs + 9) {
+		if (!h2_fragment_headers(&outbuf, h2c->mfs)) {
+			/* output full */
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
+		}
+	}
+
 	/* we may need to add END_STREAM except for 1xx responses.
 	 * FIXME: we should also set it when we know for sure that the
 	 * content-length is zero as well as on 204/304
@@ -4633,9 +4693,6 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW)
 		es_now = 1;
-
-	/* update the frame's size */
-	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
 	if (es_now)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
@@ -4912,6 +4969,18 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+	/* update the frame's size */
+	h2_set_frame_size(outbuf.area, outbuf.data - 9);
+
+	if (outbuf.data > h2c->mfs + 9) {
+		if (!h2_fragment_headers(&outbuf, h2c->mfs)) {
+			/* output full */
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
+		}
+	}
+
 	/* we may need to add END_STREAM if we have no body :
 	 *  - request already closed, or :
 	 *  - no transfer-encoding, and :
@@ -4926,9 +4995,6 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW)
 		es_now = 1;
-
-	/* update the frame's size */
-	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
 	if (es_now)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
