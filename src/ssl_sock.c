@@ -2818,7 +2818,7 @@ struct cert_key_and_chain {
  * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
  * metadata.
  */
-struct ckch_node {
+struct ckch_store {
 	struct cert_key_and_chain *ckch;
 	int multi; /* is it a multi-cert bundle ? */
 	struct ebmb_node node;
@@ -2826,9 +2826,9 @@ struct ckch_node {
 };
 
 /*
- * tree used to store the ckchn ordered by filename/bundle name
+ * tree used to store the ckchs ordered by filename/bundle name
  */
-struct eb_root ckchn_tree = EB_ROOT_UNIQUE;
+struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
@@ -2850,7 +2850,7 @@ struct sni_keytype {
 
 #endif
 
-/* Loads Diffie-Hellman parameter from a ckchn. Returns 1 if loaded, else -1
+/* Loads Diffie-Hellman parameter from a ckchs. Returns 1 if loaded, else -1
    if an error occurred, and 0 if parameter not found. */
 #ifndef OPENSSL_NO_DH
 static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
@@ -3123,46 +3123,46 @@ static void ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root 
 #endif
 
 /*
- * lookup a path into the ckchn tree.
+ * lookup a path into the ckchs tree.
  */
-static inline struct ckch_node *ckchn_lookup(char *path)
+static inline struct ckch_store *ckchs_lookup(char *path)
 {
 	struct ebmb_node *eb;
 
-	eb = ebst_lookup(&ckchn_tree, path);
+	eb = ebst_lookup(&ckchs_tree, path);
 	if (!eb)
 		return NULL;
 
-	return ebmb_entry(eb, struct ckch_node, node);
+	return ebmb_entry(eb, struct ckch_store, node);
 }
 
 /*
- * This function allocate a ckch_node and populate it with certificates from files.
+ * This function allocate a ckch_store and populate it with certificates from files.
  */
-static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
+static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err)
 {
-	struct ckch_node *ckchn;
+	struct ckch_store *ckchs;
 
-	ckchn = calloc(1, sizeof(*ckchn) + strlen(path) + 1);
-	if (!ckchn) {
+	ckchs = calloc(1, sizeof(*ckchs) + strlen(path) + 1);
+	if (!ckchs) {
 		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
 		goto end;
 	}
-	ckchn->ckch = calloc(1, sizeof(*ckchn->ckch) * (multi ? SSL_SOCK_NUM_KEYTYPES : 1));
+	ckchs->ckch = calloc(1, sizeof(*ckchs->ckch) * (multi ? SSL_SOCK_NUM_KEYTYPES : 1));
 
-	if (!ckchn->ckch) {
+	if (!ckchs->ckch) {
 		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
 		goto end;
 	}
 
 	if (!multi) {
 
-		if (ssl_sock_load_crt_file_into_ckch(path, ckchn->ckch, err) == 1)
+		if (ssl_sock_load_crt_file_into_ckch(path, ckchs->ckch, err) == 1)
 			goto end;
 
-		/* insert into the ckchn tree */
-		memcpy(ckchn->path, path, strlen(path) + 1);
-		ebst_insert(&ckchn_tree, &ckchn->node);
+		/* insert into the ckchs tree */
+		memcpy(ckchs->path, path, strlen(path) + 1);
+		ebst_insert(&ckchs_tree, &ckchs->node);
 	} else {
 		int found = 0;
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
@@ -3174,10 +3174,10 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 			struct stat buf;
 			snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
 			if (stat(fp, &buf) == 0) {
-				if (ssl_sock_load_crt_file_into_ckch(fp, &ckchn->ckch[n], err) == 1)
+				if (ssl_sock_load_crt_file_into_ckch(fp, &ckchs->ckch[n], err) == 1)
 					goto end;
 				found = 1;
-				ckchn->multi = 1;
+				ckchs->multi = 1;
 			}
 		}
 #endif
@@ -3186,19 +3186,19 @@ static struct ckch_node *ckchn_load_cert_file(char *path, int multi, char **err)
 			memprintf(err, "%sDidn't find any certificate for bundle '%s'.\n", err && *err ? *err : "", path);
 			goto end;
 		}
-		/* insert into the ckchn tree */
-		memcpy(ckchn->path, path, strlen(path) + 1);
-		ebst_insert(&ckchn_tree, &ckchn->node);
+		/* insert into the ckchs tree */
+		memcpy(ckchs->path, path, strlen(path) + 1);
+		ebst_insert(&ckchs_tree, &ckchs->node);
 	}
-	return ckchn;
+	return ckchs;
 
 end:
-	if (ckchn) {
-		free(ckchn->ckch);
-		ebmb_delete(&ckchn->node);
+	if (ckchs) {
+		free(ckchs->ckch);
+		ebmb_delete(&ckchs->node);
 	}
 
-	free(ckchn);
+	free(ckchs);
 
 	return NULL;
 }
@@ -3206,7 +3206,7 @@ end:
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
 /*
- * Take a ckch_node which contains a multi-certificate bundle.
+ * Take a ckch_store which contains a multi-certificate bundle.
  * Group these certificates into a set of SSL_CTX*
  * based on shared and unique CN and SAN entries. Add these SSL_CTX* to the SNI tree.
  *
@@ -3219,7 +3219,7 @@ end:
  * TODO: This function shouldn't access files anymore, sctl and ocsp file access
  * should be migrated to the ssl_sock_load_crt_file_into_ckch() function
  */
-static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
+static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
                                      struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
                                      char **sni_filter, int fcount, char **err)
 {
@@ -3239,13 +3239,13 @@ static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
 	STACK_OF(GENERAL_NAME) *names = NULL;
 #endif
 
-	if (!ckch_n || !ckch_n->ckch || !ckch_n->multi) {
+	if (!ckchs || !ckchs->ckch || !ckchs->multi) {
 		memprintf(err, "%sunable to load SSL certificate file '%s' file does not exist.\n",
 		          err && *err ? *err : "", path);
 		return 1;
 	}
 
-	certs_and_keys = ckch_n->ckch;
+	certs_and_keys = ckchs->ckch;
 
 	/* Process each ckch and update keytypes for each CN/SAN
 	 * for example, if CN/SAN www.a.com is associated with
@@ -3410,7 +3410,7 @@ end:
 }
 #else
 /* This is a dummy, that just logs an error and returns error */
-static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
+static int ssl_sock_load_multi_ckchs(const char *path, struct ckch_store *ckchs,
                                      struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
                                      char **sni_filter, int fcount, char **err)
 {
@@ -3421,7 +3421,7 @@ static int ssl_sock_load_multi_ckchn(const char *path, struct ckch_node *ckch_n,
 
 #endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
-static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
 				   char **sni_filter, int fcount, char **err)
 {
 	SSL_CTX *ctx;
@@ -3436,10 +3436,10 @@ static int ssl_sock_load_ckchn(const char *path, struct ckch_node *ckch_n, struc
 #endif
 	struct cert_key_and_chain *ckch;
 
-	if (!ckch_n || !ckch_n->ckch)
+	if (!ckchs || !ckchs->ckch)
 		return 1;
 
-	ckch = ckch_n->ckch;
+	ckch = ckchs->ckch;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
@@ -3553,29 +3553,29 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	char *end;
 	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
-	struct ckch_node *ckchn;
+	struct ckch_store *ckchs;
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	int is_bundle;
 	int j;
 #endif
 
-	if ((ckchn = ckchn_lookup(path))) {
+	if ((ckchs = ckchs_lookup(path))) {
 
-		/* we found the ckchn in the tree, we can use it directly */
-		if (ckchn->multi)
-			return ssl_sock_load_multi_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+		/* we found the ckchs in the tree, we can use it directly */
+		if (ckchs->multi)
+			return ssl_sock_load_multi_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 		else
-			return ssl_sock_load_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 
 	}
 
 	if (stat(path, &buf) == 0) {
 		dir = opendir(path);
 		if (!dir) {
-			ckchn =  ckchn_load_cert_file(path, 0,  err);
-			if (!ckchn)
+			ckchs =  ckchs_load_cert_file(path, 0,  err);
+			if (!ckchs)
 				return 1;
-			return ssl_sock_load_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 		}
 
 		/* strip trailing slashes, including first one */
@@ -3636,12 +3636,12 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						}
 
 						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
-						if ((ckchn = ckchn_lookup(fp)) == NULL)
-							ckchn =  ckchn_load_cert_file(fp, 1,  err);
-						if (!ckchn)
+						if ((ckchs = ckchs_lookup(fp)) == NULL)
+							ckchs =  ckchs_load_cert_file(fp, 1,  err);
+						if (!ckchs)
 							cfgerr++;
 						else
-							cfgerr += ssl_sock_load_multi_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
+							cfgerr += ssl_sock_load_multi_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, err);
 
 						/* Successfully processed the bundle */
 						goto ignore_entry;
@@ -3649,12 +3649,12 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				}
 
 #endif
-				if ((ckchn = ckchn_lookup(fp)) == NULL)
-					ckchn =  ckchn_load_cert_file(fp, 0,  err);
-				if (!ckchn)
+				if ((ckchs = ckchs_lookup(fp)) == NULL)
+					ckchs =  ckchs_load_cert_file(fp, 0,  err);
+				if (!ckchs)
 					cfgerr++;
 				else
-					cfgerr += ssl_sock_load_ckchn(fp, ckchn, bind_conf, NULL, NULL, 0, err);
+					cfgerr += ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, err);
 
 ignore_entry:
 				free(de);
@@ -3665,10 +3665,10 @@ ignore_entry:
 		return cfgerr;
 	}
 
-	ckchn =  ckchn_load_cert_file(path, 1,  err);
-	if (!ckchn)
+	ckchs =  ckchs_load_cert_file(path, 1,  err);
+	if (!ckchs)
 		return 1;
-	cfgerr = ssl_sock_load_multi_ckchn(path, ckchn, bind_conf, NULL, NULL, 0, err);
+	cfgerr = ssl_sock_load_multi_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -3726,7 +3726,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 	struct stat buf;
 	int linenum = 0;
 	int cfgerr = 0;
-	struct ckch_node *ckchn;
+	struct ckch_store *ckchs;
 
 	if ((f = fopen(file, "r")) == NULL) {
 		memprintf(err, "cannot open file '%s' : %s", file, strerror(errno));
@@ -3853,17 +3853,17 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			break;
 		}
 
-		if ((ckchn = ckchn_lookup(crt_path)) == NULL) {
+		if ((ckchs = ckchs_lookup(crt_path)) == NULL) {
 			if (stat(crt_path, &buf) == 0)
-				ckchn = ckchn_load_cert_file(crt_path, 0,  err);
+				ckchs = ckchs_load_cert_file(crt_path, 0,  err);
 			else
-				ckchn = ckchn_load_cert_file(crt_path, 1,  err);
+				ckchs = ckchs_load_cert_file(crt_path, 1,  err);
 		}
 
-		if (!ckchn)
+		if (!ckchs)
 			cfgerr++;
 		else
-			cfgerr += ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
+			cfgerr += ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf,
 			                              &args[cur_arg], arg - cur_arg - 1, err);
 
 		if (cfgerr) {
