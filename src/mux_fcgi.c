@@ -1612,17 +1612,17 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 
 		if (isteqi(p.n, ist("FCGI_MPXS_CONNS"))) {
 			if (isteq(p.v, ist("1"))) {
-				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){1});
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){1});
 				fconn->flags |= FCGI_CF_MPXS_CONNS;
 			}
 			else {
-				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){0});
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){0});
 				fconn->flags &= ~FCGI_CF_MPXS_CONNS;
 			}
 		}
 		else if (isteqi(p.n, ist("FCGI_MAX_REQS"))) {
 			fconn->streams_limit = strl2ui(p.v.ptr, p.v.len);
-			TRACE_STATE("set streams_limit", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,, (size_t[]){fconn->streams_limit});
+			TRACE_STATE("set streams_limit", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){fconn->streams_limit});
 		}
 		/*
 		 * Ignore all other params
@@ -2369,7 +2369,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
-	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm, (size_t[]){ret});
+	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm,, (size_t[]){ret});
 
 	trash.area[ret]   = '\n';
 	trash.area[ret+1] = '\0';

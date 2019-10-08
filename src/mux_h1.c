@@ -1553,10 +1553,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			total += count;
 			if (h1m->state == H1_MSG_DATA)
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){count});
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){count});
 			else
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){count});
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){count});
 			goto out;
 		}
 		tmp.area = h1c->obuf.area + h1c->obuf.head;
@@ -1779,10 +1779,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				if (h1m->state == H1_MSG_DATA)
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){v.len});
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){v.len});
 				else
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, (size_t[]){v.len});
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){v.len});
 				break;
 
 			case H1_MSG_TRAILERS:
