@@ -1046,12 +1046,25 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
  */
 int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
+	struct ist uri;
+
 	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
 		return 0;
 
+	uri = htx_sl_req_uri(sl);
+	if (sl->flags & HTX_SL_F_NORMALIZED_URI) {
+		uri = http_get_path(uri);
+		if (unlikely(!uri.len)) {
+			if (sl->info.req.meth == HTTP_METH_OPTIONS)
+				uri = ist("*");
+			else
+				uri = ist("/");
+		}
+	}
+
 	chunk_memcat(chk, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
 	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl));
+	chunk_memcat(chk, uri.ptr, uri.len);
 	chunk_memcat(chk, " ", 1);
 	if (sl->flags & HTX_SL_F_VER_11)
 		chunk_memcat(chk, "HTTP/1.1", 8);
