@@ -193,10 +193,12 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto error;
 	sl->info.req.meth = h1sl->rq.meth;
 
-	/* Check if the uri contains an explicit scheme and if it is
-	 * "http" or "https". */
-	if (uri.len && uri.ptr[0] != '/') {
-		sl->flags |= HTX_SL_F_HAS_SCHM;
+	/* Check if the uri contains an authority. Also check if it contains an
+	 * explicit scheme and if it is "http" or "https". */
+	if (h1sl->rq.meth == HTTP_METH_CONNECT)
+		sl->flags |= HTX_SL_F_HAS_AUTHORITY;
+	else if (uri.len && uri.ptr[0] != '/' && uri.ptr[0] != '*') {
+		sl->flags |= (HTX_SL_F_HAS_AUTHORITY|HTX_SL_F_HAS_SCHM);
 		if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
 			sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 	}
