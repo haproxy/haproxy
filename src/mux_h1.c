@@ -1588,7 +1588,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->meth = sl->info.req.meth;
 				h1_parse_req_vsn(h1m, sl);
-				if (!htx_reqline_to_h1(sl, &tmp))
+				if (!h1_format_htx_reqline(sl, &tmp))
 					goto full;
 				h1m->flags |= H1_MF_XFER_LEN;
 				if (sl->flags & HTX_SL_F_BODYLESS)
@@ -1603,7 +1603,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				sl = htx_get_blk_ptr(chn_htx, blk);
 				h1s->status = sl->info.res.status;
 				h1_parse_res_vsn(h1m, sl);
-				if (!htx_stline_to_h1(sl, &tmp))
+				if (!h1_format_htx_stline(sl, &tmp))
 					goto full;
 				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
@@ -1650,7 +1650,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				/* Try to adjust the case of the header name */
 				if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 					h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-				if (!htx_hdr_to_h1(n, v, &tmp))
+				if (!h1_format_htx_hdr(n, v, &tmp))
 					goto full;
 			  skip_hdr:
 				h1m->state = H1_MSG_HDR_L2_LWS;
@@ -1672,7 +1672,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						/* Try to adjust the case of the header name */
 						if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 							h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-						if (!htx_hdr_to_h1(n, v, &tmp))
+						if (!h1_format_htx_hdr(n, v, &tmp))
 							goto full;
 					}
 					h1s->flags |= H1S_F_HAVE_O_CONN;
@@ -1690,7 +1690,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					v = ist("chunked");
 					if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 						h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-					if (!htx_hdr_to_h1(n, v, &tmp))
+					if (!h1_format_htx_hdr(n, v, &tmp))
 						goto full;
 					TRACE_STATE("add \"Transfer-Encoding: chunked\"", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 					h1m->flags |= H1_MF_CHNK;
@@ -1708,7 +1708,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						/* Try to adjust the case of the header name */
 						if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 							h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-						if (!htx_hdr_to_h1(n, v, &tmp))
+						if (!h1_format_htx_hdr(n, v, &tmp))
 							goto full;
 					}
 					TRACE_STATE("add server name header", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
@@ -1793,7 +1793,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
-				if (!htx_data_to_h1(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
+				if (!h1_format_htx_data(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto full;
 
 				if (h1m->state == H1_MSG_DATA)
@@ -1829,7 +1829,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					/* Try to adjust the case of the header name */
 					if (h1c->px->options2 & (PR_O2_H1_ADJ_BUGCLI|PR_O2_H1_ADJ_BUGSRV))
 						h1_adjust_case_outgoing_hdr(h1s, h1m, &n);
-					if (!htx_hdr_to_h1(n, v, &tmp))
+					if (!h1_format_htx_hdr(n, v, &tmp))
 						goto full;
 				}
 				break;

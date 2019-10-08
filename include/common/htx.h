@@ -255,11 +255,6 @@ size_t htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
 
-int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk);
-int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk);
-int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk);
-int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked);
-
 /* Functions and macros to get parts of the start-line or legnth of these
  * parts. Request and response start-lines are both composed of 3 parts.
  */

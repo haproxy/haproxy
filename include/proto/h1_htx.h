@@ -35,6 +35,11 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max);
 
+int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk);
+int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk);
+int h1_format_htx_hdr(const struct ist n, const struct ist v, struct buffer *chk);
+int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked);
+
 #endif /* _PROTO_H1_HTX_H */
 
 /*
