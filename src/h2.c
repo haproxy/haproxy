@@ -30,6 +30,7 @@
 #include <common/h2.h>
 #include <common/http-hdr.h>
 #include <common/ist.h>
+#include <types/global.h>
 
 struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES] =	{
 	 [H2_FT_DATA         ] = { .dir = 3, .min_id = 1, .max_id = H2_MAX_STREAM_ID, .min_len = 0, .max_len = H2_MAX_FRAME_LEN, },
@@ -152,7 +153,7 @@ int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned lon
  */
 static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
 {
-	int uri_idx;
+	struct ist uri;
 	unsigned int flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
 	size_t i;
@@ -174,9 +175,6 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			/* missing authority */
 			goto fail;
 		}
-		// otherwise OK ; the URI is only made of the authority here
-
-		uri_idx = H2_PHDR_IDX_AUTH;
 		*msgf |= H2_MSGF_BODY_TUNNEL;
 	}
 	else if ((fields & (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) !=
@@ -199,19 +197,51 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		}
 	}
 	else { /* regular methods */
-		/* origin-form requests are made only of the path */
-		uri_idx = H2_PHDR_IDX_PATH;
+		/* RFC3986#6.2.2.1: scheme is case-insensitive. We need to
+		 * classify the scheme as "present/http", "present/https",
+		 * "present/other", "absent" so as to decide whether or not
+		 * we're facing a normalized URI that will have to be encoded
+		 * in origin or absolute form. Indeed, 7540#8.1.2.3 says that
+		 * clients should use the absolute form, thus we cannot infer
+		 * whether or not the client wanted to use a proxy here.
+		 */
+		flags |= HTX_SL_F_HAS_SCHM;
+		if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("http")))
+			flags |= HTX_SL_F_SCHM_HTTP;
+		else if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("https")))
+			flags |= HTX_SL_F_SCHM_HTTPS;
+	}
+
+	if (!(flags & HTX_SL_F_HAS_SCHM)) {
+		/* no scheme, use authority only (CONNECT) */
+		uri = phdr[H2_PHDR_IDX_AUTH];
+	}
+	else if (!(flags & (HTX_SL_F_SCHM_HTTP|HTX_SL_F_SCHM_HTTPS)) && (fields & H2_PHDR_FND_AUTH)) {
+		/* non-http/https scheme + authority, let's use the absolute
+		 * form. We simply use the trash to concatenate them since all
+		 * of them MUST fit in a bufsize since it's where they come
+		 * from.
+		 */
+		uri = ist2bin(trash.area, phdr[H2_PHDR_IDX_SCHM]);
+		istcat(&uri, ist("://"), trash.size);
+		istcat(&uri, phdr[H2_PHDR_IDX_AUTH], trash.size);
+		if (!isteq(phdr[H2_PHDR_IDX_PATH], ist("*")))
+			istcat(&uri, phdr[H2_PHDR_IDX_PATH], trash.size);
+	}
+	else {
+		/* usual schemes with or without authority, use origin form */
+		uri = phdr[H2_PHDR_IDX_PATH];
 	}
 
 	/* make sure the final URI isn't empty. Note that 7540#8.1.2.3 states
 	 * that :path must not be empty.
 	 */
-	if (!phdr[uri_idx].len)
+	if (!uri.len)
 		goto fail;
 
 	/* The final URI must not contain LWS nor CTL characters */
-	for (i = 0; i < phdr[uri_idx].len; i++) {
-		unsigned char c = phdr[uri_idx].ptr[i];
+	for (i = 0; i < uri.len; i++) {
+		unsigned char c = uri.ptr[i];
 		if (HTTP_IS_LWS(c) || HTTP_IS_CTL(c))
 			htx->flags |= HTX_FL_PARSING_ERROR;
 	}
@@ -220,13 +250,11 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	flags |= HTX_SL_F_VER_11;    // V2 in fact
 	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
 
-	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, phdr[H2_PHDR_IDX_METH], phdr[uri_idx], ist("HTTP/2.0"));
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, phdr[H2_PHDR_IDX_METH], uri, ist("HTTP/2.0"));
 	if (!sl)
 		goto fail;
 
 	sl->info.req.meth = find_http_meth(phdr[H2_PHDR_IDX_METH].ptr, phdr[H2_PHDR_IDX_METH].len);
-	sl->flags |= HTX_SL_F_HAS_SCHM;
-	sl->flags |= (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("http")) ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 	return sl;
  fail:
 	return NULL;
