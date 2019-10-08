@@ -122,10 +122,37 @@ int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned lon
  * no general header field was found yet. Returns the created start line on
  * success, or NULL on failure. Upon success, <msgf> is updated with a few
  * H2_MSGF_* flags indicating what was found while parsing.
+ *
+ * The rules below deserve a bit of explanation. There tends to be some
+ * confusion regarding H2's authority vs the Host header. They are different
+ * though may sometimes be exchanged. In H2, the request line is broken into :
+ *   - :method
+ *   - :scheme
+ *   - :authority
+ *   - :path
+ *
+ * An equivalent HTTP/1.x absolute-form request would then look like :
+ *   <:method> <:scheme>://<:authority><:path> HTTP/x.y
+ *
+ * Except for CONNECT which doesn't have scheme nor path and looks like :
+ *   <:method> <:authority> HTTP/x.y
+ *
+ * It's worth noting that H2 still supports an encoding to map H1 origin-form
+ * and asterisk-form requests. These ones do not specify the authority. However
+ * in H2 they must still specify the scheme, which is not present in H1. Also,
+ * when encoding an absolute-form H1 request without a path, the path
+ * automatically becomes "/" except for the OPTIONS method where it
+ * becomes "*".
+ *
+ * As such it is explicitly permitted for an H2 client to send a request
+ * featuring a Host header and no :authority, though it's not the recommended
+ * way to use H2 for a client. It is however the only permitted way to encode
+ * an origin-form H1 request over H2. Thus we need to respect such differences
+ * as much as possible when re-encoding the H2 request into HTX.
  */
 static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
 {
-	int uri_idx = H2_PHDR_IDX_PATH;
+	int uri_idx;
 	unsigned int flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
 	size_t i;
@@ -147,7 +174,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			/* missing authority */
 			goto fail;
 		}
-		// otherwise OK ; let's use the authority instead of the URI
+		// otherwise OK ; the URI is only made of the authority here
+
 		uri_idx = H2_PHDR_IDX_AUTH;
 		*msgf |= H2_MSGF_BODY_TUNNEL;
 	}
@@ -170,12 +198,18 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			goto fail;
 		}
 	}
+	else { /* regular methods */
+		/* origin-form requests are made only of the path */
+		uri_idx = H2_PHDR_IDX_PATH;
+	}
 
-	/* 7540#8.1.2.3: :path must not be empty */
+	/* make sure the final URI isn't empty. Note that 7540#8.1.2.3 states
+	 * that :path must not be empty.
+	 */
 	if (!phdr[uri_idx].len)
 		goto fail;
 
-	/* make sure :path doesn't contain LWS nor CTL characters */
+	/* The final URI must not contain LWS nor CTL characters */
 	for (i = 0; i < phdr[uri_idx].len; i++) {
 		unsigned char c = phdr[uri_idx].ptr[i];
 		if (HTTP_IS_LWS(c) || HTTP_IS_CTL(c))
