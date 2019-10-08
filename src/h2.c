@@ -217,11 +217,10 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		uri = phdr[H2_PHDR_IDX_AUTH];
 		flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
-	else if (!(flags & (HTX_SL_F_SCHM_HTTP|HTX_SL_F_SCHM_HTTPS)) && (fields & H2_PHDR_FND_AUTH)) {
-		/* non-http/https scheme + authority, let's use the absolute
-		 * form. We simply use the trash to concatenate them since all
-		 * of them MUST fit in a bufsize since it's where they come
-		 * from.
+	else if (fields & H2_PHDR_FND_AUTH) {
+		/* authority is present, let's use the absolute form. We simply
+		 * use the trash to concatenate them since all of them MUST fit
+		 * in a bufsize since it's where they come from.
 		 */
 		uri = ist2bin(trash.area, phdr[H2_PHDR_IDX_SCHM]);
 		istcat(&uri, ist("://"), trash.size);
@@ -229,6 +228,19 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		if (!isteq(phdr[H2_PHDR_IDX_PATH], ist("*")))
 			istcat(&uri, phdr[H2_PHDR_IDX_PATH], trash.size);
 		flags |= HTX_SL_F_HAS_AUTHORITY;
+
+		if (flags & (HTX_SL_F_SCHM_HTTP|HTX_SL_F_SCHM_HTTPS)) {
+			/* we don't know if it was originally an absolute or a
+			 * relative request because newer versions of HTTP use
+			 * the absolute URI format by default, which we call
+			 * the normalized URI format internally. This is the
+			 * strongly recommended way of sending a request for
+			 * a regular client, so we cannot distinguish this
+			 * from a request intended for a proxy. For other
+			 * schemes however there is no doubt.
+			 */
+			flags |= HTX_SL_F_NORMALIZED_URI;
+		}
 	}
 	else {
 		/* usual schemes with or without authority, use origin form */
