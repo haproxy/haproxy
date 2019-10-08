@@ -148,7 +148,7 @@ Exported metrics
 | haproxy_frontend_http_comp_responses_total      | Total number of HTTP responses that were compressed.                         |
 +-------------------------------------------------+------------------------------------------------------------------------------+
 
-* Bakcned metrics
+* Backend metrics
 
 +-----------------------------------------------------+--------------------------------------------------------------------------+
 |    Metric name                                      |    Description                                                           |
