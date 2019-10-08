@@ -4773,7 +4773,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	struct buffer outbuf;
 	struct buffer *mbuf;
 	struct htx_sl *sl;
-	struct ist meth, path, auth;
+	struct ist meth, uri, auth;
 	enum htx_blk_type type;
 	int es_now = 0;
 	int ret = 0;
@@ -4810,7 +4810,11 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	ALREADY_CHECKED(blk);
 	sl = htx_get_blk_ptr(htx, blk);
 	meth = htx_sl_req_meth(sl);
-	path = htx_sl_req_uri(sl);
+	uri  = htx_sl_req_uri(sl);
+	if (unlikely(uri.len == 0)) {
+		TRACE_PROTO("no URI in HTX request", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
+		goto fail;
+	}
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
@@ -4890,19 +4894,67 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		goto full;
 	}
 
+	auth = ist(NULL);
+
 	/* RFC7540 #8.3: the CONNECT method must have :
 	 *   - :authority set to the URI part (host:port)
 	 *   - :method set to CONNECT
 	 *   - :scheme and :path omitted
 	 */
-	if (sl->info.req.meth != HTTP_METH_CONNECT) {
-		/* encode the scheme which is always "https" (or 0x86 for "http") */
-		struct ist scheme;
+	if (unlikely(sl->info.req.meth == HTTP_METH_CONNECT)) {
+		auth = uri;
 
-		if ((sl->flags & (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP)) == (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP))
-			scheme = ist("http");
-		else
-			scheme = ist("https");
+		if (!hpack_encode_header(&outbuf, ist(":authority"), auth)) {
+			/* output full */
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
+		}
+	} else {
+		/* other methods need a :scheme. If an authority is known from
+		 * the request line, it must be sent, otherwise only host is
+		 * sent. Host is never sent as the authority.
+		 */
+		struct ist scheme = { };
+
+		if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
+			/* the URI seems to start with a scheme */
+			int len = 1;
+
+			while (len < uri.len && uri.ptr[len] != ':')
+				len++;
+
+			if (len + 2 < uri.len && uri.ptr[len + 1] == '/' && uri.ptr[len + 2] == '/') {
+				/* make the uri start at the authority now */
+				scheme.ptr = uri.ptr;
+				scheme.len = len,
+				uri.ptr += len + 3;
+				uri.len -= len + 3;
+
+				/* find the auth part of the URI */
+				auth.ptr = uri.ptr;
+				auth.len = 0;
+				while (auth.len < uri.len && auth.ptr[auth.len] != '/')
+					auth.len++;
+
+				uri.ptr += auth.len;
+				uri.len -= auth.len;
+			}
+		}
+
+		if (!scheme.len) {
+			/* no explicit scheme, we're using an origin-form URI,
+			 * probably from an H1 request transcoded to H2 via an
+			 * external layer, then received as H2 without authority.
+			 * So we have to look up the scheme from the HTX flags.
+			 * In such a case only http and https are possible, and
+			 * https is the default (sent by browsers).
+			 */
+			if ((sl->flags & (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP)) == (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP))
+				scheme = ist("http");
+			else
+				scheme = ist("https");
+		}
 
 		if (!hpack_encode_scheme(&outbuf, scheme)) {
 			/* output full */
@@ -4911,43 +4963,38 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			goto full;
 		}
 
-		/* encode the path, which necessarily is the second one */
-		if (!hpack_encode_path(&outbuf, path)) {
+		if (auth.len && !hpack_encode_header(&outbuf, ist(":authority"), auth)) {
 			/* output full */
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
 		}
 
-		/* look for the Host header and place it in :authority */
-		auth = ist2(NULL, 0);
-		for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
-			if (isteq(list[hdr].n, ist("")))
-				break; // end
+		/* encode the path. RFC7540#8.1.2.3: if path is empty it must
+		 * be sent as '/' or '*'.
+		 */
+		if (unlikely(!uri.len)) {
+			if (sl->info.req.meth == HTTP_METH_OPTIONS)
+				uri = ist("*");
+			else
+				uri = ist("/");
+		}
 
-			if (isteq(list[hdr].n, ist("host"))) {
-				auth = list[hdr].v;
-				break;
-			}
+		if (!hpack_encode_path(&outbuf, uri)) {
+			/* output full */
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
 		}
 	}
-	else {
-		/* for CONNECT, :authority is taken from the path */
-		auth = path;
-	}
 
-	if (auth.ptr && !hpack_encode_header(&outbuf, ist(":authority"), auth)) {
-		/* output full */
-		if (b_space_wraps(mbuf))
-			goto realign_again;
-		goto full;
-	}
-
-	/* encode all headers, stop at empty name */
+	/* encode all headers, stop at empty name. Host is only sent if we
+	 * do not provide an authority.
+	 */
 	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
 		/* these ones do not exist in H2 and must be dropped. */
 		if (isteq(list[hdr].n, ist("connection")) ||
-		    isteq(list[hdr].n, ist("host")) ||
+		    (auth.len && isteq(list[hdr].n, ist("host"))) ||
 		    isteq(list[hdr].n, ist("proxy-connection")) ||
 		    isteq(list[hdr].n, ist("keep-alive")) ||
 		    isteq(list[hdr].n, ist("upgrade")) ||
