@@ -21,6 +21,9 @@
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
 
+static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
+static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);
+
 /* Returns the next unporocessed start line in the HTX message. It returns NULL
  * if the start-line is undefined (first == -1). Otherwise, it returns the
  * pointer on the htx_sl structure.
@@ -131,15 +134,16 @@ int http_find_header(const struct htx *htx, const struct ist name,
 int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 {
 	struct htx_blk *blk;
+	struct htx_sl *sl;
 	enum htx_blk_type type = htx_get_tail_type(htx);
 	int32_t prev;
 
 	blk = htx_add_header(htx, n, v);
 	if (!blk)
-		return 0;
+		goto fail;
 
 	if (unlikely(type < HTX_BLK_EOH))
-		return 1;
+		goto end;
 
 	/* <blk> is the head, swap it iteratively with its predecessor to place
 	 * it just before the end-of-header block. So blocks remains ordered. */
@@ -161,7 +165,16 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 		blk = pblk;
 	}
 
+  end:
+	sl = http_get_stline(htx);
+	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteq(n, ist("host"))) {
+		if (!http_update_authority(htx, sl, v))
+			goto fail;
+	}
 	return 1;
+
+  fail:
+	return 0;
 }
 
 /* Replaces parts of the start-line of the HTX message <htx>. It returns 1 on
@@ -211,7 +224,7 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 	struct ist meth, vsn;
 
 	if (!sl)
-		return 0;
+		goto fail;
 
 	/* Start by copying old method and version */
 	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
@@ -221,7 +234,16 @@ int http_replace_req_uri(struct htx *htx, const struct ist uri)
 	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 	/* create the new start line */
-	return http_replace_stline(htx, meth, uri, vsn);
+	if (!http_replace_stline(htx, meth, uri, vsn))
+		goto fail;
+
+	sl = http_get_stline(htx);
+	if (!http_update_host(htx, sl, uri))
+		goto fail;
+
+	return 1;
+  fail:
+	return 0;
 }
 
 /* Replace the request path in the HTX message <htx> by <path>. The host part
@@ -360,12 +382,13 @@ int http_replace_res_reason(struct htx *htx, const struct ist reason)
 int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data)
 {
 	struct htx_blk *blk = ctx->blk;
+	struct htx_sl *sl;
 	char *start;
 	struct ist v;
 	uint32_t len, off;
 
 	if (!blk)
-		return 0;
+		goto fail;
 
 	v     = htx_get_blk_value(htx, blk);
 	start = ctx->value.ptr - ctx->lws_before;
@@ -374,15 +397,32 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 
 	blk = htx_replace_blk_value(htx, blk, ist2(start, len), data);
 	if (!blk)
-		return 0;
+		goto fail;
 
 	v = htx_get_blk_value(htx, blk);
+
+	sl = http_get_stline(htx);
+	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY)) {
+		struct ist n = htx_get_blk_name(htx, blk);
+
+		if (isteq(n, ist("host"))) {
+			if (!http_update_authority(htx, sl, v))
+				goto fail;
+			ctx->blk = NULL;
+			http_find_header(htx, ist("host"), ctx, 1);
+			blk = ctx->blk;
+			v = htx_get_blk_value(htx, blk);
+		}
+	}
+
 	ctx->blk = blk;
 	ctx->value.ptr = v.ptr + off;
 	ctx->value.len = data.len;
 	ctx->lws_before = ctx->lws_after = 0;
 
 	return 1;
+  fail:
+	return 0;
 }
 
 /* Fully replaces a header referenced in the context <ctx> by the name <name>
@@ -393,19 +433,31 @@ int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx,
 			const struct ist name, const struct ist value)
 {
 	struct htx_blk *blk = ctx->blk;
+	struct htx_sl *sl;
 
 	if (!blk)
-		return 0;
+		goto fail;
 
 	blk = htx_replace_header(htx, blk, name, value);
 	if (!blk)
-		return 0;
+		goto fail;
+
+	sl = http_get_stline(htx);
+	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteq(name, ist("host"))) {
+		if (!http_update_authority(htx, sl, value))
+			goto fail;
+		ctx->blk = NULL;
+		http_find_header(htx, ist("host"), ctx, 1);
+		blk = ctx->blk;
+	}
 
 	ctx->blk = blk;
 	ctx->value = ist(NULL);
 	ctx->lws_before = ctx->lws_after = 0;
 
 	return 1;
+  fail:
+	return 0;
 }
 
 /* Remove one value of a header. This only works on a <ctx> returned by
@@ -471,6 +523,83 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 	return 1;
 }
 
+/* Updates the authority part of the uri with the value <host>. It happens when
+ * the header host is modified. It returns 0 on failure and 1 on success. It is
+ * the caller responsibility to provide the start-line and to be sure the uri
+ * contains an authority. Thus, if no authority is found in the uri, an error is
+ * returned.
+ */
+static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host)
+{
+	struct buffer *temp = get_trash_chunk();
+	struct ist meth, vsn, uri, authority;
+
+	uri = htx_sl_req_uri(sl);
+	authority = http_get_authority(uri, 1);
+	if (!authority.len || isteq(host, authority))
+		return 0;
+
+	/* Start by copying old method and version */
+	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
+	meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
+
+	chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)); /* vsn */
+	vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
+
+	chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
+	chunk_memcat(temp, host.ptr, host.len);
+	chunk_memcat(temp, authority.ptr + authority.len, uri.ptr + uri.len - (authority.ptr + authority.len));
+	uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
+
+	return http_replace_stline(htx, meth, uri, vsn);
+
+}
+
+/* Update the header host by extracting the authority of the uri <uri>. flags of
+ * the start-line are also updated accordingly. For orgin-form and asterisk-form
+ * uri, the header host is not changed and the flag HTX_SL_F_HAS_AUTHORITY is
+ * removed from the flags of the start-line. Otherwise, this flag is set and the
+ * authority is used to set the value of the header host. This function returns
+ * 0 on failure and 1 on success.
+*/
+static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
+{
+	struct ist authority;
+	struct http_hdr_ctx ctx;
+
+	if (!uri.len || uri.ptr[0] == '/' ||  uri.ptr[0] == '*') {
+		// origin-form or a asterisk-form (RFC7320 #5.3.1 and #5.3.4)
+		sl->flags &= ~HTX_SL_F_HAS_AUTHORITY;
+	}
+	else {
+		sl->flags |= HTX_SL_F_HAS_AUTHORITY;
+		if (sl->info.req.meth != HTTP_METH_CONNECT) {
+			// absolute-form (RFC7320 #5.3.2)
+			sl->flags |= HTX_SL_F_HAS_SCHM;
+			if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
+				sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
+
+			authority = http_get_authority(uri, 1);
+			if (!authority.len)
+				goto fail;
+		}
+		else {
+			// authority-form (RFC7320 #5.3.3)
+			authority = uri;
+		}
+
+		/* Replace header host value */
+		ctx.blk = NULL;
+		while (http_find_header(htx, ist("host"), &ctx, 1)) {
+			if (!http_replace_header_value(htx, &ctx, authority))
+				goto fail;
+		}
+
+	}
+	return 1;
+  fail:
+	return 0;
+}
 
 /* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
  * header whose name is <hname> of length <hlen>. If <ctx> is null, lookup is
