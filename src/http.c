@@ -476,6 +476,62 @@ const char *http_get_reason(unsigned int status)
 	}
 }
 
+/* Parse the uri and looks for the authority, between the scheme and the
+ * path. if no_userinfo is not zero, the part before the '@' (including it) is
+ * skipped. If not found, an empty ist is returned. Otherwise, the ist pointing
+ * on the authority is returned.
+ */
+struct ist http_get_authority(const struct ist uri, int no_userinfo)
+{
+	const char *ptr, *start, *end;
+
+	if (!uri.len)
+		goto not_found;
+
+	ptr = uri.ptr;
+	start = ptr;
+	end = ptr + uri.len;
+
+	/* RFC7230, par. 2.7 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*' || *ptr == '/')
+		goto not_found;
+
+	if (isalpha((unsigned char)*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1, or only
+		 * an authority (in case of a CONNECT method).
+		 */
+		ptr++;
+		while (ptr < end &&
+		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+			ptr++;
+		/* skip '://' or take the whole as authority if not found */
+		if (ptr == end || *ptr++ != ':')
+			goto authority;
+		if (ptr == end || *ptr++ != '/')
+			goto authority;
+		if (ptr == end || *ptr++ != '/')
+			goto authority;
+	}
+
+	start = ptr;
+	while (ptr < end && *ptr != '/') {
+		if (*ptr++ == '@' && no_userinfo)
+			start = ptr;
+	}
+
+	/* OK, ptr point on the '/' or the end */
+	end = ptr;
+
+  authority:
+	return ist2(start, end - start);
+
+  not_found:
+	return ist2(NULL, 0);
+}
+
 /* Parse the URI from the given transaction (which is assumed to be in request
  * phase) and look for the "/" beginning the PATH. If not found, ist2(0,0) is
  * returned. Otherwise the pointer and length are returned.
