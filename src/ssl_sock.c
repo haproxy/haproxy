@@ -4338,18 +4338,31 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	unsigned char encid[SSL_MAX_SSL_SESSION_ID_LENGTH];   /* encoded id */
 	unsigned char *p;
 	int data_len;
-	unsigned int sid_length, sid_ctx_length;
+	unsigned int sid_length;
 	const unsigned char *sid_data;
-	const unsigned char *sid_ctx_data;
 
 	/* Session id is already stored in to key and session id is known
 	 * so we dont store it to keep size.
+	 * note: SSL_SESSION_set1_id is using
+	 * a memcpy so we need to use a different pointer
+	 * than sid_data or sid_ctx_data to avoid valgrind
+	 * complaining.
 	 */
 
 	sid_data = SSL_SESSION_get_id(sess, &sid_length);
-	sid_ctx_data = SSL_SESSION_get0_id_context(sess, &sid_ctx_length);
-	SSL_SESSION_set1_id(sess, sid_data, 0);
-	SSL_SESSION_set1_id_context(sess, sid_ctx_data, 0);
+
+	/* copy value in an other buffer */
+	memcpy(encid, sid_data, sid_length);
+
+	/* pad with 0 */
+	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
+		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
+
+	/* force length to zero to avoid ASN1 encoding */
+	SSL_SESSION_set1_id(sess, encid, 0);
+
+	/* force length to zero to avoid ASN1 encoding */
+	SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, 0);
 
 	/* check if buffer is large enough for the ASN1 encoded session */
 	data_len = i2d_SSL_SESSION(sess, NULL);
@@ -4361,9 +4374,6 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	/* process ASN1 session encoding before the lock */
 	i2d_SSL_SESSION(sess, &p);
 
-	memcpy(encid, sid_data, sid_length);
-	if (sid_length < SSL_MAX_SSL_SESSION_ID_LENGTH)
-		memset(encid + sid_length, 0, SSL_MAX_SSL_SESSION_ID_LENGTH-sid_length);
 
 	shctx_lock(ssl_shctx);
 	/* store to cache */
@@ -4371,8 +4381,8 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	shctx_unlock(ssl_shctx);
 err:
 	/* reset original length values */
-	SSL_SESSION_set1_id(sess, sid_data, sid_length);
-	SSL_SESSION_set1_id_context(sess, sid_ctx_data, sid_ctx_length);
+	SSL_SESSION_set1_id(sess, encid, sid_length);
+	SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 
 	return 0; /* do not increment session reference count */
 }
