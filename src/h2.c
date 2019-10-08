@@ -215,6 +215,7 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	if (!(flags & HTX_SL_F_HAS_SCHM)) {
 		/* no scheme, use authority only (CONNECT) */
 		uri = phdr[H2_PHDR_IDX_AUTH];
+		flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 	else if (!(flags & (HTX_SL_F_SCHM_HTTP|HTX_SL_F_SCHM_HTTPS)) && (fields & H2_PHDR_FND_AUTH)) {
 		/* non-http/https scheme + authority, let's use the absolute
@@ -227,10 +228,13 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		istcat(&uri, phdr[H2_PHDR_IDX_AUTH], trash.size);
 		if (!isteq(phdr[H2_PHDR_IDX_PATH], ist("*")))
 			istcat(&uri, phdr[H2_PHDR_IDX_PATH], trash.size);
+		flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 	else {
 		/* usual schemes with or without authority, use origin form */
 		uri = phdr[H2_PHDR_IDX_PATH];
+		if (fields & H2_PHDR_FND_AUTH)
+			flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 
 	/* make sure the final URI isn't empty. Note that 7540#8.1.2.3 states
