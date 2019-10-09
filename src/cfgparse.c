@@ -2875,7 +2875,7 @@ int check_config_validity()
 			}
 		}
 
-		if (curproxy->uri_auth && !(curproxy->uri_auth->flags & ST_CONVDONE) &&
+		if (curproxy->uri_auth && curproxy->uri_auth != defproxy.uri_auth &&
 		    !LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
 		    (curproxy->uri_auth->userlist || curproxy->uri_auth->auth_realm )) {
 			ha_alert("%s '%s': stats 'auth'/'realm' and 'http-request' can't be used at the same time.\n",
@@ -2884,11 +2884,12 @@ int check_config_validity()
 			goto out_uri_auth_compat;
 		}
 
-		if (curproxy->uri_auth && curproxy->uri_auth->userlist && !(curproxy->uri_auth->flags & ST_CONVDONE)) {
+		if (curproxy->uri_auth && curproxy->uri_auth->userlist &&
+		    (curproxy->uri_auth != defproxy.uri_auth ||
+		     LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules))) {
 			const char *uri_auth_compat_req[10];
 			struct act_rule *rule;
 			int i = 0;
-
 			/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */
 			uri_auth_compat_req[i++] = "auth";
 
@@ -2915,8 +2916,6 @@ int check_config_validity()
 				free(curproxy->uri_auth->auth_realm);
 				curproxy->uri_auth->auth_realm = NULL;
 			}
-
-			curproxy->uri_auth->flags |= ST_CONVDONE;
 		}
 out_uri_auth_compat:
 
