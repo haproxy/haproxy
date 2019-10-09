@@ -670,7 +670,7 @@ err:
 }
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
- * reserved for the checkbox is STAT_SHOWADMIN is set in <flags>. Some extra info
+ * reserved for the checkbox is STAT_ADMIN is set in <flags>. Some extra info
  * are provided if STAT_SHLGNDS is present in <flags>.
  */
 static int stats_dump_fields_html(struct buffer *out,
@@ -684,7 +684,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
-		if (flags & STAT_SHOWADMIN) {
+		if (flags & STAT_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -827,7 +827,7 @@ static int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
 		chunk_appendf(out, "<tr class=socket>");
-		if (flags & STAT_SHOWADMIN) {
+		if (flags & STAT_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -932,7 +932,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
 
 
-		if (flags & STAT_SHOWADMIN)
+		if (flags & STAT_ADMIN)
 			chunk_appendf(out,
 			              "<td><input class='%s-checkbox' type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_F_PXNAME),
@@ -1188,7 +1188,7 @@ static int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
 		chunk_appendf(out, "<tr class=\"backend\">");
-		if (flags & STAT_SHOWADMIN) {
+		if (flags & STAT_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -1356,9 +1356,7 @@ int stats_dump_one_line(const struct field *stats, unsigned int flags, struct pr
 {
 	int ret;
 
-	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
-		flags |= STAT_SHOWADMIN;
-
+	flags |= appctx->ctx.stats.flags & STAT_ADMIN;
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 		ret = stats_dump_fields_html(&trash, stats, flags);
 	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
