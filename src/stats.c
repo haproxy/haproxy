@@ -2084,14 +2084,6 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 	struct channel *rep = si_ic(si);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
-	unsigned int flags;
-
-	if (uri)
-		flags = appctx->ctx.stats.flags;
-	else if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
-		flags = STAT_SHLGNDS | STAT_SHNODE | STAT_SHDESC;
-	else
-		flags = STAT_SHNODE | STAT_SHDESC;
 
 	chunk_reset(&trash);
 
@@ -2186,7 +2178,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 			}
 
 			/* print the frontend */
-			if (stats_dump_li_stats(si, px, l, flags)) {
+			if (stats_dump_li_stats(si, px, l, appctx->ctx.stats.flags)) {
 				if (!stats_putchk(rep, htx, &trash))
 					goto full;
 			}
@@ -2232,7 +2224,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 				continue;
 			}
 
-			if (stats_dump_sv_stats(si, px, flags, sv)) {
+			if (stats_dump_sv_stats(si, px, appctx->ctx.stats.flags, sv)) {
 				if (!stats_putchk(rep, htx, &trash))
 					goto full;
 			}
@@ -2243,7 +2235,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_BE:
 		/* print the backend */
-		if (stats_dump_be_stats(si, px, flags)) {
+		if (stats_dump_be_stats(si, px, appctx->ctx.stats.flags)) {
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -3812,7 +3804,10 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 {
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
-	appctx->ctx.stats.flags = 0;
+	appctx->ctx.stats.flags = STAT_SHNODE | STAT_SHDESC;
+
+	if ((strm_li(si_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
+		appctx->ctx.stats.flags |= STAT_SHLGNDS;
 
 	if (*args[2] && *args[3] && *args[4]) {
 		struct proxy *px;
