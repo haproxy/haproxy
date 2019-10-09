@@ -356,7 +356,7 @@ static int hlua_get_info(lua_State *L)
 
 	lua_newtable(L);
 	for (i=0; i<INF_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, info_field_names[i]);
+		lua_pushstring(L, info_fields[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
@@ -862,7 +862,7 @@ int hlua_listener_get_stats(lua_State *L)
 
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_field_names[i]);
+		lua_pushstring(L, stat_fields[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
@@ -918,7 +918,7 @@ int hlua_server_get_stats(lua_State *L)
 
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_field_names[i]);
+		lua_pushstring(L, stat_fields[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
@@ -1333,7 +1333,7 @@ int hlua_proxy_get_stats(lua_State *L)
 		stats_fill_fe_stats(px, stats, STATS_LEN);
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
-		lua_pushstring(L, stat_field_names[i]);
+		lua_pushstring(L, stat_fields[i].name);
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}

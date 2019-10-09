@@ -92,12 +92,11 @@ static inline struct field mkf_flt(uint32_t type, double value)
 
 extern const char *stat_status_codes[];
 
-/* These two structs contains all field names according with
- * the the number of entries in "enum stat_field" and
- * "enum info_field"
+/* These two structs contains all field names and descriptions according to
+ * the the number of entries in "enum stat_field" and "enum info_field"
  */
-extern const char *info_field_names[];
-extern const char *stat_field_names[];
+extern const struct name_desc stat_fields[];
+extern const struct name_desc info_fields[];
 
 int stats_fill_info(struct field *info, int len);
 int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len);
