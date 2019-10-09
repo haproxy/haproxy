@@ -29,6 +29,13 @@
 #define STAT_ADMIN      0x00000020	/* indicate a stats admin level */
 #define STAT_CHUNKED    0x00000040      /* use chunked encoding (HTTP/1.1) */
 #define STAT_JSON_SCHM  0x00000080      /* dump the json schema */
+
+#define STAT_HIDEVER    0x00000100      /* conf: do not report the version and reldate */
+#define STAT_SHNODE     0x00000200      /* conf: show node name */
+#define STAT_SHDESC     0x00000400      /* conf: show description */
+#define STAT_SHLGNDS    0x00000800      /* conf: show legends */
+#define STAT_SHOWADMIN  0x00001000      /* conf: show the admin column */
+
 #define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
 #define STAT_STARTED    0x01000000	/* some output has occurred */
 

@@ -26,13 +26,6 @@ struct stat_scope {
 	char *px_id;			/* proxy id */
 };
 
-#define	ST_HIDEVER	0x00000001	/* do not report the version and reldate */
-#define	ST_SHNODE	0x00000002	/* show node name */
-#define	ST_SHDESC	0x00000004	/* show description */
-#define	ST_SHLGNDS	0x00000008	/* show legends */
-/* unused:              0x00000010 */
-#define	ST_SHOWADMIN	0x00000020	/* show the admin column */
-
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
 	int uri_len;			/* the prefix length */
@@ -40,7 +33,7 @@ struct uri_auth {
 	char *auth_realm;		/* the realm reported to the client */
 	char *node, *desc;		/* node name & description reported in this stats */
 	int refresh;			/* refresh interval for the browser (in seconds) */
-	int flags;			/* some flags describing the statistics page */
+	unsigned int flags;		/* STAT_* flags from stats.h and for applet.ctx.stats.flags */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
 	struct userlist *userlist;	/* private userlist to emulate legacy "stats auth user:password" */
 	struct list http_req_rules;	/* stats http-request rules : allow/deny/auth */

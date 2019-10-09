@@ -17,6 +17,7 @@
 #include <common/config.h>
 #include <common/uri_auth.h>
 
+#include <types/stats.h>
 #include <proto/log.h>
 
 /*
@@ -108,7 +109,7 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm)
 }
 
 /*
- * Returns a default uri_auth with ST_SHNODE flag enabled and
+ * Returns a default uri_auth with STAT_SHNODE flag enabled and
  * <node> set as the name if it is not empty.
  * Uses the pointer provided if not NULL and not initialized.
  */
@@ -126,7 +127,7 @@ struct uri_auth *stats_set_node(struct uri_auth **root, char *name)
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
 		goto out_u;
 
-	if (!stats_set_flag(root, ST_SHNODE))
+	if (!stats_set_flag(root, STAT_SHNODE))
 		goto out_u;
 
 	if (node_copy) {	
@@ -143,7 +144,7 @@ struct uri_auth *stats_set_node(struct uri_auth **root, char *name)
 }
 
 /*
- * Returns a default uri_auth with ST_SHDESC flag enabled and
+ * Returns a default uri_auth with STAT_SHDESC flag enabled and
  * <description> set as the desc if it is not empty.
  * Uses the pointer provided if not NULL and not initialized.
  */
@@ -161,7 +162,7 @@ struct uri_auth *stats_set_desc(struct uri_auth **root, char *desc)
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
 		goto out_u;
 
-	if (!stats_set_flag(root, ST_SHDESC))
+	if (!stats_set_flag(root, STAT_SHDESC))
 		goto out_u;
 
 	if (desc_copy) {

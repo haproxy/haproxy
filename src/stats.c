@@ -670,8 +670,8 @@ err:
 }
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
- * reserved for the checkbox is ST_SHOWADMIN is set in <flags>. Some extra info
- * are provided if ST_SHLGNDS is present in <flags>.
+ * reserved for the checkbox is STAT_SHOWADMIN is set in <flags>. Some extra info
+ * are provided if STAT_SHLGNDS is present in <flags>.
  */
 static int stats_dump_fields_html(struct buffer *out,
 				  const struct field *stats,
@@ -684,7 +684,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
 
-		if (flags & ST_SHOWADMIN) {
+		if (flags & STAT_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -827,7 +827,7 @@ static int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
 		chunk_appendf(out, "<tr class=socket>");
-		if (flags & ST_SHOWADMIN) {
+		if (flags & STAT_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -838,10 +838,10 @@ static int stats_dump_fields_html(struct buffer *out,
 		              "<a class=lfsb href=\"#%s/+%s\">%s</a>"
 		              "",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
-		              (flags & ST_SHLGNDS)?"<u>":"",
+		              (flags & STAT_SHLGNDS)?"<u>":"",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
-		if (flags & ST_SHLGNDS) {
+		if (flags & STAT_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit(*field_str(stats, ST_F_ADDR)))
@@ -866,7 +866,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* bytes: in, out */
 		              "<td>%s</td><td>%s</td>"
 		              "",
-		              (flags & ST_SHLGNDS)?"</u>":"",
+		              (flags & STAT_SHLGNDS)?"</u>":"",
 		              U2H(stats[ST_F_SCUR].u.u32), U2H(stats[ST_F_SMAX].u.u32), U2H(stats[ST_F_SLIM].u.u32),
 		              U2H(stats[ST_F_STOT].u.u64), U2H(stats[ST_F_BIN].u.u64), U2H(stats[ST_F_BOUT].u.u64));
 
@@ -932,7 +932,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              (stats[ST_F_BCK].u.u32) ? "backup" : "active", style);
 
 
-		if (flags & ST_SHOWADMIN)
+		if (flags & STAT_SHOWADMIN)
 			chunk_appendf(out,
 			              "<td><input class='%s-checkbox' type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 			              field_str(stats, ST_F_PXNAME),
@@ -943,10 +943,10 @@ static int stats_dump_fields_html(struct buffer *out,
 		              "<a class=lfsb href=\"#%s/%s\">%s</a>"
 		              "",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME),
-		              (flags & ST_SHLGNDS) ? "<u>" : "",
+		              (flags & STAT_SHLGNDS) ? "<u>" : "",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_SVNAME), field_str(stats, ST_F_SVNAME));
 
-		if (flags & ST_SHLGNDS) {
+		if (flags & STAT_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
 			if (isdigit(*field_str(stats, ST_F_ADDR)))
@@ -976,7 +976,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* sessions rate : current, max, limit */
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
-		              (flags & ST_SHLGNDS) ? "</u>" : "",
+		              (flags & STAT_SHLGNDS) ? "</u>" : "",
 		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32), LIM2A(stats[ST_F_QLIMIT].u.u32, "-"),
 		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
@@ -1188,7 +1188,7 @@ static int stats_dump_fields_html(struct buffer *out,
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
 		chunk_appendf(out, "<tr class=\"backend\">");
-		if (flags & ST_SHOWADMIN) {
+		if (flags & STAT_SHOWADMIN) {
 			/* Column sub-heading for Enable or Disable server */
 			chunk_appendf(out, "<td></td>");
 		}
@@ -1198,10 +1198,10 @@ static int stats_dump_fields_html(struct buffer *out,
 		              "%s<a name=\"%s/Backend\"></a>"
 		              "<a class=lfsb href=\"#%s/Backend\">Backend</a>"
 		              "",
-		              (flags & ST_SHLGNDS)?"<u>":"",
+		              (flags & STAT_SHLGNDS)?"<u>":"",
 		              field_str(stats, ST_F_PXNAME), field_str(stats, ST_F_PXNAME));
 
-		if (flags & ST_SHLGNDS) {
+		if (flags & STAT_SHLGNDS) {
 			/* balancing */
 			chunk_appendf(out, "<div class=tips>balancing: %s",
 			              field_str(stats, ST_F_ALGO));
@@ -1223,7 +1223,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* sessions rate : current, max, limit */
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
-		              (flags & ST_SHLGNDS)?"</u>":"",
+		              (flags & STAT_SHLGNDS)?"</u>":"",
 		              U2H(stats[ST_F_QCUR].u.u32), U2H(stats[ST_F_QMAX].u.u32),
 		              U2H(stats[ST_F_RATE].u.u32), U2H(stats[ST_F_RATE_MAX].u.u32));
 
@@ -1357,7 +1357,7 @@ int stats_dump_one_line(const struct field *stats, unsigned int flags, struct pr
 	int ret;
 
 	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN))
-		flags |= ST_SHOWADMIN;
+		flags |= STAT_SHOWADMIN;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 		ret = stats_dump_fields_html(&trash, stats, flags);
@@ -1468,7 +1468,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
  * preallocated array of length <len>. The length of the array
  * must be at least ST_F_TOTAL_FIELDS. If this length is less
  * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value ST_SHLGNDS.
+ * returns 1. <flags> can take the value STAT_SHLGNDS.
  */
 int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
                         struct field *stats, int len)
@@ -1505,7 +1505,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
 
-	if (flags & ST_SHLGNDS) {
+	if (flags & STAT_SHLGNDS) {
 		char str[INET6_ADDRSTRLEN];
 		int port;
 
@@ -1583,7 +1583,7 @@ static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
  * preallocated array of length <len>. The length of the array
  * must be at least ST_F_TOTAL_FIELDS. If this length is less
  * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value ST_SHLGNDS.
+ * returns 1. <flags> can take the value STAT_SHLGNDS.
  */
 int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
                         struct field *stats, int len)
@@ -1795,7 +1795,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, TIME_STATS_SAMPLES));
 	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES));
 
-	if (flags & ST_SHLGNDS) {
+	if (flags & STAT_SHLGNDS) {
 		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 		case AF_INET:
 			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
@@ -1842,7 +1842,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
  * preallocated array of length <len>. The length of the array
  * must be at least ST_F_TOTAL_FIELDS. If this length is less
  * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value ST_SHLGNDS.
+ * returns 1. <flags> can take the value STAT_SHLGNDS.
  */
 int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len)
 {
@@ -1888,7 +1888,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_RATE]     = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
 	stats[ST_F_RATE_MAX] = mkf_u32(0, px->be_counters.sps_max);
 
-	if (flags & ST_SHLGNDS) {
+	if (flags & STAT_SHLGNDS) {
 		if (px->cookie_name)
 			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
 		stats[ST_F_ALGO] = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
@@ -1981,10 +1981,10 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<a name=\"%s\"></a>%s"
 	              "<a class=px href=\"#%s\">%s</a>",
 	              px->id,
-	              (uri->flags & ST_SHLGNDS) ? "<u>":"",
+	              (uri->flags & STAT_SHLGNDS) ? "<u>":"",
 	              px->id, px->id);
 
-	if (uri->flags & ST_SHLGNDS) {
+	if (uri->flags & STAT_SHLGNDS) {
 		/* cap, mode, id */
 		chunk_appendf(&trash, "<div class=tips>cap: %s, mode: %s, id: %d",
 		              proxy_cap_str(px->cap), proxy_mode_str(px->mode),
@@ -1999,7 +1999,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "</table>\n"
 	              "<table class=\"tbl\" width=\"100%%\">\n"
 	              "<tr class=\"titre\">",
-	              (uri->flags & ST_SHLGNDS) ? "</u>":"",
+	              (uri->flags & STAT_SHLGNDS) ? "</u>":"",
 	              px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
 	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
@@ -2089,9 +2089,9 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 	if (uri)
 		flags = uri->flags;
 	else if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
-		flags = ST_SHLGNDS | ST_SHNODE | ST_SHDESC;
+		flags = STAT_SHLGNDS | STAT_SHNODE | STAT_SHDESC;
 	else
-		flags = ST_SHNODE | ST_SHDESC;
+		flags = STAT_SHNODE | STAT_SHDESC;
 
 	chunk_reset(&trash);
 
@@ -2386,8 +2386,8 @@ static void stats_dump_html_head(struct uri_auth *uri)
 		      "u:hover div.tips {visibility:visible;}\n"
 	              "-->\n"
 	              "</style></head>\n",
-	              (uri->flags & ST_SHNODE) ? " on " : "",
-	              (uri->flags & ST_SHNODE) ? (uri->node ? uri->node : global.node) : ""
+	              (uri->flags & STAT_SHNODE) ? " on " : "",
+	              (uri->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : ""
 	              );
 }
 
@@ -2454,11 +2454,11 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (uri->flags & ST_HIDEVER) ? "" : (stats_version_string),
-	              pid, (uri->flags & ST_SHNODE) ? " on " : "",
-		      (uri->flags & ST_SHNODE) ? (uri->node ? uri->node : global.node) : "",
-	              (uri->flags & ST_SHDESC) ? ": " : "",
-		      (uri->flags & ST_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
+	              (uri->flags & STAT_HIDEVER) ? "" : (stats_version_string),
+	              pid, (uri->flags & STAT_SHNODE) ? " on " : "",
+		      (uri->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
+	              (uri->flags & STAT_SHDESC) ? ": " : "",
+		      (uri->flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
 	              pid, relative_pid, global.nbproc, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),

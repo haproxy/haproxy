@@ -16,6 +16,7 @@
 
 #include <types/capture.h>
 #include <types/compression.h>
+#include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/checks.h>
@@ -1874,13 +1875,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 		} else if (!strcmp(args[1], "hide-version")) {
-			if (!stats_set_flag(&curproxy->uri_auth, ST_HIDEVER)) {
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_HIDEVER)) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 		} else if (!strcmp(args[1], "show-legends")) {
-			if (!stats_set_flag(&curproxy->uri_auth, ST_SHLGNDS)) {
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHLGNDS)) {
 				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
