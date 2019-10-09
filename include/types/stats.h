@@ -34,6 +34,7 @@
 #define STAT_SHNODE     0x00000200      /* conf: show node name */
 #define STAT_SHDESC     0x00000400      /* conf: show description */
 #define STAT_SHLGNDS    0x00000800      /* conf: show legends */
+#define STAT_SHOW_FDESC 0x00001000      /* show the field descriptions when possible */
 
 #define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
 #define STAT_STARTED    0x01000000	/* some output has occurred */

@@ -3782,20 +3782,29 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 
 static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int arg = 2;
+
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = 0;
 
-	if (strcmp(args[2], "typed") == 0)
-		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-	else if (strcmp(args[2], "json") == 0)
-		appctx->ctx.stats.flags |= STAT_FMT_JSON;
+	while (*args[arg]) {
+		if (strcmp(args[arg], "typed") == 0)
+			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+		else if (strcmp(args[arg], "json") == 0)
+			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+		else if (strcmp(args[arg], "desc") == 0)
+			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+		arg++;
+	}
 	return 0;
 }
 
 
 static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int arg = 2;
+
 	appctx->ctx.stats.scope_str = 0;
 	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = STAT_SHNODE | STAT_SHDESC;
@@ -3803,30 +3812,33 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	if ((strm_li(si_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		appctx->ctx.stats.flags |= STAT_SHLGNDS;
 
-	if (*args[2] && *args[3] && *args[4]) {
+	if (*args[arg] && *args[arg+1] && *args[arg+2]) {
 		struct proxy *px;
 
-		px = proxy_find_by_name(args[2], 0, 0);
+		px = proxy_find_by_name(args[arg], 0, 0);
 		if (px)
 			appctx->ctx.stats.iid = px->uuid;
 		else
-			appctx->ctx.stats.iid = atoi(args[2]);
+			appctx->ctx.stats.iid = atoi(args[arg]);
 
 		if (!appctx->ctx.stats.iid)
 			return cli_err(appctx, "No such proxy.\n");
 
 		appctx->ctx.stats.flags |= STAT_BOUND;
-		appctx->ctx.stats.type = atoi(args[3]);
-		appctx->ctx.stats.sid = atoi(args[4]);
-		if (strcmp(args[5], "typed") == 0)
-			appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-		else if (strcmp(args[5], "json") == 0)
-			appctx->ctx.stats.flags |= STAT_FMT_JSON;
+		appctx->ctx.stats.type = atoi(args[arg+1]);
+		appctx->ctx.stats.sid = atoi(args[arg+2]);
+		arg += 3;
 	}
-	else if (strcmp(args[2], "typed") == 0)
-		appctx->ctx.stats.flags |= STAT_FMT_TYPED;
-	else if (strcmp(args[2], "json") == 0)
-		appctx->ctx.stats.flags |= STAT_FMT_JSON;
+
+	while (*args[arg]) {
+		if (strcmp(args[arg], "typed") == 0)
+			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_TYPED;
+		else if (strcmp(args[arg], "json") == 0)
+			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
+		else if (strcmp(args[arg], "desc") == 0)
+			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+		arg++;
+	}
 
 	return 0;
 }
