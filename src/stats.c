@@ -603,12 +603,12 @@ err:
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
 				  const struct field *stats,
-				  int first_stat)
+				  unsigned int flags)
 {
 	int field;
 	int started = 0;
 
-	if (!first_stat && !chunk_strcat(out, ","))
+	if ((flags & STAT_STARTED) && !chunk_strcat(out, ","))
 		return 0;
 	if (!chunk_strcat(out, "["))
 		return 0;
@@ -663,8 +663,8 @@ static int stats_dump_fields_json(struct buffer *out,
 
 err:
 	chunk_reset(out);
-	if (!first_stat)
-	    chunk_strcat(out, ",");
+	if (flags & STAT_STARTED)
+		chunk_strcat(out, ",");
 	chunk_appendf(out, "{\"errorStr\":\"output buffer too short\"}");
 	return 0;
 }
@@ -1362,9 +1362,7 @@ int stats_dump_one_line(const struct field *stats, unsigned int flags, struct pr
 	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
 		ret = stats_dump_fields_typed(&trash, stats);
 	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(&trash, stats,
-					     !(appctx->ctx.stats.flags &
-					       STAT_STARTED));
+		ret = stats_dump_fields_json(&trash, stats, appctx->ctx.stats.flags);
 	else
 		ret = stats_dump_fields_csv(&trash, stats);
 
