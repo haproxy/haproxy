@@ -3863,8 +3863,8 @@ static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL }, "clear counters : clear max statistics counters (add 'all' for all counters)", cli_parse_clear_counters, NULL, NULL },
-	{ { "show", "info",  NULL }, "show info      : report information about the running process", cli_parse_show_info, cli_io_handler_dump_info, NULL },
-	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
+	{ { "show", "info",  NULL }, "show info      : report information about the running process [json|typed]", cli_parse_show_info, cli_io_handler_dump_info, NULL },
+	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server [json|typed]", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
 	{ { "show", "schema",  "json", NULL }, "show schema json : report schema used for stats", NULL, cli_io_handler_dump_json_schema, NULL },
 	{{},}
 }};
