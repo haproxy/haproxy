@@ -1994,7 +1994,7 @@ show fd [<fd>]
   that the output format may evolve over time so this output must not be parsed
   by tools designed to be durable.
 
-show info [typed|json]
+show info [typed|json] [desc]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
@@ -2025,6 +2025,10 @@ show info [typed|json]
   Thus the overall line format in typed mode is :
 
       <field_pos>.<field_name>.<process_num>:<tags>:<type>:<value>
+
+  When "desc" is appended to the command, one extra colon followed by a quoted
+  string is appended with a description for the metric. At the time of writing,
+  this is only supported for the "typed" and default output formats.
 
   Example :
 
@@ -2285,7 +2289,7 @@ show sess <id>
   The special id "all" dumps the states of all sessions, which must be avoided
   as much as possible as it is highly CPU intensive and can take a lot of time.
 
-show stat [{<iid>|<proxy>} <type> <sid>] [typed|json]
+show stat [{<iid>|<proxy>} <type> <sid>] [typed|json] [desc]
   Dump statistics using the CSV format; using the extended typed output
   format described in the section above if "typed" is passed after the
   other arguments; or in JSON if "json" is passed after the other arguments
@@ -2358,6 +2362,10 @@ show stat [{<iid>|<proxy>} <type> <sid>] [typed|json]
   column indicates the type of the field, among "s32", "s64", "u32", "u64" and
   "str". Then the fourth column is the value itself, which the consumer knows
   how to parse thanks to column 3 and how to process thanks to column 2.
+
+  When "desc" is appended to the command, one extra colon followed by a quoted
+  string is appended with a description for the metric. At the time of writing,
+  this is only supported for the "typed" output format.
 
   Thus the overall line format in typed mode is :
 

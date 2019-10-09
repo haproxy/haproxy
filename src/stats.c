@@ -544,6 +544,8 @@ static int stats_dump_fields_typed(struct buffer *out,
 			return 0;
 		if (!stats_emit_typed_data_field(out, &stats[field]))
 			return 0;
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", stat_fields[field].desc))
+			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
 	}
@@ -3327,6 +3329,8 @@ static int stats_dump_info_fields(struct buffer *out,
 			return 0;
 		if (!stats_emit_raw_data_field(out, &info[field]))
 			return 0;
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", info_fields[field].desc))
+			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
 	}
@@ -3348,6 +3352,8 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 		if (!stats_emit_field_tags(out, &info[field], ':'))
 			return 0;
 		if (!stats_emit_typed_data_field(out, &info[field]))
+			return 0;
+		if ((flags & STAT_SHOW_FDESC) && !chunk_appendf(out, ":\"%s\"", info_fields[field].desc))
 			return 0;
 		if (!chunk_strcat(out, "\n"))
 			return 0;
