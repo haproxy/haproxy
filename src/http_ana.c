@@ -4375,6 +4375,7 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 	memset(&appctx->ctx.stats, 0, sizeof(appctx->ctx.stats));
 	appctx->st1 = appctx->st2 = 0;
 	appctx->ctx.stats.st_code = STAT_STATUS_INIT;
+	appctx->ctx.stats.flags |= uri_auth->flags;
 	appctx->ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
 	if ((msg->flags & HTTP_MSGF_VER_11) && (txn->meth != HTTP_METH_HEAD))
 		appctx->ctx.stats.flags |= STAT_CHUNKED;

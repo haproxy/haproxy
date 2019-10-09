@@ -1949,7 +1949,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
  * stream interface <si> and per-uri parameters <uri>. The caller is responsible
  * for clearing the trash if needed.
  */
-static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
@@ -1981,10 +1981,10 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<a name=\"%s\"></a>%s"
 	              "<a class=px href=\"#%s\">%s</a>",
 	              px->id,
-	              (uri->flags & STAT_SHLGNDS) ? "<u>":"",
+	              (appctx->ctx.stats.flags & STAT_SHLGNDS) ? "<u>":"",
 	              px->id, px->id);
 
-	if (uri->flags & STAT_SHLGNDS) {
+	if (appctx->ctx.stats.flags & STAT_SHLGNDS) {
 		/* cap, mode, id */
 		chunk_appendf(&trash, "<div class=tips>cap: %s, mode: %s, id: %d",
 		              proxy_cap_str(px->cap), proxy_mode_str(px->mode),
@@ -1999,7 +1999,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "</table>\n"
 	              "<table class=\"tbl\" width=\"100%%\">\n"
 	              "<tr class=\"titre\">",
-	              (uri->flags & STAT_SHLGNDS) ? "</u>":"",
+	              (appctx->ctx.stats.flags & STAT_SHLGNDS) ? "</u>":"",
 	              px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
 	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
@@ -2087,7 +2087,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 	unsigned int flags;
 
 	if (uri)
-		flags = uri->flags;
+		flags = appctx->ctx.stats.flags;
 	else if ((strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		flags = STAT_SHLGNDS | STAT_SHNODE | STAT_SHDESC;
 	else
@@ -2142,7 +2142,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 
 	case STAT_PX_ST_TH:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-			stats_dump_html_px_hdr(si, px, uri);
+			stats_dump_html_px_hdr(si, px);
 			if (!stats_putchk(rep, htx, &trash))
 				goto full;
 		}
@@ -2277,7 +2277,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 /* Dumps the HTTP stats head block to the trash for and uses the per-uri
  * parameters <uri>. The caller is responsible for clearing the trash if needed.
  */
-static void stats_dump_html_head(struct uri_auth *uri)
+static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 {
 	/* WARNING! This must fit in the first buffer !!! */
 	chunk_appendf(&trash,
@@ -2386,8 +2386,8 @@ static void stats_dump_html_head(struct uri_auth *uri)
 		      "u:hover div.tips {visibility:visible;}\n"
 	              "-->\n"
 	              "</style></head>\n",
-	              (uri->flags & STAT_SHNODE) ? " on " : "",
-	              (uri->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : ""
+	              (appctx->ctx.stats.flags & STAT_SHNODE) ? " on " : "",
+	              (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : ""
 	              );
 }
 
@@ -2454,11 +2454,11 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (uri->flags & STAT_HIDEVER) ? "" : (stats_version_string),
-	              pid, (uri->flags & STAT_SHNODE) ? " on " : "",
-		      (uri->flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
-	              (uri->flags & STAT_SHDESC) ? ": " : "",
-		      (uri->flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
+	              (appctx->ctx.stats.flags & STAT_HIDEVER) ? "" : (stats_version_string),
+	              pid, (appctx->ctx.stats.flags & STAT_SHNODE) ? " on " : "",
+		      (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
+	              (appctx->ctx.stats.flags & STAT_SHDESC) ? ": " : "",
+		      (appctx->ctx.stats.flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
 	              pid, relative_pid, global.nbproc, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
@@ -2695,7 +2695,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 
 	case STAT_ST_HEAD:
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML)
-			stats_dump_html_head(uri);
+			stats_dump_html_head(appctx, uri);
 		else if (appctx->ctx.stats.flags & STAT_JSON_SCHM)
 			stats_dump_json_schema(&trash);
 		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
