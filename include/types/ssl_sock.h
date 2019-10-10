@@ -98,6 +98,7 @@ struct cert_key_and_chain {
 	EVP_PKEY *key;
 	STACK_OF(X509) *chain;
 	DH *dh;
+	struct buffer *sctl;
 };
 
 /*

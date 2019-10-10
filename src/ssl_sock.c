@@ -1498,25 +1498,12 @@ int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *
 	return 1;
 }
 
-static int ssl_sock_load_sctl(SSL_CTX *ctx, const char *cert_path)
+static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 {
-	char sctl_path[MAXPATHLEN+1];
 	int ret = -1;
-	struct stat st;
-	struct buffer *sctl = NULL;
 
-	snprintf(sctl_path, MAXPATHLEN+1, "%s.sctl", cert_path);
-
-	if (stat(sctl_path, &st))
-		return 1;
-
-	if (ssl_sock_load_sctl_from_file(sctl_path, &sctl))
+	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, sctl, ssl_sock_sctl_parse_cbk, NULL))
 		goto out;
-
-	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, sctl, ssl_sock_sctl_parse_cbk, NULL)) {
-		free(sctl);
-		goto out;
-	}
 
 	SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl);
 
@@ -3028,6 +3015,24 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 		goto end;
 	}
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+	/* try to load the sctl file */
+	{
+		char fp[MAXPATHLEN+1];
+		struct stat st;
+
+		snprintf(fp, MAXPATHLEN+1, "%s.sctl", path);
+		if (stat(fp, &st) == 0) {
+			if (ssl_sock_load_sctl_from_file(fp, &ckch->sctl)) {
+				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
+					  *err ? *err : "", fp);
+				ret = 1;
+				goto end;
+			}
+		}
+	}
+#endif
+
 	ret = 0;
 
 end:
@@ -3095,6 +3100,16 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
 		          err && *err ? *err : "", path);
 		return 1;
+	}
+#endif
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+	if (sctl_ex_index >= 0 && ckch->sctl) {
+		if (ssl_sock_load_sctl(ctx, ckch->sctl) < 0) {
+			memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
+			          *err ? *err : "", path);
+			return 1;
+		}
 	}
 #endif
 
@@ -3625,17 +3640,6 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	}
 #elif (defined OPENSSL_IS_BORINGSSL)
 	ssl_sock_set_ocsp_response_from_file(ctx, path);
-#endif
-
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
-	if (sctl_ex_index >= 0) {
-		if (ssl_sock_load_sctl(ctx, path) < 0) {
-			if (err)
-				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
-					  *err ? *err : "", path);
-			goto error;
-		}
-	}
 #endif
 
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
