@@ -3853,22 +3853,18 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			break;
 		}
 
-		if (stat(crt_path, &buf) == 0) {
-
-			ckchn =  ckchn_load_cert_file(crt_path, 0,  err);
-			if (!ckchn)
-				cfgerr++;
+		if ((ckchn = ckchn_lookup(crt_path)) == NULL) {
+			if (stat(crt_path, &buf) == 0)
+				ckchn = ckchn_load_cert_file(crt_path, 0,  err);
 			else
-				cfgerr = ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
-							     &args[cur_arg], arg - cur_arg - 1, err);
-		} else {
-			ckchn =  ckchn_load_cert_file(crt_path, 1,  err);
-			if (!ckchn)
-				cfgerr++;
-			else
-				cfgerr = ssl_sock_load_multi_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
-								   &args[cur_arg], arg - cur_arg - 1, err);
+				ckchn = ckchn_load_cert_file(crt_path, 1,  err);
 		}
+
+		if (!ckchn)
+			cfgerr++;
+		else
+			cfgerr += ssl_sock_load_ckchn(crt_path, ckchn, bind_conf, ssl_conf,
+			                              &args[cur_arg], arg - cur_arg - 1, err);
 
 		if (cfgerr) {
 			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
