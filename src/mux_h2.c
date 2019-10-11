@@ -5525,6 +5525,15 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	/* update the frame's size */
 	h2_set_frame_size(outbuf.area, outbuf.data - 9);
 
+	if (outbuf.data > h2c->mfs + 9) {
+		if (!h2_fragment_headers(&outbuf, h2c->mfs)) {
+			/* output full */
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
+		}
+	}
+
 	/* commit the H2 response */
 	TRACE_PROTO("sent H2 trailers HEADERS frame", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_TX_EOI, h2c->conn, h2s);
 	b_add(mbuf, outbuf.data);
