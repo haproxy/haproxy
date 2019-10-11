@@ -282,6 +282,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	union h1_sl sl;
 	int skip_update;
 	int restarting;
+	int host_idx;
 	struct ist n, v;       /* header name and value during parsing */
 
 	skip = 0; // do it only once to keep track of the leading CRLF.
@@ -290,6 +291,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	hdr_count = sol = col = eol = sov = 0;
 	sl.st.status = 0;
 	skip_update = restarting = 0;
+	host_idx = -1;
 
 	if (h1m->flags & H1_MF_HDRS_ONLY) {
 		state = H1_MSG_HDR_FIRST;
@@ -828,6 +830,18 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					h1_parse_connection_header(h1m, &v);
 					if (!v.len) {
 						/* skip it */
+						break;
+					}
+				}
+				else if (isteqi(n, ist("host"))) {
+					if (host_idx == -1)
+						host_idx = hdr_count;
+					else {
+						if (!isteqi(v, hdr[host_idx].v)) {
+							state = H1_MSG_HDR_L2_LWS;
+							goto http_msg_invalid;
+						}
+						/* if the same host, skip it */
 						break;
 					}
 				}
