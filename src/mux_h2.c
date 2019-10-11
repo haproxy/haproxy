@@ -1239,6 +1239,10 @@ static inline void h2s_close(struct h2s *h2s)
 }
 
 /* detaches an H2 stream from its H2C and releases it to the H2S pool. */
+/* h2s_destroy should only ever be called by the thread that owns the stream,
+ * that means that a tasklet should be used if we want to destroy the h2s
+ * from another thread
+ */
 static void h2s_destroy(struct h2s *h2s)
 {
 	struct connection *conn = h2s->h2c->conn;
@@ -1261,9 +1265,14 @@ static void h2s_destroy(struct h2s *h2s)
 	 */
 	LIST_DEL_INIT(&h2s->list);
 	if (LIST_ADDED(&h2s->sending_list)) {
+		/* It should be OK to call tasklet_remove_from_tasklet_list()
+		 * here, as only the thread responsible for the tasklet should
+		 * be called here.
+		 */
 		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 	}
+	/* ditto, calling tasklet_free() here should be ok */
 	tasklet_free(h2s->wait_event.tasklet);
 	pool_free(pool_head_h2s, h2s);
 
@@ -3809,6 +3818,11 @@ static void h2_detach(struct conn_stream *cs)
 	/* The stream is about to die, so no need to attempt to run its task */
 	if (LIST_ADDED(&h2s->sending_list) &&
 	    h2s->send_wait != &h2s->wait_event) {
+		/*
+		 * Calling tasklet_remove_from_tasklet_list() here is fine,
+		 * as only the thread responsible for the tasklet should
+		 * call h2_detach().
+		 */
 		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		LIST_DEL_INIT(&h2s->sending_list);
 		/*
@@ -5628,6 +5642,9 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		/* We were about to send, make sure it does not happen */
 		if (LIST_ADDED(&h2s->sending_list) &&
 		    h2s->send_wait != &h2s->wait_event) {
+			/* This call should be ok, as only the thread responsible
+			 * for the tasklet should call unsubscribe.
+			 */
 			tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 			LIST_DEL_INIT(&h2s->sending_list);
 		}
@@ -5720,6 +5737,11 @@ static void h2_stop_senders(struct h2c *h2c)
 
 	list_for_each_entry_safe(h2s, h2s_back, &h2c->sending_list, sending_list) {
 		LIST_DEL_INIT(&h2s->sending_list);
+		/* XXX: This won't work when/if streams are running on different
+		 * threads, so we will have to find another way to prevent
+		 * tasklets to run when we can no longer send data. The best
+		 * may be to only wake enough tasklets to fill the buffer.
+		 */
 		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
 		h2s->send_wait->events |= SUB_RETRY_SEND;
 	}
