@@ -99,6 +99,8 @@ struct cert_key_and_chain {
 	STACK_OF(X509) *chain;
 	DH *dh;
 	struct buffer *sctl;
+	struct buffer *ocsp_response;
+	X509 *ocsp_issuer;
 };
 
 /*

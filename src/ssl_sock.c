@@ -871,11 +871,11 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 
 /*
  * This function load the OCSP Resonse in DER format contained in file at
- * path 'ocsp_path' and call 'ssl_sock_load_ocsp_response'
+ * path 'ocsp_path'
  *
  * Returns 0 on success, 1 in error case.
  */
-static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct certificate_ocsp *ocsp, OCSP_CERTID *cid, char **err)
+static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct buffer **ocsp_response, char **err)
 {
 	int fd = -1;
 	int r = 0;
@@ -903,10 +903,16 @@ static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct c
 		trash.data += r;
 	}
 
+	*ocsp_response = calloc(1, sizeof(**ocsp_response));
+	if (!chunk_dup(*ocsp_response, &trash)) {
+		free(*ocsp_response);
+		*ocsp_response = NULL;
+		goto end;
+	}
+
 	close(fd);
 	fd = -1;
 
-	ret = ssl_sock_load_ocsp_response(&trash, ocsp, cid, err);
 end:
 	if (fd != -1)
 		close(fd);
@@ -1165,85 +1171,38 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 
 /*
  * This function enables the handling of OCSP status extension on 'ctx' if a
- * file name 'cert_path' suffixed using ".ocsp" is present.
- * To enable OCSP status extension, the issuer's certificate is mandatory.
- * It should be present in the certificate's extra chain builded from file
- * 'cert_path'. If not found, the issuer certificate is loaded from a file
- * named 'cert_path' suffixed using '.issuer'.
+ * ocsp_response buffer was found in the cert_key_and_chain.  To enable OCSP
+ * status extension, the issuer's certificate is mandatory.  It should be
+ * present in ckch->ocsp_issuer.
  *
- * In addition, ".ocsp" file content is loaded as a DER format of an OCSP
- * response. If file is empty or content is not a valid OCSP response,
- * OCSP status extension is enabled but OCSP response is ignored (a warning
- * is displayed).
+ * In addition, the ckch->ocsp_reponse buffer is loaded as a DER format of an
+ * OCSP response. If file is empty or content is not a valid OCSP response,
+ * OCSP status extension is enabled but OCSP response is ignored (a warning is
+ * displayed).
  *
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
  * successfully enabled, or -1 in other error case.
  */
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
 {
 
-	BIO *in = NULL;
-	X509 *x, *xi = NULL, *issuer = NULL;
-	STACK_OF(X509) *chain = NULL;
+	X509 *x = NULL, *issuer = NULL;
 	OCSP_CERTID *cid = NULL;
-	SSL *ssl;
 	char ocsp_path[MAXPATHLEN+1];
 	int i, ret = -1;
-	struct stat st;
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
 	unsigned char *p;
-	pem_password_cb *passwd_cb;
-	void *passwd_cb_userdata;
 	void (*callback) (void);
 
-	snprintf(ocsp_path, MAXPATHLEN+1, "%s.ocsp", cert_path);
 
-	if (stat(ocsp_path, &st))
-		return 1;
-
-	ssl = SSL_new(ctx);
-	if (!ssl)
-		goto out;
-
-	x = SSL_get_certificate(ssl);
+	x = ckch->cert;
 	if (!x)
 		goto out;
 
-	/* Try to lookup for issuer in certificate extra chain */
-	SSL_CTX_get_extra_chain_certs(ctx, &chain);
-	for (i = 0; i < sk_X509_num(chain); i++) {
-		issuer = sk_X509_value(chain, i);
-		if (X509_check_issued(issuer, x) == X509_V_OK)
-			break;
-		else
-			issuer = NULL;
-	}
-
-	/* If not found try to load issuer from a suffixed file */
-	if (!issuer) {
-		char issuer_path[MAXPATHLEN+1];
-
-		in = BIO_new(BIO_s_file());
-		if (!in)
-			goto out;
-
-		snprintf(issuer_path, MAXPATHLEN+1, "%s.issuer", cert_path);
-		if (BIO_read_filename(in, issuer_path) <= 0)
-			goto out;
-
-		passwd_cb = SSL_CTX_get_default_passwd_cb(ctx);
-		passwd_cb_userdata = SSL_CTX_get_default_passwd_cb_userdata(ctx);
-
-		xi = PEM_read_bio_X509_AUX(in, NULL, passwd_cb, passwd_cb_userdata);
-		if (!xi)
-			goto out;
-
-		if (X509_check_issued(xi, x) != X509_V_OK)
-			goto out;
-
-		issuer = xi;
-	}
+	issuer = ckch->ocsp_issuer;
+	if (!issuer)
+		goto out;
 
 	cid = OCSP_cert_to_id(0, x, issuer);
 	if (!cid)
@@ -1324,21 +1283,12 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
 	ret = 0;
 
 	warn = NULL;
-	if (ssl_sock_load_ocsp_response_from_file(ocsp_path, iocsp, cid, &warn)) {
+	if (ssl_sock_load_ocsp_response(ckch->ocsp_response, ocsp, cid, &warn)) {
 		memprintf(&warn, "Loading '%s': %s. Content will be ignored", ocsp_path, warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
 	}
 
 out:
-	if (ssl)
-		SSL_free(ssl);
-
-	if (in)
-		BIO_free(in);
-
-	if (xi)
-		X509_free(xi);
-
 	if (cid)
 		OCSP_CERTID_free(cid);
 
@@ -3015,6 +2965,18 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 		goto end;
 	}
 
+	ret = 0;
+
+	/* don't try to do the next operations if we feed the ckch from the cli */
+	if (buf)
+		goto end;
+
+	ERR_clear_error();
+	if (in) {
+		BIO_free(in);
+		in = NULL;
+	}
+
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	/* try to load the sctl file */
 	{
@@ -3032,6 +2994,71 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 		}
 	}
 #endif
+
+	/* try to load an ocsp response file */
+	{
+		char fp[MAXPATHLEN+1];
+		struct stat st;
+
+		snprintf(fp, MAXPATHLEN+1, "%s.ocsp", path);
+		if (stat(fp, &st) == 0) {
+			if (ssl_sock_load_ocsp_response_from_file(fp, &ckch->ocsp_response, err)) {
+				ret = 1;
+				goto end;
+			}
+		}
+	}
+
+	if (ckch->ocsp_response) {
+		X509 *issuer;
+		int i;
+
+		/* check if one of the certificate of the chain is the issuer */
+		for (i = 0; i < sk_X509_num(ckch->chain); i++) {
+			issuer = sk_X509_value(ckch->chain, i);
+			if (X509_check_issued(issuer, ckch->cert) == X509_V_OK) {
+				ckch->ocsp_issuer = issuer;
+				break;
+			} else
+				issuer = NULL;
+		}
+
+		/* if no issuer was found, try to load an issuer from the .issuer */
+		if (!issuer) {
+			struct stat st;
+			char fp[MAXPATHLEN+1];
+
+			snprintf(fp, MAXPATHLEN+1, "%s.issuer", path);
+			if (stat(fp, &st) == 0) {
+				if (BIO_read_filename(in, fp) <= 0) {
+					memprintf(err, "%s '%s.issuer' is present but cannot be read or parsed'.\n",
+						  *err ? *err : "", fp);
+					ret = 1;
+					goto end;
+				}
+
+				issuer = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+				if (!issuer) {
+					memprintf(err, "%s '%s.issuer' is present but cannot be read or parsed'.\n",
+						  *err ? *err : "", fp);
+					ret = 1;
+					goto end;
+				}
+
+				if (X509_check_issued(ckch->ocsp_issuer, ckch->cert) != X509_V_OK) {
+					memprintf(err, "%s '%s.issuer' is not an issuer'.\n",
+						  *err ? *err : "", fp);
+					ret = 1;
+					goto end;
+				}
+			} else {
+				memprintf(err, "%sNo issuer found, cannot use the OCSP response'.\n",
+				          *err ? *err : "");
+				ret = 1;
+				goto end;
+			}
+		}
+	}
 
 	ret = 0;
 
@@ -3111,6 +3138,20 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			return 1;
 		}
 	}
+#endif
+
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+	/* Load OCSP Info into context */
+	if (ckch->ocsp_response) {
+		if (ssl_sock_load_ocsp(ctx, ckch) < 0) {
+			if (err)
+				memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
+				          *err ? *err : "", path);
+			return 1;
+		}
+	}
+#elif (defined OPENSSL_IS_BORINGSSL)
+	ssl_sock_set_ocsp_response_from_file(cur_ctx, cur_file);
 #endif
 
 	return 0;
@@ -3424,19 +3465,6 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 						goto end;
 					}
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-					/* Load OCSP Info into context */
-					/* TODO: store OCSP in ckch */
-					if (ssl_sock_load_ocsp(cur_ctx, cur_file) < 0) {
-						if (err)
-							memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
-							          *err ? *err : "", cur_file);
-						rv = 1;
-						goto end;
-					}
-#elif (defined OPENSSL_IS_BORINGSSL)
-					ssl_sock_set_ocsp_response_from_file(cur_ctx, cur_file);
-#endif
 				}
 			}
 
@@ -3630,17 +3658,6 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
-
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-	if (ssl_sock_load_ocsp(ctx, path) < 0) {
-		if (err)
-			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
-				  *err ? *err : "", path);
-		goto error;
-	}
-#elif (defined OPENSSL_IS_BORINGSSL)
-	ssl_sock_set_ocsp_response_from_file(ctx, path);
-#endif
 
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if (bind_conf->default_ctx) {
