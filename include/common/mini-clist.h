@@ -225,9 +225,10 @@ struct cond_wordlist {
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_ADD(lh, el)                                                \
+#define MT_LIST_ADD(_lh, _el)                                              \
      ({                                                                    \
         int _ret = 0;                                                      \
+	struct mt_list *lh = (_lh), *el = (_el);                           \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n;                                 \
@@ -265,9 +266,10 @@ struct cond_wordlist {
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_ADDQ(lh, el)                                               \
+#define MT_LIST_ADDQ(_lh, _el)                                             \
     ({                                                                     \
 	    int _ret = 0;                                   \
+	    struct mt_list *lh = (_lh), *el = (_el);                       \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n;                                 \
@@ -306,7 +308,8 @@ struct cond_wordlist {
  * exclusively be used with lists modified by MT_LIST_ADD/MT_LIST_ADDQ. This
  * is incompatible with MT_LIST_DEL run concurrently.
  */
-#define MT_LIST_BEHEAD(lh) ({                                       \
+#define MT_LIST_BEHEAD(_lh) ({                                      \
+        struct mt_list *lh = (_lh);                                 \
 	struct mt_list *_n;                                         \
 	struct mt_list *_p;                                         \
 	while (1) {                                                 \
@@ -344,9 +347,10 @@ struct cond_wordlist {
 /* Remove an item from a list.
  * Returns 1 if we removed the item, 0 otherwise (because it was in no list).
  */
-#define MT_LIST_DEL(el)                                                    \
+#define MT_LIST_DEL(_el)                                                   \
     ({                                                                     \
         int _ret = 0;                                                      \
+	struct mt_list *el = (_el);                                        \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n, *n2;                            \
@@ -396,9 +400,10 @@ struct cond_wordlist {
 
 
 /* Remove the first element from the list, and return it */
-#define MT_LIST_POP(lh, pt, el)                                            \
+#define MT_LIST_POP(_lh, pt, el)                                           \
 	({                                                                 \
 		 void *_ret;                                               \
+		 struct mt_list *lh = (_lh);                               \
 		 while (1) {                                               \
 			 struct mt_list *n, *n2;                           \
 			 struct mt_list *p, *p2;                           \
@@ -486,9 +491,10 @@ struct cond_wordlist {
  * from the list in the meanwhile.
  * This returns a struct mt_list, that will be needed at unlock time.
  */
-#define MT_LIST_LOCK_ELT(el)                                               \
+#define MT_LIST_LOCK_ELT(_el)                                              \
 	({                                                                 \
 		struct mt_list ret;                                        \
+		struct mt_liet *el = (_el);                                \
 		while (1) {                                                \
 			struct mt_list *n, *n2;                            \
 			struct mt_list *p, *p2 = NULL;                     \
@@ -531,9 +537,10 @@ struct cond_wordlist {
 /* Unlock an element previously locked by MT_LIST_LOCK_ELT. "np" is the
  * struct mt_list returned by MT_LIST_LOCK_ELT().
  */
-#define MT_LIST_UNLOCK_ELT(el, np)                                         \
+#define MT_LIST_UNLOCK_ELT(_el, np)                                        \
 	do {                                                               \
 		struct mt_list *n = (np).next, *p = (np).prev;             \
+		struct mt_list *el = (_el);                                \
 		(el)->next = n;                                            \
 		(el)->prev = p;                                            \
 		if (n != (el))                                             \
@@ -612,8 +619,9 @@ struct cond_wordlist {
 /* Equivalent of MT_LIST_DEL(), to be used when parsing the list with mt_list_entry_for_each_safe().
  * It should be the element currently parsed (tmpelt1)
  */
-#define MT_LIST_DEL_SAFE(el)                                               \
+#define MT_LIST_DEL_SAFE(_el)                                              \
 	do {                                                               \
+		struct mt_list *el = (_el);                                \
 		(el)->prev = (el);                                         \
 		(el)->next = (el);                                         \
 		(el) = NULL;                                               \
@@ -641,7 +649,7 @@ struct cond_wordlist {
 				_MT_LIST_RELINK_DELETED(tmpelt2);             \
 				(tmpelt) = MT_LIST_BUSY;                      \
 				}))                                            \
-	for ((tmpelt) = (list_head), (tmpelt2).prev = NULL, (tmpelt2).next = _MT_LIST_LOCK_NEXT(list_head); ({ \
+	for ((tmpelt) = (list_head), (tmpelt2).prev = NULL, (tmpelt2).next = _MT_LIST_LOCK_NEXT(tmpelt); ({ \
 	              (item) = MT_LIST_ELEM((tmpelt2.next), typeof(item), member);  \
 		      if (&item->member != (list_head)) {                     \
 		                if (tmpelt2.prev != &item->member)            \
