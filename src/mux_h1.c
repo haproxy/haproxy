@@ -1191,6 +1191,15 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		goto end;
 	}
 
+	if (h1m->err_pos >= 0)  {
+		/* Maybe we found an error during the parsing while we were
+		 * configured not to block on that, so we have to capture it
+		 * now.
+		 */
+		TRACE_STATE("Ignored parsing error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
+		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+	}
+
 	if (!(h1m->flags & H1_MF_RESP)) {
 		h1s->meth = h1sl.rq.meth;
 		if (h1m->state == H1_MSG_TUNNEL) {
