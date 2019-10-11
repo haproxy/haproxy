@@ -228,11 +228,18 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
-	if (MT_LIST_ADDQ(&task_per_thread[tl->tid].task_list, &tl->list) == 1) {
-		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-		if (sleeping_thread_mask & (1 << tl->tid)) {
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1 << tl->tid));
-			wake_thread(tl->tid);
+	if (tl->tid == tid) {
+		if (LIST_ISEMPTY(&tl->list)) {
+			LIST_ADDQ(&task_per_thread[tl->tid].task_list, &tl->list);
+			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+		}
+	} else {
+		if (MT_LIST_ADDQ(&task_per_thread[tl->tid].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
+			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+			if (sleeping_thread_mask & (1 << tl->tid)) {
+				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1 << tl->tid));
+				wake_thread(tl->tid);
+			}
 		}
 	}
 
@@ -243,23 +250,25 @@ static inline void tasklet_wakeup(struct tasklet *tl)
  */
 static inline void tasklet_insert_into_tasklet_list(struct tasklet *tl)
 {
-	if (MT_LIST_ADDQ(&sched->task_list, &tl->list) == 1)
-		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+	LIST_ADDQ(&sched->task_list, &tl->list);
 }
 
 /* Remove the tasklet from the tasklet list. The tasklet MUST already be there.
  * If unsure, use tasklet_remove_from_tasklet_list() instead. If used with a
  * plain task, the caller must update the task_list_size.
+ * This should only be used by the thread that owns the tasklet, any other
+ * thread should use tasklet_cancel().
  */
 static inline void __tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (MT_LIST_DEL(&t->list) == 1)
-		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+	LIST_DEL_INIT(&t->list);
+	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 }
 
 static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (likely(!MT_LIST_ISEMPTY(&t->list)))
+	if (likely(!LIST_ISEMPTY(&t->list)))
 		__tasklet_remove_from_tasklet_list(t);
 }
 
@@ -290,7 +299,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->state = 0;
 	t->process = NULL;
 	t->tid = tid;
-	MT_LIST_INIT(&t->list);
+	LIST_INIT(&t->list);
 }
 
 static inline struct tasklet *tasklet_new(void)
@@ -359,11 +368,12 @@ static inline void task_destroy(struct task *t)
 		t->process = NULL;
 }
 
+/* Should only be called by the thread responsible for the tasklet */
 static inline void tasklet_free(struct tasklet *tl)
 {
-	if (!MT_LIST_ISEMPTY(&tl->list)) {
-		if(MT_LIST_DEL(&tl->list) == 1)
-			_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+	if (!LIST_ISEMPTY(&tl->list)) {
+		LIST_DEL(&tl->list);
+		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 	}
 
 	pool_free(pool_head_tasklet, tl);
@@ -545,7 +555,7 @@ static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
 	        (sched->rqueue_size > 0) |
-	        !MT_LIST_ISEMPTY(&sched->task_list));
+	        !LIST_ISEMPTY(&sched->task_list) | !MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
 }
 
 /* adds list item <item> to work list <work> and wake up the associated task */

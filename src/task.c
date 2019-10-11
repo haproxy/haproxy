@@ -305,6 +305,7 @@ void process_runnable_tasks()
 	struct eb32sc_node *grq = NULL; // next global run queue entry
 	struct task *t;
 	int max_processed;
+	struct mt_list *tmp_list;
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
@@ -312,6 +313,12 @@ void process_runnable_tasks()
 		activity[tid].empty_rq++;
 		return;
 	}
+	/* Merge the list of tasklets waken up by other threads to the
+	 * main list.
+	 */
+	tmp_list = MT_LIST_BEHEAD(&sched->shared_tasklet_list);
+	if (tmp_list)
+		LIST_SPLICE_END_DETACHED(&sched->task_list, (struct list *)tmp_list);
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -371,10 +378,10 @@ void process_runnable_tasks()
 #endif
 
 		/* Make sure the entry doesn't appear to be in a list */
-		MT_LIST_INIT(&((struct tasklet *)t)->list);
+		LIST_INIT(&((struct tasklet *)t)->list);
 		/* And add it to the local task list */
 		tasklet_insert_into_tasklet_list((struct tasklet *)t);
-		HA_ATOMIC_ADD(&tt->task_list_size, 1);
+		tt->task_list_size++;
 		activity[tid].tasksw++;
 	}
 
@@ -384,18 +391,16 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	while (max_processed > 0 && !MT_LIST_ISEMPTY(&tt->task_list)) {
+	while (max_processed > 0 && !LIST_ISEMPTY(&tt->task_list)) {
 		struct task *t;
 		unsigned short state;
 		void *ctx;
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 
-		t = (struct task *)MT_LIST_POP(&tt->task_list, struct tasklet *, list);
-		if (!t)
-			break;
-		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		t = (struct task *)LIST_ELEM(task_per_thread[tid].task_list.n, struct tasklet *, list);
 		state = _HA_ATOMIC_XCHG(&t->state, TASK_RUNNING);
 		__ha_barrier_atomic_store();
+		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -411,7 +416,7 @@ void process_runnable_tasks()
 
 		/* OK then this is a regular task */
 
-		_HA_ATOMIC_SUB(&tt->task_list_size, 1);
+		tt->task_list_size--;
 		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
 
@@ -456,7 +461,7 @@ void process_runnable_tasks()
 		max_processed--;
 	}
 
-	if (!MT_LIST_ISEMPTY(&tt->task_list))
+	if (!LIST_ISEMPTY(&tt->task_list))
 		activity[tid].long_rq++;
 }
 
@@ -560,7 +565,8 @@ static void init_task()
 #endif
 	memset(&task_per_thread, 0, sizeof(task_per_thread));
 	for (i = 0; i < MAX_THREADS; i++) {
-		MT_LIST_INIT(&task_per_thread[i].task_list);
+		LIST_INIT(&task_per_thread[i].task_list);
+		MT_LIST_INIT(&task_per_thread[i].shared_tasklet_list);
 	}
 }
 
