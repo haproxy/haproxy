@@ -834,8 +834,20 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					}
 				}
 				else if (isteqi(n, ist("host"))) {
-					if (host_idx == -1)
+					if (host_idx == -1) {
+						struct ist authority;
+
+						authority = http_get_authority(sl.rq.u, 1);
+						if (authority.len && !isteqi(v, authority)) {
+							if (h1m->err_pos < -1) {
+								state = H1_MSG_HDR_L2_LWS;
+								goto http_msg_invalid;
+							}
+							if (h1m->err_pos == -1) /* capture the error pointer */
+								h1m->err_pos = ptr - start + skip; /* >= 0 now */
+						}
 						host_idx = hdr_count;
+					}
 					else {
 						if (!isteqi(v, hdr[host_idx].v)) {
 							state = H1_MSG_HDR_L2_LWS;
