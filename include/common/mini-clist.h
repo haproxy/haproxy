@@ -233,11 +233,11 @@ struct cond_wordlist {
 		while (1) {                                                \
 			struct mt_list *n;                                 \
 			struct mt_list *p;                                 \
-			n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);      \
-			if (n == MT_LIST_BUSY)                               \
+			n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);    \
+			if (n == MT_LIST_BUSY)                             \
 			        continue;                                  \
-			p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);         \
-			if (p == MT_LIST_BUSY) {                             \
+			p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);       \
+			if (p == MT_LIST_BUSY) {                           \
 				(lh)->next = n;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
@@ -268,17 +268,17 @@ struct cond_wordlist {
  */
 #define MT_LIST_ADDQ(_lh, _el)                                             \
     ({                                                                     \
-	    int _ret = 0;                                   \
+	    int _ret = 0;                                                  \
 	    struct mt_list *lh = (_lh), *el = (_el);                       \
 	do {                                                               \
 		while (1) {                                                \
 			struct mt_list *n;                                 \
 			struct mt_list *p;                                 \
-			p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);      \
-			if (p == MT_LIST_BUSY)                               \
+			p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);    \
+			if (p == MT_LIST_BUSY)                             \
 			        continue;                                  \
-			n = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);         \
-			if (n == MT_LIST_BUSY) {                             \
+			n = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);       \
+			if (n == MT_LIST_BUSY) {                           \
 				(lh)->prev = p;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
@@ -355,18 +355,18 @@ struct cond_wordlist {
 		while (1) {                                                \
 			struct mt_list *n, *n2;                            \
 			struct mt_list *p, *p2 = NULL;                     \
-			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);      \
-			if (n == MT_LIST_BUSY)                               \
+			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);    \
+			if (n == MT_LIST_BUSY)                             \
 			        continue;                                  \
-			p = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);      \
-			if (p == MT_LIST_BUSY) {                             \
+			p = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);    \
+			if (p == MT_LIST_BUSY) {                           \
 				(el)->next = n;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
 			}                                                  \
 			if (p != (el)) {                                   \
 			        p2 = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);\
-			        if (p2 == MT_LIST_BUSY) {                    \
+			        if (p2 == MT_LIST_BUSY) {                  \
 			                (el)->prev = p;                    \
 					(el)->next = n;                    \
 					__ha_barrier_store();              \
@@ -375,7 +375,7 @@ struct cond_wordlist {
 			}                                                  \
 			if (n != (el)) {                                   \
 			        n2 = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);\
-				if (n2 == MT_LIST_BUSY) {                    \
+				if (n2 == MT_LIST_BUSY) {                  \
 					if (p2 != NULL)                    \
 						p->next = p2;              \
 					(el)->prev = p;                    \
@@ -407,8 +407,8 @@ struct cond_wordlist {
 		 while (1) {                                               \
 			 struct mt_list *n, *n2;                           \
 			 struct mt_list *p, *p2;                           \
-			 n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);     \
-			 if (n == MT_LIST_BUSY)                              \
+			 n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);   \
+			 if (n == MT_LIST_BUSY)                            \
 			         continue;                                 \
 			 if (n == (lh)) {                                  \
 				 (lh)->next = lh;                          \
@@ -416,22 +416,22 @@ struct cond_wordlist {
 				 _ret = NULL;                              \
 				 break;                                    \
 			 }                                                 \
-			 p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);        \
-			 if (p == MT_LIST_BUSY) {                            \
+			 p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);      \
+			 if (p == MT_LIST_BUSY) {                          \
 				 (lh)->next = n;                           \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
 			 }                                                 \
-			 n2 = _HA_ATOMIC_XCHG(&n->next, MT_LIST_BUSY);       \
-			 if (n2 == MT_LIST_BUSY) {                           \
+			 n2 = _HA_ATOMIC_XCHG(&n->next, MT_LIST_BUSY);     \
+			 if (n2 == MT_LIST_BUSY) {                         \
 				 n->prev = p;                              \
 				 __ha_barrier_store();                     \
 				 (lh)->next = n;                           \
 				 __ha_barrier_store();                     \
 				 continue;                                 \
 			 }                                                 \
-			 p2 = _HA_ATOMIC_XCHG(&n2->prev, MT_LIST_BUSY);      \
-			 if (p2 == MT_LIST_BUSY) {                           \
+			 p2 = _HA_ATOMIC_XCHG(&n2->prev, MT_LIST_BUSY);    \
+			 if (p2 == MT_LIST_BUSY) {                         \
 				 n->next = n2;                             \
 				 n->prev = p;                              \
 				 __ha_barrier_store();                     \
@@ -498,18 +498,18 @@ struct cond_wordlist {
 		while (1) {                                                \
 			struct mt_list *n, *n2;                            \
 			struct mt_list *p, *p2 = NULL;                     \
-			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);      \
-			if (n == MT_LIST_BUSY)                               \
+			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);    \
+			if (n == MT_LIST_BUSY)                             \
 			        continue;                                  \
-			p = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);      \
-			if (p == MT_LIST_BUSY) {                             \
+			p = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);    \
+			if (p == MT_LIST_BUSY) {                           \
 				(el)->next = n;                            \
 				__ha_barrier_store();                      \
 				continue;                                  \
 			}                                                  \
 			if (p != (el)) {                                   \
 			        p2 = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);\
-			        if (p2 == MT_LIST_BUSY) {                    \
+			        if (p2 == MT_LIST_BUSY) {                  \
 			                (el)->prev = p;                    \
 					(el)->next = n;                    \
 					__ha_barrier_store();              \
@@ -518,7 +518,7 @@ struct cond_wordlist {
 			}                                                  \
 			if (n != (el)) {                                   \
 			        n2 = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);\
-				if (n2 == MT_LIST_BUSY) {                    \
+				if (n2 == MT_LIST_BUSY) {                  \
 					if (p2 != NULL)                    \
 						p->next = p2;              \
 					(el)->prev = p;                    \
@@ -572,12 +572,12 @@ struct cond_wordlist {
 	        struct mt_list *n = NULL;                                  \
 		while (1) {                                                \
 			struct mt_list *n2;                                \
-			n = _HA_ATOMIC_XCHG(&((el)->next), MT_LIST_BUSY);    \
-			if (n == MT_LIST_BUSY)                               \
+			n = _HA_ATOMIC_XCHG(&((el)->next), MT_LIST_BUSY);  \
+			if (n == MT_LIST_BUSY)                             \
 			        continue;                                  \
 			if (n != (el)) {                                   \
 			        n2 = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);\
-				if (n2 == MT_LIST_BUSY) {                    \
+				if (n2 == MT_LIST_BUSY) {                  \
 					(el)->next = n;                    \
 					__ha_barrier_store();              \
 					continue;                          \
@@ -593,12 +593,12 @@ struct cond_wordlist {
 	        struct mt_list *p = NULL;                                  \
 		while (1) {                                                \
 			struct mt_list *p2;                                \
-			p = _HA_ATOMIC_XCHG(&((el)->prev), MT_LIST_BUSY);    \
-			if (p == MT_LIST_BUSY)                               \
+			p = _HA_ATOMIC_XCHG(&((el)->prev), MT_LIST_BUSY);  \
+			if (p == MT_LIST_BUSY)                             \
 			        continue;                                  \
 			if (p != (el)) {                                   \
 			        p2 = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);\
-				if (p2 == MT_LIST_BUSY) {                    \
+				if (p2 == MT_LIST_BUSY) {                  \
 					(el)->prev = p;                    \
 					__ha_barrier_store();              \
 					continue;                          \
@@ -648,7 +648,7 @@ struct cond_wordlist {
 				} else                                        \
 				_MT_LIST_RELINK_DELETED(tmpelt2);             \
 				(tmpelt) = MT_LIST_BUSY;                      \
-				}))                                            \
+				}))                                           \
 	for ((tmpelt) = (list_head), (tmpelt2).prev = NULL, (tmpelt2).next = _MT_LIST_LOCK_NEXT(tmpelt); ({ \
 	              (item) = MT_LIST_ELEM((tmpelt2.next), typeof(item), member);  \
 		      if (&item->member != (list_head)) {                     \
