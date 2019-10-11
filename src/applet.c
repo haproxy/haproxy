@@ -76,12 +76,6 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 	si_cant_get(si);
 	si_rx_endp_done(si);
 
-	/* measure the call rate */
-	rate = update_freq_ctr(&app->call_rate, 1);
-	if (rate >= 100000 && app->call_rate.prev_ctr) { // make sure to wait at least a full second
-		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
-	}
-
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
 	 * buffer was allocated or not. This leaves a chance for applets to do
@@ -92,6 +86,18 @@ struct task *task_run_applet(struct task *t, void *context, unsigned short state
 		si_rx_endp_more(si);
 
 	app->applet->fct(app);
+
+	/* measure the call rate and check for anomalies when too high */
+	rate = update_freq_ctr(&app->call_rate, 1);
+	if (rate >= 100000 && app->call_rate.prev_ctr && // looped more than 100k times over last second
+	    ((b_size(si_ib(si)) && si->flags & SI_FL_RXBLK_BUFF) || // asks for a buffer which is present
+	     (b_size(si_ib(si)) && !b_data(si_ib(si)) && si->flags & SI_FL_RXBLK_ROOM) || // asks for room in an empty buffer
+	     (b_data(si_ob(si)) && si_tx_endp_ready(si) && !si_tx_blocked(si)) || // asks for data already present
+	     (!b_data(si_ib(si)) && b_data(si_ob(si)) && // didn't return anything ...
+	      (si_oc(si)->flags & (CF_WRITE_PARTIAL|CF_SHUTW_NOW)) == CF_SHUTW_NOW))) { // ... and left data pending after a shut
+		stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
+	}
+
 	si_applet_wake_cb(si);
 	channel_release_buffer(si_ic(si), &app->buffer_wait);
 	return t;
