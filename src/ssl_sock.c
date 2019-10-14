@@ -9592,8 +9592,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	struct list tmp_ckchi_list;
 	BIO *mem;
 	char *err = NULL;
-	char *end = NULL;
-	int j, i;
+	int i;
 	int found = 0;
 	int bundle = -1;
 	int ret = 0;
@@ -9690,19 +9689,28 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 				HA_RWLOCK_WRUNLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
 			}
 		}
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+		{
+			char *end = NULL;
+			int j;
 
-		 /* check if it was also used as a bundle by removing the
-		*   .dsa/.rsa/.ecdsa at the end of the filename */
-		if (bundle >= 0)
-			break;
-		end = strrchr(args[3], '.');
-		for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
-			if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
-				bundle = j; /* keep the type of certificate so we insert it at the right place */
-				*end = '\0'; /* it's a bundle let's end the string*/
+			/* check if it was also used as a bundle by removing the
+			 *   .dsa/.rsa/.ecdsa at the end of the filename */
+			if (bundle >= 0)
 				break;
+			end = strrchr(args[3], '.');
+			for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
+				if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
+					bundle = j; /* keep the type of certificate so we insert it at the right place */
+					*end = '\0'; /* it's a bundle let's end the string*/
+					break;
+				}
 			}
 		}
+#else
+		/* bundles are not supported here, so we don't need to lookup again */
+		break;
+#endif
 	}
 
 	if (!found) {
