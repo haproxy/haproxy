@@ -1571,14 +1571,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		struct ist n, v;
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
-		uint32_t vlen;
+		uint32_t vlen, chklen;
 
 		vlen = sz;
-		if (vlen > count) {
-			if (type != HTX_BLK_DATA)
-				goto full;
-			vlen = count;
-		}
+		if (type != HTX_BLK_DATA && vlen > count)
+			goto full;
 
 		if (type == HTX_BLK_UNUSED)
 			goto nextblk;
@@ -1772,6 +1769,28 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 
 				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
+
+
+				if (vlen > count) {
+					/* Get the maximum amount of data we can xferred */
+					vlen = count;
+				}
+
+				chklen = 0;
+				if (h1m->flags & H1_MF_CHNK) {
+					chklen = b_room(&tmp);
+					chklen = ((chklen < 16) ? 1 : (chklen < 256) ? 2 :
+						  (chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
+						  (chklen < 1048576) ? 5 : 8);
+					chklen += 4; /* 2 x CRLF */
+				}
+
+				if (vlen + chklen > b_room(&tmp)) {
+					/* too large for the buffer */
+					if (chklen >= b_room(&tmp))
+						goto full;
+					vlen = b_room(&tmp) - chklen;
+				}
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
 				if (!htx_data_to_h1(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
