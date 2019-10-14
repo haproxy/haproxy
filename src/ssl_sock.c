@@ -462,32 +462,6 @@ static forceinline void ssl_sock_dump_errors(struct connection *conn)
 	}
 }
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
-/*
- * struct alignment works here such that the key.key is the same as key_data
- * Do not change the placement of key_data
- */
-struct certificate_ocsp {
-	struct ebmb_node key;
-	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
-	struct buffer response;
-	long expire;
-};
-
-struct ocsp_cbk_arg {
-	int is_single;
-	int single_kt;
-	union {
-		struct certificate_ocsp *s_ocsp;
-		/*
-		 * m_ocsp will have multiple entries dependent on key type
-		 * Entry 0 - DSA
-		 * Entry 1 - ECDSA
-		 * Entry 2 - RSA
-		 */
-		struct certificate_ocsp *m_ocsp[SSL_SOCK_NUM_KEYTYPES];
-	};
-};
 
 #ifndef OPENSSL_NO_ENGINE
 static int ssl_init_single_engine(const char *engine_id, const char *def_algorithms)
@@ -639,6 +613,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 }
 #endif
 
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 /*
  *  This function returns the number of seconds  elapsed
  *  since the Epoch, 1970-01-01 00:00:00 +0000 (UTC) and the
@@ -720,6 +695,32 @@ nosec:
 
 	return -1;
 }
+
+/*
+ * struct alignment works here such that the key.key is the same as key_data
+ * Do not change the placement of key_data
+ */
+struct certificate_ocsp {
+	struct ebmb_node key;
+	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
+	struct buffer response;
+	long expire;
+};
+
+struct ocsp_cbk_arg {
+	int is_single;
+	int single_kt;
+	union {
+		struct certificate_ocsp *s_ocsp;
+		/*
+		 * m_ocsp will have multiple entries dependent on key type
+		 * Entry 0 - DSA
+		 * Entry 1 - ECDSA
+		 * Entry 2 - RSA
+		 */
+		struct certificate_ocsp *m_ocsp[SSL_SOCK_NUM_KEYTYPES];
+	};
+};
 
 static struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
 
