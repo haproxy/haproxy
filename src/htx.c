@@ -1047,9 +1047,7 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
 	struct ist uri;
-
-	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
-		return 0;
+	size_t sz = chk->data;
 
 	uri = htx_sl_req_uri(sl);
 	if (sl->flags & HTX_SL_F_NORMALIZED_URI) {
@@ -1062,18 +1060,29 @@ int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 		}
 	}
 
-	chunk_memcat(chk, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
-	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, uri.ptr, uri.len);
-	chunk_memcat(chk, " ", 1);
-	if (sl->flags & HTX_SL_F_VER_11)
-		chunk_memcat(chk, "HTTP/1.1", 8);
-	else
-		chunk_memcat(chk, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
+	if (!chunk_memcat(chk, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)) ||
+	    !chunk_memcat(chk, " ", 1) ||
+	    !chunk_memcat(chk, uri.ptr, uri.len) ||
+	    !chunk_memcat(chk, " ", 1))
+		goto full;
 
-	chunk_memcat(chk, "\r\n", 2);
+	if (sl->flags & HTX_SL_F_VER_11) {
+		if (!chunk_memcat(chk, "HTTP/1.1", 8))
+			goto full;
+	}
+	else {
+		if (!chunk_memcat(chk, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl)))
+			goto full;
+	}
+
+	if (!chunk_memcat(chk, "\r\n", 2))
+		goto full;
 
 	return 1;
+
+  full:
+	chk->data = sz;
+	return 0;
 }
 
 /* Appends the H1 representation of the status line <sl> to the chunk <chk>. It
@@ -1081,20 +1090,31 @@ int htx_reqline_to_h1(const struct htx_sl *sl, struct buffer *chk)
  */
 int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
 {
-	if (HTX_SL_LEN(sl) + 4 > b_size(chk))
+	size_t sz = chk->data;
+
+	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
 		return 0;
 
-	if (sl->flags & HTX_SL_F_VER_11)
-		chunk_memcat(chk, "HTTP/1.1", 8);
-	else
-		chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl));
-	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
-	chunk_memcat(chk, " ", 1);
-	chunk_memcat(chk, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl));
-	chunk_memcat(chk, "\r\n", 2);
+	if (sl->flags & HTX_SL_F_VER_11) {
+		if (!chunk_memcat(chk, "HTTP/1.1", 8))
+			goto full;
+	}
+	else {
+		if (!chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)))
+			goto full;
+	}
+	if (!chunk_memcat(chk, " ", 1) ||
+	    !chunk_memcat(chk, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl)) ||
+	    !chunk_memcat(chk, " ", 1) ||
+	    !chunk_memcat(chk, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl)) ||
+	    !chunk_memcat(chk, "\r\n", 2))
+		goto full;
 
 	return 1;
+
+  full:
+	chk->data = sz;
+	return 0;
 }
 
 /* Appends the H1 representation of the header <n> witht the value <v> to the
@@ -1103,15 +1123,22 @@ int htx_stline_to_h1(const struct htx_sl *sl, struct buffer *chk)
  */
 int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk)
 {
+	size_t sz = chk->data;
+
 	if (n.len + v.len + 4 > b_room(chk))
 		return 0;
 
-	chunk_memcat(chk, n.ptr, n.len);
-	chunk_memcat(chk, ": ", 2);
-	chunk_memcat(chk, v.ptr, v.len);
-	chunk_memcat(chk, "\r\n", 2);
+	if (!chunk_memcat(chk, n.ptr, n.len) ||
+	    !chunk_memcat(chk, ": ", 2) ||
+	    !chunk_memcat(chk, v.ptr, v.len) ||
+	    !chunk_memcat(chk, "\r\n", 2))
+		goto full;
 
 	return 1;
+
+  full:
+	chk->data = sz;
+	return 0;
 }
 
 /* Appends the H1 representation of the data <data> to the chunk <chk>. If
@@ -1120,6 +1147,8 @@ int htx_hdr_to_h1(const struct ist n, const struct ist v, struct buffer *chk)
  */
 int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 {
+	size_t sz = chk->data;
+
 	if (chunked) {
 		uint32_t chksz;
 		char     tmp[10];
@@ -1134,11 +1163,10 @@ int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 			*--beg = hextab[chksz & 0xF];
 		} while (chksz >>= 4);
 
-		if (data.len + (end - beg) + 2 > b_room(chk))
-			return 0;
-		chunk_memcat(chk, beg, end - beg);
-		chunk_memcat(chk, data.ptr, data.len);
-		chunk_memcat(chk, "\r\n", 2);
+		if (!chunk_memcat(chk, beg, end - beg) ||
+		    !chunk_memcat(chk, data.ptr, data.len) ||
+		    !chunk_memcat(chk, "\r\n", 2))
+			goto full;
 	}
 	else {
 		if (!chunk_memcat(chk, data.ptr, data.len))
@@ -1146,4 +1174,8 @@ int htx_data_to_h1(const struct ist data, struct buffer *chk, int chunked)
 	}
 
 	return 1;
+
+  full:
+	chk->data = sz;
+	return 0;
 }
