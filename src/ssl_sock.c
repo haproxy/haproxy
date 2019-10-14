@@ -2777,6 +2777,7 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 				LIST_DEL(&sc0->by_ckch_inst);
 				free(sc0);
 				sc0 = NULL;
+				break;
 			}
 		}
 
