@@ -44,7 +44,7 @@ inline static void ha_wurfl_log(char * message, ...)
 	va_start(argp, message);
 	vsnprintf(logbuf, sizeof(logbuf), message, argp);
 	va_end(argp);
-	send_log(NULL, LOG_NOTICE, logbuf, NULL);
+	send_log(NULL, LOG_NOTICE, "%s", logbuf);
 }
 #else
 inline static void ha_wurfl_log(char * message, ...)
