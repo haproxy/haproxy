@@ -870,6 +870,9 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, err);
 }
 
+#endif
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 /*
  * This function load the OCSP Resonse in DER format contained in file at
  * path 'ocsp_path'
@@ -1170,6 +1173,9 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	return SSL_TLSEXT_ERR_OK;
 }
 
+#endif
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 /*
  * This function enables the handling of OCSP status extension on 'ctx' if a
  * ocsp_response buffer was found in the cert_key_and_chain.  To enable OCSP
@@ -1184,9 +1190,9 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
  * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
  * successfully enabled, or -1 in other error case.
  */
+#ifndef OPENSSL_IS_BORINGSSL
 static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
 {
-
 	X509 *x = NULL, *issuer = NULL;
 	OCSP_CERTID *cid = NULL;
 	char ocsp_path[MAXPATHLEN+1];
@@ -1299,49 +1305,17 @@ out:
 	if (warn)
 		free(warn);
 
-
 	return ret;
 }
-
-#endif
-
-#ifdef OPENSSL_IS_BORINGSSL
-static int ssl_sock_set_ocsp_response_from_file(SSL_CTX *ctx, const char *cert_path)
+#else /* OPENSSL_IS_BORINGSSL */
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
 {
-	char ocsp_path[MAXPATHLEN+1];
-	struct stat st;
-	int fd = -1, r = 0;
-
-	snprintf(ocsp_path, MAXPATHLEN+1, "%s.ocsp", cert_path);
-	if (stat(ocsp_path, &st))
-		return 0;
-
-	fd = open(ocsp_path, O_RDONLY);
-	if (fd == -1) {
-		ha_warning("Error opening OCSP response file %s.\n", ocsp_path);
-		return -1;
-	}
-
-	trash.data = 0;
-	while (trash.data < trash.size) {
-		r = read(fd, trash.area + trash.data, trash.size - trash.data);
-		if (r < 0) {
-			if (errno == EINTR)
-				continue;
-			ha_warning("Error reading OCSP response from file %s.\n", ocsp_path);
-			close(fd);
-			return -1;
-		}
-		else if (r == 0) {
-			break;
-		}
-		trash.data += r;
-	}
-	close(fd);
-	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *) trash.area,
-					 trash.data);
+	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)ckch->ocsp_response->area, ckch->ocsp_response->data);
 }
 #endif
+
+#endif
+
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 
@@ -3142,7 +3116,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 #endif
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	/* Load OCSP Info into context */
 	if (ckch->ocsp_response) {
 		if (ssl_sock_load_ocsp(ctx, ckch) < 0) {
@@ -3152,8 +3126,6 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			return 1;
 		}
 	}
-#elif (defined OPENSSL_IS_BORINGSSL)
-	ssl_sock_set_ocsp_response_from_file(cur_ctx, cur_file);
 #endif
 
 	return 0;
