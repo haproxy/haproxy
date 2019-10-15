@@ -3007,7 +3007,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 			snprintf(fp, MAXPATHLEN+1, "%s.issuer", path);
 			if (stat(fp, &st) == 0) {
 				if (BIO_read_filename(in, fp) <= 0) {
-					memprintf(err, "%s '%s.issuer' is present but cannot be read or parsed'.\n",
+					memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
 						  *err ? *err : "", fp);
 					ret = 1;
 					goto end;
@@ -3015,14 +3015,14 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 
 				issuer = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 				if (!issuer) {
-					memprintf(err, "%s '%s.issuer' is present but cannot be read or parsed'.\n",
+					memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
 						  *err ? *err : "", fp);
 					ret = 1;
 					goto end;
 				}
 
 				if (X509_check_issued(ckch->ocsp_issuer, ckch->cert) != X509_V_OK) {
-					memprintf(err, "%s '%s.issuer' is not an issuer'.\n",
+					memprintf(err, "%s '%s' is not an issuer'.\n",
 						  *err ? *err : "", fp);
 					ret = 1;
 					goto end;
