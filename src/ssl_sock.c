@@ -3332,8 +3332,6 @@ end:
  *     ERR_ALERT if the reason of the error is available in err
  *     ERR_WARN if a warning is available into err
  *
- * TODO: This function shouldn't access files anymore, sctl and ocsp file access
- * should be migrated to the ssl_sock_load_crt_file_into_ckch() function
  */
 static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
                                           struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
