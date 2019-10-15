@@ -917,6 +917,7 @@ static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct b
 	close(fd);
 	fd = -1;
 
+	ret = 0;
 end:
 	if (fd != -1)
 		close(fd);
