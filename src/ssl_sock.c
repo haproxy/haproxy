@@ -3696,6 +3696,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 }
 
 
+/* Returns a set of ERR_* flags possibly with an error in <err>. */
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 {
 	struct dirent **de_list;
@@ -3712,8 +3713,10 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 #endif
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		cfgerr = ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-		return cfgerr;
+		if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
+			return ERR_ALERT | ERR_FATAL;
+		else
+			return 0;
 	}
 
 	if (stat(path, &buf) == 0) {
@@ -3721,9 +3724,12 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 		if (!dir) {
 			ckchs =  ckchs_load_cert_file(path, 0,  err);
 			if (!ckchs)
-				return 1;
-			cfgerr = ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-			return cfgerr;
+				return ERR_ALERT | ERR_FATAL;
+
+			if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
+				return ERR_ALERT | ERR_FATAL;
+			else
+				return 0;
 		}
 
 		/* strip trailing slashes, including first one */
@@ -3734,7 +3740,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 		if (n < 0) {
 			memprintf(err, "%sunable to scan directory '%s' : %s.\n",
 			          err && *err ? *err : "", path, strerror(errno));
-			cfgerr++;
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 		else {
 			for (i = 0; i < n; i++) {
@@ -3748,7 +3754,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				if (stat(fp, &buf) != 0) {
 					memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 					          err && *err ? *err : "", fp, strerror(errno));
-					cfgerr++;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto ignore_entry;
 				}
 				if (!S_ISREG(buf.st_mode))
@@ -3787,9 +3793,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 						if ((ckchs = ckchs_lookup(fp)) == NULL)
 							ckchs =  ckchs_load_cert_file(fp, 1,  err);
 						if (!ckchs)
-							cfgerr++;
-						else
-							cfgerr += ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+							cfgerr |= ERR_ALERT | ERR_FATAL;
+						else if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
+							cfgerr |= ERR_ALERT | ERR_FATAL;
 						/* Successfully processed the bundle */
 						goto ignore_entry;
 					}
@@ -3799,9 +3805,10 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				if ((ckchs = ckchs_lookup(fp)) == NULL)
 					ckchs =  ckchs_load_cert_file(fp, 0,  err);
 				if (!ckchs)
-					cfgerr++;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 				else
-					cfgerr += ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+					if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
+						cfgerr |= ERR_ALERT | ERR_FATAL;
 
 ignore_entry:
 				free(de);
@@ -3814,8 +3821,10 @@ ignore_entry:
 
 	ckchs =  ckchs_load_cert_file(path, 1,  err);
 	if (!ckchs)
-		return 1;
-	cfgerr += ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+		return ERR_ALERT | ERR_FATAL;
+
+	if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
+		cfgerr |= ERR_ALERT | ERR_FATAL;
 
 	return cfgerr;
 }
@@ -3865,6 +3874,7 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 	}
 }
 
+/* Returns a set of ERR_* flags possibly with an error in <err>. */
 int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
 	char thisline[CRT_LINESIZE];
@@ -3877,7 +3887,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 
 	if ((f = fopen(file, "r")) == NULL) {
 		memprintf(err, "cannot open file '%s' : %s", file, strerror(errno));
-		return 1;
+		return ERR_ALERT | ERR_FATAL;
 	}
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
@@ -3896,7 +3906,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			 */
 			memprintf(err, "line %d too long in file '%s', limit is %d characters",
 				  linenum, file, (int)sizeof(thisline)-1);
-			cfgerr = 1;
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 			break;
 		}
 
@@ -3913,12 +3923,12 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			} else if (*line == '[') {
 				if (ssl_b) {
 					memprintf(err, "too many '[' on line %d in file '%s'.", linenum, file);
-					cfgerr = 1;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
 				if (!arg) {
 					memprintf(err, "file must start with a cert on line %d in file '%s'", linenum, file);
-					cfgerr = 1;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
 				ssl_b = arg;
@@ -3927,12 +3937,12 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			} else if (*line == ']') {
 				if (ssl_e) {
 					memprintf(err, "too many ']' on line %d in file '%s'.", linenum, file);
-					cfgerr = 1;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
 				if (!ssl_b) {
 					memprintf(err, "missing '[' in line %d in file '%s'.", linenum, file);
-					cfgerr = 1;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
 				ssl_e = arg;
@@ -3941,7 +3951,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			} else if (newarg) {
 				if (arg == MAX_CRT_ARGS) {
 					memprintf(err, "too many args on line %d in file '%s'.", linenum, file);
-					cfgerr = 1;
+					cfgerr |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
 				newarg = 0;
@@ -3962,7 +3972,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			if ((strlen(global_ssl.crt_base) + 1 + strlen(crt_path)) > MAXPATHLEN) {
 				memprintf(err, "'%s' : path too long on line %d in file '%s'",
 					  crt_path, linenum, file);
-				cfgerr = 1;
+				cfgerr |= ERR_ALERT | ERR_FATAL;
 				break;
 			}
 			snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, crt_path);
@@ -3976,11 +3986,11 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			for (i = 0; ssl_bind_kws[i].kw != NULL; i++) {
 				if (strcmp(ssl_bind_kws[i].kw, args[cur_arg]) == 0) {
 					newarg = 1;
-					cfgerr = ssl_bind_kws[i].parse(args, cur_arg, curproxy, ssl_conf, err);
+					cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, curproxy, ssl_conf, err);
 					if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
 						memprintf(err, "ssl args out of '[]' for %s on line %d in file '%s'",
 							  args[cur_arg], linenum, file);
-						cfgerr = 1;
+						cfgerr |= ERR_ALERT | ERR_FATAL;
 					}
 					cur_arg += 1 + ssl_bind_kws[i].skip;
 					break;
@@ -3989,10 +3999,11 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			if (!cfgerr && !newarg) {
 				memprintf(err, "unknown ssl keyword %s on line %d in file '%s'.",
 					  args[cur_arg], linenum, file);
-				cfgerr = 1;
+				cfgerr |= ERR_ALERT | ERR_FATAL;
 				break;
 			}
 		}
+
 		if (cfgerr) {
 			ssl_sock_free_ssl_conf(ssl_conf);
 			free(ssl_conf);
@@ -4007,11 +4018,10 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 				ckchs = ckchs_load_cert_file(crt_path, 1,  err);
 		}
 
-		if (!ckchs)
-			cfgerr++;
-		else
-			cfgerr += ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf,
-			                              &args[cur_arg], arg - cur_arg - 1, err);
+		if (!ckchs ||
+		    ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf, &args[cur_arg], arg - cur_arg - 1, err) > 0) {
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+		}
 
 		if (cfgerr) {
 			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
@@ -7976,7 +7986,7 @@ static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, s
 }
 #endif
 
-/* parse the "crt" bind keyword */
+/* parse the "crt" bind keyword. Returns a set of ERR_* flags possibly with an error in <err>. */
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	char path[MAXPATHLEN];
@@ -7992,32 +8002,27 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 			return ERR_ALERT | ERR_FATAL;
 		}
 		snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, args[cur_arg + 1]);
-		if (ssl_sock_load_cert(path, conf, err) > 0)
-			return ERR_ALERT | ERR_FATAL;
-
-		return 0;
+		return ssl_sock_load_cert(path, conf, err);
 	}
 
-	if (ssl_sock_load_cert(args[cur_arg + 1], conf, err) > 0)
-		return ERR_ALERT | ERR_FATAL;
-
-	return 0;
+	return ssl_sock_load_cert(args[cur_arg + 1], conf, err);
 }
 
-/* parse the "crt-list" bind keyword */
+/* parse the "crt-list" bind keyword. Returns a set of ERR_* flags possibly with an error in <err>. */
 static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+	int err_code;
+
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err) > 0) {
+	err_code = ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err);
+	if (err_code)
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
-	return 0;
+	return err_code;
 }
 
 /* parse the "crl-file" bind keyword */
