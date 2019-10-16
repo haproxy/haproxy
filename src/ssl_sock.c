@@ -1386,44 +1386,57 @@ out:
 	return ret;
 }
 
-static int ssl_sock_load_sctl_from_file(const char *sctl_path,
-					struct buffer **sctl)
+/* Try to load a sctl from a buffer <buf> if not NULL, or read the file <sctl_path>
+ * It fills the ckch->sctl buffer
+ * return 0 on success or != 0 on failure */
+static int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_key_and_chain *ckch, char **err)
 {
 	int fd = -1;
 	int r = 0;
 	int ret = 1;
+	struct buffer tmp;
+	struct buffer *src;
+	struct buffer *sctl;
 
-	*sctl = NULL;
-
-	fd = open(sctl_path, O_RDONLY);
-	if (fd == -1)
-		goto end;
-
-	trash.data = 0;
-	while (trash.data < trash.size) {
-		r = read(fd, trash.area + trash.data, trash.size - trash.data);
-		if (r < 0) {
-			if (errno == EINTR)
-				continue;
-
+	if (buf) {
+		tmp.area = buf;
+		tmp.data = strlen(buf);
+		tmp.size = tmp.data + 1;
+		src = &tmp;
+	} else {
+		fd = open(sctl_path, O_RDONLY);
+		if (fd == -1)
 			goto end;
+
+		trash.data = 0;
+		while (trash.data < trash.size) {
+			r = read(fd, trash.area + trash.data, trash.size - trash.data);
+			if (r < 0) {
+				if (errno == EINTR)
+					continue;
+				goto end;
+			}
+			else if (r == 0) {
+				break;
+			}
+			trash.data += r;
 		}
-		else if (r == 0) {
-			break;
-		}
-		trash.data += r;
+		src = &trash;
 	}
 
-	ret = ssl_sock_parse_sctl(&trash);
+	ret = ssl_sock_parse_sctl(src);
 	if (ret)
 		goto end;
 
-	*sctl = calloc(1, sizeof(**sctl));
-	if (!chunk_dup(*sctl, &trash)) {
-		free(*sctl);
-		*sctl = NULL;
+	sctl = calloc(1, sizeof(*sctl));
+	if (!chunk_dup(sctl, src)) {
+		free(sctl);
+		sctl = NULL;
 		goto end;
 	}
+	ret = 0;
+	/* TODO: free the previous SCTL in the ckch */
+	ckch->sctl = sctl;
 
 end:
 	if (fd != -1)
@@ -3035,7 +3048,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 
 		snprintf(fp, MAXPATHLEN+1, "%s.sctl", path);
 		if (stat(fp, &st) == 0) {
-			if (ssl_sock_load_sctl_from_file(fp, &ckch->sctl)) {
+			if (ssl_sock_load_sctl_from_file(fp, NULL, ckch, err)) {
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 					  *err ? *err : "", fp);
 				ret = 1;
