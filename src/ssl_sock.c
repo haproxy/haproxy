@@ -2942,6 +2942,51 @@ static int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
 }
 #endif
 
+/*
+ * return 0 on success or != 0 on failure
+ */
+static int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch, char **err)
+{
+	int ret = 1;
+	BIO *in = NULL;
+	X509 *issuer;
+
+	if (buf) {
+		/* reading from a buffer */
+		in = BIO_new_mem_buf(buf, -1);
+		if (in == NULL) {
+			memprintf(err, "%sCan't allocate memory\n", err && *err ? *err : "");
+			goto end;
+		}
+
+	} else {
+		/* reading from a file */
+		in = BIO_new(BIO_s_file());
+		if (in == NULL)
+			goto end;
+
+		if (BIO_read_filename(in, path) <= 0)
+			goto end;
+	}
+
+	issuer = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+	if (!issuer) {
+		memprintf(err, "%s'%s' cannot be read or parsed'.\n",
+		          *err ? *err : "", path);
+		goto end;
+	}
+	ret = 0;
+	ckch->ocsp_issuer = issuer;
+
+end:
+
+	ERR_clear_error();
+	if (in)
+		BIO_free(in);
+
+	return ret;
+}
+
 /* Loads the contents of a crt file (path) or BIO into a cert_key_and_chain
  * This allows us to carry the contents of the file without having to read the
  * file multiple times.  The caller must call
@@ -3093,17 +3138,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 
 			snprintf(fp, MAXPATHLEN+1, "%s.issuer", path);
 			if (stat(fp, &st) == 0) {
-				if (BIO_read_filename(in, fp) <= 0) {
-					memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
-						  *err ? *err : "", fp);
-					ret = 1;
-					goto end;
-				}
-
-				issuer = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
-				if (!issuer) {
-					memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
-						  *err ? *err : "", fp);
+				if (ssl_sock_load_issuer_file_into_ckch(fp, NULL, ckch, err)) {
 					ret = 1;
 					goto end;
 				}
