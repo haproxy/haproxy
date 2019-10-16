@@ -6,6 +6,10 @@
 
 #include <common/version.h>
 
-const char *haproxy_version      = HAPROXY_VERSION;
-const char *haproxy_date         = HAPROXY_DATE;
-const char *stats_version_string = STATS_VERSION_STRING;
+/* These ones are made variables and not constants so that they are stored into
+ * the data region and prominently appear in core files.
+ */
+char haproxy_version_here[] = "HAProxy version follows";
+char haproxy_version[]      = HAPROXY_VERSION;
+char haproxy_date[]         = HAPROXY_DATE;
+char stats_version_string[] = STATS_VERSION_STRING;
