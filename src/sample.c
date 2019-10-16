@@ -2137,7 +2137,7 @@ static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *
 	/* Field not found */
 	if (field != arg_p[0].data.sint) {
 		smp->data.u.str.data = 0;
-		return 1;
+		return 0;
 	}
 found:
 	smp->data.u.str.data = end - start;
