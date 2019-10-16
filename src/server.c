@@ -3595,6 +3595,8 @@ void apply_server_state(void)
 		f = fopen(globalfilepath, "r");
 		if (errno)
 			ha_warning("Can't open global server state file '%s': %s\n", globalfilepath, strerror(errno));
+		if (!f)
+			goto out_load_server_state_in_tree;
 
 		global_file_version = srv_state_get_version(f);
 		if (global_file_version == 0)
