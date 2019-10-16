@@ -2527,6 +2527,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	/* let's log the request time */
 	s->logs.tv_request = now;
 
+	htx->flags |= HTX_FL_PROXY_RESP;
 	data = htx->data - co_data(res);
 	c_adv(res, data);
 	res->total += data;
@@ -4879,6 +4880,7 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 		chn->buf.data = msg->data;
 		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
+		htx->flags |= HTX_FL_PROXY_RESP;
 		c_adv(chn, htx->data);
 		chn->total += htx->data;
 	}
@@ -4909,6 +4911,7 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 		chn->buf.data = msg->data;
 		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
+		htx->flags |= HTX_FL_PROXY_RESP;
 		c_adv(chn, htx->data);
 		chn->total += htx->data;
 	}
@@ -5103,6 +5106,7 @@ static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto fail;
 
+	htx->flags |= HTX_FL_PROXY_RESP;
 	data = htx->data - co_data(res);
 	c_adv(res, data);
 	res->total += data;
