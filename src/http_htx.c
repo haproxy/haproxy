@@ -771,16 +771,13 @@ int http_str_to_htx(struct buffer *buf, struct ist raw)
 		flags |= HTX_SL_F_VER_11;
 	if (h1m.flags & H1_MF_XFER_ENC)
 		flags |= HTX_SL_F_XFER_ENC;
-	if (h1m.flags & H1_MF_XFER_LEN) {
-		flags |= HTX_SL_F_XFER_LEN;
-		if (h1m.flags & H1_MF_CHNK)
-			goto error; /* Unsupported because there is no body parsing */
-		else if (h1m.flags & H1_MF_CLEN) {
-			flags |= HTX_SL_F_CLEN;
-			if (h1m.body_len == 0)
-				flags |= HTX_SL_F_BODYLESS;
-		}
+	if (h1m.flags & H1_MF_CLEN) {
+		flags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+		if (h1m.body_len == 0)
+			flags |= HTX_SL_F_BODYLESS;
 	}
+	if (h1m.flags & H1_MF_CHNK)
+		goto error; /* Unsupported because there is no body parsing */
 
 	htx = htx_from_buf(buf);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
