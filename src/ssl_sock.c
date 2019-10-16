@@ -875,48 +875,72 @@ int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 /*
  * This function load the OCSP Resonse in DER format contained in file at
- * path 'ocsp_path'
+ * path 'ocsp_path' or base64 in a buffer <buf>
  *
  * Returns 0 on success, 1 in error case.
  */
-static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct buffer **ocsp_response, char **err)
+static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct cert_key_and_chain *ckch, char **err)
 {
 	int fd = -1;
 	int r = 0;
 	int ret = 1;
+	struct buffer *ocsp_response;
+	struct buffer *src = NULL;
 
-	fd = open(ocsp_path, O_RDONLY);
-	if (fd == -1) {
-		memprintf(err, "Error opening OCSP response file");
-		goto end;
-	}
+	if (buf) {
+		int i, j;
+		/* if it's from a buffer it will be base64 */
 
-	trash.data = 0;
-	while (trash.data < trash.size) {
-		r = read(fd, trash.area + trash.data, trash.size - trash.data);
-		if (r < 0) {
-			if (errno == EINTR)
+		/* remove \r and \n from the payload */
+		for (i = 0, j = 0; buf[i]; i++) {
+			if (buf[i] == '\r' || buf[i] == '\n')
 				continue;
+			buf[j++] = buf[i];
+		}
+		buf[j] = 0;
 
-			memprintf(err, "Error reading OCSP response from file");
+		ret = base64dec(buf, j, trash.area, trash.size);
+		if (ret < 0) {
+			memprintf(err, "Error reading OCSP response in base64 format");
 			goto end;
 		}
-		else if (r == 0) {
-			break;
+		trash.data = ret;
+		src = &trash;
+	} else {
+		fd = open(ocsp_path, O_RDONLY);
+		if (fd == -1) {
+			memprintf(err, "Error opening OCSP response file");
+			goto end;
 		}
-		trash.data += r;
+
+		trash.data = 0;
+		while (trash.data < trash.size) {
+			r = read(fd, trash.area + trash.data, trash.size - trash.data);
+			if (r < 0) {
+				if (errno == EINTR)
+					continue;
+
+				memprintf(err, "Error reading OCSP response from file");
+				goto end;
+			}
+			else if (r == 0) {
+				break;
+			}
+			trash.data += r;
+		}
+		close(fd);
+		fd = -1;
+		src = &trash;
 	}
 
-	*ocsp_response = calloc(1, sizeof(**ocsp_response));
-	if (!chunk_dup(*ocsp_response, &trash)) {
-		free(*ocsp_response);
-		*ocsp_response = NULL;
+	ocsp_response = calloc(1, sizeof(*ocsp_response));
+	if (!chunk_dup(ocsp_response, src)) {
+		free(ocsp_response);
+		ocsp_response = NULL;
 		goto end;
 	}
 
-	close(fd);
-	fd = -1;
-
+	ckch->ocsp_response = ocsp_response;
 	ret = 0;
 end:
 	if (fd != -1)
@@ -1196,7 +1220,6 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 {
 	X509 *x = NULL, *issuer = NULL;
 	OCSP_CERTID *cid = NULL;
-	char ocsp_path[MAXPATHLEN+1];
 	int i, ret = -1;
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
 	char *warn = NULL;
@@ -1292,7 +1315,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 
 	warn = NULL;
 	if (ssl_sock_load_ocsp_response(ckch->ocsp_response, ocsp, cid, &warn)) {
-		memprintf(&warn, "Loading '%s': %s. Content will be ignored", ocsp_path, warn ? warn : "failure");
+		memprintf(&warn, "Loading: %s. Content will be ignored", warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
 	}
 
@@ -3029,7 +3052,7 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 
 		snprintf(fp, MAXPATHLEN+1, "%s.ocsp", path);
 		if (stat(fp, &st) == 0) {
-			if (ssl_sock_load_ocsp_response_from_file(fp, &ckch->ocsp_response, err)) {
+			if (ssl_sock_load_ocsp_response_from_file(fp, NULL, ckch, err)) {
 				ret = 1;
 				goto end;
 			}
