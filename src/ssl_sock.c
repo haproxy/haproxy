@@ -3672,6 +3672,7 @@ error:
 	return NULL;
 }
 
+/* Returns a set of ERR_* flags possibly with an error in <err>. */
 static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
                                struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
                                char **sni_filter, int fcount, char **err)
@@ -3685,13 +3686,12 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		ckch_inst = ckch_inst_new_load_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, err);
 
 	if (!ckch_inst)
-		return 1;
+		return ERR_ALERT | ERR_FATAL;
 
 	ssl_sock_load_cert_sni(ckch_inst, bind_conf);
 
 	/* succeed, add the instance to the ckch_store's list of instance */
 	LIST_ADDQ(&ckchs->ckch_inst, &ckch_inst->by_ckchs);
-
 	return 0;
 }
 
@@ -3713,10 +3713,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 #endif
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
-			return ERR_ALERT | ERR_FATAL;
-		else
-			return 0;
+		return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 	}
 
 	if (stat(path, &buf) == 0) {
@@ -3726,10 +3723,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 			if (!ckchs)
 				return ERR_ALERT | ERR_FATAL;
 
-			if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
-				return ERR_ALERT | ERR_FATAL;
-			else
-				return 0;
+			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 		}
 
 		/* strip trailing slashes, including first one */
@@ -3794,8 +3788,8 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 							ckchs =  ckchs_load_cert_file(fp, 1,  err);
 						if (!ckchs)
 							cfgerr |= ERR_ALERT | ERR_FATAL;
-						else if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
-							cfgerr |= ERR_ALERT | ERR_FATAL;
+						else
+							cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 						/* Successfully processed the bundle */
 						goto ignore_entry;
 					}
@@ -3807,8 +3801,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				if (!ckchs)
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 				else
-					if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
-						cfgerr |= ERR_ALERT | ERR_FATAL;
+					cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 
 ignore_entry:
 				free(de);
@@ -3823,8 +3816,7 @@ ignore_entry:
 	if (!ckchs)
 		return ERR_ALERT | ERR_FATAL;
 
-	if (ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err) > 0)
-		cfgerr |= ERR_ALERT | ERR_FATAL;
+	cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -4018,10 +4010,10 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 				ckchs = ckchs_load_cert_file(crt_path, 1,  err);
 		}
 
-		if (!ckchs ||
-		    ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf, &args[cur_arg], arg - cur_arg - 1, err) > 0) {
+		if (!ckchs)
 			cfgerr |= ERR_ALERT | ERR_FATAL;
-		}
+		else
+			cfgerr |= ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf, &args[cur_arg], arg - cur_arg - 1, err);
 
 		if (cfgerr) {
 			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
