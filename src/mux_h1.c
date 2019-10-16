@@ -1671,9 +1671,14 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			  last_lf:
 				h1m->state = H1_MSG_LAST_LF;
 				if (!(h1s->flags & H1S_F_HAVE_O_CONN)) {
-					/* There is no "Connection:" header and
-					 * it the conn_mode must be
-					 * processed. So do it */
+					/* If the reply comes from haproxy while the request is
+					 * not finished, we force the connection close. */
+					if ((chn_htx->flags & HTX_FL_PROXY_RESP) && h1s->req.state != H1_MSG_DONE) {
+						h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+						TRACE_STATE("force close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+					}
+
+					/* the conn_mode must be processed. So do it */
 					n = ist("connection");
 					v = ist("");
 					h1_process_output_conn_mode(h1s, h1m, &v);
