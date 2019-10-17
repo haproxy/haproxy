@@ -604,7 +604,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				if (code) {
 					if (err && *err) {
 						indent_msg(&err, 2);
-						ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
+						if (((code & (ERR_WARN|ERR_ALERT)) == ERR_WARN))
+							ha_warning("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
+						else
+							ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
 					}
 					else
 						ha_alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
