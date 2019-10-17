@@ -3266,16 +3266,17 @@ end:
  *
  * This will allow the user to explicitly group multiple cert/keys for a single purpose
  *
- * Returns
- *     0 on success
- *     1 on failure
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
  *
  * TODO: This function shouldn't access files anymore, sctl and ocsp file access
  * should be migrated to the ssl_sock_load_crt_file_into_ckch() function
  */
-static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
-                                     struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-                                     char **sni_filter, int fcount, char **err)
+static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
+                                          struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+                                          char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err)
 {
 	int i = 0, n = 0;
 	struct cert_key_and_chain *certs_and_keys;
@@ -3286,7 +3287,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 	 * of keytypes
 	 */
 	struct key_combo_ctx key_combos[SSL_SOCK_POSSIBLE_KT_COMBOS] = { {0} };
-	int rv = 0;
+	int errcode = 0;
 	X509_NAME *xname = NULL;
 	char *str = NULL;
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -3294,16 +3295,19 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 #endif
 	struct ckch_inst *ckch_inst;
 
+	*ckchi = NULL;
+
 	if (!ckchs || !ckchs->ckch || !ckchs->multi) {
 		memprintf(err, "%sunable to load SSL certificate file '%s' file does not exist.\n",
 		          err && *err ? *err : "", path);
-		return NULL;
+		return ERR_ALERT | ERR_FATAL;
 	}
 
 	ckch_inst = ckch_inst_new();
 	if (!ckch_inst) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
@@ -3331,7 +3335,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 				if (ret < 0) {
 					memprintf(err, "%sunable to allocate SSL context.\n",
 					          err && *err ? *err : "");
-					rv = 1;
+					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
 			}
@@ -3354,7 +3358,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 					if (ret < 0) {
 						memprintf(err, "%sunable to allocate SSL context.\n",
 						          err && *err ? *err : "");
-						rv = 1;
+						errcode |= ERR_ALERT | ERR_FATAL;
 						goto end;
 					}
 				}
@@ -3377,7 +3381,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 							if (ret < 0) {
 								memprintf(err, "%sunable to allocate SSL context.\n",
 								          err && *err ? *err : "");
-								rv = 1;
+								errcode |= ERR_ALERT | ERR_FATAL;
 								goto end;
 							}
 						}
@@ -3392,7 +3396,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 	if (eb_is_empty(&sni_keytypes_map)) {
 		memprintf(err, "%sunable to load SSL certificate file '%s' file does not exist.\n",
 		          err && *err ? *err : "", path);
-		rv = 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
@@ -3426,7 +3430,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 			if (cur_ctx == NULL) {
 				memprintf(err, "%sunable to allocate SSL context.\n",
 				          err && *err ? *err : "");
-				rv = 1;
+				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 
@@ -3436,10 +3440,9 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 					/* Key combo contains ckch[n] */
 					snprintf(cur_file, MAXPATHLEN+1, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
 					if (ssl_sock_put_ckch_into_ctx(cur_file, &certs_and_keys[n], cur_ctx, err) != 0) {
-						rv = 1;
+						errcode |= ERR_ALERT | ERR_FATAL;
 						goto end;
 					}
-
 				}
 			}
 
@@ -3453,7 +3456,7 @@ static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct
 		                                              kinfo, str, key_combos[i-1].order);
 		if (key_combos[i-1].order < 0) {
 			memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
-			rv = 1;
+			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
 		node = ebmb_next(node);
@@ -3486,7 +3489,7 @@ end:
 		node = next;
 	}
 
-	if (rv > 0) {
+	if (errcode & ERR_CODE && ckch_inst) {
 		struct sni_ctx *sc0, *sc0b;
 
 		/* free the SSL_CTX in case of error */
@@ -3506,26 +3509,32 @@ end:
 		ckch_inst = NULL;
 	}
 
-	return ckch_inst;
+	*ckchi = ckch_inst;
+	return errcode;
 }
 #else
 /* This is a dummy, that just logs an error and returns error */
-static struct ckch_inst *ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
-                                     struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
-                                     char **sni_filter, int fcount, char **err)
+static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
+                                          struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+                                          char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err)
 {
 	memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 	          err && *err ? *err : "", path, strerror(errno));
-	return NULL;
+	return ERR_ALERT | ERR_FATAL;
 }
 
 #endif /* #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL: Support for loading multiple certs into a single SSL_CTX */
 
 /*
  * This function allocate a ckch_inst and create its snis
+ *
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
  */
-static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf,
-                               struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, char **err)
+static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf,
+                                    struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err)
 {
 	SSL_CTX *ctx;
 	int i;
@@ -3539,9 +3548,12 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 #endif
 	struct cert_key_and_chain *ckch;
 	struct ckch_inst *ckch_inst = NULL;
+	int errcode = 0;
+
+	*ckchi = NULL;
 
 	if (!ckchs || !ckchs->ckch)
-		return NULL;
+		return ERR_FATAL;
 
 	ckch = ckchs->ckch;
 
@@ -3553,10 +3565,12 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	if (!ctx) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
-		return NULL;
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto error;
 	}
 
 	if (ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err) != 0) {
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
 
@@ -3564,6 +3578,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	if (!ckch_inst) {
 		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
 		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
 
@@ -3589,6 +3604,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 			order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, sni_filter[fcount], order);
 			if (order < 0) {
 				memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
+				errcode |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
 		}
@@ -3605,6 +3621,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 						OPENSSL_free(str);
 						if (order < 0) {
 							memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
+							errcode |= ERR_ALERT | ERR_FATAL;
 							goto error;
 						}
 					}
@@ -3625,6 +3642,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 				OPENSSL_free(str);
 				if (order < 0) {
 					memprintf(err, "%sunable to create a sni context.\n", err && *err ? *err : "");
+					errcode |= ERR_ALERT | ERR_FATAL;
 					goto error;
 				}
 			}
@@ -3638,6 +3656,7 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	if (bind_conf->default_ctx) {
 		memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
 		          err && *err ? *err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
 #endif
@@ -3650,7 +3669,8 @@ static struct ckch_inst *ckch_inst_new_load_store(const char *path, struct ckch_
 	ckch_inst->bind_conf = bind_conf;
 	ckch_inst->ssl_conf = ssl_conf;
 
-	return ckch_inst;
+	*ckchi = ckch_inst;
+	return errcode;
 
 error:
 	/* free the allocated sni_ctxs */
@@ -3669,7 +3689,7 @@ error:
 	/* We only created 1 SSL_CTX so we can free it there */
 	SSL_CTX_free(ctx);
 
-	return NULL;
+	return errcode;
 }
 
 /* Returns a set of ERR_* flags possibly with an error in <err>. */
@@ -3678,21 +3698,22 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
                                char **sni_filter, int fcount, char **err)
 {
 	struct ckch_inst *ckch_inst = NULL;
+	int errcode = 0;
 
 	/* we found the ckchs in the tree, we can use it directly */
 	if (ckchs->multi)
-		ckch_inst = ckch_inst_new_load_multi_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, err);
+		errcode |= ckch_inst_new_load_multi_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, &ckch_inst, err);
 	else
-		ckch_inst = ckch_inst_new_load_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, err);
+		errcode |= ckch_inst_new_load_store(path, ckchs, bind_conf, ssl_conf, sni_filter, fcount, &ckch_inst, err);
 
-	if (!ckch_inst)
-		return ERR_ALERT | ERR_FATAL;
+	if (errcode & ERR_CODE)
+		return errcode;
 
 	ssl_sock_load_cert_sni(ckch_inst, bind_conf);
 
 	/* succeed, add the instance to the ckch_store's list of instance */
 	LIST_ADDQ(&ckchs->ckch_inst, &ckch_inst->by_ckchs);
-	return 0;
+	return errcode;
 }
 
 
@@ -9623,14 +9644,12 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 				struct ckch_inst *new_inst;
 
 				if (ckchs->multi)
-					new_inst = ckch_inst_new_load_multi_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &err);
+					errcode |= ckch_inst_new_load_multi_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
 				else
-					new_inst = ckch_inst_new_load_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &err);
+					errcode |= ckch_inst_new_load_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
 
-				if (!new_inst) {
-					errcode |= ERR_ALERT | ERR_FATAL;
+				if (errcode & ERR_CODE)
 					goto end;
-				}
 
 				/* link temporary the new ckch_inst */
 				LIST_ADDQ(&tmp_ckchi_list, &new_inst->by_ckchs);
