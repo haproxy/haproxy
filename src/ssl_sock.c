@@ -2774,17 +2774,27 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 
 
-/* Loads Diffie-Hellman parameter from a ckchs. Returns 1 if loaded, else -1
-   if an error occurred, and 0 if parameter not found. */
+/* Loads Diffie-Hellman parameter from a ckchs to an SSL_CTX.
+ *  If there is no DH paramater availaible in the ckchs, the global
+ *  DH parameter is loaded into the SSL_CTX and if there is no
+ *  DH parameter available in ckchs nor in global, the default
+ *  DH parameters are applied on the SSL_CTX.
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if a reason of the error is availabine in err
+ *     ERR_WARN if a warning is available into err
+ * The value 0 means there is no error nor warning and
+ * the operation succeed.
+ */
 #ifndef OPENSSL_NO_DH
-static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
+static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain *ckch,
+                                   const char *path, char **err)
 {
-	int ret = -1;
+	int ret = 0;
 	DH *dh = NULL;
 
 	if (ckch && ckch->dh) {
 		dh = ckch->dh;
-		ret = 1;
 		SSL_CTX_set_tmp_dh(ctx, dh);
 
 		if (ssl_dh_ptr_index >= 0) {
@@ -2795,7 +2805,6 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 	}
 	else if (global_dh) {
 		SSL_CTX_set_tmp_dh(ctx, global_dh);
-		ret = 0; /* DH params not found */
 	}
 	else {
 		/* Clear openssl global errors stack */
@@ -2806,16 +2815,18 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 			if (local_dh_1024 == NULL)
 				local_dh_1024 = ssl_get_dh_1024();
 
-			if (local_dh_1024 == NULL)
+			if (local_dh_1024 == NULL) {
+				memprintf(err, "%sunable to load default 1024 bits DH parameter for certificate '%s'.\n",
+					  err && *err ? *err : "", path);
+				ret |= ERR_ALERT | ERR_FATAL;
 				goto end;
+			}
 
 			SSL_CTX_set_tmp_dh(ctx, local_dh_1024);
 		}
 		else {
 			SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
 		}
-
-		ret = 0; /* DH params not found */
 	}
 
 end:
@@ -3107,10 +3118,10 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
 	}
 
-	if (ssl_sock_load_dh_params(ctx, ckch, err) < 0) {
+	errcode |= ssl_sock_load_dh_params(ctx, ckch, path, err);
+	if (errcode & ERR_CODE) {
 		memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
 		          err && *err ? *err : "", path);
-		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 #endif
