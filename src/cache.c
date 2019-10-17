@@ -1061,7 +1061,7 @@ int sha1_hosturi(struct stream *s)
 	struct htx *htx = htxbuf(&s->req.buf);
 	struct htx_sl *sl;
 	struct http_hdr_ctx ctx;
-	struct ist path;
+	struct ist uri;
 	blk_SHA_CTX sha1_ctx;
 	struct buffer *trash;
 
@@ -1077,15 +1077,31 @@ int sha1_hosturi(struct stream *s)
 		return 0;
 	}
 
-	if (!http_find_header(htx, ist("Host"), &ctx, 0))
-		return 0;
-	chunk_memcat(trash, ctx.value.ptr, ctx.value.len);
-
 	sl = http_get_stline(htx);
-	path = htx_sl_req_uri(sl); // whole uri
-	if (!path.len || *path.ptr != '/')
+	uri = htx_sl_req_uri(sl); // whole uri
+	if (!uri.len)
 		return 0;
-	chunk_memcat(trash, path.ptr, path.len);
+
+	/* In HTTP/1, most URIs are seen in origin form ('/path/to/resource'),
+	 * unless haproxy is deployed in front of an outbound cache. In HTTP/2,
+	 * URIs are almost always sent in absolute form with their scheme. In
+	 * this case, the scheme is almost always "https". In order to support
+	 * sharing of cache objects between H1 and H2, we'll hash the absolute
+	 * URI whenever known, or prepend "https://" + the Host header for
+	 * relative URIs. The difference will only appear on absolute HTTP/1
+	 * requests sent to an origin server, which practically is never met in
+	 * the real world so we don't care about the ability to share the same
+	 * key here.URIs are normalized from the absolute URI to an origin form as
+	 * well.
+	 */
+	if (!(sl->flags & HTX_SL_F_HAS_AUTHORITY)) {
+		chunk_cat(trash, b_fromist(ist("https://")));
+		if (!http_find_header(htx, ist("Host"), &ctx, 0))
+			return 0;
+		chunk_cat(trash, b_fromist(ctx.value));
+	}
+
+	chunk_memcat(trash, uri.ptr, uri.len);
 
 	/* hash everything */
 	blk_SHA1_Init(&sha1_ctx);
