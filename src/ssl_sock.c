@@ -3053,24 +3053,29 @@ end:
 }
 
 /* Loads the info in ckch into ctx
- * Currently, this does not process any information about ocsp, dhparams or
- * sctl
- * Returns
- *     0 on success
- *     1 on failure
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
+ * The value 0 means there is no error nor warning and
+ * the operation succeed.
  */
 static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
 {
+	int errcode = 0;
+
 	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
 		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
 				err && *err ? *err : "", path);
-		return 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
+		return errcode;
 	}
 
 	if (!SSL_CTX_use_certificate(ctx, ckch->cert)) {
 		memprintf(err, "%sunable to load SSL certificate into SSL Context '%s'.\n",
 				err && *err ? *err : "", path);
-		return 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
 	}
 
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
@@ -3078,7 +3083,8 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
         if (!SSL_CTX_set1_chain(ctx, ckch->chain)) {
 		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
 			  err && *err ? *err : "", path);
-		return 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
 	}
 #else
 	{ /* legacy compat (< openssl 1.0.2) */
@@ -3088,7 +3094,8 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
 					  err && *err ? *err : "", path);
 				X509_free(ca);
-				return 1;
+				errcode |= ERR_ALERT | ERR_FATAL;
+				goto end;
 			}
 	}
 #endif
@@ -3100,10 +3107,11 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
 	}
 
-	if (ssl_sock_load_dh_params(ctx, ckch) < 0) {
+	if (ssl_sock_load_dh_params(ctx, ckch, err) < 0) {
 		memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
 		          err && *err ? *err : "", path);
-		return 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
 	}
 #endif
 
@@ -3112,7 +3120,8 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		if (ssl_sock_load_sctl(ctx, ckch->sctl) < 0) {
 			memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 			          *err ? *err : "", path);
-			return 1;
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
 		}
 	}
 #endif
@@ -3124,12 +3133,14 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			if (err)
 				memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				          *err ? *err : "", path);
-			return 1;
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
 		}
 	}
 #endif
 
-	return 0;
+ end:
+	return errcode;
 }
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
@@ -3439,10 +3450,9 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 				if (i & (1<<n)) {
 					/* Key combo contains ckch[n] */
 					snprintf(cur_file, MAXPATHLEN+1, "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
-					if (ssl_sock_put_ckch_into_ctx(cur_file, &certs_and_keys[n], cur_ctx, err) != 0) {
-						errcode |= ERR_ALERT | ERR_FATAL;
+					errcode |= ssl_sock_put_ckch_into_ctx(cur_file, &certs_and_keys[n], cur_ctx, err);
+					if (errcode & ERR_CODE)
 						goto end;
-					}
 				}
 			}
 
@@ -3569,10 +3579,9 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 		goto error;
 	}
 
-	if (ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err) != 0) {
-		errcode |= ERR_ALERT | ERR_FATAL;
+	errcode |= ssl_sock_put_ckch_into_ctx(path, ckch, ctx, err);
+	if (errcode & ERR_CODE)
 		goto error;
-	}
 
 	ckch_inst = ckch_inst_new();
 	if (!ckch_inst) {
