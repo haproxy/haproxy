@@ -14537,37 +14537,37 @@ fc_rttvar(<unit>) : integer
   operating system does not support TCP_INFO, for example Linux kernels before
   2.4, the sample fetch fails.
 
-fc_unacked(<unit>) : integer
+fc_unacked : integer
   Returns the unacked counter measured by the kernel for the client connection.
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
 
-fc_sacked(<unit>) : integer
+fc_sacked : integer
   Returns the sacked counter measured by the kernel for the client connection.
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
 
-fc_retrans(<unit>) : integer
+fc_retrans : integer
   Returns the retransmits counter measured by the kernel for the client
   connection. If the server connection is not established, if the connection is
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
 
-fc_fackets(<unit>) : integer
+fc_fackets : integer
   Returns the fack counter measured by the kernel for the client
   connection. If the server connection is not established, if the connection is
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
 
-fc_lost(<unit>) : integer
+fc_lost : integer
   Returns the lost counter measured by the kernel for the client
   connection. If the server connection is not established, if the connection is
   not TCP or if the operating system does not support TCP_INFO, for example
   Linux kernels before 2.4, the sample fetch fails.
 
-fc_reordering(<unit>) : integer
+fc_reordering : integer
   Returns the reordering counter measured by the kernel for the client
   connection. If the server connection is not established, if the connection is
   not TCP or if the operating system does not support TCP_INFO, for example
