@@ -57,6 +57,9 @@
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
 #define H1C_F_UPG_H2C        0x00020000 /* set if an upgrade to h2 should be done */
 
+#define H1C_F_CO_MSG_MORE    0x00040000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
+#define H1C_F_CO_STREAMER    0x00080000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
+
 /*
  * H1 Stream flags (32 bits)
  */
@@ -2095,8 +2098,10 @@ static int h1_send(struct h1c *h1c)
 	if (!b_data(&h1c->obuf))
 		goto end;
 
-	if (h1c->flags & H1C_F_OUT_FULL)
+	if (h1c->flags & H1C_F_CO_MSG_MORE)
 		flags |= CO_SFL_MSG_MORE;
+	if (h1c->flags & H1C_F_CO_STREAMER)
+		flags |= CO_SFL_STREAMER;
 
 	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), flags);
 	if (ret > 0) {
@@ -2667,6 +2672,13 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s);
 		return 0;
 	}
+
+	/* Inherit some flags from the upper layer */
+	h1c->flags &= ~(H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
+	if (flags & CO_SFL_MSG_MORE)
+		h1c->flags |= H1C_F_CO_MSG_MORE;
+	if (flags & CO_SFL_STREAMER)
+		h1c->flags |= H1C_F_CO_STREAMER;
 
 	while (count) {
 		size_t ret = 0;
