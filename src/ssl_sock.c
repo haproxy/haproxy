@@ -2931,6 +2931,23 @@ static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain 
 		sk_X509_pop_free(ckch->chain, X509_free);
 	ckch->chain = NULL;
 
+	if (ckch->dh)
+		DH_free(ckch->dh);
+	ckch->dh = NULL;
+
+	if (ckch->sctl) {
+		free(ckch->sctl->area);
+		ckch->sctl->area = NULL;
+		free(ckch->sctl);
+		ckch->sctl = NULL;
+	}
+
+	if (ckch->ocsp_response) {
+		free(ckch->ocsp_response->area);
+		ckch->ocsp_response->area = NULL;
+		free(ckch->ocsp_response);
+		ckch->ocsp_response = NULL;
+	}
 }
 
 /* checks if a key and cert exists in the ckch
