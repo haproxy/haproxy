@@ -307,6 +307,8 @@ struct cond_wordlist {
  * and the list is closed. If the list was empty, NULL is returned. This may
  * exclusively be used with lists modified by MT_LIST_ADD/MT_LIST_ADDQ. This
  * is incompatible with MT_LIST_DEL run concurrently.
+ * If there's at least one element, the next of the last element will always
+ * be NULL.
  */
 #define MT_LIST_BEHEAD(_lh) ({                                      \
         struct mt_list *lh = (_lh);                                 \
@@ -336,7 +338,7 @@ struct cond_wordlist {
 		(lh)->next = (lh);                                  \
 		(lh)->prev = (lh);                                  \
 		_n->prev = _p;                                      \
-		_p->next = _n;                                      \
+		_p->next = NULL;                                    \
 		__ha_barrier_store();                               \
 		break;                                              \
 	}                                                           \
