@@ -2987,40 +2987,48 @@ end:
 	return ret;
 }
 
-/* Loads the contents of a crt file (path) or BIO into a cert_key_and_chain
- * This allows us to carry the contents of the file without having to read the
- * file multiple times.  The caller must call
- * ssl_sock_free_cert_key_and_chain_contents.
+
+/*
+ *  Try to load a PEM file from a <path> or a buffer <buf>
+ *  The PEM must contain at least a Private Key and a Certificate,
+ *  It could contain a DH and a certificate chain.
  *
- * returns:
- *      0 on Success
- *      1 on SSL Failure
+ *  If it failed you should not attempt to use the ckch but free it.
+ *
+ *  Return 0 on success or != 0 on failure
  */
-static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct cert_key_and_chain *ckch, char **err)
+static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err)
 {
-
 	BIO *in = NULL;
-	X509 *ca;
 	int ret = 1;
+	X509 *ca = NULL;
+	X509 *cert = NULL;
+	EVP_PKEY *key = NULL;
+	DH *dh;
 
-	if (buf != NULL && path != NULL) {
-		in = buf;
-	} else if (path != NULL) {
+	if (buf) {
+		/* reading from a buffer */
+		in = BIO_new_mem_buf(buf, -1);
+		if (in == NULL) {
+			memprintf(err, "%sCan't allocate memory\n", err && *err ? *err : "");
+			goto end;
+		}
+
+	} else {
+		/* reading from a file */
 		in = BIO_new(BIO_s_file());
 		if (in == NULL)
 			goto end;
 
 		if (BIO_read_filename(in, path) <= 0)
 			goto end;
-	} else {
-		goto end;
 	}
 
 	/* Read Private Key */
-	ckch->key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
-	if (ckch->key == NULL) {
+	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	if (key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
-				err && *err ? *err : "", path);
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 
@@ -3032,8 +3040,15 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 		goto end;
 	}
 
-	ckch->dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
-	/* no need to check for NULL there, dh is not mandatory */
+	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
+	/* no need to return an error there, dh is not mandatory */
+
+	if (dh) {
+		if (ckch->dh)
+			DH_free(ckch->dh);
+		ckch->dh = dh;
+	}
+
 #endif
 
 	/* Seek back to beginning of file */
@@ -3044,21 +3059,41 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 	}
 
 	/* Read Certificate */
-	ckch->cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
-	if (ckch->cert == NULL) {
+	cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
+	if (cert == NULL) {
 		memprintf(err, "%sunable to load certificate from file '%s'.\n",
-			  err && *err ? *err : "", path);
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 
-	if (!X509_check_private_key(ckch->cert, ckch->key)) {
+	if (!X509_check_private_key(cert, key)) {
 		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
-			  err && *err ? *err : "", path);
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 
-	/* Read Certificate Chain */
-	ckch->chain = sk_X509_new_null();
+	/* Key and Cert are good, we can use them in the ckch */
+	if (ckch->key) /* free the previous key */
+		EVP_PKEY_free(ckch->key);
+	ckch->key = key;
+
+	if (ckch->cert) /* free the previous cert */
+		X509_free(ckch->cert);
+	ckch->cert = cert;
+
+	/* Look for a Certificate Chain */
+	ca = PEM_read_bio_X509(in, NULL, NULL, NULL);
+	if (ca) {
+		/* there is a chain a in the PEM, clean the previous one in the CKCH */
+		if (ckch->chain) /* free the previous chain */
+			sk_X509_pop_free(ckch->chain, X509_free);
+		ckch->chain = sk_X509_new_null();
+		if (!sk_X509_push(ckch->chain, ca)) {
+			X509_free(ca);
+			goto end;
+		}
+	}
+	/* look for other crt in the chain */
 	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL)))
 		if (!sk_X509_push(ckch->chain, ca)) {
 			X509_free(ca);
@@ -3068,21 +3103,49 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 	ret = ERR_get_error();
 	if (ret && (ERR_GET_LIB(ret) != ERR_LIB_PEM && ERR_GET_REASON(ret) != PEM_R_NO_START_LINE)) {
 		memprintf(err, "%sunable to load certificate chain from file '%s'.\n",
-				err && *err ? *err : "", path);
-		ret = 1;
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 
 	ret = 0;
 
-	/* don't try to do the next operations if we feed the ckch from the cli */
-	if (buf)
-		goto end;
+end:
 
 	ERR_clear_error();
-	if (in) {
+	if (in)
 		BIO_free(in);
-		in = NULL;
+	if (ret != 0) {
+		if (key)
+			EVP_PKEY_free(key);
+		if (cert)
+			X509_free(cert);
+	}
+
+	return ret;
+}
+
+/*
+ * Try to load in a ckch every files related to a ckch.
+ * (PEM, sctl, ocsp, issuer etc.)
+ *
+ * This function is only used to load files during the configuration parsing,
+ * it is not used with the CLI.
+ *
+ * This allows us to carry the contents of the file without having to read the
+ * file multiple times.  The caller must call
+ * ssl_sock_free_cert_key_and_chain_contents.
+ *
+ * returns:
+ *      0 on Success
+ *      1 on SSL Failure
+ */
+static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
+{
+	int ret = 1;
+
+	/* try to load the PEM */
+	if (ssl_sock_load_pem_into_ckch(path, NULL, ckch , err) != 0) {
+		goto end;
 	}
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
@@ -3163,8 +3226,6 @@ static int ssl_sock_load_crt_file_into_ckch(const char *path, BIO *buf, struct c
 end:
 
 	ERR_clear_error();
-	if (in && !buf)
-		BIO_free(in);
 
 	/* Something went wrong in one of the reads */
 	if (ret != 0)
@@ -3343,7 +3404,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 
 	if (!multi) {
 
-		if (ssl_sock_load_crt_file_into_ckch(path, NULL, ckchs->ckch, err) == 1)
+		if (ssl_sock_load_files_into_ckch(path, ckchs->ckch, err) == 1)
 			goto end;
 
 		/* insert into the ckchs tree */
@@ -3360,7 +3421,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 			struct stat buf;
 			snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
 			if (stat(fp, &buf) == 0) {
-				if (ssl_sock_load_crt_file_into_ckch(fp, NULL, &ckchs->ckch[n], err) == 1)
+				if (ssl_sock_load_files_into_ckch(fp, &ckchs->ckch[n], err) == 1)
 					goto end;
 				found = 1;
 				ckchs->multi = 1;
@@ -9714,7 +9775,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	struct ckch_store *ckchs = NULL;
 	struct cert_key_and_chain *ckch;
 	struct list tmp_ckchi_list;
-	BIO *mem;
 	char *err = NULL;
 	int i;
 	int found = 0;
@@ -9730,13 +9790,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
 
 	LIST_INIT(&tmp_ckchi_list);
-
-	mem = BIO_new_mem_buf(payload, -1);
-	if (!mem) {
-		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
-		goto end;
-	}
 
 	/* do 2 iterations, first one with a non-bundle entry, second one with a bundle entry */
 	for (i = 0; i < 2; i++) {
@@ -9766,7 +9819,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 			found = 1;
 
-			if (ssl_sock_load_crt_file_into_ckch(args[3], mem, ckch, &err) != 0) {
+			if (ssl_sock_load_pem_into_ckch(args[3], payload, ckch, &err) != 0) {
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
@@ -9844,8 +9897,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 end:
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-
-	BIO_free(mem);
 
 	if (errcode & ERR_CODE) {
 		struct ckch_inst *ckchi, *ckchis;
