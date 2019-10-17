@@ -9778,7 +9778,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	char *err = NULL;
 	int i;
 	int found = 0;
-	int bundle = -1;
+	int bundle = -1; /* TRUE if >= 0 (ckch index) */
 	int errcode = 0;
 
 	if (!*args[3] || !payload)
@@ -9804,6 +9804,10 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
+
+			 /* If we want a bundle but this is not a bundle */
+			if (bundle >= 0 && ckchs->multi == 0)
+				continue;
 
 			if (bundle < 0)
 				ckch = ckchs->ckch;
