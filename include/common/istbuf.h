@@ -33,6 +33,9 @@
 #include <common/ist.h>
 
 
+/* makes a buffer pointer from an IST */
+#define b_fromist(in) ({ const struct ist __i = (in); &(const struct buffer){ .area = __i.ptr, .head = 0, .data = __i.len, .size = __i.len}; })
+
 /* b_isteq() : returns > 0 if the first <n> characters of buffer <b> starting
  * at offset <o> relative to the buffer's head match <ist>. (empty strings do
  * match). It is designed to be used with reasonably small strings (it matches
