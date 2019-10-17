@@ -1,7 +1,14 @@
+# build status appears on https://travis-ci.com/haproxy/haproxy
+
 sudo: required
 dist: xenial
 
 language: c
+
+branches:
+  only:
+    - master
+    - next
 
 env:
   global:
