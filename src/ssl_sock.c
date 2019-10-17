@@ -2950,6 +2950,77 @@ static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain 
 	}
 }
 
+/*
+ *
+ * This function copy a cert_key_and_chain in memory
+ *
+ * It's used to try to apply changes on a ckch before committing them, because
+ * most of the time it's not possible to revert those changes
+ *
+ * Return a the dst or NULL
+ */
+static struct cert_key_and_chain *ssl_sock_copy_cert_key_and_chain(struct cert_key_and_chain *src,
+                                                                   struct cert_key_and_chain *dst)
+{
+	if (src->cert) {
+		dst->cert = src->cert;
+		X509_up_ref(src->cert);
+	}
+
+	if (src->key) {
+		dst->key = src->key;
+		EVP_PKEY_up_ref(src->key);
+	}
+
+	if (src->chain) {
+		dst->chain = X509_chain_up_ref(src->chain);
+	}
+
+	if (src->dh) {
+		DH_up_ref(src->dh);
+		dst->dh = src->dh;
+	}
+
+	if (src->sctl) {
+		struct buffer *sctl;
+
+		sctl = calloc(1, sizeof(*sctl));
+		if (!chunk_dup(sctl, src->sctl)) {
+			free(sctl);
+			sctl = NULL;
+			goto error;
+		}
+		dst->sctl = sctl;
+	}
+
+	if (src->ocsp_response) {
+		struct buffer *ocsp_response;
+
+		ocsp_response = calloc(1, sizeof(*ocsp_response));
+		if (!chunk_dup(ocsp_response, src->ocsp_response)) {
+			free(ocsp_response);
+			ocsp_response = NULL;
+			goto error;
+		}
+		dst->ocsp_response = ocsp_response;
+	}
+
+	if (src->ocsp_issuer) {
+		X509_up_ref(src->ocsp_issuer);
+		dst->ocsp_issuer = src->ocsp_issuer;
+	}
+
+	return dst;
+
+error:
+
+	/* free everything */
+	ssl_sock_free_cert_key_and_chain_contents(dst);
+
+	return NULL;
+}
+
+
 /* checks if a key and cert exists in the ckch
  */
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
