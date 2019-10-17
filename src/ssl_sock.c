@@ -9770,19 +9770,49 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 }
 #endif
 
+
+/* Type of SSL payloads that can be updated over the CLI */
+
+enum {
+	CERT_TYPE_PEM = 0,
+	CERT_TYPE_OCSP,
+	CERT_TYPE_ISSUER,
+	CERT_TYPE_SCTL,
+	CERT_TYPE_MAX,
+};
+
+struct {
+	const char *ext;
+	int type;
+	int (*load)(const char *path, char *payload, struct cert_key_and_chain *ckch, char **err);
+	/* add a parsing callback */
+} cert_exts[CERT_TYPE_MAX] = {
+	[CERT_TYPE_PEM]    = { "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
+	[CERT_TYPE_OCSP]   = { "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
+	[CERT_TYPE_SCTL]   = { "sctl",    CERT_TYPE_SCTL,     &ssl_sock_load_sctl_from_file },
+	[CERT_TYPE_ISSUER] = { "issuer",  CERT_TYPE_ISSUER,   &ssl_sock_load_issuer_file_into_ckch },
+};
+
 static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct ckch_store *ckchs = NULL;
 	struct cert_key_and_chain *ckch;
 	struct list tmp_ckchi_list;
+	char *tmpfp = NULL;
 	char *err = NULL;
 	int i;
 	int found = 0;
 	int bundle = -1; /* TRUE if >= 0 (ckch index) */
 	int errcode = 0;
+	char *end;
+	int type = CERT_TYPE_PEM;
 
 	if (!*args[3] || !payload)
 		return cli_err(appctx, "'set ssl cert expects a filename and a certificat as a payload\n");
+
+	tmpfp = strdup(args[3]);
+	if (!tmpfp)
+		return cli_err(appctx, "Can't allocate memory\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -9791,10 +9821,20 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 	LIST_INIT(&tmp_ckchi_list);
 
+	/* check which type of file we want to update */
+	for (i = 0; i < CERT_TYPE_MAX; i++) {
+		end = strrchr(tmpfp, '.');
+		if (end && *cert_exts[i].ext && (!strcmp(end + 1, cert_exts[i].ext))) {
+			*end = '\0';
+			type = cert_exts[i].type;
+			break;
+		}
+	}
+
 	/* do 2 iterations, first one with a non-bundle entry, second one with a bundle entry */
 	for (i = 0; i < 2; i++) {
 
-		if ((ckchs = ckchs_lookup(args[3])) != NULL) {
+		if ((ckchs = ckchs_lookup(tmpfp)) != NULL) {
 			struct ckch_inst *ckchi, *ckchis;
 
 			/* only the bundle name is in the tree and you should never update a bundle name, only a filename */
@@ -9823,7 +9863,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 			found = 1;
 
-			if (ssl_sock_load_pem_into_ckch(args[3], payload, ckch, &err) != 0) {
+			if (cert_exts[type].load(tmpfp, payload, ckch, &err) != 0) {
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
@@ -9877,7 +9917,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			 *   .dsa/.rsa/.ecdsa at the end of the filename */
 			if (bundle >= 0)
 				break;
-			end = strrchr(args[3], '.');
+			end = strrchr(tmpfp, '.');
 			for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
 				if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
 					bundle = j; /* keep the type of certificate so we insert it at the right place */
@@ -9901,6 +9941,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 end:
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	free(tmpfp);
 
 	if (errcode & ERR_CODE) {
 		struct ckch_inst *ckchi, *ckchis;
@@ -9917,13 +9958,13 @@ end:
 			LIST_DEL(&ckchi->by_ckchs);
 			free(ckchi);
 		}
-		return cli_dynerr(appctx, memprintf(&err, "%sCan't update the certificate!\n", err ? err : ""));
+		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	}
 	else if (errcode & ERR_WARN) {
-		return cli_dynmsg(appctx, LOG_WARNING, memprintf(&err, "%sCertificate updated!\n", err ? err : ""));
+		return cli_dynmsg(appctx, LOG_WARNING, memprintf(&err, "%s%s updated!\n", err ? err : "", args[3]));
 	}
 	else {
-		return cli_dynmsg(appctx, LOG_INFO, memprintf(&err, "Certificate updated!"));
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&err, "%s updated!", args[3]));
 	}
 }
 
