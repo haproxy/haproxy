@@ -9566,7 +9566,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	int i;
 	int found = 0;
 	int bundle = -1;
-	int ret = 0;
+	int errcode = 0;
 
 	if (!*args[3] || !payload)
 		return cli_err(appctx, "'set ssl cert expects a filename and a certificat as a payload\n");
@@ -9581,7 +9581,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	mem = BIO_new_mem_buf(payload, -1);
 	if (!mem) {
 		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-		ret = 1;
+		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
 
@@ -9595,7 +9595,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			if (bundle < 0 && ckchs->multi) {
 				memprintf(&err, "%s%s is a multi-cert bundle. Try updating %s.{dsa,rsa,ecdsa}\n",
 				          err ? err : "", args[3], args[3]);
-				ret = 1;
+				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 
@@ -9607,14 +9607,14 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			if (ckchs->filters) {
 				memprintf(&err, "%sCertificates used in crt-list with filters are not supported!\n",
 				          err ? err : "");
-				ret = 1;
+				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 
 			found = 1;
 
 			if (ssl_sock_load_crt_file_into_ckch(args[3], mem, ckch, &err) != 0) {
-				ret = 1;
+				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 
@@ -9628,7 +9628,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					new_inst = ckch_inst_new_load_store(args[3], ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &err);
 
 				if (!new_inst) {
-					ret = 1;
+					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
 
@@ -9685,9 +9685,9 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	if (!found) {
-		ret = 1;
 		memprintf(&err, "%sCan't replace a certificate name which is not referenced by the configuration!\n",
 		          err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
 	}
 
 end:
@@ -9696,7 +9696,7 @@ end:
 
 	BIO_free(mem);
 
-	if (ret != 0) {
+	if (errcode & ERR_CODE) {
 		struct ckch_inst *ckchi, *ckchis;
 		/* if the allocation failed, we need to free everything from the temporary list */
 		list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
@@ -9712,7 +9712,11 @@ end:
 			free(ckchi);
 		}
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update the certificate!\n", err ? err : ""));
-	} else {
+	}
+	else if (errcode & ERR_WARN) {
+		return cli_dynmsg(appctx, LOG_WARNING, memprintf(&err, "%sCertificate updated!\n", err ? err : ""));
+	}
+	else {
 		return cli_dynmsg(appctx, LOG_INFO, memprintf(&err, "Certificate updated!"));
 	}
 }
