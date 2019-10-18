@@ -55,13 +55,15 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 		 * mux_pt_io_cb() is only supposed to be called if we have no
 		 * stream attached. However, maybe the tasklet got woken up,
 		 * and this connection was then attached to a new stream.
-		 * If this happened, just call the wake method. It is probably
-		 * not needed, because the stream probably subscribed to
-		 * receive events, but that way we'll be sure the event got
-		 * noticed, and if we had any error on the connection, we will
-		 * let the stream call the detach method to destroy it.
+		 * If this happened, just wake the tasklet up if anybody
+		 * subscribed to receive events, and otherwise call the wake
+		 * method, to make sure the event is noticed.
 		 */
-		if (ctx->cs->data_cb->wake)
+		if (ctx->conn->recv_wait) {
+			ctx->conn->recv_wait->events &= ~SUB_RETRY_RECV;
+			tasklet_wakeup(ctx->conn->recv_wait->tasklet);
+			ctx->conn->recv_wait = NULL;
+		} else if (ctx->cs->data_cb->wake)
 			ctx->cs->data_cb->wake(ctx->cs);
 		return NULL;
 	}
