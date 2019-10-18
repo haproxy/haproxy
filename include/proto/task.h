@@ -228,12 +228,14 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 static inline void tasklet_wakeup(struct tasklet *tl)
 {
-	if (tl->tid == tid) {
+	if (likely(tl->tid < 0)) {
+		/* this tasklet runs on the caller thread */
 		if (LIST_ISEMPTY(&tl->list)) {
-			LIST_ADDQ(&task_per_thread[tl->tid].task_list, &tl->list);
+			LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 		}
 	} else {
+		/* this tasklet runs on a specific thread */
 		if (MT_LIST_ADDQ(&task_per_thread[tl->tid].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 			if (sleeping_thread_mask & (1UL << tl->tid)) {
@@ -292,16 +294,23 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	return t;
 }
 
+/* Initialize a new tasklet. It's identified as a tasklet by ->nice=-32768. It
+ * is expected to run on the calling thread by default, it's up to the caller
+ * to change ->tid if it wants to own it.
+ */
 static inline void tasklet_init(struct tasklet *t)
 {
 	t->nice = -32768;
 	t->calls = 0;
 	t->state = 0;
 	t->process = NULL;
-	t->tid = tid;
+	t->tid = -1;
 	LIST_INIT(&t->list);
 }
 
+/* Allocate and initialize a new tasklet, local to the thread by default. The
+ * caller may assing its tid if it wants to own the tasklet.
+ */
 static inline struct tasklet *tasklet_new(void)
 {
 	struct tasklet *t = pool_alloc(pool_head_tasklet);

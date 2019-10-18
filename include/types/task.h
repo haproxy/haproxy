@@ -97,7 +97,7 @@ struct task {
 struct tasklet {
 	TASK_COMMON;			/* must be at the beginning! */
 	struct list list;
-	int tid;                        /* TID of the tasklet owner */
+	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 
 #define TASK_IS_TASKLET(t) ((t)->nice == -32768)
