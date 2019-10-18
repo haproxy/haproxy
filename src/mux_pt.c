@@ -51,10 +51,9 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 	struct mux_pt_ctx *ctx = tctx;
 
 	conn_sock_drain(ctx->conn);
-	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
-		if (!ctx->cs)
-			mux_pt_destroy(ctx);
-	} else
+	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
+		mux_pt_destroy(ctx);
+	else
 		ctx->conn->xprt->subscribe(ctx->conn, ctx->conn->xprt_ctx, SUB_RETRY_RECV,
 		    &ctx->wait_event);
 
@@ -194,7 +193,7 @@ static void mux_pt_detach(struct conn_stream *cs)
 	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 		ctx->cs = NULL;
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	} else if (!ctx->cs)
+	} else
 		/* There's no session attached to that connection, destroy it */
 		mux_pt_destroy(ctx);
 }
