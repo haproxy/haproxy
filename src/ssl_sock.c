@@ -9953,8 +9953,8 @@ struct {
 static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct ckch_store *ckchs = NULL;
+	struct ckch_store *new_ckchs = NULL;
 	struct cert_key_and_chain *ckch;
-	struct list tmp_ckchi_list;
 	char *tmpfp = NULL;
 	char *err = NULL;
 	int i;
@@ -9975,8 +9975,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
-
-	LIST_INIT(&tmp_ckchi_list);
 
 	/* check which type of file we want to update */
 	for (i = 0; i < CERT_TYPE_MAX; i++) {
@@ -10006,11 +10004,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			if (bundle >= 0 && ckchs->multi == 0)
 				continue;
 
-			if (bundle < 0)
-				ckch = ckchs->ckch;
-			else
-				ckch = &ckchs->ckch[bundle];
-
 			if (ckchs->filters) {
 				memprintf(&err, "%sCertificates used in crt-list with filters are not supported!\n",
 				          err ? err : "");
@@ -10020,12 +10013,28 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 			found = 1;
 
+			/* duplicate the ckch store */
+			new_ckchs = ckchs_dup(ckchs);
+			if (!new_ckchs) {
+				memprintf(&err, "%sCannot allocate memory!\n",
+				          err ? err : "");
+				errcode |= ERR_ALERT | ERR_FATAL;
+				goto end;
+			}
+
+			if (bundle < 0)
+				ckch = new_ckchs->ckch;
+			else
+				ckch = &new_ckchs->ckch[bundle];
+
+
+			/* appply the change on the duplicate */
 			if (cert_exts[type].load(tmpfp, payload, ckch, &err) != 0) {
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 
-			/* walk through ckch_inst and creates new ckch_inst using the updated ckch */
+			/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
 			list_for_each_entry(ckchi, &ckchs->ckch_inst, by_ckchs) {
 				struct ckch_inst *new_inst;
 
@@ -10037,11 +10046,18 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 				if (errcode & ERR_CODE)
 					goto end;
 
-				/* link temporary the new ckch_inst */
-				LIST_ADDQ(&tmp_ckchi_list, &new_inst->by_ckchs);
+				/* link the new ckch_inst to the duplicate */
+				LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
 			}
 
-			/* once every allocation is done, delete the old sni_ctx & the old ckch_insts */
+			/* insert every new SNIs in the trees */
+			list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+				HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+				ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+				HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+			}
+
+			/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 			list_for_each_entry_safe(ckchi, ckchis, &ckchs->ckch_inst, by_ckchs) {
 				struct sni_ctx *sc0, *sc0s;
 
@@ -10056,14 +10072,11 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 				free(ckchi);
 				ckchi = NULL;
 			}
-			/* insert every new ckch instance in the actual list and insert the sni_ctx in the trees  */
-			list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
-				LIST_DEL(&ckchi->by_ckchs);
-				LIST_ADD(&ckchs->ckch_inst, &ckchi->by_ckchs);
-				HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-				ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-				HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-			}
+			/* Replace the old ckchs by the new one */
+			ebmb_delete(&ckchs->node);
+			ckchs_free(ckchs);
+			ckchs = NULL;
+			ebst_insert(&ckchs_tree, &new_ckchs->node);
 		}
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 		{
@@ -10102,18 +10115,23 @@ end:
 
 	if (errcode & ERR_CODE) {
 		struct ckch_inst *ckchi, *ckchis;
-		/* if the allocation failed, we need to free everything from the temporary list */
-		list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
-			struct sni_ctx *sc0, *sc0s;
 
-			list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-				if (sc0->order == 0) /* we only free if it's the first inserted */
-					SSL_CTX_free(sc0->ctx);
-				LIST_DEL(&sc0->by_ckch_inst);
-				free(sc0);
+		if (new_ckchs) {
+			/* if the allocation failed, we need to free everything from the temporary list */
+			list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+				struct sni_ctx *sc0, *sc0s;
+
+				list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+					if (sc0->order == 0) /* we only free if it's the first inserted */
+						SSL_CTX_free(sc0->ctx);
+					LIST_DEL(&sc0->by_ckch_inst);
+					free(sc0);
+				}
+				LIST_DEL(&ckchi->by_ckchs);
+				free(ckchi);
 			}
-			LIST_DEL(&ckchi->by_ckchs);
-			free(ckchi);
+			ckchs_free(new_ckchs);
+			new_ckchs = NULL;
 		}
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	}
