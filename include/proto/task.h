@@ -236,8 +236,8 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	} else {
 		if (MT_LIST_ADDQ(&task_per_thread[tl->tid].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-			if (sleeping_thread_mask & (1 << tl->tid)) {
-				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1 << tl->tid));
+			if (sleeping_thread_mask & (1UL << tl->tid)) {
+				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << tl->tid));
 				wake_thread(tl->tid);
 			}
 		}
