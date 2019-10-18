@@ -3454,6 +3454,75 @@ static int ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root *
 }
 
 #endif
+/*
+ * Free a ckch_store and its ckch(s)
+ * The linked ckch_inst are not free'd
+ */
+void ckchs_free(struct ckch_store *ckchs)
+{
+	if (!ckchs)
+		return;
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+	if (ckchs->multi) {
+		int n;
+
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
+			ssl_sock_free_cert_key_and_chain_contents(&ckchs->ckch[n]);
+	} else
+#endif
+	{
+		ssl_sock_free_cert_key_and_chain_contents(ckchs->ckch);
+		ckchs->ckch = NULL;
+	}
+
+	free(ckchs);
+}
+
+/* allocate and duplicate a ckch_store
+ * Return a new ckch_store or NULL */
+static struct ckch_store *ckchs_dup(const struct ckch_store *src)
+{
+	struct ckch_store *dst;
+	int pathlen;
+
+	pathlen = strlen(src->path);
+	dst = calloc(1, sizeof(*dst) + pathlen + 1);
+	if (!dst)
+		return NULL;
+	/* copy previous key */
+	memcpy(dst->path, src->path, pathlen + 1);
+	dst->multi = src->multi;
+	LIST_INIT(&dst->ckch_inst);
+
+	dst->ckch = calloc((src->multi ? SSL_SOCK_NUM_KEYTYPES : 1), sizeof(*dst->ckch));
+	if (!dst->ckch)
+		goto error;
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+	if (src->multi) {
+		int n;
+
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+			if (&src->ckch[n]) {
+				if (!ssl_sock_copy_cert_key_and_chain(&src->ckch[n], &dst->ckch[n]))
+					goto error;
+			}
+		}
+	} else
+#endif
+	{
+		if (!ssl_sock_copy_cert_key_and_chain(src->ckch, dst->ckch))
+			goto error;
+	}
+
+	return dst;
+
+error:
+	ckchs_free(dst);
+
+	return NULL;
+}
 
 /*
  * lookup a path into the ckchs tree.
