@@ -50,6 +50,21 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 {
 	struct mux_pt_ctx *ctx = tctx;
 
+	if (ctx->cs) {
+		/* There's a small race condition.
+		 * mux_pt_io_cb() is only supposed to be called if we have no
+		 * stream attached. However, maybe the tasklet got woken up,
+		 * and this connection was then attached to a new stream.
+		 * If this happened, just call the wake method. It is probably
+		 * not needed, because the stream probably subscribed to
+		 * receive events, but that way we'll be sure the event got
+		 * noticed, and if we had any error on the connection, we will
+		 * let the stream call the detach method to destroy it.
+		 */
+		if (ctx->cs->data_cb->wake)
+			ctx->cs->data_cb->wake(ctx->cs);
+		return NULL;
+	}
 	conn_sock_drain(ctx->conn);
 	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
 		mux_pt_destroy(ctx);
