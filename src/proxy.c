@@ -1262,7 +1262,11 @@ void stop_proxy(struct proxy *p)
 			nostop = 1;
 			continue;
 		}
-		unbind_listener(l);
+		/* The master should not close an inherited FD */
+		if (master && (l->options & LI_O_INHERITED))
+			unbind_listener_no_close(l);
+		else
+			unbind_listener(l);
 		if (l->state >= LI_ASSIGNED) {
 			delete_listener(l);
 		}
