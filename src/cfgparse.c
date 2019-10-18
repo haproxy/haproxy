@@ -3634,7 +3634,7 @@ out_uri_auth_compat:
 					idle_conn_task->process = srv_cleanup_idle_connections;
 					idle_conn_task->context = NULL;
 					for (i = 0; i < global.nbthread; i++) {
-						idle_conn_cleanup[i] = task_new(1 << i);
+						idle_conn_cleanup[i] = task_new(1UL << i);
 						if (!idle_conn_cleanup[i])
 							goto err;
 						idle_conn_cleanup[i]->process = srv_cleanup_toremove_connections;
