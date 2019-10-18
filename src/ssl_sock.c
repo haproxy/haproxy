@@ -2331,11 +2331,11 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				if (conf->early_data)
 					allow_early = 1;
 			}
-			HA_RWLOCK_RDUNLOCK(CKCH_LOCK, &s->sni_lock);
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			goto allow_early;
 	}
 
-	HA_RWLOCK_RDUNLOCK(CKCH_LOCK, &s->sni_lock);
+	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 	if (s->generate_certs && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
@@ -9720,13 +9720,13 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			list_for_each_entry_safe(ckchi, ckchis, &ckchs->ckch_inst, by_ckchs) {
 				struct sni_ctx *sc0, *sc0s;
 
-				HA_RWLOCK_WRLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 				list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
 					ebmb_delete(&sc0->name);
 					LIST_DEL(&sc0->by_ckch_inst);
 					free(sc0);
 				}
-				HA_RWLOCK_WRUNLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 				LIST_DEL(&ckchi->by_ckchs);
 				free(ckchi);
 				ckchi = NULL;
@@ -9735,9 +9735,9 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			list_for_each_entry_safe(ckchi, ckchis, &tmp_ckchi_list, by_ckchs) {
 				LIST_DEL(&ckchi->by_ckchs);
 				LIST_ADD(&ckchs->ckch_inst, &ckchi->by_ckchs);
-				HA_RWLOCK_WRLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 				ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-				HA_RWLOCK_WRUNLOCK(CKCH_LOCK, &ckchi->bind_conf->sni_lock);
+				HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 			}
 		}
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
