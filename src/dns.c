@@ -543,10 +543,12 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
 					int ha_weight;
 
-					/* Make sure weight is at least 1, so
-					 * that the server will be used.
+					/* DNS weight range if from 0 to 65535
+					 * HAProxy weight is from 0 to 256
+					 * The rule below ensures that weight 0 is well respected
+					 * while allowing a "mapping" from DNS weight into HAProxy's one.
 					 */
-					ha_weight = item->weight / 256 + 1;
+					ha_weight = (item->weight + 255) / 256;
 					if (srv->uweight != ha_weight) {
 						char weight[9];
 
@@ -590,10 +592,12 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				    !(srv->flags & SRV_F_CHECKPORT))
 					srv->check.port = item->port;
 
-				/* Make sure weight is at least 1, so
-				 * that the server will be used.
+				/* DNS weight range if from 0 to 65535
+				 * HAProxy weight is from 0 to 256
+				 * The rule below ensures that weight 0 is well respected
+				 * while allowing a "mapping" from DNS weight into HAProxy's one.
 				 */
-				ha_weight = item->weight / 256 + 1;
+				ha_weight = (item->weight + 255) / 256;
 
 				snprintf(weight, sizeof(weight), "%d", ha_weight);
 				server_parse_weight_change_request(srv, weight);
