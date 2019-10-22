@@ -29,7 +29,7 @@ haproxy h1 -conf {
     timeout check 500ms
     timeout server 5s
     timeout client 5s
-    default-server check inter 200ms rise 1 fall 1
+    #default-server check inter 200ms rise 1 fall 1
 
   backend be1
     log ${S1_addr}:${S1_port} len 2048 local0
@@ -37,7 +37,7 @@ haproxy h1 -conf {
     option log-health-checks
     tcp-check connect port ${s1_port}
     tcp-check connect port 1
-    server srv1 ${s1_addr}:${s1_port}
+    server srv1 ${s1_addr}:${s1_port} check inter 200ms rise 1 fall 1
 
   backend be2
     log ${S2_addr}:${S2_port} len 2048 local0
@@ -45,7 +45,7 @@ haproxy h1 -conf {
     option log-health-checks
     tcp-check connect port 1
     tcp-check connect port ${s1_port}
-    server srv1 ${s1_addr}:${s1_port}
+    server srv1 ${s1_addr}:${s1_port} check inter 200ms rise 1 fall 1
 } -start
 
 syslog S1 -wait
