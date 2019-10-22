@@ -11,8 +11,9 @@
 varnishtest "Seamless reload issue with abns sockets"
 feature ignore_unknown_macro
 
-# expose-fd is available starting at version 1.8
-#REQUIRE_VERSION=1.8
+# expose-fd is available starting at version 1.8, but vtest requires the
+# master CLI, available in 1.9 and above.
+#REQUIRE_VERSION=1.9
 # abns@ sockets are not available on freebsd
 #EXCLUDE_TARGETS=freebsd,osx,generic
 #REGTEST_TYPE=bug
