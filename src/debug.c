@@ -20,6 +20,8 @@
 #include <common/debug.h>
 #include <common/hathreads.h>
 #include <common/initcall.h>
+#include <common/ist.h>
+#include <common/net_helper.h>
 #include <common/standard.h>
 
 #include <types/global.h>
@@ -386,6 +388,152 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	return 1;
 }
 
+/* parse a "debug dev stream" command */
+/*
+ *  debug dev stream [strm=<ptr>] [strm.f[{+-=}<flags>]] [txn.f[{+-=}<flags>]] \
+ *                   [req.f[{+-=}<flags>]] [res.f[{+-=}<flags>]]               \
+ *                   [sif.f[{+-=<flags>]] [sib.f[{+-=<flags>]]                 \
+ *                   [sif.s[=<state>]] [sib.s[=<state>]]
+ */
+static int debug_parse_cli_stream(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct stream *s = si_strm(appctx->owner);
+	int arg;
+	void *ptr;
+	int size;
+	const char *word, *end;
+	struct ist name;
+	char *msg = NULL;
+	char *endarg;
+	unsigned long long old, new;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	ptr = NULL; size = 0;
+
+	if (!*args[3]) {
+		return cli_err(appctx,
+			       "Usage: debug dev stream { <obj> <op> <value> | wake }*\n"
+			       "     <obj>   = {strm | strm.f | sif.f | sif.s | sif.x | sib.f | sib.s | sib.x |\n"
+			       "                txn.f | req.f | req.r | req.w | res.f | res.r | res.w}\n"
+			       "     <op>    = {'' (show) | '=' (assign) | '^' (xor) | '+' (or) | '-' (andnot)}\n"
+			       "     <value> = 'now' | 64-bit dec/hex integer (0x prefix supported)\n"
+			       "     'wake' wakes the stream asssigned to 'strm' (default: current)\n"
+			       );
+	}
+
+	for (arg = 3; *args[arg]; arg++) {
+		old = 0;
+		end = word = args[arg];
+		while (*end && *end != '=' && *end != '^' && *end != '+' && *end != '-')
+			end++;
+		name = ist2(word, end - word);
+		if (isteq(name, ist("strm"))) {
+			ptr = &s; size = sizeof(s);
+		} else if (isteq(name, ist("strm.f"))) {
+			ptr = &s->flags; size = sizeof(s->flags);
+		} else if (isteq(name, ist("txn.f"))) {
+			ptr = &s->txn->flags; size = sizeof(s->txn->flags);
+		} else if (isteq(name, ist("req.f"))) {
+			ptr = &s->req.flags; size = sizeof(s->req.flags);
+		} else if (isteq(name, ist("res.f"))) {
+			ptr = &s->res.flags; size = sizeof(s->res.flags);
+		} else if (isteq(name, ist("req.r"))) {
+			ptr = &s->req.rex; size = sizeof(s->req.rex);
+		} else if (isteq(name, ist("res.r"))) {
+			ptr = &s->res.rex; size = sizeof(s->res.rex);
+		} else if (isteq(name, ist("req.w"))) {
+			ptr = &s->req.wex; size = sizeof(s->req.wex);
+		} else if (isteq(name, ist("res.w"))) {
+			ptr = &s->res.wex; size = sizeof(s->res.wex);
+		} else if (isteq(name, ist("sif.f"))) {
+			ptr = &s->si[0].flags; size = sizeof(s->si[0].flags);
+		} else if (isteq(name, ist("sib.f"))) {
+			ptr = &s->si[1].flags; size = sizeof(s->si[1].flags);
+		} else if (isteq(name, ist("sif.x"))) {
+			ptr = &s->si[0].exp; size = sizeof(s->si[0].exp);
+		} else if (isteq(name, ist("sib.x"))) {
+			ptr = &s->si[1].exp; size = sizeof(s->si[1].exp);
+		} else if (isteq(name, ist("sif.s"))) {
+			ptr = &s->si[0].state; size = sizeof(s->si[0].state);
+		} else if (isteq(name, ist("sib.s"))) {
+			ptr = &s->si[1].state; size = sizeof(s->si[1].state);
+		} else if (isteq(name, ist("wake"))) {
+			if (s)
+				task_wakeup(s->task, TASK_WOKEN_TIMER|TASK_WOKEN_IO|TASK_WOKEN_MSG);
+			continue;
+		} else
+			return cli_dynerr(appctx, memprintf(&msg, "Unsupported field name: '%s'.\n", word));
+
+		/* read previous value */
+		if (s && ptr) {
+			if (size == 8)
+				old = read_u64(ptr);
+			else if (size == 4)
+				old = read_u32(ptr);
+			else if (size == 2)
+				old = read_u16(ptr);
+			else
+				old = *(const uint8_t *)ptr;
+		}
+
+		/* parse the new value . */
+		new = strtoll(end + 1, &endarg, 0);
+		if (end[1] && *endarg) {
+			if (strcmp(end + 1, "now") == 0)
+				new = now_ms;
+			else {
+				memprintf(&msg,
+					  "%sIgnoring unparsable value '%s' for field '%.*s'.\n",
+					  msg ? msg : "", end + 1, (int)(end - word), word);
+				continue;
+			}
+		}
+
+		switch (*end) {
+		case '\0': /* show */
+			memprintf(&msg, "%s%.*s=%#llx ", msg ? msg : "", (int)(end - word), word, old);
+			new = old; // do not change the value
+			break;
+
+		case '=': /* set */
+			break;
+
+		case '^': /* XOR */
+			new = old ^ new;
+			break;
+
+		case '+': /* OR */
+			new = old | new;
+			break;
+
+		case '-': /* AND NOT */
+			new = old & ~new;
+			break;
+
+		default:
+			break;
+		}
+
+		/* write the new value */
+		if (s && ptr && new != old) {
+			if (size == 8)
+				write_u64(ptr, new);
+			else if (size == 4)
+				write_u32(ptr, new);
+			else if (size == 2)
+				write_u16(ptr, new);
+			else
+				*(uint8_t *)ptr = new;
+		}
+	}
+
+	if (msg && *msg)
+		return cli_dynmsg(appctx, LOG_INFO, msg);
+	return 1;
+}
+
 #endif
 
 #ifndef USE_THREAD_DUMP
@@ -517,6 +665,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "log",   NULL }, "debug dev log   [msg] ...   : send this msg to global logs",    debug_parse_cli_log,   NULL },
 	{{ "debug", "dev", "loop",  NULL }, "debug dev loop  [ms]        : loop this long",                  debug_parse_cli_loop,  NULL },
 	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL },
+	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL },
 	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL },
 #endif
 	{ { "show", "threads", NULL },    "show threads   : show some threads debugging information",   NULL, cli_io_handler_show_threads, NULL },
