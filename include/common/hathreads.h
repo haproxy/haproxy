@@ -548,7 +548,6 @@ enum lock_label {
 	SSL_GEN_CERTS_LOCK,
 	PATREF_LOCK,
 	PATEXP_LOCK,
-	PATLRU_LOCK,
 	VARS_LOCK,
 	COMP_POOL_LOCK,
 	LUA_LOCK,
@@ -668,7 +667,6 @@ static inline const char *lock_label(enum lock_label label)
 	case SSL_GEN_CERTS_LOCK:   return "SSL_GEN_CERTS";
 	case PATREF_LOCK:          return "PATREF";
 	case PATEXP_LOCK:          return "PATEXP";
-	case PATLRU_LOCK:          return "PATLRU";
 	case VARS_LOCK:            return "VARS";
 	case COMP_POOL_LOCK:       return "COMP_POOL";
 	case LUA_LOCK:             return "LUA";

@@ -1845,7 +1845,8 @@ tune.pattern.cache-size <number>
   configuration line (including all those loaded from files). It automatically
   invalidates entries which are updated using HTTP actions or on the CLI. The
   default cache size is set to 10000 entries, which limits its footprint to
-  about 5 MB on 32-bit systems and 8 MB on 64-bit systems. There is a very low
+  about 5 MB per process/thread on 32-bit systems and 8 MB per process/thread
+  on 64-bit systems, as caches are thread/process local. There is a very low
   risk of collision in this cache, which is in the order of the size of the
   cache divided by 2^64. Typically, at 10000 requests per second with the
   default cache size of 10000 entries, there's 1% chance that a brute force

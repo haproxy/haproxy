@@ -154,8 +154,7 @@ static THREAD_LOCAL struct sample_data static_sample_data;
 /* This is the root of the list of all pattern_ref avalaibles. */
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
-static struct lru64_head *pat_lru_tree;
-__decl_spinlock(pat_lru_tree_lock);
+static THREAD_LOCAL struct lru64_head *pat_lru_tree;
 static unsigned long long pat_lru_seed;
 
 /*
@@ -487,15 +486,10 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -515,10 +509,8 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -534,15 +526,10 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -559,10 +546,8 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -604,15 +589,10 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -626,10 +606,8 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
 
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -674,15 +652,10 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -702,10 +675,8 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		break;
 	}
 
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -722,15 +693,10 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -750,10 +716,8 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 		break;
 	}
 
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -774,15 +738,10 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		HA_SPIN_LOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->revision);
-		if (!lru) {
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-		}
-		else if (lru->domain) {
+		if (lru && lru->domain) {
 			ret = lru->data;
-			HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
 			return ret;
 		}
 	}
@@ -816,10 +775,8 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 		}
 	}
  leave:
-	if (lru) {
+	if (lru)
 		lru64_commit(lru, ret, expr, expr->revision, NULL);
-		HA_SPIN_UNLOCK(PATLRU_LOCK, &pat_lru_tree_lock);
-	}
 
 	return ret;
 }
@@ -2685,9 +2642,6 @@ void pattern_finalize_config(void)
 	struct list pr = LIST_HEAD_INIT(pr);
 
 	pat_lru_seed = random();
-	if (global.tune.pattern_cache) {
-		pat_lru_tree = lru64_new(global.tune.pattern_cache);
-	}
 
 	list_for_each_entry(ref, &pattern_reference, list) {
 		if (ref->unique_id == -1) {
@@ -2726,3 +2680,19 @@ void pattern_finalize_config(void)
 	LIST_ADD(&pr, &pattern_reference);
 	LIST_DEL(&pr);
 }
+
+static int pattern_per_thread_lru_alloc()
+{
+	if (!global.tune.pattern_cache)
+		return 1;
+	pat_lru_tree = lru64_new(global.tune.pattern_cache);
+	return !!pat_lru_tree;
+}
+
+static void pattern_per_thread_lru_free()
+{
+	lru64_destroy(pat_lru_tree);
+}
+
+REGISTER_PER_THREAD_ALLOC(pattern_per_thread_lru_alloc);
+REGISTER_PER_THREAD_FREE(pattern_per_thread_lru_free);
