@@ -9943,7 +9943,7 @@ struct {
 	int type;
 	int (*load)(const char *path, char *payload, struct cert_key_and_chain *ckch, char **err);
 	/* add a parsing callback */
-} cert_exts[CERT_TYPE_MAX] = {
+} cert_exts[CERT_TYPE_MAX+1] = {
 	[CERT_TYPE_PEM]    = { "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	[CERT_TYPE_OCSP]   = { "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
@@ -9952,6 +9952,7 @@ struct {
 	[CERT_TYPE_SCTL]   = { "sctl",    CERT_TYPE_SCTL,     &ssl_sock_load_sctl_from_file },
 #endif
 	[CERT_TYPE_ISSUER] = { "issuer",  CERT_TYPE_ISSUER,   &ssl_sock_load_issuer_file_into_ckch },
+	[CERT_TYPE_MAX]    = { NULL,      CERT_TYPE_MAX,      NULL },
 };
 
 /* release function of the  `set ssl cert' command, free things and unlock the spinlock */
@@ -10188,7 +10189,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* check which type of file we want to update */
-	for (i = 0; i < CERT_TYPE_MAX; i++) {
+	for (i = 0; cert_exts[i].type < CERT_TYPE_MAX; i++) {
 		end = strrchr(buf->area, '.');
 		if (end && *cert_exts[i].ext && (!strcmp(end + 1, cert_exts[i].ext))) {
 			*end = '\0';
