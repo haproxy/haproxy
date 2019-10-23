@@ -1580,10 +1580,6 @@ smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void
  */
 static int val_fc_time_value(struct arg *args, char **err)
 {
-	if (args[0].type == ARGT_STOP) {
-		args[0].type = ARGT_SINT;
-		args[0].data.sint = TIME_UNIT_MS;
-	}
 	if (args[0].type == ARGT_STR) {
 		if (strcmp(args[0].data.str.area, "us") == 0) {
 			free(args[0].data.str.area);
