@@ -172,6 +172,15 @@ struct appctx {
 			struct peers *peers; /* "peers" section being currently dumped. */
 			struct peer *peer;   /* "peer" being currently dumped. */
 		} cfgpeers;
+		struct {
+			char *path;
+			int it;
+			struct {
+				struct ckch_store *old_ckchs;
+				struct ckch_store *new_ckchs;
+				struct ckch_inst *next_ckchi;
+			} n[2];
+		} ssl;
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */
