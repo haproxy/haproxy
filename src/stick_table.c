@@ -927,7 +927,7 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		/* The stick table require a 32bit unsigned int, "sint" is a
 		 * signed 64 it, so we can convert it inplace.
 		 */
-		*(unsigned int *)&smp->data.u.sint = (unsigned int)smp->data.u.sint;
+		smp->data.u.sint = (unsigned int)smp->data.u.sint;
 		static_table_key.key = &smp->data.u.sint;
 		static_table_key.key_len = 4;
 		break;
