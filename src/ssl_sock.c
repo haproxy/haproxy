@@ -3552,11 +3552,14 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 #else
 	{ /* legacy compat (< openssl 1.0.2) */
 		X509 *ca;
-		while ((ca = sk_X509_shift(ckch->chain)))
+		STACK_OF(X509) *chain;
+		chain = X509_chain_up_ref(ckch->chain);
+		while ((ca = sk_X509_shift(chain)))
 			if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
 				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
 					  err && *err ? *err : "", path);
 				X509_free(ca);
+				sk_X509_pop_free(chain, X509_free);
 				errcode |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
