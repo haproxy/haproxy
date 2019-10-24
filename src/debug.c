@@ -206,7 +206,6 @@ void ha_panic()
 		abort();
 }
 
-#if defined(DEBUG_DEV)
 /* parse a "debug dev exit" command. It always returns 1, though it should never return. */
 static int debug_parse_cli_exit(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -301,6 +300,7 @@ static int debug_parse_cli_panic(char **args, char *payload, struct appctx *appc
 }
 
 /* parse a "debug dev exec" command. It always returns 1. */
+#if defined(DEBUG_DEV)
 static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	FILE *f;
@@ -336,6 +336,7 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 	trash.area[trash.data] = 0;
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
+#endif
 
 /* parse a "debug dev hex" command. It always returns 1. */
 static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx, void *private)
@@ -539,8 +540,6 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
-#endif
-
 #ifndef USE_THREAD_DUMP
 
 /* This function dumps all threads' state to the trash. This version is the
@@ -661,19 +660,19 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{{ "debug", "dev", "close", NULL }, "debug dev close <fd>        : close this file descriptor",      debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "delay", NULL }, "debug dev delay [ms]        : sleep this long",                 debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
-	{{ "debug", "dev", "close", NULL }, "debug dev close <fd>        : close this file descriptor",      debug_parse_cli_close, NULL },
-	{{ "debug", "dev", "delay", NULL }, "debug dev delay [ms]        : sleep this long",                 debug_parse_cli_delay, NULL },
-	{{ "debug", "dev", "exec",  NULL }, "debug dev exec  [cmd] ...   : show this command's output",      debug_parse_cli_exec,  NULL },
-	{{ "debug", "dev", "exit",  NULL }, "debug dev exit  [code]      : immediately exit the process",    debug_parse_cli_exit,  NULL },
-	{{ "debug", "dev", "hex",   NULL }, "debug dev hex   <addr> [len]: dump a memory area",              debug_parse_cli_hex,   NULL },
-	{{ "debug", "dev", "log",   NULL }, "debug dev log   [msg] ...   : send this msg to global logs",    debug_parse_cli_log,   NULL },
-	{{ "debug", "dev", "loop",  NULL }, "debug dev loop  [ms]        : loop this long",                  debug_parse_cli_loop,  NULL },
-	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL },
-	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL },
-	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL },
+	{{ "debug", "dev", "exec",  NULL }, "debug dev exec  [cmd] ...   : show this command's output",      debug_parse_cli_exec,  NULL, NULL, NULL, ACCESS_EXPERT },
 #endif
-	{ { "show", "threads", NULL },    "show threads   : show some threads debugging information",   NULL, cli_io_handler_show_threads, NULL },
+	{{ "debug", "dev", "exit",  NULL }, "debug dev exit  [code]      : immediately exit the process",    debug_parse_cli_exit,  NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "hex",   NULL }, "debug dev hex   <addr> [len]: dump a memory area",              debug_parse_cli_hex,   NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "log",   NULL }, "debug dev log   [msg] ...   : send this msg to global logs",    debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "loop",  NULL }, "debug dev loop  [ms]        : loop this long",                  debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "show", "threads", NULL, NULL }, "show threads   : show some threads debugging information",  NULL, cli_io_handler_show_threads, NULL },
 	{{},}
 }};
 

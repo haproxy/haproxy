@@ -1459,10 +1459,14 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
 debug dev <command> [args]*
-  Call a developer-specific command. Only supported when haproxy is built with
-  DEBUG_DEV defined. Supported commands are then listed in the help message.
-  All of these commands require admin privileges, and must never appear on a
-  production system as most of them are unsafe and dangerous.
+  Call a developer-specific command. Only supported on a CLI connection running
+  in expert mode (see "expert-mode on"). Such commands are extremely dangerous
+  and not forgiving, any misuse may result in a crash of the process. They are
+  intended for experts only, and must really not be used unless told to do so.
+  Some of them are only available when haproxy is built with DEBUG_DEV defined
+  because they may have security implications. All of these commands require
+  admin privileges, and are purposely not documented to avoid encouraging their
+  use by people who are not at ease with the source code.
 
 del acl <acl> [<key>|#<ref>]
   Delete all the acl entries from the acl <acl> corresponding to the key <key>.
