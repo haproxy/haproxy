@@ -363,6 +363,86 @@ static struct {
 	char *path;
 } ckchs_transaction;
 
+/*
+ * deduplicate cafile
+ */
+struct cafile_entry {
+	X509_STORE *ca_store;
+	struct ebmb_node node;
+	char path[0];
+};
+
+static struct eb_root cafile_tree = EB_ROOT_UNIQUE;
+
+static X509_STORE* ssl_store_get0_locations_file(char *path)
+{
+	struct ebmb_node *eb;
+
+	eb = ebst_lookup(&cafile_tree, path);
+	if (eb) {
+		struct cafile_entry *ca_e;
+		ca_e = ebmb_entry(eb, struct cafile_entry, node);
+		return ca_e->ca_store;
+	}
+	return NULL;
+}
+
+static int ssl_store_load_locations_file(char *path)
+{
+	if (ssl_store_get0_locations_file(path) == NULL) {
+		struct cafile_entry *ca_e;
+		X509_STORE *store = X509_STORE_new();
+		if (X509_STORE_load_locations(store, path, NULL)) {
+			int pathlen;
+			pathlen = strlen(path);
+			ca_e = calloc(1, sizeof(*ca_e) + pathlen + 1);
+			if (ca_e) {
+				memcpy(ca_e->path, path, pathlen + 1);
+				ca_e->ca_store = store;
+				ebst_insert(&cafile_tree, &ca_e->node);
+				return 1;
+			}
+		}
+		X509_STORE_free(store);
+		return 0;
+	}
+	return 1;
+}
+
+/* mimic what X509_STORE_load_locations do with store_ctx */
+static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
+{
+	X509_STORE *store;
+	store = ssl_store_get0_locations_file(path);
+	if (store_ctx && store) {
+		int i;
+		X509_OBJECT *obj;
+		STACK_OF(X509_OBJECT) *objs = X509_STORE_get0_objects(store);
+		for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+			obj = sk_X509_OBJECT_value(objs, i);
+			switch (X509_OBJECT_get_type(obj)) {
+			case X509_LU_X509:
+				X509_STORE_add_cert(store_ctx, X509_OBJECT_get0_X509(obj));
+				break;
+			case X509_LU_CRL:
+				X509_STORE_add_crl(store_ctx, X509_OBJECT_get0_X509_CRL(obj));
+				break;
+			default:
+				break;
+			}
+		}
+		return 1;
+	}
+	return 0;
+}
+
+/* SSL_CTX_load_verify_locations substitute, internaly call X509_STORE_load_locations */
+static int ssl_set_verify_locations_file(SSL_CTX *ctx, char *path)
+{
+	X509_STORE *store_ctx = SSL_CTX_get_cert_store(ctx);
+	return ssl_set_cert_crl_file(store_ctx, path);
+}
+
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
 	unsigned long long int xxh64;
@@ -4872,9 +4952,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		char *ca_file = (ssl_conf && ssl_conf->ca_file) ? ssl_conf->ca_file : bind_conf->ssl_conf.ca_file;
 		char *crl_file = (ssl_conf && ssl_conf->crl_file) ? ssl_conf->crl_file : bind_conf->ssl_conf.crl_file;
 		if (ca_file) {
-			/* load CAfile to verify */
-			if (!SSL_CTX_load_verify_locations(ctx, ca_file, NULL)) {
-				memprintf(err, "%sProxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
+			/* set CAfile to verify */
+			if (!ssl_set_verify_locations_file(ctx, ca_file)) {
+				memprintf(err, "%sProxy '%s': unable to set CA file '%s' for bind '%s' at [%s:%d].\n",
 				          err && *err ? *err : "", curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
@@ -5372,9 +5452,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	                   (srv->ssl_ctx.verify_host || (verify & SSL_VERIFY_PEER)) ? ssl_sock_srv_verifycbk : NULL);
 	if (verify & SSL_VERIFY_PEER) {
 		if (srv->ssl_ctx.ca_file) {
-			/* load CAfile to verify */
-			if (!SSL_CTX_load_verify_locations(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file, NULL)) {
-				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to load CA file '%s'.\n",
+			/* set CAfile to verify */
+			if (!ssl_set_verify_locations_file(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file)) {
+				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to set CA file '%s'.\n",
 					 curproxy->id, srv->id,
 					 srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
 				cfgerr++;
@@ -8324,6 +8404,10 @@ static int ssl_bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, st
 	else
 		memprintf(&conf->ca_file, "%s", args[cur_arg + 1]);
 
+	if (!ssl_store_load_locations_file(conf->ca_file)) {
+		memprintf(err, "'%s' : unable to load %s", args[cur_arg], conf->ca_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 }
 static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -9081,6 +9165,10 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 	else
 		memprintf(&newsrv->ssl_ctx.ca_file, "%s", args[*cur_arg + 1]);
 
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file)) {
+		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.ca_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 }
 
