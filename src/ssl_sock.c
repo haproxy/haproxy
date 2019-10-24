@@ -3196,6 +3196,11 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 			goto end;
 		}
 
+	/* no chain */
+	if (ckch->chain == NULL) {
+		ckch->chain = sk_X509_new_null();
+	}
+
 	ret = ERR_get_error();
 	if (ret && (ERR_GET_LIB(ret) != ERR_LIB_PEM && ERR_GET_REASON(ret) != PEM_R_NO_START_LINE)) {
 		memprintf(err, "%sunable to load certificate chain from file '%s'.\n",
