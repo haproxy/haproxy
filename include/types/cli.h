@@ -34,6 +34,8 @@
 #define ACCESS_MASTER       0x8  /* works with the master (and every other processes) */
 #define ACCESS_MASTER_ONLY  0x10 /* only works with the worker */
 
+#define ACCESS_EXPERT       0x20 /* access to dangerous commands reserved to experts */
+
 struct cli_kw {
 	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
 				 separated keywords combination */

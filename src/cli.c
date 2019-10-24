@@ -125,6 +125,10 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 			if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 				goto next_kw;
 
+			/* only show expert commands in expert mode */
+			if ((kw->level & ~appctx->cli_level) & ACCESS_EXPERT)
+				goto next_kw;
+
 			if (kw->usage)
 				chunk_appendf(tmp, "  %s\n", kw->usage);
 
@@ -565,6 +569,10 @@ static int cli_parse_request(struct appctx *appctx)
 
 	/* in master don't displays if we don't have the master bits */
 	if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
+		return 0;
+
+	/* only accept expert commands in expert mode */
+	if ((kw->level & ~appctx->cli_level) & ACCESS_EXPERT)
 		return 0;
 
 	appctx->io_handler = kw->io_handler;
@@ -1441,6 +1449,25 @@ static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, 
 		appctx->cli_level &= ~ACCESS_LVL_MASK;
 		appctx->cli_level |= ACCESS_LVL_USER;
 	}
+	appctx->cli_level &= ~ACCESS_EXPERT;
+	return 1;
+}
+
+
+/* parse and set the CLI expert-mode dynamically */
+static int cli_parse_expert_mode(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[1])
+		return (appctx->cli_level & ACCESS_EXPERT)
+			? cli_msg(appctx, LOG_INFO, "expert-mode is ON\n")
+			: cli_msg(appctx, LOG_INFO, "expert-mode is OFF\n");
+
+	appctx->cli_level &= ~ACCESS_EXPERT;
+	if (strcmp(args[1], "on") == 0)
+		appctx->cli_level |= ACCESS_EXPERT;
 	return 1;
 }
 
@@ -2671,6 +2698,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "operator", NULL },  "operator       : lower the level of the current CLI session to operator", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },      "user           : lower the level of the current CLI session to user", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
+	{ { "expert-mode", NULL },  NULL,  cli_parse_expert_mode, NULL }, // not listed
 	{{},}
 }};
 

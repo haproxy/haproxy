@@ -1586,6 +1586,18 @@ enable server <backend>/<server>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+expert-mode [on|off]
+  Without options, this indicates whether the expert mode is enabled or
+  disabled on the current connection. When passed "on", it turns the expert
+  mode on for the current CLI connection only. With "off" it turns it off. The
+  expert mode enables displaying of expert commands that can be extremely
+  dangerous for the process and which may occasionally help developers collect
+  important information about complex bugs. Any misuse of these features will
+  likely lead to a process crash. Do not use this option without being invited
+  to do so. Note that this command is purposely not listed in the help message.
+  This command is only accessible in admin level. Changing to another level
+  automatically resets the expert mode.
+
 get map <map> <value>
 get acl <acl> <value>
   Lookup the value <value> in the map <map> or in the ACL <acl>. <map> or <acl>
@@ -1841,11 +1853,11 @@ show cli level
 
 operator
   Decrease the CLI level of the current CLI session to operator. It can't be
-  increase. See also "show cli level"
+  increased. It also drops expert mode. See also "show cli level".
 
 user
   Decrease the CLI level of the current CLI session to user. It can't be
-  increase. See also "show cli level"
+  increased. It also drops expert mode. See also "show cli level".
 
 show activity
   Reports some counters about internal events that will help developers and
