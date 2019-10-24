@@ -3488,7 +3488,8 @@ static int h2_send(struct h2c *h2c)
 			offer_buffers(NULL, tasks_run_queue);
 
 		/* wrote at least one byte, the buffer is not full anymore */
-		h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
+		if (sent)
+			h2c->flags &= ~(H2_CF_MUX_MFULL | H2_CF_DEM_MROOM);
 	}
 
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
