@@ -460,14 +460,14 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 		} else if (isteq(name, ist("sib.s"))) {
 			ptr = &s->si[1].state; size = sizeof(s->si[1].state);
 		} else if (isteq(name, ist("wake"))) {
-			if (s)
+			if (s && may_access(s) && may_access((void *)s + sizeof(*s) - 1))
 				task_wakeup(s->task, TASK_WOKEN_TIMER|TASK_WOKEN_IO|TASK_WOKEN_MSG);
 			continue;
 		} else
 			return cli_dynerr(appctx, memprintf(&msg, "Unsupported field name: '%s'.\n", word));
 
 		/* read previous value */
-		if (s && ptr) {
+		if ((s || ptr == &s) && ptr && may_access(ptr) && may_access(ptr + size - 1)) {
 			if (size == 8)
 				old = read_u64(ptr);
 			else if (size == 4)
@@ -476,6 +476,11 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 				old = read_u16(ptr);
 			else
 				old = *(const uint8_t *)ptr;
+		} else {
+			memprintf(&msg,
+				  "%sSkipping inaccessible pointer %p for field '%.*s'.\n",
+				  msg ? msg : "", ptr, (int)(end - word), word);
+			continue;
 		}
 
 		/* parse the new value . */
@@ -517,7 +522,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 		}
 
 		/* write the new value */
-		if (s && ptr && new != old) {
+		if (new != old) {
 			if (size == 8)
 				write_u64(ptr, new);
 			else if (size == 4)
