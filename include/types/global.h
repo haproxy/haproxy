@@ -75,17 +75,6 @@
 
 #define GTUNE_USE_EVPORTS        (1<<14)
 
-/* Access level for a stats socket */
-#define ACCESS_LVL_NONE     0
-#define ACCESS_LVL_USER     1
-#define ACCESS_LVL_OPER     2
-#define ACCESS_LVL_ADMIN    3
-#define ACCESS_LVL_MASK     0x3
-
-#define ACCESS_FD_LISTENERS 0x4  /* expose listeners FDs on stats socket */
-#define ACCESS_MASTER       0x8  /* works with the master (and every other processes) */
-#define ACCESS_MASTER_ONLY  0x10 /* only works with the worker */
-
 /* SSL server verify mode */
 enum {
 	SSL_SERVER_VERIFY_NONE = 0,
