@@ -368,6 +368,7 @@ static struct {
  */
 struct cafile_entry {
 	X509_STORE *ca_store;
+	STACK_OF(X509_NAME) *ca_list;
 	struct ebmb_node node;
 	char path[0];
 };
@@ -441,6 +442,87 @@ static int ssl_set_verify_locations_file(SSL_CTX *ctx, char *path)
 {
 	X509_STORE *store_ctx = SSL_CTX_get_cert_store(ctx);
 	return ssl_set_cert_crl_file(store_ctx, path);
+}
+
+/*
+   Extract CA_list from CA_file already in tree.
+   Duplicate ca_name is tracking with ebtree. It's simplify openssl compatibility.
+   Return a shared ca_list: SSL_dup_CA_list must be used before set it on SSL_CTX.
+*/
+static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
+{
+	struct ebmb_node *eb;
+	struct cafile_entry *ca_e;
+
+	eb = ebst_lookup(&cafile_tree, path);
+	if (!eb)
+		return NULL;
+	ca_e = ebmb_entry(eb, struct cafile_entry, node);
+
+	if (ca_e->ca_list == NULL) {
+		int i;
+		unsigned long key;
+		struct eb_root ca_name_tree = EB_ROOT;
+		struct eb64_node *node, *back;
+		struct {
+			struct eb64_node node;
+			X509_NAME *xname;
+		} *ca_name;
+		STACK_OF(X509_OBJECT) *objs;
+		STACK_OF(X509_NAME) *skn;
+		X509 *x;
+		X509_NAME *xn;
+
+		skn = sk_X509_NAME_new_null();
+		/* take x509 from cafile_tree */
+		objs = X509_STORE_get0_objects(ca_e->ca_store);
+		for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+			x = X509_OBJECT_get0_X509(sk_X509_OBJECT_value(objs, i));
+			if (!x)
+				continue;
+			xn = X509_get_subject_name(x);
+			if (!xn)
+				continue;
+			/* Check for duplicates. */
+			key = X509_NAME_hash(xn);
+			for (node = eb64_lookup(&ca_name_tree, key), ca_name = NULL;
+			     node && ca_name == NULL;
+			     node = eb64_next(node)) {
+				ca_name = container_of(node, typeof(*ca_name), node);
+				if (X509_NAME_cmp(xn, ca_name->xname) != 0)
+					ca_name = NULL;
+			}
+			/* find a duplicate */
+			if (ca_name)
+				continue;
+			ca_name = calloc(1, sizeof *ca_name);
+			xn = X509_NAME_dup(xn);
+			if (!ca_name ||
+			    !xn ||
+			    !sk_X509_NAME_push(skn, xn)) {
+				    free(ca_name);
+				    X509_NAME_free(xn);
+				    sk_X509_NAME_pop_free(skn, X509_NAME_free);
+				    sk_X509_NAME_free(skn);
+				    skn = NULL;
+				    break;
+			}
+			ca_name->node.key = key;
+			ca_name->xname = xn;
+			eb64_insert(&ca_name_tree, &ca_name->node);
+		}
+		ca_e->ca_list = skn;
+		/* remove temporary ca_name tree */
+		node = eb64_first(&ca_name_tree);
+		while (node) {
+			ca_name = container_of(node, typeof(*ca_name), node);
+			back = eb64_next(node);
+			eb64_delete(node);
+			free(ca_name);
+			node = back;
+		}
+	}
+	return ca_e->ca_list;
 }
 
 /* This memory pool is used for capturing clienthello parameters. */
@@ -4960,7 +5042,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			}
 			if (!((ssl_conf && ssl_conf->no_ca_names) || bind_conf->ssl_conf.no_ca_names)) {
 				/* set CA names for client cert request, function returns void */
-				SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(ca_file));
+				SSL_CTX_set_client_CA_list(ctx, SSL_dup_CA_list(ssl_get_client_ca_file(ca_file)));
 			}
 		}
 		else {
