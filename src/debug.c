@@ -443,35 +443,35 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			end++;
 		name = ist2(word, end - word);
 		if (isteq(name, ist("strm"))) {
-			ptr = &s; size = sizeof(s);
+			ptr = (!s || !may_access(s)) ? NULL : &s; size = sizeof(s);
 		} else if (isteq(name, ist("strm.f"))) {
-			ptr = &s->flags; size = sizeof(s->flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->flags; size = sizeof(s->flags);
 		} else if (isteq(name, ist("txn.f"))) {
-			ptr = &s->txn->flags; size = sizeof(s->txn->flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->txn->flags; size = sizeof(s->txn->flags);
 		} else if (isteq(name, ist("req.f"))) {
-			ptr = &s->req.flags; size = sizeof(s->req.flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->req.flags; size = sizeof(s->req.flags);
 		} else if (isteq(name, ist("res.f"))) {
-			ptr = &s->res.flags; size = sizeof(s->res.flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->res.flags; size = sizeof(s->res.flags);
 		} else if (isteq(name, ist("req.r"))) {
-			ptr = &s->req.rex; size = sizeof(s->req.rex);
+			ptr = (!s || !may_access(s)) ? NULL : &s->req.rex; size = sizeof(s->req.rex);
 		} else if (isteq(name, ist("res.r"))) {
-			ptr = &s->res.rex; size = sizeof(s->res.rex);
+			ptr = (!s || !may_access(s)) ? NULL : &s->res.rex; size = sizeof(s->res.rex);
 		} else if (isteq(name, ist("req.w"))) {
-			ptr = &s->req.wex; size = sizeof(s->req.wex);
+			ptr = (!s || !may_access(s)) ? NULL : &s->req.wex; size = sizeof(s->req.wex);
 		} else if (isteq(name, ist("res.w"))) {
-			ptr = &s->res.wex; size = sizeof(s->res.wex);
+			ptr = (!s || !may_access(s)) ? NULL : &s->res.wex; size = sizeof(s->res.wex);
 		} else if (isteq(name, ist("sif.f"))) {
-			ptr = &s->si[0].flags; size = sizeof(s->si[0].flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[0].flags; size = sizeof(s->si[0].flags);
 		} else if (isteq(name, ist("sib.f"))) {
-			ptr = &s->si[1].flags; size = sizeof(s->si[1].flags);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[1].flags; size = sizeof(s->si[1].flags);
 		} else if (isteq(name, ist("sif.x"))) {
-			ptr = &s->si[0].exp; size = sizeof(s->si[0].exp);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[0].exp; size = sizeof(s->si[0].exp);
 		} else if (isteq(name, ist("sib.x"))) {
-			ptr = &s->si[1].exp; size = sizeof(s->si[1].exp);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[1].exp; size = sizeof(s->si[1].exp);
 		} else if (isteq(name, ist("sif.s"))) {
-			ptr = &s->si[0].state; size = sizeof(s->si[0].state);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[0].state; size = sizeof(s->si[0].state);
 		} else if (isteq(name, ist("sib.s"))) {
-			ptr = &s->si[1].state; size = sizeof(s->si[1].state);
+			ptr = (!s || !may_access(s)) ? NULL : &s->si[1].state; size = sizeof(s->si[1].state);
 		} else if (isteq(name, ist("wake"))) {
 			if (s && may_access(s) && may_access((void *)s + sizeof(*s) - 1))
 				task_wakeup(s->task, TASK_WOKEN_TIMER|TASK_WOKEN_IO|TASK_WOKEN_MSG);
