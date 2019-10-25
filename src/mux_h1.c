@@ -2727,6 +2727,19 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 }
 #endif
 
+static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
+{
+	int ret = 0;
+	switch (mux_ctl) {
+	case MUX_STATUS:
+		if (conn->flags & CO_FL_CONNECTED)
+			ret |= MUX_STATUS_READY;
+		return ret;
+	default:
+		return -1;
+	}
+}
+
 /* for debugging with CLI's "show fd" command */
 static void h1_show_fd(struct buffer *msg, struct connection *conn)
 {
@@ -2974,6 +2987,7 @@ static const struct mux_ops mux_h1_ops = {
 	.shutw       = h1_shutw,
 	.show_fd     = h1_show_fd,
 	.reset       = h1_reset,
+	.ctl         = h1_ctl,
 	.flags       = MX_FL_HTX,
 	.name        = "H1",
 };

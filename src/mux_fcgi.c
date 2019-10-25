@@ -3000,6 +3000,20 @@ static int fcgi_wake(struct connection *conn)
 	return (fcgi_process(fconn));
 }
 
+
+static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
+{
+	int ret = 0;
+	switch (mux_ctl) {
+	case MUX_STATUS:
+		if (conn->flags & CO_FL_CONNECTED)
+			ret |= MUX_STATUS_READY;
+		return ret;
+	default:
+		return -1;
+	}
+}
+
 /* Connection timeout management. The principle is that if there's no receipt
  * nor sending for a certain amount of time, the connection is closed. If the
  * MUX buffer still has lying data or is not allocatable, the connection is
@@ -4050,6 +4064,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.unsubscribe   = fcgi_unsubscribe,
 	.shutr         = fcgi_shutr,
 	.shutw         = fcgi_shutw,
+	.ctl           = fcgi_ctl,
 	.show_fd       = fcgi_show_fd,
 	.flags         = MX_FL_HTX,
 	.name          = "FCGI",

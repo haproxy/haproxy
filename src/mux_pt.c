@@ -333,6 +333,19 @@ static int mux_pt_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 }
 #endif
 
+static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
+{
+	int ret = 0;
+	switch (mux_ctl) {
+	case MUX_STATUS:
+		if (conn->flags & CO_FL_CONNECTED)
+			ret |= MUX_STATUS_READY;
+		return ret;
+	default:
+		return -1;
+	}
+}
+
 /* The mux operations */
 const struct mux_ops mux_pt_ops = {
 	.init = mux_pt_init,
@@ -351,6 +364,7 @@ const struct mux_ops mux_pt_ops = {
 	.avail_streams = mux_pt_avail_streams,
 	.used_streams = mux_pt_used_streams,
 	.destroy = mux_pt_destroy_meth,
+	.ctl = mux_pt_ctl,
 	.shutr = mux_pt_shutr,
 	.shutw = mux_pt_shutw,
 	.flags = MX_FL_NONE,

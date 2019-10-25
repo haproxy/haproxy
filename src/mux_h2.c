@@ -3792,6 +3792,24 @@ static const struct conn_stream *h2_get_first_cs(const struct connection *conn)
 	return NULL;
 }
 
+static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
+{
+	int ret = 0;
+	struct h2c *h2c = conn->ctx;
+
+	switch (mux_ctl) {
+	case MUX_STATUS:
+		/* Only consider the mux to be ready if we're done with
+		 * the preface and settings, and we had no error.
+		 */
+		if (h2c->st0 >= H2_CS_FRAME_H && h2c->st0 < H2_CS_ERROR)
+			ret |= MUX_STATUS_READY;
+		return ret;
+	default:
+		return -1;
+	}
+}
+
 /*
  * Destroy the mux and the associated connection, if it is no longer used
  */
@@ -6095,6 +6113,7 @@ static const struct mux_ops h2_ops = {
 	.used_streams = h2_used_streams,
 	.shutr = h2_shutr,
 	.shutw = h2_shutw,
+	.ctl = h2_ctl,
 	.show_fd = h2_show_fd,
 	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX,
 	.name = "H2",
