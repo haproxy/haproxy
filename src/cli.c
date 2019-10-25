@@ -577,10 +577,19 @@ static int cli_parse_request(struct appctx *appctx)
 
 	appctx->io_handler = kw->io_handler;
 	appctx->io_release = kw->io_release;
-	/* kw->parse could set its own io_handler or ip_release handler */
-	if ((!kw->parse || kw->parse(args, payload, appctx, kw->private) == 0) && appctx->io_handler) {
-		appctx->st0 = CLI_ST_CALLBACK;
-	}
+
+	if (kw->parse && kw->parse(args, payload, appctx, kw->private) != 0)
+		goto fail;
+
+	/* kw->parse could set its own io_handler or io_release handler */
+	if (!appctx->io_handler)
+		goto fail;
+
+	appctx->st0 = CLI_ST_CALLBACK;
+	return 1;
+fail:
+	appctx->io_handler = NULL;
+	appctx->io_release = NULL;
 	return 1;
 }
 
