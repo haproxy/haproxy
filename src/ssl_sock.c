@@ -3097,7 +3097,7 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 {
 	BIO *in = NULL;
 	int ret = 1;
-	X509 *ca = NULL;
+	X509 *ca;
 	X509 *cert = NULL;
 	EVP_PKEY *key = NULL;
 	DH *dh;
@@ -3172,10 +3172,12 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	if (ckch->key) /* free the previous key */
 		EVP_PKEY_free(ckch->key);
 	ckch->key = key;
+	key = NULL;
 
 	if (ckch->cert) /* free the previous cert */
 		X509_free(ckch->cert);
 	ckch->cert = cert;
+	cert = NULL;
 
 	/* Look for a Certificate Chain */
 	ca = PEM_read_bio_X509(in, NULL, NULL, NULL);
@@ -3215,12 +3217,10 @@ end:
 	ERR_clear_error();
 	if (in)
 		BIO_free(in);
-	if (ret != 0) {
-		if (key)
-			EVP_PKEY_free(key);
-		if (cert)
-			X509_free(cert);
-	}
+	if (key)
+		EVP_PKEY_free(key);
+	if (cert)
+		X509_free(cert);
 
 	return ret;
 }
