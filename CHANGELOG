@@ -1,6 +1,163 @@
 ChangeLog :
 ===========
 
+2019/10/25 : 2.1-dev3
+    - MINOR: mux-h2/trace: missing conn pointer in demux full message
+    - MINOR: mux-h2: add a per-connection list of blocked streams
+    - BUILD: ebtree: make eb_is_empty() and eb_is_dup() take a const
+    - BUG/MEDIUM: mux-h2: do not enforce timeout on long connections
+    - BUG/MEDIUM: tasks: Don't forget to decrement tasks_run_queue.
+    - BUG/MINOR: peers: crash on reload without local peer.
+    - BUG/MINOR: mux-h2/trace: Fix traces on h2c initialization
+    - MINOR: h1-htx: Update h1_copy_msg_data() to ease the traces in the mux-h1
+    - MINOR: htx: Adapt htx_dump() to be used from traces
+    - MINOR: mux-h1/trace: register a new trace source with its events
+    - MINOR: proxy: Store http-send-name-header in lower case
+    - MINOR: http: Remove headers matching the name of http-send-name-header option
+    - BUG/MINOR: mux-h1: Adjust header case when the server name is add to a request
+    - BUG/MINOR: mux-h1: Adjust header case when chunked encoding is add to a message
+    - MINOR: mux-h1: Try to wakeup the stream on output buffer allocation
+    - MINOR: fcgi: Add function to get the string representation of a record type
+    - MINOR: mux-fcgi/trace: Register a new trace source with its events
+    - BUG/MEDIUM: cache: make sure not to cache requests with absolute-uri
+    - DOC: clarify some points around http-send-name-header's behavior
+    - MEDIUM: mux-h2: support emitting CONTINUATION frames after HEADERS
+    - BUG/MINOR: mux-h1/mux-fcgi/trace: Fix position of the 4th arg in some traces
+    - DOC: fix typo in Prometheus exporter doc
+    - MINOR: h2: clarify the rules for how to convert an H2 request to HTX
+    - MINOR: htx: Add 2 flags on the start-line to have more info about the uri
+    - MINOR: http: Add a function to get the authority into a URI
+    - MINOR: h1-htx: Set the flag HTX_SL_F_HAS_AUTHORITY during the request parsing
+    - MEDIUM: http-htx: Keep the Host header and the request start-line synchronized
+    - MINOR: h1-htx: Only use the path of a normalized URI to format a request line
+    - MEDIUM: h2: make the request parser rebuild a complete URI
+    - MINOR: h2: report in the HTX flags when the request has an authority
+    - MEDIUM: mux-h2: do not map Host to :authority on output
+    - MEDIUM: h2: use the normalized URI encoding for absolute form requests
+    - MINOR: stats: mention in the help message support for "json" and "typed"
+    - MINOR: stats: get rid of the ST_CONVDONE flag
+    - MINOR: stats: replace the ST_* uri_auth flags with STAT_*
+    - MINOR: stats: always merge the uri_auth flags into the appctx flags
+    - MINOR: stats: set the appctx flags when initializing the applet only
+    - MINOR: stats: get rid of the STAT_SHOWADMIN flag
+    - MINOR: stats: make stats_dump_fields_json() directly take flags
+    - MINOR: stats: uniformize the calling convention of the dump functions
+    - MINOR: stats: support the "desc" output format modifier for info and stat
+    - MINOR: stats: prepare to add a description with each stat/info field
+    - MINOR: stats: make "show stat" and "show info"
+    - MINOR: stats: fill all the descriptions for "show info" and "show stat"
+    - BUG/MEDIUM: applet: always check a fast running applet's activity before killing
+    - BUILD: stats: fix missing '=' sign in array declaration
+    - MINOR: lists: add new macro LIST_SPLICE_END_DETACHED
+    - MINOR: list: add new macro MT_LIST_BEHEAD
+    - MEDIUM: task: Split the tasklet list into two lists.
+    - MINOR: h2: Document traps to be avoided on multithread.
+    - MINOR: lists: Try to use local variables instead of macro arguments.
+    - MINOR: lists: Fix alignement of \ when relevant.
+    - MINOR: mux-h2: also support emitting CONTINUATION on trailers
+    - MINOR: ssl: crt-list do ckchn_lookup
+    - REORG: ssl: rename ckch_node to ckch_store
+    - REORG: ssl: move structures to ssl_sock.h
+    - MINOR: ssl: initialize the sni_keytypes_map as EB_ROOT
+    - MINOR: ssl: initialize explicitly the sni_ctx trees
+    - BUG/MINOR: ssl: abort on sni allocation failure
+    - BUG/MINOR: ssl: free the sni_keytype nodes
+    - BUG/MINOR: ssl: abort on sni_keytypes allocation failure
+    - MEDIUM: ssl: introduce the ckch instance structure
+    - MEDIUM: ssl: split ssl_sock_add_cert_sni()
+    - MINOR: ssl: ssl_sock_load_ckchn() can properly fail
+    - MINOR: ssl: ssl_sock_load_multi_ckchs() can properly fail
+    - MEDIUM: ssl: ssl_sock_load_ckchs() alloc a ckch_inst
+    - MINOR: ssl: ssl_sock_load_crt_file_into_ckch() is filling from a BIO
+    - MEDIUM: ssl/cli: 'set ssl cert' updates a certificate from the CLI
+    - MINOR: ssl: load the sctl in/from the ckch
+    - MINOR: ssl: load the ocsp in/from the ckch
+    - BUG/MEDIUM: ssl: NULL dereference in ssl_sock_load_cert_sni()
+    - BUG/MINOR: ssl: fix build without SSL
+    - BUG/MINOR: ssl: fix build without multi-cert bundles
+    - BUILD: ssl: wrong #ifdef for SSL engines code
+    - BUG/MINOR: ssl: fix OCSP build with BoringSSL
+    - BUG/MEDIUM: htx: Catch chunk_memcat() failures when HTX data are formatted to h1
+    - BUG/MINOR: chunk: Fix tests on the chunk size in functions copying data
+    - BUG/MINOR: mux-h1: Mark the output buffer as full when the xfer is interrupted
+    - MINOR: mux-h1: Xfer as much payload data as possible during output processing
+    - CLEANUP: h1-htx: Move htx-to-h1 formatting functions from htx.c to h1_htx.c
+    - BUG/MINOR: mux-h1: Capture ignored parsing errors
+    - MINOR: h1: Reject requests with different occurrences of the header host
+    - MINOR: h1: Reject requests if the authority does not match the header host
+    - REGTESTS: Send valid URIs in peers reg-tests and fix HA config to avoid warnings
+    - REGTESTS: Adapt proxy_protocol_random_fail.vtc to match normalized URI too
+    - BUG/MINOR: WURFL: fix send_log() function arguments
+    - BUG/MINOR: ssl: fix error messages for OCSP loading
+    - BUG/MINOR: ssl: can't load ocsp files
+    - MINOR: version: make the version strings variables, not constants
+    - BUG/MINOR: http-htx: Properly set htx flags on error files to support keep-alive
+    - MINOR: htx: Add a flag on HTX to known when a response was generated by HAProxy
+    - MINOR: mux-h1: Force close mode for proxy responses with an unfinished request
+    - BUILD: travis-ci: limit build to branches "master" and "next"
+    - BUILD/MEDIUM: threads: rename thread_info struct to ha_thread_info
+    - BUILD/SMALL: threads: enable threads on osx
+    - BUILD/MEDIUM: threads: enable cpu_affinity on osx
+    - MINOR: istbuf: add b_fromist() to make a buffer from an ist
+    - BUG/MINOR: cache: also cache absolute URIs
+    - BUG/MINOR: mworker/ssl: close openssl FDs unconditionally
+    - BUG/MINOR: tcp: Don't alter counters returned by tcp info fetchers
+    - BUG/MEDIUM: lists: Handle 1-element-lists in MT_LIST_BEHEAD().
+    - BUG/MEDIUM: mux_pt: Make sure we don't have a conn_stream before freeing.
+    - BUG/MEDIUM: tasklet: properly compute the sleeping threads mask in tasklet_wakeup()
+    - BUG/MAJOR: idle conns: schedule the cleanup task on the correct threads
+    - BUG/MEDIUM: task: make tasklets either local or shared but not both at once
+    - Revert e8826ded5fea3593d89da2be5c2d81c522070995.
+    - BUG/MEDIUM: mux_pt: Don't destroy the connection if we have a stream attached.
+    - BUG/MEDIUM: mux_pt: Only call the wake emthod if nobody subscribed to receive.
+    - REGTEST: mcli/mcli_show_info: launch a 'show info' on the master CLI
+    - CLEANUP: ssl: make ssl_sock_load_cert*() return real error codes
+    - CLEANUP: ssl: make ssl_sock_load_ckchs() return a set of ERR_*
+    - CLEANUP: ssl: make cli_parse_set_cert handle errcode and warnings.
+    - CLEANUP: ssl: make ckch_inst_new_load_(multi_)store handle errcode/warn
+    - CLEANUP: ssl: make ssl_sock_put_ckch_into_ctx handle errcode/warn
+    - CLEANUP: ssl: make ssl_sock_load_dh_params handle errcode/warn
+    - CLEANUP: bind: handle warning label on bind keywords parsing.
+    - BUG/MEDIUM: ssl: 'tune.ssl.default-dh-param' value ignored with openssl > 1.1.1
+    - BUG/MINOR: mworker/cli: reload fail with inherited FD
+    - BUG/MINOR: ssl: Fix fd leak on error path when a TLS ticket keys file is parsed
+    - BUG/MINOR: stick-table: Never exceed (MAX_SESS_STKCTR-1) when fetching a stkctr
+    - BUG/MINOR: cache: alloc shctx after check config
+    - BUG/MINOR: sample: Make the `field` converter compatible with `-m found`
+    - BUG/MINOR: server: check return value of fopen() in apply_server_state()
+    - REGTESTS: make seamless-reload depend on 1.9 and above
+    - REGTESTS: server/cli_set_fqdn requires version 1.8 minimum
+    - BUG/MINOR: dns: allow srv record weight set to 0
+    - BUG/MINOR: ssl: fix memcpy overlap without consequences.
+    - BUG/MINOR: stick-table: fix an incorrect 32 to 64 bit key conversion
+    - BUG/MEDIUM: pattern: make the pattern LRU cache thread-local and lockless
+    - BUG/MINOR: mux-h2: do not emit logs on backend connections
+    - CLEANUP: ssl: remove old TODO commentary
+    - CLEANUP: ssl: fix SNI/CKCH lock labels
+    - MINOR: ssl: OCSP functions can load from file or buffer
+    - MINOR: ssl: load sctl from buf OR from a file
+    - MINOR: ssl: load issuer from file or from buffer
+    - MINOR: ssl: split ssl_sock_load_crt_file_into_ckch()
+    - BUG/MINOR: ssl/cli: fix looking up for a bundle
+    - MINOR: ssl/cli: update ocsp/issuer/sctl file from the CLI
+    - MINOR: ssl: update ssl_sock_free_cert_key_and_chain_contents
+    - MINOR: ssl: copy a ckch from src to dst
+    - MINOR: ssl: new functions duplicate and free a ckch_store
+    - MINOR: ssl/cli: assignate a new ckch_store
+    - MEDIUM: cli/ssl: handle the creation of SSL_CTX in an IO handler
+    - BUG/MINOR: ssl/cli: fix build of SCTL and OCSP
+    - BUG/MINOR: ssl/cli: out of bounds when built without ocsp/sctl
+    - BUG/MINOR: ssl: fix build with openssl < 1.1.0
+    - BUG/MINOR: ssl: fix build of X509_chain_up_ref() w/ libreSSL
+    - MINOR: tcp: avoid confusion in time parsing init
+    - MINOR: debug: add a new "debug dev stream" command
+    - MINOR: cli/debug: validate addresses using may_access() in "debug dev stream"
+    - REORG: move CLI access level definitions to cli.h
+    - MINOR: cli: add an expert mode to hide dangerous commands
+    - MINOR: debug: make most debug CLI commands accessible in expert mode
+    - MINOR: stats/debug: maintain a counter of debug commands issued
+    - BUG/MEDIUM: debug: address a possible null pointer dereference in "debug dev stream"
+
 2019/10/01 : 2.1-dev2
     - DOC: management: document reuse and connect counters in the CSV format
     - DOC: management: document cache_hits and cache_lookups in the CSV format
