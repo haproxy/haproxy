@@ -1210,6 +1210,10 @@ int si_cs_recv(struct conn_stream *cs)
 	int read_poll = MAX_READ_POLL_LOOPS;
 	int flags = 0;
 
+	/* If not established yet, do nothing. */
+	if (si->state != SI_ST_EST)
+		return 0;
+
 	/* If another call to si_cs_recv() failed, and we subscribed to
 	 * recv events already, give up now.
 	 */
@@ -1288,8 +1292,6 @@ int si_cs_recv(struct conn_stream *cs)
 			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_PARTIAL;
-			if (si->state == SI_ST_CON)
-				si->state = SI_ST_RDY;
 		}
 
 		if (cs->flags & CS_FL_EOS)
@@ -1386,8 +1388,6 @@ int si_cs_recv(struct conn_stream *cs)
 
 		ic->flags |= CF_READ_PARTIAL;
 		ic->total += ret;
-		if (si->state == SI_ST_CON)
-			si->state = SI_ST_RDY;
 
 		if ((ic->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
 			/* we're stopped by the channel's policy */
@@ -1539,16 +1539,7 @@ static void stream_int_read0(struct stream_interface *si)
 
 	si_done_get(si);
 
-	/* Don't change the state to SI_ST_DIS yet if we're still
-	 * in SI_ST_CON, otherwise it means sess_establish() hasn't
-	 * been called yet, and so the analysers would not run. However
-	 * it's fine to switch to SI_ST_RDY as we have really validated
-	 * the connection.
-	 */
-	if (si->state == SI_ST_EST)
-		si->state = SI_ST_DIS;
-	else if (si->state == SI_ST_CON)
-		si->state = SI_ST_RDY;
+	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
 	return;
 }
