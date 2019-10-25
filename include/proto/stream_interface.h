@@ -521,7 +521,11 @@ static inline int si_connect(struct stream_interface *si, struct connection *con
 		/* try to reuse the existing connection, it will be
 		 * confirmed once we can send on it.
 		 */
-		si->state = SI_ST_RDY;
+		/* Is the connection really ready ? */
+		if (conn->mux->ctl(conn, MUX_STATUS, NULL) & MUX_STATUS_READY)
+			si->state = SI_ST_RDY;
+		else
+			si->state = SI_ST_CON;
 	}
 
 	/* needs src ip/port for logging */
