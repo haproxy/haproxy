@@ -3281,6 +3281,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 		}
 	}
 
+#ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
 	if (ckch->ocsp_response) {
 		X509 *issuer;
 		int i;
@@ -3321,6 +3322,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 			}
 		}
 	}
+#endif
 
 	ret = 0;
 
