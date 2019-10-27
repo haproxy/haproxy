@@ -629,6 +629,7 @@ The following keywords are supported in the "global" section :
    - wurfl-information-list
    - wurfl-information-list-separator
    - wurfl-cache-size
+   - strict-limits
 
  * Performance tuning
    - busy-polling
@@ -1404,6 +1405,14 @@ wurfl-cache-size <size>
 
   Please note that this option is only available when haproxy has been compiled
   with USE_WURFL=1.
+
+strict-limits
+  Makes process fail at startup when a setrlimit fails. Haproxy is tries to set
+  the best setrlimit according to what has been calculated. If it fails, it
+  will emit a warning. Use this option if you want an explicit failure of
+  haproxy when those limits fail. This option is disabled by default. If it has
+  been enabled, it may still be forcibly disabled by prefixing it with the "no"
+  keyword.
 
 3.2. Performance tuning
 -----------------------

@@ -2149,10 +2149,10 @@ next_line:
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
 		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling") != 0 &&
-		    strcmp(args[0], "set-dumpable") != 0) {
+		    strcmp(args[0], "set-dumpable") != 0 && strcmp(args[0], "strict-limits") != 0) {
 			ha_alert("parsing [%s:%d]: negation/default currently "
-				 "supported only for options, log, busy-polling and "
-				 "set-dumpable.\n", file, linenum);
+				 "supported only for options, log, busy-polling, "
+				 "set-dumpable and strict-limits.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 

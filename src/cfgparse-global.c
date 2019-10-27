@@ -1172,6 +1172,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				env++;
 		}
 	}
+	else if (!strcmp(args[0], "strict-limits")) { /* "no strict-limits" or "strict-limits" */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		if (kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_STRICT_LIMITS;
+		else
+			global.tune.options |= GTUNE_STRICT_LIMITS;
+	}
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
