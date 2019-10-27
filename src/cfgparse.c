@@ -2147,9 +2147,12 @@ next_line:
 				args[arg] = args[arg+1];		// shift args after inversion
 		}
 
-		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 && 	\
-		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling")) {
-			ha_alert("parsing [%s:%d]: negation/default currently supported only for options, log, and busy-polling.\n", file, linenum);
+		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
+		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling") != 0 &&
+		    strcmp(args[0], "set-dumpable") != 0) {
+			ha_alert("parsing [%s:%d]: negation/default currently "
+				 "supported only for options, log, busy-polling and "
+				 "set-dumpable.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
