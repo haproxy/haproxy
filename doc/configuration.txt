@@ -631,6 +631,7 @@ The following keywords are supported in the "global" section :
    - wurfl-cache-size
 
  * Performance tuning
+   - busy-polling
    - max-spread-checks
    - maxconn
    - maxconnrate
