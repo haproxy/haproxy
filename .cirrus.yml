@@ -1,6 +1,7 @@
 FreeBSD_task:
   freebsd_instance:
     image: freebsd-12-0-release-amd64
+  only_if: $CIRRUS_BRANCH =~ 'master|next'
   env:
     ASSUME_ALWAYS_YES: TRUE # required for unattended "pkg" invocation
   script:
@@ -15,6 +16,7 @@ FreeBSD_task:
 centos_6_task:
   container:
     image: centos:centos6
+  only_if: $CIRRUS_BRANCH =~ 'master|next'
   script:
     - yum install -q -y gcc git openssl-devel pcre-devel epel-release
     - yum install -q -y python34

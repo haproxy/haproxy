@@ -1,7 +1,7 @@
 # build status appears on https://travis-ci.com/haproxy/haproxy
 
 sudo: required
-dist: xenial
+dist: bionic
 
 language: c
 
@@ -32,15 +32,15 @@ matrix:
   - os: linux-ppc64le
     if: type == cron
     compiler: gcc
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2r LABEL="linux-ppc64le"
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2t LABEL="linux-ppc64le"
   - os: linux
     if: type != cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1c
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1c COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC"
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC"
     script:
       - |
         if [ ! -z ${COVERITY_SCAN_TOKEN+x} ]; then
@@ -50,19 +50,19 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0j FIFTYONEDEGREES_SRC="contrib/51d/src/trie"
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie"
   - os: linux
     if: type != cron
+    compiler: clang
+    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2
+  - os: linux
+    if: type == cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3
-  - os: linux
-    if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.7.5 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
+    env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
   - os: linux
     if: type == cron
     compiler: clang
@@ -74,13 +74,13 @@ matrix:
   - os: osx
     if: type != cron
     compiler: clang
-    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1c
-  - os: windows
-    if: type == cron
-    install:
-      - choco install bash make libssl-devel cygwin-devel gcc-core libgcc1 binutils lua-devel libpcre-devel zlib-devel --source cygwin
-    script:
-      - C:\\tools\\cygwin\\bin\\bash -lc 'cd $OLDPWD && make TARGET=cygwin USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_THREAD=1 && ./haproxy -vv'
+    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1d
+#  - os: windows
+#    if: type == cron
+#    install:
+#      - choco install bash make libssl-devel cygwin-devel gcc-core libgcc1 binutils lua-devel libpcre-devel zlib-devel --source cygwin
+#    script:
+#      - C:\\tools\\cygwin\\bin\\bash -lc 'cd $OLDPWD && make TARGET=cygwin USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_THREAD=1 && ./haproxy -vv'
   - os: linux
     if: type == cron
     compiler: clang
