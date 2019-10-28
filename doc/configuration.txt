@@ -4374,69 +4374,78 @@ http-request reject [ { if | unless } <condition> ]
 http-request replace-header <name> <match-regex> <replace-fmt>
                             [ { if | unless } <condition> ]
 
-    This  matches the regular expression in all occurrences of header field
-    <name> according to <match-regex>, and replaces them with the
-    <replace-fmt> argument. Format characters are allowed in replace-fmt and
-    work like in <fmt> arguments in "http-request add-header". The match is
-    only case-sensitive. It is important to understand that this action only
-    considers whole header lines, regardless of the number of values they may
-    contain. This usage is suited to headers naturally containing commas in
-    their value, such as If-Modified-Since and so on.
+  This matches the value of all occurences of header field <name> against
+  <match-regex>. Matching is performed case-sensitively. Matching values are
+  completely replaced by <replace-fmt>. Format characters are allowed in
+  <replace-fmt> and work like <fmt> arguments in "http-request add-header".
+  Standard back-references using the backslash ('\') followed by a number are
+  supported.
 
-    Example:
-      http-request replace-header Cookie foo=([^;]*);(.*) foo=\1;ip=%bi;\2
+  This action acts on whole header lines, regardless of the number of values
+  they may contain. Thus it is well-suited to process headers naturally
+  containing commas in their value, such as If-Modified-Since. Headers that
+  contain a comma-separated list of values, such as Accept, should be processed
+  using "http-request replace-value".
 
-      # applied to:
-      Cookie: foo=foobar; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+  Example:
+    http-request replace-header Cookie foo=([^;]*);(.*) foo=\1;ip=%bi;\2
 
-      # outputs:
-      Cookie: foo=foobar;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+    # applied to:
+    Cookie: foo=foobar; expires=Tue, 14-Jun-2016 01:40:45 GMT;
 
-      # assuming the backend IP is 192.168.1.20
+    # outputs:
+    Cookie: foo=foobar;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+
+    # assuming the backend IP is 192.168.1.20
+
+    http-request replace-header User-Agent curl foo
+
+    # applied to:
+    User-Agent: curl/7.47.0
+
+    # outputs:
+    User-Agent: foo
 
 http-request replace-uri <match-regex> <replace-fmt>
                            [ { if | unless } <condition> ]
 
-    This matches the regular expression in the URI part of the request
-    according to <match-regex>, and replaces it with the <replace-fmt>
-    argument. Standard back-references using the backslash ('\') followed by a
-    number are supported. The <fmt> field is interpreted as a log-format string
-    so it may contain special expressions just like the <fmt> argument passed
-    to "http-request set-uri". The match is exclusively case-sensitive. Any
-    optional scheme, authority or query string are considered in the matching
-    part of the URI. It is worth noting that regular expressions may be more
-    expensive to evaluate than certain ACLs, so rare replacements may benefit
-    from a condition to avoid performing the evaluation at all if it does not
-    match.
+  This works like "replace-header" except that it works on the request's URI part
+  instead of a header. The URI part may contain an optional scheme, authority or
+  query string. These are considered to be part of the value that is matched
+  against.
 
-    Example:
-        # prefix /foo : turn /bar?q=1 into /foo/bar?q=1 :
-        http-request replace-uri (.*) /foo\1
+  It is worth noting that regular expressions may be more expensive to evaluate
+  than certain ACLs, so rare replacements may benefit from a condition to avoid
+  performing the evaluation at all if it does not match.
 
-        # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
-        http-request replace-uri ([^?]*)(\?(.*))? \1/foo\2
+  Example:
+    # prefix /foo : turn /bar?q=1 into /foo/bar?q=1 :
+    http-request replace-uri (.*) /foo\1
 
-        # strip /foo : turn /foo/bar?q=1 into /bar?q=1
-        http-request replace-uri /foo/(.*) /\1
-        # or more efficient if only some requests match :
-        http-request replace-uri /foo/(.*) /\1 if { url_beg /foo/ }
+    # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
+    http-request replace-uri ([^?]*)(\?(.*))? \1/foo\2
+
+    # strip /foo : turn /foo/bar?q=1 into /bar?q=1
+    http-request replace-uri /foo/(.*) /\1
+    # or more efficient if only some requests match :
+    http-request replace-uri /foo/(.*) /\1 if { url_beg /foo/ }
 
 http-request replace-value <name> <match-regex> <replace-fmt>
                            [ { if | unless } <condition> ]
 
-    This works like "replace-header" except that it matches the regex against
-    every comma-delimited value of the header field <name> instead of the
-    entire header. This is suited for all headers which are allowed to carry
-    more than one value. An example could be the Accept header.
+  This works like "replace-header" except that it matches the regex against
+  every comma-delimited value of the header field <name> instead of the
+  entire header. This is suited for all headers which are allowed to carry
+  more than one value. An example could be the Accept header.
 
-    Example:
-      http-request replace-value X-Forwarded-For ^192\.168\.(.*)$ 172.16.\1
+  Example:
+    http-request replace-value X-Forwarded-For ^192\.168\.(.*)$ 172.16.\1
 
-      # applied to:
-      X-Forwarded-For: 192.168.10.1, 192.168.13.24, 10.0.0.37
+    # applied to:
+    X-Forwarded-For: 192.168.10.1, 192.168.13.24, 10.0.0.37
 
-      # outputs:
-      X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
+    # outputs:
+    X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
 
 http-request sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
@@ -4918,14 +4927,8 @@ http-response redirect <rule> [ { if | unless } <condition> ]
 http-response replace-header <name> <regex-match> <replace-fmt>
                              [ { if | unless } <condition> ]
 
-  This matches the regular expression in all occurrences of header field <name>
-  according to <match-regex>, and replaces them with the <replace-fmt> argument.
-  Format characters are allowed in replace-fmt and work like in <fmt> arguments
-  in "add-header". The match is only case-sensitive. It is important to
-  understand that this action only considers whole header lines, regardless of
-  the number of values they may contain. This usage is suited to headers
-  naturally containing commas in their value, such as Set-Cookie, Expires and
-  so on.
+  This works like "http-request replace-header" except that it works on the
+  server's response instead of the client's request.
 
   Example:
     http-response replace-header Set-Cookie (C=[^;]*);(.*) \1;ip=%bi;\2
@@ -4941,10 +4944,8 @@ http-response replace-header <name> <regex-match> <replace-fmt>
 http-response replace-value <name> <regex-match> <replace-fmt>
                             [ { if | unless } <condition> ]
 
-  This works like "replace-header" except that it matches the regex against
-  every comma-delimited value of the header field <name> instead of the entire
-  header. This is suited for all headers which are allowed to carry more than
-  one value. An example could be the Accept header.
+  This works like "http-response replace-value" except that it works on the
+  server's response instead of the client's request.
 
   Example:
     http-response replace-value Cache-control ^public$ private
