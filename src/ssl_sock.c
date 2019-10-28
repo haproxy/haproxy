@@ -10291,6 +10291,7 @@ end:
 
 	if (errcode & ERR_CODE) {
 		/* we release the spinlock and free the unused structures in the release function */
+		cli_release_set_cert(appctx);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else
 		return 0;
