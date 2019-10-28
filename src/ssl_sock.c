@@ -9955,18 +9955,24 @@ struct {
 	[CERT_TYPE_MAX]    = { NULL,      CERT_TYPE_MAX,      NULL },
 };
 
-/* release function of the  `set ssl cert' command, free things and unlock the spinlock */
+/* states of the CLI IO handler for 'set ssl cert' */
+enum {
+	SETCERT_ST_INIT = 0,
+	SETCERT_ST_GEN,
+	SETCERT_ST_INSERT,
+	SETCERT_ST_FIN,
+};
 
+/* release function of the  `set ssl cert' command, free things and unlock the spinlock */
 static void cli_release_set_cert(struct appctx *appctx)
 {
 	struct ckch_store *new_ckchs;
 	struct ckch_inst *ckchi, *ckchis;
 	int it;
 
-	if (appctx->st2 >= STAT_ST_HEAD)
-		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
-	if (appctx->st2 != STAT_ST_FIN) {
+	if (appctx->st2 != SETCERT_ST_FIN) {
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
 		for (it = 0; it < 2; it++) {
 			new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
@@ -10011,131 +10017,138 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
-	old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
-	new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
-
-	chunk_reset(trash);
-
-	switch (appctx->st2) {
-		case STAT_ST_HEAD:
-			chunk_printf(trash, "Updating %s", path);
-			if (ci_putchk(si_ic(si), trash) == -1) {
-				si_rx_room_blk(si);
-				goto yield;
-			}
-			appctx->st2 = STAT_ST_LIST;
-
-		case STAT_ST_LIST:
-			if (!new_ckchs) {
-				/* there isn't anything to do there, come back
-				 with ctx.ssl.n[1] */
-				if (it == 0)
-					it++;
-				else /* or we've already done 0 & 1) */
-					appctx->st2 = STAT_ST_END;
-				goto yield;
-			}
-
-			ckchi = appctx->ctx.ssl.n[it].next_ckchi;
-			/* we didn't start yet, set it to the first elem */
-			if (ckchi == NULL)
-				ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
-
-			/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
-			list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
-				struct ckch_inst *new_inst;
-
-				/* make sure to save the next ckchi in case of a yield */
-				appctx->ctx.ssl.n[it].next_ckchi = ckchi;
-				/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
-				if (y >= 10)
+	while (1) {
+		switch (appctx->st2) {
+			case SETCERT_ST_INIT:
+				/* This state just print the update message */
+				chunk_printf(trash, "Updating %s", path);
+				if (ci_putchk(si_ic(si), trash) == -1) {
+					si_rx_room_blk(si);
 					goto yield;
-
-				if (new_ckchs->multi)
-					errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
-				else
-					errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
-
-				if (errcode & ERR_CODE)
-					goto error;
-
-				/* display one dot per new instance */
-				chunk_appendf(trash, ".");
-				/* link the new ckch_inst to the duplicate */
-				LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
-				y++;
-			}
-
-			/* if we didn't handle the bundle yet */
-			if (it == 0) {
-				it++;
-				goto yield;
-			}
-
-			appctx->st2 = STAT_ST_END;
-
-		case STAT_ST_END:
-			/* First, we insert every new SNIs  in the trees */
-			for (it = 0; it < 2; it++) {
-				old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
-				new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
-
-				if (!new_ckchs)
-					continue;
-
-				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 				}
+				appctx->st2 = SETCERT_ST_GEN;
+				/* fallthrough */
+			case SETCERT_ST_GEN:
+				/*
+				 * This state generates the ckch instances with their
+				 * sni_ctxs and SSL_CTX.
+				 *
+				 * This step could be done twice (without considering
+				 * the yields), once for a cert, and once for a bundle.
+				 *
+				 * Since the SSL_CTX generation can be CPU consumer, we
+				 * yield every 10 instances.
+				 */
+				for (; it < 2; it++) { /* we don't init it there because of the yield */
 
-				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
-				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-					struct sni_ctx *sc0, *sc0s;
+					old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
+					new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
 
-					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-						ebmb_delete(&sc0->name);
-						LIST_DEL(&sc0->by_ckch_inst);
-						free(sc0);
+					if (!new_ckchs)
+						continue;
+
+					/* get the next ckchi to regenerate */
+					ckchi = appctx->ctx.ssl.n[it].next_ckchi;
+					/* we didn't start yet, set it to the first elem */
+					if (ckchi == NULL)
+						ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
+
+					/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
+					list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
+						struct ckch_inst *new_inst;
+
+						/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
+						if (y >= 10) {
+							/* save the next ckchi to compute */
+							appctx->ctx.ssl.n[it].next_ckchi = ckchi;
+							appctx->ctx.ssl.it = it;
+							goto yield;
+						}
+
+						if (new_ckchs->multi)
+							errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
+						else
+							errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
+
+						if (errcode & ERR_CODE)
+							goto error;
+
+						/* display one dot per new instance */
+						chunk_appendf(trash, ".");
+						/* link the new ckch_inst to the duplicate */
+						LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
+						y++;
 					}
-					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					LIST_DEL(&ckchi->by_ckchs);
-					free(ckchi);
 				}
+				appctx->st2 = SETCERT_ST_INSERT;
+				/* fallthrough */
+			case SETCERT_ST_INSERT:
+				/* The generation is finished, we can insert everything */
 
-				/* Replace the old ckchs by the new one */
-				ebmb_delete(&old_ckchs->node);
-				ckchs_free(old_ckchs);
-				ebst_insert(&ckchs_tree, &new_ckchs->node);
-			}
+				for (it = 0; it < 2; it++) {
+					old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
+					new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
 
-			chunk_appendf(trash, "\nSuccess!");
-			if (ci_putchk(si_ic(si), trash) == -1)
-				si_rx_room_blk(si);
-			free_trash_chunk(trash);
-			appctx->st2 = STAT_ST_FIN;
-			return 1;  /* success */
+					if (!new_ckchs)
+						continue;
+
+					/* First, we insert every new SNIs in the trees */
+					list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+						ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					}
+
+					/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
+					list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
+						struct sni_ctx *sc0, *sc0s;
+
+						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+						list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+							ebmb_delete(&sc0->name);
+							LIST_DEL(&sc0->by_ckch_inst);
+							free(sc0);
+						}
+						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+						LIST_DEL(&ckchi->by_ckchs);
+						free(ckchi);
+					}
+
+					/* Replace the old ckchs by the new one */
+					ebmb_delete(&old_ckchs->node);
+					ckchs_free(old_ckchs);
+					ebst_insert(&ckchs_tree, &new_ckchs->node);
+				}
+				appctx->st2 = SETCERT_ST_FIN;
+				/* fallthrough */
+			case SETCERT_ST_FIN:
+				goto end;
+		}
 	}
+end:
 
+	chunk_appendf(trash, "\nSuccess!");
+	if (ci_putchk(si_ic(si), trash) == -1)
+		si_rx_room_blk(si);
+	free_trash_chunk(trash);
+	/* success: call the release function and don't come back */
+	return 1;
 yield:
 	/* store the state */
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
 	free_trash_chunk(trash);
 	si_rx_endp_more(si); /* let's come back later */
-	appctx->ctx.ssl.it = it;
-
 	return 0; /* should come back */
 
 error:
 	/* spin unlock and free are done in the release  function */
-
 	chunk_appendf(trash, "\n%sFailed!", err);
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
 	free_trash_chunk(trash);
-	return 1; /* error */
+	/* error: call the release function and don't come back */
+	return 1;
 }
 /*
  * Parsing function of `set ssl cert`, try
@@ -10156,7 +10169,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	struct buffer *buf = alloc_trash_chunk();
 
 	/* init the appctx structure */
-	appctx->st2 = STAT_ST_INIT; /* this state guarantee that we didn't try to lock yet  */
+	appctx->st2 = SETCERT_ST_INIT;
 	appctx->ctx.ssl.it = 0;
 	appctx->ctx.ssl.n[0].next_ckchi = NULL;
 	appctx->ctx.ssl.n[0].new_ckchs = NULL;
@@ -10173,7 +10186,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
 
-	appctx->st2 = STAT_ST_HEAD; /* this state guarantee that we are locked */
 
 	appctx->ctx.ssl.path = strdup(args[3]);
 	if (!appctx->ctx.ssl.path) {
@@ -10293,8 +10305,9 @@ end:
 		/* we release the spinlock and free the unused structures in the release function */
 		cli_release_set_cert(appctx);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
-	} else
+	} else {
 		return 0;
+	}
 	/* TODO: handle the ERR_WARN which are not handled because of the io_handler */
 }
 
