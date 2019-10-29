@@ -276,7 +276,7 @@ generate_pseudo_uuid()
 		last >>= 32u;
 		bits  -= 32;
 	}
-	snprintf(uuid, 36, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
+	snprintf(uuid, 37, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
 			     rnd[0],
 			     rnd[1] & 0xFFFF,
 			     ((rnd[1] >> 16u) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
