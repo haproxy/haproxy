@@ -3018,11 +3018,12 @@ const char *get_gmt_offset(time_t t, struct tm *tm)
 		} else {
 			*gmt_offset = '+';
 		}
+		diff %= 86400U;
 		diff /= 60; /* Convert to minutes */
 		snprintf(gmt_offset+1, 4+1, "%02d%02d", diff/60, diff%60);
 	}
 
-    return gmt_offset;
+	return gmt_offset;
 }
 
 /* gmt2str_log: write a date in the format :
