@@ -1097,10 +1097,10 @@ int sha1_hosturi(struct stream *s)
 	 * well.
 	 */
 	if (!(sl->flags & HTX_SL_F_HAS_AUTHORITY)) {
-		chunk_cat(trash, b_fromist(ist("https://")));
+		chunk_istcat(trash, ist("https://"));
 		if (!http_find_header(htx, ist("Host"), &ctx, 0))
 			return 0;
-		chunk_cat(trash, b_fromist(ctx.value));
+		chunk_istcat(trash, ctx.value);
 	}
 
 	chunk_memcat(trash, uri.ptr, uri.len);

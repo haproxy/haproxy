@@ -27,6 +27,7 @@
 
 #include <common/buf.h>
 #include <common/config.h>
+#include <common/ist.h>
 #include <common/memory.h>
 
 
@@ -114,6 +115,17 @@ static inline int chunk_cat(struct buffer *chk, const struct buffer *src)
 
 	memcpy(chk->area + chk->data, src->area, src->data);
 	chk->data += src->data;
+	return 1;
+}
+
+/* appends ist <src> after <chk>. Returns 0 in case of failure. */
+static inline int chunk_istcat(struct buffer *chk, const struct ist src)
+{
+	if (unlikely(chk->data + src.len > chk->size))
+		return 0;
+
+	memcpy(chk->area + chk->data, src.ptr, src.len);
+	chk->data += src.len;
 	return 1;
 }
 
