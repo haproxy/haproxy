@@ -4134,23 +4134,22 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 					}
 
 					if (is_bundle) {
-						char dp[MAXPATHLEN+1] = {0}; /* this will be the filename w/o the keytype */
 						int dp_len;
 
 						dp_len = end - de->d_name;
-						snprintf(dp, dp_len + 1, "%s", de->d_name);
 
 						/* increment i and free de until we get to a non-bundle cert
 						 * Note here that we look at de_list[i + 1] before freeing de
-						 * this is important since ignore_entry will free de
+						 * this is important since ignore_entry will free de. This also
+						 * guarantees that de->d_name continues to hold the same prefix.
 						 */
-						while (i + 1 < n && !strncmp(de_list[i + 1]->d_name, dp, dp_len)) {
+						while (i + 1 < n && !strncmp(de_list[i + 1]->d_name, de->d_name, dp_len)) {
 							free(de);
 							i++;
 							de = de_list[i];
 						}
 
-						snprintf(fp, sizeof(fp), "%s/%s", path, dp);
+						snprintf(fp, sizeof(fp), "%s/%.*s", path, dp_len, de->d_name);
 						if ((ckchs = ckchs_lookup(fp)) == NULL)
 							ckchs =  ckchs_load_cert_file(fp, 1,  err);
 						if (!ckchs)
