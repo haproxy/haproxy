@@ -175,11 +175,9 @@ struct appctx {
 		struct {
 			char *path;
 			int it;
-			struct {
-				struct ckch_store *old_ckchs;
-				struct ckch_store *new_ckchs;
-				struct ckch_inst *next_ckchi;
-			} n[2];
+			struct ckch_store *old_ckchs;
+			struct ckch_store *new_ckchs;
+			struct ckch_inst *next_ckchi;
 		} ssl;
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".

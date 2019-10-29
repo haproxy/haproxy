@@ -355,6 +355,14 @@ static int ssl_locking_init(void)
 
 __decl_hathreads(HA_SPINLOCK_T ckch_lock);
 
+/* Uncommitted CKCH transaction */
+
+static struct {
+	struct ckch_store *new_ckchs;
+	struct ckch_store *old_ckchs;
+	char *path;
+} ckchs_transaction;
+
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
 	unsigned long long int xxh64;
@@ -9963,7 +9971,7 @@ enum {
 };
 
 /* release function of the  `set ssl cert' command, free things and unlock the spinlock */
-static void cli_release_set_cert(struct appctx *appctx)
+static void cli_release_commit_cert(struct appctx *appctx)
 {
 	struct ckch_store *new_ckchs;
 	struct ckch_inst *ckchi, *ckchis;
@@ -9974,7 +9982,7 @@ static void cli_release_set_cert(struct appctx *appctx)
 	if (appctx->st2 != SETCERT_ST_FIN) {
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
 		for (it = 0; it < 2; it++) {
-			new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
+			new_ckchs = appctx->ctx.ssl.new_ckchs;
 
 			if (!new_ckchs)
 				continue;
@@ -10001,7 +10009,7 @@ static void cli_release_set_cert(struct appctx *appctx)
 /*
  * This function tries to create the new ckch_inst and their SNIs
  */
-static int cli_io_handler_set_cert(struct appctx *appctx)
+static int cli_io_handler_commit_cert(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
 	int y = 0;
@@ -10009,7 +10017,6 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 	int errcode = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi, *ckchis;
-	char *path = appctx->ctx.ssl.path;
 	int it = appctx->ctx.ssl.it; /* 0 non-bundle, 1 = bundle */
 	struct buffer *trash = alloc_trash_chunk();
 
@@ -10020,7 +10027,7 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 		switch (appctx->st2) {
 			case SETCERT_ST_INIT:
 				/* This state just print the update message */
-				chunk_printf(trash, "Updating %s", path);
+				chunk_printf(trash, "Committing %s", ckchs_transaction.path);
 				if (ci_putchk(si_ic(si), trash) == -1) {
 					si_rx_room_blk(si);
 					goto yield;
@@ -10038,16 +10045,15 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 				 * Since the SSL_CTX generation can be CPU consumer, we
 				 * yield every 10 instances.
 				 */
-				for (; it < 2; it++) { /* we don't init it there because of the yield */
 
-					old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
-					new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
+					old_ckchs = appctx->ctx.ssl.old_ckchs;
+					new_ckchs = appctx->ctx.ssl.new_ckchs;
 
 					if (!new_ckchs)
 						continue;
 
 					/* get the next ckchi to regenerate */
-					ckchi = appctx->ctx.ssl.n[it].next_ckchi;
+					ckchi = appctx->ctx.ssl.next_ckchi;
 					/* we didn't start yet, set it to the first elem */
 					if (ckchi == NULL)
 						ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
@@ -10059,7 +10065,7 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 						/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 						if (y >= 10) {
 							/* save the next ckchi to compute */
-							appctx->ctx.ssl.n[it].next_ckchi = ckchi;
+							appctx->ctx.ssl.next_ckchi = ckchi;
 							appctx->ctx.ssl.it = it;
 							goto yield;
 						}
@@ -10078,15 +10084,13 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 						LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
 						y++;
 					}
-				}
 				appctx->st2 = SETCERT_ST_INSERT;
 				/* fallthrough */
 			case SETCERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
-				for (it = 0; it < 2; it++) {
-					old_ckchs = appctx->ctx.ssl.n[it].old_ckchs;
-					new_ckchs = appctx->ctx.ssl.n[it].new_ckchs;
+					old_ckchs = appctx->ctx.ssl.old_ckchs;
+					new_ckchs = appctx->ctx.ssl.new_ckchs;
 
 					if (!new_ckchs)
 						continue;
@@ -10117,16 +10121,20 @@ static int cli_io_handler_set_cert(struct appctx *appctx)
 					ebmb_delete(&old_ckchs->node);
 					ckchs_free(old_ckchs);
 					ebst_insert(&ckchs_tree, &new_ckchs->node);
-				}
 				appctx->st2 = SETCERT_ST_FIN;
 				/* fallthrough */
 			case SETCERT_ST_FIN:
+				/* we achieved the transaction, we can set everything to NULL */
+				free(ckchs_transaction.path);
+				ckchs_transaction.path = NULL;
+				ckchs_transaction.new_ckchs = NULL;
+				ckchs_transaction.old_ckchs = NULL;
 				goto end;
 		}
 	}
 end:
 
-	chunk_appendf(trash, "\nSuccess!");
+	chunk_appendf(trash, "\nSuccess!\n");
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
 	free_trash_chunk(trash);
@@ -10142,40 +10150,76 @@ yield:
 
 error:
 	/* spin unlock and free are done in the release  function */
-	chunk_appendf(trash, "\n%sFailed!", err);
+	chunk_appendf(trash, "\n%sFailed!\n", err);
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
 	free_trash_chunk(trash);
 	/* error: call the release function and don't come back */
 	return 1;
 }
+
 /*
- * Parsing function of `set ssl cert`, try
+ * Parsing function of 'commit ssl cert'
+ */
+static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+
+	if (!*args[3])
+		return cli_err(appctx, "'commit ssl cert expects a filename\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't commit the certificate!\nOperations on certificates are currently locked!\n");
+
+	if (!ckchs_transaction.path) {
+		memprintf(&err, "No ongoing transaction! !\n");
+		goto error;
+	}
+
+	if (strcmp(ckchs_transaction.path, args[3]) != 0) {
+		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, args[3]);
+		goto error;
+	}
+
+	/* init the appctx structure */
+	appctx->st2 = SETCERT_ST_INIT;
+	appctx->ctx.ssl.it = 0;
+	appctx->ctx.ssl.next_ckchi = NULL;
+	appctx->ctx.ssl.new_ckchs = ckchs_transaction.new_ckchs;
+	appctx->ctx.ssl.old_ckchs = ckchs_transaction.old_ckchs;
+
+	/* we don't unlock there, it will be unlock after the IO handler, in the release handler */
+	return 0;
+
+error:
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	err = memprintf(&err, "%sCan't commit %s!\n", err ? err : "", args[3]);
+
+	return cli_dynerr(appctx, err);
+}
+
+
+/*
+ * Parsing function of `set ssl cert`, it updates or creates a temporary ckch.
  */
 static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct ckch_store *new_ckchs = NULL;
 	struct ckch_store *old_ckchs = NULL;
-	struct cert_key_and_chain *ckch;
-	char *tmpfp = NULL;
 	char *err = NULL;
 	int i;
-	int found = 0;
 	int bundle = -1; /* TRUE if >= 0 (ckch index) */
 	int errcode = 0;
 	char *end;
 	int type = CERT_TYPE_PEM;
-	struct buffer *buf = alloc_trash_chunk();
+	struct cert_key_and_chain *ckch;
+	struct buffer *buf;
 
-	/* init the appctx structure */
-	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.ssl.it = 0;
-	appctx->ctx.ssl.n[0].next_ckchi = NULL;
-	appctx->ctx.ssl.n[0].new_ckchs = NULL;
-	appctx->ctx.ssl.n[0].old_ckchs = NULL;
-	appctx->ctx.ssl.n[1].next_ckchi = NULL;
-	appctx->ctx.ssl.n[1].new_ckchs = NULL;
-	appctx->ctx.ssl.n[1].old_ckchs = NULL;
+	if ((buf = alloc_trash_chunk()) == NULL)
+		return cli_err(appctx, "Can't allocate memory\n");
 
 	if (!*args[3] || !payload)
 		return cli_err(appctx, "'set ssl cert expects a filename and a certificat as a payload\n");
@@ -10184,14 +10228,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
-
-
-	appctx->ctx.ssl.path = strdup(args[3]);
-	if (!appctx->ctx.ssl.path) {
-		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-		errcode |= ERR_ALERT | ERR_FATAL;
-		goto end;
-	}
 
 	if (!chunk_strcpy(buf, args[3])) {
 		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
@@ -10209,67 +10245,18 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		}
 	}
 
-	for (i = 0; i < 2; i++) {
+	appctx->ctx.ssl.old_ckchs = NULL;
+	appctx->ctx.ssl.new_ckchs = NULL;
 
-		if ((old_ckchs = ckchs_lookup(buf->area)) != NULL) {
-			/* only the bundle name is in the tree and you should
-			 * never update a bundle name, only a filename */
-			if (bundle < 0 && old_ckchs->multi) {
-				/* we tried to look for a non-bundle and we found a bundle */
-				memprintf(&err, "%s%s is a multi-cert bundle. Try updating %s.{dsa,rsa,ecdsa}\n",
-				          err ? err : "", args[3], args[3]);
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-
-			/* If we want a bundle but this is not a bundle */
-			/* note that it should never happen */
-			if (bundle >= 0 && old_ckchs->multi == 0)
-				goto end;
-
-			/* TODO: handle filters */
-			if (old_ckchs->filters) {
-				memprintf(&err, "%sCertificates used in crt-list with filters are not supported!\n",
-				          err ? err : "");
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-
-			/* duplicate the ckch store */
-			new_ckchs = ckchs_dup(old_ckchs);
-			if (!new_ckchs) {
-				memprintf(&err, "%sCannot allocate memory!\n",
-				          err ? err : "");
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-
-			if (bundle < 0)
-				ckch = new_ckchs->ckch;
-			else
-				ckch = &new_ckchs->ckch[bundle];
-
-			/* appply the change on the duplicate */
-			if (cert_exts[type].load(tmpfp, payload, ckch, &err) != 0) {
-				memprintf(&err, "%sCan't load the payload\n", err ? err : "");
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-
-			/* we store the ptr in the appctx to be processed in the IO handler */
-			appctx->ctx.ssl.n[i].new_ckchs = new_ckchs;
-			appctx->ctx.ssl.n[i].old_ckchs = old_ckchs;
-
-			found = 1;
-		}
+	/* if there is an ongoing transaction */
+	if (ckchs_transaction.path) {
+		/* if the ongoing transaction is a bundle, we need to find which part of the bundle need to be updated */
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-		{
+		if (ckchs_transaction.new_ckchs->multi) {
 			char *end = NULL;
 			int j;
 
-			if (bundle >= 0) /* we already looked for a bundle */
-				break;
-			/* check if it was also used as a bundle by removing the
+			/* check if it was used in a bundle by removing the
 			 *   .dsa/.rsa/.ecdsa at the end of the filename */
 			end = strrchr(buf->area, '.');
 			for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
@@ -10279,21 +10266,144 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					break;
 				}
 			}
-			if (bundle < 0) /* we didn't find a bundle extension */
-				break;
+			if (bundle < 0) {
+				memprintf(&err, "The ongoing transaction is the '%s' bundle. You need to specify which part of the bundle you want to update ('%s.{rsa,ecdsa,dsa}')\n", ckchs_transaction.path, buf->area);
+				errcode |= ERR_ALERT | ERR_FATAL;
+				goto end;
+			}
 		}
-#else
-		/* bundles are not supported here, so we don't need to lookup again */
-		break;
 #endif
+
+		/* if there is an ongoing transaction, check if this is the same file */
+		if (strcmp(ckchs_transaction.path, buf->area) != 0) {
+			memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, buf->area);
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+
+		appctx->ctx.ssl.old_ckchs = ckchs_transaction.new_ckchs;
+
+	} else {
+		struct ckch_store *find_ckchs[2] = { NULL, NULL };
+
+		/* lookup for the certificate in the tree:
+		 * check if this is used as a bundle AND as a unique certificate */
+		for (i = 0; i < 2; i++) {
+
+			if ((find_ckchs[i] = ckchs_lookup(buf->area)) != NULL) {
+				/* only the bundle name is in the tree and you should
+				 * never update a bundle name, only a filename */
+				if (bundle < 0 && find_ckchs[i]->multi) {
+					/* we tried to look for a non-bundle and we found a bundle */
+					memprintf(&err, "%s%s is a multi-cert bundle. Try updating %s.{dsa,rsa,ecdsa}\n",
+						  err ? err : "", args[3], args[3]);
+					errcode |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
+				/* If we want a bundle but this is not a bundle */
+				/* note that it should never happen */
+				if (bundle >= 0 && find_ckchs[i]->multi == 0)
+					goto end;
+			}
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+			{
+				char *end = NULL;
+				int j;
+
+				/* check if it was used in a bundle by removing the
+				 *   .dsa/.rsa/.ecdsa at the end of the filename */
+				end = strrchr(buf->area, '.');
+				for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
+					if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
+						bundle = j; /* keep the type of certificate so we insert it at the right place */
+						*end = '\0'; /* it's a bundle let's end the string*/
+						break;
+					}
+				}
+			}
+#else
+			/* bundles are not supported here, so we don't need to lookup again */
+			break;
+#endif
+		}
+
+		if (find_ckchs[0] && find_ckchs[1]) {
+			memprintf(&err, "%sUpdating a certificate which is used in the HAProxy configuration as a bundle and as a unique certificate is not supported. ('%s' and '%s')\n",
+			          err ? err : "", find_ckchs[0]->path, find_ckchs[1]->path);
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+
+		appctx->ctx.ssl.old_ckchs = find_ckchs[0] ? find_ckchs[0] : find_ckchs[1];
+
+		/* this is a new transaction, set the path of the transaction */
+		appctx->ctx.ssl.path = strdup(appctx->ctx.ssl.old_ckchs->path);
+		if (!appctx->ctx.ssl.path) {
+			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+
 	}
 
-	if (!found) {
-		memprintf(&err, "%sCan't replace a certificate name which is not referenced by the configuration!\n",
+	if (!appctx->ctx.ssl.old_ckchs) {
+		memprintf(&err, "%sCan't replace a certificate which is not referenced by the configuration!\n",
 		          err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
 	}
+
+
+	old_ckchs = appctx->ctx.ssl.old_ckchs;
+
+	/* TODO: handle filters */
+	if (old_ckchs->filters) {
+		memprintf(&err, "%sCertificates used in crt-list with filters are not supported!\n",
+			  err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	/* duplicate the ckch store */
+	new_ckchs = ckchs_dup(old_ckchs);
+	if (!new_ckchs) {
+		memprintf(&err, "%sCannot allocate memory!\n",
+			  err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	if (!new_ckchs->multi)
+		ckch = new_ckchs->ckch;
+	else
+		ckch = &new_ckchs->ckch[bundle];
+
+	/* appply the change on the duplicate */
+	if (cert_exts[type].load(buf->area, payload, ckch, &err) != 0) {
+		memprintf(&err, "%sCan't load the payload\n", err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	appctx->ctx.ssl.new_ckchs = new_ckchs;
+
+	/* we succeed, we can save the ckchs in the transaction */
+
+	/* if there wasn't a transaction, update the old ckchs */
+	if (!ckchs_transaction.old_ckchs && !ckchs_transaction.old_ckchs) {
+		ckchs_transaction.old_ckchs = appctx->ctx.ssl.old_ckchs;
+		ckchs_transaction.path = appctx->ctx.ssl.path;
+		err = memprintf(&err, "Transaction created for certificate %s!\n", ckchs_transaction.path);
+	} else {
+		err = memprintf(&err, "Transaction updated for certificate %s!\n", ckchs_transaction.path);
+
+	}
+
+	/* free the previous ckchs if there was a transaction */
+	ckchs_free(ckchs_transaction.new_ckchs);
+
+	ckchs_transaction.new_ckchs = appctx->ctx.ssl.new_ckchs;
+
 
 	/* creates the SNI ctxs later in the IO handler */
 
@@ -10301,11 +10411,21 @@ end:
 	free_trash_chunk(buf);
 
 	if (errcode & ERR_CODE) {
-		/* we release the spinlock and free the unused structures in the release function */
-		cli_release_set_cert(appctx);
+
+		ckchs_free(appctx->ctx.ssl.new_ckchs);
+		appctx->ctx.ssl.new_ckchs = NULL;
+
+		appctx->ctx.ssl.old_ckchs = NULL;
+
+		free(appctx->ctx.ssl.path);
+		appctx->ctx.ssl.path = NULL;
+
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
 	} else {
-		return 0;
+
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		return cli_dynmsg(appctx, LOG_NOTICE, err);
 	}
 	/* TODO: handle the ERR_WARN which are not handled because of the io_handler */
 }
@@ -10489,7 +10609,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "tls-key", NULL }, "set ssl tls-key [id|keyfile] <tlskey>: set the next TLS key for the <id> or <keyfile> listener to <tlskey>", cli_parse_set_tlskeys, NULL },
 #endif
 	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
-	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, cli_io_handler_set_cert, cli_release_set_cert },
+	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
+	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
