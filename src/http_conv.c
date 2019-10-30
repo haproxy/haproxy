@@ -33,10 +33,17 @@
 #include <proto/sample.h>
 #include <proto/stream.h>
 
+static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+    return smp_check_date_unit(args, err);
+}
 
 /* takes an UINT value on input supposed to represent the time since EPOCH,
  * adds an optional offset found in args[0] and emits a string representing
- * the date in RFC-1123/5322 format.
+ * the date in RFC-1123/5322 format. If optional unit param in args[1] is
+ * provided, decode timestamp in milliseconds ("ms") or microseconds("us"),
+ * and use relevant output date format.
  */
 static int sample_conv_http_date(const struct arg *args, struct sample *smp, void *private)
 {
@@ -44,23 +51,45 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	const char mon[12][4] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 	struct buffer *temp;
 	struct tm *tm;
-	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
-	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
+	int sec_frac = 0;
+	time_t curr_date;
 
 	/* add offset */
 	if (args && (args[0].type == ARGT_SINT))
-		curr_date += args[0].data.sint;
+		smp->data.u.sint += args[0].data.sint;
+
+        /* report in milliseconds */
+        if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
+		sec_frac = smp->data.u.sint % 1000;
+                smp->data.u.sint /= 1000;
+        }
+        /* report in microseconds */
+        else if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
+		sec_frac = smp->data.u.sint % 1000000;
+                smp->data.u.sint /= 1000000;
+        }
+
+	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
+	curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
 
 	tm = gmtime(&curr_date);
 	if (!tm)
 		return 0;
 
 	temp = get_trash_chunk();
-	temp->data = snprintf(temp->area, temp->size - temp->data,
-			      "%s, %02d %s %04d %02d:%02d:%02d GMT",
-			      day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon],
-			      1900+tm->tm_year,
-			      tm->tm_hour, tm->tm_min, tm->tm_sec);
+	if (args && args[1].type == ARGT_SINT && args[1].data.sint != TIME_UNIT_S) {
+	    temp->data = snprintf(temp->area, temp->size - temp->data,
+	                          "%s, %02d %s %04d %02d:%02d:%02d.%d GMT",
+			          day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon],
+			          1900+tm->tm_year,
+			          tm->tm_hour, tm->tm_min, tm->tm_sec, sec_frac);
+	} else {
+	    temp->data = snprintf(temp->area, temp->size - temp->data,
+	                          "%s, %02d %s %04d %02d:%02d:%02d GMT",
+			          day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon],
+			          1900+tm->tm_year,
+			          tm->tm_hour, tm->tm_min, tm->tm_sec);
+        }
 
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
@@ -328,7 +357,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-	{ "http_date",      sample_conv_http_date,    ARG1(0,SINT),     NULL,   SMP_T_SINT, SMP_T_STR},
+	{ "http_date",      sample_conv_http_date,    ARG2(0,SINT,STR),     smp_check_http_date_unit,   SMP_T_SINT, SMP_T_STR},
 	{ "language",       sample_conv_q_preferred,  ARG2(1,STR,STR),  NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-req",    smp_conv_req_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-res",    smp_conv_res_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},

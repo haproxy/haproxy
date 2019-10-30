@@ -13245,13 +13245,17 @@ hex2i
   Converts a hex string containing two hex digits per input byte to an
   integer. If the input value cannot be converted, then zero is returned.
 
-http_date([<offset>])
+http_date([<offset, unit>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If
-  an offset value is specified, then it is a number of seconds that is added to
-  the date before the conversion is operated. This is particularly useful to
-  emit Date header fields, Expires values in responses when combined with a
-  positive offset, or Last-Modified values when the offset is negative.
+  an offset value is specified, then it is added to the date before the
+  conversion is operated. This is particularly useful to emit Date header fields,
+  Expires values in responses when combined with a positive offset, or
+  Last-Modified values when the offset is negative.
+  If a unit value is specified, then consider the timestamp as either
+  "s" for seconds (default behavior), "ms" for milliseconds, or "us" for
+  microseconds since epoch. Offset is assumed to have the same unit as
+  input timestamp.
 
 in_table(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -14062,17 +14066,28 @@ cpu_ns_tot : integer
   high cpu_calls count, for example when processing many HTTP chunks, and for
   this reason it is often preferred to log cpu_ns_avg instead.
 
-date([<offset>]) : integer
+date([<offset>, <unit>]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
-  If an offset value is specified, then it is a number of seconds that is added
-  to the current date before returning the value. This is particularly useful
-  to compute relative dates, as both positive and negative offsets are allowed.
+
+  If an offset value is specified, then it is added to the current date before
+  returning the value. This is particularly useful to compute relative dates,
+  as both positive and negative offsets are allowed.
   It is useful combined with the http_date converter.
+
+  <unit> is facultative, and can be set to "s" for seconds (default behavior),
+  "ms" for  milliseconds or "us" for microseconds.
+  If unit is set, return value is an integer reflecting either seconds,
+  milliseconds or microseconds since epoch, plus offset.
+  It is useful when a time resolution of less than a second is needed.
 
   Example :
 
      # set an expires header to now+1 hour in every response
      http-response set-header Expires %[date(3600),http_date]
+
+     # set an expires header to now+1 hour in every response, with
+     # millisecond granularity
+     http-response set-header Expires %[date(3600000,ms),http_date(0,ms)]
 
 date_us : integer
   Return the microseconds part of the date (the "second" part is returned by

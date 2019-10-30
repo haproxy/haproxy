@@ -2940,13 +2940,59 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 	return 1;
 }
 
-/* retrieve the current local date in epoch time, and applies an optional offset
- * of args[0] seconds.
+/* Validates the data unit argument passed to "date" fetch. Argument 1 support an
+ * optional string representing the unit of the result: "s" for seconds, "ms" for
+ * milliseconds and "us" for microseconds.
+ * Returns 0 on error and non-zero if OK.
+ */
+int smp_check_date_unit(struct arg *args, char **err)
+{
+        if (args[1].type == ARGT_STR) {
+                if (strcmp(args[1].data.str.area, "s") == 0) {
+                        args[1].data.sint = TIME_UNIT_S;
+                }
+                else if (strcmp(args[1].data.str.area, "ms") == 0) {
+                        args[1].data.sint = TIME_UNIT_MS;
+                }
+                else if (strcmp(args[1].data.str.area, "us") == 0) {
+                        args[1].data.sint = TIME_UNIT_US;
+                }
+                else {
+                        memprintf(err, "expects 's', 'ms' or 'us', got '%s'",
+                                  args[1].data.str.area);
+                        return 0;
+                }
+                free(args[1].data.str.area);
+                args[1].data.str.area = NULL;
+                args[1].type = ARGT_SINT;
+        }
+        else if (args[1].type != ARGT_STOP) {
+                memprintf(err, "Unexpected arg type");
+                return 0;
+        }
+
+        return 1;
+}
+
+/* retrieve the current local date in epoch time, converts it to milliseconds
+ * or microseconds if asked to in optional args[1] unit param, and applies an
+ * optional args[0] offset.
  */
 static int
 smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.u.sint = date.tv_sec;
+
+	/* report in milliseconds */
+	if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
+		smp->data.u.sint *= 1000;
+		smp->data.u.sint += date.tv_usec / 1000;
+	}
+	/* report in microseconds */
+	else if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
+		smp->data.u.sint *= 1000000;
+		smp->data.u.sint += date.tv_usec;
+	}
 
 	/* add offset */
 	if (args && args[0].type == ARGT_SINT)
@@ -3259,7 +3305,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "always_false", smp_fetch_false, 0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_STR,  SMP_USE_INTRN },
-	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "date",         smp_fetch_date,  ARG2(0,SINT,STR), smp_check_date_unit, SMP_T_SINT, SMP_USE_INTRN },
 	{ "date_us",      smp_fetch_date_us,  0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_INTRN },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_INTRN },
