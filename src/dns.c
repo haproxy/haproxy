@@ -2150,8 +2150,13 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	struct dns_resolution *resolution;
 	struct sample *smp;
 	char *fqdn;
+	struct dns_requester *req;
+	struct dns_resolvers  *resolvers;
+	struct dns_resolution *res;
+	int exp;
 
 	/* we have a response to our DNS resolution */
+ use_cache:
 	if (s->dns_ctx.dns_requester && s->dns_ctx.dns_requester->resolution != NULL) {
 		resolution = s->dns_ctx.dns_requester->resolution;
 		if (resolution->step == RSLV_STEP_RUNNING) {
@@ -2211,6 +2216,22 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 
 	s->dns_ctx.parent = rule;
 	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
+
+	/* Check if there is a fresh enough response in the cache of our associated resolution */
+	req = s->dns_ctx.dns_requester;
+	if (!req || !req->resolution) {
+		dns_trigger_resolution(s->dns_ctx.dns_requester);
+		return ACT_RET_YIELD;
+	}
+	res       = req->resolution;
+	resolvers = res->resolvers;
+
+	exp = tick_add(res->last_resolution, resolvers->hold.valid);
+	if (resolvers->t && res->status == RSLV_STATUS_VALID && tick_isset(res->last_resolution)
+		       && !tick_is_expired(exp, now_ms)) {
+		goto use_cache;
+	}
+
 	dns_trigger_resolution(s->dns_ctx.dns_requester);
 	return ACT_RET_YIELD;
 }
