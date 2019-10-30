@@ -9975,33 +9975,30 @@ static void cli_release_commit_cert(struct appctx *appctx)
 {
 	struct ckch_store *new_ckchs;
 	struct ckch_inst *ckchi, *ckchis;
-	int it;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 	if (appctx->st2 != SETCERT_ST_FIN) {
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
-		for (it = 0; it < 2; it++) {
-			new_ckchs = appctx->ctx.ssl.new_ckchs;
+		new_ckchs = appctx->ctx.ssl.new_ckchs;
 
-			if (!new_ckchs)
-				continue;
+		if (!new_ckchs)
+			return;
 
-			/* if the allocation failed, we need to free everything from the temporary list */
-			list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-				struct sni_ctx *sc0, *sc0s;
+		/* if the allocation failed, we need to free everything from the temporary list */
+		list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+			struct sni_ctx *sc0, *sc0s;
 
-				list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-					if (sc0->order == 0) /* we only free if it's the first inserted */
-						SSL_CTX_free(sc0->ctx);
-					LIST_DEL(&sc0->by_ckch_inst);
-					free(sc0);
-				}
-				LIST_DEL(&ckchi->by_ckchs);
-				free(ckchi);
+			list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+				if (sc0->order == 0) /* we only free if it's the first inserted */
+					SSL_CTX_free(sc0->ctx);
+				LIST_DEL(&sc0->by_ckch_inst);
+				free(sc0);
 			}
-			ckchs_free(new_ckchs);
+			LIST_DEL(&ckchi->by_ckchs);
+			free(ckchi);
 		}
+		ckchs_free(new_ckchs);
 	}
 }
 
@@ -10017,7 +10014,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	int errcode = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi, *ckchis;
-	int it = appctx->ctx.ssl.it; /* 0 non-bundle, 1 = bundle */
 	struct buffer *trash = alloc_trash_chunk();
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -10039,88 +10035,84 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				 * This state generates the ckch instances with their
 				 * sni_ctxs and SSL_CTX.
 				 *
-				 * This step could be done twice (without considering
-				 * the yields), once for a cert, and once for a bundle.
-				 *
 				 * Since the SSL_CTX generation can be CPU consumer, we
 				 * yield every 10 instances.
 				 */
 
-					old_ckchs = appctx->ctx.ssl.old_ckchs;
-					new_ckchs = appctx->ctx.ssl.new_ckchs;
+				old_ckchs = appctx->ctx.ssl.old_ckchs;
+				new_ckchs = appctx->ctx.ssl.new_ckchs;
 
-					if (!new_ckchs)
-						continue;
+				if (!new_ckchs)
+					continue;
 
-					/* get the next ckchi to regenerate */
-					ckchi = appctx->ctx.ssl.next_ckchi;
-					/* we didn't start yet, set it to the first elem */
-					if (ckchi == NULL)
-						ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
+				/* get the next ckchi to regenerate */
+				ckchi = appctx->ctx.ssl.next_ckchi;
+				/* we didn't start yet, set it to the first elem */
+				if (ckchi == NULL)
+					ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
 
-					/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
-					list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
-						struct ckch_inst *new_inst;
+				/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
+				list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
+					struct ckch_inst *new_inst;
 
-						/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
-						if (y >= 10) {
-							/* save the next ckchi to compute */
-							appctx->ctx.ssl.next_ckchi = ckchi;
-							appctx->ctx.ssl.it = it;
-							goto yield;
-						}
-
-						if (new_ckchs->multi)
-							errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
-						else
-							errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
-
-						if (errcode & ERR_CODE)
-							goto error;
-
-						/* display one dot per new instance */
-						chunk_appendf(trash, ".");
-						/* link the new ckch_inst to the duplicate */
-						LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
-						y++;
+					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
+					if (y >= 10) {
+						/* save the next ckchi to compute */
+						appctx->ctx.ssl.next_ckchi = ckchi;
+						goto yield;
 					}
+
+					if (new_ckchs->multi)
+						errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
+					else
+						errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
+
+					if (errcode & ERR_CODE)
+						goto error;
+
+					/* display one dot per new instance */
+					chunk_appendf(trash, ".");
+					/* link the new ckch_inst to the duplicate */
+					LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
+					y++;
+				}
 				appctx->st2 = SETCERT_ST_INSERT;
 				/* fallthrough */
 			case SETCERT_ST_INSERT:
 				/* The generation is finished, we can insert everything */
 
-					old_ckchs = appctx->ctx.ssl.old_ckchs;
-					new_ckchs = appctx->ctx.ssl.new_ckchs;
+				old_ckchs = appctx->ctx.ssl.old_ckchs;
+				new_ckchs = appctx->ctx.ssl.new_ckchs;
 
-					if (!new_ckchs)
-						continue;
+				if (!new_ckchs)
+					continue;
 
-					/* First, we insert every new SNIs in the trees */
-					list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-						ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+				/* First, we insert every new SNIs in the trees */
+				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
+					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+				}
+
+				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
+				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
+					struct sni_ctx *sc0, *sc0s;
+
+					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+						ebmb_delete(&sc0->name);
+						LIST_DEL(&sc0->by_ckch_inst);
+						free(sc0);
 					}
+					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					LIST_DEL(&ckchi->by_ckchs);
+					free(ckchi);
+				}
 
-					/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
-					list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-						struct sni_ctx *sc0, *sc0s;
-
-						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-						list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-							ebmb_delete(&sc0->name);
-							LIST_DEL(&sc0->by_ckch_inst);
-							free(sc0);
-						}
-						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-						LIST_DEL(&ckchi->by_ckchs);
-						free(ckchi);
-					}
-
-					/* Replace the old ckchs by the new one */
-					ebmb_delete(&old_ckchs->node);
-					ckchs_free(old_ckchs);
-					ebst_insert(&ckchs_tree, &new_ckchs->node);
+				/* Replace the old ckchs by the new one */
+				ebmb_delete(&old_ckchs->node);
+				ckchs_free(old_ckchs);
+				ebst_insert(&ckchs_tree, &new_ckchs->node);
 				appctx->st2 = SETCERT_ST_FIN;
 				/* fallthrough */
 			case SETCERT_ST_FIN:
@@ -10185,7 +10177,6 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 
 	/* init the appctx structure */
 	appctx->st2 = SETCERT_ST_INIT;
-	appctx->ctx.ssl.it = 0;
 	appctx->ctx.ssl.next_ckchi = NULL;
 	appctx->ctx.ssl.new_ckchs = ckchs_transaction.new_ckchs;
 	appctx->ctx.ssl.old_ckchs = ckchs_transaction.old_ckchs;

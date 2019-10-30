@@ -174,7 +174,6 @@ struct appctx {
 		} cfgpeers;
 		struct {
 			char *path;
-			int it;
 			struct ckch_store *old_ckchs;
 			struct ckch_store *new_ckchs;
 			struct ckch_inst *next_ckchi;
