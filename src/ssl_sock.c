@@ -9939,9 +9939,13 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 
 enum {
 	CERT_TYPE_PEM = 0,
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	CERT_TYPE_OCSP,
+#endif
 	CERT_TYPE_ISSUER,
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	CERT_TYPE_SCTL,
+#endif
 	CERT_TYPE_MAX,
 };
 
