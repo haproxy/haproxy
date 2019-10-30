@@ -10260,13 +10260,13 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		/* if the ongoing transaction is a bundle, we need to find which part of the bundle need to be updated */
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 		if (ckchs_transaction.new_ckchs->multi) {
-			char *end = NULL;
+			char *end;
 			int j;
 
 			/* check if it was used in a bundle by removing the
 			 *   .dsa/.rsa/.ecdsa at the end of the filename */
 			end = strrchr(buf->area, '.');
-			for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
+			for (j = 0; end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
 				if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
 					bundle = j; /* keep the type of certificate so we insert it at the right place */
 					*end = '\0'; /* it's a bundle let's end the string*/
@@ -10314,13 +10314,13 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 			}
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			{
-				char *end = NULL;
+				char *end;
 				int j;
 
 				/* check if it was used in a bundle by removing the
 				 *   .dsa/.rsa/.ecdsa at the end of the filename */
 				end = strrchr(buf->area, '.');
-				for (j = 0; *end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
+				for (j = 0; end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
 					if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
 						bundle = j; /* keep the type of certificate so we insert it at the right place */
 						*end = '\0'; /* it's a bundle let's end the string*/
