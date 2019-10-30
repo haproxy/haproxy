@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -W -conf {
+haproxy h1 -W -S -conf {
     global
         nbproc 4
     defaults
