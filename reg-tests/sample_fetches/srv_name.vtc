@@ -1,0 +1,46 @@
+varnishtest "srv_name sample fetche Test"
+
+#REQUIRE_VERSION=2.1
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+server s2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+        http-response set-header srv-id   "%[srv_id]"
+        http-response set-header srv-name   "%[srv_name]"
+        default_backend be
+
+    backend be
+        server srv1 ${s1_addr}:${s1_port}
+        server srv2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.srv-id == "1"
+    expect resp.http.srv-name == "srv1"
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.srv-id == "2"
+    expect resp.http.srv-name == "srv2"
+} -run

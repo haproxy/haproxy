@@ -2100,6 +2100,26 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
+/* set string to the name of the server */
+static int
+smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	if (!objt_server(smp->strm->target))
+		return 0;
+
+	smp->data.u.str.area = (char *)__objt_server(smp->strm->target)->id;
+	if (!smp->data.u.str.area)
+	        return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
+
+	return 1;
+}
+
 /* set temp integer to the number of connections per second reaching the backend.
  * Accepts exactly 1 argument. Argument is a backend, other types will lead to
  * undefined behaviour.
@@ -2341,6 +2361,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "srv_conn_free", smp_fetch_srv_conn_free,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_SINT, SMP_USE_SERVR, },
 	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
+	{ "srv_name",      smp_fetch_srv_name,       0,           NULL, SMP_T_STR,  SMP_USE_SERVR, },
 	{ "srv_queue",     smp_fetch_srv_queue,      ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },

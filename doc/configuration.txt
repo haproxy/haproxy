@@ -14977,6 +14977,11 @@ srv_id : integer
   While it's almost only used with ACLs, it may be used for logging or
   debugging.
 
+srv_name : string
+  Returns a string containing the server's name when processing the response.
+  While it's almost only used with ACLs, it may be used for logging or
+  debugging.
+
 7.3.4. Fetching samples at Layer 5
 ----------------------------------
 
