@@ -4340,6 +4340,8 @@ static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct p
 	htx = htxbuf(&s->req.buf);
 	sl = http_get_stline(htx);
 	uri = htx_sl_req_uri(sl);
+	if (*uri_auth->uri_prefix == '/')
+		uri = http_get_path(uri);
 
 	/* check URI size */
 	if (uri_auth->uri_len > uri.len)
