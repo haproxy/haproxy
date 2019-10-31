@@ -10016,6 +10016,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct ckch_inst *ckchi, *ckchis;
 	struct buffer *trash = alloc_trash_chunk();
 
+	if (trash == NULL)
+		goto error;
+
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		goto error;
 
@@ -10142,10 +10145,12 @@ yield:
 
 error:
 	/* spin unlock and free are done in the release  function */
-	chunk_appendf(trash, "\n%sFailed!\n", err);
-	if (ci_putchk(si_ic(si), trash) == -1)
-		si_rx_room_blk(si);
-	free_trash_chunk(trash);
+	if (trash) {
+		chunk_appendf(trash, "\n%sFailed!\n", err);
+		if (ci_putchk(si_ic(si), trash) == -1)
+			si_rx_room_blk(si);
+		free_trash_chunk(trash);
+	}
 	/* error: call the release function and don't come back */
 	return 1;
 }
