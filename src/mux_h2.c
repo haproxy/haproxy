@@ -5838,6 +5838,12 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		return 0;
 	}
 
+	if (h2s->h2c->st0 >= H2_CS_ERROR) {
+		cs->flags |= CS_FL_ERROR;
+		TRACE_DEVEL("connection is in error, leaving in error", H2_EV_H2S_SEND|H2_EV_H2S_BLK|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
+		return 0;
+	}
+
 	htx = htx_from_buf(buf);
 
 	if (!(h2s->flags & H2_SF_OUTGOING_DATA) && count)
