@@ -752,6 +752,9 @@ static int h2_avail_streams(struct connection *conn)
 	if (h2c->last_sid >= 0)
 		return 0;
 
+	if (h2c->st0 >= H2_CS_ERROR)
+		return 0;
+
 	/* note: may be negative if a SETTINGS frame changes the limit */
 	ret1 = h2c->streams_limit - h2c->nb_streams;
 
