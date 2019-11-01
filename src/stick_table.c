@@ -2075,12 +2075,10 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
 	if (ptr) {
-		if (!rule->arg.gpt.expr) {
+		if (!rule->arg.gpt.expr)
 			value = rule->arg.gpt.value;
-		}
-		else if (!stktable_fetch_expr(rule, px, sess, s, rule->arg.gpt.expr, &value)) {
+		else if (!stktable_fetch_expr(rule, px, sess, s, rule->arg.gpt.expr, &value))
 			return ACT_RET_CONT;
-		}
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2125,16 +2123,12 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 		cmd_name++; /* jump the '(' */
 		rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
 		if (*error != ')') {
-			memprintf(err,
-			          "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)",
-			          args[*arg-1]);
+			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
 			return ACT_RET_PRS_ERR;
 		}
 
 		if (rule->arg.gpt.sc >= ACT_ACTION_TRK_SCMAX) {
-			memprintf(err,
-			          "invalid stick table track ID '%s'. The max allowed ID is %d",
-			          args[*arg-1], ACT_ACTION_TRK_SCMAX-1);
+			memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d", args[*arg-1], ACT_ACTION_TRK_SCMAX-1);
 			return ACT_RET_PRS_ERR;
 		}
 	}
@@ -2154,14 +2148,11 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 		case ACT_F_HTTP_REQ:    smp_val = SMP_VAL_FE_HRQ_HDR; break;
 		case ACT_F_HTTP_RES:    smp_val = SMP_VAL_BE_HRS_HDR; break;
 		default:
-			memprintf(err,
-			          "internal error, unexpected rule->from=%d, please report this bug!",
-			          rule->from);
+			memprintf(err, "internal error, unexpected rule->from=%d, please report this bug!", rule->from);
 			return ACT_RET_PRS_ERR;
 		}
 		if (!(rule->arg.gpt.expr->fetch->val & smp_val)) {
-			memprintf(err,
-			          "fetch method '%s' extracts information from '%s', none of which is available here",
+			memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here",
 			          args[*arg-1], sample_src_names(rule->arg.gpt.expr->fetch->use));
 			free(rule->arg.gpt.expr);
 			return ACT_RET_PRS_ERR;
