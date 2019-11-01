@@ -1845,6 +1845,50 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	return 1;
 }
 
+/* Fetches the value from the given expression.
+ * Returns 1 on success, 0 otherwise.
+ */
+static int stktable_fetch_expr(struct act_rule *rule, struct proxy *px,
+                               struct session *sess, struct stream *s,
+                               struct sample_expr *expr, long long int *value)
+{
+	struct sample smp;
+	int smp_opt_dir;
+
+	*value = 0;
+
+	switch (rule->from) {
+	case ACT_F_TCP_REQ_SES: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_TCP_REQ_CNT: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_TCP_RES_CNT: smp_opt_dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_HTTP_REQ:    smp_opt_dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_HTTP_RES:    smp_opt_dir = SMP_OPT_DIR_RES; break;
+	default:
+		send_log(px, LOG_ERR, "stick table: internal error while fetching expression.");
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			ha_alert("stick table: internal error while executing fetching expression.\n");
+		return 0;
+	}
+
+	/* Process the expression. */
+	memset(&smp, 0, sizeof(smp));
+	if (!sample_process(px, sess, s, smp_opt_dir|SMP_OPT_FINAL, expr, &smp))
+		return 0;
+
+	/* Check the sample data type. */
+	if (smp.data.type != SMP_T_SINT) {
+		send_log(px, LOG_WARNING, "stick table: invalid data type while fetching expression.");
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			ha_alert("stick table: invalid data type while fetching expression.\n");
+		return 0;
+	}
+
+	/* Store the sample value. */
+	*value = smp.data.u.sint;
+
+	return 1;
+}
+
 /* Always returns 1. */
 static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
@@ -2016,6 +2060,7 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	void *ptr;
 	struct stksess *ts;
 	struct stkctr *stkctr;
+	long long int value;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -2030,9 +2075,16 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
 	if (ptr) {
+		if (!rule->arg.gpt.expr) {
+			value = rule->arg.gpt.value;
+		}
+		else if (!stktable_fetch_expr(rule, px, sess, s, rule->arg.gpt.expr, &value)) {
+			return ACT_RET_CONT;
+		}
+
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
+		stktable_data_cast(ptr, gpt0) = value;
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2058,6 +2110,7 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 {
 	const char *cmd_name = args[*arg-1];
 	char *error;
+	int smp_val;
 
 	cmd_name += strlen("sc-set-gpt0");
 	if (*cmd_name == '\0') {
@@ -2072,21 +2125,47 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 		cmd_name++; /* jump the '(' */
 		rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
 		if (*error != ')') {
-			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+			memprintf(err,
+			          "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)",
+			          args[*arg-1]);
 			return ACT_RET_PRS_ERR;
 		}
 
 		if (rule->arg.gpt.sc >= ACT_ACTION_TRK_SCMAX) {
-			memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
+			memprintf(err,
+			          "invalid stick table track ID '%s'. The max allowed ID is %d",
 			          args[*arg-1], ACT_ACTION_TRK_SCMAX-1);
 			return ACT_RET_PRS_ERR;
 		}
 	}
 
+	rule->arg.gpt.expr = NULL;
 	rule->arg.gpt.value = strtol(args[*arg], &error, 10);
 	if (*error != '\0') {
-		memprintf(err, "invalid integer value '%s'", args[*arg]);
-		return ACT_RET_PRS_ERR;
+		rule->arg.gpt.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+		                                           px->conf.args.line, err, &px->conf.args);
+		if (!rule->arg.gpt.expr)
+			return ACT_RET_PRS_ERR;
+
+		switch (rule->from) {
+		case ACT_F_TCP_REQ_SES: smp_val = SMP_VAL_FE_SES_ACC; break;
+		case ACT_F_TCP_REQ_CNT: smp_val = SMP_VAL_FE_REQ_CNT; break;
+		case ACT_F_TCP_RES_CNT: smp_val = SMP_VAL_BE_RES_CNT; break;
+		case ACT_F_HTTP_REQ:    smp_val = SMP_VAL_FE_HRQ_HDR; break;
+		case ACT_F_HTTP_RES:    smp_val = SMP_VAL_BE_HRS_HDR; break;
+		default:
+			memprintf(err,
+			          "internal error, unexpected rule->from=%d, please report this bug!",
+			          rule->from);
+			return ACT_RET_PRS_ERR;
+		}
+		if (!(rule->arg.gpt.expr->fetch->val & smp_val)) {
+			memprintf(err,
+			          "fetch method '%s' extracts information from '%s', none of which is available here",
+			          args[*arg-1], sample_src_names(rule->arg.gpt.expr->fetch->use));
+			free(rule->arg.gpt.expr);
+			return ACT_RET_PRS_ERR;
+		}
 	}
 	(*arg)++;
 
