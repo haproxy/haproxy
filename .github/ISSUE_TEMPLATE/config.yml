@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: HAProxy Mailing List
+    url: https://www.mail-archive.com/haproxy@formilux.org/
+    about: Questions are best directed to HAProxy Mailing list or the HAProxy Forum.
+  - name: HAProxy Forum
+    url: https://discourse.haproxy.org/
+    about: Questions are best directed to HAProxy Mailing list or the HAProxy Forum.
