@@ -1,6 +1,45 @@
 ChangeLog :
 ===========
 
+2019/11/03 : 2.1-dev4
+    - BUG/MINOR: cli: don't call the kw->io_release if kw->parse failed
+    - BUG/MINOR: mux-h2: Don't pretend mux buffers aren't full anymore if nothing sent
+    - BUG/MAJOR: stream-int: Don't receive data from mux until SI_ST_EST is reached
+    - DOC: remove obsolete section about header manipulation
+    - BUG/MINOR: ssl/cli: cleanup on cli_parse_set_cert error
+    - MINOR: ssl/cli: rework the 'set ssl cert' IO handler
+    - BUILD: CI: comment out cygwin build, upgrade various ssl libraries
+    - DOC: Improve documentation of http-re(quest|sponse) replace-(header|value|uri)
+    - BUILD/MINOR: tools: shut up the format truncation warning in get_gmt_offset()
+    - BUG/MINOR: spoe: fix off-by-one length in UUID format string
+    - BUILD/MINOR: ssl: shut up a build warning about format truncation
+    - BUILD: do not disable -Wformat-truncation anymore
+    - MINOR: chunk: add chunk_istcat() to concatenate an ist after a chunk
+    - Revert "MINOR: istbuf: add b_fromist() to make a buffer from an ist"
+    - MINOR: mux: Add a new method to get informations about a mux.
+    - BUG/MEDIUM: stream_interface: Only use SI_ST_RDY when the mux is ready.
+    - BUG/MEDIUM: servers: Only set SF_SRV_REUSED if the connection if fully ready.
+    - MINOR: doc: fix busy-polling performance reference
+    - MINOR: config: allow no set-dumpable config option
+    - MINOR: init: always fail when setrlimit fails
+    - MINOR: ssl/cli: rework 'set ssl cert' as 'set/commit'
+    - CLEANUP: ssl/cli: remove leftovers of bundle/certs (it < 2)
+    - REGTEST: vtest can now enable mcli with its own flag
+    - BUG/MINOR: config: Update cookie domain warn to RFC6265
+    - MINOR: sample: add us/ms support to date/http_date
+    - BUG/MINOR: ssl/cli: check trash allocation in cli_io_handler_commit_cert()
+    - BUG/MEDIUM: mux-h2: report no available stream on a connection having errors
+    - BUG/MEDIUM: mux-h2: immediately remove a failed connection from the idle list
+    - BUG/MEDIUM: mux-h2: immediately report connection errors on streams
+    - BUG/MINOR: stats: properly check the path and not the whole URI
+    - BUG/MINOR: ssl: segfault in cli_parse_set_cert with old openssl/boringssl
+    - BUG/MINOR: ssl: ckch->chain must be initialized
+    - BUG/MINOR: ssl: double free on error for ckch->{key,cert}
+    - MINOR: ssl: BoringSSL ocsp_response does not need issuer
+    - BUG/MEDIUM: ssl/cli: fix dot research in cli_parse_set_cert
+    - MINOR: backend: Add srv_name sample fetche
+    - DOC: Add GitHub issue config.yml
+
 2019/10/25 : 2.1-dev3
     - MINOR: mux-h2/trace: missing conn pointer in demux full message
     - MINOR: mux-h2: add a per-connection list of blocked streams
