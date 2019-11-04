@@ -10307,10 +10307,13 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 					errcode |= ERR_ALERT | ERR_FATAL;
 					goto end;
 				}
-				/* If we want a bundle but this is not a bundle */
-				/* note that it should never happen */
-				if (bundle >= 0 && find_ckchs[i]->multi == 0)
-					goto end;
+				/* If we want a bundle but this is not a bundle
+				 * example: When you try to update <file>.rsa, but
+				 * <file> is a regular file */
+				if (bundle >= 0 && find_ckchs[i]->multi == 0) {
+					find_ckchs[i] = NULL;
+					break;
+				}
 			}
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			{
