@@ -2237,7 +2237,9 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #endif
 		/* without SNI extension, is the default_ctx (need SSL_TLSEXT_ERR_NOACK) */
 		if (!s->strict_sni) {
+			HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 			ssl_sock_switchctx_set(ssl, s->default_ctx);
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			goto allow_early;
 		}
 		goto abort;
@@ -2388,7 +2390,9 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #endif
 	if (!s->strict_sni) {
 		/* no certificate match, is the default_ctx */
+		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 	}
 allow_early:
 #ifdef OPENSSL_IS_BORINGSSL
@@ -2433,7 +2437,9 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #endif
 		if (s->strict_sni)
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		return SSL_TLSEXT_ERR_NOACK;
 	}
 
@@ -2469,10 +2475,12 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
-		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-		if (s->strict_sni)
+		if (s->strict_sni) {
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		}
 		ssl_sock_switchctx_set(ssl, s->default_ctx);
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		return SSL_TLSEXT_ERR_OK;
 	}
 
@@ -2776,6 +2784,7 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 
 	struct sni_ctx *sc0, *sc0b, *sc1;
 	struct ebmb_node *node;
+	int def = 0;
 
 	list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
 
@@ -2809,6 +2818,13 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 			ebst_insert(&bind_conf->sni_w_ctx, &sc0->name);
 		else
 			ebst_insert(&bind_conf->sni_ctx, &sc0->name);
+
+		/* replace the default_ctx if required with the first ctx */
+		if (ckch_inst->is_default && !def) {
+			/* we don't need to free the default_ctx because the refcount was not incremented */
+			bind_conf->default_ctx = sc0->ctx;
+			def = 1;
+		}
 	}
 }
 
@@ -3831,6 +3847,7 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 			if (key_combos[i].ctx) {
 				bind_conf->default_ctx = key_combos[i].ctx;
 				bind_conf->default_ssl_conf = ssl_conf;
+				ckch_inst->is_default = 1;
 				break;
 			}
 		}
@@ -4024,6 +4041,7 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 	if (!bind_conf->default_ctx) {
 		bind_conf->default_ctx = ctx;
 		bind_conf->default_ssl_conf = ssl_conf;
+		ckch_inst->is_default = 1;
 	}
 
 	/* everything succeed, the ckch instance can be used */
@@ -10084,6 +10102,10 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					if (errcode & ERR_CODE)
 						goto error;
 
+					/* if the previous ckchi was used as the default */
+					if (ckchi->is_default)
+						new_inst->is_default = 1;
+
 					/* display one dot per new instance */
 					chunk_appendf(trash, ".");
 					/* link the new ckch_inst to the duplicate */
@@ -10101,7 +10123,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				if (!new_ckchs)
 					continue;
 
-				/* First, we insert every new SNIs in the trees */
+				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 					ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);

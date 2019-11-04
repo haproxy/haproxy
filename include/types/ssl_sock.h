@@ -126,6 +126,7 @@ struct ckch_store {
 struct ckch_inst {
 	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
 	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
+	int is_default;      /* This instance is used as the default ctx for this bind_conf */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
 };
