@@ -373,8 +373,6 @@ struct pool_head *pool_head_ssl_capture = NULL;
 static int ssl_capture_ptr_index = -1;
 static int ssl_app_data_index = -1;
 
-static int ssl_pkey_info_index = -1;
-
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
@@ -2765,9 +2763,6 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 		sc->neg = neg;
 		sc->wild = wild;
 		sc->name.node.leaf_p = NULL;
-		if (kinfo.sig != TLSEXT_signature_anonymous)
-			SSL_CTX_set_ex_data(ctx, ssl_pkey_info_index, &sc->kinfo);
-
 		LIST_ADDQ(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
 	}
 	return order;
@@ -6698,41 +6693,34 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 {
 	struct ssl_sock_ctx *ctx;
-	struct pkey_info *pkinfo;
 	int bits = 0;
 	int sig = TLSEXT_signature_anonymous;
 	int len = -1;
+	X509 *crt;
+	EVP_PKEY *pkey;
 
 	if (!ssl_sock_is_ssl(conn))
 		return 0;
 	ctx = conn->xprt_ctx;
-	pkinfo = SSL_CTX_get_ex_data(SSL_get_SSL_CTX(ctx->ssl), ssl_pkey_info_index);
-	if (pkinfo) {
-		sig = pkinfo->sig;
-		bits = pkinfo->bits;
-	} else {
-		/* multicert and generated cert have no pkey info */
-		X509 *crt;
-		EVP_PKEY *pkey;
-		crt = SSL_get_certificate(ctx->ssl);
-		if (!crt)
-			return 0;
-		pkey = X509_get_pubkey(crt);
-		if (pkey) {
-			bits = EVP_PKEY_bits(pkey);
-			switch(EVP_PKEY_base_id(pkey)) {
-			case EVP_PKEY_RSA:
-				sig = TLSEXT_signature_rsa;
-				break;
-			case EVP_PKEY_EC:
-				sig = TLSEXT_signature_ecdsa;
-				break;
-			case EVP_PKEY_DSA:
-				sig = TLSEXT_signature_dsa;
-				break;
-			}
-			EVP_PKEY_free(pkey);
+
+	crt = SSL_get_certificate(ctx->ssl);
+	if (!crt)
+		return 0;
+	pkey = X509_get_pubkey(crt);
+	if (pkey) {
+		bits = EVP_PKEY_bits(pkey);
+		switch(EVP_PKEY_base_id(pkey)) {
+		case EVP_PKEY_RSA:
+			sig = TLSEXT_signature_rsa;
+			break;
+		case EVP_PKEY_EC:
+			sig = TLSEXT_signature_ecdsa;
+			break;
+		case EVP_PKEY_DSA:
+			sig = TLSEXT_signature_dsa;
+			break;
 		}
+		EVP_PKEY_free(pkey);
 	}
 
 	switch(sig) {
@@ -11025,7 +11013,6 @@ static void __ssl_sock_init(void)
 #endif
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
-	ssl_pkey_info_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
