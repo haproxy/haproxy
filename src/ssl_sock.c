@@ -10342,15 +10342,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		}
 
 		appctx->ctx.ssl.old_ckchs = find_ckchs[0] ? find_ckchs[0] : find_ckchs[1];
-
-		/* this is a new transaction, set the path of the transaction */
-		appctx->ctx.ssl.path = strdup(appctx->ctx.ssl.old_ckchs->path);
-		if (!appctx->ctx.ssl.path) {
-			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
-
 	}
 
 	if (!appctx->ctx.ssl.old_ckchs) {
@@ -10360,6 +10351,15 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
+	if (!appctx->ctx.ssl.path) {
+	/* this is a new transaction, set the path of the transaction */
+		appctx->ctx.ssl.path = strdup(appctx->ctx.ssl.old_ckchs->path);
+		if (!appctx->ctx.ssl.path) {
+			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+	}
 
 	old_ckchs = appctx->ctx.ssl.old_ckchs;
 
