@@ -10327,6 +10327,8 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 						break;
 					}
 				}
+				if (bundle < 0) /* we didn't find a bundle extension */
+					break;
 			}
 #else
 			/* bundles are not supported here, so we don't need to lookup again */
