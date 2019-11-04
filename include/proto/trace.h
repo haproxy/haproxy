@@ -77,6 +77,28 @@
 #define TRACE_POINT(mask, ...)  \
 	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("in"))
 
+#if defined(DEBUG_DEV) || defined(DEBUG_FULL)
+#    define DBG_TRACE(msg, mask, ...)        TRACE(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_USER(msg, mask, ...)   TRACE_USER(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_DATA(msg, mask, ...)   TRACE_DATA(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_PROTO(msg, mask, ...)  TRACE_PROTO(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_STATE(msg, mask, ...)  TRACE_STATE(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_DEVEL(msg, mask, ...)  TRACE_DEVEL(msg, mask, __VA_ARGS__)
+#    define DBG_TRACE_ENTER(mask, ...)       TRACE_ENTER(mask, __VA_ARGS__)
+#    define DBG_TRACE_LEAVE(mask, ...)       TRACE_LEAVE(mask, __VA_ARGS__)
+#    define DBG_TRACE_POINT(mask, ...)       TRACE_POINT(mask, __VA_ARGS__)
+#else
+#    define DBG_TRACE(msg, mask, ...)        do { /* do nothing */ } while(0)
+#    define DBG_TRACE_USER(msg, mask, ...)   do { /* do nothing */ } while(0)
+#    define DBG_TRACE_DATA(msg, mask, ...)   do { /* do nothing */ } while(0)
+#    define DBG_TRACE_PROTO(msg, mask, ...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_STATE(msg, mask, ...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_DEVEL(msg, mask, ...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_ENTER(mask, ...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE_LEAVE(mask, ...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE_POINT(mask, ...)       do { /* do nothing */ } while(0)
+#endif
+
 extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
