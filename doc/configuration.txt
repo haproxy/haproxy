@@ -13245,7 +13245,7 @@ hex2i
   Converts a hex string containing two hex digits per input byte to an
   integer. If the input value cannot be converted, then zero is returned.
 
-http_date([<offset, unit>])
+http_date([<offset],[<unit>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If
   an offset value is specified, then it is added to the date before the
@@ -14066,7 +14066,7 @@ cpu_ns_tot : integer
   high cpu_calls count, for example when processing many HTTP chunks, and for
   this reason it is often preferred to log cpu_ns_avg instead.
 
-date([<offset>, <unit>]) : integer
+date([<offset>],[<unit>]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
 
   If an offset value is specified, then it is added to the current date before
