@@ -2661,7 +2661,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
 	TRACE_ENTER(H1_EV_STRM_RECV, cs->conn, h1s,, (size_t[]){count});
 
-	if (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL) {
+	if ((h1m->flags & H1_MF_CHNK) || (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL)) {
 		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
 		TRACE_STATE("disable splicing on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, cs->conn, h1s);
 		if (!(h1s->h1c->wait_event.events & SUB_RETRY_RECV)) {
