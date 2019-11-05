@@ -60,6 +60,8 @@
 #include <proto/ssl_sock.h>
 #include <proto/task.h>
 
+#define TRACE_SOURCE &trace_strm
+
 int be_lastsession(const struct proxy *be)
 {
 	if (be->be_counters.last_sess)
@@ -1707,14 +1709,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	uint32_t addr;
 	char *p;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	if (s->flags & SF_ASSIGNED)
 		goto no_cookie;
@@ -1757,6 +1752,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 no_cookie:
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 }
 

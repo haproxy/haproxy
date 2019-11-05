@@ -32,6 +32,23 @@
 #include <proto/queue.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>
+#include <proto/trace.h>
+
+extern struct trace_source trace_strm;
+
+/* Details about these events are defined in <src/stream.c> */
+#define  STRM_EV_STRM_NEW     (1ULL <<  0)
+#define  STRM_EV_STRM_FREE    (1ULL <<  1)
+#define  STRM_EV_STRM_ERR     (1ULL <<  2)
+#define  STRM_EV_STRM_ANA     (1ULL <<  3)
+#define  STRM_EV_STRM_PROC    (1ULL <<  4)
+#define  STRM_EV_SI_ST        (1ULL <<  5)
+#define  STRM_EV_HTTP_ANA     (1ULL <<  6)
+#define  STRM_EV_HTTP_ERR     (1ULL <<  7)
+#define  STRM_EV_TCP_ANA      (1ULL <<  8)
+#define  STRM_EV_TCP_ERR      (1ULL <<  9)
+#define  STRM_EV_FLT_ANA      (1ULL << 10)
+#define  STRM_EV_FLT_ERR      (1ULL << 11)
 
 #define IS_HTX_STRM(strm) ((strm)->flags & SF_HTX)
 

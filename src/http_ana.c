@@ -35,6 +35,8 @@
 #include <proto/stats.h>
 #include <proto/vars.h>
 
+#define TRACE_SOURCE &trace_strm
+
 extern const char *stat_status_codes[];
 
 struct pool_head *pool_head_requri = NULL;
@@ -86,14 +88,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct htx *htx;
 	struct htx_sl *sl;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&req->buf);
 
@@ -250,6 +245,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		/* we're not ready yet */
+		DBG_TRACE_DEVEL("waiting for the request",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 
 	failed_keep_alive:
@@ -265,6 +262,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		s->logs.level = 0;
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 		http_reply_and_close(s, txn->status, NULL);
+		DBG_TRACE_DEVEL("leaving by closing K/A connection",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
 
@@ -424,6 +423,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
  return_int_err:
@@ -452,6 +452,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -479,14 +481,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		goto return_prx_yield;
 	}
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&req->buf);
 
@@ -619,6 +614,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	req->analyse_exp = TICK_ETERNITY;
  done_without_exp: /* done with this analyser, but dont reset the analyse_exp. */
 	req->analysers &= ~an_bit;
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
  tarpit:
@@ -689,10 +685,14 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 
  return_prx_yield:
 	channel_dont_connect(req);
+	DBG_TRACE_DEVEL("waiting for more data",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 }
 
@@ -715,14 +715,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		return 0;
 	}
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	/*
 	 * Right now, we know that we have processed the entire headers
@@ -750,6 +743,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
 
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 		sl = http_get_stline(htx);
@@ -927,6 +922,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	s->logs.tv_request = now;
 	/* OK let's go on with the BODY now */
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
  return_bad_req: /* let's centralize all bad requests */
@@ -942,6 +938,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -953,6 +951,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = s->txn;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, &txn->req);
 	/* This connection is being tarpitted. The CLIENT side has
 	 * already set the connect expiration date to the right
 	 * timeout. We just have to check that the client is still
@@ -960,8 +959,12 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	channel_dont_connect(req);
 	if ((req->flags & (CF_SHUTR|CF_READ_ERROR)) == 0 &&
-	    !tick_is_expired(req->analyse_exp, now_ms))
+	    !tick_is_expired(req->analyse_exp, now_ms)) {
+		DBG_TRACE_DEVEL("waiting for tarpit timeout expiry",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
+	}
+
 
 	/* We will set the queue timer to the time spent, just for
 	 * logging purposes. We fake a 500 server error, so that the
@@ -981,6 +984,8 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_T;
+
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 }
 
@@ -1000,15 +1005,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	struct http_msg *msg = &s->txn->req;
 	struct htx *htx;
 
-
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&req->buf);
 
@@ -1062,6 +1059,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		channel_dont_connect(req);
 		if (!tick_isset(req->analyse_exp))
 			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
+		DBG_TRACE_DEVEL("waiting for more data",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
 
@@ -1070,6 +1069,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	s->logs.tv_request = now;  /* update the request timer to reflect full request */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
  return_int_err:
@@ -1097,6 +1097,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -1119,14 +1121,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	short status = 0;
 	int ret;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&req->buf);
 
@@ -1145,11 +1140,16 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		 * was a write error, we may recover.
 		 */
 		if (!(req->flags & (CF_READ_ERROR | CF_READ_TIMEOUT)) &&
-		    (s->si[1].flags & SI_FL_L7_RETRY))
+		    (s->si[1].flags & SI_FL_L7_RETRY)) {
+			DBG_TRACE_DEVEL("leaving on L7 retry",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
+		}
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_end_request(s);
 		http_end_response(s);
+		DBG_TRACE_DEVEL("leaving on error",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 		return 1;
 	}
 
@@ -1242,6 +1242,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			}
 			goto return_bad_req;
 		}
+		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 1;
 	}
 
@@ -1262,6 +1263,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		 * on some systems (eg: Linux). */
 		channel_auto_read(req);
 	}
+	DBG_TRACE_DEVEL("waiting for the end of the HTTP txn",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 
  missing_data_or_waiting:
@@ -1296,6 +1299,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		req->flags |= CF_EXPECT_MORE;
 
+	DBG_TRACE_DEVEL("waiting for more data to forward",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 
   return_cli_abort:
@@ -1344,6 +1349,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	s->res.analysers &= AN_RES_FLT_END; /* we're in data phase, we want to abort both directions */
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= ((txn->rsp.msg_state < HTTP_MSG_ERROR) ? SF_FINST_H : SF_FINST_D);
+	DBG_TRACE_DEVEL("leaving on error ",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -1415,14 +1422,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct htx_sl *sl;
 	int n;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		rep,
-		rep->rex, rep->wex,
-		rep->flags,
-		ci_data(rep),
-		rep->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&rep->buf);
 
@@ -1483,8 +1483,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (conn->err_code == CO_ER_SSL_EARLY_FAILED) {
 				if ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
 				    (si_b->flags & SI_FL_L7_RETRY) &&
-				    do_l7_retry(s, si_b) == 0)
+				    do_l7_retry(s, si_b) == 0) {
+					DBG_TRACE_DEVEL("leaving on L7 retry",
+							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
+				}
 				txn->status = 425;
 			}
 
@@ -1495,6 +1498,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				s->flags |= SF_ERR_SRVCL;
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_H;
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 
@@ -1502,8 +1507,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_TIMEOUT)) {
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
+					DBG_TRACE_DEVEL("leaving on L7 retry",
+							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
+				}
 			}
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 			if (objt_server(s->target)) {
@@ -1520,6 +1528,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				s->flags |= SF_ERR_SRVTO;
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_H;
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 
@@ -1540,6 +1550,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				s->flags |= SF_FINST_H;
 
 			/* process_stream() will take care of the error */
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 
@@ -1547,8 +1559,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_SHUTR) {
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
+					DBG_TRACE_DEVEL("leaving on L7 retry",
+							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
+				}
 			}
 
 			if (txn->flags & TX_NOT_FIRST)
@@ -1569,6 +1584,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				s->flags |= SF_ERR_SRVCL;
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_H;
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 
@@ -1586,11 +1603,15 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				s->flags |= SF_FINST_H;
 
 			/* process_stream() will take care of the error */
+			DBG_TRACE_DEVEL("leaving on error",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 			return 0;
 		}
 
 		channel_dont_close(rep);
 		rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+		DBG_TRACE_DEVEL("waiting for more data",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
 
@@ -1766,6 +1787,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
 	channel_auto_close(rep);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
  return_int_err:
@@ -1783,8 +1805,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
 	    (si_b->flags & SI_FL_L7_RETRY) &&
-	    do_l7_retry(s, si_b) == 0)
+	    do_l7_retry(s, si_b) == 0) {
+		DBG_TRACE_DEVEL("leaving on L7 retry",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
+	}
 	txn->status = 502;
 	/* fall through */
 
@@ -1799,6 +1824,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	s->si[1].flags |= SI_FL_NOLINGER;
 	rep->analysers &= AN_RES_FLT_END;
 	rep->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 
  abort_keep_alive:
@@ -1813,6 +1840,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	s->logs.level = 0;
 	s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 	http_reply_and_close(s, txn->status, NULL);
+	DBG_TRACE_DEVEL("leaving by closing K/A connection",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 }
 
@@ -1833,14 +1862,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
 		return 0;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		rep,
-		rep->rex, rep->wex,
-		rep->flags,
-		ci_data(rep),
-		rep->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&rep->buf);
 
@@ -1893,6 +1915,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		/* we need to be called again. */
 		if (ret == HTTP_RULE_RES_YIELD) {
 			channel_dont_close(rep);
+			DBG_TRACE_DEVEL("waiting for more data",
+					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 			return 0;
 		}
 
@@ -2063,6 +2087,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		s->do_log(s);
 		s->logs.bytes_out = 0;
 	}
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
   return_bad_resp:
@@ -2082,6 +2107,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -2122,14 +2149,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	struct htx *htx;
 	int ret;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		res,
-		res->rex, res->wex,
-		res->flags,
-		ci_data(res),
-		res->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
 	htx = htxbuf(&res->buf);
 
@@ -2146,6 +2166,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_end_response(s);
 		http_end_request(s);
+		DBG_TRACE_DEVEL("leaving on error",
+				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 		return 1;
 	}
 
@@ -2232,8 +2254,11 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 			}
 			goto return_bad_res;
 		}
+		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 1;
 	}
+	DBG_TRACE_DEVEL("waiting for the end of the HTTP txn",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 
   missing_data_or_waiting:
@@ -2274,6 +2299,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		res->flags |= CF_EXPECT_MORE;
 
 	/* the stream handler will take care of timeouts and errors */
+	DBG_TRACE_DEVEL("waiting for more data to forward",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 
   return_srv_abort:
@@ -2316,6 +2343,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	s->req.analysers &= AN_REQ_FLT_END; /* we're in data phase, we want to abort both directions */
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_D;
+	DBG_TRACE_DEVEL("leaving on error",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
 }
 
@@ -4630,10 +4659,7 @@ static void http_end_request(struct stream *s)
 	struct channel *chn = &s->req;
 	struct http_txn *txn = s->txn;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p states=%s,%s req->analysers=0x%08x res->analysers=0x%08x\n",
-		now_ms, __FUNCTION__, s,
-		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
-		s->req.analysers, s->res.analysers);
+	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
 
 	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
 		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
@@ -4642,8 +4668,10 @@ static void http_end_request(struct stream *s)
 		goto end;
 	}
 
-	if (unlikely(txn->req.msg_state < HTTP_MSG_DONE))
+	if (unlikely(txn->req.msg_state < HTTP_MSG_DONE)) {
+		DBG_TRACE_DEVEL("waiting end of the request", STRM_EV_HTTP_ANA, s, txn);
 		return;
+	}
 
 	if (txn->req.msg_state == HTTP_MSG_DONE) {
 		/* No need to read anymore, the request was completely parsed.
@@ -4673,6 +4701,7 @@ static void http_end_request(struct stream *s)
 			/* The server has not finished to respond, so we
 			 * don't want to move in order not to upset it.
 			 */
+			DBG_TRACE_DEVEL("waiting end of the response", STRM_EV_HTTP_ANA, s, txn);
 			return;
 		}
 
@@ -4686,8 +4715,10 @@ static void http_end_request(struct stream *s)
 			 * poll for reads.
 			 */
 			channel_auto_read(chn);
-			if (b_data(&chn->buf))
+			if (b_data(&chn->buf)) {
+				DBG_TRACE_DEVEL("waiting to flush the request", STRM_EV_HTTP_ANA, s, txn);
 				return;
+			}
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
@@ -4724,6 +4755,7 @@ static void http_end_request(struct stream *s)
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			goto end;
 		}
+		DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 		return;
 	}
 
@@ -4752,6 +4784,7 @@ static void http_end_request(struct stream *s)
 			chn->analysers |= AN_REQ_FLT_XFER_DATA;
 	channel_auto_close(chn);
 	channel_auto_read(chn);
+	DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 }
 
 
@@ -4763,10 +4796,7 @@ static void http_end_response(struct stream *s)
 	struct channel *chn = &s->res;
 	struct http_txn *txn = s->txn;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p states=%s,%s req->analysers=0x%08x res->analysers=0x%08x\n",
-		now_ms, __FUNCTION__, s,
-		h1_msg_state_str(txn->req.msg_state), h1_msg_state_str(txn->rsp.msg_state),
-		s->req.analysers, s->res.analysers);
+	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
 
 	if (unlikely(txn->req.msg_state == HTTP_MSG_ERROR ||
 		     txn->rsp.msg_state == HTTP_MSG_ERROR)) {
@@ -4775,8 +4805,10 @@ static void http_end_response(struct stream *s)
 		goto end;
 	}
 
-	if (unlikely(txn->rsp.msg_state < HTTP_MSG_DONE))
+	if (unlikely(txn->rsp.msg_state < HTTP_MSG_DONE)) {
+		DBG_TRACE_DEVEL("waiting end of the response", STRM_EV_HTTP_ANA, s, txn);
 		return;
+	}
 
 	if (txn->rsp.msg_state == HTTP_MSG_DONE) {
 		/* In theory, we don't need to read anymore, but we must
@@ -4792,6 +4824,7 @@ static void http_end_response(struct stream *s)
 			 * We have the choice of either breaking the connection
 			 * or letting it pass through. Let's do the later.
 			 */
+			DBG_TRACE_DEVEL("waiting end of the request", STRM_EV_HTTP_ANA, s, txn);
 			return;
 		}
 
@@ -4803,8 +4836,10 @@ static void http_end_response(struct stream *s)
 		if (txn->flags & TX_CON_WANT_TUN) {
 			channel_auto_read(chn);
 			chn->flags |= CF_NEVER_WAIT;
-			if (b_data(&chn->buf))
+			if (b_data(&chn->buf)) {
+				DBG_TRACE_DEVEL("waiting to flush the respone", STRM_EV_HTTP_ANA, s, txn);
 				return;
+			}
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 		else {
@@ -4835,6 +4870,7 @@ static void http_end_response(struct stream *s)
 				_HA_ATOMIC_ADD(&objt_server(s->target)->counters.cli_aborts, 1);
 			goto end;
 		}
+		DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 		return;
 	}
 
@@ -4860,6 +4896,7 @@ static void http_end_response(struct stream *s)
 		chn->analysers |= AN_RES_FLT_XFER_DATA;
 	channel_auto_close(chn);
 	channel_auto_read(chn);
+	DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
 }
 
 void http_server_error(struct stream *s, struct stream_interface *si, int err,

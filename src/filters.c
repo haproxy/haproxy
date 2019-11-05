@@ -33,6 +33,8 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 
+#define TRACE_SOURCE &trace_strm
+
 /* Pool used to allocate filters */
 DECLARE_STATIC_POOL(pool_head_filter, "filter", sizeof(struct filter));
 
@@ -542,14 +544,17 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 {
 	int ret = 1;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	RESUME_FILTER_LOOP(s, msg->chn) {
 		if (FLT_OPS(filter)->http_end) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_end(s, filter, msg);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, msg->chn, end);
 		}
 	} RESUME_FILTER_END;
 end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
 
@@ -562,10 +567,14 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (FLT_OPS(filter)->http_reset)
+		if (FLT_OPS(filter)->http_reset) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			FLT_OPS(filter)->http_reset(s, filter, msg);
+		}
 	}
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 }
 
 /*
@@ -577,10 +586,14 @@ flt_http_reply(struct stream *s, short status, const struct buffer *msg)
 {
 	struct filter *filter;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (FLT_OPS(filter)->http_reply)
+		if (FLT_OPS(filter)->http_reply) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			FLT_OPS(filter)->http_reply(s, filter, status, msg);
+		}
 	}
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 }
 
 /*
@@ -600,6 +613,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	unsigned int out = co_data(msg->chn);
 	int ret = len - out;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		/* Call "data" filters only */
 		if (!IS_DATA_FILTER(filter, msg->chn))
@@ -608,6 +622,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
 			unsigned int offset = *flt_off - *strm_off;
 
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, ret - offset);
 			if (ret < 0)
 				goto end;
@@ -617,6 +632,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	}
 	*strm_off += ret;
  end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
 
@@ -633,6 +649,8 @@ int
 flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
+
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
 
 	/* If this function is called, this means there is at least one filter,
 	 * so we do not need to check the filter list's emptiness. */
@@ -656,6 +674,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		FLT_FWD(filter, chn) = 0;
 
 		if (FLT_OPS(filter)->channel_start_analyze) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->channel_start_analyze(s, filter, chn);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, end);
@@ -663,7 +682,9 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	} RESUME_FILTER_END;
 
  end:
-	return handle_analyzer_result(s, chn, an_bit, ret);
+	ret = handle_analyzer_result(s, chn, an_bit, ret);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	return ret;
 }
 
 /*
@@ -681,8 +702,11 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+
 	RESUME_FILTER_LOOP(s, chn) {
 		if (FLT_OPS(filter)->channel_pre_analyze && (filter->pre_analyzers & an_bit)) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
@@ -690,7 +714,9 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	} RESUME_FILTER_END;
 
  check_result:
-	return handle_analyzer_result(s, chn, 0, ret);
+	ret = handle_analyzer_result(s, chn, 0, ret);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	return ret;
 }
 
 /*
@@ -708,14 +734,19 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	struct filter *filter;
 	int            ret = 1;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->channel_post_analyze &&  (filter->post_analyzers & an_bit)) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
 			if (ret < 0)
 				break;
 		}
 	}
-	return handle_analyzer_result(s, chn, 0, ret);
+	ret = handle_analyzer_result(s, chn, 0, ret);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	return ret;
 }
 
 /*
@@ -730,8 +761,11 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	int              ret = 1;
 
 	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+
 	RESUME_FILTER_LOOP(s, chn) {
 		if (FLT_OPS(filter)->http_headers) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_headers(s, filter, msg);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
@@ -740,7 +774,9 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	channel_htx_fwd_headers(chn, htxbuf(&chn->buf));
 
  check_result:
-	return handle_analyzer_result(s, chn, an_bit, ret);
+	ret = handle_analyzer_result(s, chn, an_bit, ret);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	return ret;
 }
 
 /*
@@ -755,6 +791,8 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+
 	/* Check if all filters attached on the stream have finished their
 	 * processing on this channel. */
 	if (!(chn->flags & CF_FLT_ANALYZE))
@@ -766,6 +804,7 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		unregister_data_filter(s, chn, filter);
 
 		if (FLT_OPS(filter)->channel_end_analyze) {
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->channel_end_analyze(s, filter, chn);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, end);
@@ -801,8 +840,11 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 		/* Remove backend filters from the list */
 		flt_stream_release(s, 1);
+		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
 	}
-
+	else {
+		DBG_TRACE_DEVEL("waiting for sync", STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	}
 	return ret;
 }
 
@@ -836,6 +878,7 @@ flt_data(struct stream *s, struct channel *chn)
 		if (FLT_OPS(filter)->tcp_data) {
 			unsigned int i = ci_data(chn);
 
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->tcp_data(s, filter, chn);
 			if (ret < 0)
 				break;
@@ -891,6 +934,7 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 		if (FLT_OPS(filter)->tcp_forward_data) {
 			/* Remove bytes that the current filter considered as
 			 * forwarded */
+			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->tcp_forward_data(s, filter, chn, ret - *fwd);
 			if (ret < 0)
 				goto end;
@@ -934,6 +978,8 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
 
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+
 	/* If there is no "data" filters, we do nothing */
 	if (!HAS_DATA_FILTERS(s, chn))
 		goto end;
@@ -966,11 +1012,14 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	}
 
 	/* Wait for data */
+	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	return 0;
  end:
 	/* Terminate the data filtering. If <ret> is negative, an error was
 	 * encountered during the filtering. */
-	return handle_analyzer_result(s, chn, an_bit, ret);
+	ret = handle_analyzer_result(s, chn, an_bit, ret);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	return ret;
 }
 
 /*
@@ -1028,11 +1077,13 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
+	DBG_TRACE_DEVEL("leaving on error", STRM_EV_FLT_ANA|STRM_EV_FLT_ERR, s);
 	return 0;
 
  wait:
 	if (!(chn->flags & CF_ISRESP))
 		channel_dont_connect(chn);
+	DBG_TRACE_DEVEL("wairing for more data", STRM_EV_FLT_ANA, s);
 	return 0;
 }
 

@@ -36,6 +36,8 @@
 #include <proto/stream_interface.h>
 #include <proto/tcp_rules.h>
 
+#define TRACE_SOURCE &trace_strm
+
 /* List head of all known action keywords for "tcp-request connection" */
 struct list tcp_req_conn_keywords = LIST_HEAD_INIT(tcp_req_conn_keywords);
 struct list tcp_req_sess_keywords = LIST_HEAD_INIT(tcp_req_sess_keywords);
@@ -104,14 +106,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	int partial;
 	int act_flags = 0;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		ci_data(req),
-		req->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	/* We don't know whether we have enough data, so must proceed
 	 * this way :
@@ -177,6 +172,7 @@ resume_execution:
 					s->flags |= SF_ERR_PRXCOND;
 				if (!(s->flags & SF_FINST_MASK))
 					s->flags |= SF_FINST_R;
+				DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
 				return 0;
 			}
 			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
@@ -258,6 +254,7 @@ resume_execution:
 	 */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 
  missing_data:
@@ -265,6 +262,7 @@ resume_execution:
 	/* just set the request timeout once at the beginning of the request */
 	if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
 		req->analyse_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
+	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 
 }
@@ -282,14 +280,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	int partial;
 	int act_flags = 0;
 
-	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%lu analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		rep,
-		rep->rex, rep->wex,
-		rep->flags,
-		ci_data(rep),
-		rep->analysers);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	/* We don't know whether we have enough data, so must proceed
 	 * this way :
@@ -328,6 +319,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 				/* just set the analyser timeout once at the beginning of the response */
 				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
 					rep->analyse_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
+				DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 				return 0;
 			}
 
@@ -358,6 +350,7 @@ resume_execution:
 					s->flags |= SF_ERR_PRXCOND;
 				if (!(s->flags & SF_FINST_MASK))
 					s->flags |= SF_FINST_D;
+				DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
 				return 0;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
@@ -385,6 +378,7 @@ resume_execution:
 				case ACT_RET_YIELD:
 					channel_dont_close(rep);
 					s->current_rule = rule;
+					DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 					return 0;
 				}
 				break; /* ACT_RET_STOP/DONE */
@@ -397,6 +391,7 @@ resume_execution:
 	 */
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 }
 
