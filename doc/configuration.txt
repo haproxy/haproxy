@@ -2138,6 +2138,12 @@ default-server [param*]
 enable
   This re-enables a disabled peers section which was previously disabled.
 
+log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+    <facility> [<level> [<minlevel>]]
+  "peers" sections support the same "log" keyword as for the proxies to
+  log information about the "peers" listener. See "log" option for proxies for
+  more details.
+
 peer <peername> <ip>:<port> [param*]
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced

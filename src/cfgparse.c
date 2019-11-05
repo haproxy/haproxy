@@ -714,6 +714,17 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, 0);
 	}
+	else if (strcmp(args[0], "log") == 0) {
+		if (init_peers_frontend(file, linenum, NULL, curpeers) != 0) {
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		if (!parse_logsrv(args, &curpeers->peers_fe->logsrvs, (kwm == KWM_NO), &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (strcmp(args[0], "peers") == 0) { /* new peers section */
 		/* Initialize these static variables when entering a new "peers" section*/
 		bind_line = peer_line = 0;
