@@ -66,6 +66,8 @@ struct peer {
 	unsigned int reconnect;       /* next connect timer */
 	unsigned int heartbeat;       /* next heartbeat timer */
 	unsigned int confirm;         /* confirm message counter */
+	uint32_t rx_hbt;              /* received heartbeats counter */
+	uint32_t tx_hbt;              /* transmitted heartbeats counter */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
 	struct shared_table *last_local_table;

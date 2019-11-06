@@ -1819,6 +1819,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_HEARTBEAT) {
 			peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
+			peer->rx_hbt++;
 		}
 	}
 	else if (msg_head[0] == PEER_MSG_CLASS_STICKTABLE) {
@@ -2371,6 +2372,7 @@ send_msgs:
 							goto out;
 						goto switchstate;
 					}
+					curpeer->tx_hbt++;
 				}
 				/* we get here when a peer_recv_msg() returns 0 in reql */
 				repl = peer_send_msgs(appctx, curpeer);
@@ -3066,7 +3068,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	struct shared_table *st;
 
 	addr_to_str(&peer->addr, pn, sizeof pn);
-	chunk_appendf(msg, "  %p: id=%s(%s) addr=%s:%d status=%s reconnect=%s confirm=%u\n",
+	chunk_appendf(msg, "  %p: id=%s(%s) addr=%s:%d status=%s reconnect=%s confirm=%u tx_hbt=%u rx_hbt=%u\n",
 	              peer, peer->id,
 	              peer->local ? "local" : "remote",
 	              pn, get_host_port(&peer->addr),
@@ -3075,7 +3077,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 			             tick_is_expired(peer->reconnect, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(peer->reconnect - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
-	              peer->confirm);
+	              peer->confirm, peer->tx_hbt, peer->rx_hbt);
 
 	chunk_appendf(&trash, "        flags=0x%x", peer->flags);
 
