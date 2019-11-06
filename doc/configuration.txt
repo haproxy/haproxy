@@ -5206,9 +5206,7 @@ http-reuse { never | safe | aggressive | always }
     - connections with certain bogus authentication schemes (relying on the
       connection) like NTLM are detected, marked private and are never shared;
 
-  No connection pool is involved, once a session dies, the last idle connection
-  it was attached to is deleted at the same time. This ensures that connections
-  may not last after all sessions are closed.
+  A connection pool is involved and configurable with "pool-max-conn".
 
   Note: connection reuse improves the accuracy of the "server maxconn" setting,
   because almost no new connection will be established while idle connections
