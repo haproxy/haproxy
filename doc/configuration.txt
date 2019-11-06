@@ -4471,11 +4471,13 @@ http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
   counter designated by <sc-id>. If an error occurs, this action silently fails
   and the actions evaluation continues.
 
-http-request sc-set-gpt0(<sc-id>) <int> [ { if | unless } <condition> ]
+http-request sc-set-gpt0(<sc-id>) { <int> | <expr> }
+                                  [ { if | unless } <condition> ]
 
-  This action sets the GPT0 tag according to the sticky counter designated by
-  <sc-id> and the value of <int>. The expected result is a boolean. If an error
-  occurs, this action silently fails and the actions evaluation continues.
+  This action sets the 32-bit unsigned GPT0 tag according to the sticky counter
+  designated by <sc-id> and the value of <int>/<expr>. The expected result is a
+  boolean. If an error occurs, this action silently fails and the actions
+  evaluation continues.
 
 http-request set-dst <expr> [ { if | unless } <condition> ]
 
@@ -4980,11 +4982,13 @@ http-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
   counter designated by <sc-id>. If an error occurs, this action silently fails
   and the actions evaluation continues.
 
-http-response sc-set-gpt0(<sc-id>) <int> [ { if | unless } <condition> ]
+http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
+                                   [ { if | unless } <condition> ]
 
-  This action sets the GPT0 tag according to the sticky counter designated by
-  <sc-id> and the value of <int>. The expected result is a boolean. If an error
-  occurs, this action silently fails and the actions evaluation continues.
+  This action sets the 32-bit unsigned GPT0 tag according to the sticky counter
+  designated by <sc-id> and the value of <int>/<expr>. The expected result is a
+  boolean. If an error occurs, this action silently fails and the actions
+  evaluation continues.
 
 http-response send-spoe-group [ { if | unless } <condition> ]
 
@@ -9398,11 +9402,11 @@ tcp-request connection <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action silently
         fails and the actions evaluation continues.
 
-    - sc-set-gpt0(<sc-id>) <int>:
-        This action sets the GPT0 tag according to the sticky counter designated
-        by <sc-id> and the value of <int>. The expected result is a boolean. If
-        an error occurs, this action silently fails and the actions evaluation
-        continues.
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }:
+        This action sets the 32-bit unsigned GPT0 tag according to the sticky
+        counter designated by <sc-id> and the value of <int>/<expr>. The
+        expected result is a boolean. If an error occurs, this action silently
+        fails and the actions evaluation continues.
 
     - set-src <expr> :
       Is used to set the source IP address to the value of specified
@@ -9560,7 +9564,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
-    - sc-set-gpt0(<sc-id>) <int>
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-dst <expr>
     - set-dst-port <expr>
     - set-var(<var-name>) <expr>
@@ -9824,11 +9828,11 @@ tcp-response content <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action fails
         silently and the actions evaluation continues.
 
-    - sc-set-gpt0(<sc-id>) <int> :
-        This action sets the GPT0 tag according to the sticky counter designated
-        by <sc-id> and the value of <int>. The expected result is a boolean. If
-        an error occurs, this action silently fails and the actions evaluation
-        continues.
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
+        This action sets the 32-bit unsigned GPT0 tag according to the sticky
+        counter designated by <sc-id> and the value of <int>/<expr>. The
+        expected result is a boolean. If an error occurs, this action silently
+        fails and the actions evaluation continues.
 
     - "silent-drop" :
         This stops the evaluation of the rules and makes the client-facing
@@ -9949,7 +9953,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
-    - sc-set-gpt0(<sc-id>) <int>
+    - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
     - silent-drop

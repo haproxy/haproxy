@@ -2016,6 +2016,9 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	void *ptr;
 	struct stksess *ts;
 	struct stkctr *stkctr;
+	unsigned int value = 0;
+	struct sample *smp;
+	int smp_opt_dir;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -2030,9 +2033,36 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
 	if (ptr) {
+		if (!rule->arg.gpt.expr)
+			value = (unsigned int)(rule->arg.gpt.value);
+		else {
+			switch (rule->from) {
+			case ACT_F_TCP_REQ_SES: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_REQ_CNT: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_RES_CNT: smp_opt_dir = SMP_OPT_DIR_RES; break;
+			case ACT_F_HTTP_REQ:    smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_HTTP_RES:    smp_opt_dir = SMP_OPT_DIR_RES; break;
+			default:
+				send_log(px, LOG_ERR, "stick table: internal error while setting gpt0.");
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: internal error while executing setting gpt0.\n");
+				return ACT_RET_CONT;
+			}
+
+			/* Fetch and cast the expression. */
+			smp = sample_fetch_as_type(px, sess, s, smp_opt_dir|SMP_OPT_FINAL, rule->arg.gpt.expr, SMP_T_SINT);
+			if (!smp) {
+				send_log(px, LOG_WARNING, "stick table: invalid expression or data type while setting gpt0.");
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: invalid expression or data type while setting gpt0.\n");
+				return ACT_RET_CONT;
+			}
+			value = (unsigned int)(smp->data.u.sint);
+		}
+
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-		stktable_data_cast(ptr, gpt0) = rule->arg.gpt.value;
+		stktable_data_cast(ptr, gpt0) = value;
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2058,6 +2088,7 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 {
 	const char *cmd_name = args[*arg-1];
 	char *error;
+	int smp_val;
 
 	cmd_name += strlen("sc-set-gpt0");
 	if (*cmd_name == '\0') {
@@ -2083,10 +2114,30 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 		}
 	}
 
+	rule->arg.gpt.expr = NULL;
 	rule->arg.gpt.value = strtol(args[*arg], &error, 10);
 	if (*error != '\0') {
-		memprintf(err, "invalid integer value '%s'", args[*arg]);
-		return ACT_RET_PRS_ERR;
+		rule->arg.gpt.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+		                                       px->conf.args.line, err, &px->conf.args);
+		if (!rule->arg.gpt.expr)
+			return ACT_RET_PRS_ERR;
+
+		switch (rule->from) {
+		case ACT_F_TCP_REQ_SES: smp_val = SMP_VAL_FE_SES_ACC; break;
+		case ACT_F_TCP_REQ_CNT: smp_val = SMP_VAL_FE_REQ_CNT; break;
+		case ACT_F_TCP_RES_CNT: smp_val = SMP_VAL_BE_RES_CNT; break;
+		case ACT_F_HTTP_REQ:    smp_val = SMP_VAL_FE_HRQ_HDR; break;
+		case ACT_F_HTTP_RES:    smp_val = SMP_VAL_BE_HRS_HDR; break;
+		default:
+			memprintf(err, "internal error, unexpected rule->from=%d, please report this bug!", rule->from);
+			return ACT_RET_PRS_ERR;
+		}
+		if (!(rule->arg.gpt.expr->fetch->val & smp_val)) {
+			memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here", args[*arg-1],
+			          sample_src_names(rule->arg.gpt.expr->fetch->use));
+			free(rule->arg.gpt.expr);
+			return ACT_RET_PRS_ERR;
+		}
 	}
 	(*arg)++;
 

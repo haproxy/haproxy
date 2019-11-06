@@ -168,6 +168,7 @@ struct act_rule {
 		struct {
 			int sc;
 			long long int value;
+			struct sample_expr *expr;
 		} gpt;
 		struct track_ctr_prm trk_ctr;
 		struct {
