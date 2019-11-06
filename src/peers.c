@@ -3081,18 +3081,18 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 
 	appctx = peer->appctx;
 	if (!appctx)
-		goto end;
+		goto table_info;
 
 	chunk_appendf(&trash, " appctx:%p st0=%d st1=%d task_calls=%u", appctx, appctx->st0, appctx->st1,
 	                                                                appctx->t ? appctx->t->calls : 0);
 
 	peer_si = peer->appctx->owner;
 	if (!peer_si)
-		goto end;
+		goto table_info;
 
 	peer_s = si_strm(peer_si);
 	if (!peer_s)
-		goto end;
+		goto table_info;
 
 	chunk_appendf(&trash, " state=%s", si_state_str(si_opposite(peer_si)->state));
 
@@ -3120,6 +3120,7 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 		break;
 	}
 
+ table_info:
 	if (peer->remote_table)
 		chunk_appendf(&trash, "\n        remote_table:%p id=%s local_id=%d remote_id=%d",
 		              peer->remote_table,
