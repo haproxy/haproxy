@@ -5417,7 +5417,6 @@ void http_init_txn(struct stream *s)
 void http_end_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
-	struct proxy *fe = strm_fe(s);
 
 	/* these ones will have been dynamically allocated */
 	pool_free(pool_head_requri, txn->uri);
@@ -5430,20 +5429,6 @@ void http_end_txn(struct stream *s)
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 
-	if (s->req_cap) {
-		struct cap_hdr *h;
-		for (h = fe->req_cap; h; h = h->next)
-			pool_free(h->pool, s->req_cap[h->index]);
-		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
-	}
-
-	if (s->res_cap) {
-		struct cap_hdr *h;
-		for (h = fe->rsp_cap; h; h = h->next)
-			pool_free(h->pool, s->res_cap[h->index]);
-		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
-	}
-
 	if (!LIST_ISEMPTY(&s->vars_txn.head))
 		vars_prune(&s->vars_txn, s->sess, s);
 	if (!LIST_ISEMPTY(&s->vars_reqres.head))
@@ -5453,8 +5438,24 @@ void http_end_txn(struct stream *s)
 /* to be used at the end of a transaction to prepare a new one */
 void http_reset_txn(struct stream *s)
 {
+	struct proxy *fe = strm_fe(s);
+
 	http_end_txn(s);
 	http_init_txn(s);
+
+	/* cleanup and reinit capture arrays, if any */
+	if (s->req_cap) {
+		struct cap_hdr *h;
+		for (h = fe->req_cap; h; h = h->next)
+			pool_free(h->pool, s->req_cap[h->index]);
+		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
+	}
+	if (s->res_cap) {
+		struct cap_hdr *h;
+		for (h = fe->rsp_cap; h; h = h->next)
+			pool_free(h->pool, s->res_cap[h->index]);
+		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
+	}
 
 	/* reinitialise the current rule list pointer to NULL. We are sure that
 	 * any rulelist match the NULL pointer.

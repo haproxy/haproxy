@@ -644,6 +644,18 @@ static void stream_free(struct stream *s)
 	flt_stream_release(s, 0);
 
 	if (fe) {
+		if (s->req_cap) {
+			struct cap_hdr *h;
+			for (h = fe->req_cap; h; h = h->next)
+				pool_free(h->pool, s->req_cap[h->index]);
+		}
+
+		if (s->res_cap) {
+			struct cap_hdr *h;
+			for (h = fe->rsp_cap; h; h = h->next)
+				pool_free(h->pool, s->res_cap[h->index]);
+		}
+
 		pool_free(fe->rsp_cap_pool, s->res_cap);
 		pool_free(fe->req_cap_pool, s->req_cap);
 	}
