@@ -150,10 +150,7 @@ static inline uint16_t dns_rnd16(void)
 
 static inline int dns_resolution_timeout(struct dns_resolution *res)
 {
-	switch (res->status) {
-		case RSLV_STATUS_VALID: return res->resolvers->hold.valid;
-		default:                return res->resolvers->timeout.resolve;
-	}
+	return res->resolvers->timeout.resolve;
 }
 
 /* Updates a resolvers' task timeout for next wake up and queue it */
