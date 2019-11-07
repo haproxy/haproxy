@@ -56,7 +56,6 @@ struct buffer *http_error_message(struct stream *s);
 struct http_txn *http_alloc_txn(struct stream *s);
 void http_init_txn(struct stream *s);
 void http_end_txn(struct stream *s);
-void http_reset_txn(struct stream *s);
 
 /* for debugging, reports the HTTP/1 message state name (legacy version) */
 static inline const char *h1_msg_state_str(enum h1_state msg_state)
