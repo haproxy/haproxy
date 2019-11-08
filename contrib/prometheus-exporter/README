@@ -243,4 +243,6 @@ Exported metrics
 | haproxy_server_current_throttle                    | Current throttle percentage for the server, when slowstart is active.     |
 | haproxy_server_loadbalanced_total                  | Total number of times a service was selected.                             |
 | haproxy_server_http_responses_total                | Total number of HTTP responses.                                           |
+| haproxy_server_idle_connections_current            | Current number of idle connections available for reuse.                   |
+| haproxy_server_idle_connections_limit              | Limit on the number of available idle connections.                        |
 +----------------------------------------------------+---------------------------------------------------------------------------+

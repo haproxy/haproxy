@@ -232,6 +232,8 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = 0,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
 	[ST_F_CACHE_HITS]     = ST_F_COMP_IN,
+	[ST_F_SRV_ICUR]       = 0,
+	[ST_F_SRV_ILIM]       = 0,
 	[ST_F_QT_MAX]         = 0,
 	[ST_F_CT_MAX]         = 0,
 	[ST_F_RT_MAX]         = 0,
@@ -329,6 +331,8 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = ST_F_BIN,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
 	[ST_F_CACHE_HITS]     = ST_F_COMP_IN,
+	[ST_F_SRV_ICUR]       = 0,
+	[ST_F_SRV_ILIM]       = 0,
 	[ST_F_QT_MAX]         = ST_F_CT_MAX,
 	[ST_F_CT_MAX]         = ST_F_RT_MAX,
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
@@ -382,7 +386,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_HRSP_3XX]       = ST_F_HRSP_4XX,
 	[ST_F_HRSP_4XX]       = ST_F_HRSP_5XX,
 	[ST_F_HRSP_5XX]       = ST_F_HRSP_OTHER,
-	[ST_F_HRSP_OTHER]     = 0,
+	[ST_F_HRSP_OTHER]     = ST_F_SRV_ICUR,
 	[ST_F_HANAFAIL]       = 0,
 	[ST_F_REQ_RATE]       = 0,
 	[ST_F_REQ_RATE_MAX]   = 0,
@@ -426,6 +430,8 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = ST_F_DRESP,
 	[ST_F_CACHE_LOOKUPS]  = 0,
 	[ST_F_CACHE_HITS]     = 0,
+	[ST_F_SRV_ICUR]       = ST_F_SRV_ILIM,
+	[ST_F_SRV_ILIM]       = 0,
 	[ST_F_QT_MAX]         = ST_F_CT_MAX,
 	[ST_F_CT_MAX]         = ST_F_RT_MAX,
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
@@ -586,6 +592,8 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("connection_reuses_total"),
 	[ST_F_CACHE_LOOKUPS]  = IST("http_cache_lookups_total"),
 	[ST_F_CACHE_HITS]     = IST("http_cache_hits_total"),
+	[ST_F_SRV_ICUR]       = IST("server_idle_connections_current"),
+	[ST_F_SRV_ILIM]       = IST("server_idle_connections_limit"),
 	[ST_F_QT_MAX]         = IST("max_queue_time_seconds"),
 	[ST_F_CT_MAX]         = IST("max_connect_time_seconds"),
 	[ST_F_RT_MAX]         = IST("max_response_time_seconds"),
@@ -746,6 +754,8 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("Total number of connection reuses."),
 	[ST_F_CACHE_LOOKUPS]  = IST("Total number of HTTP cache lookups."),
 	[ST_F_CACHE_HITS]     = IST("Total number of HTTP cache hits."),
+	[ST_F_SRV_ICUR]       = IST("Current number of idle connections available for reuse"),
+	[ST_F_SRV_ILIM]       = IST("Limit on the number of available idle connections"),
 	[ST_F_QT_MAX]         = IST("Maximum observed time spent in the queue"),
 	[ST_F_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
 	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
@@ -1062,6 +1072,8 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("counter"),
 	[ST_F_CACHE_LOOKUPS]  = IST("counter"),
 	[ST_F_CACHE_HITS]     = IST("counter"),
+	[ST_F_SRV_ICUR]       = IST("gauge"),
+	[ST_F_SRV_ILIM]       = IST("gauge"),
 	[ST_F_QT_MAX]         = IST("gauge"),
 	[ST_F_CT_MAX]         = IST("gauge"),
 	[ST_F_RT_MAX]         = IST("gauge"),
@@ -2042,6 +2054,12 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							goto next_px;
 						appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
 						metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
+						break;
+					case ST_F_SRV_ICUR:
+						metric = mkf_u32(0, sv->curr_idle_conns);
+						break;
+					case ST_F_SRV_ILIM:
+						metric = mkf_u32(FO_CONFIG|FN_LIMIT, (sv->max_idle_conns == -1) ? 0 : sv->max_idle_conns);
 						break;
 
 					default:
