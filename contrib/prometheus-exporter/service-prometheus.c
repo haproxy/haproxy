@@ -232,6 +232,10 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = 0,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
 	[ST_F_CACHE_HITS]     = ST_F_COMP_IN,
+	[ST_F_QT_MAX]         = 0,
+	[ST_F_CT_MAX]         = 0,
+	[ST_F_RT_MAX]         = 0,
+	[ST_F_TT_MAX]         = 0,
 };
 
 /* Matrix used to dump backend metrics. Each metric points to the next one to be
@@ -298,7 +302,7 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_QTIME]          = ST_F_CTIME,
 	[ST_F_CTIME]          = ST_F_RTIME,
 	[ST_F_RTIME]          = ST_F_TTIME,
-	[ST_F_TTIME]          = ST_F_DREQ,
+	[ST_F_TTIME]          = ST_F_QT_MAX,
 	[ST_F_AGENT_STATUS]   = 0,
 	[ST_F_AGENT_CODE]     = 0,
 	[ST_F_AGENT_DURATION] = 0,
@@ -325,6 +329,10 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = ST_F_BIN,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
 	[ST_F_CACHE_HITS]     = ST_F_COMP_IN,
+	[ST_F_QT_MAX]         = ST_F_CT_MAX,
+	[ST_F_CT_MAX]         = ST_F_RT_MAX,
+	[ST_F_RT_MAX]         = ST_F_TT_MAX,
+	[ST_F_TT_MAX]         = ST_F_DREQ,
 };
 
 /* Matrix used to dump server metrics. Each metric points to the next one to be
@@ -391,7 +399,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_QTIME]          = ST_F_CTIME,
 	[ST_F_CTIME]          = ST_F_RTIME,
 	[ST_F_RTIME]          = ST_F_TTIME,
-	[ST_F_TTIME]          = ST_F_CONNECT,
+	[ST_F_TTIME]          = ST_F_QT_MAX,
 	[ST_F_AGENT_STATUS]   = 0,
 	[ST_F_AGENT_CODE]     = 0,
 	[ST_F_AGENT_DURATION] = 0,
@@ -418,6 +426,10 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = ST_F_DRESP,
 	[ST_F_CACHE_LOOKUPS]  = 0,
 	[ST_F_CACHE_HITS]     = 0,
+	[ST_F_QT_MAX]         = ST_F_CT_MAX,
+	[ST_F_CT_MAX]         = ST_F_RT_MAX,
+	[ST_F_RT_MAX]         = ST_F_TT_MAX,
+	[ST_F_TT_MAX]         = ST_F_CONNECT,
 };
 
 /* Name of all info fields */
@@ -574,6 +586,10 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("connection_reuses_total"),
 	[ST_F_CACHE_LOOKUPS]  = IST("http_cache_lookups_total"),
 	[ST_F_CACHE_HITS]     = IST("http_cache_hits_total"),
+	[ST_F_QT_MAX]         = IST("max_queue_time_seconds"),
+	[ST_F_CT_MAX]         = IST("max_connect_time_seconds"),
+	[ST_F_RT_MAX]         = IST("max_response_time_seconds"),
+	[ST_F_TT_MAX]         = IST("max_total_time_seconds"),
 };
 
 /* Description of all info fields */
@@ -730,6 +746,10 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("Total number of connection reuses."),
 	[ST_F_CACHE_LOOKUPS]  = IST("Total number of HTTP cache lookups."),
 	[ST_F_CACHE_HITS]     = IST("Total number of HTTP cache hits."),
+	[ST_F_QT_MAX]         = IST("Maximum observed time spent in the queue"),
+	[ST_F_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
+	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
+	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
 };
 
 /* Specific labels for all info fields. Empty by default. */
@@ -1042,6 +1062,10 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("counter"),
 	[ST_F_CACHE_LOOKUPS]  = IST("counter"),
 	[ST_F_CACHE_HITS]     = IST("counter"),
+	[ST_F_QT_MAX]         = IST("gauge"),
+	[ST_F_CT_MAX]         = IST("gauge"),
+	[ST_F_RT_MAX]         = IST("gauge"),
+	[ST_F_TT_MAX]         = IST("gauge"),
 };
 
 /* Return the server status: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB. */
@@ -1674,6 +1698,22 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					secs = (double)swrate_avg(px->be_counters.t_time, TIME_STATS_SAMPLES) / 1000.0;
 					metric = mkf_flt(FN_AVG, secs);
 					break;
+				case ST_F_QT_MAX:
+					secs = (double)px->be_counters.qtime_max / 1000.0;
+					metric = mkf_flt(FN_MAX, secs);
+					break;
+				case ST_F_CT_MAX:
+					secs = (double)px->be_counters.ctime_max / 1000.0;
+					metric = mkf_flt(FN_MAX, secs);
+					break;
+				case ST_F_RT_MAX:
+					secs = (double)px->be_counters.dtime_max / 1000.0;
+					metric = mkf_flt(FN_MAX, secs);
+					break;
+				case ST_F_TT_MAX:
+					secs = (double)px->be_counters.ttime_max / 1000.0;
+					metric = mkf_flt(FN_MAX, secs);
+					break;
 				case ST_F_DREQ:
 					metric = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
 					break;
@@ -1899,6 +1939,22 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					case ST_F_TTIME:
 						secs = (double)swrate_avg(sv->counters.t_time, TIME_STATS_SAMPLES) / 1000.0;
 						metric = mkf_flt(FN_AVG, secs);
+						break;
+					case ST_F_QT_MAX:
+						secs = (double)sv->counters.qtime_max / 1000.0;
+						metric = mkf_flt(FN_MAX, secs);
+						break;
+					case ST_F_CT_MAX:
+						secs = (double)sv->counters.ctime_max / 1000.0;
+						metric = mkf_flt(FN_MAX, secs);
+						break;
+					case ST_F_RT_MAX:
+						secs = (double)sv->counters.dtime_max / 1000.0;
+						metric = mkf_flt(FN_MAX, secs);
+						break;
+					case ST_F_TT_MAX:
+						secs = (double)sv->counters.ttime_max / 1000.0;
+						metric = mkf_flt(FN_MAX, secs);
 						break;
 					case ST_F_CONNECT:
 						metric = mkf_u64(FN_COUNTER, sv->counters.connect);
