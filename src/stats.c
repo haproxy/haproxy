@@ -3746,6 +3746,10 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 			px->be_counters.sps_max = 0;
 			px->be_counters.cps_max = 0;
 			px->be_counters.nbpend_max = 0;
+			px->be_counters.qtime_max = 0;
+			px->be_counters.ctime_max = 0;
+			px->be_counters.dtime_max = 0;
+			px->be_counters.ttime_max = 0;
 
 			px->fe_counters.conn_max = 0;
 			px->fe_counters.p.http.rps_max = 0;
@@ -3760,6 +3764,10 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 				sv->counters.cur_sess_max = 0;
 				sv->counters.nbpend_max = 0;
 				sv->counters.sps_max = 0;
+				sv->counters.qtime_max = 0;
+				sv->counters.ctime_max = 0;
+				sv->counters.dtime_max = 0;
+				sv->counters.ttime_max = 0;
 			}
 
 		list_for_each_entry(li, &px->conf.listeners, by_fe)

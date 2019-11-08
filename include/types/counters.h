@@ -100,6 +100,7 @@ struct be_counters {
 	long long down_trans;			/* up->down transitions */
 
 	unsigned int q_time, c_time, d_time, t_time; /* sums of conn_time, queue_time, data_time, total_time */
+	unsigned int qtime_max, ctime_max, dtime_max, ttime_max; /* maximum of conn_time, queue_time, data_time, total_time observed */
 
 	union {
 		struct {
