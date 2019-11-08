@@ -981,7 +981,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 
 	/* If there is no "data" filters, we do nothing */
-	if (!HAS_DATA_FILTERS(s, chn))
+	if (!HAS_DATA_FILTERS(s, chn) || (s->flags & SF_HTX))
 		goto end;
 
 	/* Be sure that the output is still opened. Else we stop the data
