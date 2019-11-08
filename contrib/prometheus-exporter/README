@@ -166,13 +166,13 @@ Exported metrics
 | haproxy_backend_connection_reuses_total             | Total number of connection reuses.                                       |
 | haproxy_backend_bytes_in_total                      | Current total of incoming bytes.                                         |
 | haproxy_backend_bytes_out_total                     | Current total of outgoing bytes.                                         |
-| haproxy_backend_http_queue_time_average_seconds     | Avg. queue time for last 1024 successful connections.                    |
-| haproxy_backend_http_connect_time_average_seconds   | Avg. connect time for last 1024 successful connections.                  |
-| haproxy_backend_http_response_time_average_seconds  | Avg. response time for last 1024 successful connections.                 |
-| haproxy_backend_http_total_time_average_seconds     | Avg. total time for last 1024 successful connections.                    |
+| haproxy_backend_queue_time_average_seconds          | Avg. queue time for last 1024 successful connections.                    |
+| haproxy_backend_connect_time_average_seconds        | Avg. connect time for last 1024 successful connections.                  |
+| haproxy_backend_response_time_average_seconds       | Avg. response time for last 1024 successful connections. (0 for TCP)     |
+| haproxy_backend_total_time_average_seconds          | Avg. total time for last 1024 successful connections.                    |
 | haproxy_backend_max_queue_time_seconds              | Maximum observed queue time.                                             |
 | haproxy_backend_max_connect_time_seconds            | Maximum observed connect time.                                           |
-| haproxy_backend_max_response_time_seconds           | Maximum observed response time.                                          |
+| haproxy_backend_max_response_time_seconds           | Maximum observed response time. (0 for TCP)                              |
 | haproxy_backend_max_total_time_seconds              | Maximum observed total time.                                             |
 | haproxy_backend_requests_denied_total               | Total number of denied requests.                                         |
 | haproxy_backend_responses_denied_total              | Total number of denied responses.                                        |
@@ -217,13 +217,13 @@ Exported metrics
 | haproxy_server_queue_limit                         | Configured maxqueue for the server (0 meaning no limit).                  |
 | haproxy_server_bytes_in_total                      | Current total of incoming bytes.                                          |
 | haproxy_server_bytes_out_total                     | Current total of outgoing bytes.                                          |
-| haproxy_server_http_queue_time_average_seconds     | Avg. queue time for last 1024 successful connections.                     |
-| haproxy_server_http_connect_time_average_seconds   | Avg. connect time for last 1024 successful connections.                   |
-| haproxy_server_http_response_time_average_seconds  | Avg. response time for last 1024 successful connections.                  |
-| haproxy_server_http_total_time_average_seconds     | Avg. total time for last 1024 successful connections.                     |
+| haproxy_server_queue_time_average_seconds          | Avg. queue time for last 1024 successful connections.                     |
+| haproxy_server_connect_time_average_seconds        | Avg. connect time for last 1024 successful connections.                   |
+| haproxy_server_response_time_average_seconds       | Avg. response time for last 1024 successful connections. (0 for TCP)      |
+| haproxy_server_total_time_average_seconds          | Avg. total time for last 1024 successful connections.                     |
 | haproxy_server_max_queue_time_seconds              | Maximum observed queue time.                                              |
 | haproxy_server_max_connect_time_seconds            | Maximum observed connect time.                                            |
-| haproxy_server_max_response_time_seconds           | Maximum observed response time.                                           |
+| haproxy_server_max_response_time_seconds           | Maximum observed response time.  (0 for TCP)                              |
 | haproxy_server_max_total_time_seconds              | Maximum observed total time.                                              |
 | haproxy_server_connection_attempts_total           | Total number of connection establishment attempts.                        |
 | haproxy_server_connection_reuses_total             | Total number of connection reuses.                                        |
