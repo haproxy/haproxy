@@ -248,11 +248,18 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
  */
 
 /* Adds sample value <v> to sliding window sum <sum> configured for <n> samples.
- * The sample is returned. Better if <n> is a power of two.
+ * The sample is returned. Better if <n> is a power of two. This function is
+ * thread-safe.
  */
 static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigned int v)
 {
-	return *sum = *sum - (*sum + n - 1) / n + v;
+	unsigned int new_sum, old_sum;
+
+	old_sum = *sum;
+	do {
+		new_sum = old_sum - (old_sum + n - 1) / n + v;
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	return new_sum;
 }
 
 /* Adds sample value <v> spanning <s> samples to sliding window sum <sum>
@@ -275,11 +282,18 @@ static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigne
  * Thus the simplified function effectively replaces a part of the history with
  * a linear sum instead of applying the exponential one. But as long as s/n is
  * "small enough", the error fades away and remains small for both small and
- * large values of n and s (typically < 0.2% measured).
+ * large values of n and s (typically < 0.2% measured).  This function is
+ * thread-safe.
  */
 static inline unsigned int swrate_add_scaled(unsigned int *sum, unsigned int n, unsigned int v, unsigned int s)
 {
-	return *sum = *sum + v * s - div64_32((unsigned long long)(*sum + n) * s, n);
+	unsigned int new_sum, old_sum;
+
+	old_sum = *sum;
+	do {
+		new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	return new_sum;
 }
 
 /* Returns the average sample value for the sum <sum> over a sliding window of
