@@ -270,8 +270,8 @@ static inline void __tasklet_remove_from_tasklet_list(struct tasklet *t)
 
 static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (likely(!LIST_ISEMPTY(&t->list)))
-		__tasklet_remove_from_tasklet_list(t);
+	if (MT_LIST_DEL((struct mt_list *)&t->list))
+		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 }
 
 /*
