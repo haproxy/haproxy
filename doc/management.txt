@@ -1103,6 +1103,12 @@ S (Servers).
  85: reuse [..BS]: cumulative number of connection reuses
  86: cache_lookups [.FB.]: cumulative number of cache lookups
  87: cache_hits [.FB.]: cumulative number of cache hits
+ 88: srv_icur [...S]: current number of idle connections available for reuse
+ 89: src_ilim [...S]: limit on the number of available idle connections
+ 90. qtime_max [..BS]: the maximum observed queue time in ms
+ 91. ctime_max [..BS]: the maximum observed connect time in ms
+ 92. rtime_max [..BS]: the maximum observed response time in ms (0 for TCP)
+ 93. ttime_max [..BS]: the maximum observed total session time in ms
 
 
 9.2) Typed output format
