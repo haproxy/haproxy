@@ -1101,7 +1101,7 @@ S (Servers).
  83: wrew [LFBS]: cumulative number of failed header rewriting warnings
  84: connect [..BS]: cumulative number of connection establishment attempts
  85: reuse [..BS]: cumulative number of connection reuses
- 86: cache_lookup [.FB.]: cumulative number of cache lookups
+ 86: cache_lookups [.FB.]: cumulative number of cache lookups
  87: cache_hits [.FB.]: cumulative number of cache hits
 
 
