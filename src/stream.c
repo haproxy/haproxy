@@ -2957,12 +2957,10 @@ void stream_update_time_stats(struct stream *s)
 		swrate_add(&srv->counters.d_time, TIME_STATS_SAMPLES, t_data);
 		swrate_add(&srv->counters.t_time, TIME_STATS_SAMPLES, t_close);
 	}
-	HA_SPIN_LOCK(PROXY_LOCK, &s->be->lock);
 	swrate_add(&s->be->be_counters.q_time, TIME_STATS_SAMPLES, t_queue);
 	swrate_add(&s->be->be_counters.c_time, TIME_STATS_SAMPLES, t_connect);
 	swrate_add(&s->be->be_counters.d_time, TIME_STATS_SAMPLES, t_data);
 	swrate_add(&s->be->be_counters.t_time, TIME_STATS_SAMPLES, t_close);
-	HA_SPIN_UNLOCK(PROXY_LOCK, &s->be->lock);
 }
 
 /*
