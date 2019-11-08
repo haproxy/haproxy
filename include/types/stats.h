@@ -430,6 +430,10 @@ enum stat_field {
 	ST_F_CACHE_HITS,
 	ST_F_SRV_ICUR,
 	ST_F_SRV_ILIM,
+	ST_F_QT_MAX,
+	ST_F_CT_MAX,
+	ST_F_RT_MAX,
+	ST_F_TT_MAX,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
