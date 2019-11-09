@@ -2581,10 +2581,9 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	if (si_state_in(si_b->state, SI_SB_REQ|SI_SB_QUE|SI_SB_TAR|SI_SB_ASS)) {
 		/* prune the request variables and swap to the response variables. */
 		if (s->vars_reqres.scope != SCOPE_RES) {
-			if (!LIST_ISEMPTY(&s->vars_reqres.head)) {
+			if (!LIST_ISEMPTY(&s->vars_reqres.head))
 				vars_prune(&s->vars_reqres, s->sess, s);
-				vars_init(&s->vars_reqres, SCOPE_RES);
-			}
+			vars_init(&s->vars_reqres, SCOPE_RES);
 		}
 
 		do {
