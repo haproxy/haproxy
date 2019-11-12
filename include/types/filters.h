@@ -138,12 +138,11 @@ struct flt_kw_list {
  *                          to the client (mainly, when an error or a redirect
  *                          occur).
  *                          Returns nothing.
- *  - tcp_data            : Called when unparsed data are available.
+ *
+ *
+ *  - tcp_payload         : Called when some data can be consumed.
  *                          Returns a negative value if an error occurs, else
- *                          the number of consumed bytes.
- *  - tcp_forward_data    : Called when some data can be consumed.
- *                          Returns a negative value if an error occurs, else
- *                          or the number of forwarded bytes.
+ *                          the number of forwarded bytes.
  */
 struct flt_ops {
 	/*
@@ -186,9 +185,8 @@ struct flt_ops {
 	/*
 	 * TCP callbacks
 	 */
-	int  (*tcp_data)        (struct stream *s, struct filter *f, struct channel *chn);
-	int  (*tcp_forward_data)(struct stream *s, struct filter *f, struct channel *chn,
-				 unsigned int len);
+	int  (*tcp_payload)       (struct stream *s, struct filter *f, struct channel *chn,
+				    unsigned int offset, unsigned int len);
 };
 
 /* Flags set on a filter config */
@@ -227,11 +225,8 @@ struct filter {
 	struct flt_conf *config;           /* the filter's configuration */
 	void           *ctx;               /* The filter context (opaque) */
 	unsigned short  flags;             /* FLT_FL_* */
-	unsigned int    next[2];           /* Offset, relative to buf->p, to the next byte to parse for a specific channel
+	unsigned long long offset[2];      /* Offset of input data already filtered for a specific channel
 	                                    * 0: request channel, 1: response channel */
-	unsigned int    fwd[2];            /* Offset, relative to buf->p, to the next byte to forward for a specific channel
-	                                    * 0: request channel, 1: response channel */
-	unsigned long long offset[2];
 	unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
 	unsigned int    post_analyzers;    /* bit field indicating analyzers to post-process */
 	struct list     list;              /* Next filter for the same proxy/stream */

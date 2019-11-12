@@ -670,9 +670,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 				continue;
 		}
 
-		FLT_NXT(filter, chn) = 0;
-		FLT_FWD(filter, chn) = 0;
-
+		FLT_OFF(filter, chn) = 0;
 		if (FLT_OPS(filter)->channel_start_analyze) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->channel_start_analyze(s, filter, chn);
@@ -799,8 +797,7 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		goto sync;
 
 	RESUME_FILTER_LOOP(s, chn) {
-		FLT_NXT(filter, chn) = 0;
-		FLT_FWD(filter, chn) = 0;
+		FLT_OFF(filter, chn) = 0;
 		unregister_data_filter(s, chn, filter);
 
 		if (FLT_OPS(filter)->channel_end_analyze) {
@@ -850,118 +847,42 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 
 /*
- * Calls 'tcp_data' callback for all "data" filters attached to a stream. This
- * function is called when incoming data are available. It takes care to update
- * the next offset of filters and adjusts available data to be sure that a
- * filter cannot parse more data than its predecessors. A filter can choose to
- * not consume all available data. Returns -1 if an error occurs, the number of
- * consumed bytes otherwise.
+ * Calls 'tcp_payload' callback for all "data" filters attached to a
+ * stream. This function is called when some data can be forwarded in the
+ * AN_REQ_FLT_XFER_BODY and AN_RES_FLT_XFER_BODY analyzers. It takes care to
+ * update the filters and the stream offset to be sure that a filter cannot
+ * forward more data than its predecessors. A filter can choose to not forward
+ * all data. Returns a negative value if an error occurs, else the number of
+ * forwarded bytes.
  */
-static int
-flt_data(struct stream *s, struct channel *chn)
+int
+flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 {
 	struct filter *filter;
-	unsigned int   buf_i;
-	int            delta = 0, ret = 0;
+	unsigned long long *strm_off = &FLT_STRM_OFF(s, chn);
+	unsigned int out = co_data(chn);
+	int ret = len - out;
 
-	/* Save buffer state */
-	buf_i = ci_data(chn);
-
+	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		unsigned int *nxt;
-
 		/* Call "data" filters only */
 		if (!IS_DATA_FILTER(filter, chn))
 			continue;
-
-		nxt = &FLT_NXT(filter, chn);
-		if (FLT_OPS(filter)->tcp_data) {
-			unsigned int i = ci_data(chn);
+		if (FLT_OPS(filter)->tcp_payload) {
+			unsigned long long *flt_off = &FLT_OFF(filter, chn);
+			unsigned int offset = *flt_off - *strm_off;
 
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
-			ret = FLT_OPS(filter)->tcp_data(s, filter, chn);
-			if (ret < 0)
-				break;
-			delta += (int)(ci_data(chn) - i);
-
-			/* Increase next offset of the current filter */
-			*nxt += ret;
-
-			/* And set this value as the bound for the next
-			 * filter. It will not able to parse more data than the
-			 * current one. */
-			b_set_data(&chn->buf, co_data(chn) + *nxt);
-		}
-		else {
-			/* Consume all available data */
-			*nxt = ci_data(chn);
-		}
-
-		/* Update <ret> value to be sure to have the last one when we
-		 * exit from the loop. This value will be used to know how much
-		 * data are "forwardable" */
-		ret = *nxt;
-	}
-
-	/* Restore the original buffer state */
-	b_set_data(&chn->buf, co_data(chn) + buf_i + delta);
-
-	return ret;
-}
-
-/*
- * Calls 'tcp_forward_data' callback for all "data" filters attached to a
- * stream. This function is called when some data can be forwarded. It takes
- * care to update the forward offset of filters and adjusts "forwardable" data
- * to be sure that a filter cannot forward more data than its predecessors. A
- * filter can choose to not forward all parsed data. Returns a negative value if
- * an error occurs, else the number of forwarded bytes.
- */
-static int
-flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
-{
-	struct filter *filter;
-	int            ret = len;
-
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		unsigned int *fwd;
-
-		/* Call "data" filters only */
-		if (!IS_DATA_FILTER(filter, chn))
-			continue;
-
-		fwd = &FLT_FWD(filter, chn);
-		if (FLT_OPS(filter)->tcp_forward_data) {
-			/* Remove bytes that the current filter considered as
-			 * forwarded */
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
-			ret = FLT_OPS(filter)->tcp_forward_data(s, filter, chn, ret - *fwd);
+			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, ret - offset);
 			if (ret < 0)
 				goto end;
+			*flt_off += ret;
+			ret += offset;
 		}
-
-		/* Adjust bytes that the current filter considers as
-		 * forwarded */
-		*fwd += ret;
-
-		/* And set this value as the bound for the next filter. It will
-		 * not able to forward more data than the current one. */
-		ret = *fwd;
 	}
-
-	if (!ret)
-		goto end;
-
-	/* Finally, adjust filters offsets by removing data that HAProxy will
-	 * forward. */
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		if (!IS_DATA_FILTER(filter, chn))
-			continue;
-		FLT_NXT(filter, chn) -= ret;
-		FLT_FWD(filter, chn) -= ret;
-	}
-
+	*strm_off += ret;
  end:
+	DBG_TRACE_LEAVE(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
 
@@ -976,12 +897,13 @@ flt_forward_data(struct stream *s, struct channel *chn, unsigned int len)
 int
 flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
+	unsigned int len;
 	int ret = 1;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 
 	/* If there is no "data" filters, we do nothing */
-	if (!HAS_DATA_FILTERS(s, chn) || (s->flags & SF_HTX))
+	if (!HAS_DATA_FILTERS(s, chn))
 		goto end;
 
 	/* Be sure that the output is still opened. Else we stop the data
@@ -990,25 +912,29 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	    ((chn->flags & CF_SHUTW) && (chn->to_forward || co_data(chn))))
 		goto end;
 
-	/* Let all "data" filters parsing incoming data */
-	ret = flt_data(s, chn);
+	if (s->flags & SF_HTX) {
+		struct htx *htx = htxbuf(&chn->buf);
+		len = htx->data;
+	}
+	else
+		len = c_data(chn);
+
+	ret = flt_tcp_payload(s, chn, len);
 	if (ret < 0)
 		goto end;
-
-	/* And forward them */
-	ret = flt_forward_data(s, chn, ret);
-	if (ret < 0)
-		goto end;
-
-	/* Consume data that all filters consider as forwarded. */
 	c_adv(chn, ret);
 
 	/* Stop waiting data if the input in closed and no data is pending or if
 	 * the output is closed. */
-	if ((chn->flags & CF_SHUTW) ||
-	    ((chn->flags & CF_SHUTR) && !ci_data(chn))) {
+	if (chn->flags & CF_SHUTW) {
 		ret = 1;
 		goto end;
+	}
+	if (chn->flags & CF_SHUTR) {
+		if (((s->flags & SF_HTX) && htx_is_empty(htxbuf(&chn->buf))) || c_empty(chn)) {
+			ret = 1;
+			goto end;
+		}
 	}
 
 	/* Wait for data */

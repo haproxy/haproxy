@@ -45,13 +45,6 @@ extern const char *fcgi_flt_id;
 #define FLT_STRM_OFF(s, chn) (strm_flt(s)->offset[CHN_IDX(chn)])
 #define FLT_OFF(flt, chn) ((flt)->offset[CHN_IDX(chn)])
 
-#define FLT_NXT(flt, chn) ((flt)->next[CHN_IDX(chn)])
-#define FLT_FWD(flt, chn) ((flt)->fwd[CHN_IDX(chn)])
-#define flt_req_nxt(flt) ((flt)->next[0])
-#define flt_rsp_nxt(flt) ((flt)->next[1])
-#define flt_req_fwd(flt) ((flt)->fwd[0])
-#define flt_rsp_fwd(flt) ((flt)->fwd[1])
-
 #define HAS_FILTERS(strm)           ((strm)->strm_flt.flags & STRM_FLT_FL_HAS_FILTERS)
 
 #define HAS_REQ_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_req_data_filters != 0)
@@ -170,58 +163,6 @@ unregister_data_filter(struct stream *s, struct channel *chn, struct filter *fil
 		else  {
 			filter->flags &= ~FLT_FL_IS_REQ_DATA_FILTER;
 			strm_flt(s)->nb_req_data_filters--;
-		}
-	}
-}
-
-/* This function must be called when a filter alter incoming data. It updates
- * next offset value of all filter's predecessors. Do not call this function
- * when a filter change the size of incomding data leads to an undefined
- * behavior.
- *
- * This is the filter's responsiblitiy to update data itself. For now, it is
- * unclear to know how to handle data updates, so we do the minimum here. For
- * example, if you filter an HTTP message, we must update msg->next and
- * msg->chunk_len values.
- */
-static inline void
-flt_change_next_size(struct filter *filter, struct channel *chn, int len)
-{
-	struct stream *s = chn_strm(chn);
-	struct filter *f;
-
-	list_for_each_entry(f, &strm_flt(s)->filters, list) {
-		if (f == filter)
-			break;
-		if (IS_DATA_FILTER(filter, chn))
-			FLT_NXT(f, chn) += len;
-	}
-}
-
-/* This function must be called when a filter alter forwarded data. It updates
- * offset values (next and forward) of all filters. Do not call this function
- * when a filter change the size of forwarded data leads to an undefined
- * behavior.
- *
- * This is the filter's responsiblitiy to update data itself. For now, it is
- * unclear to know how to handle data updates, so we do the minimum here. For
- * example, if you filter an HTTP message, we must update msg->next and
- * msg->chunk_len values.
- */
-static inline void
-flt_change_forward_size(struct filter *filter, struct channel *chn, int len)
-{
-	struct stream *s = chn_strm(chn);
-	struct filter *f;
-	int before = 1;
-
-	list_for_each_entry(f, &strm_flt(s)->filters, list) {
-		if (f == filter)
-			before = 0;
-		if (IS_DATA_FILTER(filter, chn)) {
-			if (before)
-				FLT_FWD(f, chn) += len;
-			FLT_NXT(f, chn) += len;
 		}
 	}
 }

@@ -110,17 +110,17 @@ trace_hexdump(struct ist ist)
 }
 
 static void
-trace_raw_hexdump(struct buffer *buf, int len, int out)
+trace_raw_hexdump(struct buffer *buf, unsigned int offset, unsigned int len)
 {
 	unsigned char p[len];
 	int block1, block2;
 
 	block1 = len;
-	if (block1 > b_contig_data(buf, out))
-		block1 = b_contig_data(buf, out);
+	if (block1 > b_contig_data(buf, offset))
+		block1 = b_contig_data(buf, offset);
 	block2 = len - block1;
 
-	memcpy(p, b_head(buf), block1);
+	memcpy(p, b_peek(buf, offset), block1);
 	memcpy(p+block1, b_orig(buf), block2);
 	trace_hexdump(ist2(p, len));
 }
@@ -151,6 +151,31 @@ trace_htx_hexdump(struct htx *htx, unsigned int offset, unsigned int len)
 		if (type == HTX_BLK_DATA)
 			trace_hexdump(v);
 	}
+}
+
+static unsigned int
+trace_get_htx_datalen(struct htx *htx, unsigned int offset, unsigned int len)
+{
+	struct htx_blk *blk;
+	uint32_t sz, data = 0;
+
+	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		if (htx_get_blk_type(blk) != HTX_BLK_DATA)
+			break;
+
+		sz = htx_get_blksz(blk);
+		if (offset >= sz) {
+			offset -= sz;
+			continue;
+		}
+		data  += sz - offset;
+		offset = 0;
+		if (data > len) {
+			data = len;
+			break;
+		}
+	}
+	return data;
 }
 
 /***************************************************************************
@@ -441,28 +466,9 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 	int ret = len;
 
 	if (ret && conf->rand_forwarding) {
-		struct htx *htx = htxbuf(&msg->chn->buf);
-		struct htx_blk *blk;
-		uint32_t sz, data = 0;
-		unsigned int off = offset;
+		unsigned int data = trace_get_htx_datalen(htxbuf(&msg->chn->buf), offset, len);
 
-		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
-			if (htx_get_blk_type(blk) != HTX_BLK_DATA)
-				break;
-
-			sz = htx_get_blksz(blk);
-			if (off >= sz) {
-				off -= sz;
-				continue;
-			}
-			data  += sz - off;
-			off = 0;
-			if (data > len) {
-				data = len;
-				break;
-			}
-		}
-		if (data)  {
+		if (data) {
 			ret = random() % (ret+1);
 			if (!ret || ret >= data)
 				ret = len;
@@ -476,7 +482,7 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 		   offset, len, ret);
 
 	 if (conf->hexdump)
-		 trace_htx_hexdump(htxbuf(&msg->chn->buf), offset, len);
+		 trace_htx_hexdump(htxbuf(&msg->chn->buf), offset, ret);
 
 	 if (ret != len)
 		 task_wakeup(s->task, TASK_WOKEN_MSG);
@@ -520,51 +526,51 @@ trace_http_reply(struct stream *s, struct filter *filter, short status,
  * Hooks to filter TCP data
  *************************************************************************/
 static int
-trace_tcp_data(struct stream *s, struct filter *filter, struct channel *chn)
+trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
+		  unsigned int offset, unsigned int len)
 {
 	struct trace_config *conf = FLT_CONF(filter);
-	int                  avail = ci_data(chn) - FLT_NXT(filter, chn);
-	int                  ret  = avail;
+	int ret = len;
 
-	if (ret && conf->rand_parsing)
-		ret = random() % (ret+1);
+	if (s->flags & SF_HTX) {
+		if (ret && conf->rand_forwarding) {
+			unsigned int data = trace_get_htx_datalen(htxbuf(&chn->buf), offset, len);
 
-	FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - next=%u - avail=%u - consume=%d",
-		   __FUNCTION__,
-		   channel_label(chn), proxy_mode(s), stream_pos(s),
-		   FLT_NXT(filter, chn), avail, ret);
+			if (data) {
+				ret = random() % (ret+1);
+				if (!ret || ret >= data)
+					ret = len;
+			}
+		}
 
-	if (ret != avail)
-		task_wakeup(s->task, TASK_WOKEN_MSG);
-	return ret;
-}
+		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
+			       "offset=%u - len=%u - forward=%d",
+			       __FUNCTION__,
+			       channel_label(chn), proxy_mode(s), stream_pos(s),
+			       offset, len, ret);
 
-static int
-trace_tcp_forward_data(struct stream *s, struct filter *filter, struct channel *chn,
-		 unsigned int len)
-{
-	struct trace_config *conf = FLT_CONF(filter);
-	int                  ret  = len;
+		if (conf->hexdump)
+			trace_htx_hexdump(htxbuf(&chn->buf), offset, ret);
+	}
+	else {
 
-	if (ret && conf->rand_forwarding)
-		ret = random() % (ret+1);
+		if (ret && conf->rand_forwarding)
+			ret = random() % (ret+1);
 
-	FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - len=%u - fwd=%u - forward=%d",
-		   __FUNCTION__,
-		   channel_label(chn), proxy_mode(s), stream_pos(s), len,
-		   FLT_FWD(filter, chn), ret);
+		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
+			       "offset=%u - len=%u - forward=%d",
+			       __FUNCTION__,
+			       channel_label(chn), proxy_mode(s), stream_pos(s),
+			       offset, len, ret);
 
-	if (conf->hexdump) {
-		c_adv(chn, FLT_FWD(filter, chn));
-		trace_raw_hexdump(&chn->buf, ret, co_data(chn));
-		c_rew(chn, FLT_FWD(filter, chn));
+		if (conf->hexdump)
+			trace_raw_hexdump(&chn->buf, offset, ret);
 	}
 
-	if (ret != len)
-		task_wakeup(s->task, TASK_WOKEN_MSG);
+	 if (ret != len)
+		 task_wakeup(s->task, TASK_WOKEN_MSG);
 	return ret;
 }
-
 /********************************************************************
  * Functions that manage the filter initialization
  ********************************************************************/
@@ -598,8 +604,7 @@ struct flt_ops trace_ops = {
 	.http_reply          = trace_http_reply,
 
 	/* Filter TCP data */
-	.tcp_data         = trace_tcp_data,
-	.tcp_forward_data = trace_tcp_forward_data,
+	.tcp_payload        = trace_tcp_payload,
 };
 
 /* Return -1 on error, else 0 */
