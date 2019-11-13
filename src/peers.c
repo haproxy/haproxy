@@ -530,8 +530,11 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 					struct dcache *dc;
 
 					de = stktable_data_cast(data_ptr, std_t_dict);
-					if (!de)
+					if (!de) {
+						/* No entry */
+						intencode(0, &cursor);
 						break;
+					}
 
 					dc = peer->dcache;
 					cde.entry.key = de;
@@ -1446,6 +1449,10 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			struct dcache *dc;
 			char *end;
 
+			if (!decoded_int) {
+				/* No entry. */
+				break;
+			}
 			data_len = decoded_int;
 			if (*msg_cur + data_len > msg_end)
 				goto malformed_unlock;
