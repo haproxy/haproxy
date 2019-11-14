@@ -90,6 +90,10 @@ void session_free(struct session *sess)
 				/* We have a connection, but not yet an associated mux.
 				 * So destroy it now.
 				 */
+				if (!LIST_ISEMPTY(&conn->session_list)) {
+					LIST_DEL(&conn->session_list);
+					LIST_INIT(&conn->session_list);
+				}
 				conn_stop_tracking(conn);
 				conn_full_close(conn);
 				conn_free(conn);
