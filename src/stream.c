@@ -3849,7 +3849,6 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct server *sv;
-	struct stream *strm, *strm_bck;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -3860,9 +3859,7 @@ static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct
 
 	/* kill all the stream that are on this server */
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
-	list_for_each_entry_safe(strm, strm_bck, &sv->actconns, by_srv)
-		if (strm->srv_conn == sv)
-			stream_shutdown(strm, SF_ERR_KILLED);
+	srv_shutdown_streams(sv, SF_ERR_KILLED);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
