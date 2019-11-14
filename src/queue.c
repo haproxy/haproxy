@@ -171,16 +171,17 @@ static inline void pendconn_queue_unlock(struct pendconn *p)
 
 /* Removes the pendconn from the server/proxy queue. At this stage, the
  * connection is not really dequeued. It will be done during process_stream().
- * This function takes all the required locks for the operation. The caller is
- * responsible for ensuring that <p> is valid and still in the queue. Use
- * pendconn_cond_unlink() if unsure. When the locks are already held, please
- * use __pendconn_unlink() instead.
+ * This function takes all the required locks for the operation. The pendconn
+ * must be valid, though it doesn't matter if it was already unlinked. Prefer
+ * pendconn_cond_unlink() to first check <p>. When the locks are already held,
+ * please use __pendconn_unlink() instead.
  */
 void pendconn_unlink(struct pendconn *p)
 {
 	pendconn_queue_lock(p);
 
-	__pendconn_unlink(p);
+	if (p->node.node.leaf_p)
+		__pendconn_unlink(p);
 
 	pendconn_queue_unlock(p);
 }
