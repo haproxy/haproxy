@@ -3060,12 +3060,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
 						if (px->state != PR_STSTOPPED) {
-							struct stream *sess, *sess_bck;
-
-							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
-								if (sess->srv_conn == sv)
-									stream_shutdown(sess, SF_ERR_KILLED);
-
+							srv_shutdown_streams(sv, SF_ERR_KILLED);
 							altered_servers++;
 							total_servers++;
 						}
