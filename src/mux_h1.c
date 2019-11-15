@@ -1107,41 +1107,57 @@ static void h1_emit_chunk_crlf(struct buffer *buf)
 
 /*
  * Switch the request to tunnel mode. This function must only be called for
- * CONNECT requests. On the client side, the mux is mark as busy on input,
- * waiting the response.
+ * CONNECT requests. On the client side, if the response is not finished, the
+ * mux is mark as busy on input.
  */
 static void h1_set_req_tunnel_mode(struct h1s *h1s)
 {
 	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->req.state = H1_MSG_TUNNEL;
-	if (!conn_is_back(h1s->h1c->conn)) {
+	TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+
+	if (!conn_is_back(h1s->h1c->conn)  && h1s->res.state < H1_MSG_DONE) {
 		h1s->h1c->flags |= H1C_F_IN_BUSY;
 		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+	}
+	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
+		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+		TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
 }
 
 /*
  * Switch the response to tunnel mode. This function must only be called on
- * successfull replies to CONNECT requests or on protocol switching. On the
- * server side, if the request is not finished, the mux is mark as busy on
- * input.  Otherwise the request is also switch to tunnel mode.
+ * successfull replies to CONNECT requests or on protocol switching. In this
+ * last case, this function takes care to switch the request to tunnel mode if
+ * possible. On the server side, if the request is not finished, the mux is mark
+ * as busy on input.
  */
 static void h1_set_res_tunnel_mode(struct h1s *h1s)
 {
+	/* On protocol switching, switch the request to tunnel mode if it is in
+	 * DONE state. Otherwise we will wait the end of the request to switch
+	 * it in tunnel mode.
+	 */
+	if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
+		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+		h1s->req.state = H1_MSG_TUNNEL;
+		TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	}
+
 	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->res.state = H1_MSG_TUNNEL;
+	TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+
 	if (conn_is_back(h1s->h1c->conn) && h1s->req.state < H1_MSG_DONE) {
 		h1s->h1c->flags |= H1C_F_IN_BUSY;
 		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 	}
-	else {
-		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
-		h1s->req.state = H1_MSG_TUNNEL;
-		if (h1s->h1c->flags & H1C_F_IN_BUSY) {
-			h1s->h1c->flags &= ~H1C_F_IN_BUSY;
-			tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-			TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
-		}
+	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
+		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+		TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
 }
 
@@ -1202,17 +1218,13 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
 	if (!(h1m->flags & H1_MF_RESP)) {
 		h1s->meth = h1sl.rq.meth;
-		if (h1m->state == H1_MSG_TUNNEL) {
+		if (h1m->state == H1_MSG_TUNNEL)
 			h1_set_req_tunnel_mode(h1s);
-			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
-		}
 	}
 	else {
 		h1s->status = h1sl.st.status;
-		if (h1m->state == H1_MSG_TUNNEL) {
+		if (h1m->state == H1_MSG_TUNNEL)
 			h1_set_res_tunnel_mode(h1s);
-			TRACE_STATE("switch H1 response in tunnel mode", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
-		}
 	}
 	h1_process_input_conn_mode(h1s, h1m, htx);
 	*ofs += ret;
@@ -1413,7 +1425,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
 		}
 		else if (h1m->state == H1_MSG_DONE) {
-			if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
+			if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101)
+				h1_set_req_tunnel_mode(h1s);
+			else if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
 				h1c->flags |= H1C_F_IN_BUSY;
 				TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
 			}
@@ -1744,11 +1758,12 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
 					/* a CONNECT request is sent to the server. Switch it to tunnel mode. */
 					h1_set_req_tunnel_mode(h1s);
-					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) || h1s->status == 101) {
+				else if ((h1m->flags & H1_MF_RESP) &&
+					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) || h1s->status == 101)) {
 					/* a successfull reply to a CONNECT or a protocol switching is sent
-					 * to the client . Switch the response to tunnel mode. */
+					 * to the client. Switch the response to tunnel mode.
+					 */
 					h1_set_res_tunnel_mode(h1s);
 					TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
@@ -1859,7 +1874,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 			  done:
 				h1m->state = H1_MSG_DONE;
-				if (h1s->h1c->flags & H1C_F_IN_BUSY) {
+				if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101) {
+					h1_set_req_tunnel_mode(h1s);
+					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+				}
+				else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 					h1s->h1c->flags &= ~H1C_F_IN_BUSY;
 					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
 					TRACE_STATE("h1c no more busy", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
@@ -2700,6 +2719,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
   end:
 	if (conn_xprt_read0_pending(cs->conn)) {
 		h1s->flags |= H1S_F_REOS;
+		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
 		TRACE_STATE("read0 on connection", H1_EV_STRM_RECV, cs->conn, h1s);
 	}
 
