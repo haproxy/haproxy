@@ -1462,7 +1462,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	if (((h1s->flags & (H1S_F_REOS|H1S_F_APPEND_EOM)) == H1S_F_REOS) &&
 	    (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
 		h1s->cs->flags |= CS_FL_EOS;
-		if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
+		if (h1m->state == H1_MSG_TUNNEL)
+			h1s->cs->flags |= CS_FL_EOI;
+		else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 			h1s->cs->flags |= CS_FL_ERROR;
 	}
 
