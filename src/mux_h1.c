@@ -1242,9 +1242,9 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
-	if (ret <= 0) {
+	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
-		if (ret < 0) {
+		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
 			if (!(h1m->flags & H1_MF_RESP)) {
 				h1s->flags |= H1S_F_REQ_ERROR;
 				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
@@ -1257,15 +1257,17 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
-		return 0;
+		goto end;
 	}
 
+	*ofs += ret;
+
+  end:
 	if (h1m->state == H1_MSG_DONE) {
 		h1s->cs->flags |= CS_FL_EOI;
 		TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_RX_EOI, h1s->h1c->conn);
 	}
 
-	*ofs += ret;
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
@@ -1283,9 +1285,9 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
-	if (ret <= 0) {
+	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
-		if (ret < 0) {
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			if (!(h1m->flags & H1_MF_RESP)) {
 				h1s->flags |= H1S_F_REQ_ERROR;
 				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
@@ -1298,11 +1300,13 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
-		return 0;
+		goto end;
 	}
 
 	*ofs += ret;
 	h1s->flags |= H1S_F_HAVE_I_TLR;
+
+  end:
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
