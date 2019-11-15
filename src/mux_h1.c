@@ -2699,8 +2699,6 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if (conn_xprt_read0_pending(cs->conn)) {
 		h1s->flags |= H1S_F_REOS;
 		TRACE_STATE("read0 on connection", H1_EV_STRM_RECV, cs->conn, h1s);
-		if (!pipe->data)
-			cs->flags |= CS_FL_EOS;
 	}
 
 	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s);
