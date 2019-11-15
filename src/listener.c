@@ -727,57 +727,46 @@ void listener_accept(int fd)
 		 */
 		do {
 			count = l->nbconn;
-			if (l->maxconn && count >= l->maxconn) {
+			if (unlikely(l->maxconn && count >= l->maxconn)) {
 				/* the listener was marked full or another
 				 * thread is going to do it.
 				 */
 				next_conn = 0;
+				listener_full(l);
 				goto end;
 			}
 			next_conn = count + 1;
 		} while (!_HA_ATOMIC_CAS(&l->nbconn, (int *)(&count), next_conn));
 
-		if (l->maxconn && next_conn == l->maxconn) {
-			/* we filled it, mark it full */
-			listener_full(l);
-		}
-
 		if (p) {
 			do {
 				count = p->feconn;
-				if (count >= p->maxconn) {
+				if (unlikely(count >= p->maxconn)) {
 					/* the frontend was marked full or another
 					 * thread is going to do it.
 					 */
 					next_feconn = 0;
+					limit_listener(l, &p->listener_queue);
 					goto end;
 				}
 				next_feconn = count + 1;
 			} while (!_HA_ATOMIC_CAS(&p->feconn, &count, next_feconn));
-
-			if (unlikely(next_feconn == p->maxconn)) {
-				/* we just filled it */
-				limit_listener(l, &p->listener_queue);
-			}
 		}
 
 		if (!(l->options & LI_O_UNLIMITED)) {
 			do {
 				count = actconn;
-				if (count >= global.maxconn) {
+				if (unlikely(count >= global.maxconn)) {
 					/* the process was marked full or another
 					 * thread is going to do it.
 					 */
 					next_actconn = 0;
+					limit_listener(l, &global_listener_queue);
+					task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
 					goto end;
 				}
 				next_actconn = count + 1;
 			} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn));
-
-			if (unlikely(next_actconn == global.maxconn)) {
-				limit_listener(l, &global_listener_queue);
-				task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
-			}
 		}
 
 		/* with sockpair@ we don't want to do an accept */
