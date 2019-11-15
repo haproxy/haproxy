@@ -202,7 +202,8 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 /* Tries to attach CLI handler <appctx> as a new reader on ring <ring>. This is
  * meant to be used when registering a CLI function to dump a buffer, so it
  * returns zero on success, or non-zero on failure with a message in the appctx
- * CLI context.
+ * CLI context. It automatically sets the io_handler and io_release callbacks if
+ * they were not set.
  */
 int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 {
@@ -216,6 +217,10 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 
 	} while (!_HA_ATOMIC_CAS(&ring->readers_count, &users, users + 1));
 
+	if (!appctx->io_handler)
+		appctx->io_handler = cli_io_handler_show_ring;
+	if (!appctx->io_release)
+                appctx->io_release = cli_io_release_show_ring;
 	appctx->ctx.cli.p0 = ring;
 	appctx->ctx.cli.o0 = ~0; // start from the oldest event
 	return 0;
