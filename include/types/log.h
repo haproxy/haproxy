@@ -36,6 +36,11 @@
 #define SYSLOG_PORT             514
 #define UNIQUEID_LEN            128
 
+/* 64kB to archive startup-logs seems way more than enough */
+#ifndef STARTUP_LOG_SIZE
+#define STARTUP_LOG_SIZE        65536
+#endif
+
 /* The array containing the names of the log levels. */
 extern const char *log_levels[];
 

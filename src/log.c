@@ -248,7 +248,7 @@ THREAD_LOCAL char *logline_rfc5424 = NULL;
 
 /* A global buffer used to store all startup alerts/warnings. It will then be
  * retrieve on the CLI. */
-static char *startup_logs = NULL;
+static struct ring *startup_logs = NULL;
 
 struct logformat_var_args {
 	char *name;
@@ -1056,8 +1056,21 @@ static void print_message(const char *label, const char *fmt, va_list argp)
 		  label, tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
 	memvprintf(&msg, fmt, argp);
 
-	if (global.mode & MODE_STARTING)
-		memprintf(&startup_logs, "%s%s%s", (startup_logs ? startup_logs : ""), head, msg);
+	if (global.mode & MODE_STARTING) {
+		if (unlikely(!startup_logs))
+			startup_logs = ring_new(STARTUP_LOG_SIZE);
+
+		if (likely(startup_logs)) {
+			struct ist m[2];
+
+			m[0] = ist(head);
+			m[1] = ist(msg);
+			/* trim the trailing '\n' */
+			if (m[1].len > 0 && m[1].ptr[m[1].len - 1] == '\n')
+				m[1].len--;
+			ring_write(startup_logs, ~0, 0, 0, m, 2);
+		}
+	}
 
 	fprintf(stderr, "%s%s", head, msg);
 	fflush(stderr);
@@ -1901,20 +1914,15 @@ int init_log_buffers()
 /* Deinitialize log buffers used for syslog messages */
 void deinit_log_buffers()
 {
-	void *tmp_startup_logs;
-
 	free(logheader);
 	free(logheader_rfc5424);
 	free(logline);
 	free(logline_rfc5424);
-	tmp_startup_logs = _HA_ATOMIC_XCHG(&startup_logs, NULL);
-	free(tmp_startup_logs);
-
+	ring_free(_HA_ATOMIC_XCHG(&startup_logs, NULL));
 	logheader         = NULL;
 	logheader_rfc5424 = NULL;
 	logline           = NULL;
 	logline_rfc5424   = NULL;
-	startup_logs      = NULL;
 }
 
 /* Builds a log line in <dst> based on <list_format>, and stops before reaching
@@ -3027,23 +3035,22 @@ void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *fo
 	__send_log(logsrvs, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
 
-static int cli_io_handler_show_startup_logs(struct appctx *appctx)
+/* parse the "show startup-logs" command, returns 1 if a message is returned, otherwise zero */
+static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct stream_interface *si = appctx->owner;
-	const char *msg = (startup_logs ? startup_logs : "No startup alerts/warnings.\n");
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
 
-	if (ci_putstr(si_ic(si), msg) == -1) {
-		si_rx_room_blk(si);
-		return 0;
-	}
-	return 1;
+	if (!startup_logs)
+		return cli_msg(appctx, LOG_INFO, "\n"); // nothing to print
+
+	return ring_attach_cli(startup_logs, appctx);
 }
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "startup-logs",  NULL },
-	  "show startup-logs : report logs emitted during HAProxy startup",
-	  NULL, cli_io_handler_show_startup_logs },
+	  "show startup-logs : report logs emitted during HAProxy startup", cli_parse_show_startup_logs, NULL, NULL },
 	{{},}
 }};
 
