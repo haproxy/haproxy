@@ -332,6 +332,8 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
 			*(volatile int *)0 = 0;
 #endif
+		if (mem_poison_byte >= 0)
+			memset(ptr, mem_poison_byte, pool->size);
 		pool_put_to_cache(pool, ptr);
 	}
 }
