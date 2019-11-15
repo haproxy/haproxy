@@ -1166,7 +1166,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	if (req->to_forward) {
 		if (req->to_forward == CHN_INFINITE_FORWARD) {
-			if (req->flags & (CF_SHUTR|CF_EOI)) {
+			if (req->flags & CF_EOI) {
 				msg->msg_state = HTTP_MSG_DONE;
 				req->to_forward = 0;
 				goto done;
@@ -2179,7 +2179,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	if (res->to_forward) {
 		if (res->to_forward == CHN_INFINITE_FORWARD) {
-			if (res->flags & (CF_SHUTR|CF_EOI)) {
+			if (res->flags & CF_EOI) {
 				msg->msg_state = HTTP_MSG_DONE;
 				res->to_forward = 0;
 				goto done;
