@@ -1,6 +1,52 @@
 ChangeLog :
 ===========
 
+2019/11/15 : 2.1-dev5
+    - BUG/MEDIUM: ssl/cli: don't alloc path when cert not found
+    - BUG/MINOR: ssl/cli: unable to update a certificate without bundle extension
+    - BUG/MINOR: ssl/cli: fix an error when a file is not found
+    - MINOR: ssl/cli: replace the default_ctx during 'commit ssl cert'
+    - DOC: fix date and http_date keywords syntax
+    - MINOR: peers: Add "log" directive to "peers" section.
+    - BUG/MEDIUM: mux-h1: Disable splicing for chunked messages
+    - BUG/MEDIUM: stream: Be sure to support splicing at the mux level to enable it
+    - MINOR: flt_trace: Rename macros to print trace messages
+    - MINOR: trace: Add a set of macros to trace events if HA is compiled with debug
+    - MEDIUM: stream/trace: Register a new trace source with its events
+    - MINOR: doc: http-reuse connection pool fix
+    - BUG/MEDIUM: stream: Be sure to release allocated captures for TCP streams
+    - MINOR: http-ana: Remove the unused function http_reset_txn()
+    - BUG/MINOR: action: do-resolve now use cached response
+    - BUG: dns: timeout resolve not applied for valid resolutions
+    - DOC: management: fix typo on "cache_lookups" stats output
+    - BUG/MINOR: stream: init variables when the list is empty
+    - BUG/MEDIUM: tasks: Make tasklet_remove_from_tasklet_list() no matter the tasklet.
+    - BUG/MINOR: queue/threads: make the queue unlinking atomic
+    - BUG/MEDIUM: Make sure we leave the session list in session_free().
+    - CLEANUP: session: slightly simplify idle connection cleanup logic
+    - MINOR: memory: also poison the area on freeing
+    - CLEANUP: cli: use srv_shutdown_streams() instead of open-coding it
+    - CLEANUP: stats: use srv_shutdown_streams() instead of open-coding it
+    - BUG/MEDIUM: listeners: always pause a listener on out-of-resource condition
+    - BUILD: contrib/da: remove an "unused" warning
+    - BUG/MEDIUM: filters: Don't call TCP callbacks for HTX streams
+    - MEDIUM: filters: Adapt filters API to allow again TCP filtering on HTX streams
+    - MINOR: freq_ctr: Make the sliding window sums thread-safe
+    - MINOR: stream: Remove the lock on the proxy to update time stats
+    - MINOR: counters: Add fields to store the max observed for {q,c,d,t}_time
+    - MINOR: stats: Report max times in addition of the averages for sessions
+    - MINOR: contrib/prometheus-exporter: Report metrics about max times for sessions
+    - BUG/MINOR: contrib/prometheus-exporter: Rename some metrics
+    - MINOR: contrib/prometheus-exporter: report the number of idle conns per server
+    - DOC: Add missing stats fields in the management manual
+    - BUG/MINOR: mux-h1: Properly catch parsing errors on payload and trailers
+    - BUG/MINOR: mux-h1: Don't set CS_FL_EOS on a read0 when receiving data to pipe
+    - MINOR: mux-h1: Set EOI on the conn-stream when EOS is reported in TUNNEL state
+    - MINOR: sink: Set the default max length for a message to BUFSIZE
+    - MINOR: ring: make the parse function automatically set the handler/release
+    - BUG/MINOR: log: make "show startup-log" use a ring buffer instead
+    - MINOR: stick-table: allow sc-set-gpt0 to set value from an expression
+
 2019/11/03 : 2.1-dev4
     - BUG/MINOR: cli: don't call the kw->io_release if kw->parse failed
     - BUG/MINOR: mux-h2: Don't pretend mux buffers aren't full anymore if nothing sent
