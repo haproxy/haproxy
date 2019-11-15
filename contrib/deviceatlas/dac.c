@@ -3,7 +3,7 @@
 #include <string.h>
 #include <time.h>
 
-static char const rcsid[] = "$Id: dac.c, v dummy 1970/01/01 00:00:01 dcarlier Exp $";
+static char const __attribute__((unused)) rcsid[] = "$Id: dac.c, v dummy 1970/01/01 00:00:01 dcarlier Exp $";
 
 struct da_bitset {
     unsigned long bits[8];
