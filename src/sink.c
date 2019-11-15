@@ -65,7 +65,7 @@ static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt
 	/* set defaults for syslog ones */
 	sink->syslog_facility = 0;
 	sink->syslog_minlvl   = 0;
-	sink->maxlen = MAX_SYSLOG_LEN;
+	sink->maxlen = BUFSIZE;
 	/* address will be filled by the caller if needed */
 	sink->ctx.fd = -1;
 	sink->ctx.dropped = 0;
