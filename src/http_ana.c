@@ -1166,11 +1166,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	if (req->to_forward) {
 		if (req->to_forward == CHN_INFINITE_FORWARD) {
-			if (req->flags & CF_EOI) {
-				msg->msg_state = HTTP_MSG_DONE;
-				req->to_forward = 0;
-				goto done;
-			}
+			if (req->flags & CF_EOI)
+				msg->msg_state = HTTP_MSG_ENDING;
 		}
 		else {
 			/* We can't process the buffer's contents yet */
@@ -1179,8 +1176,14 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		}
 	}
 
-	if (msg->msg_state >= HTTP_MSG_DONE)
-		goto done;
+	if (msg->msg_state >= HTTP_MSG_ENDING)
+		goto ending;
+
+	if (txn->meth == HTTP_METH_CONNECT) {
+		msg->msg_state = HTTP_MSG_ENDING;
+		goto ending;
+	}
+
 	/* Forward input data. We get it by removing all outgoing data not
 	 * forwarded yet from HTX data size. If there are some data filters, we
 	 * let them decide the amount of data to forward.
@@ -1197,11 +1200,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			channel_htx_forward_forever(req, htx);
 	}
 
-	if (txn->meth == HTTP_METH_CONNECT) {
-		msg->msg_state = HTTP_MSG_TUNNEL;
-		goto done;
-	}
-
+	if (htx->data != co_data(req))
+		goto missing_data_or_waiting;
 
 	/* Check if the end-of-message is reached and if so, switch the message
 	 * in HTTP_MSG_ENDING state. Then if all data was marked to be
@@ -1211,16 +1211,11 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_ENDING;
-	if (htx->data != co_data(req))
-		goto missing_data_or_waiting;
-	msg->msg_state = HTTP_MSG_DONE;
-	req->to_forward = 0;
 
-  done:
-	/* other states, DONE...TUNNEL */
-	/* we don't want to forward closes on DONE except in tunnel mode. */
-	if (!(txn->flags & TX_CON_WANT_TUN))
-		channel_dont_close(req);
+  ending:
+	/* other states, ENDING...TUNNEL */
+	if (msg->msg_state >= HTTP_MSG_DONE)
+		goto done;
 
 	if (HAS_REQ_DATA_FILTERS(s)) {
 		ret = flt_http_end(s, msg);
@@ -1230,6 +1225,18 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			goto return_bad_req;
 		}
 	}
+
+	if (txn->meth == HTTP_METH_CONNECT)
+		msg->msg_state = HTTP_MSG_TUNNEL;
+	else {
+		msg->msg_state = HTTP_MSG_DONE;
+		req->to_forward = 0;
+	}
+
+  done:
+	/* we don't want to forward closes on DONE except in tunnel mode. */
+	if (!(txn->flags & TX_CON_WANT_TUN))
+		channel_dont_close(req);
 
 	http_end_request(s);
 	if (!(req->analysers & an_bit)) {
@@ -2179,11 +2186,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
 	if (res->to_forward) {
 		if (res->to_forward == CHN_INFINITE_FORWARD) {
-			if (res->flags & CF_EOI) {
-				msg->msg_state = HTTP_MSG_DONE;
-				res->to_forward = 0;
-				goto done;
-			}
+			if (res->flags & CF_EOI)
+				msg->msg_state = HTTP_MSG_ENDING;
 		}
 		else {
 			/* We can't process the buffer's contents yet */
@@ -2192,8 +2196,14 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		}
 	}
 
-	if (msg->msg_state >= HTTP_MSG_DONE)
-		goto done;
+	if (msg->msg_state >= HTTP_MSG_ENDING)
+		goto ending;
+
+	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
+	    (!(msg->flags & HTTP_MSGF_XFER_LEN) && !HAS_RSP_DATA_FILTERS(s))) {
+		msg->msg_state = HTTP_MSG_ENDING;
+		goto ending;
+	}
 
 	/* Forward input data. We get it by removing all outgoing data not
 	 * forwarded yet from HTX data size. If there are some data filters, we
@@ -2211,10 +2221,12 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 			channel_htx_forward_forever(res, htx);
 	}
 
-	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
-	    (!(msg->flags & HTTP_MSGF_XFER_LEN) && (res->flags & CF_SHUTR || !HAS_RSP_DATA_FILTERS(s)))) {
-		msg->msg_state = HTTP_MSG_TUNNEL;
-		goto done;
+	if (htx->data != co_data(res))
+		goto missing_data_or_waiting;
+
+	if (!(msg->flags & HTTP_MSGF_XFER_LEN) && res->flags & CF_SHUTR) {
+		msg->msg_state = HTTP_MSG_ENDING;
+		goto ending;
 	}
 
 	/* Check if the end-of-message is reached and if so, switch the message
@@ -2225,14 +2237,11 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_ENDING;
-	if (htx->data != co_data(res))
-		goto missing_data_or_waiting;
-	msg->msg_state = HTTP_MSG_DONE;
-	res->to_forward = 0;
 
-  done:
-	/* other states, DONE...TUNNEL */
-	channel_dont_close(res);
+  ending:
+	/* other states, ENDING...TUNNEL */
+	if (msg->msg_state >= HTTP_MSG_DONE)
+		goto done;
 
 	if (HAS_RSP_DATA_FILTERS(s)) {
 		ret = flt_http_end(s, msg);
@@ -2242,6 +2251,20 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 			goto return_bad_res;
 		}
 	}
+
+	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
+	    !(msg->flags & HTTP_MSGF_XFER_LEN)) {
+		msg->msg_state = HTTP_MSG_TUNNEL;
+		goto ending;
+	}
+	else {
+		msg->msg_state = HTTP_MSG_DONE;
+		res->to_forward = 0;
+	}
+
+  done:
+
+	channel_dont_close(res);
 
 	http_end_response(s);
 	if (!(res->analysers & an_bit)) {
