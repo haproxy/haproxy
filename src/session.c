@@ -78,10 +78,8 @@ void session_free(struct session *sess)
 		conn->mux->destroy(conn->ctx);
 	list_for_each_entry_safe(srv_list, srv_list_back, &sess->srv_list, srv_list) {
 		list_for_each_entry_safe(conn, conn_back, &srv_list->conn_list, session_list) {
+			LIST_DEL_INIT(&conn->session_list);
 			if (conn->mux) {
-
-				LIST_DEL(&conn->session_list);
-				LIST_INIT(&conn->session_list);
 				conn->owner = NULL;
 				conn->flags &= ~CO_FL_SESS_IDLE;
 				if (!srv_add_to_idle_list(objt_server(conn->target), conn))
@@ -90,10 +88,6 @@ void session_free(struct session *sess)
 				/* We have a connection, but not yet an associated mux.
 				 * So destroy it now.
 				 */
-				if (!LIST_ISEMPTY(&conn->session_list)) {
-					LIST_DEL(&conn->session_list);
-					LIST_INIT(&conn->session_list);
-				}
 				conn_stop_tracking(conn);
 				conn_full_close(conn);
 				conn_free(conn);
