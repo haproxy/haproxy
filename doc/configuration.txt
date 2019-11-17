@@ -11931,6 +11931,11 @@ resolve-opts <option>,<option>,...
     For such case, simply enable this option.
     This is the opposite of prevent-dup-ip.
 
+  * ignore-weight
+    Ignore any weight that is set within an SRV record.  This is useful when
+    you would like to control the weights using an alternate method, such as
+    using an "agent-check" or through the runtime api.
+
   * prevent-dup-ip
     Ensure HAProxy's default behavior is enforced on a server: prevent re-using
     an IP address already set to a server in the same backend and sharing the

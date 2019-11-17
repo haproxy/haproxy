@@ -537,7 +537,8 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
-				    !memcmp(srv->hostname_dn, item->target, item->data_len)) {
+				    !memcmp(srv->hostname_dn, item->target, item->data_len) &&
+				    !srv->dns_opts.ignore_weight) {
 					int ha_weight;
 
 					/* DNS weight range if from 0 to 65535
@@ -589,15 +590,17 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				    !(srv->flags & SRV_F_CHECKPORT))
 					srv->check.port = item->port;
 
-				/* DNS weight range if from 0 to 65535
-				 * HAProxy weight is from 0 to 256
-				 * The rule below ensures that weight 0 is well respected
-				 * while allowing a "mapping" from DNS weight into HAProxy's one.
-				 */
-				ha_weight = (item->weight + 255) / 256;
+				if (!srv->dns_opts.ignore_weight) {
+					/* DNS weight range if from 0 to 65535
+					 * HAProxy weight is from 0 to 256
+					 * The rule below ensures that weight 0 is well respected
+					 * while allowing a "mapping" from DNS weight into HAProxy's one.
+					 */
+					ha_weight = (item->weight + 255) / 256;
 
-				snprintf(weight, sizeof(weight), "%d", ha_weight);
-				server_parse_weight_change_request(srv, weight);
+					snprintf(weight, sizeof(weight), "%d", ha_weight);
+					server_parse_weight_change_request(srv, weight);
+				}
 				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
 		}
