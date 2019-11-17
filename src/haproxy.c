@@ -2776,6 +2776,28 @@ static struct task *manage_global_listener_queue(struct task *t, void *context, 
 	return t;
 }
 
+/* set uid/gid depending on global settings */
+static void set_identity(const char *program_name)
+{
+	if (global.gid) {
+		if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
+			ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+				   " without 'uid'/'user' is generally useless.\n", program_name);
+
+		if (setgid(global.gid) == -1) {
+			ha_alert("[%s.main()] Cannot set gid %d.\n", program_name, global.gid);
+			protocol_unbind_all();
+			exit(1);
+		}
+	}
+
+	if (global.uid && setuid(global.uid) == -1) {
+		ha_alert("[%s.main()] Cannot set uid %d.\n", program_name, global.uid);
+		protocol_unbind_all();
+		exit(1);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	int err, retry;
@@ -3045,26 +3067,8 @@ int main(int argc, char **argv)
 	 * be able to restart the old pids.
 	 */
 
-	if ((global.mode & (MODE_MWORKER|MODE_DAEMON)) == 0) {
-		/* setgid / setuid */
-		if (global.gid) {
-			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
-				ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
-					   " without 'uid'/'user' is generally useless.\n", argv[0]);
-
-			if (setgid(global.gid) == -1) {
-				ha_alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
-				protocol_unbind_all();
-				exit(1);
-			}
-		}
-
-		if (global.uid && setuid(global.uid) == -1) {
-			ha_alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
-			protocol_unbind_all();
-			exit(1);
-		}
-	}
+	if ((global.mode & (MODE_MWORKER | MODE_DAEMON)) == 0)
+		set_identity(argv[0]);
 
 	/* check ulimits */
 	limit.rlim_cur = limit.rlim_max = 0;
@@ -3269,25 +3273,7 @@ int main(int argc, char **argv)
 
 		free(global.chroot);
 		global.chroot = NULL;
-
-		/* setgid / setuid */
-		if (global.gid) {
-			if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
-				ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
-					   " without 'uid'/'user' is generally useless.\n", argv[0]);
-
-			if (setgid(global.gid) == -1) {
-				ha_alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
-				protocol_unbind_all();
-				exit(1);
-			}
-		}
-
-		if (global.uid && setuid(global.uid) == -1) {
-			ha_alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
-			protocol_unbind_all();
-			exit(1);
-		}
+		set_identity(argv[0]);
 
 		/* pass through every cli socket, and check if it's bound to
 		 * the current process and if it exposes listeners sockets.
