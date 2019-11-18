@@ -50,6 +50,30 @@ spend much more ressources to produce the Prometheus metrics than the CSV export
 through the stats page. To give a comparison order, quick benchmarks shown that
 a PROMEX dump is 5x slower and 20x more verbose than a CSV export.
 
+
+metrics filtering
+-------------------
+
+It is possible to dynamically select the metrics to export if you don't use all
+of them passing parameters in the query-string.
+
+* Filtering on scopes
+
+The metrics may be filtered by scopes. Multiple parameters with "scope" as name
+may be passed in the query-string to filter exported metrics, with one of those
+values: global, frontend, backend, server or '*' (means all). A scope parameter
+with no value means to filter out all scopes (nothing is returned). The scope
+parameters are parsed in their appearance order in the query-string. So an empty
+scope will reset all scopes already parsed. But it can be overridden by
+following scope parameters in the query-string. By default everything is
+exported. Here are examples:
+
+  /metrics?scope=server                 # ==> server metrics will be exported
+  /metrics?scope=frontend&scope=backend # ==> Frontend and backend metrics will be exported
+  /metrics?scope=*&scope=               # ==> no metrics will be exported
+  /metrics?scope=&scope=global          # ==> global metrics will be exported
+
+
 Exported metrics
 ------------------
 

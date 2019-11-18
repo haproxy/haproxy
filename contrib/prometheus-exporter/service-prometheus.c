@@ -64,6 +64,12 @@ enum {
 #define PROMEX_FL_METRIC_HDR    0x00000001
 #define PROMEX_FL_INFO_METRIC   0x00000002
 #define PROMEX_FL_STATS_METRIC  0x00000004
+#define PROMEX_FL_SCOPE_GLOBAL  0x00000008
+#define PROMEX_FL_SCOPE_FRONT   0x00000010
+#define PROMEX_FL_SCOPE_BACK    0x00000020
+#define PROMEX_FL_SCOPE_SERVER  0x00000040
+
+#define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
 
 /* The max length for metrics name. It is a hard limit but it should be
  * enougth.
@@ -2102,72 +2108,81 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *si, struct htx *htx)
 {
 	int ret;
+	int flags = appctx->ctx.stats.flags;
 
 	switch (appctx->st1) {
 		case PROMEX_DUMPER_INIT:
 			appctx->ctx.stats.px = NULL;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
+			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
 			appctx->st2 = promex_global_metrics[INF_NAME];
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
 			/* fall through */
 
 		case PROMEX_DUMPER_GLOBAL:
-			ret = promex_dump_global_metrics(appctx, htx);
-			if (ret <= 0) {
-				if (ret == -1)
-					goto error;
-				goto full;
+			if (appctx->ctx.stats.flags & PROMEX_FL_SCOPE_GLOBAL) {
+				ret = promex_dump_global_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
 			}
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = promex_front_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_FRONT;
 			/* fall through */
 
 		case PROMEX_DUMPER_FRONT:
-			ret = promex_dump_front_metrics(appctx, htx);
-			if (ret <= 0) {
-				if (ret == -1)
-					goto error;
-				goto full;
+			if (appctx->ctx.stats.flags & PROMEX_FL_SCOPE_FRONT) {
+				ret = promex_dump_front_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
 			}
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = promex_back_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_BACK;
 			/* fall through */
 
 		case PROMEX_DUMPER_BACK:
-			ret = promex_dump_back_metrics(appctx, htx);
-			if (ret <= 0) {
-				if (ret == -1)
-					goto error;
-				goto full;
+			if (appctx->ctx.stats.flags & PROMEX_FL_SCOPE_BACK) {
+				ret = promex_dump_back_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
 			}
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = (appctx->ctx.stats.px ? appctx->ctx.stats.px->srv : NULL);
-			appctx->ctx.stats.flags = (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = promex_srv_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_SRV;
 			/* fall through */
 
 		case PROMEX_DUMPER_SRV:
-			ret = promex_dump_srv_metrics(appctx, htx);
-			if (ret <= 0) {
-				if (ret == -1)
-					goto error;
-				goto full;
+			if (appctx->ctx.stats.flags & PROMEX_FL_SCOPE_SERVER) {
+				ret = promex_dump_srv_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
 			}
 
 			appctx->ctx.stats.px = NULL;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = 0;
+			appctx->ctx.stats.flags = flags;
 			appctx->st2 = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
 			/* fall through */
@@ -2189,6 +2204,92 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 	appctx->ctx.stats.flags = 0;
 	appctx->st2 = 0;
 	appctx->st1 = PROMEX_DUMPER_DONE;
+	return -1;
+}
+
+/* Parse the query stirng of request URI to filter the metrics. It returns 1 on
+ * success and -1 on error. */
+static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
+{
+	struct channel *req = si_oc(si);
+	struct channel *res = si_ic(si);
+	struct htx *req_htx, *res_htx;
+	struct htx_sl *sl;
+	const char *p, *end;
+	struct buffer *err;
+	int default_scopes = PROMEX_FL_SCOPE_ALL;
+	int len;
+
+	/* Get the query-string */
+	req_htx = htxbuf(&req->buf);
+	sl = http_get_stline(req_htx);
+	if (!sl)
+		goto error;
+	p = http_find_param_list(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), '?');
+	if (!p)
+		goto end;
+	end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
+	len = end-p;
+
+	/* Decode the query-string */
+	chunk_reset(&trash);
+	memcpy(trash.area, p, len);
+	trash.area[len] = 0;
+	len = url_decode(trash.area);
+	if (len == -1)
+		goto error;
+	p = trash.area;
+	end = p + len;
+
+	/* Parse the query-string */
+	while (p < end) {
+		if (*p == '&')
+			++p;
+		else if (*p == 's' && (end-p) >= 6 && !memcmp(p, "scope=", 6)) {
+			default_scopes = 0; /* at least a scope defined, unset default scopes */
+			p += 6;             /* now p point on the parameter value */
+			len = 0;            /* len is the value length */
+			while ((p+len) < end && *(p+len) != '&')
+				++len;
+
+			if (len == 0)
+				appctx->ctx.stats.flags &= ~PROMEX_FL_SCOPE_ALL;
+			else if (len == 1 && *p == '*')
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_ALL;
+			else if (len == 6) {
+				if (!memcmp(p, "global", len))
+					appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_GLOBAL;
+				else if (!memcmp(p, "server", len))
+					appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_SERVER;
+			}
+			else if (len == 7 && !memcmp(p, "backend", len))
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_BACK;
+			else if (len == 8 && !memcmp(p, "frontend", len))
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_FRONT;
+			else
+				goto error;
+
+			p += len;
+		}
+		else {
+			/* ignore all other params for now */
+			while (p < end && *p != '&')
+				p++;
+		}
+	}
+
+  end:
+	appctx->ctx.stats.flags |= default_scopes;
+	return 1;
+
+  error:
+	err = &http_err_chunks[HTTP_ERR_400];
+	channel_erase(res);
+	res->buf.data = b_data(err);
+	memcpy(res->buf.area, b_head(err), b_data(err));
+	res_htx = htx_from_buf(&res->buf);
+	channel_add_input(res, res_htx->data);
+	appctx->st0 = PROMEX_ST_END;
 	return -1;
 }
 
@@ -2252,6 +2353,12 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
 	switch (appctx->st0) {
 		case PROMEX_ST_INIT:
+			ret = promex_parse_uri(appctx, si);
+			if (ret <= 0) {
+				if (ret == -1)
+					goto error;
+				goto out;
+			}
 			appctx->st0 = PROMEX_ST_HEAD;
 			appctx->st1 = PROMEX_DUMPER_INIT;
 			/* fall through */
