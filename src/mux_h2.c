@@ -4629,7 +4629,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 
 	/* get the start line, we do have one */
 	blk = htx_get_head_blk(htx);
-	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_RES_SL);
+	BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_RES_SL);
 	ALREADY_CHECKED(blk);
 	sl = htx_get_blk_ptr(htx, blk);
 	h2s->status = sl->info.res.status;
@@ -4864,7 +4864,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 
 	/* get the start line, we do have one */
 	blk = htx_get_head_blk(htx);
-	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
+	BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
 	ALREADY_CHECKED(blk);
 	sl = htx_get_blk_ptr(htx, blk);
 	meth = htx_sl_req_meth(sl);

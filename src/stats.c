@@ -284,7 +284,7 @@ static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interfac
 	struct ist uri;
 
 	blk = htx_get_head_blk(htx);
-	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
+	BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
 	ALREADY_CHECKED(blk);
 	uri = htx_sl_req_uri(htx_get_blk_ptr(htx, blk));
 	return uri.ptr + appctx->ctx.stats.scope_str;
