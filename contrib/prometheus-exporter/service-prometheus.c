@@ -68,6 +68,7 @@ enum {
 #define PROMEX_FL_SCOPE_FRONT   0x00000010
 #define PROMEX_FL_SCOPE_BACK    0x00000020
 #define PROMEX_FL_SCOPE_SERVER  0x00000040
+#define PROMEX_FL_NO_MAINT_SRV  0x00000080
 
 #define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
 
@@ -1905,6 +1906,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			while (appctx->ctx.stats.sv) {
 				sv = appctx->ctx.stats.sv;
 
+				if ((appctx->ctx.stats.flags & PROMEX_FL_NO_MAINT_SRV) && (sv->cur_admin & SRV_ADMF_MAINT))
+					goto next_sv;
+
 				switch (appctx->st2) {
 					case ST_F_STATUS:
 						metric = mkf_u32(FO_STATUS, promex_srv_status(sv));
@@ -2075,6 +2079,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				if (!promex_dump_metric(appctx, htx, prefix, &metric, &out, max))
 					goto full;
 
+			  next_sv:
 				appctx->ctx.stats.sv = sv->next;
 			}
 
@@ -2270,6 +2275,10 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 				goto error;
 
 			p += len;
+		}
+		else if (*p == 'n' && (end-p) >= 8 && !memcmp(p, "no-maint", 8)) {
+			appctx->ctx.stats.flags |= PROMEX_FL_NO_MAINT_SRV;
+			p += 8;
 		}
 		else {
 			/* ignore all other params for now */

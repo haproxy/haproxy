@@ -73,6 +73,14 @@ exported. Here are examples:
   /metrics?scope=*&scope=               # ==> no metrics will be exported
   /metrics?scope=&scope=global          # ==> global metrics will be exported
 
+* Filtering on servers state
+
+It is possible to exclude from returned metrics all servers in maintenance mode
+passing the parameter "no-maint" in the query-string. This parameter may help to
+solve performance issues of configuration that use the server templates to
+manage dynamic provisionning. Note there is no consistency check on the servers
+state. So, if the state of a server changes while the exporter is running, only
+a part of the metrics for this server will be dumped.
 
 Exported metrics
 ------------------
