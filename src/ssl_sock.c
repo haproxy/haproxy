@@ -10457,6 +10457,48 @@ end:
 	/* TODO: handle the ERR_WARN which are not handled because of the io_handler */
 }
 
+/* parsing function of 'abort ssl cert' */
+static int cli_parse_abort_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+
+	if (!*args[3])
+		return cli_err(appctx, "'abort ssl cert' expects a filename\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't abort!\nOperations on certificates are currently locked!\n");
+
+	if (!ckchs_transaction.path) {
+		memprintf(&err, "No ongoing transaction!\n");
+		goto error;
+	}
+
+	if (strcmp(ckchs_transaction.path, args[3]) != 0) {
+		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to abort a transaction for '%s'\n", ckchs_transaction.path, args[3]);
+		goto error;
+	}
+
+	/* Only free the ckchs there, because the SNI and instances were not generated yet */
+	ckchs_free(ckchs_transaction.new_ckchs);
+	ckchs_transaction.new_ckchs = NULL;
+	ckchs_free(ckchs_transaction.old_ckchs);
+	ckchs_transaction.old_ckchs = NULL;
+	free(ckchs_transaction.path);
+	ckchs_transaction.path = NULL;
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	err = memprintf(&err, "Transaction aborted for certificate '%s'!\n", args[3]);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	return cli_dynerr(appctx, err);
+}
+
 static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
@@ -10638,6 +10680,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
 	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
+	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
