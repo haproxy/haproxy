@@ -787,7 +787,7 @@ void mworker_reload()
 		next_argv[next_argc++] = "-sf";
 
 		list_for_each_entry(child, &proc_list, list) {
-			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)))
+			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) || child->pid <= -1 )
 				continue;
 			next_argv[next_argc] = memprintf(&msg, "%d", child->pid);
 			if (next_argv[next_argc] == NULL)
