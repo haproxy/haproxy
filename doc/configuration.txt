@@ -6235,11 +6235,10 @@ no option http-buffer-request
   connecting to the server. Another use case consists in taking the routing
   decision based on the request body's contents. This option placed in a
   frontend or backend forces the HTTP processing to wait until either the whole
-  body is received, or the request buffer is full, or the first chunk is
-  complete in case of chunked encoding. It can have undesired side effects with
-  some applications abusing HTTP by expecting unbuffered transmissions between
-  the frontend and the backend, so this should definitely not be used by
-  default.
+  body is received or the request buffer is full. It can have undesired side
+  effects with some applications abusing HTTP by expecting unbuffered
+  transmissions between the frontend and the backend, so this should definitely
+  not be used by default.
 
   See also : "option http-no-delay", "timeout http-request"
 
