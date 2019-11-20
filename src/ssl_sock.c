@@ -5041,7 +5041,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			 NULL);
 
 		if (ecdhe == NULL) {
-			SSL_CTX_set_ecdh_auto(ctx, 1);
+			(void)SSL_CTX_set_ecdh_auto(ctx, 1);
 			return cfgerr;
 		}
 #else
