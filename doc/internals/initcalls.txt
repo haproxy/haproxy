@@ -1,0 +1,366 @@
+Initialization stages aka how to get your code initialized at the right moment
+
+
+1. Background
+
+Originally all subsystems were initialized via a dedicated function call
+from the huge main() function. Then some code started to become conditional
+or a bit more modular and the #ifdef placed there became a mess, resulting
+in init code being moved to function constructors in each subsystem's own
+file. Then pools of various things were introduced, starting to make the
+whole init sequence more complicated due to some forms of internal
+dependencies. Later epoll was introduced, requiring a post-fork callback,
+and finally threads arrived also requiring some post-thread init/deinit
+and allocation, marking the old architecture's last breath. Finally the
+whole thing resulted in lots of init code duplication and was simplified
+in 1.9 with the introduction of initcalls and initialization stages.
+
+
+2. New architecture
+
+The new architecture relies on two layers :
+  - the registration functions
+  - the INITCALL macros and initialization stages
+
+The first ones are mostly used to add a callback to a list. The second ones
+are used to specify when to call a function. Both are totally independent,
+however they are generally combined via another set consisting in the REGISTER
+macros which make some registration functions be called at some specific points
+during the init sequence.
+
+
+3. Registration functions
+
+Registration functions never fail. Or more precisely, if they fail it will only
+be on out-of-memory condition, and they will cause the process to immediately
+exit. As such they do not return any status and the caller doesn't have to care
+about their success.
+
+All available functions are described below in alphanumeric ordering. Please
+make sure to respect this ordering when adding new ones.
+
+- void hap_register_build_opts(const char *str, int must_free)
+
+  This appends the zero-terminated constant string <str> to the list of known
+  build options that will be reported on the output of "haproxy -vv". A line
+  feed character ('\n') will automatically be appended after the string when it
+  is displayed. The <must_free> argument must be zero, unless the string was
+  allocated by any malloc-compatible function such as malloc()/calloc()/
+  realloc()/strdup() or memprintf(), in which case it's better to pass a
+  non-null value so that the string is freed upon exit. Note that despite the
+  function's prototype taking a "const char *", the pointer will actually be
+  cast and freed. The const char* is here to leave more freedom to use consts
+  when making such options lists.
+
+- void hap_register_per_thread_alloc(int (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called when
+  threads are started, at the beginning of the polling loop. This is also valid
+  for the main thread and will be called even if threads are disabled, so that
+  it is guaranteed that this function will be called in any circumstance. Each
+  thread will first call all these functions exactly once when it starts. Calls
+  are serialized by the init_mutex, so that locking is not necessary in these
+  functions. There is no relation between the thread numbers and the callback
+  ordering. The function is expected to return non-zero on success, or zero on
+  failure. A failure will make the process emit a succint error message and
+  immediately exit. See also hap_register_per_thread_free() for functions
+  called after these ones.
+
+- void hap_register_per_thread_deinit(void (*fct)());
+
+  This adds a call to function <fct> to the list of functions to be called when
+  threads are gracefully stopped, at the end of the polling loop. This is also
+  valid for the main thread and will be called even if threads are disabled, so
+  that it is guaranteed that this function will be called in any circumstance
+  if the process experiences a soft stop. Each thread will call this function
+  exactly once when it stops. However contrary to _alloc() and _init(), the
+  calls are made without any protection, thus if any shared resource if touched
+  by the function, the function is responsible for protecting it. The reason
+  behind this is that such resources are very likely to be still in use in one
+  other thread and that most of the time the functions will in fact only touch
+  a refcount or deinitialize their private resources. See also
+  hap_register_per_thread_free() for functions called after these ones.
+
+- void hap_register_per_thread_free(void (*fct)());
+
+  This adds a call to function <fct> to the list of functions to be called when
+  threads are gracefully stopped, at the end of the polling loop, after all calls
+  to _deinit() callbacks are done for this thread. This is also valid for the
+  main thread and will be called even if threads are disabled, so that it is
+  guaranteed that this function will be called in any circumstance if the
+  process experiences a soft stop. Each thread will call this function exactly
+  once when it stops. However contrary to _alloc() and _init(), the calls are
+  made without any protection, thus if any shared resource if touched by the
+  function, the function is responsible for protecting it. The reason behind
+  this is that such resources are very likely to be still in use in one other
+  thread and that most of the time the functions will in fact only touch a
+  refcount or deinitialize their private resources. See also
+  hap_register_per_thread_deinit() for functions called before these ones.
+
+- void hap_register_per_thread_init(int (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called when
+  threads are started, at the beginning of the polling loop, right after the
+  list of _alloc() functions. This is also valid for the main thread and will
+  be called even if threads are disabled, so that it is guaranteed that this
+  function will be called in any circumstance. Each thread will call this
+  function exactly once when it starts, and calls are serialized by the
+  init_mutex which is held over all _alloc() and _init() calls, so that locking
+  is not necessary in these functions. In other words for all threads but the
+  current one, the sequence of _alloc() and _init() calls will be atomic. There
+  is no relation between the thread numbers and the callback ordering. The
+  function is expected to return non-zero on success, or zero on failure. A
+  failure will make the process emit a succint error message and immediately
+  exit. See also hap_register_per_thread_alloc() for functions called before
+  these ones.
+
+- void hap_register_post_check(int (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called at
+  the end of the configuration validity checks, just at the point where the
+  program either forks or exits depending whether it's called with "-c" or not.
+  Such calls are suited for memory allocation or internal table pre-computation
+  that would preferably not be done on the fly to avoid inducing extra time to
+  a pure configuration check. Threads are not yet started so no protection is
+  required. The function is expected to return non-zero on success, or zero on
+  failure. A failure will make the process emit a succint error message and
+  immediately exit.
+
+- void hap_register_post_deinit(void (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called when
+  freeing the global sections at the end of deinit(), after everything is
+  stopped. The process is single-threaded at this point, thus these functions
+  are suitable for releasing configuration elements provided that no other
+  _deinit() function uses them, i.e. only close/release what is strictly
+  private to the subsystem. Since such functions are mostly only called during
+  soft stops (reloads) or failed startups, they tend to experience much less
+  test coverage than others despite being more exposed, and as such a lot of
+  care must be taken to test them especially when facing partial subsystem
+  initializations followed by errors.
+
+- void hap_register_post_proxy_check(int (*fct)(struct proxy *))
+
+  This adds a call to function <fct> to the list of functions to be called for
+  each proxy, after the calls to _post_server_check(). This can allow, for
+  example, to pre-configure default values for an option in a frontend based on
+  the "bind" lines or something in a backend based on the "server" lines. It's
+  worth being aware that such a function must be careful not to waste too much
+  time in order not to significantly slow down configurations with tens of
+  thousands of backends. The function is expected to return non-zero on
+  success, or zero on failure. A failure will make the process emit a succint
+  error message and immediately exit.
+
+- void hap_register_post_server_check(int (*fct)(struct server *))
+
+  This adds a call to function <fct> to the list of functions to be called for
+  each server, after the call to check_config_validity(). This can allow, for
+  example, to preset a health state on a server or to allocate a protocol-
+  specific memory area. It's worth being aware that such a function must be
+  careful not to waste too much time in order not to significantly slow down
+  configurations with tens of thousands of servers. The function is expected
+  to return non-zero on success, or zero on failure. A failure will make the
+  process emit a succint error message and immediately exit.
+
+- void hap_register_proxy_deinit(void (*fct)(struct proxy *))
+
+  This adds a call to function <fct> to the list of functions to be called when
+  freeing the resources during deinit(). These functions will be called as part
+  of the proxy's resource cleanup. Note that some of the proxy's fields will
+  already have been freed and others not, so such a function must not use any
+  information from the proxy that is subject to being released. In particular,
+  all servers have already been deleted. Since such functions are mostly only
+  called during soft stops (reloads) or failed startups, they tend to
+  experience much less test coverage than others despite being more exposed,
+  and as such a lot of care must be taken to test them especially when facing
+  partial subsystem initializations followed by errors. It's worth mentioning
+  that too slow functions could have a significant impact on the configuration
+  check or exit time especially on large configurations.
+
+- void hap_register_server_deinit(void (*fct)(struct server *))
+
+  This adds a call to function <fct> to the list of functions to be called when
+  freeing the resources during deinit(). These functions will be called as part
+  of the server's resource cleanup. Note that some of the server's fields will
+  already have been freed and others not, so such a function must not use any
+  information from the server that is subject to being released. Since such
+  functions are mostly only called during soft stops (reloads) or failed
+  startups, they tend to experience much less test coverage than others despite
+  being more exposed, and as such a lot of care must be taken to test them
+  especially when facing partial subsystem initializations followed by errors.
+  It's worth mentioning that too slow functions could have a significant impact
+  on the configuration check or exit time especially on large configurations.
+
+
+4. Initialization stages
+
+In order to offer some guarantees, the startup of the program is split into
+several stages. Some callbacks can be placed into each of these stages using
+an INITCALL macro, with 0 to 3 arguments, respectively called INITCALL0 to
+INITCALL3. These macros must be placed anywhere at the top level of a C file,
+preferably at the end so that the referenced symbols have already been met,
+but it may also be fine to place them right after the callbacks themselves.
+
+Such callbacks are referenced into small structures containing a pointer to the
+function and 3 arguments. NULL replaces unused arguments. The callbacks are
+cast to (void (*)(void *, void *, void *)) and the arguments to (void *).
+
+The first argument to the INITCALL macro is the initialization stage. The
+second one is the callback function, and others if any are the arguments.
+The init stage must be among the values of the "init_stage" enum, currently,
+and in this execution order:
+
+  - STG_PREPARE  : used to preset variables, pre-initialize lookup tables and
+                   pre-initialize list heads
+  - STG_LOCK     : used to pre-initialize locks
+  - STG_ALLOC    : used to allocate the required structures
+  - STG_POOL     : used to create pools
+  - STG_REGISTER : used to register static lists such as keywords
+  - STG_INIT     : used to initialize subsystems
+
+Each stage is guaranteed that previous stages have successfully completed. This
+means that an INITCALL placed at stage STG_REGISTER is guaranteed that all
+pools were already created and will be usable. Conversely, an INITCALL placed
+at stage STG_PREPARE must not rely on any field that requires preliminary
+allocation nor initialization. A callback cannot rely on other callbacks of the
+same stage, as the execution order within a stage is undefined and essentially
+depends on the linking order.
+
+Example: register a very early call to init_log() with no argument, and another
+         call to cli_register_kw(&cli_kws) much later:
+
+   INITCALL0(STG_PREPARE, init_log);
+   INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+Technically speaking, each call to such a macro adds a distinct local symbol
+whose dynamic name involves the line number. These symbols are placed into a
+separate section and the beginning and end section pointers are provided by the
+linker. When too old a linker is used, a fallback is applied consisting in
+placing them into a linked list which is built by a constructor function for
+each initcall (this takes more room).
+
+Due to the symbols internally using the line number, it is very important not
+to place more than one INITCALL per line in the source file.
+
+It is also strongly recommended that functions and referenced arguments are
+static symbols local to the source file, unless they are global registration
+functions like in the example above with cli_register_kw(), where only the
+argument is a local keywords table.
+
+INITCALLs do not expect the callback function to return anything and as such
+do not perform any error check. As such, they are very similar to constructors
+offered by the compiler except that they are segmented in stages. It is thus
+the responsibility of the called functions to perform their own error checking
+and to exit in case of error. This may change in the future.
+
+
+5. REGISTER family of macros
+
+The association of INITCALLs and registration functions allows to perform some
+early dynamic registration of functions to be used anywhere, as well as values
+to be added to existing lists without having to manipulate list elements. For
+the sake of simplification, these combinations are available as a set of
+REGISTER macros which register calls to certain functions at the appropriate
+init stage. Such macros must be used at the top level in a file, just like
+INITCALL macros. The following macros are currently supported. Please keep them
+alphanumerically ordered:
+
+- REGISTER_BUILD_OPTS(str)
+
+  Adds the constant string <str> to the list of build options. This is done by
+  registering a call to hap_register_build_opts(str, 0) at stage STG_REGISTER.
+  The string will not be freed.
+
+- REGISTER_CONFIG_POSTPARSER(name, parser)
+
+  Adds a call to function <parser> at the end of the config parsing. The
+  function is called at the very end of check_config_validity() and may be used
+  to initialize a subsystem based on global settings for example. This is done
+  by registering a call to cfg_register_postparser(name, parser) at stage
+  STG_REGISTER.
+
+- REGISTER_CONFIG_SECTION(name, parse, post)
+
+  Registers a new config section name <name> which will be parsed by function
+  <parse> (if not null), and with an optional call to function <post> at the
+  end of the section. Function <parse> must be of type (int (*parse)(const char
+  *file, int linenum, char **args, int inv)), and returns 0 on success or an
+  error code among the ERR_* set on failure. The <post> callback takes no
+  argument and returns a similar error code. This is achieved by registering a
+  call to cfg_register_section() with the three arguments at stage
+  STG_REGISTER.
+
+- REGISTER_PER_THREAD_ALLOC(fct)
+
+  Registers a call to register_per_thread_alloc(fct) at stage STG_REGISTER.
+
+- REGISTER_PER_THREAD_DEINIT(fct)
+
+  Registers a call to register_per_thread_deinit(fct) at stage STG_REGISTER.
+
+- REGISTER_PER_THREAD_FREE(fct)
+
+  Registers a call to register_per_thread_free(fct) at stage STG_REGISTER.
+
+- REGISTER_PER_THREAD_INIT(fct)
+
+  Registers a call to register_per_thread_init(fct) at stage STG_REGISTER.
+
+- REGISTER_POOL(ptr, name, size)
+
+  Used internally to declare a new pool. This is made by calling function
+  create_pool_callback() with these arguments at stage STG_POOL. Do not use it
+  directly, use either DECLARE_POOL() or DECLARE_STATIC_POOL() instead (see
+  below).
+
+- REGISTER_POST_CHECK(fct)
+
+  Registers a call to register_post_check(fct) at stage STG_REGISTER.
+
+- REGISTER_POST_DEINIT(fct)
+
+  Registers a call to register_post_deinit(fct) at stage STG_REGISTER.
+
+- REGISTER_POST_PROXY_CHECK(fct)
+
+  Registers a call to register_post_proxy_check(fct) at stage STG_REGISTER.
+
+- REGISTER_POST_SERVER_CHECK(fct)
+
+  Registers a call to register_post_server_check(fct) at stage STG_REGISTER.
+
+- REGISTER_PROXY_DEINIT(fct)
+
+  Registers a call to register_proxy_deinit(fct) at stage STG_REGISTER.
+
+- REGISTER_SERVER_DEINIT(fct)
+
+  Registers a call to register_server_deinit(fct) at stage STG_REGISTER.
+
+
+6. Other initialization macros
+
+On top of the INITCALL family of macros, a few other convenient macros were
+created in order to simplify declarations or allocations:
+
+- DECLARE_POOL(ptr, name, size)
+
+  Placed at the top level of a file, this declares a global memory pool as
+  variable <ptr>, name <name> and size <size> bytes per element. This is made
+  via a call to REGISTER_POOL() and by assigning the resulting pointer to
+  variable <ptr>. <ptr> will be created of type "struct pool_head *". If the
+  pool needs to be visible outside of the function (which is likely), it will
+  also need to be declared somewhere as "extern struct pool_head *<ptr>;". It
+  is recommended to place such declarations very early in the source file so
+  that the variable is already known to all subsequent functions which may use
+  it.
+
+- DECLARE_STATIC_POOL(ptr, name, size)
+
+  Placed at the top level of a file, this declares a static memory pool as
+  variable <ptr>, name <name> and size <size> bytes per element. This is made
+  via a call to REGISTER_POOL() and by assigning the resulting pointer to local
+  variable <ptr>. <ptr> will be created of type "static struct pool_head *". It
+  is recommended to place such declarations very early in the source file so
+  that the variable is already known to all subsequent functions which may use
+  it.
