@@ -754,6 +754,8 @@ void __peer_session_deinit(struct peer *peer)
 	/* reset teaching and learning flags to 0 */
 	peer->flags &= PEER_TEACH_RESET;
 	peer->flags &= PEER_LEARN_RESET;
+	/* set this peer as dead from heartbeat point of view */
+	peer->flags &= ~PEER_F_ALIVE;
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 }
 
