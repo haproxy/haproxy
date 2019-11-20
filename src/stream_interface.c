@@ -1474,14 +1474,19 @@ int si_cs_recv(struct conn_stream *cs)
 	}
 
  end_recv:
+	ret = (cur_read != 0);
+
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view. */
-	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI))
+	if ((cs->flags & CS_FL_EOI) && !(ic->flags & CF_EOI)) {
 		ic->flags |= (CF_EOI|CF_READ_PARTIAL);
+		ret = 1;
+	}
 
 	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
 		cs->flags |= CS_FL_ERROR;
 		si->flags |= SI_FL_ERR;
+		ret = 1;
 	}
 	else if (cs->flags & CS_FL_EOS) {
 		/* connection closed */
@@ -1492,6 +1497,7 @@ int si_cs_recv(struct conn_stream *cs)
 				channel_shutw_now(ic);
 			stream_int_read0(si);
 		}
+		ret = 1;
 	}
 	else if (!si_rx_blocked(si)) {
 		/* Subscribe to receive events if we're blocking on I/O */
@@ -1499,11 +1505,9 @@ int si_cs_recv(struct conn_stream *cs)
 		si_rx_endp_done(si);
 	} else {
 		si_rx_endp_more(si);
+		ret = 1;
 	}
-
-	return (cur_read != 0) ||
-		si_rx_blocked(si) ||
-		(cs->flags & (CS_FL_EOI|CS_FL_EOS|CS_FL_ERROR));
+	return ret;
 }
 
 /*
