@@ -45,7 +45,7 @@ int ssl_sock_is_ssl(struct connection *conn)
 		return 1;
 }
 
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx);
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx, char **err);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf);
 int ssl_sock_prepare_srv_ctx(struct server *srv);

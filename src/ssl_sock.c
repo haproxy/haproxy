@@ -4811,7 +4811,11 @@ void ssl_set_shctx(SSL_CTX *ctx)
 	SSL_CTX_sess_set_remove_cb(ctx, sh_ssl_sess_remove_cb);
 }
 
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx)
+/*
+ * This function applies the SSL configuration on a SSL_CTX
+ * It returns an error code and fills the <err> buffer
+ */
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx, char **err)
 {
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
@@ -4847,9 +4851,10 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		conf_ssl_methods->min = min;
 		conf_ssl_methods->max = max;
 		if (!min) {
-			ha_alert("Proxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
-				 bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-			cfgerr += 1;
+			if (err)
+				memprintf(err, "%sProxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+				          *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 
@@ -4871,9 +4876,10 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		if (ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(ctx, ca_file, NULL)) {
-				ha_alert("Proxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
-					 curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
-				cfgerr++;
+				if (err)
+					memprintf(err, "%sProxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
+					          *err ? *err : "", curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
 			if (!((ssl_conf && ssl_conf->no_ca_names) || bind_conf->ssl_conf.no_ca_names)) {
 				/* set CA names for client cert request, function returns void */
@@ -4881,18 +4887,20 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			}
 		}
 		else {
-			ha_alert("Proxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
-				 curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-			cfgerr++;
+			if (err)
+				memprintf(err, "%sProxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
+				          *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
 		if (crl_file) {
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 			if (!store || !X509_STORE_load_locations(store, crl_file, NULL)) {
-				ha_alert("Proxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
-					 curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
-				cfgerr++;
+				if (err)
+					memprintf(err, "%sProxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
+					          *err ? *err : "", curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
 			else {
 				X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL);
@@ -4904,9 +4912,10 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	if(bind_conf->keys_ref) {
 		if (!SSL_CTX_set_tlsext_ticket_key_cb(ctx, ssl_tlsext_ticket_key_cb)) {
-			ha_alert("Proxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
-				 curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-			cfgerr++;
+			if (err)
+				memprintf(err, "%sProxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
+				          *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 #endif
@@ -4915,18 +4924,19 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
-		ha_alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
-			 curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
-		cfgerr++;
+		if (err)
+			memprintf(err, "%sProxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
+			          *err ? *err : "", curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
+		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	conf_ciphersuites = (ssl_conf && ssl_conf->ciphersuites) ? ssl_conf->ciphersuites : bind_conf->ssl_conf.ciphersuites;
 	if (conf_ciphersuites &&
 	    !SSL_CTX_set_ciphersuites(ctx, conf_ciphersuites)) {
-		ha_alert("Proxy '%s': unable to set TLS 1.3 cipher suites to '%s' for bind '%s' at [%s:%d].\n",
-			 curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
-		cfgerr++;
+		memprintf(err, "%sProxy '%s': unable to set TLS 1.3 cipher suites to '%s' for bind '%s' at [%s:%d].\n",
+		          *err ? *err : "", curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
+		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 #endif
 
@@ -4972,7 +4982,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		}
 
 		if (dhe_found) {
-			ha_warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
+			if (err)
+				memprintf(err, "%sSetting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n", *err ? *err : "");
+			cfgerr |= ERR_WARN;
 		}
 
 		global_ssl.default_dh_param = 1024;
@@ -5022,9 +5034,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
 	if (conf_curves) {
 		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
-			ha_alert("Proxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
-				 curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
-			cfgerr++;
+			memprintf(err, "%sProxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
+			          *err ? *err : "", curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 #if defined(SSL_CTX_set_ecdh_auto)
 		(void)SSL_CTX_set_ecdh_auto(ctx, 1);
@@ -5052,9 +5064,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 
 		i = OBJ_sn2nid(ecdhe);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
-			ha_alert("Proxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
-				 curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
-			cfgerr++;
+			memprintf(err, "%sProxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
+			          *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 		else {
 			SSL_CTX_set_tmp_ecdh(ctx, ecdh);
@@ -5445,6 +5457,8 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	struct ebmb_node *node;
 	struct sni_ctx *sni;
 	int err = 0;
+	int errcode = 0;
+	char *errmsg = NULL;
 
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_frontend = 1;
@@ -5460,10 +5474,10 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		/* It should not be necessary to call this function, but it's
 		   necessary first to check and move all initialisation related
 		   to initial_ctx in ssl_sock_initial_ctx. */
-		err += ssl_sock_prepare_ctx(bind_conf, NULL, bind_conf->initial_ctx);
+		errcode |= ssl_sock_prepare_ctx(bind_conf, NULL, bind_conf->initial_ctx, &errmsg);
 	}
 	if (bind_conf->default_ctx)
-		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx);
+		errcode |= ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, &errmsg);
 
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
@@ -5471,19 +5485,29 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		if (!sni->order && sni->ctx != bind_conf->default_ctx)
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			err += ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx);
+			errcode |= ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx, &errmsg);
 		node = ebmb_next(node);
 	}
 
 	node = ebmb_first(&bind_conf->sni_w_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order && sni->ctx != bind_conf->default_ctx)
+		if (!sni->order && sni->ctx != bind_conf->default_ctx) {
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			err += ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx);
+			errcode |= ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx, &errmsg);
+		}
 		node = ebmb_next(node);
 	}
+
+	if (errcode & ERR_WARN) {
+		ha_warning(errmsg);
+	} else if (errcode & ERR_CODE) {
+		ha_alert(errmsg);
+		err++;
+	}
+
+	free(errmsg);
 	return err;
 }
 
