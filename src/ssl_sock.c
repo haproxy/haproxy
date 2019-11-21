@@ -364,7 +364,7 @@ static struct {
 } ckchs_transaction;
 
 /*
- * deduplicate cafile
+ * deduplicate cafile (and crlfile)
  */
 struct cafile_entry {
 	X509_STORE *ca_store;
@@ -5054,7 +5054,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		if (crl_file) {
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
-			if (!store || !X509_STORE_load_locations(store, crl_file, NULL)) {
+			if (!ssl_set_cert_crl_file(store, crl_file)) {
 				memprintf(err, "%sProxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
 				          err && *err ? *err : "", curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
@@ -5557,7 +5557,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		if (srv->ssl_ctx.crl_file) {
 			X509_STORE *store = SSL_CTX_get_cert_store(srv->ssl_ctx.ctx);
 
-			if (!store || !X509_STORE_load_locations(store, srv->ssl_ctx.crl_file, NULL)) {
+			if (!ssl_set_cert_crl_file(store, srv->ssl_ctx.crl_file)) {
 				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
 					 curproxy->id, srv->id,
 					 srv->conf.file, srv->conf.line, srv->ssl_ctx.crl_file);
@@ -8616,6 +8616,10 @@ static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, s
 	else
 		memprintf(&conf->crl_file, "%s", args[cur_arg + 1]);
 
+	if (!ssl_store_load_locations_file(conf->crl_file)) {
+		memprintf(err, "'%s' : unable to load %s", args[cur_arg], conf->crl_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 #endif
 }
@@ -9336,6 +9340,10 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 	else
 		memprintf(&newsrv->ssl_ctx.crl_file, "%s", args[*cur_arg + 1]);
 
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file)) {
+		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.crl_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
 	return 0;
 #endif
 }
