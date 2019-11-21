@@ -268,6 +268,8 @@ Exported metrics
 | haproxy_server_client_aborts_total                 | Total number of data transfers aborted by the client.                     |
 | haproxy_server_server_aborts_total                 | Total number of data transfers aborted by the server.                     |
 | haproxy_server_weight                              | Service weight.                                                           |
+| haproxy_server_check_status                        | Status of last health check, if enabled. (see below for the mapping)      |
+| haproxy_server_check_code                          | layer5-7 code, if available of the last health check.                     |
 | haproxy_server_check_failures_total                | Total number of failed check (Only when the server is up).                |
 | haproxy_server_check_up_down_total                 | Total number of UP->DOWN transitions.                                     |
 | haproxy_server_downtime_seconds_total              | Total downtime (in seconds) for the service.                              |
@@ -278,3 +280,30 @@ Exported metrics
 | haproxy_server_idle_connections_current            | Current number of idle connections available for reuse.                   |
 | haproxy_server_idle_connections_limit              | Limit on the number of available idle connections.                        |
 +----------------------------------------------------+---------------------------------------------------------------------------+
+
+Mapping of health check status :
+
+   0 : HCHK_STATUS_UNKNOWN  (Unknown)
+   1 : HCHK_STATUS_INI      (Initializing)
+
+   4 : HCHK_STATUS_HANA     (Health analyze detected enough consecutive errors)
+
+   5 : HCHK_STATUS_SOCKERR  (Socket error)
+
+   6 : HCHK_STATUS_L4OK     (L4 check passed, for example tcp connect)
+   7 : HCHK_STATUS_L4TOUT   (L4 timeout)
+   8 : HCHK_STATUS_L4CON    (L4 connection problem)
+
+   9 : HCHK_STATUS_L6OK     (L6 check passed)
+  10 : HCHK_STATUS_L6TOUT   (L6 (SSL) timeout)
+  11 : HCHK_STATUS_L6RSP    (L6 invalid response - protocol error)
+
+  12 : HCHK_STATUS_L7TOUT   (L7 (HTTP/SMTP) timeout)
+  13 : HCHK_STATUS_L7RSP    (L7 invalid response - protocol error)
+  15 : HCHK_STATUS_L7OKD    (L7 check passed)
+  16 : HCHK_STATUS_L7OKCD   (L7 check conditionally passed)
+  17 : HCHK_STATUS_L7STS    (L7 response error, for example HTTP 5xx)
+
+  18 : HCHK_STATUS_PROCERR  (External process check failure)
+  19 : HCHK_STATUS_PROCTOUT (External process check timeout)
+  20 : HCHK_STATUS_PROCOK   (External process check passed)
