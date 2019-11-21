@@ -42,6 +42,12 @@
 #define PRODUCT_STATUS   "Status: development branch - not safe for use in production."
 #endif
 
+#ifdef CONFIG_PRODUCT_URL_BUGS
+#define PRODUCT_URL_BUGS  CONFIG_PRODUCT_URL_BUGS
+#else
+#define PRODUCT_URL_BUGS "http://www.haproxy.org/bugs/bugs-%s.html"
+#endif
+
 #ifdef  CONFIG_PRODUCT_URL
 #define PRODUCT_URL    CONFIG_PRODUCT_URL
 #else

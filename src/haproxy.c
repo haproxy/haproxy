@@ -545,6 +545,26 @@ static void display_version()
 {
 	printf("HA-Proxy version %s %s - https://haproxy.org/\n"
 	       PRODUCT_STATUS "\n", haproxy_version, haproxy_date);
+
+	if (strlen(PRODUCT_URL_BUGS) > 0) {
+		char base_version[20];
+		int dots = 0;
+		char *del;
+
+		/* only retrieve the base version without distro-specific extensions */
+		for (del = haproxy_version; *del; del++) {
+			if (*del == '.')
+				dots++;
+			else if (*del < '0' || *del > '9')
+				break;
+		}
+
+		strlcpy2(base_version, haproxy_version, del - haproxy_version + 1);
+		if (dots < 2)
+			printf("Known bugs: https://github.com/haproxy/haproxy/issues?q=is:issue+is:open\n");
+		else
+			printf("Known bugs: " PRODUCT_URL_BUGS "\n", base_version);
+	}
 }
 
 static void display_build_opts()
