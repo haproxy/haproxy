@@ -10200,7 +10200,10 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	}
 end:
 
-	chunk_appendf(trash, "\nSuccess!\n");
+	chunk_appendf(trash, "\n");
+	if (errcode & ERR_WARN)
+		chunk_appendf(trash, err);
+	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
 	free_trash_chunk(trash);
