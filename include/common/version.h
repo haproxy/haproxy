@@ -36,6 +36,12 @@
 #define PRODUCT_BRANCH   "2.1"
 #endif
 
+#ifdef  CONFIG_PRODUCT_STATUS
+#define PRODUCT_STATUS    CONFIG_PRODUCT_STATUS
+#else
+#define PRODUCT_STATUS   "Status: development branch - not safe for use in production."
+#endif
+
 #ifdef  CONFIG_PRODUCT_URL
 #define PRODUCT_URL    CONFIG_PRODUCT_URL
 #else
