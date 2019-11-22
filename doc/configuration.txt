@@ -4815,6 +4815,21 @@ http-request unset-var(<var-name>) [ { if | unless } <condition> ]
   Example:
     http-request unset-var(req.my_var)
 
+http-request use-service <service-name> [ { if | unless } <condition> ]
+
+  This directive executes the configured HTTP service to reply to the request
+  and stops the evaluation of the rules. An HTTP service may choose to reply by
+  sending any valid HTTP response or it may immediately close the connection
+  without sending any response. Outside natives services, for instance the
+  Prometheus exporter, it is possible to write your own services in Lua. No
+  further "http-request" rules are evaluated.
+
+  Arguments :
+    <service-name>  is mandatory. It is the service to call
+
+  Example:
+    http-request use-service prometheus-exporter if { path /metrics }
+
 http-request wait-for-handshake [ { if | unless } <condition> ]
 
   This will delay the processing of the request until the SSL handshake
@@ -9570,6 +9585,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - unset-var(<var-name>)
     - silent-drop
     - send-spoe-group <engine-name> <group-name>
+    - use-service <service-name>
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -9655,6 +9671,16 @@ tcp-request content <action> [{if | unless} <condition>]
     <engine-name> The SPOE engine name.
 
     <group-name>  The SPOE group name as specified in the engine configuration.
+
+  The "use-service" is used to executes a TCP service which will reply to the
+  request and stop the evaluation of the rules. This service may choose to
+  reply by sending any valid response or it may immediately close the
+  connection without sending anything. Outside natives services, it is possible
+  to write your own services in Lua. No further "tcp-request" rules are
+  evaluated.
+
+  Example:
+    tcp-request content use-service lua.deny { src -f /etc/haproxy/blacklist.lst }
 
   Example:
 
