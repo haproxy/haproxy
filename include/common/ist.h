@@ -606,6 +606,47 @@ static inline char *istchr(const struct ist ist, char chr)
 	return s - 1;
 }
 
+/* Returns a pointer to the first control character found in <ist>, or NULL if
+ * none is present. A control character is defined as a byte whose value is
+ * between 0x00 and 0x1F included. The function is optimized for strings having
+ * no CTL chars by processing up to sizeof(long) bytes at once on architectures
+ * supporting efficient unaligned accesses. Despite this it is not very fast
+ * (~0.43 byte/cycle) and should mostly be used on low match probability when
+ * it can save a call to a much slower function.
+ */
+static inline const char *ist_find_ctl(const struct ist ist)
+{
+	const union { unsigned long v; } __attribute__((packed)) *u;
+	const char *curr = (void *)ist.ptr - sizeof(long);
+	const char *last = curr + ist.len;
+	unsigned long l1, l2;
+
+	do {
+		curr += sizeof(long);
+		if (curr > last)
+			break;
+		u = (void *)curr;
+		/* subtract 0x202020...20 to the value to generate a carry in
+		 * the lower byte if the byte contains a lower value. If we
+		 * generate a bit 7 that was not there, it means the byte was
+		 * within 0x00..0x1F.
+		 */
+		l2  = u->v;
+		l1  = ~l2 & ((~0UL / 255) * 0x80); /* 0x808080...80 */
+		l2 -= (~0UL / 255) * 0x20;         /* 0x202020...20 */
+	} while ((l1 & l2) == 0);
+
+	last += sizeof(long);
+	if (__builtin_expect(curr < last, 0)) {
+		do {
+			if ((uint8_t)*curr < 0x20)
+				return curr;
+			curr++;
+		} while (curr < last);
+	}
+	return NULL;
+}
+
 /* looks for first occurrence of character <chr> in string <ist> and returns
  * the tail of the string starting with this character, or (ist.end,0) if not
  * found.
