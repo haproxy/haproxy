@@ -3084,7 +3084,7 @@ static int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, stru
 	issuer = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 	if (!issuer) {
 		memprintf(err, "%s'%s' cannot be read or parsed'.\n",
-		          *err ? *err : "", path);
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 	ret = 0;
@@ -3275,7 +3275,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 		if (stat(fp, &st) == 0) {
 			if (ssl_sock_load_sctl_from_file(fp, NULL, ckch, err)) {
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
-					  *err ? *err : "", fp);
+					  err && *err ? *err : "", fp);
 				ret = 1;
 				goto end;
 			}
@@ -3326,13 +3326,13 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 
 				if (X509_check_issued(ckch->ocsp_issuer, ckch->cert) != X509_V_OK) {
 					memprintf(err, "%s '%s' is not an issuer'.\n",
-						  *err ? *err : "", fp);
+						  err && *err ? *err : "", fp);
 					ret = 1;
 					goto end;
 				}
 			} else {
 				memprintf(err, "%sNo issuer found, cannot use the OCSP response'.\n",
-				          *err ? *err : "");
+				          err && *err ? *err : "");
 				ret = 1;
 				goto end;
 			}
@@ -3420,7 +3420,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	if (sctl_ex_index >= 0 && ckch->sctl) {
 		if (ssl_sock_load_sctl(ctx, ckch->sctl) < 0) {
 			memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
-			          *err ? *err : "", path);
+			          err && *err ? *err : "", path);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
@@ -3431,9 +3431,8 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	/* Load OCSP Info into context */
 	if (ckch->ocsp_response) {
 		if (ssl_sock_load_ocsp(ctx, ckch) < 0) {
-			if (err)
-				memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
-				          *err ? *err : "", path);
+			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
+			          err && *err ? *err : "", path);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
@@ -4851,9 +4850,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		conf_ssl_methods->min = min;
 		conf_ssl_methods->max = max;
 		if (!min) {
-			if (err)
-				memprintf(err, "%sProxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
-				          *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			memprintf(err, "%sProxy '%s': all SSL/TLS versions are disabled for bind '%s' at [%s:%d].\n",
+			          err && *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 	}
@@ -4876,9 +4874,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		if (ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(ctx, ca_file, NULL)) {
-				if (err)
-					memprintf(err, "%sProxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
-					          *err ? *err : "", curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				memprintf(err, "%sProxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
+				          err && *err ? *err : "", curproxy->id, ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
 			if (!((ssl_conf && ssl_conf->no_ca_names) || bind_conf->ssl_conf.no_ca_names)) {
@@ -4887,9 +4884,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			}
 		}
 		else {
-			if (err)
-				memprintf(err, "%sProxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
-				          *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			memprintf(err, "%sProxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
+			          err && *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
@@ -4897,9 +4893,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 			if (!store || !X509_STORE_load_locations(store, crl_file, NULL)) {
-				if (err)
-					memprintf(err, "%sProxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
-					          *err ? *err : "", curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
+				memprintf(err, "%sProxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
+				          err && *err ? *err : "", curproxy->id, crl_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
 			else {
@@ -4912,9 +4907,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 	if(bind_conf->keys_ref) {
 		if (!SSL_CTX_set_tlsext_ticket_key_cb(ctx, ssl_tlsext_ticket_key_cb)) {
-			if (err)
-				memprintf(err, "%sProxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
-				          *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			memprintf(err, "%sProxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
+			          err && *err ? *err : "", curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 	}
@@ -4924,9 +4918,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
-		if (err)
-			memprintf(err, "%sProxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
-			          *err ? *err : "", curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
+		memprintf(err, "%sProxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
+		          err && *err ? *err : "", curproxy->id, conf_ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 
@@ -4934,9 +4927,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_ciphersuites = (ssl_conf && ssl_conf->ciphersuites) ? ssl_conf->ciphersuites : bind_conf->ssl_conf.ciphersuites;
 	if (conf_ciphersuites &&
 	    !SSL_CTX_set_ciphersuites(ctx, conf_ciphersuites)) {
-		if (err)
-			memprintf(err, "%sProxy '%s': unable to set TLS 1.3 cipher suites to '%s' for bind '%s' at [%s:%d].\n",
-				  *err ? *err : "", curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
+		memprintf(err, "%sProxy '%s': unable to set TLS 1.3 cipher suites to '%s' for bind '%s' at [%s:%d].\n",
+		          err && *err ? *err : "", curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 #endif
@@ -4983,8 +4975,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		}
 
 		if (dhe_found) {
-			if (err)
-				memprintf(err, "%sSetting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n", *err ? *err : "");
+			memprintf(err, "%sSetting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n",
+			          err && *err ? *err : "");
 			cfgerr |= ERR_WARN;
 		}
 
@@ -5035,9 +5027,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	conf_curves = (ssl_conf && ssl_conf->curves) ? ssl_conf->curves : bind_conf->ssl_conf.curves;
 	if (conf_curves) {
 		if (!SSL_CTX_set1_curves_list(ctx, conf_curves)) {
-			if (err)
-				memprintf(err, "%sProxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
-					  *err ? *err : "", curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
+			memprintf(err, "%sProxy '%s': unable to set SSL curves list to '%s' for bind '%s' at [%s:%d].\n",
+			          err && *err ? *err : "", curproxy->id, conf_curves, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 #if defined(SSL_CTX_set_ecdh_auto)
@@ -5066,9 +5057,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 
 		i = OBJ_sn2nid(ecdhe);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
-			if (err)
-				memprintf(err, "%sProxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
-					  *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			memprintf(err, "%sProxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
+			          err && *err ? *err : "", curproxy->id, ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 		}
 		else {
@@ -8325,8 +8315,7 @@ smp_fetch_ssl_c_verify(const struct arg *args, struct sample *smp, const char *k
 static int ssl_bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
+		memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8346,8 +8335,7 @@ static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct
 static int bind_parse_ca_sign_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
+		memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8363,8 +8351,7 @@ static int bind_parse_ca_sign_file(char **args, int cur_arg, struct proxy *px, s
 static int bind_parse_ca_sign_pass(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CAkey password", args[cur_arg]);
+		memprintf(err, "'%s' : missing CAkey password", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	memprintf(&conf->ca_sign_pass, "%s", args[cur_arg + 1]);
@@ -8450,13 +8437,11 @@ static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struc
 static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
 #ifndef X509_V_FLAG_CRL_CHECK
-	if (err)
-		memprintf(err, "'%s' : library does not support CRL verify", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support CRL verify", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CRLfile path", args[cur_arg]);
+		memprintf(err, "'%s' : missing CRLfile path", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8478,15 +8463,13 @@ static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, str
 {
 #if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing curve suite", args[cur_arg]);
+		memprintf(err, "'%s' : missing curve suite", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	conf->curves = strdup(args[cur_arg + 1]);
 	return 0;
 #else
-	if (err)
-		memprintf(err, "'%s' : library does not support curve suite", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support curve suite", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
@@ -8499,17 +8482,14 @@ static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct 
 static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
 #if HA_OPENSSL_VERSION_NUMBER < 0x0090800fL
-	if (err)
-		memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #elif defined(OPENSSL_NO_ECDH)
-	if (err)
-		memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (disabled via OPENSSL_NO_ECDH)", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (disabled via OPENSSL_NO_ECDH)", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing named curve", args[cur_arg]);
+		memprintf(err, "'%s' : missing named curve", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8531,8 +8511,7 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	unsigned long long *ignerr = &conf->crt_ignerr;
 
 	if (!*p) {
-		if (err)
-			memprintf(err, "'%s' : missing error IDs list", args[cur_arg]);
+		memprintf(err, "'%s' : missing error IDs list", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8547,9 +8526,8 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	while (p) {
 		code = atoi(p);
 		if ((code <= 0) || (code > 63)) {
-			if (err)
-				memprintf(err, "'%s' : ID '%d' out of range (1..63) in error IDs list '%s'",
-				          args[cur_arg], code, args[cur_arg + 1]);
+			memprintf(err, "'%s' : ID '%d' out of range (1..63) in error IDs list '%s'",
+			          args[cur_arg], code, args[cur_arg + 1]);
 			return ERR_ALERT | ERR_FATAL;
 		}
 		*ignerr |= 1ULL << code;
@@ -8590,8 +8568,7 @@ static int parse_tls_method_options(char *arg, struct tls_version_filter *method
 		goto fail;
 	return 0;
  fail:
-	if (err)
-		memprintf(err, "'%s' : option not implemented", arg);
+	memprintf(err, "'%s' : option not implemented", arg);
 	return ERR_ALERT | ERR_FATAL;
 }
 
@@ -8611,16 +8588,14 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 	uint16_t i, v = 0;
 	char *argv = args[cur_arg + 1];
 	if (!*argv) {
-		if (err)
-			memprintf(err, "'%s' : missing the ssl/tls version", args[cur_arg]);
+		memprintf(err, "'%s' : missing the ssl/tls version", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 		if (!strcmp(argv, methodVersions[i].name))
 			v = i;
 	if (!v) {
-		if (err)
-			memprintf(err, "'%s' : unknown ssl/tls version", args[cur_arg + 1]);
+		memprintf(err, "'%s' : unknown ssl/tls version", args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	if (!strcmp("ssl-min-ver", args[cur_arg]))
@@ -8628,8 +8603,7 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 	else if (!strcmp("ssl-max-ver", args[cur_arg]))
 		methods->max = v;
 	else {
-		if (err)
-			memprintf(err, "'%s' : option not implemented", args[cur_arg]);
+		memprintf(err, "'%s' : option not implemented", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	return 0;
@@ -8718,8 +8692,7 @@ static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct
 	}
 	return 0;
 #else
-	if (err)
-		memprintf(err, "'%s' : library does not support TLS NPN extension", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support TLS NPN extension", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
@@ -8774,8 +8747,7 @@ static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struc
 	}
 	return 0;
 #else
-	if (err)
-		memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);
+	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
@@ -8843,8 +8815,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	struct tls_keys_ref *keys_ref = NULL;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing TLS ticket keys file path", args[cur_arg]);
+		memprintf(err, "'%s' : missing TLS ticket keys file path", args[cur_arg]);
 		goto fail;
 	}
 
@@ -8857,28 +8828,24 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 
 	keys_ref = calloc(1, sizeof(*keys_ref));
 	if (!keys_ref) {
-		if (err)
-			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
 		goto fail;
 	}
 
 	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(union tls_sess_key));
 	if (!keys_ref->tlskeys) {
-		if (err)
-			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
 		goto fail;
 	}
 
 	if ((f = fopen(args[cur_arg + 1], "r")) == NULL) {
-		if (err)
-			memprintf(err, "'%s' : unable to load ssl tickets keys file", args[cur_arg+1]);
+		memprintf(err, "'%s' : unable to load ssl tickets keys file", args[cur_arg+1]);
 		goto fail;
 	}
 
 	keys_ref->filename = strdup(args[cur_arg + 1]);
 	if (!keys_ref->filename) {
-		if (err)
-			 memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
+		memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
 		goto fail;
 	}
 
@@ -8896,8 +8863,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 
 		dec_size = base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(union tls_sess_key));
 		if (dec_size < 0) {
-			if (err)
-				memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
+			memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
 			goto fail;
 		}
 		else if (!keys_ref->key_size_bits && (dec_size == sizeof(struct tls_sess_key_128))) {
@@ -8909,16 +8875,14 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		else if (((dec_size != sizeof(struct tls_sess_key_128)) && (dec_size != sizeof(struct tls_sess_key_256)))
 			 || ((dec_size == sizeof(struct tls_sess_key_128) && (keys_ref->key_size_bits != 128)))
 			 || ((dec_size == sizeof(struct tls_sess_key_256) && (keys_ref->key_size_bits != 256)))) {
-			if (err)
-				memprintf(err, "'%s' : wrong sized key on line %d", args[cur_arg+1], i + 1);
+			memprintf(err, "'%s' : wrong sized key on line %d", args[cur_arg+1], i + 1);
 			goto fail;
 		}
 		i++;
 	}
 
 	if (i < TLS_TICKETS_NO) {
-		if (err)
-			memprintf(err, "'%s' : please supply at least %d keys in the tls-tickets-file", args[cur_arg+1], TLS_TICKETS_NO);
+		memprintf(err, "'%s' : please supply at least %d keys in the tls-tickets-file", args[cur_arg+1], TLS_TICKETS_NO);
 		goto fail;
 	}
 
@@ -8947,8 +8911,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	return ERR_ALERT | ERR_FATAL;
 
 #else
-	if (err)
-		memprintf(err, "'%s' : TLS ticket callback extension not supported", args[cur_arg]);
+	memprintf(err, "'%s' : TLS ticket callback extension not supported", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 }
@@ -8957,8 +8920,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 static int ssl_bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing verify method", args[cur_arg]);
+		memprintf(err, "'%s' : missing verify method", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -8969,9 +8931,8 @@ static int ssl_bind_parse_verify(char **args, int cur_arg, struct proxy *px, str
 	else if (strcmp(args[cur_arg + 1], "required") == 0)
 		conf->verify = SSL_SOCK_VERIFY_REQUIRED;
 	else {
-		if (err)
-			memprintf(err, "'%s' : unknown verify method '%s', only 'none', 'optional', and 'required' are supported\n",
-			          args[cur_arg], args[cur_arg + 1]);
+		memprintf(err, "'%s' : unknown verify method '%s', only 'none', 'optional', and 'required' are supported\n",
+		          args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9042,8 +9003,7 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 	}
 	return 0;
 #else
-	if (err)
-		memprintf(err, "'%s' : library does not support TLS NPN extension", args[*cur_arg]);
+	memprintf(err, "'%s' : library does not support TLS NPN extension", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
@@ -9103,8 +9063,7 @@ static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct se
 	}
 	return 0;
 #else
-	if (err)
-		memprintf(err, "'%s' : library does not support TLS ALPN extension", args[*cur_arg]);
+	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
 }
@@ -9113,8 +9072,7 @@ static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct se
 static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CAfile path", args[*cur_arg]);
+		memprintf(err, "'%s' : missing CAfile path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9130,8 +9088,7 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing SNI", args[*cur_arg]);
+		memprintf(err, "'%s' : missing SNI", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9196,13 +9153,11 @@ static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, s
 static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 #ifndef X509_V_FLAG_CRL_CHECK
-	if (err)
-		memprintf(err, "'%s' : library does not support CRL verify", args[*cur_arg]);
+	memprintf(err, "'%s' : library does not support CRL verify", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing CRLfile path", args[*cur_arg]);
+		memprintf(err, "'%s' : missing CRLfile path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9219,8 +9174,7 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing certificate file path", args[*cur_arg]);
+		memprintf(err, "'%s' : missing certificate file path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9358,8 +9312,7 @@ static int srv_parse_tls_tickets(char **args, int *cur_arg, struct proxy *px, st
 static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing verify method", args[*cur_arg]);
+		memprintf(err, "'%s' : missing verify method", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9368,9 +9321,8 @@ static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct 
 	else if (strcmp(args[*cur_arg + 1], "required") == 0)
 		newsrv->ssl_ctx.verify = SSL_SOCK_VERIFY_REQUIRED;
 	else {
-		if (err)
-			memprintf(err, "'%s' : unknown verify method '%s', only 'none' and 'required' are supported\n",
-			          args[*cur_arg], args[*cur_arg + 1]);
+		memprintf(err, "'%s' : unknown verify method '%s', only 'none' and 'required' are supported\n",
+		          args[*cur_arg], args[*cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -9381,8 +9333,7 @@ static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct 
 static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	if (!*args[*cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing hostname to verify against", args[*cur_arg]);
+		memprintf(err, "'%s' : missing hostname to verify against", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
