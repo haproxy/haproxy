@@ -5504,9 +5504,9 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	}
 
 	if (errcode & ERR_WARN) {
-		ha_warning(errmsg);
+		ha_warning("%s", errmsg);
 	} else if (errcode & ERR_CODE) {
-		ha_alert(errmsg);
+		ha_alert("%s", errmsg);
 		err++;
 	}
 
@@ -10205,7 +10205,7 @@ end:
 
 	chunk_appendf(trash, "\n");
 	if (errcode & ERR_WARN)
-		chunk_appendf(trash, err);
+		chunk_appendf(trash, "%s", err);
 	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
