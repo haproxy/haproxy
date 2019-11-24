@@ -233,6 +233,28 @@ static inline const char *h2_ft_str(int type)
 	}
 }
 
+/* returns the error code as a string */
+static inline const char *h2_err_str(enum h2_err err)
+{
+	switch (err) {
+	case H2_ERR_NO_ERROR            : return "NO_ERROR";
+	case H2_ERR_PROTOCOL_ERROR      : return "PROTOCOL_ERROR";
+	case H2_ERR_INTERNAL_ERROR      : return "INTERNAL_ERROR";
+	case H2_ERR_FLOW_CONTROL_ERROR  : return "FLOW_CONTROL_ERROR";
+	case H2_ERR_SETTINGS_TIMEOUT    : return "SETTINGS_TIMEOUT";
+	case H2_ERR_STREAM_CLOSED       : return "STREAM_CLOSED";
+	case H2_ERR_FRAME_SIZE_ERROR    : return "FRAME_SIZE_ERROR";
+	case H2_ERR_REFUSED_STREAM      : return "REFUSED_STREAM";
+	case H2_ERR_CANCEL              : return "CANCEL";
+	case H2_ERR_COMPRESSION_ERROR   : return "COMPRESSION_ERROR";
+	case H2_ERR_CONNECT_ERROR       : return "CONNECT_ERROR";
+	case H2_ERR_ENHANCE_YOUR_CALM   : return "ENHANCE_YOUR_CALM";
+	case H2_ERR_INADEQUATE_SECURITY : return "INADEQUATE_SECURITY";
+	case H2_ERR_HTTP_1_1_REQUIRED   : return "HTTP_1_1_REQUIRED";
+	default                         : return "_UNKNOWN_";
+	}
+}
+
 /* Returns an error code if the frame is valid protocol-wise, otherwise 0. <ft>
  * is the frame type (H2_FT_*), <dir> is the direction (1=req, 2=res), <id> is
  * the stream ID from the frame header, <len> is the frame length from the
