@@ -505,6 +505,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	if (src->verbosity > H2_VERB_CLEAN) {
 		chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
 
+		if (h2c->errcode)
+			chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2c->errcode), h2c->errcode);
+
 		if (h2c->dsi >= 0 &&
 		    (mask & (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) == (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) {
 			chunk_appendf(&trace_buf, " dft=%s/%02x", h2_ft_str(h2c->dft), h2c->dff);
@@ -514,6 +517,8 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 			if (h2s->id <= 0)
 				chunk_appendf(&trace_buf, " dsi=%d", h2c->dsi);
 			chunk_appendf(&trace_buf, " h2s=%p(%d,%s)", h2s, h2s->id, h2s_st_to_str(h2s->st));
+			if (h2s->id && h2s->errcode)
+				chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2s->errcode), h2s->errcode);
 		}
 	}
 
