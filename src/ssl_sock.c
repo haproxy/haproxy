@@ -10468,7 +10468,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	/* we succeed, we can save the ckchs in the transaction */
 
 	/* if there wasn't a transaction, update the old ckchs */
-	if (!ckchs_transaction.old_ckchs && !ckchs_transaction.old_ckchs) {
+	if (!ckchs_transaction.old_ckchs) {
 		ckchs_transaction.old_ckchs = appctx->ctx.ssl.old_ckchs;
 		ckchs_transaction.path = appctx->ctx.ssl.path;
 		err = memprintf(&err, "Transaction created for certificate %s!\n", ckchs_transaction.path);
