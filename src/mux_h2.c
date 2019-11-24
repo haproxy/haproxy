@@ -2775,6 +2775,13 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
+	if (h2s->st == H2_SS_IDLE && (h2c->flags & H2_CF_IS_BACK)) {
+		/* only PUSH_PROMISE would be permitted here */
+		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		TRACE_DEVEL("leaving in error (idle&back)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
+		return 0;
+	}
+
 	if (h2s->st == H2_SS_HREM && h2c->dft != H2_FT_WINDOW_UPDATE &&
 	    h2c->dft != H2_FT_RST_STREAM && h2c->dft != H2_FT_PRIORITY) {
 		/* RFC7540#5.1: any frame other than WU/PRIO/RST in
