@@ -225,8 +225,9 @@ read
 do_commit || die "Failed to commit changes"
 do_tag    || die "Failed to tag changes"
 
+remote=$(git config --get branch.master.remote)
 echo "Do not forget to push updates, publish and announce this version :"
 echo
-echo "git push origin master v$NEW"
+echo "git push ${remote:-origin} master v$NEW"
 echo "${0%/*}/publish-release"
 echo "${0%/*}/announce-release"
