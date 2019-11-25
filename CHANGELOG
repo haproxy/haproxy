@@ -1,6 +1,53 @@
 ChangeLog :
 ===========
 
+2019/11/25 : 2.1.0
+    - BUG/MINOR: init: fix set-dumpable when using uid/gid
+    - MINOR: init: avoid code duplication while setting identify
+    - BUG/MINOR: ssl: ssl_pkey_info_index ex_data can store a dereferenced pointer
+    - BUG/MINOR: ssl: fix crt-list neg filter for openssl < 1.1.1
+    - MINOR: peers: Alway show the table info for disconnected peers.
+    - MINOR: peers: Add TX/RX heartbeat counters.
+    - MINOR: peers: Add debugging information to "show peers".
+    - BUG/MINOR: peers: Wrong null "server_name" data field handling.
+    - MINOR: ssl/cli: 'abort ssl cert' deletes an on-going transaction
+    - BUG/MEDIUM: mworker: don't fill the -sf argument with -1 during the reexec
+    - BUG/MINOR: peers: "peer alive" flag not reset when deconnecting.
+    - BUILD/MINOR: ssl: fix compiler warning about useless statement
+    - BUG/MEDIUM: stream-int: Don't loose events on the CS when an EOS is reported
+    - MINOR: contrib/prometheus-exporter: filter exported metrics by scope
+    - MINOR: contrib/prometheus-exporter: Add a param to ignore servers in maintenance
+    - BUILD: debug: Avoid warnings in dev mode with -02 because of some BUG_ON tests
+    - BUG/MINOR: mux-h1: Fix tunnel mode detection on the response path
+    - BUG/MINOR: http-ana: Properly catch aborts during the payload forwarding
+    - DOC: Update http-buffer-request description to remove the part about chunks
+    - BUG/MINOR: stream-int: Fix si_cs_recv() return value
+    - DOC: internal: document the init calls
+    - MEDIUM: dns: Add resolve-opts "ignore-weight"
+    - MINOR: ssl: ssl_sock_prepare_ctx() return an error code
+    - MEDIUM: ssl/cli: apply SSL configuration on SSL_CTX during commit
+    - MINOR: ssl/cli: display warning during 'commit ssl cert'
+    - MINOR: version: report the version status in "haproxy -v"
+    - MINOR: version: emit the link to the known bugs in output of "haproxy -v"
+    - DOC: Add documentation about the use-service action
+    - MINOR: ssl: fix possible null dereference in error handling
+    - BUG/MINOR: ssl: fix curve setup with LibreSSL
+    - BUG/MINOR: ssl: Stop passing dynamic strings as format arguments
+    - CLEANUP: ssl: check if a transaction exists once before setting it
+    - BUG/MINOR: cli: fix out of bounds in -S parser
+    - MINOR: ist: add ist_find_ctl()
+    - BUG/MAJOR: h2: reject header values containing invalid chars
+    - BUG/MAJOR: h2: make header field name filtering stronger
+    - BUG/MAJOR: mux-h2: don't try to decode a response HEADERS frame in idle state
+    - MINOR: h2: add a function to report H2 error codes as strings
+    - MINOR: mux-h2/trace: report the connection and/or stream error code
+    - SCRIPTS: create-release: show the correct origin name in suggested commands
+    - SCRIPTS: git-show-backports: add "-s" to proposed cherry-pick commands
+    - BUG/MEDIUM: trace: fix a typo causing an incorrect startup error
+    - BUILD: reorder the objects in the makefile
+    - DOC: mention in INSTALL haproxy 2.1 is a stable stable version
+    - MINOR: version: indicate that this version is stable
+
 2019/11/15 : 2.1-dev5
     - BUG/MEDIUM: ssl/cli: don't alloc path when cert not found
     - BUG/MINOR: ssl/cli: unable to update a certificate without bundle extension
