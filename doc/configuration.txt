@@ -2,7 +2,7 @@
                                 HAProxy
                           Configuration Manual
                          ----------------------
-                              version 2.1
+                              version 2.2
                              willy tarreau
                               2019/11/25
 

@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2019/11/25 : 2.2-dev0
+    - exact copy of 2.1.0
+
 2019/11/25 : 2.1.0
     - BUG/MINOR: init: fix set-dumpable when using uid/gid
     - MINOR: init: avoid code duplication while setting identify
