@@ -251,10 +251,10 @@ dump_commit_matrix | column -t | \
 		echo
 		echo "In order to show and/or apply all leftmost commits to current branch :"
 		echo "   git show ${left_commits[@]}"
-		echo "   git cherry-pick -x ${left_commits[@]}"
+		echo "   git cherry-pick -sx ${left_commits[@]}"
 		echo
 		echo "In order to show and/or apply all rightmost commits to current branch :"
 		echo "   git show ${right_commits[@]}"
-		echo "   git cherry-pick -x ${right_commits[@]}"
+		echo "   git cherry-pick -sx ${right_commits[@]}"
 	fi
 )
