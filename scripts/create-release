@@ -164,7 +164,11 @@ echo "Updating CHANGELOG ..."
   echo
   echo "$DATE : $NEW"
   #git shortlog v$OLD.. | sed -ne 's/^      /    - /p'
-  git log --oneline --reverse --format="    - %s" v$OLD..
+  if [ $(git log --oneline v$OLD.. | wc -l) = 0 ]; then
+    echo "    - exact copy of $OLD"
+  else
+    git log --oneline --reverse --format="    - %s" v$OLD..
+  fi
   echo
   tail -n +4 CHANGELOG
 ) >.chglog.tmp && mv .chglog.tmp CHANGELOG
