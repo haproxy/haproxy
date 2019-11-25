@@ -37,7 +37,7 @@ THREAD_LOCAL struct buffer trace_buf = { };
 static int alloc_trace_buffers_per_thread()
 {
 	chunk_init(&trace_buf, my_realloc2(trace_buf.area, global.tune.bufsize), global.tune.bufsize);
-	return !!trash.area;
+	return !!trace_buf.area;
 }
 
 static void free_trace_buffers_per_thread()
