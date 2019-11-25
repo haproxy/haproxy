@@ -2526,7 +2526,7 @@ int mworker_cli_proxy_new_listener(char *line)
 	int arg;
 	int cur_arg;
 
-	arg = 0;
+	arg = 1;
 	args[0] = line;
 
 	/* args is a bind configuration with spaces replaced by commas */
@@ -2536,12 +2536,12 @@ int mworker_cli_proxy_new_listener(char *line)
 			*line++ = '\0';
 			while (*line == ',')
 				line++;
-			args[++arg] = line;
+			args[arg++] = line;
 		}
 		line++;
 	}
 
-	args[++arg] = "\0";
+	args[arg] = "\0";
 
 	bind_conf = bind_conf_alloc(mworker_proxy, "master-socket", 0, "", xprt_get(XPRT_RAW));
 	if (!bind_conf)
