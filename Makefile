@@ -766,28 +766,29 @@ all: haproxy $(EXTRA)
 endif
 endif
 
-OBJS = src/http_ana.o src/cfgparse-listen.o src/stream.o                      \
-       src/mux_h2.o src/stats.o src/flt_spoe.o src/server.o src/checks.o      \
-       src/haproxy.o src/cfgparse.o src/flt_http_comp.o src/http_fetch.o      \
-       src/dns.o src/stick_table.o src/mux_h1.o src/peers.o src/standard.o    \
-       src/proxy.o src/cli.o src/log.o src/backend.o src/pattern.o            \
-       src/sample.o src/stream_interface.o src/proto_tcp.o src/listener.o     \
-       src/h1.o src/cfgparse-global.o src/cache.o src/http_rules.o            \
-       src/http_act.o src/tcp_rules.o src/filters.o src/connection.o          \
-       src/session.o src/acl.o src/vars.o src/raw_sock.o src/map.o src/sink.o \
-       src/proto_uxst.o src/payload.o src/fd.o src/queue.o src/flt_trace.o    \
-       src/task.o src/lb_chash.o src/frontend.o src/applet.o src/mux_pt.o     \
-       src/signal.o src/ev_select.o src/proto_sockpair.o src/compression.o    \
-       src/http_conv.o src/memory.o src/lb_fwrr.o src/channel.o src/htx.o     \
-       src/uri_auth.o src/regex.o src/chunk.o src/pipe.o src/lb_fas.o         \
-       src/lb_map.o src/lb_fwlc.o src/auth.o src/time.o src/hathreads.o       \
-       src/http_htx.o src/buffer.o src/hpack-tbl.o src/shctx.o src/sha1.o     \
-       src/http.o src/hpack-dec.o src/action.o src/proto_udp.o src/http_acl.o \
-       src/xxhash.o src/hpack-enc.o src/h2.o src/freq_ctr.o src/lru.o         \
-       src/protocol.o src/arg.o src/hpack-huff.o src/base64.o src/ring.o      \
-       src/hash.o src/mailers.o src/activity.o src/version.o src/trace.o      \
-       src/mworker.o src/mworker-prog.o src/debug.o src/wdt.o src/dict.o      \
-       src/xprt_handshake.o src/h1_htx.o src/fcgi.o src/fcgi-app.o src/mux_fcgi.o
+OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
+       src/http_ana.o src/stats.o src/mux_h1.o src/flt_spoe.o src/server.o    \
+       src/cfgparse.o src/checks.o src/backend.o src/log.o src/peers.o        \
+       src/cli.o src/haproxy.o src/stick_table.o src/standard.o src/sample.o  \
+       src/proxy.o src/stream_interface.o src/pattern.o src/dns.o             \
+       src/proto_tcp.o src/listener.o src/cfgparse-global.o src/h1.o          \
+       src/http_rules.o src/http_fetch.o src/cache.o src/session.o            \
+       src/fcgi-app.o src/connection.o src/tcp_rules.o src/filters.o          \
+       src/task.o src/mworker.o src/map.o src/h1_htx.o src/trace.o            \
+       src/flt_trace.o src/acl.o src/http_htx.o src/flt_http_comp.o           \
+       src/payload.o src/vars.o src/debug.o src/mux_pt.o src/http_act.o       \
+       src/h2.o src/queue.o src/fd.o src/proto_uxst.o src/lb_chash.o          \
+       src/ring.o src/frontend.o src/raw_sock.o src/xprt_handshake.o          \
+       src/htx.o src/memory.o src/applet.o src/channel.o src/signal.o         \
+       src/lb_fwrr.o src/ev_select.o src/sink.o src/http_conv.o               \
+       src/proto_sockpair.o src/mworker-prog.o src/activity.o src/lb_fwlc.o   \
+       src/http.o src/lb_fas.o src/uri_auth.o src/hathreads.o src/regex.o     \
+       src/auth.o src/buffer.o src/compression.o src/proto_udp.o src/lb_map.o \
+       src/chunk.o src/wdt.o src/hpack-dec.o src/action.o src/xxhash.o        \
+       src/pipe.o src/shctx.o src/hpack-tbl.o src/http_acl.o src/sha1.o       \
+       src/time.o src/hpack-enc.o src/fcgi.o src/arg.o src/base64.o           \
+       src/protocol.o src/freq_ctr.o src/lru.o src/hpack-huff.o src/dict.o    \
+       src/hash.o src/mailers.o src/version.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
