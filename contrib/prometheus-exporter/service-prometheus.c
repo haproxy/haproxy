@@ -2220,7 +2220,8 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 	struct channel *res = si_ic(si);
 	struct htx *req_htx, *res_htx;
 	struct htx_sl *sl;
-	const char *p, *end;
+	char *p, *key, *value;
+	const char *end;
 	struct buffer *err;
 	int default_scopes = PROMEX_FL_SCOPE_ALL;
 	int len;
@@ -2234,57 +2235,72 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 	if (!p)
 		goto end;
 	end = HTX_SL_REQ_UPTR(sl) + HTX_SL_REQ_ULEN(sl);
-	len = end-p;
 
-	/* Decode the query-string */
+	/* copy the query-string */
+	len = end - p;
 	chunk_reset(&trash);
 	memcpy(trash.area, p, len);
 	trash.area[len] = 0;
-	len = url_decode(trash.area);
-	if (len == -1)
-		goto error;
 	p = trash.area;
-	end = p + len;
+	end = trash.area + len;
 
 	/* Parse the query-string */
-	while (p < end) {
-		if (*p == '&')
-			++p;
-		else if (*p == 's' && (end-p) >= 6 && !memcmp(p, "scope=", 6)) {
-			default_scopes = 0; /* at least a scope defined, unset default scopes */
-			p += 6;             /* now p point on the parameter value */
-			len = 0;            /* len is the value length */
-			while ((p+len) < end && *(p+len) != '&')
-				++len;
+	while (p < end && *p && *p != '#') {
+		value = NULL;
 
-			if (len == 0)
+		/* decode parameter name */
+		key = p;
+		while (p < end && *p != '=' && *p != '&' && *p != '#')
+			++p;
+		/* found a value */
+		if (*p == '=') {
+			*(p++) = 0;
+			value = p;
+		}
+		else if (*p == '&')
+			*(p++) = 0;
+		else if (*p == '#')
+			*p = 0;
+		len = url_decode(key);
+		if (len == -1)
+			goto error;
+
+		/* decode value */
+		if (value) {
+			while (p < end && *p != '=' && *p != '&' && *p != '#')
+				++p;
+			if (*p == '=')
+				goto error;
+			if (*p == '&')
+				*(p++) = 0;
+			else if (*p == '#')
+				*p = 0;
+			len = url_decode(value);
+			if (len == -1)
+				goto error;
+		}
+
+		if (!strcmp(key, "scope")) {
+			default_scopes = 0; /* at least a scope defined, unset default scopes */
+			if (!value)
+				goto error;
+			else if (*value == 0)
 				appctx->ctx.stats.flags &= ~PROMEX_FL_SCOPE_ALL;
-			else if (len == 1 && *p == '*')
+			else if (*value == '*')
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_ALL;
-			else if (len == 6) {
-				if (!memcmp(p, "global", len))
-					appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_GLOBAL;
-				else if (!memcmp(p, "server", len))
-					appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_SERVER;
-			}
-			else if (len == 7 && !memcmp(p, "backend", len))
+			else if (!strcmp(value, "global"))
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_GLOBAL;
+			else if (!strcmp(value, "server"))
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_SERVER;
+			else if (!strcmp(value, "backend"))
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_BACK;
-			else if (len == 8 && !memcmp(p, "frontend", len))
+			else if (!strcmp(value, "frontend"))
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_FRONT;
 			else
 				goto error;
-
-			p += len;
 		}
-		else if (*p == 'n' && (end-p) >= 8 && !memcmp(p, "no-maint", 8)) {
+		else if (!strcmp(key, "no-maint"))
 			appctx->ctx.stats.flags |= PROMEX_FL_NO_MAINT_SRV;
-			p += 8;
-		}
-		else {
-			/* ignore all other params for now */
-			while (p < end && *p != '&')
-				p++;
-		}
 	}
 
   end:
