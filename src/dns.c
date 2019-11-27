@@ -1577,13 +1577,8 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 			continue;
 		}
 
-		/* known query id means a resolution in prgress */
+		/* known query id means a resolution in progress */
 		res = eb32_entry(eb, struct dns_resolution, qid);
-		if (!res) {
-			ns->counters.outdated++;
-			continue;
-		}
-
 		/* number of responses received */
 		res->nb_responses++;
 
