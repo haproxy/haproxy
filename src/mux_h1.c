@@ -287,7 +287,7 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 	/* Display the value to the 4th argument (level > STATE) */
 	if (src->level > TRACE_LEVEL_STATE && val)
-		chunk_appendf(&trace_buf, " - VAL=%lu", *val);
+		chunk_appendf(&trace_buf, " - VAL=%lu", (long)*val);
 
 	/* Display status-line if possible (verbosity > MINIMAL) */
 	if (src->verbosity > H1_VERB_MINIMAL && htx && htx_nbblks(htx)) {

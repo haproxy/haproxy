@@ -225,10 +225,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	else {
 		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp(r,w,a)=(%u,%u,%u) .o=%lu .tot=%llu .to_fwd=%u)",
 			      req, req->flags, req->analysers, req->rex, req->wex, req->analyse_exp,
-			      req->output, req->total, req->to_forward);
+			      (long)req->output, req->total, req->to_forward);
 		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .ana=0x%08x .exp(r,w,a)=(%u,%u,%u) .o=%lu .tot=%llu .to_fwd=%u)",
 			      res, res->flags, res->analysers, res->rex, res->wex, res->analyse_exp,
-			      res->output, res->total, res->to_forward);
+			      (long)res->output, res->total, res->to_forward);
 	}
 
 	if (src->verbosity == STRM_VERB_SIMPLE ||
