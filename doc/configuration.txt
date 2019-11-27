@@ -11646,12 +11646,18 @@ downinter <delay>
 maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent
   connections that will be sent to this server. If the number of incoming
-  concurrent requests goes higher than this value, they will be queued, waiting
-  for a connection to be released. This parameter is very important as it can
+  concurrent connections goes higher than this value, they will be queued,
+  waiting for a slot to be released. This parameter is very important as it can
   save fragile servers from going down under extreme loads. If a "minconn"
   parameter is specified, the limit becomes dynamic. The default value is "0"
   which means unlimited. See also the "minconn" and "maxqueue" parameters, and
   the backend's "fullconn" keyword.
+
+  In HTTP mode this parameter limits the number of concurrent requests instead
+  of the number of connections. Multiple requests might be multiplexed over a
+  single TCP connection to the server. As an example if you specify a maxconn
+  of 50 you might see between 1 and 50 actual server connections, but no more
+  than 50 concurrent requests.
 
 maxqueue <maxqueue>
   The "maxqueue" parameter specifies the maximal number of connections which
