@@ -64,6 +64,12 @@ Summary
 5.3.1.      Global overview
 5.3.2.      The resolvers section
 
+6.    Cache
+6.1.      Limitation
+6.2.      Setup
+6.2.1.        Cache section
+6.2.2.        Proxy section
+
 7.    Using ACLs and fetching samples
 7.1.      ACL basics
 7.1.1.      Matching booleans
@@ -81,12 +87,6 @@ Summary
 7.3.5.        Fetching samples from buffer contents (Layer 6)
 7.3.6.        Fetching HTTP samples (Layer 7)
 7.4.      Pre-defined ACLs
-
-6.    Cache
-6.1.      Limitation
-6.2.      Setup
-6.2.1.        Cache section
-6.2.2.        Proxy section
 
 8.    Logging
 8.1.      Log levels
