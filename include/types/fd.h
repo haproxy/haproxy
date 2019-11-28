@@ -162,7 +162,8 @@ struct fdinfo {
  *  - flags indicate what the poller supports (HAP_POLL_F_*)
  */
 
-#define HAP_POLL_F_RDHUP 0x00000001                          /* the poller notifies of HUP with reads */
+#define HAP_POLL_F_RDHUP        0x00000001                   /* the poller notifies of HUP with reads */
+#define HAP_POLL_F_ERRHUP       0x00000002                   /* the poller reports ERR and HUP */
 
 struct poller {
 	void   *private;                                     /* any private data for the poller */

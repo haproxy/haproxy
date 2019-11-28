@@ -422,7 +422,7 @@ static void _do_register(void)
 
 	p->name = "evports";
 	p->pref = 300;
-	p->flags = 0;
+	p->flags = HAP_POLL_F_ERRHUP;
 	p->private = NULL;
 
 	p->clo  = NULL;

@@ -328,7 +328,7 @@ static void _do_register(void)
 
 	p->name = "poll";
 	p->pref = 200;
-	p->flags = 0;
+	p->flags = HAP_POLL_F_ERRHUP;
 	p->private = NULL;
 
 	p->clo  = __fd_clo;

@@ -358,7 +358,7 @@ static void _do_register(void)
 
 	p->name = "kqueue";
 	p->pref = 300;
-	p->flags = HAP_POLL_F_RDHUP;
+	p->flags = HAP_POLL_F_RDHUP | HAP_POLL_F_ERRHUP;
 	p->private = NULL;
 
 	p->clo  = NULL;

@@ -360,7 +360,7 @@ static void _do_register(void)
 
 	p->name = "epoll";
 	p->pref = 300;
-	p->flags = 0;
+	p->flags = HAP_POLL_F_ERRHUP; // note: RDHUP might be dynamically added
 	p->private = NULL;
 
 	p->clo  = __fd_clo;
