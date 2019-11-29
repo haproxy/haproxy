@@ -1363,6 +1363,11 @@ enough privilege, you will get an error "Permission denied". Please check
 the "level" option of the "bind" keyword lines in the configuration manual
 for more information.
 
+abort ssl cert <filename>
+  Abort and destroy a temporary SSL certificate update transaction.
+
+  See also "set ssl cert" and "commit ssl cert".
+
 add acl <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
   "show acl". This command does not verify if the entry already exists. This
@@ -1463,6 +1468,16 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "clear table http_proxy data.gpc0 eq 1" | socat stdio /tmp/sock1
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
+
+commit ssl cert <filename>
+  Commit and apply a temporary SSL certificate update transaction.
+  Generate every SSL contextes and SNIs it needs, insert them, and remove
+  the previous ones. Replace in memory the previous SSL certificates
+  everywhere the <filename> was used in the configuration.
+  Upon failure it doesn't remove or insert anything. Once the temporary
+  transaction is commited, it is destroyed.
+
+  See also "ssl set cert" and "abort ssl cert".
 
 debug dev <command> [args]*
   Call a developer-specific command. Only supported on a CLI connection running
@@ -1778,6 +1793,28 @@ set server <backend>/<server> fqdn <FQDN>
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
   duration of the current session.
+
+set ssl cert <filename> <payload>
+  This command is part of a transaction system, the "commit ssl cert" and
+  "abort ssl cert" commands could be required.
+  If there is no on-going transaction, it will duplicate the certificate
+  <filename> in memory to a temporary transaction, then update this
+  transaction with the PEM file in the payload. If a transaction exists with
+  the same filename, it will update this transaction. It's also possible to
+  update the files linked to a certificate (.issuer, .sctl, .oscp etc.)
+  Once the modification are done, you have to "commit ssl cert" the
+  transaction.
+
+  Example:
+    echo -e "set ssl cert localhost.pem <<\n$(cat 127.0.0.1.pem)\n" | \
+    socat /var/run/haproxy.stat -
+    echo -e \
+    "set ssl cert localhost.pem.issuer <<\n $(cat 127.0.0.1.pem.issuer)\n" | \
+    socat /var/run/haproxy.stat -
+    echo -e \
+    "set ssl cert localhost.pem.ocsp <<\n$(base64 -w 1000 127.0.0.1.pem.ocsp)\n" | \
+    socat /var/run/haproxy.stat -
+    echo "commit ssl cert localhost.pem" | socat /var/run/haproxy.stat -
 
 set ssl ocsp-response <response | payload>
   This command is used to update an OCSP Response for a certificate (see "crt"
