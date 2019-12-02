@@ -715,8 +715,10 @@ static int fcgi_app_add_rule(struct fcgi_app *curapp, enum fcgi_rule_type type, 
 		struct ist fname = fcgi_param_name(trash.area, ist(name));
 		rule->name = my_strndup(fname.ptr, fname.len);
 	}
-	else  /* FCGI_RULE_PASS_HDR/FCGI_RULE_HIDE_HDR */
-		rule->name = strdup(name);
+	else {  /* FCGI_RULE_PASS_HDR/FCGI_RULE_HIDE_HDR */
+		struct ist fname = ist2bin_lc(trash.area, ist(name));
+		rule->name = my_strndup(fname.ptr, fname.len);
+	}
 	if (!rule->name)
 		goto err;
 
