@@ -2020,14 +2020,17 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              (appctx->ctx.stats.flags & STAT_SHLGNDS) ? "</u>":"",
 	              px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-	if ((px->cap & PR_CAP_BE) && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
+	if (appctx->ctx.stats.flags & STAT_ADMIN) {
 		/* Column heading for Enable or Disable server */
-        chunk_appendf(&trash,
-                "<th rowspan=2 width=1><input type=\"checkbox\" \
-                onclick=\"for(c in document.getElementsByClassName('%s-checkbox')) \
-                document.getElementsByClassName('%s-checkbox').item(c).checked = this.checked\"></th>",
-                px->id,
-                px->id);
+		if ((px->cap & PR_CAP_BE) && px->srv)
+			chunk_appendf(&trash,
+				      "<th rowspan=2 width=1><input type=\"checkbox\" "
+				      "onclick=\"for(c in document.getElementsByClassName('%s-checkbox')) "
+				      "document.getElementsByClassName('%s-checkbox').item(c).checked = this.checked\"></th>",
+				      px->id,
+				      px->id);
+		else
+			chunk_appendf(&trash, "<th rowspan=2></th>");
 	}
 
 	chunk_appendf(&trash,
