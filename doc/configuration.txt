@@ -12883,6 +12883,14 @@ string, then the matching will be performed ignoring the case. In order
 to match the string "-i", either set it second, or pass the "--" flag
 before the first string. Same applies of course to match the string "--".
 
+Do not use string matches for binary fetches which might contain null bytes
+(0x00), as the comparison stops at the occurrence of the first null byte.
+Instead, convert the binary fetch to a hex string with the hex converter first.
+
+Example:
+    # matches if the string <tag> is present in the binary sample
+    acl tag_found req.payload(0,0),hex -m sub 3C7461673E
+
 
 7.1.4. Matching regular expressions (regexes)
 ---------------------------------------------
