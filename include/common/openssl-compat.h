@@ -155,6 +155,32 @@ static inline X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a)
  * Functions introduced in OpenSSL 1.1.0 and in LibreSSL 2.7.0
  */
 
+static inline STACK_OF(X509_OBJECT) *X509_STORE_get0_objects(X509_STORE *st)
+{
+    return st->objs;
+}
+
+static inline int X509_OBJECT_get_type(const X509_OBJECT *a)
+{
+    return a->type;
+}
+
+static inline X509 *X509_OBJECT_get0_X509(const X509_OBJECT *a)
+{
+    if (a == NULL || a->type != X509_LU_X509) {
+        return NULL;
+    }
+    return a->data.x509;
+}
+
+static inline X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a)
+{
+    if (a == NULL || a->type != X509_LU_CRL) {
+        return NULL;
+    }
+    return a->data.crl;
+}
+
 static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
 {
 	*sid_ctx_length = sess->sid_ctx_length;
