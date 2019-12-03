@@ -10371,6 +10371,9 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 {
 	char *err = NULL;
 
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
 	if (!*args[3])
 		return cli_err(appctx, "'commit ssl cert expects a filename\n");
 
@@ -10422,6 +10425,9 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	int type = CERT_TYPE_PEM;
 	struct cert_key_and_chain *ckch;
 	struct buffer *buf;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if ((buf = alloc_trash_chunk()) == NULL)
 		return cli_err(appctx, "Can't allocate memory\n");
@@ -10644,6 +10650,9 @@ end:
 static int cli_parse_abort_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if (!*args[3])
 		return cli_err(appctx, "'abort ssl cert' expects a filename\n");
