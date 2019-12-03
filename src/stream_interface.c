@@ -1355,6 +1355,13 @@ int si_cs_recv(struct conn_stream *cs)
 		}
 
 		if (ret <= 0) {
+			/* if we refrained from reading because we asked for a
+			 * flush to satisfy rcv_pipe(), we must not subscribe
+			 * and instead report that there's not enough room
+			 * here to proceed.
+			 */
+			if (flags & CO_RFL_BUF_FLUSH)
+				si_rx_room_blk(si);
 			break;
 		}
 
