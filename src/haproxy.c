@@ -2749,6 +2749,23 @@ static void *run_thread_poll_loop(void *data)
 	pthread_mutex_unlock(&init_mutex);
 #endif
 
+#if defined(RLIMIT_NPROC)
+	/* all threads have started, it's now time to prevent any new thread
+	 * or process from starting. Obviously we do this in workers only. We
+	 * can't hard-fail on this one as it really is implementation dependent
+	 * though we're interested in feedback, hence the warning.
+	 */
+	if (!(global.tune.options & GTUNE_INSECURE_FORK) && !master) {
+		struct rlimit limit = { .rlim_cur = 0, .rlim_max = 0 };
+		static int warn_fail;
+
+		if (setrlimit(RLIMIT_NPROC, &limit) == -1 && !_HA_ATOMIC_XADD(&warn_fail, 1)) {
+			ha_warning("Failed to disable forks, please report to developers with detailed "
+				   "information about your operating system. You can silence this warning "
+				   "by adding 'insecure-fork-wanted' in the 'global' section.\n");
+		}
+	}
+#endif
 	run_poll_loop();
 
 	list_for_each_entry(ptdf, &per_thread_deinit_list, list)

@@ -2160,10 +2160,11 @@ next_line:
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
 		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling") != 0 &&
-		    strcmp(args[0], "set-dumpable") != 0 && strcmp(args[0], "strict-limits") != 0) {
+		    strcmp(args[0], "set-dumpable") != 0 && strcmp(args[0], "strict-limits") != 0 &&
+		    strcmp(args[0], "insecure-fork-wanted") != 0) {
 			ha_alert("parsing [%s:%d]: negation/default currently "
 				 "supported only for options, log, busy-polling, "
-				 "set-dumpable and strict-limits.\n", file, linenum);
+				 "set-dumpable, strict-limits, and insecure-fork-wanted.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
@@ -2548,6 +2549,11 @@ int check_config_validity()
 				ha_alert("Proxy '%s' : '%s' unable to find required 'external-check command'.\n",
 					 curproxy->id, "option external-check");
 				cfgerr++;
+			}
+			if (!(global.tune.options & GTUNE_INSECURE_FORK)) {
+				ha_warning("Proxy '%s' : 'insecure-fork-wanted' not enabled in the global section, '%s' will likely fail.\n",
+					 curproxy->id, "option external-check");
+				err_code |= ERR_WARN;
 			}
 		}
 

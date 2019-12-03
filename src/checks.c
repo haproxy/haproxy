@@ -2012,7 +2012,9 @@ static int connect_proc_chk(struct task *t)
 
 	pid = fork();
 	if (pid < 0) {
-		ha_alert("Failed to fork process for external health check: %s. Aborting.\n",
+		ha_alert("Failed to fork process for external health check%s: %s. Aborting.\n",
+			 (global.tune.options & GTUNE_INSECURE_FORK) ?
+			 "" : " (likely caused by missing 'insecure-fork-wanted')",
 			 strerror(errno));
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, strerror(errno));
 		goto out;

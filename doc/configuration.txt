@@ -594,6 +594,7 @@ The following keywords are supported in the "global" section :
    - hard-stop-after
    - h1-case-adjust
    - h1-case-adjust-file
+   - insecure-fork-wanted
    - log
    - log-tag
    - log-send-hostname
@@ -822,9 +823,10 @@ deviceatlas-properties-cookie <name>
   and set to DAPROPS by default if not set.
 
 external-check
-  Allows the use of an external agent to perform health checks.
-  This is disabled by default as a security precaution.
-  See "option external-check".
+  Allows the use of an external agent to perform health checks. This is
+  disabled by default as a security precaution, and even when enabled, checks
+  may still fail unless "insecure-fork-wanted" is enabled as well.
+  See "option external-check", and "insecure-fork-wanted".
 
 gid <number>
   Changes the process' group ID to <number>. It is recommended that the group
@@ -902,6 +904,24 @@ h1-case-adjust-file <hdrs-file>
 
   See "h1-case-adjust", "option h1-case-adjust-bogus-client" and
   "option h1-case-adjust-bogus-server".
+
+insecure-fork-wanted
+  By default haproxy tries hard to prevent any thread and process creation
+  after it starts. Doing so is particularly important when using Lua files of
+  uncertain origin, and when experimenting with development versions which may
+  still contain bugs whose exploitability is uncertain. And generally speaking
+  it's good hygiene to make sure that no unexpected background activity can be
+  triggered by traffic. But this prevents external checks from working, and may
+  break some very specific Lua scripts which actively rely on the ability to
+  fork. This option is there to disable this protection. Note that it is a bad
+  idea to disable it, as a vulnerability in a library or within haproxy itself
+  will be easier to exploit once disabled. In addition, forking from Lua or
+  anywhere else is not reliable as the forked process may randomly embed a lock
+  set by another thread and never manage to finish an operation. As such it is
+  highly recommended that this option is never used and that any workload
+  requiring such a fork be reconsidered and moved to a safer solution (such as
+  agents instead of external checks). This option supports the "no" prefix to
+  disable it.
 
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     <facility> [max level [min level]]
