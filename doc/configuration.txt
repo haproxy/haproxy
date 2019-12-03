@@ -834,6 +834,10 @@ gid <number>
   will only be able to drop these groups if started with superuser privileges.
   See also "group" and "uid".
 
+group <group name>
+  Similar to "gid" but uses the GID of group name <group name> from /etc/group.
+  See also "gid" and "user".
+
 hard-stop-after <time>
   Defines the maximum time allowed to perform a clean soft-stop.
 
@@ -898,10 +902,6 @@ h1-case-adjust-file <hdrs-file>
 
   See "h1-case-adjust", "option h1-case-adjust-bogus-client" and
   "option h1-case-adjust-bogus-server".
-
-group <group name>
-  Similar to "gid" but uses the GID of group name <group name> from /etc/group.
-  See also "gid" and "user".
 
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     <facility> [max level [min level]]
