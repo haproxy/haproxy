@@ -1327,6 +1327,13 @@ int si_cs_recv(struct conn_stream *cs)
 		ic->pipe = NULL;
 	}
 
+	if (ic->pipe && ic->to_forward && !(flags & CO_RFL_BUF_FLUSH)) {
+		/* don't break splicing by reading, but still call rcv_buf()
+		 * to pass the flag.
+		 */
+		goto done_recv;
+	}
+
 	/* now we'll need a input buffer for the stream */
 	if (!si_alloc_ibuf(si, &(si_strm(si)->buffer_wait)))
 		goto end_recv;
