@@ -3858,7 +3858,7 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 
 	/* at least one of the instances is using filters during the config
 	 * parsing, that's ok to inherit this during loading on CLI */
-	ckchs->filters = !!fcount;
+	ckchs->filters |= !!fcount;
 
 	/* Process each ckch and update keytypes for each CN/SAN
 	 * for example, if CN/SAN www.a.com is associated with
@@ -4102,7 +4102,7 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 
 	/* at least one of the instances is using filters during the config
 	 * parsing, that's ok to inherit this during loading on CLI */
-	ckchs->filters = !!fcount;
+	ckchs->filters |= !!fcount;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
