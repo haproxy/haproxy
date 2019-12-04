@@ -15237,6 +15237,12 @@ ssl_c_used : boolean
   Returns true if current SSL session uses a client certificate even if current
   connection uses SSL session resumption. See also "ssl_fc_has_crt".
 
+ssl_c_verified_chain : binary
+  Returns the DER formatted verified certificate chain in PKCS#7 format,
+  derived from the client certificate, intermediate certificates and the CA
+  certificate used to verify the client. When used for an ACL, the value(s) to
+  match against can be passed in hexadecimal form.
+
 ssl_c_verify : integer
   Returns the verify result error ID when the incoming connection was made over
   an SSL/TLS transport layer, otherwise zero if no error is encountered. Please

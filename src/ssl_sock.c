@@ -7027,6 +7027,53 @@ ssl_sock_crt2der(X509 *crt, struct buffer *out)
 }
 
 
+/* Extract a cert chain to pkcs7 in binary form, and copy it to a chunk.
+* Returns 1 if the chain is copied, 0 on chain conversion failure
+* and -1 if the output is not large enough.
+*/
+static int
+ssl_sock_chain2pkcs7(STACK_OF(X509) *chain, struct buffer *out)
+{
+	int result = 0;
+	int len;
+	unsigned char *p = (unsigned char *) out->area;
+	PKCS7 *p7 = NULL;
+	PKCS7_SIGNED *p7s = NULL;
+
+	if ((p7 = PKCS7_new()) == NULL)
+		goto out;
+	if ((p7s = PKCS7_SIGNED_new()) == NULL)
+		goto out;
+	p7->type = OBJ_nid2obj(NID_pkcs7_signed);
+	p7->d.sign = p7s;
+	p7s->contents->type = OBJ_nid2obj(NID_pkcs7_data);
+
+	if (!ASN1_INTEGER_set(p7s->version, 1))
+		goto out;
+
+	p7s->cert = chain;
+
+	len = i2d_PKCS7(p7, NULL);
+	if (len <= 0)
+		goto out;
+
+	if (out->size < len) {
+		result = -1;
+		goto out;
+	}
+
+	i2d_PKCS7(p7, &p);
+	out->data = len;
+	result = 1;
+
+out:
+	if (p7s != NULL) {
+		p7s->cert = NULL;
+		PKCS7_free(p7);
+	}
+	return result;
+}
+
 /* Copy Date in ASN1_UTCTIME format in struct buffer out.
  * Returns 1 if serial is found and copied, 0 if no valid time found
  * and -1 if output is not large enough.
@@ -8213,6 +8260,41 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 
 	return 1;
 }
+
+/* binary, returns a certificate chain in a binary chunk (der/raw).
+ */
+static int
+smp_fetch_ssl_c_verif_chain(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	STACK_OF(X509) *chain = 0;
+	struct buffer *smp_trash;
+	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || conn->xprt != &ssl_sock)
+		return 0;
+	ctx = conn->xprt_ctx;
+
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	chain = SSL_get0_verified_chain(ctx->ssl);
+
+	if (!chain)
+		return 0;
+
+	smp_trash = get_trash_chunk();
+	if (ssl_sock_chain2pkcs7(chain, smp_trash) <= 0)
+		return 0;
+
+	smp->data.u.str = *smp_trash;
+	smp->data.type = SMP_T_BIN;
+	return 1;
+}
+
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -10893,6 +10975,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_client_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
+	{ "ssl_c_verified_chain",   smp_fetch_ssl_c_verif_chain,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
