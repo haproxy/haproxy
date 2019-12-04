@@ -111,7 +111,6 @@ struct cert_key_and_chain {
 struct ckch_store {
 	struct cert_key_and_chain *ckch;
 	unsigned int multi:1;  /* is it a multi-cert bundle ? */
-	unsigned int filters:1;/* one of the instances is using filters, TODO:remove this flag once filters are supported */
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct ebmb_node node;
 	char path[0];
