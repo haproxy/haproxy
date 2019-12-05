@@ -50,6 +50,8 @@
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
 #define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down for read and writes */
+#define H1C_F_CS_IDLE        0x00008000 /* connection is idle and may be reused
+					 * (exclusive to all H1C_F_CS flags and never set when an h1s is attached) */
 
 #define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
 #define H1C_F_UPG_H2C        0x00020000 /* set if an upgrade to h2 should be done */
@@ -443,15 +445,16 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 	}
 }
 
-/* returns the number of streams in use on a connection to figure if it's
- * idle or not. We can't have an h1s without a CS so checking h1s is fine,
- * as the caller will want to know if it was the last one after a detach().
+/* returns the number of streams in use on a connection to figure if it's idle
+ * or not. We rely on H1C_F_CS_IDLE to know if the connection is in-use or
+ * not. This flag is only set when no H1S is attached and when the previous
+ * stream, if any, was fully terminated without any error and in K/A mode.
  */
 static int h1_used_streams(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 
-	return h1c->h1s ? 1 : 0;
+	return ((h1c->flags & H1C_F_CS_IDLE) ? 0 : 1);
 }
 
 /* returns the number of streams still available on a connection */
@@ -539,7 +542,7 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 
 	if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 		h1s->flags |= H1S_F_NOT_FIRST;
-	h1c->flags &= ~H1C_F_WAIT_NEXT_REQ;
+	h1c->flags &= ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
 
 	if (!conn_is_back(h1c->conn)) {
 		if (h1c->px->options2 & PR_O2_REQBUG_OK)
@@ -609,10 +612,17 @@ static void h1s_destroy(struct h1s *h1s)
 			h1s->send_wait->events &= ~SUB_RETRY_SEND;
 
 		h1c->flags &= ~H1C_F_IN_BUSY;
-		h1c->flags |= H1C_F_WAIT_NEXT_REQ;
 		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR)) {
 			h1c->flags |= H1C_F_CS_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
+		}
+
+		if (!(h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN)) && /* No error/shutdown on h1c */
+		    !(h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) && /* No error/shutdown on conn */
+		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
+		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
+			h1c->flags |= (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
+			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 		pool_free(pool_head_h1s, h1s);
 	}
@@ -650,7 +660,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->conn = conn;
 	h1c->px   = proxy;
 
-	h1c->flags = H1C_F_NONE;
+	h1c->flags = H1C_F_CS_IDLE;
 	h1c->ibuf  = *input;
 	h1c->obuf  = BUF_NULL;
 	h1c->h1s   = NULL;
@@ -2137,10 +2147,9 @@ static int h1_process(struct h1c * h1c)
 
 	if (!h1s) {
 		if (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN) ||
-		    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH) ||
-		    conn_xprt_read0_pending(conn))
+		    conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
 			goto release;
-		if (!conn_is_back(conn) && !(h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))) {
+		if (!conn_is_back(conn) && (h1c->flags & H1C_F_CS_IDLE)) {
 			TRACE_STATE("K/A incoming connection, create new H1 stream", H1_EV_H1C_WAKE, conn);
 			if (!h1s_create(h1c, NULL, NULL))
 				goto release;
@@ -2334,7 +2343,6 @@ static void h1_detach(struct conn_stream *cs)
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
 	struct session *sess;
-	int has_keepalive;
 	int is_not_first;
 
 	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
@@ -2349,12 +2357,10 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
-	has_keepalive = h1s->flags & H1S_F_WANT_KAL;
 	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
 	h1s_destroy(h1s);
 
-	if (conn_is_back(h1c->conn) && has_keepalive &&
-	    !(h1c->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
+	if (conn_is_back(h1c->conn) && (h1c->flags & H1C_F_CS_IDLE)) {
 		/* If there are any excess server data in the input buffer,
 		 * release it and close the connection ASAP (some data may
 		 * remain in the output buffer). This happens if a server sends
@@ -2363,7 +2369,7 @@ static void h1_detach(struct conn_stream *cs)
 		 */
 		if (b_data(&h1c->ibuf)) {
 			h1_release_buf(h1c, &h1c->ibuf);
-			h1c->flags |= H1C_F_CS_SHUTW_NOW;
+			h1c->flags = (h1c->flags & ~H1C_F_CS_IDLE) | H1C_F_CS_SHUTW_NOW;
 			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
 			goto release;
 		}
