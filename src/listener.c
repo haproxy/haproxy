@@ -1058,6 +1058,9 @@ void listener_accept(int fd)
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
 			dequeue_all_listeners(&p->listener_queue);
 	}
+
+	if (l->state != LI_READY)
+		fd_stop_recv(l->fd);
 }
 
 /* Notify the listener that a connection initiated from it was released. This
