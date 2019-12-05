@@ -349,31 +349,23 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 /* functions below are for dynamic buffer management */
 /*****************************************************/
 /*
- * Indicates whether or not the we may call the h1_recv() function to
- * attempt to receive data into the buffer and/or parse pending data. The
- * condition is a bit complex due to some API limits for now. The rules are the
- * following :
- *   - if an error or a shutdown was detected on the connection and the buffer
- *     is empty, we must not attempt to receive
- *   - if the input buffer failed to be allocated, we must not try to receive
- *      and we know there is nothing pending
- *   - if no flag indicates a blocking condition, we may attempt to receive,
- *     regardless of whether the input buffer is full or not, so that only de
- *     receiving part decides whether or not to block. This is needed because
- *     the connection API indeed prevents us from re-enabling receipt that is
- *     already enabled in a polled state, so we must always immediately stop as
- *     soon as the mux can't proceed so as never to hit an end of read with data
- *     pending in the buffers.
+ * Indicates whether or not we may receive data. The rules are the following :
+ *   - if an error or a shutdown for reads was detected on the connection we
+       must not attempt to receive
+ *   - if the input buffer failed to be allocated or is full , we must not try
+ *     to receive
+ *   - if he input processing is busy waiting for the output side, we may
+ *     attemp to receive
  *   - otherwise must may not attempt to receive
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
-	if (b_data(&h1c->ibuf) == 0 && (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN))) {
-		TRACE_DEVEL("recv not allowed because of (error|shudown) on h1c", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+	if (h1c->flags & H1C_F_CS_ERROR) {
+		TRACE_DEVEL("recv not allowed because of error on h1c", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
 
-	if (h1c->conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(h1c->conn)) {
+	if (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH)) {
 		TRACE_DEVEL("recv not allowed because of (error|read0) on connection", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
