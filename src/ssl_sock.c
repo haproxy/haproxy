@@ -6862,23 +6862,14 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 	}
 }
 
-/* used for ppv2 pkey alog (can be used for logging) */
-int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
+/* fill a buffer with the algorithm and size of a public key */
+static int cert_get_pkey_algo(X509 *crt, struct buffer *out)
 {
-	struct ssl_sock_ctx *ctx;
 	int bits = 0;
 	int sig = TLSEXT_signature_anonymous;
 	int len = -1;
-	X509 *crt;
 	EVP_PKEY *pkey;
 
-	if (!ssl_sock_is_ssl(conn))
-		return 0;
-	ctx = conn->xprt_ctx;
-
-	crt = SSL_get_certificate(ctx->ssl);
-	if (!crt)
-		return 0;
 	pkey = X509_get_pubkey(crt);
 	if (pkey) {
 		bits = EVP_PKEY_bits(pkey);
@@ -6912,6 +6903,24 @@ int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 	if (len < 0)
 		return 0;
 	return 1;
+}
+
+/* used for ppv2 pkey alog (can be used for logging) */
+int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
+{
+	struct ssl_sock_ctx *ctx;
+	X509 *crt;
+
+	if (!ssl_sock_is_ssl(conn))
+		return 0;
+
+	ctx = conn->xprt_ctx;
+
+	crt = SSL_get_certificate(ctx->ssl);
+	if (!crt)
+		return 0;
+
+	return cert_get_pkey_algo(crt, out);
 }
 
 /* used for ppv2 cert signature (can be used for logging) */
@@ -7112,6 +7121,36 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
 	return 0;
 
 }
+
+/*
+ * Extract and format the DNS SAN extensions and copy result into a chuink
+ * Return 0;
+ */
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+static int ssl_sock_get_san_oneline(X509 *cert, struct buffer *out)
+{
+	int i;
+	char *str;
+	STACK_OF(GENERAL_NAME) *names = NULL;
+
+	names = X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
+	if (names) {
+		for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+			GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+			if (i > 0)
+				chunk_appendf(out, ", ");
+			if (name->type == GEN_DNS) {
+				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+					chunk_appendf(out, "DNS:%s", str);
+					OPENSSL_free(str);
+				}
+			}
+		}
+		sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
+	}
+	return 0;
+}
+#endif
 
 /* Extract and format full DN from a X509_NAME and copy result into a chunk
  * Returns 1 if dn entries exits, 0 if no dn entry found or -1 if output is not large enough.
@@ -10137,6 +10176,225 @@ enum {
 	SETCERT_ST_FIN,
 };
 
+/* release function of the  `show ssl cert' command */
+static void cli_release_show_cert(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+/* IO handler of "show ssl cert <filename>" */
+static int cli_io_handler_show_cert(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct ebmb_node *node;
+	struct stream_interface *si = appctx->owner;
+	struct ckch_store *ckchs;
+	int n;
+
+	if (trash == NULL)
+		return 1;
+
+	if (!appctx->ctx.ssl.old_ckchs) {
+		if (ckchs_transaction.old_ckchs) {
+			ckchs = ckchs_transaction.old_ckchs;
+			chunk_appendf(trash, "# transaction\n");
+			if (!ckchs->multi) {
+				chunk_appendf(trash, "*%s\n", ckchs->path);
+			} else {
+				chunk_appendf(trash, "*%s:", ckchs->path);
+				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+					if (ckchs->ckch[n].cert)
+						chunk_appendf(trash, " %s.%s\n", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
+				}
+				chunk_appendf(trash, "\n");
+			}
+		}
+	}
+
+	if (!appctx->ctx.cli.p0) {
+		chunk_appendf(trash, "# filename\n");
+		node = ebmb_first(&ckchs_tree);
+	} else {
+		node = &((struct ckch_store *)appctx->ctx.cli.p0)->node;
+	}
+	while (node) {
+		ckchs = ebmb_entry(node, struct ckch_store, node);
+		if (!ckchs->multi) {
+			chunk_appendf(trash, "%s\n", ckchs->path);
+		} else {
+			chunk_appendf(trash, "%s:", ckchs->path);
+			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+				if (ckchs->ckch[n].cert)
+					chunk_appendf(trash, " %s.%s", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
+			}
+			chunk_appendf(trash, "\n");
+		}
+
+		node = ebmb_next(node);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+
+	appctx->ctx.cli.p0 = NULL;
+	free_trash_chunk(trash);
+	return 1;
+yield:
+
+	free_trash_chunk(trash);
+	appctx->ctx.cli.p0 = ckchs;
+	return 0; /* should come back */
+}
+
+/* IO handler of the details "show ssl cert <filename>" */
+static int cli_io_handler_show_cert_detail(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct ckch_store *ckchs = appctx->ctx.cli.p0;
+	struct buffer *out = alloc_trash_chunk();
+	struct buffer *tmp = alloc_trash_chunk();
+	X509_NAME *name = NULL;
+	int write = -1;
+	BIO *bio = NULL;
+
+	if (!tmp || !out)
+		goto end;
+
+	if (!ckchs->multi) {
+		chunk_appendf(out, "Filename: ");
+		if (ckchs == ckchs_transaction.new_ckchs)
+			chunk_appendf(out, "*");
+		chunk_appendf(out, "%s\n", ckchs->path);
+		chunk_appendf(out, "Serial: ");
+		if (ssl_sock_get_serial(ckchs->ckch->cert, tmp) == -1)
+			goto end;
+		dump_binary(out, tmp->area, tmp->data);
+		chunk_appendf(out, "\n");
+
+		chunk_appendf(out, "notBefore: ");
+		chunk_reset(tmp);
+		if ((bio = BIO_new(BIO_s_mem())) ==  NULL)
+			goto end;
+		if (ASN1_TIME_print(bio, X509_getm_notBefore(ckchs->ckch->cert)) == 0)
+			goto end;
+		write = BIO_read(bio, tmp->area, tmp->size-1);
+		tmp->area[write] = '\0';
+		BIO_free(bio);
+		chunk_appendf(out, "%s\n", tmp->area);
+
+		chunk_appendf(out, "notAfter: ");
+		chunk_reset(tmp);
+		if ((bio = BIO_new(BIO_s_mem())) == NULL)
+			goto end;
+		if (ASN1_TIME_print(bio, X509_getm_notAfter(ckchs->ckch->cert)) == 0)
+			goto end;
+		if ((write = BIO_read(bio, tmp->area, tmp->size-1)) <= 0)
+			goto end;
+		tmp->area[write] = '\0';
+		BIO_free(bio);
+		chunk_appendf(out, "%s\n", tmp->area);
+
+
+		chunk_appendf(out, "Issuer: ");
+		if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
+			goto end;
+		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+			goto end;
+		*(tmp->area + tmp->data) = '\0';
+		chunk_appendf(out, "%s\n", tmp->area);
+
+		chunk_appendf(out, "Subject: ");
+		if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
+			goto end;
+		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+			goto end;
+		*(tmp->area + tmp->data) = '\0';
+		chunk_appendf(out, "%s\n", tmp->area);
+
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		chunk_appendf(out, "Subject Alternative Name: ");
+		if (ssl_sock_get_san_oneline(ckchs->ckch->cert, out) == -1)
+		    goto end;
+		*(out->area + out->data) = '\0';
+		chunk_appendf(out, "\n");
+#endif
+		chunk_reset(tmp);
+		chunk_appendf(out, "Algorithm: ");
+		if (cert_get_pkey_algo(ckchs->ckch->cert, tmp) == 0)
+			goto end;
+		chunk_appendf(out, "%s\n", tmp->area);
+
+		chunk_reset(tmp);
+		chunk_appendf(out, "SHA1 FingerPrint: ");
+		if (X509_digest(ckchs->ckch->cert, EVP_sha1(), (unsigned char *) tmp->area,
+		                (unsigned int *)&tmp->data) == 0)
+			goto end;
+		dump_binary(out, tmp->area, tmp->data);
+		chunk_appendf(out, "\n");
+	}
+
+	if (ci_putchk(si_ic(si), out) == -1) {
+		si_rx_room_blk(si);
+		goto yield;
+	}
+
+end:
+	free_trash_chunk(tmp);
+	free_trash_chunk(out);
+	return 1;
+yield:
+	free_trash_chunk(tmp);
+	free_trash_chunk(out);
+	return 0; /* should come back */
+}
+
+/* parsing function for 'show ssl cert [certfile]' */
+static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *ckchs;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	/* check if there is a certificate to lookup */
+	if (*args[3]) {
+		if (*args[3] == '*') {
+			if (!ckchs_transaction.new_ckchs)
+				goto error;
+
+			ckchs = ckchs_transaction.new_ckchs;
+
+			if (strcmp(args[3] + 1, ckchs->path))
+				goto error;
+
+		} else {
+			if ((ckchs = ckchs_lookup(args[3])) == NULL)
+				goto error;
+
+		}
+
+		if (ckchs->multi)
+			goto error;
+
+		appctx->ctx.cli.p0 = ckchs;
+		/* use the IO handler that shows details */
+		appctx->io_handler = cli_io_handler_show_cert_detail;
+	}
+
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
+}
+
 /* release function of the  `set ssl cert' command, free things and unlock the spinlock */
 static void cli_release_commit_cert(struct appctx *appctx)
 {
@@ -10859,6 +11117,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
+	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
