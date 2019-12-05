@@ -44,12 +44,13 @@
 /* Flags indicating why reading input data are blocked. */
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
-#define H1C_F_IN_BUSY        0x00000040
+#define H1C_F_IN_BUSY        0x00000040 /* mux is blocked on input waiting the other side */
 /* 0x00000040 - 0x00000800 unused */
 
+/* Flags indicating the connection state */
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
 #define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
-#define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down for read and writes */
+#define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down */
 #define H1C_F_CS_IDLE        0x00008000 /* connection is idle and may be reused
 					 * (exclusive to all H1C_F_CS flags and never set when an h1s is attached) */
 
@@ -2485,8 +2486,6 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
 				      (mode == CS_SHR_DRAIN));
-	if ((cs->conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
-		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
   end:
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
@@ -2533,8 +2532,7 @@ static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 	TRACE_ENTER(H1_EV_STRM_SHUT, conn, h1c->h1s);
 	conn_xprt_shutw(conn);
 	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
-	if ((conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) == (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
-		h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
+	h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 	TRACE_LEAVE(H1_EV_STRM_SHUT, conn, h1c->h1s);
 }
 
