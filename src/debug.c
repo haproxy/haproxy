@@ -10,10 +10,13 @@
  *
  */
 
+#include <fcntl.h>
 #include <signal.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <common/buf.h>
 #include <common/config.h>
@@ -310,8 +313,9 @@ static int debug_parse_cli_panic(char **args, char *payload, struct appctx *appc
 #if defined(DEBUG_DEV)
 static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	FILE *f;
+	int pipefd[2];
 	int arg;
+	int pid;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -324,14 +328,41 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 		chunk_strcat(&trash, args[arg]);
 	}
 
-	f = popen(trash.area, "re");
-	if (!f)
-		return cli_err(appctx, "Failed to execute command.\n");
+	thread_isolate();
+	if (pipe(pipefd) < 0)
+		goto fail_pipe;
 
+	if (fcntl(pipefd[0], F_SETFD, fcntl(pipefd[0], F_GETFD, FD_CLOEXEC) | FD_CLOEXEC) == -1)
+		goto fail_fcntl;
+
+	if (fcntl(pipefd[1], F_SETFD, fcntl(pipefd[1], F_GETFD, FD_CLOEXEC) | FD_CLOEXEC) == -1)
+		goto fail_fcntl;
+
+	pid = fork();
+
+	if (pid < 0)
+		goto fail_fork;
+	else if (pid == 0) {
+		/* child */
+		char *cmd[4] = { "/bin/sh", "-c", 0, 0 };
+
+		close(0);
+		dup2(pipefd[1], 1);
+		dup2(pipefd[1], 2);
+
+		cmd[2] = trash.area;
+		execvp(cmd[0], cmd);
+		printf("execvp() failed\n");
+		exit(1);
+	}
+
+	/* parent */
+	thread_release();
+	close(pipefd[1]);
 	chunk_reset(&trash);
 	while (1) {
-		size_t ret = fread(trash.area + trash.data, 1, trash.size - 20 - trash.data, f);
-		if (!ret)
+		size_t ret = read(pipefd[0], trash.area + trash.data, trash.size - 20 - trash.data);
+		if (ret <= 0)
 			break;
 		trash.data += ret;
 		if (trash.data + 20 == trash.size) {
@@ -339,10 +370,18 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 			break;
 		}
 	}
-
-	fclose(f);
+	close(pipefd[0]);
+	waitpid(pid, NULL, WNOHANG);
 	trash.area[trash.data] = 0;
 	return cli_msg(appctx, LOG_INFO, trash.area);
+
+ fail_fork:
+ fail_fcntl:
+	close(pipefd[0]);
+	close(pipefd[1]);
+ fail_pipe:
+	thread_release();
+	return cli_err(appctx, "Failed to execute command.\n");
 }
 #endif
 
