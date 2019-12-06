@@ -146,6 +146,7 @@ enum fcgi_strm_st {
 
 /* Other flags */
 #define FCGI_SF_HAVE_I_TLR     0x00010000 /* Set during input process to know the trailers were processed */
+#define FCGI_SF_APPEND_EOM     0x00020000 /* Send EOM to the HTX buffer */
 
 /* FCGI stream descriptor */
 struct fcgi_strm {
@@ -3178,6 +3179,14 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 	}
 	*ofs += ret;
   end:
+	if (h1m->state == H1_MSG_DONE) {
+		fstrm->flags &= ~FCGI_SF_APPEND_EOM;
+		TRACE_STATE("end of message", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn);
+	}
+	else if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_XFER_LEN) && h1m->curr_len == 0) {
+		fstrm->flags |= FCGI_SF_APPEND_EOM;
+		TRACE_STATE("add append_eom", FCGI_EV_RSP_DATA, fstrm->fconn->conn);
+	}
 	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 }
@@ -3209,10 +3218,14 @@ static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct
 				size_t max)
 {
 	TRACE_ENTER(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm,, (size_t[]){max});
-	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM))
+	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM)) {
+		fstrm->flags |= FCGI_SF_APPEND_EOM;
+		TRACE_STATE("leaving on append_eom", FCGI_EV_RSP_DATA, fstrm->fconn->conn);
 		return 0;
+	}
 
 	h1m->state = H1_MSG_DONE;
+	fstrm->flags &= ~FCGI_SF_APPEND_EOM;
 	TRACE_STATE("end of response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
 	TRACE_LEAVE(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm);
 	return (sizeof(struct htx_blk) + 1);
@@ -3780,7 +3793,7 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	else
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
-	if (b_data(&fstrm->rxbuf))
+	if (b_data(&fstrm->rxbuf) || (fstrm->flags & FCGI_SF_APPEND_EOM))
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
