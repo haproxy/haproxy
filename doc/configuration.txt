@@ -595,6 +595,7 @@ The following keywords are supported in the "global" section :
    - h1-case-adjust
    - h1-case-adjust-file
    - insecure-fork-wanted
+   - insecure-setuid-wanted
    - log
    - log-tag
    - log-send-hostname
@@ -825,8 +826,11 @@ deviceatlas-properties-cookie <name>
 external-check
   Allows the use of an external agent to perform health checks. This is
   disabled by default as a security precaution, and even when enabled, checks
-  may still fail unless "insecure-fork-wanted" is enabled as well.
-  See "option external-check", and "insecure-fork-wanted".
+  may still fail unless "insecure-fork-wanted" is enabled as well. If the
+  program launched makes use of a setuid executable (it should really not),
+  you may also need to set "insecure-setuid-wanted" in the global section.
+  See "option external-check", and "insecure-fork-wanted", and
+  "insecure-setuid-wanted".
 
 gid <number>
   Changes the process' group ID to <number>. It is recommended that the group
@@ -922,6 +926,22 @@ insecure-fork-wanted
   requiring such a fork be reconsidered and moved to a safer solution (such as
   agents instead of external checks). This option supports the "no" prefix to
   disable it.
+
+insecure-setuid-wanted
+  HAProxy doesn't need to call executables at run time (except when using
+  external checks which are strongly recommended against), and is even expected
+  to isolate itself into an empty chroot. As such, there basically is no valid
+  reason to allow a setuid executable to be called without the user being fully
+  aware of the risks. In a situation where haproxy would need to call external
+  checks and/or disable chroot, exploiting a vulnerability in a library or in
+  haproxy itself could lead to the execution of an external program. On Linux
+  it is possible to lock the process so that any setuid bit present on such an
+  executable is ignored. This significantly reduces the risk of privilege
+  escalation in such a situation. This is what haproxy does by default. In case
+  this causes a problem to an external check (for example one which would need
+  the "ping" command), then it is possible to disable this protection by
+  explicitly adding this directive in the global section. If enabled, it is
+  possible to turn it back off by prefixing it with the "no" keyword.
 
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     <facility> [max level [min level]]

@@ -102,6 +102,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_INSECURE_FORK;
 	}
+	else if (!strcmp(args[0], "insecure-setuid-wanted")) { /* "no insecure-setuid-wanted" or "insecure-setuid-wanted" */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		if (kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_INSECURE_SETUID;
+		else
+			global.tune.options |=  GTUNE_INSECURE_SETUID;
+	}
 	else if (!strcmp(args[0], "nosplice")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;

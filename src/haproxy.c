@@ -2749,6 +2749,25 @@ static void *run_thread_poll_loop(void *data)
 	pthread_mutex_unlock(&init_mutex);
 #endif
 
+#if defined(PR_SET_NO_NEW_PRIVS) && defined(USE_PRCTL)
+	/* Let's refrain from using setuid executables. This way the impact of
+	 * an eventual vulnerability in a library remains limited. It may
+	 * impact external checks but who cares about them anyway ? In the
+	 * worst case it's possible to disable the option. Obviously we do this
+	 * in workers only. We can't hard-fail on this one as it really is
+	 * implementation dependent though we're interested in feedback, hence
+	 * the warning.
+	 */
+	if (!(global.tune.options & GTUNE_INSECURE_SETUID) && !master) {
+		static int warn_fail;
+		if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1 && !_HA_ATOMIC_XADD(&warn_fail, 1)) {
+			ha_warning("Failed to disable setuid, please report to developers with detailed "
+				   "information about your operating system. You can silence this warning "
+				   "by adding 'insecure-setuid-wanted' in the 'global' section.\n");
+		}
+	}
+#endif
+
 #if defined(RLIMIT_NPROC)
 	/* all threads have started, it's now time to prevent any new thread
 	 * or process from starting. Obviously we do this in workers only. We
