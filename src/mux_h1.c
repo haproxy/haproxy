@@ -1279,8 +1279,13 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 
   end:
 	if (h1m->state == H1_MSG_DONE) {
+		h1s->flags &= ~H1S_F_APPEND_EOM;
 		h1s->cs->flags |= CS_FL_EOI;
 		TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_RX_EOI, h1s->h1c->conn);
+	}
+	else if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_XFER_LEN) && h1m->curr_len == 0) {
+		h1s->flags |= H1S_F_APPEND_EOM;
+		TRACE_STATE("add append_eom", H1_EV_RX_DATA, h1s->h1c->conn);
 	}
 
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){ret});
@@ -1473,7 +1478,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-	else if (h1s_data_pending(h1s) && !htx_is_empty(htx))
+
+	if ((h1s_data_pending(h1s) && !htx_is_empty(htx)) || (h1s->flags & H1S_F_APPEND_EOM))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 
 	if (((h1s->flags & (H1S_F_REOS|H1S_F_APPEND_EOM)) == H1S_F_REOS) &&
