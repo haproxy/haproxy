@@ -663,7 +663,7 @@ void listener_accept(int fd)
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
 			expire = tick_add(now_ms, next_event_delay(&global.sess_per_sec, global.sps_lim, 0));
-			goto wait_expire;
+			goto limit_global;
 		}
 
 		if (max_accept > max)
@@ -676,7 +676,7 @@ void listener_accept(int fd)
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
 			expire = tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0));
-			goto wait_expire;
+			goto limit_global;
 		}
 
 		if (max_accept > max)
@@ -689,7 +689,7 @@ void listener_accept(int fd)
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
 			expire = tick_add(now_ms, next_event_delay(&global.ssl_per_sec, global.ssl_lim, 0));
-			goto wait_expire;
+			goto limit_global;
 		}
 
 		if (max_accept > max)
@@ -701,9 +701,8 @@ void listener_accept(int fd)
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
-			limit_listener(l, &p->listener_queue);
-			task_schedule(p->task, tick_add(now_ms, next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0)));
-			goto end;
+			expire = tick_add(now_ms, next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0));
+			goto limit_proxy;
 		}
 
 		if (max_accept > max)
@@ -746,8 +745,8 @@ void listener_accept(int fd)
 					 * thread is going to do it.
 					 */
 					next_feconn = 0;
-					limit_listener(l, &p->listener_queue);
-					goto end;
+					expire = TICK_ETERNITY;
+					goto limit_proxy;
 				}
 				next_feconn = count + 1;
 			} while (!_HA_ATOMIC_CAS(&p->feconn, &count, next_feconn));
@@ -761,9 +760,8 @@ void listener_accept(int fd)
 					 * thread is going to do it.
 					 */
 					next_actconn = 0;
-					limit_listener(l, &global_listener_queue);
-					task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
-					goto end;
+					expire = tick_add(now_ms, 1000); /* try again in 1 second */
+					goto limit_global;
 				}
 				next_actconn = count + 1;
 			} while (!_HA_ATOMIC_CAS(&actconn, (int *)(&count), next_actconn));
@@ -865,9 +863,8 @@ void listener_accept(int fd)
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
 				 p->id);
 			close(cfd);
-			limit_listener(l, &global_listener_queue);
-			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
-			goto end;
+			expire = tick_add(now_ms, 1000); /* try again in 1 second */
+			goto limit_global;
 		}
 
 		/* past this point, l->accept() will automatically decrement
@@ -1023,17 +1020,6 @@ void listener_accept(int fd)
 
 	} /* end of for (max_accept--) */
 
-	/* we've exhausted max_accept, so there is no need to poll again */
-	goto end;
-
- transient_error:
-	/* pause the listener for up to 100 ms */
-	expire = tick_add(now_ms, 100);
-
- wait_expire:
-	/* switch the listener to LI_LIMITED and wait until up to <expire> in the global queue */
-	limit_listener(l, &global_listener_queue);
-	task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
  end:
 	if (next_conn)
 		_HA_ATOMIC_SUB(&l->nbconn, 1);
@@ -1076,6 +1062,27 @@ void listener_accept(int fd)
 		fd_stop_recv(l->fd);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+	return;
+
+ transient_error:
+	/* pause the listener for up to 100 ms */
+	expire = tick_add(now_ms, 100);
+
+ limit_global:
+	/* (re-)queue the listener to the global queue and set it to expire no
+	 * later than <expire> ahead. The listener turns to LI_LIMITED.
+	 */
+	limit_listener(l, &global_listener_queue);
+	task_schedule(global_listener_queue_task, expire);
+	goto end;
+
+ limit_proxy:
+	/* (re-)queue the listener to the proxy's queue and set it to expire no
+	 * later than <expire> ahead. The listener turns to LI_LIMITED.
+	 */
+	limit_listener(l, &p->listener_queue);
+	task_schedule(p->task, expire);
+	goto end;
 }
 
 /* Notify the listener that a connection initiated from it was released. This
