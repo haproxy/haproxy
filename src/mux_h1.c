@@ -72,9 +72,8 @@
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 #define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
 #define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
-#define H1S_F_HAVE_I_TLR     0x00000800 /* Set during input process to know the trailers were processed */
-#define H1S_F_APPEND_EOM     0x00001000 /* Send EOM to the HTX buffer */
-/* 0x00002000 .. 0x00001000 unused */
+#define H1S_F_PARSING_DONE   0x00000400 /* Set when incoming message parsing is finished (EOM added) */
+/* 0x00000800 .. 0x00001000 unused */
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
@@ -468,7 +467,7 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 
 	h1m = conn_is_back(h1s->h1c->conn) ? &h1s->res : &h1s->req;
 	if (h1m->state == H1_MSG_DONE)
-		return 0; // data not for this stream (e.g. pipelining)
+		return !(h1s->flags & H1S_F_PARSING_DONE);
 
 	return b_data(&h1s->h1c->ibuf);
 }
@@ -612,7 +611,7 @@ static void h1s_destroy(struct h1s *h1s)
 
 		if (!(h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN)) && /* No error/shutdown on h1c */
 		    !(h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) && /* No error/shutdown on conn */
-		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
+		    (h1s->flags & (H1S_F_WANT_KAL|H1S_F_PARSING_DONE)) == (H1S_F_WANT_KAL|H1S_F_PARSING_DONE) && /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
 			h1c->flags |= (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
@@ -1119,9 +1118,12 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
 	h1s->req.state = H1_MSG_TUNNEL;
 	TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 
-	if (!conn_is_back(h1s->h1c->conn)  && h1s->res.state < H1_MSG_DONE) {
-		h1s->h1c->flags |= H1C_F_IN_BUSY;
-		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+	if (!conn_is_back(h1s->h1c->conn)) {
+		h1s->flags &= ~H1S_F_PARSING_DONE;
+		if (h1s->res.state < H1_MSG_DONE) {
+			h1s->h1c->flags |= H1C_F_IN_BUSY;
+			TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+		}
 	}
 	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
@@ -1139,23 +1141,26 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
  */
 static void h1_set_res_tunnel_mode(struct h1s *h1s)
 {
-	/* On protocol switching, switch the request to tunnel mode if it is in
-	 * DONE state. Otherwise we will wait the end of the request to switch
-	 * it in tunnel mode.
-	 */
-	if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
-		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
-		h1s->req.state = H1_MSG_TUNNEL;
-		TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
-	}
 
 	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->res.state = H1_MSG_TUNNEL;
 	TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 
-	if (conn_is_back(h1s->h1c->conn) && h1s->req.state < H1_MSG_DONE) {
-		h1s->h1c->flags |= H1C_F_IN_BUSY;
-		TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+	if (conn_is_back(h1s->h1c->conn)) {
+		h1s->flags &= ~H1S_F_PARSING_DONE;
+		/* On protocol switching, switch the request to tunnel mode if it is in
+		 * DONE state. Otherwise we will wait the end of the request to switch
+		 * it in tunnel mode.
+		 */
+		if (h1s->req.state < H1_MSG_DONE) {
+			h1s->h1c->flags |= H1C_F_IN_BUSY;
+			TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+		}
+		else if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
+			h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+			h1s->req.state = H1_MSG_TUNNEL;
+			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
 	}
 	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
@@ -1278,16 +1283,6 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 	*ofs += ret;
 
   end:
-	if (h1m->state == H1_MSG_DONE) {
-		h1s->flags &= ~H1S_F_APPEND_EOM;
-		h1s->cs->flags |= CS_FL_EOI;
-		TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_RX_EOI, h1s->h1c->conn);
-	}
-	else if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_XFER_LEN) && h1m->curr_len == 0) {
-		h1s->flags |= H1S_F_APPEND_EOM;
-		TRACE_STATE("add append_eom", H1_EV_RX_DATA, h1s->h1c->conn);
-	}
-
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
@@ -1324,7 +1319,6 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 	}
 
 	*ofs += ret;
-	h1s->flags |= H1S_F_HAVE_I_TLR;
 
   end:
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
@@ -1332,26 +1326,40 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 }
 
 /*
- * Add the EOM in the HTX message and switch the message to the DONE state. It
- * returns the number of bytes parsed if > 0, or 0 if iet couldn't proceed. This
- * functions is responsible to update the parser state <h1m>. It also add the
- * flag CS_FL_EOI on the CS.
+ * Add the EOM in the HTX message. It returns 1 on success or 0 if it couldn't
+ * proceed. This functions is responsible to update the parser state <h1m>. It
+ * also add the flag CS_FL_EOI on the CS.
  */
-static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx, size_t max)
+static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+			     struct buffer *buf, size_t *ofs, size_t max)
 {
-	TRACE_ENTER(H1_EV_RX_DATA, h1s->h1c->conn, h1s,, (size_t[]){max});
-	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM)) {
-		h1s->flags |= H1S_F_APPEND_EOM;
-		TRACE_STATE("leaving on append_eom", H1_EV_RX_DATA, h1s->h1c->conn);
-		return 0;
+	int ret;
+
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s,, (size_t[]){max});
+	ret = h1_parse_msg_eom(h1m, htx, max);
+	if (!ret) {
+		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			if (!(h1m->flags & H1_MF_RESP)) {
+				h1s->flags |= H1S_F_REQ_ERROR;
+				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
+			else {
+				h1s->flags |= H1S_F_RES_ERROR;
+				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
+			h1s->cs->flags |= CS_FL_EOI;
+			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		}
+		goto end;
 	}
 
-	h1s->flags &= ~H1S_F_APPEND_EOM;
-	h1m->state = H1_MSG_DONE;
+	h1s->flags |= H1S_F_PARSING_DONE;
 	h1s->cs->flags |= CS_FL_EOI;
-	TRACE_STATE("end of message", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
-	TRACE_LEAVE(H1_EV_RX_DATA, h1s->h1c->conn, h1s);
-	return (sizeof(struct htx_blk) + 1);
+  end:
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s,, (size_t[]){ret});
+	return ret;
 }
 
 /*
@@ -1406,33 +1414,30 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message payload", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
-			if (!ret)
+			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
 			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request payload data" : "rcvd H1 response payload data"),
 				    H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
-
-			if (h1m->state == H1_MSG_DONE)
-				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
-					   H1_EV_RX_DATA, h1c->conn, h1s, htx);
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
-			if (!(h1s->flags & H1S_F_HAVE_I_TLR)) {
-				TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
-				ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
-				if (!ret)
-					break;
-
-				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request trailers" : "rcvd H1 response trailers"),
-					    H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s, htx, (size_t[]){ret});
-			}
-			else if (!h1_process_eom(h1s, h1m, htx, count))
+			TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
+			ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
-			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
-				   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
+			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request trailers" : "rcvd H1 response trailers"),
+				    H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s, htx, (size_t[]){ret});
 		}
 		else if (h1m->state == H1_MSG_DONE) {
+			if (!(h1s->flags & H1S_F_PARSING_DONE)) {
+				if (!h1_process_eom(h1s, h1m, htx, &h1c->ibuf, &total, count))
+					break;
+
+				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
+					   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
+			}
+
 			if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101)
 				h1_set_req_tunnel_mode(h1s);
 			else if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
@@ -1478,12 +1483,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-
-	if ((h1s_data_pending(h1s) && !htx_is_empty(htx)) || (h1s->flags & H1S_F_APPEND_EOM))
+	if (h1s_data_pending(h1s))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
-
-	if (((h1s->flags & (H1S_F_REOS|H1S_F_APPEND_EOM)) == H1S_F_REOS) &&
-	    (!h1s_data_pending(h1s) || htx_is_empty(htx))) {
+	else if (h1s->flags & H1S_F_REOS) {
 		h1s->cs->flags |= CS_FL_EOS;
 		if (h1m->state == H1_MSG_TUNNEL)
 			h1s->cs->flags |= CS_FL_EOI;

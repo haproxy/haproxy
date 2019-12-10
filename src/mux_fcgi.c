@@ -145,8 +145,7 @@ enum fcgi_strm_st {
 #define FCGI_SF_KILL_CONN      0x00004000  /* kill the whole connection with this stream */
 
 /* Other flags */
-#define FCGI_SF_HAVE_I_TLR     0x00010000 /* Set during input process to know the trailers were processed */
-#define FCGI_SF_APPEND_EOM     0x00020000 /* Send EOM to the HTX buffer */
+#define FCGI_SF_H1_PARSING_DONE  0x00010000
 
 /* FCGI stream descriptor */
 struct fcgi_strm {
@@ -2736,7 +2735,7 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &fconn->wait_event);
 	}
 	else
-		TRACE_DATA("send data", FCGI_EV_FCONN_RECV, conn,,, (size_t[]){ret});
+		TRACE_DATA("recv data", FCGI_EV_FCONN_RECV, conn,,, (size_t[]){ret});
 
 	if (!b_data(buf)) {
 		fcgi_release_buf(fconn, &fconn->dbuf);
@@ -3168,7 +3167,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
-	if (ret <= 0) {
+	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm);
 		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
 			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
@@ -3179,14 +3178,6 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 	}
 	*ofs += ret;
   end:
-	if (h1m->state == H1_MSG_DONE) {
-		fstrm->flags &= ~FCGI_SF_APPEND_EOM;
-		TRACE_STATE("end of message", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn);
-	}
-	else if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_XFER_LEN) && h1m->curr_len == 0) {
-		fstrm->flags |= FCGI_SF_APPEND_EOM;
-		TRACE_STATE("add append_eom", FCGI_EV_RSP_DATA, fstrm->fconn->conn);
-	}
 	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 }
@@ -3198,7 +3189,7 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
-	if (ret <= 0) {
+	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
@@ -3208,27 +3199,31 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 		goto end;
 	}
 	*ofs += ret;
-	fstrm->flags |= FCGI_SF_HAVE_I_TLR;
   end:
 	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
 	return ret;
 }
 
 static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
-				size_t max)
+				struct buffer *buf, size_t *ofs, size_t max)
 {
-	TRACE_ENTER(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm,, (size_t[]){max});
-	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(htx, HTX_BLK_EOM)) {
-		fstrm->flags |= FCGI_SF_APPEND_EOM;
-		TRACE_STATE("leaving on append_eom", FCGI_EV_RSP_DATA, fstrm->fconn->conn);
-		return 0;
-	}
+	int ret;
 
-	h1m->state = H1_MSG_DONE;
-	fstrm->flags &= ~FCGI_SF_APPEND_EOM;
-	TRACE_STATE("end of response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
-	TRACE_LEAVE(FCGI_EV_RSP_DATA, fstrm->fconn->conn, fstrm);
-	return (sizeof(struct htx_blk) + 1);
+	TRACE_ENTER(FCGI_EV_RSP_DATA||FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	ret = h1_parse_msg_eom(h1m, htx, max);
+	if (!ret) {
+		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+			fcgi_strm_error(fstrm);
+			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
+		}
+		goto end;
+	}
+	fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
+  end:
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
+	return ret;
 }
 
 static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *buf, size_t count)
@@ -3270,30 +3265,27 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing response payload", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
-			if (!ret)
+			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
 			TRACE_PROTO("rcvd response payload data", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm, htx);
-
-			if (h1m->state == H1_MSG_DONE)
-				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
-			if (!(fstrm->flags & FCGI_SF_HAVE_I_TLR)) {
-				TRACE_PROTO("parsing response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm);
-				ret = fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
-				if (!ret)
-					break;
-
-				TRACE_PROTO("rcvd H1 response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm, htx);
-			}
-			else if (!fcgi_strm_add_eom(fstrm, h1m, htx, count))
+			TRACE_PROTO("parsing response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm);
+			ret = fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
+			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
-			if (h1m->state == H1_MSG_DONE)
-				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
+			TRACE_PROTO("rcvd H1 response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm, htx);
 		}
 		else if (h1m->state == H1_MSG_DONE) {
+			if (!(fstrm->flags & FCGI_SF_H1_PARSING_DONE)) {
+				if (!fcgi_strm_add_eom(fstrm, h1m, htx, &fstrm->rxbuf, &total, count))
+					break;
+
+				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
+			}
+
 			if (b_data(&fstrm->rxbuf) > total) {
 				htx->flags |= HTX_FL_PARSING_ERROR;
 				TRACE_PROTO("too much data, parsing error", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
@@ -3304,21 +3296,16 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		else if (h1m->state == H1_MSG_TUNNEL) {
 			TRACE_PROTO("parsing response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
+
 			if (fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
 				TRACE_DEVEL("end of tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
-				if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) == H1_MF_VER_11) {
-					if (!fcgi_strm_add_eom(fstrm, h1m, htx, count))
-						break;
-					TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
-				}
-				else {
-					h1m->state = H1_MSG_DONE;
-					TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
-					break;
-				}
+				if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) != H1_MF_VER_11)
+					fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
+				h1m->state = H1_MSG_DONE;
+				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 			}
-			if (!ret)
+			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
 			TRACE_PROTO("rcvd H1 response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx);
@@ -3793,11 +3780,11 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	else
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
-	if (b_data(&fstrm->rxbuf) || (fstrm->flags & FCGI_SF_APPEND_EOM))
+	if (b_data(&fstrm->rxbuf) || (fstrm->h1m.state == H1_MSG_DONE && !(fstrm->flags & FCGI_SF_H1_PARSING_DONE)))
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (fstrm->state == FCGI_SS_ERROR || fstrm->h1m.state == H1_MSG_DONE) {
+		if (fstrm->state == FCGI_SS_ERROR || (fstrm->flags & FCGI_SF_H1_PARSING_DONE)) {
 			cs->flags |= CS_FL_EOI;
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
 				cs->flags |= CS_FL_EOS;
