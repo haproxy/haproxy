@@ -197,7 +197,7 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 		}
 
 		if (kev[count].filter == EVFILT_READ) {
-			if (kev[count].data)
+			if (kev[count].data || !(kev[count].flags & EV_EOF))
 				n |= FD_EV_READY_R;
 			if (kev[count].flags & EV_EOF)
 				n |= FD_EV_SHUT_R;
