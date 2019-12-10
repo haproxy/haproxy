@@ -1134,10 +1134,10 @@ void soft_stop(void)
 		if (p->state == PR_STSTOPPED &&
 		    !LIST_ISEMPTY(&p->conf.listeners) &&
 		    LIST_ELEM(p->conf.listeners.n,
-		    struct listener *, by_fe)->state >= LI_ZOMBIE) {
+		    struct listener *, by_fe)->state > LI_ASSIGNED) {
 			struct listener *l;
 			list_for_each_entry(l, &p->conf.listeners, by_fe) {
-				if (l->state >= LI_ZOMBIE)
+				if (l->state > LI_ASSIGNED)
 					close(l->fd);
 				l->state = LI_INIT;
 			}
