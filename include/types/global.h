@@ -231,8 +231,6 @@ extern int stopping;	/* non zero means stopping in progress */
 extern int killed;	/* >0 means a hard-stop is triggered, >1 means hard-stop immediately */
 extern char hostname[MAX_HOSTNAME_LEN];
 extern char localpeer[MAX_HOSTNAME_LEN];
-extern struct mt_list global_listener_queue; /* list of the temporarily limited listeners */
-extern struct task *global_listener_queue_task;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
 extern volatile unsigned long sleeping_thread_mask;
 extern struct list proc_list; /* list of process in mworker mode */
