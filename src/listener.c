@@ -463,12 +463,25 @@ int disable_all_listeners(struct protocol *proto)
 	return ERR_NONE;
 }
 
-/* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
-void dequeue_all_listeners(struct mt_list *list)
+/* Dequeues all listeners waiting for a resource the global wait queue */
+void dequeue_all_listeners()
 {
 	struct listener *listener;
 
-	while ((listener = MT_LIST_POP(list, struct listener *, wait_queue))) {
+	while ((listener = MT_LIST_POP(&global_listener_queue, struct listener *, wait_queue))) {
+		/* This cannot fail because the listeners are by definition in
+		 * the LI_LIMITED state.
+		 */
+		resume_listener(listener);
+	}
+}
+
+/* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
+void dequeue_proxy_listeners(struct proxy *px)
+{
+	struct listener *listener;
+
+	while ((listener = MT_LIST_POP(&px->listener_queue, struct listener *, wait_queue))) {
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
@@ -1036,12 +1049,11 @@ void listener_accept(int fd)
 		resume_listener(l);
 
 		/* Dequeues all of the listeners waiting for a resource */
-		if (!MT_LIST_ISEMPTY(&global_listener_queue))
-			dequeue_all_listeners(&global_listener_queue);
+		dequeue_all_listeners();
 
 		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
-			dequeue_all_listeners(&p->listener_queue);
+			dequeue_proxy_listeners(p);
 	}
 
 	/* Now it's getting tricky. The listener was supposed to be in LI_READY
@@ -1104,12 +1116,11 @@ void listener_release(struct listener *l)
 		resume_listener(l);
 
 	/* Dequeues all of the listeners waiting for a resource */
-	if (!MT_LIST_ISEMPTY(&global_listener_queue))
-		dequeue_all_listeners(&global_listener_queue);
+	dequeue_all_listeners();
 
 	if (!MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_sess_per_sec, fe->fe_sps_lim, 0) > 0))
-		dequeue_all_listeners(&fe->listener_queue);
+		dequeue_proxy_listeners(fe);
 }
 
 /* resume listeners waiting in the local listener queue. They are still in LI_LIMITED state */

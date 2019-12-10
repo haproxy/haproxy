@@ -2807,11 +2807,6 @@ static void *run_thread_poll_loop(void *data)
  */
 static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state)
 {
-	int next = TICK_ETERNITY;
-	/* queue is empty, nothing to do */
-	if (MT_LIST_ISEMPTY(&global_listener_queue))
-		goto out;
-
 	/* If there are still too many concurrent connections, let's wait for
 	 * some of them to go away. We don't need to re-arm the timer because
 	 * each of them will scan the queue anyway.
@@ -2825,10 +2820,10 @@ static struct task *manage_global_listener_queue(struct task *t, void *context, 
 	 * as a file descriptor or memory and that the temporary condition has
 	 * disappeared.
 	 */
-	dequeue_all_listeners(&global_listener_queue);
+	dequeue_all_listeners();
 
  out:
-	t->expire = next;
+	t->expire = TICK_ETERNITY;
 	task_queue(t);
 	return t;
 }

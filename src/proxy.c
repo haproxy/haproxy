@@ -1034,8 +1034,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 	}
 
 	/* The proxy is not limited so we can re-enable any waiting listener */
-	if (!MT_LIST_ISEMPTY(&p->listener_queue))
-		dequeue_all_listeners(&p->listener_queue);
+	dequeue_proxy_listeners(p);
  out:
 	t->expire = next;
 	task_queue(t);
@@ -2037,8 +2036,8 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 			resume_listener(l);
 	}
 
-	if (px->maxconn > px->feconn && !MT_LIST_ISEMPTY(&px->listener_queue))
-		dequeue_all_listeners(&px->listener_queue);
+	if (px->maxconn > px->feconn)
+		dequeue_proxy_listeners(px);
 
 	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 

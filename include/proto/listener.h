@@ -57,8 +57,11 @@ int enable_all_listeners(struct protocol *proto);
  */
 int disable_all_listeners(struct protocol *proto);
 
-/* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
-void dequeue_all_listeners(struct mt_list *list);
+/* Dequeues all listeners waiting for a resource the global wait queue */
+void dequeue_all_listeners();
+
+/* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
+void dequeue_proxy_listeners(struct proxy *px);
 
 /* Must be called with the lock held. Depending on <do_close> value, it does
  * what unbind_listener or unbind_listener_no_close should do.
