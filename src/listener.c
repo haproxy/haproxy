@@ -793,13 +793,13 @@ void listener_accept(int fd)
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
-				if (fdtab[fd].ev & FD_POLL_HUP) {
+				if (fdtab[fd].ev & (FD_POLL_HUP|FD_POLL_ERR)) {
 					/* the listening socket might have been disabled in a shared
 					 * process and we're a collateral victim. We'll just pause for
 					 * a while in case it comes back. In the mean time, we need to
 					 * clear this sticky flag.
 					 */
-					_HA_ATOMIC_AND(&fdtab[fd].ev, ~FD_POLL_HUP);
+					_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
 					goto transient_error;
 				}
 				fd_cant_recv(fd);
