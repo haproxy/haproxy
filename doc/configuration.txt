@@ -2412,7 +2412,7 @@ arbitrary criteria.
 
 In HTTP mode, the processing applied to requests and responses flowing over
 a connection depends in the combination of the frontend's HTTP options and
-the backend's. HAProxy supports 4 connection modes :
+the backend's. HAProxy supports 3 connection modes :
 
   - KAL : keep alive ("option http-keep-alive") which is the default mode : all
     requests and responses are processed, and connections remain open but idle
