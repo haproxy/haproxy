@@ -26,7 +26,7 @@ void dgram_fd_handler(int fd)
 
 	if (fd_recv_ready(fd))
 		dgram->data->recv(dgram);
-	else if (fd_send_ready(fd))
+	if (fd_send_ready(fd))
 		dgram->data->send(dgram);
 
 	return;
