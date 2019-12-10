@@ -1537,18 +1537,25 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		return;
 
 	/* no need to go further if we can't retrieve the nameserver */
-	if ((ns = dgram->owner) == NULL)
+	if ((ns = dgram->owner) == NULL) {
+		_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+		fd_stop_recv(fd);
 		return;
+	}
 
 	resolvers = ns->resolvers;
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* process all pending input messages */
-	while (1) {
+	while (fd_recv_ready(fd)) {
 		/* read message received */
 		memset(buf, '\0', resolvers->accepted_payload_size + 1);
 		if ((buflen = recv(fd, (char*)buf , resolvers->accepted_payload_size + 1, 0)) < 0) {
-			/* FIXME : for now we consider EAGAIN only */
+			/* FIXME : for now we consider EAGAIN only, but at
+			 * least we purge sticky errors that would cause us to
+			 * be called in loops.
+			 */
+			_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
 			fd_cant_recv(fd);
 			break;
 		}
