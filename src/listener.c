@@ -802,7 +802,6 @@ void listener_accept(int fd)
 					_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
 					goto transient_error;
 				}
-				fd_cant_recv(fd);
 				goto end; /* nothing more to accept */
 			case EINVAL:
 				/* might be trying to accept on a shut fd (eg: soft stop) */
@@ -836,7 +835,8 @@ void listener_accept(int fd)
 				goto transient_error;
 			default:
 				/* unexpected result, let's give up and let other tasks run */
-				goto stop;
+				max_accept = 0;
+				goto end;
 			}
 		}
 
@@ -1024,15 +1024,14 @@ void listener_accept(int fd)
 	} /* end of for (max_accept--) */
 
 	/* we've exhausted max_accept, so there is no need to poll again */
- stop:
-	fd_done_recv(fd);
 	goto end;
 
  transient_error:
-	/* pause the listener and try again in 100 ms */
+	/* pause the listener for up to 100 ms */
 	expire = tick_add(now_ms, 100);
 
  wait_expire:
+	/* switch the listener to LI_LIMITED and wait until up to <expire> in the global queue */
 	limit_listener(l, &global_listener_queue);
 	task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
  end:
@@ -1059,8 +1058,24 @@ void listener_accept(int fd)
 			dequeue_all_listeners(&p->listener_queue);
 	}
 
-	if (l->state != LI_READY)
+	/* Now it's getting tricky. The listener was supposed to be in LI_READY
+	 * state but in the mean time we might have changed it to LI_FULL or
+	 * LI_LIMITED, and another thread might also have turned it to
+	 * LI_PAUSED, LI_LISTEN or even LI_INI when stopping a proxy. We must
+	 * be certain to keep the FD enabled when in the READY state but we
+	 * must also stop it for other states that we might have switched to
+	 * while others re-enabled polling.
+	 */
+	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+	if (l->state == LI_READY) {
+		if (max_accept > 0)
+			fd_cant_recv(fd);
+		else
+			fd_done_recv(fd);
+	} else if (l->state > LI_ASSIGNED) {
 		fd_stop_recv(l->fd);
+	}
+	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 }
 
 /* Notify the listener that a connection initiated from it was released. This
