@@ -250,7 +250,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 			goto err_return;
 		}
 
-		strncpy(addr.sun_path, tempname, sizeof(addr.sun_path));
+		strncpy(addr.sun_path, tempname, sizeof(addr.sun_path) - 1);
 		addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 	}
 	else {

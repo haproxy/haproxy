@@ -1140,7 +1140,7 @@ static int get_old_sockets(const char *unixsocket)
 			   unixsocket);
 		goto out;
 	}
-	strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path));
+	strncpy(addr.sun_path, unixsocket, sizeof(addr.sun_path) - 1);
 	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 	addr.sun_family = PF_UNIX;
 	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
