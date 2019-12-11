@@ -155,11 +155,13 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 /* change the thread affinity of a task to <thread_mask> */
 static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 {
-	if (task_in_wq(t))
+	if (unlikely(task_in_wq(t))) {
 		task_unlink_wq(t);
-	t->thread_mask = thread_mask;
-	if (t->expire != TICK_ETERNITY)
+		t->thread_mask = thread_mask;
 		task_queue(t);
+	}
+	else
+		t->thread_mask = thread_mask;
 }
 
 /*
