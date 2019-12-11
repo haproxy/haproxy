@@ -618,7 +618,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				sp = str - 1; /* send both the '%' and the current char */
 				memprintf(err, "unexpected variable name near '%c' at position %d line : '%s'. Maybe you want to write a single '%%', use the syntax '%%%%'",
 				          *str, (int)(str - backfmt), fmt);
-				return 0;
+				goto fail;
 
 			}
 			else
@@ -645,7 +645,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				break;
 			}
 			memprintf(err, "parse argument modifier without variable name near '%%{%s}'", arg);
-			return 0;
+			goto fail;
 
 		case LF_STEXPR:                        // text immediately following '%['
 			if (*str == ']') {             // end of arg
@@ -678,16 +678,16 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			switch (pformat) {
 			case LF_VAR:
 				if (!parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options, err))
-					return 0;
+					goto fail;
 				break;
 			case LF_STEXPR:
 				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err))
-					return 0;
+					goto fail;
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
 				if (!add_to_logformat_list(sp, str, pformat, list_format, err))
-					return 0;
+					goto fail;
 				break;
 			}
 			sp = str; /* new start of text at every state switch and at every separator */
@@ -696,11 +696,14 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR) {
 		memprintf(err, "truncated line after '%s'", var ? var : arg ? arg : "%");
-		return 0;
+		goto fail;
 	}
 	free(backfmt);
 
 	return 1;
+ fail:
+	free(backfmt);
+	return 0;
 }
 
 /*
