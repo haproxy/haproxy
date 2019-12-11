@@ -2616,6 +2616,8 @@ static void run_poll_loop()
 
 	tv_update_date(0,1);
 	while (1) {
+		wake_expired_tasks();
+
 		/* Process a few tasks */
 		process_runnable_tasks();
 
@@ -2623,9 +2625,6 @@ static void run_poll_loop()
 		 first thread */
 		if (tid == 0)
 			signal_process_queue();
-
-		/* Check if we can expire some tasks */
-		next = wake_expired_tasks();
 
 		/* stop when there's nothing left to do */
 		if ((jobs - unstoppable_jobs) == 0)
@@ -2650,6 +2649,9 @@ static void run_poll_loop()
 			} else
 				wake = 0;
 		}
+
+		/* If we have to sleep, measure how long */
+		next = wake ? TICK_ETERNITY : next_timer_expiry();
 
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, next, wake);

@@ -599,9 +599,15 @@ void process_runnable_tasks();
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
- * associated tasks. Returns the date of next event (or eternity).
+ * associated tasks.
  */
-int wake_expired_tasks();
+void wake_expired_tasks();
+
+/* Checks the next timer for the current thread by looking into its own timer
+ * list and the global one. It may return TICK_ETERNITY if no timer is present.
+ * Note that the next timer might very well be slighly in the past.
+ */
+int next_timer_expiry();
 
 /*
  * Delete every tasks before running the master polling loop

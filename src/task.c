@@ -155,14 +155,13 @@ void __task_queue(struct task *task, struct eb_root *wq)
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
- * associated tasks. Returns the date of next event (or eternity).
+ * associated tasks.
  */
-int wake_expired_tasks()
+void wake_expired_tasks()
 {
 	struct task_per_thread * const tt = sched; // thread's tasks
 	struct task *task;
 	struct eb32_node *eb;
-	int ret = TICK_ETERNITY;
 	__decl_hathreads(int key);
 
 	while (1) {
@@ -178,11 +177,8 @@ int wake_expired_tasks()
 				break;
 		}
 
-		if (tick_is_lt(now_ms, eb->key)) {
-			/* timer not expired yet, revisit it later */
-			ret = eb->key;
+		if (tick_is_lt(now_ms, eb->key))
 			break;
-		}
 
 		/* timer looks expired, detach it from the queue */
 		task = eb32_entry(eb, struct task, wq);
@@ -225,11 +221,8 @@ int wake_expired_tasks()
 	key = eb->key;
 	HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 
-	if (tick_is_lt(now_ms, key)) {
-		/* timer not expired yet, revisit it later */
-		ret = tick_first(ret, key);
+	if (tick_is_lt(now_ms, key))
 		goto leave;
-	}
 
 	/* There's really something of interest here, let's visit the queue */
 
@@ -247,11 +240,8 @@ int wake_expired_tasks()
 				break;
 		}
 
-		if (tick_is_lt(now_ms, eb->key)) {
-			/* timer not expired yet, revisit it later */
-			ret = tick_first(ret, eb->key);
+		if (tick_is_lt(now_ms, eb->key))
 			break;
-		}
 
 		/* timer looks expired, detach it from the queue */
 		task = eb32_entry(eb, struct task, wq);
@@ -282,6 +272,46 @@ int wake_expired_tasks()
 	HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 #endif
 leave:
+	return;
+}
+
+/* Checks the next timer for the current thread by looking into its own timer
+ * list and the global one. It may return TICK_ETERNITY if no timer is present.
+ * Note that the next timer might very well be slighly in the past.
+ */
+int next_timer_expiry()
+{
+	struct task_per_thread * const tt = sched; // thread's tasks
+	struct eb32_node *eb;
+	int ret = TICK_ETERNITY;
+	__decl_hathreads(int key);
+
+	/* first check in the thread-local timers */
+	eb = eb32_lookup_ge(&tt->timers, now_ms - TIMER_LOOK_BACK);
+	if (!eb) {
+		/* we might have reached the end of the tree, typically because
+		 * <now_ms> is in the first half and we're first scanning the last
+		 * half. Let's loop back to the beginning of the tree now.
+		 */
+		eb = eb32_first(&tt->timers);
+	}
+
+	if (eb)
+		ret = eb->key;
+
+#ifdef USE_THREAD
+	if (!eb_is_empty(&timers)) {
+		HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &wq_lock);
+		eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
+		if (!eb)
+			eb = eb32_first(&timers);
+		if (eb)
+			key = eb->key;
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
+		if (eb)
+			ret = tick_first(ret, key);
+	}
+#endif
 	return ret;
 }
 
