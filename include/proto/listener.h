@@ -176,7 +176,7 @@ static inline const char *listener_state_str(const struct listener *l)
 	};
 	unsigned int st = l->state;
 
-	if (st > sizeof(states) / sizeof(*states))
+	if (st >= sizeof(states) / sizeof(*states))
 		return "INVALID";
 	return states[st];
 }
