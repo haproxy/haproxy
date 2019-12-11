@@ -30,8 +30,8 @@ _help()
 
     --type <reg tests types> filter the types of the tests to be run, depending on
       the commented REGTESTS_TYPE variable value in each VTC file.
-      The value of REGTESTS_TYPE supported are: default, slow, bug, broken and
-      experimental. When not specified, it is set to 'default' as default value.
+      The value of REGTESTS_TYPE supported are: default, slow, bug, broken, devel
+      and experimental. When not specified, it is set to 'default' as default value.
 
       run-regtest.sh --type slow,default
 
