@@ -847,12 +847,16 @@ static void mworker_loop()
 
 	master = 1;
 
+	signal_unregister(SIGTTIN);
+	signal_unregister(SIGTTOU);
 	signal_unregister(SIGUSR1);
 	signal_unregister(SIGHUP);
 	signal_unregister(SIGQUIT);
 
 	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
 	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
+	signal_register_fct(SIGTTIN, mworker_broadcast_signal, SIGTTIN);
+	signal_register_fct(SIGTTOU, mworker_broadcast_signal, SIGTTOU);
 	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
 	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
 	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);

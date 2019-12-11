@@ -204,6 +204,8 @@ void mworker_block_signals()
 	sigemptyset(&set);
 	sigaddset(&set, SIGUSR1);
 	sigaddset(&set, SIGUSR2);
+	sigaddset(&set, SIGTTIN);
+	sigaddset(&set, SIGTTOU);
 	sigaddset(&set, SIGHUP);
 	sigaddset(&set, SIGCHLD);
 	ha_sigmask(SIG_SETMASK, &set, NULL);
@@ -215,6 +217,12 @@ void mworker_unblock_signals()
 }
 
 /* ----- mworker signal handlers ----- */
+
+/* broadcast the configured signal to the workers */
+void mworker_broadcast_signal(struct sig_handler *sh)
+{
+	mworker_kill(sh->arg);
+}
 
 /*
  * When called, this function reexec haproxy with -sf followed by current

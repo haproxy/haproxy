@@ -22,6 +22,7 @@ void mworker_env_to_proc_list();
 void mworker_block_signals();
 void mworker_unblock_signals();
 
+void mworker_broadcast_signal(struct sig_handler *sh);
 void mworker_catch_sighup(struct sig_handler *sh);
 void mworker_catch_sigterm(struct sig_handler *sh);
 void mworker_catch_sigchld(struct sig_handler *sh);
