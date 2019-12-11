@@ -1050,7 +1050,10 @@ void listener_accept(int fd)
 		_HA_ATOMIC_SUB(&actconn, 1);
 
 	if ((l->state == LI_FULL && (!l->maxconn || l->nbconn < l->maxconn)) ||
-	    (l->state == LI_LIMITED && ((!p || p->feconn < p->maxconn) && (actconn < global.maxconn)))) {
+	    (l->state == LI_LIMITED &&
+	     ((!p || p->feconn < p->maxconn) && (actconn < global.maxconn) &&
+	      (!tick_isset(global_listener_queue_task->expire) ||
+	       tick_is_expired(global_listener_queue_task->expire, now_ms))))) {
 		/* at least one thread has to this when quitting */
 		resume_listener(l);
 
