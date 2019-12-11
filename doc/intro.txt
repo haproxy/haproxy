@@ -85,9 +85,6 @@ to the mailing list whose responses are present in these documents.
   - configuration.txt : the reference manual details all configuration keywords
     and their options. It is used when a configuration change is needed.
 
-  - architecture.txt : the architecture manual explains how to best architect a
-    load-balanced infrastructure and how to interact with third party products.
-
   - coding-style.txt : this is for developers who want to propose some code to
     the project. It explains the style to adopt for the code. It is not very
     strict and not all the code base completely respects it, but contributions
