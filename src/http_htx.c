@@ -17,7 +17,10 @@
 #include <common/http.h>
 #include <common/htx.h>
 
+#include <proto/arg.h>
 #include <proto/http_htx.h>
+#include <proto/http_fetch.h>
+#include <proto/sample.h>
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
 
@@ -828,3 +831,513 @@ end:
 }
 
 REGISTER_CONFIG_POSTPARSER("http_htx", http_htx_init);
+
+/************************************************************************/
+/*                             HTX sample fetches                       */
+/************************************************************************/
+
+/* Returns 1 if a stream is an HTX stream. Otherwise, it returns 0. */
+static int
+smp_fetch_is_htx(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = !!IS_HTX_STRM(smp->strm);
+	smp->data.type   = SMP_T_BOOL;
+	return 1;
+}
+
+/* Returns the number of blocks in an HTX message. The channel is chosen
+ * depending on the sample direction. */
+static int
+smp_fetch_htx_nbblks(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx_nbblks(htx);
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the size of an HTX message. The channel is chosen depending on the
+ * sample direction. */
+static int
+smp_fetch_htx_size(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx->size;
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the data size of an HTX message. The channel is chosen depending on the
+ * sample direction. */
+static int
+smp_fetch_htx_data(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx->data;
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the used space (data+meta) of an HTX message. The channel is chosen
+ * depending on the sample direction. */
+static int
+smp_fetch_htx_used(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx_used_space(htx);
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the free space (size-used) of an HTX message. The channel is chosen
+ * depending on the sample direction. */
+static int
+smp_fetch_htx_free(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx_free_space(htx);
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the free space for data (free-sizeof(blk)) of an HTX message. The
+ * channel is chosen depending on the sample direction. */
+static int
+smp_fetch_htx_free_data(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = htx_free_data_space(htx);
+	smp->data.type   = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns 1 if the HTX message contains an EOM block. Otherwise it returns
+ * 0. Concretely, it only checks the tail. The channel is chosen depending on
+ * the sample direction. */
+static int
+smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+
+	if (!smp->strm)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	smp->data.u.sint = (htx_get_tail_type(htx) == HTX_BLK_EOM);
+	smp->data.type   = SMP_T_BOOL;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the type of a specific HTX block, if found in the message. Otherwise
+ * HTX_BLK_UNUSED is returned. Any positive integer (>= 0) is supported or
+ * "head", "tail" or "first". The channel is chosen depending on the sample
+ * direction. */
+static int
+smp_fetch_htx_blk_type(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+	enum htx_blk_type type;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		type = htx_get_head_type(htx);
+	else if (pos == -2)
+		type = htx_get_tail_type(htx);
+	else if (pos == -3)
+		type = htx_get_first_type(htx);
+	else
+		type = ((pos >= htx->head && pos <= htx->tail)
+			? htx_get_blk_type(htx_get_blk(htx, pos))
+			: HTX_BLK_UNUSED);
+
+	chunk_initstr(&smp->data.u.str, htx_blk_type_str(type));
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST | SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the size of a specific HTX block, if found in the message. Otherwise
+ * 0 is returned. Any positive integer (>= 0) is supported or "head", "tail" or
+ * "first". The channel is chosen depending on the sample direction. */
+static int
+smp_fetch_htx_blk_size(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		blk = htx_get_head_blk(htx);
+	else if (pos == -2)
+		blk = htx_get_tail_blk(htx);
+	else if (pos == -3)
+		blk = htx_get_first_blk(htx);
+	else
+		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
+
+	smp->data.u.sint = (blk ? htx_get_blksz(blk) : 0);
+	smp->data.type = SMP_T_SINT;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the start-line if the selected HTX block exists and is a
+ * start-line. Otherwise 0 an empty string. Any positive integer (>= 0) is
+ * supported or "head", "tail" or "first". The channel is chosen depending on
+ * the sample direction. */
+static int
+smp_fetch_htx_blk_stline(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct buffer *temp;
+	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
+	struct htx_sl *sl;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		blk = htx_get_head_blk(htx);
+	else if (pos == -2)
+		blk = htx_get_tail_blk(htx);
+	else if (pos == -3)
+		blk = htx_get_first_blk(htx);
+	else
+		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
+
+	if (!blk || (htx_get_blk_type(blk) != HTX_BLK_REQ_SL && htx_get_blk_type(blk) != HTX_BLK_RES_SL)) {
+		smp->data.u.str.size = 0;
+		smp->data.u.str.area = "";
+		smp->data.u.str.data = 0;
+	}
+	else {
+		sl = htx_get_blk_ptr(htx, blk);
+
+		temp = get_trash_chunk();
+		chunk_istcat(temp, htx_sl_p1(sl));
+		temp->area[temp->data++] = ' ';
+		chunk_istcat(temp, htx_sl_p2(sl));
+		temp->area[temp->data++] = ' ';
+		chunk_istcat(temp, htx_sl_p3(sl));
+
+		smp->data.u.str = *temp;
+	}
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the header name if the selected HTX block exists and is a header or a
+ * trailer. Otherwise 0 an empty string. Any positive integer (>= 0) is
+ * supported or "head", "tail" or "first". The channel is chosen depending on
+ * the sample direction. */
+static int
+smp_fetch_htx_blk_hdrname(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		blk = htx_get_head_blk(htx);
+	else if (pos == -2)
+		blk = htx_get_tail_blk(htx);
+	else if (pos == -3)
+		blk = htx_get_first_blk(htx);
+	else
+		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
+
+	if (!blk || (htx_get_blk_type(blk) != HTX_BLK_HDR && htx_get_blk_type(blk) != HTX_BLK_TLR)) {
+		smp->data.u.str.size = 0;
+		smp->data.u.str.area = "";
+		smp->data.u.str.data = 0;
+	}
+	else {
+		struct ist name = htx_get_blk_name(htx, blk);
+
+		chunk_initlen(&smp->data.u.str, name.ptr, name.len, name.len);
+	}
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST | SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the header value if the selected HTX block exists and is a header or
+ * a trailer. Otherwise 0 an empty string. Any positive integer (>= 0) is
+ * supported or "head", "tail" or "first". The channel is chosen depending on
+ * the sample direction. */
+static int
+smp_fetch_htx_blk_hdrval(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		blk = htx_get_head_blk(htx);
+	else if (pos == -2)
+		blk = htx_get_tail_blk(htx);
+	else if (pos == -3)
+		blk = htx_get_first_blk(htx);
+	else
+		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
+
+	if (!blk || (htx_get_blk_type(blk) != HTX_BLK_HDR && htx_get_blk_type(blk) != HTX_BLK_TLR)) {
+		smp->data.u.str.size = 0;
+		smp->data.u.str.area = "";
+		smp->data.u.str.data = 0;
+	}
+	else {
+		struct ist val = htx_get_blk_value(htx, blk);
+
+		chunk_initlen(&smp->data.u.str, val.ptr, val.len, val.len);
+	}
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST | SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* Returns the value if the selected HTX block exists and is a data
+ * block. Otherwise 0 an empty string. Any positive integer (>= 0) is supported
+ * or "head", "tail" or "first". The channel is chosen depending on the sample
+ * direction. */
+static int
+smp_fetch_htx_blk_val(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	struct channel *chn;
+	struct htx *htx;
+	struct htx_blk *blk;
+	int32_t pos;
+
+	if (!smp->strm || !arg_p)
+		return 0;
+
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	htx = smp_prefetch_htx(smp, chn, 0);
+	if (!htx)
+		return 0;
+
+	pos = arg_p[0].data.sint;
+	if (pos == -1)
+		blk = htx_get_head_blk(htx);
+	else if (pos == -2)
+		blk = htx_get_tail_blk(htx);
+	else if (pos == -3)
+		blk = htx_get_first_blk(htx);
+	else
+		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
+
+	if (!blk || htx_get_blk_type(blk) != HTX_BLK_DATA) {
+		smp->data.u.str.size = 0;
+		smp->data.u.str.area = "";
+		smp->data.u.str.data = 0;
+	}
+	else {
+		struct ist val = htx_get_blk_value(htx, blk);
+
+		chunk_initlen(&smp->data.u.str, val.ptr, val.len, val.len);
+	}
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST | SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
+/* This function is used to validate the arguments passed to any "htx_blk" fetch
+ * keywords. An argument is expected by these keywords. It must be a positive
+ * integer or on of the following strings: "head", "tail" or "first". It returns
+ * 0 on error, and a non-zero value if OK.
+ */
+int val_blk_arg(struct arg *arg, char **err_msg)
+{
+	if (arg[0].type != ARGT_STR || !arg[0].data.str.data) {
+		memprintf(err_msg, "a block position is expected (> 0) or a special block name (head, tail, first)");
+		return 0;
+	}
+	if (arg[0].data.str.data == 4 && !strncmp(arg[0].data.str.area, "head", 4)) {
+		free(arg[0].data.str.area);
+		arg[0].type = ARGT_SINT;
+		arg[0].data.sint = -1;
+	}
+	else if (arg[0].data.str.data == 4 && !strncmp(arg[0].data.str.area, "tail", 4)) {
+		free(arg[0].data.str.area);
+		arg[0].type = ARGT_SINT;
+		arg[0].data.sint = -2;
+	}
+	else if (arg[0].data.str.data == 5 && !strncmp(arg[0].data.str.area, "first", 5)) {
+		free(arg[0].data.str.area);
+		arg[0].type = ARGT_SINT;
+		arg[0].data.sint = -3;
+	}
+	else {
+		int pos;
+
+		for (pos = 0; pos < arg[0].data.str.data; pos++) {
+			if (!isdigit(arg[0].data.str.area[pos])) {
+				memprintf(err_msg, "invalid block position");
+				return 0;
+			}
+		}
+
+		pos = strl2uic(arg[0].data.str.area, arg[0].data.str.data);
+		if (pos < 0) {
+			memprintf(err_msg, "block position must not be negative");
+			return 0;
+		}
+		free(arg[0].data.str.area);
+		arg[0].type = ARGT_SINT;
+		arg[0].data.sint = pos;
+	}
+
+	return 1;
+}
+
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Note: htx sample fetches should only used for developpement purpose.
+ */
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
+
+	{ "htx.nbblks",          smp_fetch_htx_nbblks,       0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.size",            smp_fetch_htx_size,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.data",            smp_fetch_htx_data,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.used",            smp_fetch_htx_used,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.free",            smp_fetch_htx_free,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.free_data",       smp_fetch_htx_free_data,    0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx.has_eom",         smp_fetch_htx_has_eom,      0,            NULL,           SMP_T_BOOL,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+
+	{ "htx_blk.type",        smp_fetch_htx_blk_type,     ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx_blk.size",        smp_fetch_htx_blk_size,     ARG1(1,STR),  val_blk_arg,    SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx_blk.start_line",  smp_fetch_htx_blk_stline,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx_blk.hdrname",     smp_fetch_htx_blk_hdrname,  ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx_blk.hdrval",      smp_fetch_htx_blk_hdrval,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "htx_blk.val",         smp_fetch_htx_blk_val,      ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
