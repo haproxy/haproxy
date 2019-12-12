@@ -3066,6 +3066,11 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 						_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
 					if (sess->listener->counters)
 						_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+
+					if (!(txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					}
 				}
 				free_trash_chunk(replace);
 				break;
@@ -3426,6 +3431,11 @@ resume_execution:
 						_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 					if (objt_server(s->target))
 						_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+					if (!(txn->rsp.flags & HTTP_MSGF_SOFT_RW)) {
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					}
 				}
 				free_trash_chunk(replace);
 				break;
@@ -5535,13 +5545,13 @@ struct http_txn *http_alloc_txn(struct stream *s)
 
 void http_txn_reset_req(struct http_txn *txn)
 {
-	txn->req.flags = 0;
+	txn->req.flags = HTTP_MSGF_SOFT_RW;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 }
 
 void http_txn_reset_res(struct http_txn *txn)
 {
-	txn->rsp.flags = 0;
+	txn->rsp.flags = HTTP_MSGF_SOFT_RW;
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 }
 
