@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
@@ -31,6 +32,7 @@
 
 #include <proto/acl.h>
 #include <proto/arg.h>
+#include <proto/action.h>
 #include <proto/http_rules.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
@@ -691,21 +693,509 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 	return ACT_RET_PRS_OK;
 }
 
+/* Parse a "allow" action for a request or a response rule. It takes no argument. It
+ * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_allow(const char **args, int *orig_arg, struct proxy *px,
+					   struct act_rule *rule, char **err)
+{
+	rule->action = ACT_ACTION_ALLOW;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse "deny" or "tarpit" actions for a request rule. It may take 2 optional arguments
+ * to define the status code. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+	int code, hc, cur_arg;
+
+	cur_arg = *orig_arg;
+	if (!strcmp(args[cur_arg-1], "tarpit")) {
+		rule->action = ACT_HTTP_REQ_TARPIT;
+		rule->deny_status = HTTP_ERR_500;
+	}
+	else {
+		rule->action = ACT_ACTION_DENY;
+		rule->deny_status = HTTP_ERR_403;
+	}
+
+	if (strcmp(args[cur_arg], "deny_status") == 0) {
+		cur_arg++;
+		if (!*args[cur_arg]) {
+			memprintf(err, "missing status code.\n");
+			return ACT_RET_PRS_ERR;
+		}
+
+		code = atol(args[cur_arg]);
+		cur_arg++;
+		for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
+			if (http_err_codes[hc] == code) {
+				rule->deny_status = hc;
+				break;
+			}
+		}
+		if (hc >= HTTP_ERR_SIZE)
+			memprintf(err, "status code %d not handled, using default code %d",
+				  code, http_err_codes[rule->deny_status]);
+	}
+
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "deny" action for a response rule. It takes no argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_res_deny(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+	rule->action = ACT_ACTION_DENY;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "auth" action. It may take 2 optional arguments to define a "realm"
+ * parameter. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, struct proxy *px,
+					  struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+	rule->action = ACT_HTTP_REQ_AUTH;
+
+	cur_arg = *orig_arg;
+	if (!strcmp(args[cur_arg], "realm")) {
+		cur_arg++;
+		if (!*args[cur_arg]) {
+			memprintf(err, "missing realm value.\n");
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.auth.realm = strdup(args[cur_arg]);
+		cur_arg++;
+	}
+
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "set-nice" action. It takes the nice value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_set_nice(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+	rule->action = ACT_HTTP_SET_NICE;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 argument (integer value)");
+		return ACT_RET_PRS_ERR;
+	}
+	rule->arg.nice = atoi(args[cur_arg]);
+	if (rule->arg.nice < -1024)
+		rule->arg.nice = -1024;
+	else if (rule->arg.nice > 1024)
+		rule->arg.nice = 1024;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "set-tos" action. It takes the TOS value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_set_tos(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+#ifdef IP_TOS
+	char *endp;
+	int cur_arg;
+
+	rule->action = ACT_HTTP_SET_TOS;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 argument (integer/hex value)");
+		return ACT_RET_PRS_ERR;
+	}
+	rule->arg.tos = strtol(args[cur_arg], &endp, 0);
+	if (endp && *endp != '\0') {
+		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+		return ACT_RET_PRS_ERR;
+	}
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+#else
+	memprintf(err, "not supported on this platform (IP_TOS undefined)");
+	return ACT_RET_PRS_ERR;
+#endif
+}
+
+/* Parse a "set-mark" action. It takes the MARK value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_set_mark(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+#ifdef SO_MARK
+	char *endp;
+	int cur_arg;
+
+	rule->action = ACT_HTTP_SET_MARK;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 argument (integer/hex value)");
+		return ACT_RET_PRS_ERR;
+	}
+	rule->arg.mark = strtoul(args[cur_arg], &endp, 0);
+	if (endp && *endp != '\0') {
+		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+		return ACT_RET_PRS_ERR;
+	}
+
+	*orig_arg = cur_arg + 1;
+	global.last_checks |= LSTCHK_NETADM;
+	return ACT_RET_PRS_OK;
+#else
+	memprintf(err, "not supported on this platform (SO_MARK undefined)");
+	return ACT_RET_PRS_ERR;
+#endif
+}
+
+/* Parse a "set-log-level" action. It takes the level value as argument. It
+ * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_arg, struct proxy *px,
+						   struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+	rule->action = ACT_HTTP_SET_LOGL;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+	  bad_log_level:
+		memprintf(err, "expects exactly 1 argument (log level name or 'silent')");
+		return ACT_RET_PRS_ERR;
+	}
+	if (strcmp(args[cur_arg], "silent") == 0)
+		rule->arg.loglevel = -1;
+	else if ((rule->arg.loglevel = get_log_level(args[cur_arg]) + 1) == 0)
+		goto bad_log_level;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "set-header", "add-header" or "early-hint" actions. It takes an
+ * header name and a log-format string as arguments. It returns ACT_RET_PRS_OK
+ * on success, ACT_RET_PRS_ERR on error.
+ *
+ * Note: same function is used for the request and the response. However
+ * "early-hint" rules are only supported for request rules.
+ */
+static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg, struct proxy *px,
+						   struct act_rule *rule, char **err)
+{
+	char **hdr_name;
+	int *hdr_name_len;
+	struct list *fmt;
+	int cap, cur_arg;
+
+	rule->action = (*args[*orig_arg-1] == 'a' ? ACT_HTTP_ADD_HDR :
+			*args[*orig_arg-1] == 's' ? ACT_HTTP_SET_HDR : ACT_HTTP_EARLY_HINT);
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg] || !*args[cur_arg+1]) {
+		memprintf(err, "expects exactly 2 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	hdr_name     = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.name     : &rule->arg.hdr_add.name);
+	hdr_name_len = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.name_len : &rule->arg.hdr_add.name_len);
+	fmt          = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.fmt      : &rule->arg.hdr_add.fmt);
+
+	*hdr_name = strdup(args[cur_arg]);
+	*hdr_name_len = strlen(*hdr_name);
+	LIST_INIT(fmt);
+
+	if (rule->from == ACT_F_HTTP_REQ) {
+		px->conf.args.ctx = ARGC_HRQ;
+		cap = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+	}
+	else{
+		px->conf.args.ctx =  ARGC_HRS;
+		cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+	}
+
+	cur_arg++;
+	if (!parse_logformat_string(args[cur_arg], px, fmt, LOG_OPT_HTTP, cap, err))
+		return ACT_RET_PRS_ERR;
+
+	free(px->conf.lfs_file);
+	px->conf.lfs_file = strdup(px->conf.args.file);
+	px->conf.lfs_line = px->conf.args.line;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "replace-header" or "replace-value" actions. It takes an header name,
+ * a regex and replacement string as arguments. It returns ACT_RET_PRS_OK on
+ * success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_replace_header(const char **args, int *orig_arg, struct proxy *px,
+						    struct act_rule *rule, char **err)
+{
+	int cap, cur_arg;
+
+	rule->action = args[*orig_arg-1][8] == 'h' ? ACT_HTTP_REPLACE_HDR : ACT_HTTP_REPLACE_VAL;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2]) {
+		memprintf(err, "expects exactly 3 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->arg.hdr_add.name = strdup(args[cur_arg]);
+	rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+	LIST_INIT(&rule->arg.hdr_add.fmt);
+
+	cur_arg++;
+	if (!(rule->arg.hdr_add.re = regex_comp(args[cur_arg], 1, 1, err)))
+		return ACT_RET_PRS_ERR;
+
+	if (rule->from == ACT_F_HTTP_REQ) {
+		px->conf.args.ctx = ARGC_HRQ;
+		cap = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+	}
+	else{
+		px->conf.args.ctx =  ARGC_HRS;
+		cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+	}
+
+	cur_arg++;
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP, cap, err))
+		return ACT_RET_PRS_ERR;
+
+	free(px->conf.lfs_file);
+	px->conf.lfs_file = strdup(px->conf.args.file);
+	px->conf.lfs_line = px->conf.args.line;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "del-header" action. It takes an header name as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg, struct proxy *px,
+						struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+	rule->action = ACT_HTTP_DEL_HDR;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->arg.hdr_add.name = strdup(args[cur_arg]);
+	rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+
+	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "redirect" action. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+	struct redirect_rule *redir;
+	int dir, cur_arg;
+
+	rule->action = ACT_HTTP_REDIR;
+
+	cur_arg = *orig_arg;
+
+	dir = (rule->from == ACT_F_HTTP_REQ ? 0 : 1);
+	if ((redir = http_parse_redirect_rule(px->conf.args.file, px->conf.args.line, px, &args[cur_arg], err, 1, dir)) == NULL)
+		return ACT_RET_PRS_ERR;
+
+	rule->arg.redir = redir;
+	rule->cond = redir->cond;
+	redir->cond = NULL;
+
+	/* skip all arguments */
+	while (*args[cur_arg])
+		cur_arg++;
+
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+}
+
+/* Parse a "add-acl", "del-acl", "set-map" or "del-map" actions. It takes one or
+ * two log-format string as argument depending on the action. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, struct proxy *px,
+					     struct act_rule *rule, char **err)
+{
+	int cap, cur_arg;
+
+	rule->action = (args[*orig_arg-1][0] == 'a' ? ACT_HTTP_ADD_ACL :
+			(args[*orig_arg-1][0] == 's' ? ACT_HTTP_SET_MAP :
+			 (args[*orig_arg-1][4] == 'a' ? ACT_HTTP_DEL_ACL : ACT_HTTP_DEL_MAP)));
+
+	cur_arg = *orig_arg;
+	if (rule->action == ACT_HTTP_SET_MAP && (!*args[cur_arg] || !*args[cur_arg+1])) {
+		memprintf(err, "expects exactly 2 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+	else if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	/*
+	 * '+ 8' for 'set-map(' (same for del-map)
+	 * '- 9' for 'set-map(' + trailing ')'  (same for del-map)
+	 */
+	rule->arg.map.ref = my_strndup(args[cur_arg-1] + 8, strlen(args[cur_arg-1]) - 9);
+
+	if (rule->from == ACT_F_HTTP_REQ) {
+		px->conf.args.ctx = ARGC_HRQ;
+		cap = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+	}
+	else{
+		px->conf.args.ctx =  ARGC_HRS;
+		cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+	}
+
+	/* key pattern */
+	LIST_INIT(&rule->arg.map.key);
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.key, LOG_OPT_HTTP, cap, err))
+		return ACT_RET_PRS_ERR;
+
+	if (rule->action == ACT_HTTP_SET_MAP) {
+		/* value pattern for set-map only */
+		cur_arg++;
+		LIST_INIT(&rule->arg.map.value);
+		if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.value, LOG_OPT_HTTP, cap, err))
+			return ACT_RET_PRS_ERR;
+	}
+
+	free(px->conf.lfs_file);
+	px->conf.lfs_file = strdup(px->conf.args.file);
+	px->conf.lfs_line = px->conf.args.line;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+
+/* Parse a "track-sc*" actions. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, struct proxy *px,
+						 struct act_rule *rule, char **err)
+{
+	struct sample_expr *expr;
+	unsigned int where;
+	unsigned int tsc_num;
+	const char *tsc_num_str;
+	int cur_arg;
+
+	tsc_num_str = &args[*orig_arg-1][8];
+	if (cfg_parse_track_sc_num(&tsc_num, tsc_num_str, tsc_num_str + strlen(tsc_num_str), err) == -1)
+		return ACT_RET_PRS_ERR;
+
+	cur_arg = *orig_arg;
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line,
+				 err, &px->conf.args);
+	if (!expr)
+		return ACT_RET_PRS_ERR;
+
+	where = 0;
+	if (px->cap & PR_CAP_FE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
+	if (px->cap & PR_CAP_BE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
+
+	if (!(expr->fetch->val & where)) {
+		memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (strcmp(args[cur_arg], "table") == 0) {
+		cur_arg++;
+		if (!*args[cur_arg]) {
+			memprintf(err, "missing table name");
+			return ACT_RET_PRS_ERR;
+		}
+
+		/* we copy the table name for now, it will be resolved later */
+		rule->arg.trk_ctr.table.n = strdup(args[cur_arg]);
+		cur_arg++;
+	}
+
+	rule->arg.trk_ctr.expr = expr;
+	rule->action = ACT_ACTION_TRK_SC0 + tsc_num;
+	rule->check_ptr = check_trk_action;
+
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+}
+
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
 
 static struct action_kw_list http_req_actions = {
 	.kw = {
-		{ "capture",    parse_http_req_capture },
-		{ "reject",     parse_http_action_reject },
-		{ "disable-l7-retry", parse_http_req_disable_l7_retry },
-		{ "replace-path", parse_replace_uri },
-		{ "replace-uri", parse_replace_uri },
-		{ "set-method", parse_set_req_line },
-		{ "set-path",   parse_set_req_line },
-		{ "set-query",  parse_set_req_line },
-		{ "set-uri",    parse_set_req_line },
+		{ "add-acl",          parse_http_set_map,              1 },
+		{ "add-header",       parse_http_set_header,           0 },
+		{ "allow",            parse_http_allow,                0 },
+		{ "auth",             parse_http_auth,                 0 },
+		{ "capture",          parse_http_req_capture,          0 },
+		{ "del-acl",          parse_http_set_map,              1 },
+		{ "del-header",       parse_http_del_header,           0 },
+		{ "del-map",          parse_http_set_map,              1 },
+		{ "deny",             parse_http_req_deny,             0 },
+		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
+		{ "early-hint",       parse_http_set_header,           0 },
+		{ "redirect",         parse_http_redirect,             0 },
+		{ "reject",           parse_http_action_reject,        0 },
+		{ "replace-header",   parse_http_replace_header,       0 },
+		{ "replace-path",     parse_replace_uri,               0 },
+		{ "replace-uri",      parse_replace_uri,               0 },
+		{ "replace-value",    parse_http_replace_header,       0 },
+		{ "set-header",       parse_http_set_header,           0 },
+		{ "set-log-level",    parse_http_set_log_level,        0 },
+		{ "set-map",          parse_http_set_map,              1 },
+		{ "set-method",       parse_set_req_line,              0 },
+		{ "set-mark",         parse_http_set_mark,             0 },
+		{ "set-nice",         parse_http_set_nice,             0 },
+		{ "set-path",         parse_set_req_line,              0 },
+		{ "set-query",        parse_set_req_line,              0 },
+		{ "set-tos",          parse_http_set_tos,              0 },
+		{ "set-uri",          parse_set_req_line,              0 },
+		{ "tarpit",           parse_http_req_deny,             0 },
+		{ "track-sc",         parse_http_track_sc,             1 },
 		{ NULL, NULL }
 	}
 };
@@ -714,8 +1204,25 @@ INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 static struct action_kw_list http_res_actions = {
 	.kw = {
-		{ "capture",    parse_http_res_capture },
-		{ "set-status", parse_http_set_status },
+		{ "add-acl",         parse_http_set_map,        1 },
+		{ "add-header",      parse_http_set_header,     0 },
+		{ "allow",           parse_http_allow,          0 },
+		{ "capture",         parse_http_res_capture,    0 },
+		{ "del-acl",         parse_http_set_map,        1 },
+		{ "del-header",      parse_http_del_header,     0 },
+		{ "del-map",         parse_http_set_map,        1 },
+		{ "deny",            parse_http_res_deny,       0 },
+		{ "redirect",        parse_http_redirect,       0 },
+		{ "replace-header",  parse_http_replace_header, 0 },
+		{ "replace-value",   parse_http_replace_header, 0 },
+		{ "set-header",      parse_http_set_header,     0 },
+		{ "set-log-level",   parse_http_set_log_level,  0 },
+		{ "set-map",         parse_http_set_map,        1 },
+		{ "set-mark",        parse_http_set_mark,       0 },
+		{ "set-nice",        parse_http_set_nice,       0 },
+		{ "set-status",      parse_http_set_status,     0 },
+		{ "set-tos",         parse_http_set_tos,        0 },
+		{ "track-sc",        parse_http_track_sc,       1 },
 		{ NULL, NULL }
 	}
 };
