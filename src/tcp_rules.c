@@ -158,6 +158,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+			  deny:
 				si_must_kill_conn(chn_prod(req));
 				channel_abort(req);
 				channel_abort(&s->res);
@@ -235,6 +236,7 @@ resume_execution:
 
 				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
 				case ACT_RET_ERR:
+					goto deny;
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
@@ -336,6 +338,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
+			  deny:
 				si_must_kill_conn(chn_prod(rep));
 				channel_abort(rep);
 				channel_abort(&s->req);
@@ -370,6 +373,7 @@ resume_execution:
 
 				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
 				case ACT_RET_ERR:
+					goto deny;
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
