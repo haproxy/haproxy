@@ -51,7 +51,7 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
                                                 struct session *sess, struct stream *s, int flags)
 {
 	struct buffer *replace;
-	enum act_return ret = ACT_RET_ERR;
+	enum act_return ret = ACT_RET_CONT;
 
 	replace = alloc_trash_chunk();
 	if (!replace)
@@ -66,8 +66,6 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 
 	http_req_replace_stline(rule->arg.http.action, replace->area,
 				replace->data, px, s);
-
-	ret = ACT_RET_CONT;
 
 leave:
 	free_trash_chunk(replace);
@@ -143,7 +141,7 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 static enum act_return http_action_replace_uri(struct act_rule *rule, struct proxy *px,
                                                struct session *sess, struct stream *s, int flags)
 {
-	enum act_return ret = ACT_RET_ERR;
+	enum act_return ret = ACT_RET_CONT;
 	struct buffer *replace, *output;
 	struct ist uri;
 	int len;
@@ -170,8 +168,6 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto leave;
 
 	http_req_replace_stline((long)rule->arg.act.p[0], output->area, len, px, s);
-
-	ret = ACT_RET_CONT;
 
 leave:
 	free_trash_chunk(output);

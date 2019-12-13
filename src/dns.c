@@ -2247,7 +2247,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 
 	fqdn = smp->data.u.str.area;
 	if (action_prepare_for_resolution(s, fqdn) == -1)
-		return ACT_RET_ERR;
+		return ACT_RET_CONT; /* on error, ignore the action */
 
 	s->dns_ctx.parent = rule;
 	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);

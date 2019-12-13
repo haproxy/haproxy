@@ -4493,9 +4493,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 /* Send message of a SPOE group. This is the action_ptr callback of a rule
  * associated to a "send-spoe-group" action.
  *
- * It returns ACT_RET_CONT is processing is finished without error, it returns
- * ACT_RET_YIELD if the action is in progress. Otherwise it returns
- * ACT_RET_ERR. */
+ * It returns ACT_RET_CONT if processing is finished (with error or not), it returns
+ * ACT_RET_YIELD if the action is in progress. */
 static enum act_return
 spoe_send_group(struct act_rule *rule, struct proxy *px,
 		struct session *sess, struct stream *s, int flags)
@@ -4515,7 +4514,7 @@ spoe_send_group(struct act_rule *rule, struct proxy *px,
 		}
 	}
 	if (agent == NULL || group == NULL || ctx == NULL)
-		return ACT_RET_ERR;
+		return ACT_RET_CONT;
 	if (ctx->state == SPOE_CTX_ST_NONE)
 		return ACT_RET_CONT;
 
@@ -4552,7 +4551,7 @@ spoe_send_group(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_YIELD;
 	}
 	else
-		return ACT_RET_ERR;
+		return ACT_RET_CONT;
 }
 
 /* Check an "send-spoe-group" action. Here, we'll try to find the real SPOE

@@ -6225,7 +6225,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_OK:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		if (s->hlua->flags & HLUA_STOP)
 			return ACT_RET_DONE;
@@ -6257,7 +6257,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_ERRMSG:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s': %s.\n",
@@ -6268,7 +6268,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_ETMOUT:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn.name);
 		return 0;
@@ -6276,7 +6276,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_NOMEM:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn.name);
 		return 0;
@@ -6284,7 +6284,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_YIELD:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
 		         rule->arg.hlua_rule->fcn.name);
@@ -6293,7 +6293,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_ERR:
 		if (!consistency_check(s, dir, &s->hlua->cons)) {
 			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_ERR;
+			return ACT_RET_DONE;
 		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s' return an unknown error.\n",
