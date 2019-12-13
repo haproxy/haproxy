@@ -3100,6 +3100,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
 					case ACT_RET_ERR:
+						rule_ret = HTTP_RULE_RES_BADREQ;
+						goto end;
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
@@ -3493,6 +3495,8 @@ resume_execution:
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
 					case ACT_RET_ERR:
+						rule_ret = HTTP_RULE_RES_BADREQ;
+						goto end;
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
