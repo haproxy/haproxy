@@ -3176,20 +3176,29 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					act_flags |= ACT_FLAG_FINAL;
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
-					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
 						rule_ret = HTTP_RULE_RES_STOP;
 						goto end;
-					case ACT_RET_DONE:
-						rule_ret = HTTP_RULE_RES_DONE;
-						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
 						rule_ret = HTTP_RULE_RES_YIELD;
+						goto end;
+					case ACT_RET_ERR:
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					case ACT_RET_DONE:
+						rule_ret = HTTP_RULE_RES_DONE;
+						goto end;
+					case ACT_RET_DENY:
+						rule_ret = HTTP_RULE_RES_DENY;
+						goto end;
+					case ACT_RET_ABRT:
+						rule_ret = HTTP_RULE_RES_ABRT;
+						goto end;
+					case ACT_RET_INV:
+						rule_ret = HTTP_RULE_RES_BADREQ;
 						goto end;
 				}
 				break;
@@ -3580,20 +3589,29 @@ resume_execution:
 					act_flags |= ACT_FLAG_FINAL;
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
-					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
 						rule_ret = HTTP_RULE_RES_STOP;
 						goto end;
-					case ACT_RET_DONE:
-						rule_ret = HTTP_RULE_RES_DONE;
-						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
 						rule_ret = HTTP_RULE_RES_YIELD;
+						goto end;
+					case ACT_RET_ERR:
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					case ACT_RET_DONE:
+						rule_ret = HTTP_RULE_RES_DONE;
+						goto end;
+					case ACT_RET_DENY:
+						rule_ret = HTTP_RULE_RES_DENY;
+						goto end;
+					case ACT_RET_ABRT:
+						rule_ret = HTTP_RULE_RES_ABRT;
+						goto end;
+					case ACT_RET_INV:
+						rule_ret = HTTP_RULE_RES_BADREQ;
 						goto end;
 				}
 				break;
