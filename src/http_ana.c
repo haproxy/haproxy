@@ -2729,24 +2729,41 @@ static int http_transform_header(struct stream* s, struct channel *chn, struct h
 				 const struct ist name, struct list *fmt, struct my_regex *re, int action)
 {
 	struct buffer *replace;
-	int ret = -1;
+	int ret = 0;
 
 	replace = alloc_trash_chunk();
-	if (!replace) {
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_RESOURCE;
-		goto leave;
-	}
+	if (!replace)
+		goto fail_alloc;
 
 	replace->data = build_logline(s, replace->area, replace->size, fmt);
 	if (replace->data >= replace->size - 1)
-		goto leave;
+		goto fail_rewrite;
 
-	ret = http_transform_header_str(s, chn, htx, name, replace->area, re, action);
+	if (http_transform_header_str(s, chn, htx, name, replace->area, re, action) == -1)
+		goto fail_rewrite;
 
   leave:
 	free_trash_chunk(replace);
 	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = -1;
+	goto leave;
+
+  fail_rewrite:
+	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.failed_rewrites, 1);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+	if (s->sess->listener->counters)
+		_HA_ATOMIC_ADD(&s->sess->listener->counters->failed_rewrites, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+		ret = -1;
+	goto leave;
 }
 
 
@@ -2866,9 +2883,10 @@ int http_req_replace_stline(int action, const char *replace, int len,
 }
 
 /* This function replace the HTTP status code and the associated message. The
- * variable <status> contains the new status code. This function never fails.
+ * variable <status> contains the new status code. This function never fails. It
+ * returns 0 in case of success, -1 in case of internal error.
  */
-void http_res_set_status(unsigned int status, const char *reason, struct stream *s)
+int http_res_set_status(unsigned int status, const char *reason, struct stream *s)
 {
 	struct htx *htx = htxbuf(&s->res.buf);
 	char *res;
@@ -2881,8 +2899,11 @@ void http_res_set_status(unsigned int status, const char *reason, struct stream 
 	if (reason == NULL)
 		reason = http_get_reason(status);
 
-	if (http_replace_res_status(htx, ist2(trash.area, trash.data)))
-		http_replace_res_reason(htx, ist2(reason, strlen(reason)));
+	if (!http_replace_res_status(htx, ist2(trash.area, trash.data)))
+		return -1;
+	if (!http_replace_res_reason(htx, ist2(reason, strlen(reason))))
+		return -1;
+	return 0;
 }
 
 /* Executes the http-request rules <rules> for stream <s>, proxy <px> and
@@ -3055,12 +3076,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				}
 
 				if (!http_add_header(htx, n, v)) {
-					static unsigned char rate_limit = 0;
-
-					if ((rate_limit++ & 255) == 0) {
-						send_log(px, LOG_WARNING, "Proxy %s failed to add or set the request header '%.*s' for request #%u. You might need to increase tune.maxrewrite.", px->id, (int)n.len, n.ptr, s->uniq_id);
-					}
-
 					_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 					if (s->flags & SF_BE_ASSIGNED)
 						_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
@@ -3419,12 +3434,6 @@ resume_execution:
 				}
 
 				if (!http_add_header(htx, n, v)) {
-					static unsigned char rate_limit = 0;
-
-					if ((rate_limit++ & 255) == 0) {
-						send_log(px, LOG_WARNING, "Proxy %s failed to add or set the response header '%.*s' for request #%u. You might need to increase tune.maxrewrite.", px->id, (int)n.len, n.ptr, s->uniq_id);
-					}
-
 					_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 					_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
 					if (sess->listener->counters)

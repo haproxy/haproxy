@@ -44,8 +44,9 @@
  * builds a string in the trash from the specified format string. It finds
  * the action to be performed in <http.action>, previously filled by function
  * parse_set_req_line(). The replacement action is excuted by the function
- * http_action_set_req_line(). It always returns ACT_RET_CONT. If an error
- * occurs the action is canceled, but the rule processing continue.
+ * http_action_set_req_line(). On success, it returns ACT_RET_CONT. If an error
+ * occurs while soft rewrites are enabled, the action is canceled, but the rule
+ * processing continue. Otherwsize ACT_RET_ERR is returned.
  */
 static enum act_return http_action_set_req_line(struct act_rule *rule, struct proxy *px,
                                                 struct session *sess, struct stream *s, int flags)
@@ -55,7 +56,7 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 
 	replace = alloc_trash_chunk();
 	if (!replace)
-		goto leave;
+		goto fail_alloc;
 
 	/* If we have to create a query string, prepare a '?'. */
 	if (rule->arg.http.action == 2)
@@ -64,12 +65,32 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 				       replace->size - replace->data,
 				       &rule->arg.http.logfmt);
 
-	http_req_replace_stline(rule->arg.http.action, replace->area,
-				replace->data, px, s);
+	if (http_req_replace_stline(rule->arg.http.action, replace->area,
+				    replace->data, px, s) == -1)
+		goto fail_rewrite;
 
-leave:
+  leave:
 	free_trash_chunk(replace);
 	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+
+  fail_rewrite:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+		ret = ACT_RET_ERR;
+	goto leave;
 }
 
 /* parse an http-request action among :
@@ -135,8 +156,9 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
  * in p[1] to replace the URI. It uses the format string present in act.p[2..3].
  * The component to act on (path/uri) is taken from act.p[0] which contains 1
  * for the path or 3 for the URI (values used by http_req_replace_stline()).
- * It always returns ACT_RET_CONT. If an error occurs, the action is canceled,
- * but the rule processing continues.
+ * On success, it returns ACT_RET_CONT. If an error occurs while soft rewrites
+ * are enabled, the action is canceled, but the rule processing continue.
+ * Otherwsize ACT_RET_ERR is returned.
  */
 static enum act_return http_action_replace_uri(struct act_rule *rule, struct proxy *px,
                                                struct session *sess, struct stream *s, int flags)
@@ -149,7 +171,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	replace = alloc_trash_chunk();
 	output  = alloc_trash_chunk();
 	if (!replace || !output)
-		goto leave;
+		goto fail_alloc;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
 	if (rule->arg.act.p[0] == (void *)1)
@@ -165,14 +187,34 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	 */
 	len = exp_replace(output->area, output->size, uri.ptr, replace->area, pmatch);
 	if (len == -1)
-		goto leave;
+		goto fail_rewrite;
 
-	http_req_replace_stline((long)rule->arg.act.p[0], output->area, len, px, s);
+	if (http_req_replace_stline((long)rule->arg.act.p[0], output->area, len, px, s) == -1)
+		goto fail_rewrite;
 
-leave:
+  leave:
 	free_trash_chunk(output);
 	free_trash_chunk(replace);
 	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+
+  fail_rewrite:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+		ret = ACT_RET_ERR;
+	goto leave;
 }
 
 /* parse a "replace-uri" or "replace-path" http-request action.
@@ -222,7 +264,19 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 static enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
-	http_res_set_status(rule->arg.status.code, rule->arg.status.reason, s);
+	if (http_res_set_status(rule->arg.status.code, rule->arg.status.reason, s) == -1) {
+		_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+		if (s->flags & SF_BE_ASSIGNED)
+			_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+		if (sess->listener->counters)
+			_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+		if (objt_server(s->target))
+			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+			return ACT_RET_ERR;
+	}
+
 	return ACT_RET_CONT;
 }
 
