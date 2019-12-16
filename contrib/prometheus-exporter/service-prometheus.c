@@ -234,7 +234,7 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_INTERCEPTED]    = ST_F_CACHE_LOOKUPS,
 	[ST_F_DCON]           = ST_F_DSES,
 	[ST_F_DSES]           = ST_F_WREW,
-	[ST_F_WREW]           = ST_F_REQ_RATE_MAX,
+	[ST_F_WREW]           = ST_F_EINT,
 	[ST_F_CONNECT]        = 0,
 	[ST_F_REUSE]          = 0,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
@@ -245,6 +245,7 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = 0,
 	[ST_F_RT_MAX]         = 0,
 	[ST_F_TT_MAX]         = 0,
+	[ST_F_EINT]           = ST_F_REQ_RATE_MAX,
 };
 
 /* Matrix used to dump backend metrics. Each metric points to the next one to be
@@ -333,7 +334,7 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_INTERCEPTED]    = 0,
 	[ST_F_DCON]           = 0,
 	[ST_F_DSES]           = 0,
-	[ST_F_WREW]           = ST_F_CLI_ABRT,
+	[ST_F_WREW]           = ST_F_EINT,
 	[ST_F_CONNECT]        = ST_F_REUSE,
 	[ST_F_REUSE]          = ST_F_BIN,
 	[ST_F_CACHE_LOOKUPS]  = ST_F_CACHE_HITS,
@@ -344,6 +345,7 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = ST_F_RT_MAX,
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
 	[ST_F_TT_MAX]         = ST_F_DREQ,
+	[ST_F_EINT]           = ST_F_CLI_ABRT,
 };
 
 /* Matrix used to dump server metrics. Each metric points to the next one to be
@@ -432,7 +434,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_INTERCEPTED]    = 0,
 	[ST_F_DCON]           = 0,
 	[ST_F_DSES]           = 0,
-	[ST_F_WREW]           = ST_F_CLI_ABRT,
+	[ST_F_WREW]           = ST_F_EINT,
 	[ST_F_CONNECT]        = ST_F_REUSE,
 	[ST_F_REUSE]          = ST_F_DRESP,
 	[ST_F_CACHE_LOOKUPS]  = 0,
@@ -443,6 +445,7 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = ST_F_RT_MAX,
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
 	[ST_F_TT_MAX]         = ST_F_CONNECT,
+	[ST_F_EINT]           = ST_F_CLI_ABRT,
 };
 
 /* Name of all info fields */
@@ -605,6 +608,7 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = IST("max_connect_time_seconds"),
 	[ST_F_RT_MAX]         = IST("max_response_time_seconds"),
 	[ST_F_TT_MAX]         = IST("max_total_time_seconds"),
+	[ST_F_EINT]           = IST("internal_errors_total"),
 };
 
 /* Description of all info fields */
@@ -767,6 +771,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
 	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
 	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
+	[ST_F_EINT]           = IST("Total number of internal errors."),
 };
 
 /* Specific labels for all info fields. Empty by default. */
@@ -1085,6 +1090,7 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]         = IST("gauge"),
 	[ST_F_RT_MAX]         = IST("gauge"),
 	[ST_F_TT_MAX]         = IST("gauge"),
+	[ST_F_EINT]           = IST("counter"),
 };
 
 /* Return the server status: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB. */
@@ -1531,6 +1537,9 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_WREW:
 					metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
 					break;
+				case ST_F_EINT:
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
+					break;
 				case ST_F_REQ_RATE_MAX:
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
@@ -1753,6 +1762,9 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					break;
 				case ST_F_WREW:
 					metric = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
+					break;
+				case ST_F_EINT:
+					metric = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
 					break;
 				case ST_F_CLI_ABRT:
 					metric = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
@@ -2001,6 +2013,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						break;
 					case ST_F_WREW:
 						metric = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
+						break;
+					case ST_F_EINT:
+						metric = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
 						break;
 					case ST_F_CLI_ABRT:
 						metric = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);

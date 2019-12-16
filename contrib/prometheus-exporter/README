@@ -178,6 +178,7 @@ Exported metrics
 | haproxy_frontend_http_comp_bytes_out_total      | Total number of HTTP response bytes emitted by the compressor.               |
 | haproxy_frontend_http_comp_bytes_bypassed_total | Total number of bytes that bypassed the HTTP compressor (CPU/BW limit).      |
 | haproxy_frontend_http_comp_responses_total      | Total number of HTTP responses that were compressed.                         |
+| haproxy_frontend_internal_errors_total          | Total number of internal errors.                                             |
 +-------------------------------------------------+------------------------------------------------------------------------------+
 
 * Backend metrics
@@ -230,6 +231,7 @@ Exported metrics
 | haproxy_backend_http_comp_bytes_out_total           | Total number of HTTP response bytes emitted by the compressor.           |
 | haproxy_backend_http_comp_bytes_bypassed_total      | Total number of bytes that bypassed the HTTP compressor (CPU/BW limit).  |
 | haproxy_backend_http_comp_responses_total           | Total number of HTTP responses that were compressed.                     |
+| haproxy_backend_internal_errors_total               | Total number of internal errors.                                         |
 +-----------------------------------------------------+--------------------------------------------------------------------------+
 
 * Server metrics
@@ -279,6 +281,7 @@ Exported metrics
 | haproxy_server_http_responses_total                | Total number of HTTP responses.                                           |
 | haproxy_server_idle_connections_current            | Current number of idle connections available for reuse.                   |
 | haproxy_server_idle_connections_limit              | Limit on the number of available idle connections.                        |
+| haproxy_server_internal_errors_total               | Total number of internal errors.                                          |
 +----------------------------------------------------+---------------------------------------------------------------------------+
 
 Mapping of health check status :
