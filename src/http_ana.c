@@ -515,6 +515,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		case HTTP_RULE_RES_BADREQ: /* failed with a bad request */
 			goto return_bad_req;
+
+		case HTTP_RULE_RES_ERROR: /* failed with a bad request */
+			goto return_int_err;
 		}
 	}
 
@@ -554,6 +557,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		if (verdict == HTTP_RULE_RES_ABRT) /* stats auth / stats http-request auth */
 			goto return_prx_cond;
+
+		if (verdict == HTTP_RULE_RES_BADREQ) /* failed with a bad request */
+			goto return_bad_req;
+
+		if (verdict == HTTP_RULE_RES_ERROR) /* failed with a bad request */
+			goto return_int_err;
 	}
 
 	/* Proceed with the applets now. */
@@ -1931,19 +1940,31 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		if (ret == HTTP_RULE_RES_CONT) {
 			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
 
+			switch (ret) {
+			case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
+				goto return_prx_yield;
+
+			case HTTP_RULE_RES_CONT:
+			case HTTP_RULE_RES_STOP: /* nothing to do */
+				break;
+
+			case HTTP_RULE_RES_DENY: /* deny or tarpit */
+				goto deny;
+
+			case HTTP_RULE_RES_ABRT: /* abort request, response already sent */
+				goto return_prx_cond;
+
+			case HTTP_RULE_RES_DONE: /* OK, but terminate request processing (eg: redirect) */
+				goto done;
+
+			case HTTP_RULE_RES_BADREQ: /* failed with a bad request */
 				goto return_bad_res;
 
-			if (ret == HTTP_RULE_RES_DONE)
-				goto done;
+			case HTTP_RULE_RES_ERROR: /* failed with a bad request */
+				goto return_int_err;
+			}
+
 		}
-
-		/* we need to be called again. */
-		if (ret == HTTP_RULE_RES_YIELD)
-			goto return_prx_yield;
-
-		/* has the response been denied ? */
-		if (txn->flags & TX_SVDENY)
-			goto deny;
 
 		/* check whether we're already working on the frontend */
 		if (cur_proxy == sess->fe)
@@ -2929,14 +2950,14 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				 */
 				rule_ret = HTTP_RULE_RES_ABRT;
 				if (http_reply_40x_unauthorized(s, auth_realm) == -1)
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 				stream_inc_http_err_ctr(s);
 				goto end;
 
 			case ACT_HTTP_REDIR:
 				rule_ret = HTTP_RULE_RES_DONE;
 				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 				goto end;
 
 			case ACT_HTTP_SET_NICE:
@@ -2961,7 +2982,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 							  ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
 							  &rule->arg.hdr_add.fmt,
 							  rule->arg.hdr_add.re, rule->action)) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 				break;
@@ -2986,7 +3007,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 				replace = alloc_trash_chunk();
 				if (!replace) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3031,7 +3054,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3061,7 +3086,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3092,7 +3119,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3100,7 +3129,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				value = alloc_trash_chunk();
 				if (!value) {
 					free_trash_chunk(key);
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3133,7 +3164,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 									 ist2(rule->arg.early_hint.name, rule->arg.early_hint.name_len),
 									 &rule->arg.early_hint.fmt);
 				if (early_hints == -1) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 				break;
@@ -3146,7 +3177,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
 					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_BADREQ;
+						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					case ACT_RET_CONT:
 						break;
@@ -3216,7 +3247,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
   end:
 	if (early_hints) {
 		if (http_reply_103_early_hints(&s->res) == -1)
-			rule_ret = HTTP_RULE_RES_BADREQ;
+			rule_ret = HTTP_RULE_RES_ERROR;
 	}
 
 	/* we reached the end of the rules, nothing to report */
@@ -3282,8 +3313,7 @@ resume_execution:
 				goto end;
 
 			case ACT_ACTION_DENY:
-				txn->flags |= TX_SVDENY;
-				rule_ret = HTTP_RULE_RES_STOP;
+				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_SET_NICE:
@@ -3308,7 +3338,7 @@ resume_execution:
 							  ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
 							  &rule->arg.hdr_add.fmt,
 							  rule->arg.hdr_add.re, rule->action)) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 				break;
@@ -3327,7 +3357,9 @@ resume_execution:
 
 				replace = alloc_trash_chunk();
 				if (!replace) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3374,7 +3406,9 @@ resume_execution:
 			/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3404,7 +3438,9 @@ resume_execution:
 				/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3434,7 +3470,9 @@ resume_execution:
 				/* allocate key */
 				key = alloc_trash_chunk();
 				if (!key) {
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3442,7 +3480,9 @@ resume_execution:
 				value = alloc_trash_chunk();
 				if (!value) {
 					free_trash_chunk(key);
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_RESOURCE;
+					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
 
@@ -3471,7 +3511,7 @@ resume_execution:
 			case ACT_HTTP_REDIR:
 				rule_ret = HTTP_RULE_RES_DONE;
 				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
-					rule_ret = HTTP_RULE_RES_BADREQ;
+					rule_ret = HTTP_RULE_RES_ERROR;
 				goto end;
 
 			case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
@@ -3541,7 +3581,7 @@ resume_execution:
 
 				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
 					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_BADREQ;
+						rule_ret = HTTP_RULE_RES_ERROR;
 						goto end;
 					case ACT_RET_CONT:
 						break;
