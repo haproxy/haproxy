@@ -434,6 +434,7 @@ enum stat_field {
 	ST_F_CT_MAX,
 	ST_F_RT_MAX,
 	ST_F_TT_MAX,
+	ST_F_EINT,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS

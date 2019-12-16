@@ -250,6 +250,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CT_MAX]                        = { .name = "ctime_max",                   .desc = "Maximum observed time spent waiting for a connection to complete, in milliseconds (backend/server)" },
 	[ST_F_RT_MAX]                        = { .name = "rtime_max",                   .desc = "Maximum observed time spent waiting for a server response, in milliseconds (backend/server)" },
 	[ST_F_TT_MAX]                        = { .name = "ttime_max",                   .desc = "Maximum observed total request+response time (request+queue+connect+response+processing), in milliseconds (backend/server)" },
+	[ST_F_EINT]                          = { .name = "eint",                        .desc = "Total number of internal errors since process started"},
 };
 
 /* one line of info */
@@ -767,6 +768,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
 			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
+			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
 			              "",
 			              U2H(stats[ST_F_REQ_TOT].u.u64),
 			              U2H(stats[ST_F_HRSP_1XX].u.u64),
@@ -783,7 +785,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_CACHE_HITS].u.u64),
 			              stats[ST_F_CACHE_LOOKUPS].u.u64 ?
 			              (int)(100 * stats[ST_F_CACHE_HITS].u.u64 / stats[ST_F_CACHE_LOOKUPS].u.u64) : 0,
-			              U2H(stats[ST_F_WREW].u.u64));
+			              U2H(stats[ST_F_WREW].u.u64),
+			              U2H(stats[ST_F_EINT].u.u64));
 		}
 
 		chunk_appendf(out,
@@ -1030,6 +1033,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
+			              "<tr><th>Internal error:</th><td>%s</td></tr>"
 			              "",
 			              U2H(stats[ST_F_CONNECT].u.u64),
 			              U2H(stats[ST_F_REUSE].u.u64),
@@ -1042,7 +1046,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_HRSP_4XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_4XX].u.u64 / tot) : 0,
 			              U2H(stats[ST_F_HRSP_5XX].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_5XX].u.u64 / tot) : 0,
 			              U2H(stats[ST_F_HRSP_OTHER].u.u64), tot ? (int)(100 * stats[ST_F_HRSP_OTHER].u.u64 / tot) : 0,
-			              U2H(stats[ST_F_WREW].u.u64));
+			              U2H(stats[ST_F_WREW].u.u64),
+			              U2H(stats[ST_F_EINT].u.u64));
 		}
 
 		chunk_appendf(out, "<tr><th colspan=3>Max / Avg over last 1024 success. conn.</th></tr>");
@@ -1263,6 +1268,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
 			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
+			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
 				      "",
 			              U2H(stats[ST_F_CONNECT].u.u64),
 			              U2H(stats[ST_F_REUSE].u.u64),
@@ -1282,7 +1288,8 @@ static int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_F_CACHE_HITS].u.u64),
 			              stats[ST_F_CACHE_LOOKUPS].u.u64 ?
 			              (int)(100 * stats[ST_F_CACHE_HITS].u.u64 / stats[ST_F_CACHE_LOOKUPS].u.u64) : 0,
-			              U2H(stats[ST_F_WREW].u.u64));
+			              U2H(stats[ST_F_WREW].u.u64),
+			              U2H(stats[ST_F_EINT].u.u64));
 		}
 
 		chunk_appendf(out, "<tr><th colspan=3>Max / Avg over last 1024 success. conn.</th></tr>");
@@ -1420,6 +1427,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 	stats[ST_F_RATE_LIM] = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
 	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, px->fe_counters.sps_max);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
+	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
 
 	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 	if (px->mode == PR_MODE_HTTP) {
@@ -1513,6 +1521,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
 	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
+	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, l->counters->internal_errors);
 
 	if (flags & STAT_SHLGNDS) {
 		char str[INET6_ADDRSTRLEN];
@@ -1682,6 +1691,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
+	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
 	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, sv->counters.connect);
 	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, sv->counters.reuse);
 
@@ -1882,6 +1892,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, px->be_counters.retries);
 	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
 	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
+	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
 	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, px->be_counters.connect);
 	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, px->be_counters.reuse);
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
