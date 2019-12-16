@@ -718,8 +718,9 @@ The following keywords are supported in the "global" section :
 
 ca-base <dir>
   Assigns a default directory to fetch SSL CA certificates and CRLs from when a
-  relative path is used with "ca-file" or "crl-file" directives. Absolute
-  locations specified in "ca-file" and "crl-file" prevail and ignore "ca-base".
+  relative path is used with "ca-file", "ca-verify-file" or "crl-file"
+  directives. Absolute locations specified in "ca-file", "ca-verify-file" and
+  "crl-file" prevail and ignore "ca-base".
 
 chroot <jail dir>
   Changes current directory to <jail dir> and performs a chroot() there before
@@ -11302,6 +11303,13 @@ ca-sign-pass <passphrase>
   the dynamic generation of certificates is enabled. See
   'generate-certificates' for details.
 
+ca-verify-file <cafile>
+  This setting designates a PEM file from which to load CA certificates used to
+  verify client's certificate. It designates CA certificates which must not be
+  included in CA names sent in server hello message. Typically, "ca-file" must
+  be defined with intermediate certificates, and "ca-verify-file" with
+  certificates to ending the chain, like root CA.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
@@ -11450,10 +11458,10 @@ crt-list <file>
 
         <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
 
-  sslbindconf support "npn", "alpn", "verify", "ca-file", "no-ca-names",
-  crl-file", "ecdhe", "curves", "ciphers" configuration. With BoringSSL
-  and Openssl >= 1.1.1 "ssl-min-ver" and "ssl-max-ver" are also supported.
-  It override the configuration set in bind line for the certificate.
+  sslbindconf support "npn", "alpn", "verify", "ca-file", "ca-verify-file",
+  "no-ca-names", "crl-file", "ecdhe", "curves", "ciphers" configuration. With
+  BoringSSL and Openssl >= 1.1.1 "ssl-min-ver" and "ssl-max-ver" are also
+  supported. It override the configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
   only useful in combination with a wildcard filter to exclude a particular SNI.
@@ -11653,6 +11661,7 @@ nice <nice>
 no-ca-names
   This setting is only available when support for OpenSSL was built in. It
   prevents from send CA names in server hello message when ca-file is used.
+  Use "ca-verify-file" instead of "ca-file" with "no-ca-names".
 
 no-sslv3
   This setting is only available when support for OpenSSL was built in. It

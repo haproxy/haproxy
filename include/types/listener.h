@@ -127,7 +127,8 @@ struct ssl_bind_conf {
 	unsigned int verify:3;     /* verify method (set of SSL_VERIFY_* flags) */
 	unsigned int no_ca_names:1;/* do not send ca names to clients (ca_file related) */
 	unsigned int early_data:1; /* early data allowed */
-	char *ca_file;             /* CAfile to use on verify */
+	char *ca_file;             /* CAfile to use on verify and ca-names */
+	char *ca_verify_file;      /* CAverify file to use on verify only */
 	char *crl_file;            /* CRLfile to use on verify */
 	char *ciphers;             /* cipher suite to use if non-null */
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
