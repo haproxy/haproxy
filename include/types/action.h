@@ -37,11 +37,14 @@ enum act_from {
 };
 
 enum act_return {
-	ACT_RET_CONT,  /* continue processing. */
-	ACT_RET_STOP,  /* stop processing. */
-	ACT_RET_YIELD, /* call me again. */
-	ACT_RET_ERR,   /* processing error. */
-	ACT_RET_DONE,  /* processing done, stop processing */
+	ACT_RET_CONT,   /* continue processing. */
+	ACT_RET_STOP,   /* stop processing. */
+	ACT_RET_YIELD,  /* call me again. */
+	ACT_RET_ERR,    /* internal processing error. */
+	ACT_RET_DONE,   /* processing done, stop processing */
+	ACT_RET_DENY,   /* deny, must be handled by the caller */
+	ACT_RET_ABRT,   /* abort, handled by action itsleft. */
+	ACT_RET_INV,    /* invalid request/response */
 };
 
 enum act_parse_ret {
