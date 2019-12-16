@@ -45,6 +45,7 @@ struct fe_counters {
 	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
 	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
 	long long failed_rewrites;              /* failed rewrites (warning) */
+	long long internal_errors;              /* internal processing errors */
 
 	long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */
 	long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */
@@ -95,6 +96,7 @@ struct be_counters {
 	long long redispatches;                 /* retried and redispatched connections (BE only) */
 	long long failed_rewrites;              /* failed rewrites (warning) */
 	long long failed_secu;			/* blocked responses because of security concerns */
+	long long internal_errors;              /* internal processing errors */
 
 	long long failed_checks, failed_hana;	/* failed health checks and health analyses for servers */
 	long long down_trans;			/* up->down transitions */
