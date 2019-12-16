@@ -158,23 +158,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-			  deny:
-				si_must_kill_conn(chn_prod(req));
-				channel_abort(req);
-				channel_abort(&s->res);
-				req->analysers = 0;
-
-				_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
-				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
-				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
-
-				if (!(s->flags & SF_ERR_MASK))
-					s->flags |= SF_ERR_PRXCOND;
-				if (!(s->flags & SF_FINST_MASK))
-					s->flags |= SF_FINST_R;
-				DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
-				return 0;
+				goto deny;
 			}
 			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
@@ -235,8 +219,6 @@ resume_execution:
 					act_flags |= ACT_FLAG_FINAL;
 
 				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
-				case ACT_RET_ERR:
-					goto deny;
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
@@ -245,6 +227,14 @@ resume_execution:
 				case ACT_RET_YIELD:
 					s->current_rule = rule;
 					goto missing_data;
+				case ACT_RET_DENY:
+					goto deny;
+				case ACT_RET_ABRT:
+					goto abort;
+				case ACT_RET_ERR:
+					goto internal;
+				case ACT_RET_INV:
+					goto invalid;
 				}
 				break; /* ACT_RET_STOP/DONE */
 			}
@@ -267,6 +257,39 @@ resume_execution:
 	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 
+ deny:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+	goto reject;
+
+ internal:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	goto reject;
+
+ invalid:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+
+ reject:
+	si_must_kill_conn(chn_prod(req));
+	channel_abort(req);
+	channel_abort(&s->res);
+
+ abort:
+	req->analysers &= AN_REQ_FLT_END;
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+	DBG_TRACE_DEVEL("leaving on error|deny|abort", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
+	return 0;
 }
 
 /* This function performs the TCP response analysis on the current response. It
@@ -338,23 +361,7 @@ resume_execution:
 				break;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-			  deny:
-				si_must_kill_conn(chn_prod(rep));
-				channel_abort(rep);
-				channel_abort(&s->req);
-				rep->analysers = 0;
-
-				_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
-				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
-
-				if (!(s->flags & SF_ERR_MASK))
-					s->flags |= SF_ERR_PRXCOND;
-				if (!(s->flags & SF_FINST_MASK))
-					s->flags |= SF_FINST_D;
-				DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
-				return 0;
+				goto deny;
 			}
 			else if (rule->action == ACT_TCP_CLOSE) {
 				chn_prod(rep)->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
@@ -372,8 +379,6 @@ resume_execution:
 					act_flags |= ACT_FLAG_FINAL;
 
 				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
-				case ACT_RET_ERR:
-					goto deny;
 				case ACT_RET_CONT:
 					continue;
 				case ACT_RET_STOP:
@@ -384,6 +389,14 @@ resume_execution:
 					s->current_rule = rule;
 					DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 					return 0;
+				case ACT_RET_DENY:
+					goto deny;
+				case ACT_RET_ABRT:
+					goto abort;
+				case ACT_RET_ERR:
+					goto internal;
+				case ACT_RET_INV:
+					goto invalid;
 				}
 				break; /* ACT_RET_STOP/DONE */
 			}
@@ -397,6 +410,40 @@ resume_execution:
 	rep->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
+
+  deny:
+	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
+	goto reject;
+
+ internal:
+	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	goto reject;
+
+ invalid:
+	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+
+ reject:
+	si_must_kill_conn(chn_prod(rep));
+	channel_abort(rep);
+	channel_abort(&s->req);
+
+  abort:
+	rep->analysers &= AN_REQ_FLT_END;
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_D;
+	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
+	return 0;
 }
 
 
@@ -489,7 +536,10 @@ int tcp_exec_l4_rules(struct session *sess)
 					break;
 				case ACT_RET_CONT:
 					continue;
+				case ACT_RET_DENY:
+				case ACT_RET_ABRT:
 				case ACT_RET_ERR:
+				case ACT_RET_INV:
 					result = 0;
 					break;
 				}
@@ -569,7 +619,10 @@ int tcp_exec_l5_rules(struct session *sess)
 					break;
 				case ACT_RET_CONT:
 					continue;
+				case ACT_RET_DENY:
+				case ACT_RET_ABRT:
 				case ACT_RET_ERR:
+				case ACT_RET_INV:
 					result = 0;
 					break;
 				}
