@@ -125,6 +125,7 @@ enum rule_result {
 	HTTP_RULE_RES_ABRT,      /* abort request, msg already sent (eg: auth) */
 	HTTP_RULE_RES_DONE,      /* processing done, stop processing (eg: redirect) */
 	HTTP_RULE_RES_BADREQ,    /* bad request */
+	HTTP_RULE_RES_ERROR,     /* Internal error */
 };
 
 /* Legacy version of the HTTP/1 message state, used by the channels, should
