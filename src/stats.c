@@ -1685,7 +1685,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
 	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
 	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_secu);
+	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
 	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
 	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
 	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);

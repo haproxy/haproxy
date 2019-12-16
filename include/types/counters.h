@@ -95,7 +95,6 @@ struct be_counters {
 	long long retries;                      /* retried and redispatched connections (BE only) */
 	long long redispatches;                 /* retried and redispatched connections (BE only) */
 	long long failed_rewrites;              /* failed rewrites (warning) */
-	long long failed_secu;			/* blocked responses because of security concerns */
 	long long internal_errors;              /* internal processing errors */
 
 	long long failed_checks, failed_hana;	/* failed health checks and health analyses for servers */

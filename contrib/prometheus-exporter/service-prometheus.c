@@ -1997,7 +1997,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						metric = mkf_u64(FN_COUNTER, sv->counters.reuse);
 						break;
 					case ST_F_DRESP:
-						metric = mkf_u64(FN_COUNTER, sv->counters.failed_secu);
+						metric = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
 						break;
 					case ST_F_ECON:
 						metric = mkf_u64(FN_COUNTER, sv->counters.failed_conns);

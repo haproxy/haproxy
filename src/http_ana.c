@@ -2124,12 +2124,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
  deny:
 	txn->flags |= TX_CLDENY;
 	txn->status = 502;
-	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_secu, 1);
-	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
 	goto return_prx_err;
 
  return_int_err:
