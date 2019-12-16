@@ -430,9 +430,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	txn->status = 500;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
 	if (sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
 	goto return_prx_cond;
 
  return_bad_req:
@@ -525,7 +525,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		ctx.blk = NULL;
 		if (!http_find_header(htx, ist("Early-Data"), &ctx, 0)) {
 			if (unlikely(!http_add_header(htx, ist("Early-Data"), ist("1"))))
-				goto return_bad_req;
+				goto return_int_err;
 		}
 	}
 
@@ -538,13 +538,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!s->target && http_stats_check_uri(s, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
 		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target)))) {
-			txn->status = 500;
 			s->logs.tv_request = now;
-			http_reply_and_close(s, txn->status, http_error_message(s));
-
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
-			goto return_prx_cond;
+			goto return_int_err;
 		}
 
 		/* parse the whole stats request and extract the relevant information */
@@ -565,7 +562,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.intercepted_req, 1);
 
 		if (http_handle_expect_hdr(s, htx, msg) == -1)
-			goto return_bad_req;
+			goto return_int_err;
 
 		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
@@ -595,7 +592,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 				continue;
 		}
 		if (!http_apply_redirect_rule(rule, s, txn))
-			goto return_bad_req;
+			goto return_int_err;
 		goto done;
 	}
 
@@ -660,22 +657,33 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	txn->flags |= TX_CLDENY;
 	txn->status = http_err_codes[deny_status];
 	s->logs.tv_request = now;
-	http_reply_and_close(s, txn->status, http_error_message(s));
 	stream_inc_http_err_ctr(s);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
 	if (sess->fe != s->be)
 		_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
-	goto return_prx_cond;
+	goto return_prx_err;
+
+ return_int_err:
+	txn->status = 500;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+	goto return_prx_err;
 
  return_bad_req:
 	txn->status = 400;
-	http_reply_and_close(s, txn->status, http_error_message(s));
-
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	/* fall through */
+
+ return_prx_err:
+	http_reply_and_close(s, txn->status, http_error_message(s));
+	/* fall through */
 
  return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
@@ -734,18 +742,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		struct ist uri, path;
 
 		if (!sockaddr_alloc(&s->target_addr)) {
-			txn->status = 500;
-			req->analysers &= AN_REQ_FLT_END;
-			http_reply_and_close(s, txn->status, http_error_message(s));
-
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_R;
-
-			DBG_TRACE_DEVEL("leaving on error",
-					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
-			return 0;
+			goto return_int_err;
 		}
 		sl = http_get_stline(htx);
 		uri = htx_sl_req_uri(sl);
@@ -780,8 +779,11 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	/* add unique-id if "header-unique-id" is specified */
 
 	if (!LIST_ISEMPTY(&sess->fe->format_unique_id) && !s->unique_id) {
-		if ((s->unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
-			goto return_bad_req;
+		if ((s->unique_id = pool_alloc(pool_head_uniqueid)) == NULL) {
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_RESOURCE;
+			goto return_int_err;
+		}
 		s->unique_id[0] = '\0';
 		build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
@@ -791,7 +793,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		struct ist v = ist2(s->unique_id, strlen(s->unique_id));
 
 		if (unlikely(!http_add_header(htx, n, v)))
-			goto return_bad_req;
+			goto return_int_err;
 	}
 
 	/*
@@ -828,7 +830,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 */
 				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_bad_req;
+					goto return_int_err;
 			}
 		}
 		else if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET6) {
@@ -848,7 +850,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			 */
 			chunk_printf(&trash, "%s", pn);
 			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				goto return_bad_req;
+				goto return_int_err;
 		}
 	}
 
@@ -885,7 +887,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-					goto return_bad_req;
+					goto return_int_err;
 			}
 		}
 	}
@@ -925,19 +927,32 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
+ return_int_err:
+	txn->status = 500;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+	goto return_prx_cond;
+
  return_bad_req: /* let's centralize all bad requests */
 	txn->status = 400;
-	req->analysers &= AN_REQ_FLT_END;
-	http_reply_and_close(s, txn->status, http_error_message(s));
-
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	/* fall through */
+
+ return_prx_cond:
+	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
+
+	req->analysers &= AN_REQ_FLT_END;
+	req->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -1025,7 +1040,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
 	if (msg->msg_state < HTTP_MSG_DATA) {
 		if (http_handle_expect_hdr(s, htx, msg) == -1)
-			goto return_bad_req;
+			goto return_int_err;
 	}
 
 	msg->msg_state = HTTP_MSG_DATA;
@@ -1040,12 +1055,12 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
  missing_data:
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
-
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_CLITO;
-		if (!(s->flags & SF_FINST_MASK))
-			s->flags |= SF_FINST_D;
-		goto return_err_msg;
+		_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+		if (sess->listener->counters)
+			_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		goto return_prx_cond;
 	}
 
 	/* we get here if we need to wait for more data */
@@ -1074,29 +1089,30 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  return_int_err:
 	txn->status = 500;
-
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
-	goto return_err_msg;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+	goto return_prx_cond;
 
  return_bad_req: /* let's centralize all bad requests */
 	txn->status = 400;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	/* fall through */
+
+ return_prx_cond:
+	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
-	/* fall through */
-
- return_err_msg:
-	http_reply_and_close(s, txn->status, http_error_message(s));
+		s->flags |= (msg->msg_state < HTTP_MSG_DATA ? SF_FINST_R : SF_FINST_D);
 
 	req->analysers &= AN_REQ_FLT_END;
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-	if (sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	req->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;
@@ -1318,7 +1334,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_CLICL;
 	status = 400;
-	goto return_error;
+	goto return_prx_cond;
 
   return_srv_abort:
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
@@ -1328,23 +1344,25 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
 	status = 502;
-	goto return_error;
+	goto return_prx_cond;
 
   return_int_err:
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
 	status = 500;
-	goto return_error;
+	goto return_prx_cond;
 
   return_bad_req:
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_CLICL;
 	status = 400;
+	/* fall through */
 
-  return_error:
+  return_prx_cond:
 	if (txn->status > 0) {
 		/* Note: we don't send any error if some data were already sent */
 		http_reply_and_close(s, txn->status, NULL);
@@ -1354,6 +1372,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	}
 	req->analysers   &= AN_REQ_FLT_END;
 	s->res.analysers &= AN_RES_FLT_END; /* we're in data phase, we want to abort both directions */
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= ((txn->rsp.msg_state < HTTP_MSG_ERROR) ? SF_FINST_H : SF_FINST_D);
 	DBG_TRACE_DEVEL("leaving on error ",
@@ -1798,11 +1818,13 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	return 1;
 
  return_int_err:
-	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
 	txn->status = 500;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
-	goto return_error;
+	goto return_prx_cond;
 
   return_bad_res:
 	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
@@ -1820,7 +1842,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	txn->status = 502;
 	/* fall through */
 
- return_error:
+ return_prx_cond:
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -1909,35 +1931,19 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		if (ret == HTTP_RULE_RES_CONT) {
 			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
 
-			if (ret == HTTP_RULE_RES_BADREQ)
-				goto return_srv_prx_502;
+				goto return_bad_res;
 
-			if (ret == HTTP_RULE_RES_DONE) {
-				rep->analysers &= ~an_bit;
-				rep->analyse_exp = TICK_ETERNITY;
-				return 1;
-			}
+			if (ret == HTTP_RULE_RES_DONE)
+				goto done;
 		}
 
 		/* we need to be called again. */
-		if (ret == HTTP_RULE_RES_YIELD) {
-			channel_dont_close(rep);
-			DBG_TRACE_DEVEL("waiting for more data",
-					STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-			return 0;
-		}
+		if (ret == HTTP_RULE_RES_YIELD)
+			goto return_prx_yield;
 
 		/* has the response been denied ? */
-		if (txn->flags & TX_SVDENY) {
-			if (objt_server(s->target))
-				_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_secu, 1);
-
-			_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
-			if (sess->listener->counters)
-				_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
-			goto return_srv_prx_502;
-		}
+		if (txn->flags & TX_SVDENY)
+			goto deny;
 
 		/* check whether we're already working on the frontend */
 		if (cur_proxy == sess->fe)
@@ -2028,7 +2034,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			chunk_appendf(&trash, "; Secure");
 
 		if (unlikely(!http_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data))))
-			goto return_bad_resp;
+			goto return_int_err;
 
 		txn->flags &= ~TX_SCK_MASK;
 		if (__objt_server(s->target)->cookie && (s->flags & SF_DIRECT))
@@ -2047,7 +2053,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
 			if (unlikely(!http_add_header(htx, ist("Cache-control"), ist("private"))))
-				goto return_bad_resp;
+				goto return_int_err;
 		}
 	}
 
@@ -2063,20 +2069,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		 * a set-cookie header. We'll block it as requested by
 		 * the 'checkcache' option, and send an alert.
 		 */
-		if (objt_server(s->target))
-			_HA_ATOMIC_ADD(&objt_server(s->target)->counters.failed_secu, 1);
-
-		_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-		_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
-		if (sess->listener->counters)
-			_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
-
 		ha_alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
 			 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
 		send_log(s->be, LOG_ALERT,
 			 "Blocking cacheable cookie in response from instance %s, server %s.\n",
 			 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
-		goto return_srv_prx_502;
+		goto deny;
 	}
 
   end:
@@ -2097,25 +2095,58 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
-  return_bad_resp:
-	if (objt_server(s->target)) {
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
-		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
-	}
-	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+ done:
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
+	return 1;
 
-  return_srv_prx_502:
-	rep->analysers &= AN_RES_FLT_END;
+ deny:
+	txn->flags |= TX_CLDENY;
 	txn->status = 502;
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_secu, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
+	goto return_prx_err;
+
+ return_int_err:
+	txn->status = 500;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_INTERNAL;
+	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
+	goto return_prx_err;
+
+ return_bad_res:
+	txn->status = 502;
+	/* fall through */
+
+ return_prx_err:
+	http_reply_and_close(s, txn->status, http_error_message(s));
+	/* fall through */
+
+ return_prx_cond:
 	s->logs.t_data = -1; /* was not a valid response */
 	s->si[1].flags |= SI_FL_NOLINGER;
-	http_reply_and_close(s, txn->status, http_error_message(s));
+
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
+
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
+	return 0;
+
+ return_prx_yield:
+	channel_dont_close(rep);
+	DBG_TRACE_DEVEL("waiting for more data",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 }
 
@@ -2345,7 +2376,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	goto return_error;
 
   return_int_err:
-	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	goto return_error;
@@ -2358,6 +2391,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	}
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
+	/* fall through */
 
    return_error:
 	/* don't send any error message as we're in the body */
@@ -2388,8 +2422,11 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	int close = 0; /* Try to keep the connection alive byt default */
 
 	chunk = alloc_trash_chunk();
-	if (!chunk)
+	if (!chunk) {
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_RESOURCE;
 		goto fail;
+	}
 
 	/*
 	 * Create the location
@@ -2644,8 +2681,11 @@ static int http_transform_header(struct stream* s, struct channel *chn, struct h
 	int ret = -1;
 
 	replace = alloc_trash_chunk();
-	if (!replace)
+	if (!replace) {
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_RESOURCE;
 		goto leave;
+	}
 
 	replace->data = build_logline(s, replace->area, replace->size, fmt);
 	if (replace->data >= replace->size - 1)
@@ -2694,6 +2734,12 @@ static int http_add_early_hint_header(struct stream *s, int early_hints, const s
 	struct channel *res = &s->res;
 	struct htx *htx = htx_from_buf(&res->buf);
 	struct buffer *value = alloc_trash_chunk();
+
+	if (!value) {
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_RESOURCE;
+		goto fail;
+	}
 
 	if (!early_hints) {
 		struct htx_sl *sl;
