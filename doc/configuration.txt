@@ -4475,17 +4475,23 @@ http-request replace-uri <match-regex> <replace-fmt>
   than certain ACLs, so rare replacements may benefit from a condition to avoid
   performing the evaluation at all if it does not match.
 
+  IMPORTANT NOTE: historically in HTTP/1.x, the vast majority of requests sent
+  by browsers use the "origin form", which differs from the "absolute form" in
+  that they do not contain a scheme nor authority in the URI portion. Mostly
+  only requests sent to proxies, those forged by hand and some emitted by
+  certain applications use the absolute form. As such, "replace-uri" usually
+  works fine most of the time in HTTP/1.x with rules starting with a "/". But
+  with HTTP/2, clients are encouraged to send absolute URIs only, which look
+  like the ones HTTP/1 clients use to talk to proxies. Such partial replace-uri
+  rules may then fail in HTTP/2 when they work in HTTP/1. Either the rules need
+  to be adapted to optionally match a scheme and authority.
+
   Example:
+    # rewrite all "http" absolute requests to "https":
+    http-request replace-uri ^http://(.*) https://\1
+
     # prefix /foo : turn /bar?q=1 into /foo/bar?q=1 :
-    http-request replace-uri (.*) /foo\1
-
-    # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
-    http-request replace-uri ([^?]*)(\?(.*))? \1/foo\2
-
-    # strip /foo : turn /foo/bar?q=1 into /bar?q=1
-    http-request replace-uri /foo/(.*) /\1
-    # or more efficient if only some requests match :
-    http-request replace-uri /foo/(.*) /\1 if { url_beg /foo/ }
+    http-request replace-uri ([^/:]*://[^/]*)?(.*) \1/foo\2
 
 http-request replace-value <name> <match-regex> <replace-fmt>
                            [ { if | unless } <condition> ]
