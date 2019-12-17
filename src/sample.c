@@ -32,6 +32,7 @@
 #include <proto/proxy.h>
 #include <proto/protocol_buffers.h>
 #include <proto/sample.h>
+#include <proto/sink.h>
 #include <proto/stick_table.h>
 #include <proto/vars.h>
 
@@ -1436,45 +1437,85 @@ void release_sample_expr(struct sample_expr *expr)
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
-#ifdef DEBUG_EXPR
 static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	int i;
 	struct sample tmp;
+	struct buffer *buf;
+	struct sink *sink;
+	struct ist line;
+	char *pfx;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
-		fprintf(stderr, "[debug converter] type: %s ", smp_to_type[smp->data.type]);
-		if (!sample_casts[smp->data.type][SMP_T_STR]) {
-			fprintf(stderr, "(undisplayable)");
-		} else {
+	buf = alloc_trash_chunk();
+	if (!buf)
+		goto end;
 
-			/* Copy sample fetch. This put the sample as const, the
-			 * cast will copy data if a transformation is required.
-			 */
-			memcpy(&tmp, smp, sizeof(struct sample));
-			tmp.flags = SMP_F_CONST;
+	sink = (struct sink *)arg_p[1].data.str.area;
+	BUG_ON(!sink);
 
-			if (!sample_casts[smp->data.type][SMP_T_STR](&tmp))
-				fprintf(stderr, "(undisplayable)");
+	pfx = arg_p[0].data.str.area;
+	BUG_ON(!pfx);
 
-			else {
-				/* Display the displayable chars*. */
-				fputc('<', stderr);
-				for (i = 0; i < tmp.data.u.str.data; i++) {
-					if (isprint(tmp.data.u.str.area[i]))
-						fputc(tmp.data.u.str.area[i],
-						      stderr);
-					else
-						fputc('.', stderr);
-				}
-				fputc('>', stderr);
-			}
-		}
-		fputc('\n', stderr);
+	chunk_printf(buf, "[debug] %s: type=%s ", pfx, smp_to_type[smp->data.type]);
+	if (!sample_casts[smp->data.type][SMP_T_STR])
+		goto nocast;
+
+	/* Copy sample fetch. This puts the sample as const, the
+	 * cast will copy data if a transformation is required.
+	 */
+	memcpy(&tmp, smp, sizeof(struct sample));
+	tmp.flags = SMP_F_CONST;
+
+	if (!sample_casts[smp->data.type][SMP_T_STR](&tmp))
+		goto nocast;
+
+	/* Display the displayable chars*. */
+	b_putchr(buf, '<');
+	for (i = 0; i < tmp.data.u.str.data; i++) {
+		if (isprint(tmp.data.u.str.area[i]))
+			b_putchr(buf, tmp.data.u.str.area[i]);
+		else
+			b_putchr(buf, '.');
 	}
+	b_putchr(buf, '>');
+
+ done:
+	line = ist2(buf->area, buf->data);
+	sink_write(sink, &line, 1);
+ end:
+	free_trash_chunk(buf);
+	return 1;
+ nocast:
+	chunk_appendf(buf, "(undisplayable)");
+	goto done;
+}
+
+// This function checks the "debug" converter's arguments.
+static int smp_check_debug(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	const char *name = "buf0";
+	struct sink *sink = NULL;
+
+	if (args[0].type != ARGT_STR) {
+		/* optional prefix */
+		args[0].data.str.area = "";
+		args[0].data.str.data = 0;
+	}
+
+	if (args[1].type == ARGT_STR)
+		name = args[1].data.str.area;
+
+	sink = sink_find(name);
+	if (!sink) {
+		memprintf(err, "No such sink '%s'", name);
+		return 0;
+	}
+
+	args[1].data.str.area = (char *)sink;
+	args[1].data.str.data = 0; // that's not a string anymore
 	return 1;
 }
-#endif
 
 static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -3357,10 +3398,7 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-#ifdef DEBUG_EXPR
-	{ "debug",  sample_conv_debug,     0,            NULL, SMP_T_ANY,  SMP_T_ANY  },
-#endif
-
+	{ "debug",  sample_conv_debug,     ARG2(0,STR,STR), smp_check_debug, SMP_T_ANY,  SMP_T_ANY },
 	{ "b64dec", sample_conv_base642bin,0,            NULL, SMP_T_STR,  SMP_T_BIN  },
 	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },

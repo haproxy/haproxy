@@ -13284,10 +13284,20 @@ da-csv-conv(<prop>[,<prop>*])
       default_backend servers
       http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion,browserRenderingEngine)]
 
-debug
-  This converter is used as debug tool. It dumps on screen the content and the
-  type of the input sample. The sample is returned as is on its output. This
-  converter only exists when haproxy was built with debugging enabled.
+debug([<prefix][,<destination>])
+  This converter is used as debug tool. It takes a capture of the input sample
+  and sends it to event sink <destination>, which may designate a ring buffer
+  such as "buf0", as well as "stdout", or "stderr". Available sinks may be
+  checked at run time by issuing "show events" on the CLI. When not specified,
+  the output will be "buf0", which may be consulted via the CLI's "show events"
+  command. An optional prefix <prefix> may be passed to help distinguish
+  outputs from multiple expressions. It will then appear before the colon in
+  the output message. The input sample is passed as-is on the output, so that
+  it is safe to insert the debug converter anywhere in a chain, even with non-
+  printable sample types.
+
+  Example:
+    tcp-request connection track-sc0 src,debug(track-sc)
 
 div(<value>)
   Divides the input value of type signed integer by <value>, and returns the
