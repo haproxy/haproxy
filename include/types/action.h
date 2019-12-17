@@ -79,8 +79,6 @@ enum act_name {
 
 	/* common http actions .*/
 	ACT_HTTP_ADD_HDR,
-	ACT_HTTP_REPLACE_HDR,
-	ACT_HTTP_REPLACE_VAL,
 	ACT_HTTP_SET_HDR,
 	ACT_HTTP_DEL_HDR,
 	ACT_HTTP_REDIR,

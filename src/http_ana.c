@@ -2704,15 +2704,19 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	return 0;
 }
 
-int http_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
-			      struct ist name, const char *str, struct my_regex *re, int action)
+/* Replace all headers matching the name <name>. The header value is replaced if
+ * it matches the regex <re>. <str> is used for the replacement. If <full> is
+ * set to 1, the full-line is matched and replaced. Otherwise, comma-separated
+ * values are evaluated one by one. It returns 0 on success and -1 on error.
+ */
+int http_replace_hdrs(struct stream* s, struct htx *htx, struct ist name,
+		     const char *str, struct my_regex *re, int full)
 {
 	struct http_hdr_ctx ctx;
 	struct buffer *output = get_trash_chunk();
 
-	/* find full header is action is ACT_HTTP_REPLACE_HDR */
 	ctx.blk = NULL;
-	while (http_find_header(htx, name, &ctx, (action == ACT_HTTP_REPLACE_HDR))) {
+	while (http_find_header(htx, name, &ctx, full)) {
 		if (!regex_exec_match2(re, ctx.value.ptr, ctx.value.len, MAX_MATCH, pmatch, 0))
 			continue;
 
@@ -2724,48 +2728,6 @@ int http_transform_header_str(struct stream* s, struct channel *chn, struct htx 
 	}
 	return 0;
 }
-
-static int http_transform_header(struct stream* s, struct channel *chn, struct htx *htx,
-				 const struct ist name, struct list *fmt, struct my_regex *re, int action)
-{
-	struct buffer *replace;
-	int ret = 0;
-
-	replace = alloc_trash_chunk();
-	if (!replace)
-		goto fail_alloc;
-
-	replace->data = build_logline(s, replace->area, replace->size, fmt);
-	if (replace->data >= replace->size - 1)
-		goto fail_rewrite;
-
-	if (http_transform_header_str(s, chn, htx, name, replace->area, re, action) == -1)
-		goto fail_rewrite;
-
-  leave:
-	free_trash_chunk(replace);
-	return ret;
-
-  fail_alloc:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_RESOURCE;
-	ret = -1;
-	goto leave;
-
-  fail_rewrite:
-	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.failed_rewrites, 1);
-	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (s->sess->listener->counters)
-		_HA_ATOMIC_ADD(&s->sess->listener->counters->failed_rewrites, 1);
-	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
-
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
-		ret = -1;
-	goto leave;
-}
-
 
 /* Terminate a 103-Erly-hints response and send it to the client. It returns 0
  * on success and -1 on error. The response channel is updated accordingly.
@@ -3067,16 +3029,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 			case ACT_HTTP_SET_LOGL:
 				s->logs.level = rule->arg.http.i;
-				break;
-
-			case ACT_HTTP_REPLACE_HDR:
-			case ACT_HTTP_REPLACE_VAL:
-				if (http_transform_header(s, &s->req, htx, rule->arg.http.str,
-							  &rule->arg.http.fmt,
-							  rule->arg.http.re, rule->action)) {
-					rule_ret = HTTP_RULE_RES_ERROR;
-					goto end;
-				}
 				break;
 
 			case ACT_HTTP_DEL_HDR:
@@ -3439,16 +3391,6 @@ resume_execution:
 
 			case ACT_HTTP_SET_LOGL:
 				s->logs.level = rule->arg.http.i;
-				break;
-
-			case ACT_HTTP_REPLACE_HDR:
-			case ACT_HTTP_REPLACE_VAL:
-				if (http_transform_header(s, &s->res, htx, rule->arg.http.str,
-							  &rule->arg.http.fmt,
-							  rule->arg.http.re, rule->action)) {
-					rule_ret = HTTP_RULE_RES_ERROR;
-					goto end;
-				}
 				break;
 
 			case ACT_HTTP_DEL_HDR:

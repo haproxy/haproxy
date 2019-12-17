@@ -40,8 +40,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 int http_request_forward_body(struct stream *s, struct channel *req, int an_bit);
 int http_response_forward_body(struct stream *s, struct channel *res, int an_bit);
 int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
-int http_transform_header_str(struct stream* s, struct channel *chn, struct htx *htx,
-			      struct ist name, const char *str, struct my_regex *re, int action);
+int http_replace_hdrs(struct stream* s, struct htx *htx, struct ist name, const char *str, struct my_regex *re, int full);
 int http_req_replace_stline(int action, const char *replace, int len,
 			    struct proxy *px, struct stream *s);
 int http_res_set_status(unsigned int status, struct ist reason, struct stream *s);

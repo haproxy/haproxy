@@ -4795,7 +4795,7 @@ __LJMP static int hlua_http_res_get_headers(lua_State *L)
  * 4 following functions.
  */
 __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
-                                           struct http_msg *msg, int action)
+                                           struct http_msg *msg, int full)
 {
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
@@ -4808,7 +4808,7 @@ __LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
 		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
 
 	htx = htxbuf(&msg->chn->buf);
-	http_transform_header_str(htxn->s, msg->chn, htx, ist2(name, name_len), value, re, action);
+	http_replace_hdrs(htxn->s, htx, ist2(name, name_len), value, re, full);
 	regex_free(re);
 	return 0;
 }
@@ -4823,7 +4823,7 @@ __LJMP static int hlua_http_req_rep_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, ACT_HTTP_REPLACE_HDR));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, 1));
 }
 
 __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
@@ -4836,7 +4836,7 @@ __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, ACT_HTTP_REPLACE_HDR));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, 1));
 }
 
 __LJMP static int hlua_http_req_rep_val(lua_State *L)
@@ -4849,7 +4849,7 @@ __LJMP static int hlua_http_req_rep_val(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, ACT_HTTP_REPLACE_VAL));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->req, 0));
 }
 
 __LJMP static int hlua_http_res_rep_val(lua_State *L)
@@ -4862,7 +4862,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, ACT_HTTP_REPLACE_VAL));
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn->rsp, 0));
 }
 
 /* This function deletes all the occurrences of an header.
