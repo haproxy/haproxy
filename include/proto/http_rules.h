@@ -32,8 +32,6 @@ extern struct action_kw_list http_res_keywords;
 
 struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
-void free_http_req_rules(struct list *r);
-void free_http_res_rules(struct list *r);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt, int dir);
 

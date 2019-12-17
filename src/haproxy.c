@@ -2286,14 +2286,14 @@ static void deinit_acl_cond(struct acl_cond *cond)
 	free(cond);
 }
 
-static void deinit_tcp_rules(struct list *rules)
+static void deinit_act_rules(struct list *rules)
 {
-	struct act_rule *trule, *truleb;
+	struct act_rule *rule, *ruleb;
 
-	list_for_each_entry_safe(trule, truleb, rules, list) {
-		LIST_DEL(&trule->list);
-		deinit_acl_cond(trule->cond);
-		free(trule);
+	list_for_each_entry_safe(rule, ruleb, rules, list) {
+		LIST_DEL(&rule->list);
+		deinit_acl_cond(rule->cond);
+		free(rule);
 	}
 }
 
@@ -2438,9 +2438,12 @@ void deinit(void)
 			free(lf);
 		}
 
-		deinit_tcp_rules(&p->tcp_req.inspect_rules);
-		deinit_tcp_rules(&p->tcp_rep.inspect_rules);
-		deinit_tcp_rules(&p->tcp_req.l4_rules);
+		deinit_act_rules(&p->tcp_req.inspect_rules);
+		deinit_act_rules(&p->tcp_rep.inspect_rules);
+		deinit_act_rules(&p->tcp_req.l4_rules);
+		deinit_act_rules(&p->tcp_req.l5_rules);
+		deinit_act_rules(&p->http_req_rules);
+		deinit_act_rules(&p->http_res_rules);
 
 		deinit_stick_rules(&p->storersp_rules);
 		deinit_stick_rules(&p->sticking_rules);
@@ -2542,8 +2545,6 @@ void deinit(void)
 		free(p->desc);
 		free(p->fwdfor_hdr_name);
 
-		free_http_req_rules(&p->http_req_rules);
-		free_http_res_rules(&p->http_res_rules);
 		task_destroy(p->task);
 
 		pool_destroy(p->req_cap_pool);
@@ -2568,7 +2569,7 @@ void deinit(void)
 		free(uap->desc);
 
 		userlist_free(uap->userlist);
-		free_http_req_rules(&uap->http_req_rules);
+		deinit_act_rules(&uap->http_req_rules);
 
 		free(uap);
 	}
