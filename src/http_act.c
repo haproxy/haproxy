@@ -133,6 +133,8 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
  * <rule>.arg.act.p[]. It builds a string in the trash from the format string
  * previously filled by function parse_replace_uri() and will execute the regex
  * in p[1] to replace the URI. It uses the format string present in act.p[2..3].
+ * The component to act on (path/uri) is taken from act.p[0] which contains 1
+ * for the path or 3 for the URI (values used by http_req_replace_stline()).
  * It always returns ACT_RET_CONT. If an error occurs, the action is canceled,
  * but the rule processing continues.
  */
@@ -149,6 +151,10 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (!replace || !output)
 		goto leave;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
+
+	if (rule->arg.act.p[0] == (void *)1)
+		uri = http_get_path(uri); // replace path
+
 	if (!regex_exec_match2(rule->arg.act.p[1], uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
 
@@ -161,8 +167,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (len == -1)
 		goto leave;
 
-	/* 3 is the set-uri action */
-	http_req_replace_stline(3, output->area, len, px, s);
+	http_req_replace_stline((long)rule->arg.act.p[0], output->area, len, px, s);
 
 	ret = ACT_RET_CONT;
 
@@ -172,9 +177,9 @@ leave:
 	return ret;
 }
 
-/* parse a "replace-uri" http-request action.
+/* parse a "replace-uri" or "replace-path" http-request action.
  * This action takes 2 arguments (a regex and a replacement format string).
- * The resulting rule makes use of arg->act.p[0] to store the action (0 for now),
+ * The resulting rule makes use of arg->act.p[0] to store the action (1/3 for now),
  * p[1] to store the compiled regex, and arg->act.p[2..3] to store the log-format
  * list head. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
@@ -185,7 +190,11 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 	char *error = NULL;
 
 	rule->action = ACT_CUSTOM;
-	rule->arg.act.p[0] = (void *)0; // replace-uri
+	if (strcmp(args[cur_arg-1], "replace-path") == 0)
+		rule->arg.act.p[0] = (void *)1; // replace-path
+	else
+		rule->arg.act.p[0] = (void *)3; // replace-uri
+
 	rule->action_ptr = http_action_replace_uri;
 
 	if (!*args[cur_arg] || !*args[cur_arg+1] ||
@@ -691,6 +700,7 @@ static struct action_kw_list http_req_actions = {
 		{ "capture",    parse_http_req_capture },
 		{ "reject",     parse_http_action_reject },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry },
+		{ "replace-path", parse_replace_uri },
 		{ "replace-uri", parse_replace_uri },
 		{ "set-method", parse_set_req_line },
 		{ "set-path",   parse_set_req_line },

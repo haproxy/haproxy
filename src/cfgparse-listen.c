@@ -3694,7 +3694,7 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request replace-uri' and 'http-request replace-header' instead.\n",
+			 "Use 'http-request replace-path', 'http-request replace-uri' or 'http-request replace-header' instead.\n",
 			 file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
