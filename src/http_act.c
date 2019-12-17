@@ -37,6 +37,7 @@
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
+#include <proto/pattern.h>
 #include <proto/stream_interface.h>
 
 
@@ -1212,25 +1213,118 @@ static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, 
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a add-acl, del-acl, set-map or del-map actions. On
+ * success, it returns ACT_RET_CONT. Otherwsize ACT_RET_ERR is returned.
+ */
+static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *px,
+					   struct session *sess, struct stream *s, int flags)
+{
+	struct pat_ref *ref;
+	struct buffer *key = NULL, *value = NULL;
+	enum act_return ret = ACT_RET_CONT;
+
+	/* collect reference */
+	ref = pat_ref_lookup(rule->arg.map.ref);
+	if (!ref)
+		goto leave;
+
+	/* allocate key */
+	key = alloc_trash_chunk();
+	if (!key)
+		goto fail_alloc;
+
+	/* collect key */
+	key->data = build_logline(s, key->area, key->size, &rule->arg.map.key);
+	key->area[key->data] = '\0';
+
+	switch (rule->action) {
+	case 0: // add-acl
+		/* add entry only if it does not already exist */
+		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		if (pat_ref_find_elt(ref, key->area) == NULL)
+			pat_ref_add(ref, key->area, NULL, NULL);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		break;
+
+	case 1: // set-map
+		/* allocate value */
+		value = alloc_trash_chunk();
+		if (!value)
+			goto fail_alloc;
+
+		/* collect value */
+		value->data = build_logline(s, value->area, value->size, &rule->arg.map.value);
+		value->area[value->data] = '\0';
+
+		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		if (pat_ref_find_elt(ref, key->area) != NULL) {
+			/* update entry if it exists */
+			pat_ref_set(ref, key->area, value->area, NULL);
+		}
+		else {
+			/* insert a new entry */
+			pat_ref_add(ref, key->area, value->area, NULL);
+		}
+		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		break;
+
+	case 2: // del-acl
+	case 3: // del-map
+		/* returned code: 1=ok, 0=ko */
+		HA_SPIN_LOCK(PATREF_LOCK, &ref->lock);
+		pat_ref_delete(ref, key->area);
+		HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+		break;
+
+	default:
+		ret = ACT_RET_ERR;
+	}
+
+
+  leave:
+	free_trash_chunk(key);
+	free_trash_chunk(value);
+	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+}
+
 /* Parse a "add-acl", "del-acl", "set-map" or "del-map" actions. It takes one or
- * two log-format string as argument depending on the action. It returns
- * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ * two log-format string as argument depending on the action. The action is
+ * stored in <.action> as an int (0=add-acl, 1=set-map, 2=del-acl,
+ * 3=del-map). It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
 static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, struct proxy *px,
 					     struct act_rule *rule, char **err)
 {
 	int cap, cur_arg;
 
-	rule->action = (args[*orig_arg-1][0] == 'a' ? ACT_HTTP_ADD_ACL :
-			(args[*orig_arg-1][0] == 's' ? ACT_HTTP_SET_MAP :
-			 (args[*orig_arg-1][4] == 'a' ? ACT_HTTP_DEL_ACL : ACT_HTTP_DEL_MAP)));
+	if (args[*orig_arg-1][0] == 'a') // add-acl
+		rule->action = 0;
+	else if (args[*orig_arg-1][0] == 's') // set-map
+		rule->action = 1;
+	else if (args[*orig_arg-1][4] == 'a') // del-acl
+		rule->action = 2;
+	else if (args[*orig_arg-1][4] == 'm') // del-map
+		rule->action = 3;
+	else {
+		memprintf(err, "internal error: unhandled action '%s'", args[0]);
+		return ACT_RET_PRS_ERR;
+	}
+	rule->action_ptr = http_action_set_map;
 
 	cur_arg = *orig_arg;
-	if (rule->action == ACT_HTTP_SET_MAP && (!*args[cur_arg] || !*args[cur_arg+1])) {
+	if (rule->action == 1 && (!*args[cur_arg] || !*args[cur_arg+1])) {
+		/* 2 args for set-map */
 		memprintf(err, "expects exactly 2 arguments");
 		return ACT_RET_PRS_ERR;
 	}
 	else if (!*args[cur_arg]) {
+		/* only one arg for other actions */
 		memprintf(err, "expects exactly 1 arguments");
 		return ACT_RET_PRS_ERR;
 	}
@@ -1255,7 +1349,7 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.key, LOG_OPT_HTTP, cap, err))
 		return ACT_RET_PRS_ERR;
 
-	if (rule->action == ACT_HTTP_SET_MAP) {
+	if (rule->action == 1) {
 		/* value pattern for set-map only */
 		cur_arg++;
 		LIST_INIT(&rule->arg.map.value);
