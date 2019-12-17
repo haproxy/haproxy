@@ -3038,52 +3038,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					http_remove_header(htx, &ctx);
 				break;
 
-			case ACT_HTTP_SET_HDR:
-			case ACT_HTTP_ADD_HDR: {
-				/* The scope of the trash buffer must be limited to this function. The
-				 * build_logline() function can execute a lot of other function which
-				 * can use the trash buffer. So for limiting the scope of this global
-				 * buffer, we build first the header value using build_logline, and
-				 * after we store the header name.
-				 */
-				struct buffer *replace;
-				struct ist n, v;
-
-				replace = alloc_trash_chunk();
-				if (!replace) {
-					if (!(s->flags & SF_ERR_MASK))
-						s->flags |= SF_ERR_RESOURCE;
-					rule_ret = HTTP_RULE_RES_ERROR;
-					goto end;
-				}
-
-				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
-				n = rule->arg.http.str;
-				v = ist2(replace->area, replace->data);
-
-				if (rule->action == ACT_HTTP_SET_HDR) {
-					/* remove all occurrences of the header */
-					ctx.blk = NULL;
-					while (http_find_header(htx, n, &ctx, 1))
-						http_remove_header(htx, &ctx);
-				}
-
-				if (!http_add_header(htx, n, v)) {
-					_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
-					if (s->flags & SF_BE_ASSIGNED)
-						_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-					if (sess->listener->counters)
-						_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
-
-					if (!(txn->req.flags & HTTP_MSGF_SOFT_RW)) {
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
-					}
-				}
-				free_trash_chunk(replace);
-				break;
-			}
-
 			case ACT_HTTP_DEL_ACL:
 			case ACT_HTTP_DEL_MAP: {
 				struct pat_ref *ref;
@@ -3399,47 +3353,6 @@ resume_execution:
 				while (http_find_header(htx, rule->arg.http.str, &ctx, 1))
 					http_remove_header(htx, &ctx);
 				break;
-
-			case ACT_HTTP_SET_HDR:
-			case ACT_HTTP_ADD_HDR: {
-				struct buffer *replace;
-				struct ist n, v;
-
-				replace = alloc_trash_chunk();
-				if (!replace) {
-					if (!(s->flags & SF_ERR_MASK))
-						s->flags |= SF_ERR_RESOURCE;
-					rule_ret = HTTP_RULE_RES_ERROR;
-					goto end;
-				}
-
-				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
-				n = rule->arg.http.str;
-				v = ist2(replace->area, replace->data);
-
-				if (rule->action == ACT_HTTP_SET_HDR) {
-					/* remove all occurrences of the header */
-					ctx.blk = NULL;
-					while (http_find_header(htx, n, &ctx, 1))
-						http_remove_header(htx, &ctx);
-				}
-
-				if (!http_add_header(htx, n, v)) {
-					_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
-					_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-					if (sess->listener->counters)
-						_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
-					if (objt_server(s->target))
-						_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
-
-					if (!(txn->rsp.flags & HTTP_MSGF_SOFT_RW)) {
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
-					}
-				}
-				free_trash_chunk(replace);
-				break;
-			}
 
 			case ACT_HTTP_DEL_ACL:
 			case ACT_HTTP_DEL_MAP: {

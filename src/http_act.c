@@ -943,6 +943,66 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a set-header or add-header actions. It builds a string
+ * in the trash from the specified format string. It finds the action to be
+ * performed in <.action>, previously filled by function parse_set_header(). The
+ * replacement action is excuted by the function http_action_set_header(). On
+ * success, it returns ACT_RET_CONT. If an error occurs while soft rewrites are
+ * enabled, the action is canceled, but the rule processing continue. Otherwsize
+ * ACT_RET_ERR is returned.
+ */
+static enum act_return http_action_set_header(struct act_rule *rule, struct proxy *px,
+					      struct session *sess, struct stream *s, int flags)
+{
+	struct htx *htx = htxbuf((rule->from == ACT_F_HTTP_REQ) ? &s->req.buf : &s->res.buf);
+	enum act_return ret = ACT_RET_CONT;
+	struct buffer *replace;
+	struct http_hdr_ctx ctx;
+	struct ist n, v;
+
+	replace = alloc_trash_chunk();
+	if (!replace)
+		goto fail_alloc;
+
+	replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
+	n = rule->arg.http.str;
+	v = ist2(replace->area, replace->data);
+
+	if (rule->action == 0) { // set-header
+		/* remove all occurrences of the header */
+		ctx.blk = NULL;
+		while (http_find_header(htx, n, &ctx, 1))
+			http_remove_header(htx, &ctx);
+	}
+
+	/* Now add header */
+	if (!http_add_header(htx, n, v))
+		goto fail_rewrite;
+
+  leave:
+	free_trash_chunk(replace);
+	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+
+  fail_rewrite:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+		ret = ACT_RET_ERR;
+	goto leave;
+}
+
 /* Parse a "set-header", "add-header" or "early-hint" actions. It takes an
  * header name and a log-format string as arguments. It returns ACT_RET_PRS_OK
  * on success, ACT_RET_PRS_ERR on error.
@@ -955,8 +1015,15 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 {
 	int cap, cur_arg;
 
-	rule->action = (*args[*orig_arg-1] == 'a' ? ACT_HTTP_ADD_HDR :
-			*args[*orig_arg-1] == 's' ? ACT_HTTP_SET_HDR : ACT_HTTP_EARLY_HINT);
+	if (args[*orig_arg-1][0] == 'e')
+		rule->action = ACT_HTTP_EARLY_HINT;
+	else {
+		if (args[*orig_arg-1][0] == 's')
+			rule->action = 0; // set-header
+		else
+			rule->action = 1; // add-header
+		rule->action_ptr = http_action_set_header;
+	}
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg] || !*args[cur_arg+1]) {
