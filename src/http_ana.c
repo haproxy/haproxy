@@ -2886,7 +2886,7 @@ int http_req_replace_stline(int action, const char *replace, int len,
  * variable <status> contains the new status code. This function never fails. It
  * returns 0 in case of success, -1 in case of internal error.
  */
-int http_res_set_status(unsigned int status, const char *reason, struct stream *s)
+int http_res_set_status(unsigned int status, struct ist reason, struct stream *s)
 {
 	struct htx *htx = htxbuf(&s->res.buf);
 	char *res;
@@ -2896,12 +2896,14 @@ int http_res_set_status(unsigned int status, const char *reason, struct stream *
 	trash.data = res - trash.area;
 
 	/* Do we have a custom reason format string? */
-	if (reason == NULL)
-		reason = http_get_reason(status);
+	if (reason.ptr == NULL) {
+		const char *str = http_get_reason(status);
+		reason = ist2(str, strlen(str));
+	}
 
 	if (!http_replace_res_status(htx, ist2(trash.area, trash.data)))
 		return -1;
-	if (!http_replace_res_reason(htx, ist2(reason, strlen(reason))))
+	if (!http_replace_res_reason(htx, reason))
 		return -1;
 	return 0;
 }
@@ -2978,20 +2980,20 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 			case ACT_ACTION_DENY:
 				if (deny_status)
-					*deny_status = rule->deny_status;
+					*deny_status = rule->arg.http.i;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_REQ_TARPIT:
 				txn->flags |= TX_CLTARPIT;
 				if (deny_status)
-					*deny_status = rule->deny_status;
+					*deny_status = rule->arg.http.i;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_REQ_AUTH:
 				/* Auth might be performed on regular http-req rules as well as on stats */
-				auth_realm = rule->arg.auth.realm;
+				auth_realm = rule->arg.http.str.ptr;
 				if (!auth_realm) {
 					if (px->uri_auth && rules == &px->uri_auth->http_req_rules)
 						auth_realm = STATS_DEFAULT_REALM;
@@ -3015,27 +3017,26 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				goto end;
 
 			case ACT_HTTP_SET_NICE:
-				s->task->nice = rule->arg.nice;
+				s->task->nice = rule->arg.http.i;
 				break;
 
 			case ACT_HTTP_SET_TOS:
-				conn_set_tos(objt_conn(sess->origin), rule->arg.tos);
+				conn_set_tos(objt_conn(sess->origin), rule->arg.http.i);
 				break;
 
 			case ACT_HTTP_SET_MARK:
-				conn_set_mark(objt_conn(sess->origin), rule->arg.mark);
+				conn_set_mark(objt_conn(sess->origin), rule->arg.http.i);
 				break;
 
 			case ACT_HTTP_SET_LOGL:
-				s->logs.level = rule->arg.loglevel;
+				s->logs.level = rule->arg.http.i;
 				break;
 
 			case ACT_HTTP_REPLACE_HDR:
 			case ACT_HTTP_REPLACE_VAL:
-				if (http_transform_header(s, &s->req, htx,
-							  ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
-							  &rule->arg.hdr_add.fmt,
-							  rule->arg.hdr_add.re, rule->action)) {
+				if (http_transform_header(s, &s->req, htx, rule->arg.http.str,
+							  &rule->arg.http.fmt,
+							  rule->arg.http.re, rule->action)) {
 					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
@@ -3044,7 +3045,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			case ACT_HTTP_DEL_HDR:
 				/* remove all occurrences of the header */
 				ctx.blk = NULL;
-				while (http_find_header(htx, ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len), &ctx, 1))
+				while (http_find_header(htx, rule->arg.http.str, &ctx, 1))
 					http_remove_header(htx, &ctx);
 				break;
 
@@ -3067,14 +3068,14 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					goto end;
 				}
 
-				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.hdr_add.fmt);
-				n = ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
+				n = rule->arg.http.str;
 				v = ist2(replace->area, replace->data);
 
 				if (rule->action == ACT_HTTP_SET_HDR) {
 					/* remove all occurrences of the header */
 					ctx.blk = NULL;
-					while (http_find_header(htx, ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len), &ctx, 1))
+					while (http_find_header(htx, n, &ctx, 1))
 						http_remove_header(htx, &ctx);
 				}
 
@@ -3213,9 +3214,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			case ACT_HTTP_EARLY_HINT:
 				if (!(txn->req.flags & HTTP_MSGF_VER_11))
 					break;
-				early_hints = http_add_early_hint_header(s, early_hints,
-									 ist2(rule->arg.early_hint.name, rule->arg.early_hint.name_len),
-									 &rule->arg.early_hint.fmt);
+				early_hints = http_add_early_hint_header(s, early_hints, rule->arg.http.str, &rule->arg.http.fmt);
 				if (early_hints == -1) {
 					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
@@ -3386,27 +3385,26 @@ resume_execution:
 				goto end;
 
 			case ACT_HTTP_SET_NICE:
-				s->task->nice = rule->arg.nice;
+				s->task->nice = rule->arg.http.i;
 				break;
 
 			case ACT_HTTP_SET_TOS:
-				conn_set_tos(objt_conn(sess->origin), rule->arg.tos);
+				conn_set_tos(objt_conn(sess->origin), rule->arg.http.i);
 				break;
 
 			case ACT_HTTP_SET_MARK:
-				conn_set_mark(objt_conn(sess->origin), rule->arg.mark);
+				conn_set_mark(objt_conn(sess->origin), rule->arg.http.i);
 				break;
 
 			case ACT_HTTP_SET_LOGL:
-				s->logs.level = rule->arg.loglevel;
+				s->logs.level = rule->arg.http.i;
 				break;
 
 			case ACT_HTTP_REPLACE_HDR:
 			case ACT_HTTP_REPLACE_VAL:
-				if (http_transform_header(s, &s->res, htx,
-							  ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len),
-							  &rule->arg.hdr_add.fmt,
-							  rule->arg.hdr_add.re, rule->action)) {
+				if (http_transform_header(s, &s->res, htx, rule->arg.http.str,
+							  &rule->arg.http.fmt,
+							  rule->arg.http.re, rule->action)) {
 					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
@@ -3415,7 +3413,7 @@ resume_execution:
 			case ACT_HTTP_DEL_HDR:
 				/* remove all occurrences of the header */
 				ctx.blk = NULL;
-				while (http_find_header(htx, ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len), &ctx, 1))
+				while (http_find_header(htx, rule->arg.http.str, &ctx, 1))
 					http_remove_header(htx, &ctx);
 				break;
 
@@ -3432,14 +3430,14 @@ resume_execution:
 					goto end;
 				}
 
-				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.hdr_add.fmt);
-				n = ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+				replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
+				n = rule->arg.http.str;
 				v = ist2(replace->area, replace->data);
 
 				if (rule->action == ACT_HTTP_SET_HDR) {
 					/* remove all occurrences of the header */
 					ctx.blk = NULL;
-					while (http_find_header(htx, ist2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len), &ctx, 1))
+					while (http_find_header(htx, n, &ctx, 1))
 						http_remove_header(htx, &ctx);
 				}
 

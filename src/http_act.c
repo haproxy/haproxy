@@ -42,7 +42,7 @@
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
- * the action to be performed in <http.action>, previously filled by function
+ * the action to be performed in <http.i>, previously filled by function
  * parse_set_req_line(). The replacement action is excuted by the function
  * http_action_set_req_line(). On success, it returns ACT_RET_CONT. If an error
  * occurs while soft rewrites are enabled, the action is canceled, but the rule
@@ -59,13 +59,13 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 		goto fail_alloc;
 
 	/* If we have to create a query string, prepare a '?'. */
-	if (rule->arg.http.action == 2)
+	if (rule->arg.http.i == 2) // set-query
 		replace->area[replace->data++] = '?';
 	replace->data += build_logline(s, replace->area + replace->data,
 				       replace->size - replace->data,
-				       &rule->arg.http.logfmt);
+				       &rule->arg.http.fmt);
 
-	if (http_req_replace_stline(rule->arg.http.action, replace->area,
+	if (http_req_replace_stline(rule->arg.http.i, replace->area,
 				    replace->data, px, s) == -1)
 		goto fail_rewrite;
 
@@ -100,8 +100,8 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
  *   set-uri
  *
  * All of them accept a single argument of type string representing a log-format.
- * The resulting rule makes use of arg->act.p[0..1] to store the log-format list
- * head, and p[2] to store the action as an int (0=method, 1=path, 2=query, 3=uri).
+ * The resulting rule makes use of <http.fmt> to store the log-format list head,
+ * and <http.i> to store the action as an int (0=method, 1=path, 2=query, 3=uri).
  * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
 static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct proxy *px,
@@ -113,25 +113,22 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 
 	switch (args[0][4]) {
 	case 'm' :
-		rule->arg.http.action = 0;
-		rule->action_ptr = http_action_set_req_line;
+		rule->arg.http.i = 0; // set-method
 		break;
 	case 'p' :
-		rule->arg.http.action = 1;
-		rule->action_ptr = http_action_set_req_line;
+		rule->arg.http.i = 1; // set-path
 		break;
 	case 'q' :
-		rule->arg.http.action = 2;
-		rule->action_ptr = http_action_set_req_line;
+		rule->arg.http.i = 2; // set-query
 		break;
 	case 'u' :
-		rule->arg.http.action = 3;
-		rule->action_ptr = http_action_set_req_line;
+		rule->arg.http.i = 3; // set-uri
 		break;
 	default:
 		memprintf(err, "internal error: unhandled action '%s'", args[0]);
 		return ACT_RET_PRS_ERR;
 	}
+	rule->action_ptr = http_action_set_req_line;
 
 	if (!*args[cur_arg] ||
 	    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
@@ -139,9 +136,9 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 
-	LIST_INIT(&rule->arg.http.logfmt);
+	LIST_INIT(&rule->arg.http.fmt);
 	px->conf.args.ctx = ARGC_HRQ;
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.logfmt, LOG_OPT_HTTP,
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP,
 	                            (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
 		return ACT_RET_PRS_ERR;
 	}
@@ -151,14 +148,14 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 }
 
 /* This function executes a replace-uri action. It finds its arguments in
- * <rule>.arg.act.p[]. It builds a string in the trash from the format string
+ * <rule>.arg.http. It builds a string in the trash from the format string
  * previously filled by function parse_replace_uri() and will execute the regex
- * in p[1] to replace the URI. It uses the format string present in act.p[2..3].
- * The component to act on (path/uri) is taken from act.p[0] which contains 1
- * for the path or 3 for the URI (values used by http_req_replace_stline()).
- * On success, it returns ACT_RET_CONT. If an error occurs while soft rewrites
- * are enabled, the action is canceled, but the rule processing continue.
- * Otherwsize ACT_RET_ERR is returned.
+ * in <http.re> to replace the URI. It uses the format string present in
+ * <http.fmt>. The component to act on (path/uri) is taken from <http.i> which
+ * contains 1 for the path or 3 for the URI (values used by
+ * http_req_replace_stline()). On success, it returns ACT_RET_CONT. If an error
+ * occurs while soft rewrites are enabled, the action is canceled, but the rule
+ * processing continue. Otherwsize ACT_RET_ERR is returned.
  */
 static enum act_return http_action_replace_uri(struct act_rule *rule, struct proxy *px,
                                                struct session *sess, struct stream *s, int flags)
@@ -174,13 +171,13 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto fail_alloc;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
-	if (rule->arg.act.p[0] == (void *)1)
-		uri = http_get_path(uri); // replace path
+	if (rule->arg.http.i == 1) // replace-path
+		uri = http_get_path(uri);
 
-	if (!regex_exec_match2(rule->arg.act.p[1], uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
+	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
 
-	replace->data = build_logline(s, replace->area, replace->size, (struct list *)&rule->arg.act.p[2]);
+	replace->data = build_logline(s, replace->area, replace->size, &rule->arg.http.fmt);
 
 	/* note: uri.ptr doesn't need to be zero-terminated because it will
 	 * only be used to pick pmatch references.
@@ -189,7 +186,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (len == -1)
 		goto fail_rewrite;
 
-	if (http_req_replace_stline((long)rule->arg.act.p[0], output->area, len, px, s) == -1)
+	if (http_req_replace_stline(rule->arg.http.i, output->area, len, px, s) == -1)
 		goto fail_rewrite;
 
   leave:
@@ -219,8 +216,8 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 
 /* parse a "replace-uri" or "replace-path" http-request action.
  * This action takes 2 arguments (a regex and a replacement format string).
- * The resulting rule makes use of arg->act.p[0] to store the action (1/3 for now),
- * p[1] to store the compiled regex, and arg->act.p[2..3] to store the log-format
+ * The resulting rule makes use of <http.i> to store the action (1/3 for now),
+ * <http.re> to store the compiled regex, and <http.fmt> to store the log-format
  * list head. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
 static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, struct proxy *px,
@@ -231,9 +228,9 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 
 	rule->action = ACT_CUSTOM;
 	if (strcmp(args[cur_arg-1], "replace-path") == 0)
-		rule->arg.act.p[0] = (void *)1; // replace-path
+		rule->arg.http.i = 1; // replace-path
 	else
-		rule->arg.act.p[0] = (void *)3; // replace-uri
+		rule->arg.http.i = 3; // replace-uri
 
 	rule->action_ptr = http_action_replace_uri;
 
@@ -243,15 +240,15 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 		return ACT_RET_PRS_ERR;
 	}
 
-	if (!(rule->arg.act.p[1] = regex_comp(args[cur_arg], 1, 1, &error))) {
+	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, &error))) {
 		memprintf(err, "failed to parse the regex : %s", error);
 		free(error);
 		return ACT_RET_PRS_ERR;
 	}
 
-	LIST_INIT((struct list *)&rule->arg.act.p[2]);
+	LIST_INIT(&rule->arg.http.fmt);
 	px->conf.args.ctx = ARGC_HRQ;
-	if (!parse_logformat_string(args[cur_arg + 1], px, (struct list *)&rule->arg.act.p[2], LOG_OPT_HTTP,
+	if (!parse_logformat_string(args[cur_arg + 1], px, &rule->arg.http.fmt, LOG_OPT_HTTP,
 	                            (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
 		return ACT_RET_PRS_ERR;
 	}
@@ -264,7 +261,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 static enum act_return action_http_set_status(struct act_rule *rule, struct proxy *px,
                                               struct session *sess, struct stream *s, int flags)
 {
-	if (http_res_set_status(rule->arg.status.code, rule->arg.status.reason, s) == -1) {
+	if (http_res_set_status(rule->arg.http.i, rule->arg.http.str, s) == -1) {
 		_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 		if (s->flags & SF_BE_ASSIGNED)
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
@@ -300,8 +297,8 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 	}
 
 	/* convert status code as integer */
-	rule->arg.status.code = strtol(args[*orig_arg], &error, 10);
-	if (*error != '\0' || rule->arg.status.code < 100 || rule->arg.status.code > 999) {
+	rule->arg.http.i = strtol(args[*orig_arg], &error, 10);
+	if (*error != '\0' || rule->arg.http.i < 100 || rule->arg.http.i > 999) {
 		memprintf(err, "expects an integer status code between 100 and 999");
 		return ACT_RET_PRS_ERR;
 	}
@@ -309,11 +306,12 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 	(*orig_arg)++;
 
 	/* set custom reason string */
-	rule->arg.status.reason = NULL; // If null, we use the default reason for the status code.
+	rule->arg.http.str = ist(NULL); // If null, we use the default reason for the status code.
 	if (*args[*orig_arg] && strcmp(args[*orig_arg], "reason") == 0 &&
 	    (*args[*orig_arg + 1] && strcmp(args[*orig_arg + 1], "if") != 0 && strcmp(args[*orig_arg + 1], "unless") != 0)) {
 		(*orig_arg)++;
-		rule->arg.status.reason = strdup(args[*orig_arg]);
+		rule->arg.http.str.ptr = strdup(args[*orig_arg]);
+		rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
 		(*orig_arg)++;
 	}
 
@@ -765,11 +763,11 @@ static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, 
 	cur_arg = *orig_arg;
 	if (!strcmp(args[cur_arg-1], "tarpit")) {
 		rule->action = ACT_HTTP_REQ_TARPIT;
-		rule->deny_status = HTTP_ERR_500;
+		rule->arg.http.i = HTTP_ERR_500;
 	}
 	else {
 		rule->action = ACT_ACTION_DENY;
-		rule->deny_status = HTTP_ERR_403;
+		rule->arg.http.i = HTTP_ERR_403;
 	}
 
 	if (strcmp(args[cur_arg], "deny_status") == 0) {
@@ -783,13 +781,13 @@ static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, 
 		cur_arg++;
 		for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
 			if (http_err_codes[hc] == code) {
-				rule->deny_status = hc;
+				rule->arg.http.i = hc;
 				break;
 			}
 		}
 		if (hc >= HTTP_ERR_SIZE)
 			memprintf(err, "status code %d not handled, using default code %d",
-				  code, http_err_codes[rule->deny_status]);
+				  code, http_err_codes[rule->arg.http.i]);
 	}
 
 	*orig_arg = cur_arg;
@@ -823,7 +821,8 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 			memprintf(err, "missing realm value.\n");
 			return ACT_RET_PRS_ERR;
 		}
-		rule->arg.auth.realm = strdup(args[cur_arg]);
+		rule->arg.http.str.ptr = strdup(args[cur_arg]);
+		rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
 		cur_arg++;
 	}
 
@@ -846,11 +845,11 @@ static enum act_parse_ret parse_http_set_nice(const char **args, int *orig_arg, 
 		memprintf(err, "expects exactly 1 argument (integer value)");
 		return ACT_RET_PRS_ERR;
 	}
-	rule->arg.nice = atoi(args[cur_arg]);
-	if (rule->arg.nice < -1024)
-		rule->arg.nice = -1024;
-	else if (rule->arg.nice > 1024)
-		rule->arg.nice = 1024;
+	rule->arg.http.i = atoi(args[cur_arg]);
+	if (rule->arg.http.i < -1024)
+		rule->arg.http.i = -1024;
+	else if (rule->arg.http.i > 1024)
+		rule->arg.http.i = 1024;
 
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
@@ -873,7 +872,7 @@ static enum act_parse_ret parse_http_set_tos(const char **args, int *orig_arg, s
 		memprintf(err, "expects exactly 1 argument (integer/hex value)");
 		return ACT_RET_PRS_ERR;
 	}
-	rule->arg.tos = strtol(args[cur_arg], &endp, 0);
+	rule->arg.http.i = strtol(args[cur_arg], &endp, 0);
 	if (endp && *endp != '\0') {
 		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
 		return ACT_RET_PRS_ERR;
@@ -904,7 +903,7 @@ static enum act_parse_ret parse_http_set_mark(const char **args, int *orig_arg, 
 		memprintf(err, "expects exactly 1 argument (integer/hex value)");
 		return ACT_RET_PRS_ERR;
 	}
-	rule->arg.mark = strtoul(args[cur_arg], &endp, 0);
+	rule->arg.http.i = strtoul(args[cur_arg], &endp, 0);
 	if (endp && *endp != '\0') {
 		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
 		return ACT_RET_PRS_ERR;
@@ -936,8 +935,8 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 		return ACT_RET_PRS_ERR;
 	}
 	if (strcmp(args[cur_arg], "silent") == 0)
-		rule->arg.loglevel = -1;
-	else if ((rule->arg.loglevel = get_log_level(args[cur_arg]) + 1) == 0)
+		rule->arg.http.i = -1;
+	else if ((rule->arg.http.i = get_log_level(args[cur_arg]) + 1) == 0)
 		goto bad_log_level;
 
 	*orig_arg = cur_arg + 1;
@@ -954,9 +953,6 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg, struct proxy *px,
 						   struct act_rule *rule, char **err)
 {
-	char **hdr_name;
-	int *hdr_name_len;
-	struct list *fmt;
 	int cap, cur_arg;
 
 	rule->action = (*args[*orig_arg-1] == 'a' ? ACT_HTTP_ADD_HDR :
@@ -968,13 +964,10 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 		return ACT_RET_PRS_ERR;
 	}
 
-	hdr_name     = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.name     : &rule->arg.hdr_add.name);
-	hdr_name_len = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.name_len : &rule->arg.hdr_add.name_len);
-	fmt          = (*args[cur_arg-1] == 'e' ? &rule->arg.early_hint.fmt      : &rule->arg.hdr_add.fmt);
 
-	*hdr_name = strdup(args[cur_arg]);
-	*hdr_name_len = strlen(*hdr_name);
-	LIST_INIT(fmt);
+	rule->arg.http.str.ptr = strdup(args[cur_arg]);
+	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+	LIST_INIT(&rule->arg.http.fmt);
 
 	if (rule->from == ACT_F_HTTP_REQ) {
 		px->conf.args.ctx = ARGC_HRQ;
@@ -986,7 +979,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 	}
 
 	cur_arg++;
-	if (!parse_logformat_string(args[cur_arg], px, fmt, LOG_OPT_HTTP, cap, err))
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err))
 		return ACT_RET_PRS_ERR;
 
 	free(px->conf.lfs_file);
@@ -1014,12 +1007,12 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.hdr_add.name = strdup(args[cur_arg]);
-	rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
-	LIST_INIT(&rule->arg.hdr_add.fmt);
+	rule->arg.http.str.ptr = strdup(args[cur_arg]);
+	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
+	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg++;
-	if (!(rule->arg.hdr_add.re = regex_comp(args[cur_arg], 1, 1, err)))
+	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, err)))
 		return ACT_RET_PRS_ERR;
 
 	if (rule->from == ACT_F_HTTP_REQ) {
@@ -1032,7 +1025,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	}
 
 	cur_arg++;
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP, cap, err))
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err))
 		return ACT_RET_PRS_ERR;
 
 	free(px->conf.lfs_file);
@@ -1059,8 +1052,8 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.hdr_add.name = strdup(args[cur_arg]);
-	rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+	rule->arg.http.str.ptr = strdup(args[cur_arg]);
+	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
 
 	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
 

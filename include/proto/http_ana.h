@@ -44,7 +44,7 @@ int http_transform_header_str(struct stream* s, struct channel *chn, struct htx 
 			      struct ist name, const char *str, struct my_regex *re, int action);
 int http_req_replace_stline(int action, const char *replace, int len,
 			    struct proxy *px, struct stream *s);
-int http_res_set_status(unsigned int status, const char *reason, struct stream *s);
+int http_res_set_status(unsigned int status, struct ist reason, struct stream *s);
 void http_check_request_for_cacheability(struct stream *s, struct channel *req);
 void http_check_response_for_cacheability(struct stream *s, struct channel *res);
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si);

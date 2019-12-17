@@ -104,7 +104,6 @@ struct act_rule {
 	struct acl_cond *cond;                 /* acl condition to meet */
 	enum act_name action;                  /* ACT_ACTION_* */
 	enum act_from from;                    /* ACT_F_* */
-	short deny_status;                     /* HTTP status to return to user when denying */
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
 	                              struct session *sess, struct stream *s, int flags);
 	int (*check_ptr)(struct act_rule *rule, struct proxy *px, char **err); /* ptr to check function */
@@ -118,26 +117,14 @@ struct act_rule {
 			char *resolvers_id;
 			struct dns_resolvers *resolvers;
 			struct dns_options dns_opts;
-		} dns;                        /* dns resolution */
+		} dns;                         /* dns resolution */
 		struct {
-			char *realm;
-		} auth;                        /* arg used by "auth" */
-		struct {
-			char *name;            /* header name */
-			int name_len;          /* header name's length */
+			int i;                 /* integer param (status, nice, loglevel, ..) */
+			struct ist str;        /* string param (reason, header name, ...) */
 			struct list fmt;       /* log-format compatible expression */
-			struct my_regex *re;   /* used by replace-header and replace-value */
-		} hdr_add;                     /* args used by "add-header" and "set-header" */
-		struct {
-			char *name;            /* header name */
-			int name_len;          /* header name's length */
-			struct list fmt;       /* log-format compatible expression */
-		} early_hint;
+			struct my_regex *re;   /* used by replace-header/value/uri/path */
+		} http;                        /* args used by some HTTP rules */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
-		int nice;                      /* nice value for ACT_HTTP_SET_NICE */
-		int loglevel;                  /* log-level value for ACT_HTTP_SET_LOGL */
-		int tos;                       /* tos value for ACT_HTTP_SET_TOS */
-		int mark;                      /* nfmark value for ACT_HTTP_SET_MARK */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */
 			struct list key;       /* pattern to retrieve MAP or ACL key */
@@ -145,17 +132,9 @@ struct act_rule {
 		} map;
 		struct sample_expr *expr;
 		struct {
-			struct list logfmt;
-			int action;
-		} http;
-		struct {
 			struct sample_expr *expr; /* expression used as the key */
 			struct cap_hdr *hdr;      /* the capture storage */
 		} cap;
-		struct {
-			unsigned int code;     /* HTTP status code */
-			const char *reason;    /* HTTP status reason */
-		} status;
 		struct {
 			struct sample_expr *expr;
 			int idx;

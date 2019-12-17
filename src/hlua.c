@@ -5051,7 +5051,8 @@ static int hlua_http_res_set_status(lua_State *L)
 {
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	unsigned int code = MAY_LJMP(luaL_checkinteger(L, 2));
-	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
+	const char *str = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
+	const struct ist reason = ist2(str, (str ? strlen(str) : 0));
 
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
