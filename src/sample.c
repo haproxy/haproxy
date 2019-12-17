@@ -1463,7 +1463,7 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 
 			else {
 				/* Display the displayable chars*. */
-				fprintf(stderr, "<");
+				fputc('<', stderr);
 				for (i = 0; i < tmp.data.u.str.data; i++) {
 					if (isprint(tmp.data.u.str.area[i]))
 						fputc(tmp.data.u.str.area[i],
@@ -1471,9 +1471,10 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 					else
 						fputc('.', stderr);
 				}
+				fputc('>', stderr);
 			}
-			fprintf(stderr, ">\n");
 		}
+		fputc('\n', stderr);
 	}
 	return 1;
 }
