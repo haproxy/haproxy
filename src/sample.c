@@ -1531,6 +1531,29 @@ static int sample_conv_sha1(const struct arg *arg_p, struct sample *smp, void *p
 }
 
 #ifdef USE_OPENSSL
+static int smp_check_sha2(struct arg *args, struct sample_conv *conv,
+                          const char *file, int line, char **err)
+{
+	if (args[0].type == ARGT_STOP)
+		return 1;
+	if (args[0].type != ARGT_SINT) {
+		memprintf(err, "Invalid type '%s'", arg_type_names[args[0].type]);
+		return 0;
+	}
+
+	switch (args[0].data.sint) {
+		case 224:
+		case 256:
+		case 384:
+		case 512:
+			/* this is okay */
+			return 1;
+		default:
+			memprintf(err, "Unsupported number of bits: '%lld'", args[0].data.sint);
+			return 0;
+	}
+}
+
 static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
@@ -3362,7 +3385,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 #ifdef USE_OPENSSL
-	{ "sha2",   sample_conv_sha2,      ARG1(0, SINT),            NULL, SMP_T_BIN,  SMP_T_BIN  },
+	{ "sha2",   sample_conv_sha2,      ARG1(0, SINT), smp_check_sha2, SMP_T_BIN,  SMP_T_BIN  },
 #endif
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
