@@ -108,6 +108,7 @@ struct act_rule {
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
 	                              struct session *sess, struct stream *s, int flags);
 	int (*check_ptr)(struct act_rule *rule, struct proxy *px, char **err); /* ptr to check function */
+	void (*release_ptr)(struct act_rule *rule); /* ptr to release function */
 	struct action_kw *kw;
 	struct applet applet;                  /* used for the applet registration. */
 	union {

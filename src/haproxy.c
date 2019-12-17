@@ -2293,6 +2293,8 @@ static void deinit_act_rules(struct list *rules)
 	list_for_each_entry_safe(rule, ruleb, rules, list) {
 		LIST_DEL(&rule->list);
 		deinit_acl_cond(rule->cond);
+		if (rule->release_ptr)
+			rule->release_ptr(rule);
 		free(rule);
 	}
 }
