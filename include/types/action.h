@@ -115,7 +115,7 @@ enum act_name {
 struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
-	enum act_name action;                  /* ACT_ACTION_* */
+	unsigned int action;                   /* ACT_* or any meaningful value if action_ptr is defined */
 	unsigned int flags;                    /* ACT_FLAG_* */
 	enum act_from from;                    /* ACT_F_* */
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
