@@ -10200,6 +10200,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 			chunk_appendf(trash, "# transaction\n");
 			if (!ckchs->multi) {
 				chunk_appendf(trash, "*%s\n", ckchs->path);
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			} else {
 				chunk_appendf(trash, "*%s:", ckchs->path);
 				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
@@ -10207,6 +10208,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 						chunk_appendf(trash, " %s.%s\n", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
 				}
 				chunk_appendf(trash, "\n");
+#endif
 			}
 		}
 	}
@@ -10221,6 +10223,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		ckchs = ebmb_entry(node, struct ckch_store, node);
 		if (!ckchs->multi) {
 			chunk_appendf(trash, "%s\n", ckchs->path);
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 		} else {
 			chunk_appendf(trash, "%s:", ckchs->path);
 			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
@@ -10228,6 +10231,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 					chunk_appendf(trash, " %s.%s", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
 			}
 			chunk_appendf(trash, "\n");
+#endif
 		}
 
 		node = ebmb_next(node);
