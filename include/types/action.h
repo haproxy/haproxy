@@ -59,6 +59,11 @@ enum act_flag {
 	ACT_FLAG_FIRST = 0x00000002,  /* first call for this action */
 };
 
+/* known actions to be used without any action function pointer. This enum is
+ * typically used in a switch case, iff .action_ptr is undefined. So if an
+ * action function is defined for one of following action types, the function
+ * have the priority over the switch.
+ */
 enum act_name {
 	ACT_CUSTOM = 0,
 
@@ -99,6 +104,8 @@ enum act_name {
 	ACT_ACTION_TRK_SCMAX = ACT_ACTION_TRK_SC0 + MAX_SESS_STKCTR - 1,
 };
 
+/* NOTE: if <.action_ptr> is defined, the referenced function will always be
+ *       called regardless the action type. */
 struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */

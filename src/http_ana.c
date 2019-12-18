@@ -2973,6 +2973,43 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			}
 		}
 
+		/* Always call the action function if defined */
+		if (rule->action_ptr) {
+			if ((s->req.flags & CF_READ_ERROR) ||
+			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
+			     (px->options & PR_O_ABRT_CLOSE)))
+				act_flags |= ACT_FLAG_FINAL;
+
+			switch (rule->action_ptr(rule, px, sess, s, act_flags)) {
+				case ACT_RET_CONT:
+					break;
+				case ACT_RET_STOP:
+					rule_ret = HTTP_RULE_RES_STOP;
+					goto end;
+				case ACT_RET_YIELD:
+					s->current_rule = rule;
+					rule_ret = HTTP_RULE_RES_YIELD;
+					goto end;
+				case ACT_RET_ERR:
+					rule_ret = HTTP_RULE_RES_ERROR;
+					goto end;
+				case ACT_RET_DONE:
+					rule_ret = HTTP_RULE_RES_DONE;
+					goto end;
+				case ACT_RET_DENY:
+					rule_ret = HTTP_RULE_RES_DENY;
+					goto end;
+				case ACT_RET_ABRT:
+					rule_ret = HTTP_RULE_RES_ABRT;
+					goto end;
+				case ACT_RET_INV:
+					rule_ret = HTTP_RULE_RES_BADREQ;
+					goto end;
+			}
+			continue; /* eval the next rule */
+		}
+
+		/* If not action function defined, check for known actions */
 		switch (rule->action) {
 			case ACT_ACTION_ALLOW:
 				rule_ret = HTTP_RULE_RES_STOP;
@@ -3221,40 +3258,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				}
 				break;
 
-			case ACT_CUSTOM:
-				if ((s->req.flags & CF_READ_ERROR) ||
-				    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
-				     (px->options & PR_O_ABRT_CLOSE)))
-					act_flags |= ACT_FLAG_FINAL;
-
-				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
-					case ACT_RET_CONT:
-						break;
-					case ACT_RET_STOP:
-						rule_ret = HTTP_RULE_RES_STOP;
-						goto end;
-					case ACT_RET_YIELD:
-						s->current_rule = rule;
-						rule_ret = HTTP_RULE_RES_YIELD;
-						goto end;
-					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
-					case ACT_RET_DONE:
-						rule_ret = HTTP_RULE_RES_DONE;
-						goto end;
-					case ACT_RET_DENY:
-						rule_ret = HTTP_RULE_RES_DENY;
-						goto end;
-					case ACT_RET_ABRT:
-						rule_ret = HTTP_RULE_RES_ABRT;
-						goto end;
-					case ACT_RET_INV:
-						rule_ret = HTTP_RULE_RES_BADREQ;
-						goto end;
-				}
-				break;
-
 			case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
@@ -3299,7 +3302,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				}
 				break;
 
-				/* other flags exists, but normally, they never be matched. */
+			/* other flags exists, but normally, they never be matched. */
 			default:
 				break;
 		}
@@ -3375,6 +3378,44 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 		act_flags |= ACT_FLAG_FIRST;
 resume_execution:
+
+		/* Always call the action function if defined */
+		if (rule->action_ptr) {
+			if ((s->req.flags & CF_READ_ERROR) ||
+			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
+			     (px->options & PR_O_ABRT_CLOSE)))
+				act_flags |= ACT_FLAG_FINAL;
+
+			switch (rule->action_ptr(rule, px, sess, s, act_flags)) {
+				case ACT_RET_CONT:
+					break;
+				case ACT_RET_STOP:
+					rule_ret = HTTP_RULE_RES_STOP;
+					goto end;
+				case ACT_RET_YIELD:
+					s->current_rule = rule;
+					rule_ret = HTTP_RULE_RES_YIELD;
+					goto end;
+				case ACT_RET_ERR:
+					rule_ret = HTTP_RULE_RES_ERROR;
+					goto end;
+				case ACT_RET_DONE:
+					rule_ret = HTTP_RULE_RES_DONE;
+					goto end;
+				case ACT_RET_DENY:
+					rule_ret = HTTP_RULE_RES_DENY;
+					goto end;
+				case ACT_RET_ABRT:
+					rule_ret = HTTP_RULE_RES_ABRT;
+					goto end;
+				case ACT_RET_INV:
+					rule_ret = HTTP_RULE_RES_BADREQ;
+					goto end;
+			}
+			continue; /* eval the next rule */
+		}
+
+		/* If not action function defined, check for known actions */
 		switch (rule->action) {
 			case ACT_ACTION_ALLOW:
 				rule_ret = HTTP_RULE_RES_STOP; /* "allow" rules are OK */
@@ -3638,41 +3679,7 @@ resume_execution:
 				}
 				break;
 
-			case ACT_CUSTOM:
-				if ((s->req.flags & CF_READ_ERROR) ||
-				    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
-				     (px->options & PR_O_ABRT_CLOSE)))
-					act_flags |= ACT_FLAG_FINAL;
-
-				switch (rule->action_ptr(rule, px, s->sess, s, act_flags)) {
-					case ACT_RET_CONT:
-						break;
-					case ACT_RET_STOP:
-						rule_ret = HTTP_RULE_RES_STOP;
-						goto end;
-					case ACT_RET_YIELD:
-						s->current_rule = rule;
-						rule_ret = HTTP_RULE_RES_YIELD;
-						goto end;
-					case ACT_RET_ERR:
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
-					case ACT_RET_DONE:
-						rule_ret = HTTP_RULE_RES_DONE;
-						goto end;
-					case ACT_RET_DENY:
-						rule_ret = HTTP_RULE_RES_DENY;
-						goto end;
-					case ACT_RET_ABRT:
-						rule_ret = HTTP_RULE_RES_ABRT;
-						goto end;
-					case ACT_RET_INV:
-						rule_ret = HTTP_RULE_RES_BADREQ;
-						goto end;
-				}
-				break;
-
-				/* other flags exists, but normally, they never be matched. */
+			/* other flags exists, but normally, they never be matched. */
 			default:
 				break;
 		}

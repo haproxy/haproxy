@@ -153,9 +153,36 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		if (ret) {
 			act_flags |= ACT_FLAG_FIRST;
 resume_execution:
-			/* we have a matching rule. */
+
+			/* Always call the action function if defined */
+			if (rule->action_ptr) {
+				if (partial & SMP_OPT_FINAL)
+					act_flags |= ACT_FLAG_FINAL;
+
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
+					case ACT_RET_CONT:
+						break;
+					case ACT_RET_STOP:
+					case ACT_RET_DONE:
+						goto end;
+					case ACT_RET_YIELD:
+						s->current_rule = rule;
+						goto missing_data;
+					case ACT_RET_DENY:
+						goto deny;
+					case ACT_RET_ABRT:
+						goto abort;
+					case ACT_RET_ERR:
+						goto internal;
+					case ACT_RET_INV:
+						goto invalid;
+				}
+				continue; /* eval the next rule */
+			}
+
+			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				break;
+				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				goto deny;
@@ -210,37 +237,10 @@ resume_execution:
 				       len);
 				cap[h->index][len] = 0;
 			}
-			else {
-				/* Custom keywords. */
-				if (!rule->action_ptr)
-					continue;
-
-				if (partial & SMP_OPT_FINAL)
-					act_flags |= ACT_FLAG_FINAL;
-
-				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
-				case ACT_RET_CONT:
-					continue;
-				case ACT_RET_STOP:
-				case ACT_RET_DONE:
-					break;
-				case ACT_RET_YIELD:
-					s->current_rule = rule;
-					goto missing_data;
-				case ACT_RET_DENY:
-					goto deny;
-				case ACT_RET_ABRT:
-					goto abort;
-				case ACT_RET_ERR:
-					goto internal;
-				case ACT_RET_INV:
-					goto invalid;
-				}
-				break; /* ACT_RET_STOP/DONE */
-			}
 		}
 	}
 
+ end:
 	/* if we get there, it means we have no rule which matches, or
 	 * we have an explicit accept, so we apply the default accept.
 	 */
@@ -356,9 +356,35 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		if (ret) {
 			act_flags |= ACT_FLAG_FIRST;
 resume_execution:
-			/* we have a matching rule. */
+			/* Always call the action function if defined */
+			if (rule->action_ptr) {
+				if (partial & SMP_OPT_FINAL)
+					act_flags |= ACT_FLAG_FINAL;
+
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
+					case ACT_RET_CONT:
+						break;
+					case ACT_RET_STOP:
+					case ACT_RET_DONE:
+						goto end;
+					case ACT_RET_YIELD:
+						s->current_rule = rule;
+						goto missing_data;
+					case ACT_RET_DENY:
+						goto deny;
+					case ACT_RET_ABRT:
+						goto abort;
+					case ACT_RET_ERR:
+						goto internal;
+					case ACT_RET_INV:
+						goto invalid;
+				}
+				continue; /* eval the next rule */
+			}
+
+			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				break;
+				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				goto deny;
@@ -368,41 +394,12 @@ resume_execution:
 				si_must_kill_conn(chn_prod(rep));
 				si_shutr(chn_prod(rep));
 				si_shutw(chn_prod(rep));
-				break;
-			}
-			else {
-				/* Custom keywords. */
-				if (!rule->action_ptr)
-					continue;
-
-				if (partial & SMP_OPT_FINAL)
-					act_flags |= ACT_FLAG_FINAL;
-
-				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
-				case ACT_RET_CONT:
-					continue;
-				case ACT_RET_STOP:
-				case ACT_RET_DONE:
-					break;
-				case ACT_RET_YIELD:
-					channel_dont_close(rep);
-					s->current_rule = rule;
-					DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
-					return 0;
-				case ACT_RET_DENY:
-					goto deny;
-				case ACT_RET_ABRT:
-					goto abort;
-				case ACT_RET_ERR:
-					goto internal;
-				case ACT_RET_INV:
-					goto invalid;
-				}
-				break; /* ACT_RET_STOP/DONE */
+				goto end;
 			}
 		}
 	}
 
+ end:
 	/* if we get there, it means we have no rule which matches, or
 	 * we have an explicit accept, so we apply the default accept.
 	 */
@@ -410,6 +407,12 @@ resume_execution:
 	rep->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
+
+ missing_data:
+	channel_dont_close(rep);
+	s->current_rule = rule;
+	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	return 0;
 
   deny:
 	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.denied_resp, 1);
@@ -481,9 +484,34 @@ int tcp_exec_l4_rules(struct session *sess)
 		}
 
 		if (ret) {
-			/* we have a matching rule. */
+			/* Always call the action function if defined */
+			if (rule->action_ptr) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
+					case ACT_RET_YIELD:
+						/* yield is not allowed at this point. If this return code is
+						 * used it is a bug, so I prefer to abort the process.
+						 */
+						send_log(sess->fe, LOG_WARNING,
+							 "Internal error: yield not allowed with tcp-request connection actions.");
+						/* fall through */
+					case ACT_RET_STOP:
+					case ACT_RET_DONE:
+						goto end;
+					case ACT_RET_CONT:
+						break;
+					case ACT_RET_DENY:
+					case ACT_RET_ABRT:
+					case ACT_RET_ERR:
+					case ACT_RET_INV:
+						result = 0;
+						goto end;
+				}
+				continue; /* eval the next rule */
+			}
+
+			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				break;
+				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_conn, 1);
@@ -491,7 +519,7 @@ int tcp_exec_l4_rules(struct session *sess)
 					_HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
 
 				result = 0;
-				break;
+				goto end;
 			}
 			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
@@ -512,7 +540,7 @@ int tcp_exec_l4_rules(struct session *sess)
 				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
 					if (xprt_add_hs(conn) < 0) {
 						result = 0;
-						break;
+						goto end;
 					}
 				}
 				conn->flags |= CO_FL_ACCEPT_PROXY;
@@ -521,38 +549,14 @@ int tcp_exec_l4_rules(struct session *sess)
 				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
 					if (xprt_add_hs(conn) < 0) {
 						result = 0;
-						break;
+						goto end;
 					}
 				}
 				conn->flags |= CO_FL_ACCEPT_CIP;
 			}
-			else {
-				/* Custom keywords. */
-				if (!rule->action_ptr)
-					break;
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
-				case ACT_RET_YIELD:
-					/* yield is not allowed at this point. If this return code is
-					 * used it is a bug, so I prefer to abort the process.
-					 */
-					send_log(sess->fe, LOG_WARNING,
-					         "Internal error: yield not allowed with tcp-request connection actions.");
-				case ACT_RET_STOP:
-				case ACT_RET_DONE:
-					break;
-				case ACT_RET_CONT:
-					continue;
-				case ACT_RET_DENY:
-				case ACT_RET_ABRT:
-				case ACT_RET_ERR:
-				case ACT_RET_INV:
-					result = 0;
-					break;
-				}
-				break; /* ACT_RET_STOP/DONE */
-			}
 		}
 	}
+ end:
 	return result;
 }
 
@@ -582,9 +586,34 @@ int tcp_exec_l5_rules(struct session *sess)
 		}
 
 		if (ret) {
-			/* we have a matching rule. */
+			/* Always call the action function if defined */
+			if (rule->action_ptr) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
+					case ACT_RET_YIELD:
+						/* yield is not allowed at this point. If this return code is
+						 * used it is a bug, so I prefer to abort the process.
+						 */
+						send_log(sess->fe, LOG_WARNING,
+							 "Internal error: yield not allowed with tcp-request session actions.");
+						/* fall through */
+					case ACT_RET_STOP:
+					case ACT_RET_DONE:
+						goto end;
+					case ACT_RET_CONT:
+						break;
+					case ACT_RET_DENY:
+					case ACT_RET_ABRT:
+					case ACT_RET_ERR:
+					case ACT_RET_INV:
+						result = 0;
+						goto end;
+				}
+				continue; /* eval the next rule */
+			}
+
+			/* If not action function defined, check for known actions */
 			if (rule->action == ACT_ACTION_ALLOW) {
-				break;
+				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_sess, 1);
@@ -592,7 +621,7 @@ int tcp_exec_l5_rules(struct session *sess)
 					_HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
 
 				result = 0;
-				break;
+				goto end;
 			}
 			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
@@ -609,33 +638,9 @@ int tcp_exec_l5_rules(struct session *sess)
 				if (key && (ts = stktable_get_entry(t, key)))
 					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
 			}
-			else {
-				/* Custom keywords. */
-				if (!rule->action_ptr)
-					break;
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
-				case ACT_RET_YIELD:
-					/* yield is not allowed at this point. If this return code is
-					 * used it is a bug, so I prefer to abort the process.
-					 */
-					send_log(sess->fe, LOG_WARNING,
-					         "Internal error: yield not allowed with tcp-request session actions.");
-				case ACT_RET_STOP:
-				case ACT_RET_DONE:
-					break;
-				case ACT_RET_CONT:
-					continue;
-				case ACT_RET_DENY:
-				case ACT_RET_ABRT:
-				case ACT_RET_ERR:
-				case ACT_RET_INV:
-					result = 0;
-					break;
-				}
-				break; /* ACT_RET_STOP/DONE */
-			}
 		}
 	}
+  end:
 	return result;
 }
 
