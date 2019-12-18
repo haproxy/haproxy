@@ -101,8 +101,6 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
 	struct act_rule *rule;
-	struct stksess *ts;
-	struct stktable *t;
 	int partial;
 	int act_opts = 0;
 
@@ -186,29 +184,6 @@ resume_execution:
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
 				goto deny;
-			}
-			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
-				/* Note: only the first valid tracking parameter of each
-				 * applies.
-				 */
-				struct stktable_key *key;
-				struct sample smp;
-
-				if (stkctr_entry(&s->stkctr[trk_idx(rule->action)]))
-					continue;
-
-				t = rule->arg.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->arg.trk_ctr.expr, &smp);
-
-				if ((smp.flags & SMP_F_MAY_CHANGE) && !(partial & SMP_OPT_FINAL))
-					goto missing_data; /* key might appear later */
-
-				if (key && (ts = stktable_get_entry(t, key))) {
-					stream_track_stkctr(&s->stkctr[trk_idx(rule->action)], t, ts);
-					stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
-					if (sess->fe != s->be)
-						stkctr_set_flags(&s->stkctr[trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
-				}
 			}
 			else if (rule->action == ACT_TCP_CAPTURE) {
 				struct sample *key;
@@ -464,8 +439,6 @@ resume_execution:
 int tcp_exec_l4_rules(struct session *sess)
 {
 	struct act_rule *rule;
-	struct stksess *ts;
-	struct stktable *t = NULL;
 	struct connection *conn = objt_conn(sess->origin);
 	int result = 1;
 	enum acl_test_res ret;
@@ -521,21 +494,6 @@ int tcp_exec_l4_rules(struct session *sess)
 				result = 0;
 				goto end;
 			}
-			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
-				/* Note: only the first valid tracking parameter of each
-				 * applies.
-				 */
-				struct stktable_key *key;
-
-				if (stkctr_entry(&sess->stkctr[trk_idx(rule->action)]))
-					continue;
-
-				t = rule->arg.trk_ctr.table.t;
-				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
-
-				if (key && (ts = stktable_get_entry(t, key)))
-					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
-			}
 			else if (rule->action == ACT_TCP_EXPECT_PX) {
 				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
 					if (xprt_add_hs(conn) < 0) {
@@ -570,8 +528,6 @@ int tcp_exec_l4_rules(struct session *sess)
 int tcp_exec_l5_rules(struct session *sess)
 {
 	struct act_rule *rule;
-	struct stksess *ts;
-	struct stktable *t = NULL;
 	int result = 1;
 	enum acl_test_res ret;
 
@@ -622,21 +578,6 @@ int tcp_exec_l5_rules(struct session *sess)
 
 				result = 0;
 				goto end;
-			}
-			else if (rule->action >= ACT_ACTION_TRK_SC0 && rule->action <= ACT_ACTION_TRK_SCMAX) {
-				/* Note: only the first valid tracking parameter of each
-				 * applies.
-				 */
-				struct stktable_key *key;
-
-				if (stkctr_entry(&sess->stkctr[trk_idx(rule->action)]))
-					continue;
-
-				t = rule->arg.trk_ctr.table.t;
-				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.trk_ctr.expr, NULL);
-
-				if (key && (ts = stktable_get_entry(t, key)))
-					stream_track_stkctr(&sess->stkctr[trk_idx(rule->action)], t, ts);
 			}
 		}
 	}
@@ -708,6 +649,44 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 }
 
 
+/* This function executes a track-sc* actions. On success, it returns
+ * ACT_RET_CONT. If it must yield, it return ACT_RET_YIELD. Otherwsize
+ * ACT_RET_ERR is returned.
+ */
+static enum act_return tcp_action_track_sc(struct act_rule *rule, struct proxy *px,
+					    struct session *sess, struct stream *s, int flags)
+{
+	struct stksess *ts;
+	struct stktable *t;
+	struct stktable_key *key;
+	struct sample smp;
+	int opt;
+
+	opt = ((rule->from == ACT_F_TCP_REQ_CNT) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
+	if (flags & ACT_FLAG_FINAL)
+		opt |= SMP_OPT_FINAL;
+
+	if (stkctr_entry(&s->stkctr[rule->action]))
+		goto end;
+
+	t = rule->arg.trk_ctr.table.t;
+	key = stktable_fetch_key(t, s->be, sess, s, opt, rule->arg.trk_ctr.expr, &smp);
+
+	if ((smp.flags & SMP_F_MAY_CHANGE) && !(flags & ACT_FLAG_FINAL))
+		return ACT_RET_YIELD; /* key might appear later */
+
+	if (key && (ts = stktable_get_entry(t, key))) {
+		stream_track_stkctr(&s->stkctr[rule->action], t, ts);
+		if (rule->from == ACT_F_TCP_REQ_CNT) {
+			stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_CONTENT);
+			if (sess->fe != s->be)
+				stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_BACKEND);
+		}
+	}
+
+  end:
+	return ACT_RET_CONT;
+}
 
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
@@ -864,8 +843,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			rule->arg.trk_ctr.table.n = strdup(args[arg]);
 			arg++;
 		}
+		rule->action = tsc_num;
 		rule->arg.trk_ctr.expr = expr;
-		rule->action = ACT_ACTION_TRK_SC0 + tsc_num;
+		rule->action_ptr = tcp_action_track_sc;
 		rule->check_ptr = check_trk_action;
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {

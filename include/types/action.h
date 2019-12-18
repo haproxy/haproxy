@@ -94,11 +94,6 @@ enum act_name {
 	ACT_TCP_EXPECT_CIP,
 	ACT_TCP_CLOSE, /* close at the sender's */
 	ACT_TCP_CAPTURE, /* capture a fetched sample */
-
-	/* track stick counters */
-	ACT_ACTION_TRK_SC0,
-	/* SC1, SC2, ... SCn */
-	ACT_ACTION_TRK_SCMAX = ACT_ACTION_TRK_SC0 + MAX_SESS_STKCTR - 1,
 };
 
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be

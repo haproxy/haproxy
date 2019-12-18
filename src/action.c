@@ -16,13 +16,14 @@
 #include <common/standard.h>
 
 #include <proto/action.h>
+#include <proto/log.h>
 #include <proto/obj_type.h>
 #include <proto/proxy.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>
 
 
-/* Find and check the target table used by an action ACT_ACTION_TRK_*. This
+/* Find and check the target table used by an action track-sc*. This
  * function should be called during the configuration validity check.
  *
  * The function returns 1 in success case, otherwise, it returns 0 and err is
@@ -40,19 +41,19 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 	if (!target) {
 		memprintf(err, "unable to find table '%s' referenced by track-sc%d",
 			  rule->arg.trk_ctr.table.n ?  rule->arg.trk_ctr.table.n : px->id,
-			  trk_idx(rule->action));
+			  rule->action);
 		return 0;
 	}
 
 	if (!stktable_compatible_sample(rule->arg.trk_ctr.expr,  target->type)) {
 		memprintf(err, "stick-table '%s' uses a type incompatible with the 'track-sc%d' rule",
 			  rule->arg.trk_ctr.table.n ? rule->arg.trk_ctr.table.n : px->id,
-			  trk_idx(rule->action));
+			  rule->action);
 		return 0;
 	}
 	else if (target->proxy && (px->bind_proc & ~target->proxy->bind_proc)) {
 		memprintf(err, "stick-table '%s' referenced by 'track-sc%d' rule not present on all processes covered by proxy '%s'",
-			  target->id, trk_idx(rule->action), px->id);
+			  target->id, rule->action, px->id);
 		return 0;
 	}
 	else {
@@ -67,6 +68,16 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 		 * right here using stktable_alloc_data_type().
 		 */
 	}
+
+	if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE) && !px->tcp_req.inspect_delay &&
+	    !(rule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
+		ha_warning("config : %s '%s' : a 'tcp-request content track-sc*' rule explicitly depending on request"
+			   " contents without any 'tcp-request inspect-delay' setting."
+			   " This means that this rule will randomly find its contents. This can be fixed by"
+			   " setting the tcp-request inspect-delay.\n",
+			   proxy_type_str(px), px->id);
+	}
+
 	return 1;
 }
 

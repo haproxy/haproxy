@@ -3489,9 +3489,6 @@ out_uri_auth_compat:
 				if (arule->action == ACT_TCP_CAPTURE &&
 				    !(arule->arg.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
 					break;
-				if  ((arule->action >= ACT_ACTION_TRK_SC0 && arule->action <= ACT_ACTION_TRK_SCMAX) &&
-				     !(arule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
-					break;
 			}
 
 			if (&arule->list != &curproxy->tcp_req.inspect_rules) {

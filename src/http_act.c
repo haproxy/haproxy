@@ -1447,6 +1447,75 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a track-sc* actions. On success, it returns
+ * ACT_RET_CONT. Otherwsize ACT_RET_ERR is returned.
+ */
+static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy *px,
+					    struct session *sess, struct stream *s, int flags)
+{
+	struct stktable *t;
+	struct stksess *ts;
+	struct stktable_key *key;
+	void *ptr1, *ptr2, *ptr3, *ptr4;
+	int opt;
+
+	ptr1 = ptr2 = ptr3 = ptr4 = NULL;
+	opt = ((rule->from == ACT_F_HTTP_REQ) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES) | SMP_OPT_FINAL;
+
+	t = rule->arg.trk_ctr.table.t;
+	key = stktable_fetch_key(t, s->be, sess, s, opt, rule->arg.trk_ctr.expr, NULL);
+
+	if (!key)
+		goto end;
+	ts = stktable_get_entry(t, key);
+	if (!ts)
+		goto end;
+
+	stream_track_stkctr(&s->stkctr[rule->action], t, ts);
+
+	/* let's count a new HTTP request as it's the first time we do it */
+	ptr1 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
+	ptr2 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
+
+	/* When the client triggers a 4xx from the server, it's most often due
+	 * to a missing object or permission. These events should be tracked
+	 * because if they happen often, it may indicate a brute force or a
+	 * vulnerability scan. Normally this is done when receiving the response
+	 * but here we're tracking after this ought to have been done so we have
+	 * to do it on purpose.
+	 */
+	if (rule->from == ACT_F_HTTP_RES && (unsigned)(s->txn->status - 400) < 100) {
+		ptr3 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
+		ptr4 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
+	}
+
+	if (ptr1 || ptr2 || ptr3 || ptr4) {
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+		if (ptr1)
+			stktable_data_cast(ptr1, http_req_cnt)++;
+		if (ptr2)
+			update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
+					       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+		if (ptr3)
+			stktable_data_cast(ptr3, http_err_cnt)++;
+		if (ptr4)
+			update_freq_ctr_period(&stktable_data_cast(ptr4, http_err_rate),
+					       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch_local(t, ts, 0);
+	}
+
+	stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_CONTENT);
+	if (sess->fe != s->be)
+		stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_BACKEND);
+
+  end:
+	return ACT_RET_CONT;
+}
 
 /* Parse a "track-sc*" actions. It returns ACT_RET_PRS_OK on success,
  * ACT_RET_PRS_ERR on error.
@@ -1494,8 +1563,9 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 		cur_arg++;
 	}
 
+	rule->action = tsc_num;
 	rule->arg.trk_ctr.expr = expr;
-	rule->action = ACT_ACTION_TRK_SC0 + tsc_num;
+	rule->action_ptr = http_action_track_sc;
 	rule->check_ptr = check_trk_action;
 
 	*orig_arg = cur_arg;
