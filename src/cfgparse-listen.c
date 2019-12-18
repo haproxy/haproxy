@@ -1333,10 +1333,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!LIST_ISEMPTY(&curproxy->http_req_rules) &&
 		    !LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_ACTION_ALLOW ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_ACTION_DENY ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_HTTP_REDIR ||
-		     LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->action == ACT_HTTP_REQ_AUTH)) {
+		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
 			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;
@@ -1367,8 +1364,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!LIST_ISEMPTY(&curproxy->http_res_rules) &&
 		    !LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == ACT_ACTION_ALLOW ||
-		     LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->action == ACT_ACTION_DENY)) {
+		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
 			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;

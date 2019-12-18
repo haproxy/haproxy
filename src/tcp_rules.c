@@ -660,14 +660,17 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 	if (strcmp(args[arg], "accept") == 0) {
 		arg++;
 		rule->action = ACT_ACTION_ALLOW;
+		rule->flags |= ACT_FLAG_FINAL;
 	}
 	else if (strcmp(args[arg], "reject") == 0) {
 		arg++;
 		rule->action = ACT_ACTION_DENY;
+		rule->flags |= ACT_FLAG_FINAL;
 	}
 	else if (strcmp(args[arg], "close") == 0) {
 		arg++;
 		rule->action = ACT_TCP_CLOSE;
+		rule->flags |= ACT_FLAG_FINAL;
 	}
 	else {
 		struct action_kw *kw;
@@ -721,10 +724,12 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	if (!strcmp(args[arg], "accept")) {
 		arg++;
 		rule->action = ACT_ACTION_ALLOW;
+		rule->flags |= ACT_FLAG_FINAL;
 	}
 	else if (!strcmp(args[arg], "reject")) {
 		arg++;
 		rule->action = ACT_ACTION_DENY;
+		rule->flags |= ACT_FLAG_FINAL;
 	}
 	else if (strcmp(args[arg], "capture") == 0) {
 		struct sample_expr *expr;

@@ -748,6 +748,7 @@ static enum act_parse_ret parse_http_allow(const char **args, int *orig_arg, str
 					   struct act_rule *rule, char **err)
 {
 	rule->action = ACT_ACTION_ALLOW;
+	rule->flags |= ACT_FLAG_FINAL;
 	return ACT_RET_PRS_OK;
 }
 
@@ -769,6 +770,7 @@ static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, 
 		rule->action = ACT_ACTION_DENY;
 		rule->arg.http.i = HTTP_ERR_403;
 	}
+	rule->flags |= ACT_FLAG_FINAL;
 
 	if (strcmp(args[cur_arg], "deny_status") == 0) {
 		cur_arg++;
@@ -801,6 +803,7 @@ static enum act_parse_ret parse_http_res_deny(const char **args, int *orig_arg, 
 					      struct act_rule *rule, char **err)
 {
 	rule->action = ACT_ACTION_DENY;
+	rule->flags |= ACT_FLAG_FINAL;
 	return ACT_RET_PRS_OK;
 }
 
@@ -813,6 +816,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 	int cur_arg;
 
 	rule->action = ACT_HTTP_REQ_AUTH;
+	rule->flags |= ACT_FLAG_FINAL;
 
 	cur_arg = *orig_arg;
 	if (!strcmp(args[cur_arg], "realm")) {
@@ -1071,6 +1075,7 @@ static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, 
 	int dir, cur_arg;
 
 	rule->action = ACT_HTTP_REDIR;
+	rule->flags |= ACT_FLAG_FINAL;
 
 	cur_arg = *orig_arg;
 

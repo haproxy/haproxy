@@ -59,6 +59,12 @@ enum act_opt {
 	ACT_OPT_FIRST = 0x00000002,  /* first call for this action */
 };
 
+/* Flags used to describe the action. */
+enum act_flag {
+        ACT_FLAG_FINAL = 1 << 0, /* the action stops the rules evaluation when executed */
+};
+
+
 /* known actions to be used without any action function pointer. This enum is
  * typically used in a switch case, iff .action_ptr is undefined. So if an
  * action function is defined for one of following action types, the function
@@ -110,6 +116,7 @@ struct act_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	enum act_name action;                  /* ACT_ACTION_* */
+	unsigned int flags;                    /* ACT_FLAG_* */
 	enum act_from from;                    /* ACT_F_* */
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
 	                              struct session *sess, struct stream *s, int opts);
