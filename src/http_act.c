@@ -42,7 +42,7 @@
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
- * the action to be performed in <http.i>, previously filled by function
+ * the action to be performed in <.action>, previously filled by function
  * parse_set_req_line(). The replacement action is excuted by the function
  * http_action_set_req_line(). On success, it returns ACT_RET_CONT. If an error
  * occurs while soft rewrites are enabled, the action is canceled, but the rule
@@ -59,14 +59,13 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 		goto fail_alloc;
 
 	/* If we have to create a query string, prepare a '?'. */
-	if (rule->arg.http.i == 2) // set-query
+	if (rule->action == 2) // set-query
 		replace->area[replace->data++] = '?';
 	replace->data += build_logline(s, replace->area + replace->data,
 				       replace->size - replace->data,
 				       &rule->arg.http.fmt);
 
-	if (http_req_replace_stline(rule->arg.http.i, replace->area,
-				    replace->data, px, s) == -1)
+	if (http_req_replace_stline(rule->action, replace->area, replace->data, px, s) == -1)
 		goto fail_rewrite;
 
   leave:
@@ -101,28 +100,26 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
  *
  * All of them accept a single argument of type string representing a log-format.
  * The resulting rule makes use of <http.fmt> to store the log-format list head,
- * and <http.i> to store the action as an int (0=method, 1=path, 2=query, 3=uri).
- * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ * and <.action> to store the action type as an int (0=method, 1=path, 2=query,
+ * 3=uri). It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
 static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, struct proxy *px,
                                              struct act_rule *rule, char **err)
 {
 	int cur_arg = *orig_arg;
 
-	rule->action = ACT_CUSTOM;
-
 	switch (args[0][4]) {
 	case 'm' :
-		rule->arg.http.i = 0; // set-method
+		rule->action = 0; // set-method
 		break;
 	case 'p' :
-		rule->arg.http.i = 1; // set-path
+		rule->action = 1; // set-path
 		break;
 	case 'q' :
-		rule->arg.http.i = 2; // set-query
+		rule->action = 2; // set-query
 		break;
 	case 'u' :
-		rule->arg.http.i = 3; // set-uri
+		rule->action = 3; // set-uri
 		break;
 	default:
 		memprintf(err, "internal error: unhandled action '%s'", args[0]);
@@ -151,7 +148,7 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
  * <rule>.arg.http. It builds a string in the trash from the format string
  * previously filled by function parse_replace_uri() and will execute the regex
  * in <http.re> to replace the URI. It uses the format string present in
- * <http.fmt>. The component to act on (path/uri) is taken from <http.i> which
+ * <http.fmt>. The component to act on (path/uri) is taken from <.action> which
  * contains 1 for the path or 3 for the URI (values used by
  * http_req_replace_stline()). On success, it returns ACT_RET_CONT. If an error
  * occurs while soft rewrites are enabled, the action is canceled, but the rule
@@ -171,7 +168,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto fail_alloc;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
-	if (rule->arg.http.i == 1) // replace-path
+	if (rule->action == 1) // replace-path
 		uri = http_get_path(uri);
 
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
@@ -186,7 +183,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (len == -1)
 		goto fail_rewrite;
 
-	if (http_req_replace_stline(rule->arg.http.i, output->area, len, px, s) == -1)
+	if (http_req_replace_stline(rule->action, output->area, len, px, s) == -1)
 		goto fail_rewrite;
 
   leave:
@@ -216,7 +213,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 
 /* parse a "replace-uri" or "replace-path" http-request action.
  * This action takes 2 arguments (a regex and a replacement format string).
- * The resulting rule makes use of <http.i> to store the action (1/3 for now),
+ * The resulting rule makes use of <.action> to store the action (1/3 for now),
  * <http.re> to store the compiled regex, and <http.fmt> to store the log-format
  * list head. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
@@ -226,11 +223,10 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 	int cur_arg = *orig_arg;
 	char *error = NULL;
 
-	rule->action = ACT_CUSTOM;
 	if (strcmp(args[cur_arg-1], "replace-path") == 0)
-		rule->arg.http.i = 1; // replace-path
+		rule->action = 1; // replace-path, same as set-path
 	else
-		rule->arg.http.i = 3; // replace-uri
+		rule->action = 3; // replace-uri, same as set-uri
 
 	rule->action_ptr = http_action_replace_uri;
 
