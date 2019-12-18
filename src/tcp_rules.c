@@ -104,7 +104,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	struct stksess *ts;
 	struct stktable *t;
 	int partial;
-	int act_flags = 0;
+	int act_opts = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
@@ -151,15 +151,15 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		if (ret) {
-			act_flags |= ACT_FLAG_FIRST;
+			act_opts |= ACT_OPT_FIRST;
 resume_execution:
 
 			/* Always call the action function if defined */
 			if (rule->action_ptr) {
 				if (partial & SMP_OPT_FINAL)
-					act_flags |= ACT_FLAG_FINAL;
+					act_opts |= ACT_OPT_FINAL;
 
-				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_opts)) {
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
@@ -303,7 +303,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	struct session *sess = s->sess;
 	struct act_rule *rule;
 	int partial;
-	int act_flags = 0;
+	int act_opts = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
@@ -354,14 +354,14 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		if (ret) {
-			act_flags |= ACT_FLAG_FIRST;
+			act_opts |= ACT_OPT_FIRST;
 resume_execution:
 			/* Always call the action function if defined */
 			if (rule->action_ptr) {
 				if (partial & SMP_OPT_FINAL)
-					act_flags |= ACT_FLAG_FINAL;
+					act_opts |= ACT_OPT_FINAL;
 
-				switch (rule->action_ptr(rule, s->be, s->sess, s, act_flags)) {
+				switch (rule->action_ptr(rule, s->be, s->sess, s, act_opts)) {
 					case ACT_RET_CONT:
 						break;
 					case ACT_RET_STOP:
@@ -486,7 +486,7 @@ int tcp_exec_l4_rules(struct session *sess)
 		if (ret) {
 			/* Always call the action function if defined */
 			if (rule->action_ptr) {
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_OPT_FINAL | ACT_OPT_FIRST)) {
 					case ACT_RET_YIELD:
 						/* yield is not allowed at this point. If this return code is
 						 * used it is a bug, so I prefer to abort the process.
@@ -588,7 +588,7 @@ int tcp_exec_l5_rules(struct session *sess)
 		if (ret) {
 			/* Always call the action function if defined */
 			if (rule->action_ptr) {
-				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_FLAG_FINAL | ACT_FLAG_FIRST)) {
+				switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_OPT_FINAL | ACT_OPT_FIRST)) {
 					case ACT_RET_YIELD:
 						/* yield is not allowed at this point. If this return code is
 						 * used it is a bug, so I prefer to abort the process.

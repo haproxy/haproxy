@@ -52,11 +52,11 @@ enum act_parse_ret {
 	ACT_RET_PRS_ERR,   /* abort processing. */
 };
 
-/* flags passed to custom actions */
-enum act_flag {
-	ACT_FLAG_NONE  = 0x00000000,  /* no flag */
-	ACT_FLAG_FINAL = 0x00000001,  /* last call, cannot yield */
-	ACT_FLAG_FIRST = 0x00000002,  /* first call for this action */
+/* Option flags passed to custom actions */
+enum act_opt {
+	ACT_OPT_NONE  = 0x00000000,  /* no flag */
+	ACT_OPT_FINAL = 0x00000001,  /* last call, cannot yield */
+	ACT_OPT_FIRST = 0x00000002,  /* first call for this action */
 };
 
 /* known actions to be used without any action function pointer. This enum is
@@ -112,7 +112,7 @@ struct act_rule {
 	enum act_name action;                  /* ACT_ACTION_* */
 	enum act_from from;                    /* ACT_F_* */
 	enum act_return (*action_ptr)(struct act_rule *rule, struct proxy *px,  /* ptr to custom action */
-	                              struct session *sess, struct stream *s, int flags);
+	                              struct session *sess, struct stream *s, int opts);
 	int (*check_ptr)(struct act_rule *rule, struct proxy *px, char **err); /* ptr to check function */
 	void (*release_ptr)(struct act_rule *rule); /* ptr to release function */
 	struct action_kw *kw;

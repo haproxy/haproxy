@@ -4538,7 +4538,7 @@ spoe_send_group(struct act_rule *rule, struct proxy *px,
 	if (ret == 1)
 		return ACT_RET_CONT;
 	else if (ret == 0) {
-		if (flags & ACT_FLAG_FINAL) {
+		if (flags & ACT_OPT_FINAL) {
 			SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 				    " - failed to process group '%s': interrupted by caller\n",
 				    (int)now.tv_sec, (int)now.tv_usec,

@@ -987,7 +987,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	struct appctx *appctx;
 
 	/* Initialises the applet if it is required. */
-	if (flags & ACT_FLAG_FIRST) {
+	if (flags & ACT_OPT_FIRST) {
 		/* Register applet. this function schedules the applet. */
 		s->target = &rule->applet.obj_type;
 		if (unlikely(!si_register_handler(&s->si[1], objt_applet(s->target))))

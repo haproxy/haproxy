@@ -2927,7 +2927,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	struct http_hdr_ctx ctx;
 	const char *auth_realm;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
-	int act_flags = 0;
+	int act_opts = 0;
 	int early_hints = 0;
 
 	htx = htxbuf(&s->req.buf);
@@ -2963,7 +2963,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				continue;
 		}
 
-		act_flags |= ACT_FLAG_FIRST;
+		act_opts |= ACT_OPT_FIRST;
   resume_execution:
 		if (early_hints && rule->action != ACT_HTTP_EARLY_HINT) {
 			early_hints = 0;
@@ -2978,9 +2978,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			if ((s->req.flags & CF_READ_ERROR) ||
 			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
-				act_flags |= ACT_FLAG_FINAL;
+				act_opts |= ACT_OPT_FINAL;
 
-			switch (rule->action_ptr(rule, px, sess, s, act_flags)) {
+			switch (rule->action_ptr(rule, px, sess, s, act_opts)) {
 				case ACT_RET_CONT:
 					break;
 				case ACT_RET_STOP:
@@ -3341,7 +3341,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 	struct act_rule *rule;
 	struct http_hdr_ctx ctx;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
-	int act_flags = 0;
+	int act_opts = 0;
 
 	htx = htxbuf(&s->res.buf);
 
@@ -3376,7 +3376,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 				continue;
 		}
 
-		act_flags |= ACT_FLAG_FIRST;
+		act_opts |= ACT_OPT_FIRST;
 resume_execution:
 
 		/* Always call the action function if defined */
@@ -3384,9 +3384,9 @@ resume_execution:
 			if ((s->req.flags & CF_READ_ERROR) ||
 			    ((s->req.flags & (CF_SHUTR|CF_READ_NULL)) &&
 			     (px->options & PR_O_ABRT_CLOSE)))
-				act_flags |= ACT_FLAG_FINAL;
+				act_opts |= ACT_OPT_FINAL;
 
-			switch (rule->action_ptr(rule, px, sess, s, act_flags)) {
+			switch (rule->action_ptr(rule, px, sess, s, act_opts)) {
 				case ACT_RET_CONT:
 					break;
 				case ACT_RET_STOP:
