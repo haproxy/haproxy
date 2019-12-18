@@ -1916,9 +1916,9 @@ static enum act_parse_ret parse_inc_gpc0(const char **args, int *arg, struct pro
 			return ACT_RET_PRS_ERR;
 		}
 
-		if (rule->arg.gpc.sc >= ACT_ACTION_TRK_SCMAX) {
+		if (rule->arg.gpc.sc >= MAX_SESS_STKCTR) {
 			memprintf(err, "invalid stick table track ID. The max allowed ID is %d",
-			          ACT_ACTION_TRK_SCMAX-1);
+			          MAX_SESS_STKCTR-1);
 			return ACT_RET_PRS_ERR;
 		}
 	}
@@ -1998,9 +1998,9 @@ static enum act_parse_ret parse_inc_gpc1(const char **args, int *arg, struct pro
 			return ACT_RET_PRS_ERR;
 		}
 
-		if (rule->arg.gpc.sc >= ACT_ACTION_TRK_SCMAX) {
+		if (rule->arg.gpc.sc >= MAX_SESS_STKCTR) {
 			memprintf(err, "invalid stick table track ID. The max allowed ID is %d",
-			          ACT_ACTION_TRK_SCMAX-1);
+			          MAX_SESS_STKCTR-1);
 			return ACT_RET_PRS_ERR;
 		}
 	}
@@ -2107,9 +2107,9 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 			return ACT_RET_PRS_ERR;
 		}
 
-		if (rule->arg.gpt.sc >= ACT_ACTION_TRK_SCMAX) {
+		if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
 			memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
-			          args[*arg-1], ACT_ACTION_TRK_SCMAX-1);
+			          args[*arg-1], MAX_SESS_STKCTR-1);
 			return ACT_RET_PRS_ERR;
 		}
 	}
