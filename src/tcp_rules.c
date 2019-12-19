@@ -185,33 +185,6 @@ resume_execution:
 			else if (rule->action == ACT_ACTION_DENY) {
 				goto deny;
 			}
-			else if (rule->action == ACT_TCP_CAPTURE) {
-				struct sample *key;
-				struct cap_hdr *h = rule->arg.cap.hdr;
-				char **cap = s->req_cap;
-				int len;
-
-				key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ | partial, rule->arg.cap.expr, SMP_T_STR);
-				if (!key)
-					continue;
-
-				if (key->flags & SMP_F_MAY_CHANGE)
-					goto missing_data;
-
-				if (cap[h->index] == NULL)
-					cap[h->index] = pool_alloc(h->pool);
-
-				if (cap[h->index] == NULL) /* no more capture memory */
-					continue;
-
-				len = key->data.u.str.data;
-				if (len > h->len)
-					len = h->len;
-
-				memcpy(cap[h->index], key->data.u.str.area,
-				       len);
-				cap[h->index][len] = 0;
-			}
 		}
 	}
 
@@ -688,6 +661,47 @@ static enum act_return tcp_action_track_sc(struct act_rule *rule, struct proxy *
 	return ACT_RET_CONT;
 }
 
+/* This function executes a capture actions. It executes a fetch expression,
+ * turns the result into a string and puts it in a capture slot. On success, it
+ * returns ACT_RET_CONT. If it must yield, it return ACT_RET_YIELD. Otherwsize
+ * ACT_RET_ERR is returned.
+ */
+static enum act_return tcp_action_capture(struct act_rule *rule, struct proxy *px,
+					  struct session *sess, struct stream *s, int flags)
+{
+	struct sample *key;
+	struct cap_hdr *h = rule->arg.cap.hdr;
+	char **cap = s->req_cap;
+	int len, opt;
+
+	opt = ((rule->from == ACT_F_TCP_REQ_CNT) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
+	if (flags & ACT_FLAG_FINAL)
+		opt |= SMP_OPT_FINAL;
+
+	key = sample_fetch_as_type(s->be, sess, s, opt, rule->arg.cap.expr, SMP_T_STR);
+	if (!key)
+		goto end;
+
+	if ((key->flags & SMP_F_MAY_CHANGE) && !(flags & ACT_FLAG_FINAL))
+		return ACT_RET_YIELD; /* key might appear later */
+
+	if (cap[h->index] == NULL) {
+		cap[h->index] = pool_alloc(h->pool);
+		if (cap[h->index] == NULL) /* no more capture memory, ignore error */
+			goto end;
+	}
+
+	len = key->data.u.str.data;
+	if (len > h->len)
+		len = h->len;
+
+	memcpy(cap[h->index], key->data.u.str.area, len);
+	cap[h->index][len] = 0;
+
+  end:
+	return ACT_RET_CONT;
+}
+
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
                                   struct proxy *curpx, struct proxy *defpx,
@@ -794,7 +808,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr = hdr;
-		rule->action = ACT_TCP_CAPTURE;
+		rule->action = ACT_CUSTOM;
+		rule->action_ptr = tcp_action_capture;
+		rule->check_ptr = check_capture;
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0) {
 		struct sample_expr *expr;

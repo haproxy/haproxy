@@ -80,4 +80,12 @@ static inline void action_build_list(struct list *keywords,
  */
 int check_trk_action(struct act_rule *rule, struct proxy *px, char **err);
 
+/* check a capture rule. This function should be called during the configuration
+ * validity check.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int check_capture(struct act_rule *rule, struct proxy *px, char **err);
+
 #endif /* _PROTO_ACTION_H */

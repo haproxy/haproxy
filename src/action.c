@@ -81,6 +81,26 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 	return 1;
 }
 
+/* check a capture rule. This function should be called during the configuration
+ * validity check.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int check_capture(struct act_rule *rule, struct proxy *px, char **err)
+{
+	if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE) && !px->tcp_req.inspect_delay &&
+	    !(rule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
+		ha_warning("config : %s '%s' : a 'tcp-request capture' rule explicitly depending on request"
+			   " contents without any 'tcp-request inspect-delay' setting."
+			   " This means that this rule will randomly find its contents. This can be fixed by"
+			   " setting the tcp-request inspect-delay.\n",
+			   proxy_type_str(px), px->id);
+	}
+
+	return 1;
+}
+
 int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver)
 {
 	struct stream *stream;
