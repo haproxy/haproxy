@@ -606,7 +606,6 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		kw = tcp_res_cont_action(args[arg]);
 		if (kw) {
 			arg++;
-			rule->from = ACT_F_TCP_RES_CNT;
 			rule->kw = kw;
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
@@ -838,17 +837,14 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			/* L4 */
 			kw = tcp_req_conn_action(args[arg]);
 			rule->kw = kw;
-			rule->from = ACT_F_TCP_REQ_CON;
 		} else if (where & SMP_VAL_FE_SES_ACC) {
 			/* L5 */
 			kw = tcp_req_sess_action(args[arg]);
 			rule->kw = kw;
-			rule->from = ACT_F_TCP_REQ_SES;
 		} else {
 			/* L6 */
 			kw = tcp_req_cont_action(args[arg]);
 			rule->kw = kw;
-			rule->from = ACT_F_TCP_REQ_CNT;
 		}
 		if (kw) {
 			arg++;
@@ -952,7 +948,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			where |= SMP_VAL_FE_RES_CNT;
 		if (curpx->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_RES_CNT;
-
+		rule->from = ACT_F_TCP_RES_CNT;
 		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
@@ -1066,7 +1062,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			where |= SMP_VAL_FE_REQ_CNT;
 		if (curpx->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_REQ_CNT;
-
+		rule->from = ACT_F_TCP_REQ_CNT;
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
@@ -1111,7 +1107,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		}
 
 		where |= SMP_VAL_FE_CON_ACC;
-
+		rule->from = ACT_F_TCP_REQ_CON;
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
@@ -1156,7 +1152,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		}
 
 		where |= SMP_VAL_FE_SES_ACC;
-
+		rule->from = ACT_F_TCP_REQ_SES;
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
