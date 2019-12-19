@@ -63,6 +63,9 @@ _help()
     #REQUIRE_VERSION=0.0
     #REQUIRE_VERSION_BELOW=99.9
 
+    # To define required binaries for a test:
+    #REQUIRE_BINARIES=socat,curl
+
   Configure environment variables to set the haproxy and vtest binaries to use
     setenv HAPROXY_PROGRAM /usr/local/sbin/haproxy
     setenv VTEST_PROGRAM /usr/local/bin/vtest
@@ -129,6 +132,7 @@ _findtests() {
     require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"
     require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i" | sed  -e 's/,/ /g')"
     exclude_targets="$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i" | sed  -e 's/,/ /g')"
+    require_binaries="$(sed -ne 's/^#REQUIRE_BINARIES=//p' "$i" | sed  -e 's/,/ /g')"
     if [ $any_test -ne 1 ] ; then
         regtest_type="$(sed -ne 's/^#REGTEST_TYPE=//p' "$i")"
         if [ -z $regtest_type ] ; then
@@ -182,6 +186,14 @@ _findtests() {
       done
       if [ -z $found ]; then
         echo "  Skip $i because haproxy is not compiled with the required option $requiredoption"
+        skiptest=1
+      fi
+    done
+
+    for requiredbin in $require_binaries; do
+      which $requiredbin >/dev/null 2>&1
+      if [ "$?" -eq "1" ]; then
+        echo "  Skip $i because '"$requiredbin"' is not installed"
         skiptest=1
       fi
     done
