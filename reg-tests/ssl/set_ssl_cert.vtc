@@ -1,0 +1,58 @@
+#REGTEST_TYPE=slow
+
+# This reg-test uses the "set ssl cert" command to update a certificate over the CLI.
+# It requires socat and curl to upload and validate that the certificate was well updated
+
+# If this test does not work anymore:
+# - Check that you have socat and curl
+# - Check that the curl -v option still return the SSL CN
+
+varnishtest "Test the 'set ssl cert' feature of the CLI"
+#REQUIRE_OPTIONS=OPENSSL
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+  global
+    tune.ssl.default-dh-param 2048
+    tune.ssl.capture-cipherlist-size 1
+    stats socket "${tmpdir}/h1/stats" level admin
+
+  listen frt
+    mode http
+    ${no-htx} option http-use-htx
+    bind "fd@${frt}" ssl crt ${testdir}/common.pem
+    http-request redirect location /
+} -start
+
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.pem"
+    expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+}
+
+shell {
+    HOST=${h1_frt_addr}
+    if [ "${h1_frt_addr}" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+    curl -v -i -k https://$HOST:${h1_frt_port} 2>&1 | grep CN=www.test1.com
+}
+
+shell {
+   echo -e "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/ecdsa.pem)\n" | socat "${tmpdir}/h1/stats" -
+   echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.pem"
+    expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+}
+
+shell {
+    HOST=${h1_frt_addr}
+    if [ "${h1_frt_addr}" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+    curl -v -i -k https://$HOST:${h1_frt_port} 2>&1 | grep CN=localhost
+}
