@@ -278,7 +278,8 @@ static inline void EVP_PKEY_up_ref(EVP_PKEY *pkey)
 #define TLSEXT_signature_ecdsa      3
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || (LIBRESSL_VERSION_NUMBER < 0x20700000L)
+#if ((HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL)) ||\
+	defined(OPENSSL_IS_BORINGSSL)
 #define X509_getm_notBefore     X509_get_notBefore
 #define X509_getm_notAfter      X509_get_notAfter
 #endif
