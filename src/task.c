@@ -482,7 +482,7 @@ void process_runnable_tasks()
 			}
 
 			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
-			if (state)
+			if (state & TASK_WOKEN_ANY)
 				task_wakeup(t, 0);
 			else
 				task_queue(t);
