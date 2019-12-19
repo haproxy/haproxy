@@ -34,6 +34,8 @@
 #define TASK_RUNNING      0x0001  /* the task is currently running */
 #define TASK_GLOBAL       0x0002  /* The task is currently in the global runqueue */
 #define TASK_QUEUED       0x0004  /* The task has been (re-)added to the run queue */
+#define TASK_SHARED_WQ    0x0008  /* The task's expiration may be updated by other
+                                   * threads, must be set before first queue/wakeup */
 
 #define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
 #define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */
