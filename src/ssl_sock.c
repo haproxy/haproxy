@@ -217,7 +217,7 @@ struct ssl_sock_ctx {
 	struct wait_event *recv_wait;
 	struct wait_event *send_wait;
 	int xprt_st;                  /* transport layer state, initialized to zero */
-	int tmp_early_data;           /* 1st byte of early data, if any */
+	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
 
 };
@@ -5888,7 +5888,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->wait_event.tasklet->context = ctx;
 	ctx->wait_event.events = 0;
 	ctx->sent_early_data = 0;
-	ctx->tmp_early_data = -1;
+	ctx->early_buf = BUF_NULL;
 	ctx->conn = conn;
 	ctx->send_wait = NULL;
 	ctx->recv_wait = NULL;
@@ -5990,8 +5990,15 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			goto err;
 		}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data)
-			SSL_set_max_early_data(ctx->ssl, global.tune.bufsize - global.tune.maxrewrite);
+		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data) {
+			b_alloc(&ctx->early_buf);
+			SSL_set_max_early_data(ctx->ssl,
+			    /* Only allow early data if we managed to allocate
+			     * a buffer.
+			     */
+			    (!b_is_null(&ctx->early_buf)) ?
+			    global.tune.bufsize - global.tune.maxrewrite : 0);
+		}
 #endif
 
 		ctx->bio = BIO_new(ha_meth);
@@ -6069,17 +6076,25 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	 * detect early data, except to try to read them
 	 */
 	if (conn->flags & CO_FL_EARLY_SSL_HS) {
-		size_t read_data;
+		size_t read_data = 0;
 
-		ret = SSL_read_early_data(ctx->ssl, &ctx->tmp_early_data,
-		    1, &read_data);
-		if (ret == SSL_READ_EARLY_DATA_ERROR)
-			goto check_error;
-		if (ret == SSL_READ_EARLY_DATA_SUCCESS) {
-			conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
-			return 1;
-		} else
-			conn->flags &= ~CO_FL_EARLY_SSL_HS;
+		while (1) {
+			ret = SSL_read_early_data(ctx->ssl,
+			    b_tail(&ctx->early_buf), b_room(&ctx->early_buf),
+			    &read_data);
+			if (ret == SSL_READ_EARLY_DATA_ERROR)
+				goto check_error;
+			if (read_data > 0) {
+				conn->flags |= CO_FL_EARLY_DATA;
+				b_add(&ctx->early_buf, read_data);
+			}
+			if (ret == SSL_READ_EARLY_DATA_FINISH) {
+				conn->flags &= ~CO_FL_EARLY_SSL_HS;
+				if (!b_data(&ctx->early_buf))
+					b_free(&ctx->early_buf);
+				break;
+			}
+		}
 	}
 #endif
 	/* If we use SSL_do_handshake to process a reneg initiated by
@@ -6469,6 +6484,15 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 			return NULL;
 		}
 	}
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	/* If we have early data and somebody wants to receive, let them */
+	else if (b_data(&ctx->early_buf) && ctx->recv_wait) {
+		ctx->recv_wait->events &= ~SUB_RETRY_RECV;
+			tasklet_wakeup(ctx->recv_wait->tasklet);
+			ctx->recv_wait = NULL;
+
+	}
+#endif
 	return NULL;
 }
 
@@ -6491,6 +6515,20 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	if (!ctx)
 		goto out_error;
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	if (b_data(&ctx->early_buf)) {
+		try = b_contig_space(buf);
+		if (try > b_data(&ctx->early_buf))
+			try = b_data(&ctx->early_buf);
+		memcpy(b_tail(buf), b_head(&ctx->early_buf), try);
+		b_add(buf, try);
+		b_del(&ctx->early_buf, try);
+		if (b_data(&ctx->early_buf) == 0)
+			b_free(&ctx->early_buf);
+		return try;
+	}
+#endif
+
 	if (conn->flags & CO_FL_HANDSHAKE)
 		/* a handshake was requested */
 		return 0;
@@ -6510,45 +6548,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		if (try > count)
 			try = count;
 
-		if (((conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_EARLY_DATA)) == CO_FL_EARLY_SSL_HS) &&
-		    ctx->tmp_early_data != -1) {
-			*b_tail(buf) = ctx->tmp_early_data;
-			done++;
-			try--;
-			count--;
-			b_add(buf, 1);
-			ctx->tmp_early_data = -1;
-			continue;
-		}
-
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-		if (conn->flags & CO_FL_EARLY_SSL_HS) {
-			size_t read_length;
-
-			ret = SSL_read_early_data(ctx->ssl,
-			    b_tail(buf), try, &read_length);
-			if (ret == SSL_READ_EARLY_DATA_SUCCESS &&
-			    read_length > 0)
-				conn->flags |= CO_FL_EARLY_DATA;
-			if (ret == SSL_READ_EARLY_DATA_SUCCESS ||
-			    ret == SSL_READ_EARLY_DATA_FINISH) {
-				if (ret == SSL_READ_EARLY_DATA_FINISH) {
-					/*
-					 * We're done reading the early data,
-					 * let's make the handshake
-					 */
-					conn->flags &= ~CO_FL_EARLY_SSL_HS;
-					conn->flags |= CO_FL_SSL_WAIT_HS;
-					need_out = 1;
-					/* Now initiate the handshake */
-					tasklet_wakeup(ctx->wait_event.tasklet);
-					if (read_length == 0)
-						break;
-				}
-				ret = read_length;
-			}
-		} else
-#endif
 		ret = SSL_read(ctx->ssl, b_tail(buf), try);
 
 		if (conn->flags & CO_FL_ERROR) {
@@ -6836,6 +6835,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		}
 #endif
 		SSL_free(ctx->ssl);
+		b_free(&ctx->early_buf);
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(ssl_sock_ctx_pool, ctx);
 		_HA_ATOMIC_SUB(&sslconns, 1);
