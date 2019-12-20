@@ -3627,11 +3627,11 @@ void apply_server_state(void)
 			chunk_printf(&trash, "%s %s", bkname, srvname);
 
 			/* store line in tree */
-			st = calloc(1, sizeof(*st) + trash.size);
+			st = calloc(1, sizeof(*st) + trash.data + 1);
 			if (st == NULL) {
 				goto nextline;
 			}
-			memcpy(st->name_name.key, trash.area, trash.size);
+			memcpy(st->name_name.key, trash.area, trash.data + 1);
 			ebst_insert(&state_file, &st->name_name);
 
 			/* save line */
