@@ -75,7 +75,7 @@ struct dict server_name_dict = {
 };
 
 /* tree where global state_file is loaded */
-struct eb_root state_file = EB_ROOT;
+struct eb_root state_file = EB_ROOT_UNIQUE;
 
 int srv_downtime(const struct server *s)
 {
@@ -3632,7 +3632,12 @@ void apply_server_state(void)
 				goto nextline;
 			}
 			memcpy(st->name_name.key, trash.area, trash.data + 1);
-			ebst_insert(&state_file, &st->name_name);
+			if (ebst_insert(&state_file, &st->name_name) != &st->name_name) {
+				/* this is a duplicate key, probably a hand-crafted file,
+				 * drop it!
+				 */
+				goto nextline;
+			}
 
 			/* save line */
 			st->line = line;
