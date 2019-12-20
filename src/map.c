@@ -919,6 +919,24 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 }
 
 
+/* continue to clear a map which was started in the parser */
+static int cli_io_handler_clear_map(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	int finished;
+
+	HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+	finished = pat_ref_prune(appctx->ctx.map.ref);
+	HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+
+	if (!finished) {
+		/* let's come back later */
+		si_rx_endp_more(si);
+		return 0;
+	}
+	return 1;
+}
+
 static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
@@ -946,28 +964,22 @@ static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx
 				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
 
-		/* Clear all. */
-		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-		pat_ref_prune(appctx->ctx.map.ref);
-		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-
-		/* return response */
-		appctx->st0 = CLI_ST_PROMPT;
-		return 1;
+		/* delegate the clearing to the I/O handler which can yield */
+		return 0;
 	}
-	return 0;
+	return 1;
 }
 
 /* register cli keywords */
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "add",   "acl", NULL }, "add acl        : add acl entry", cli_parse_add_map, NULL },
-	{ { "clear", "acl", NULL }, "clear acl <id> : clear the content of this acl", cli_parse_clear_map, NULL },
+	{ { "clear", "acl", NULL }, "clear acl <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
 	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "show",  "acl", NULL }, "show acl [id]  : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
 	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
-	{ { "clear", "map", NULL }, "clear map <id> : clear the content of this map", cli_parse_clear_map, NULL },
+	{ { "clear", "map", NULL }, "clear map <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
 	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "set",   "map", NULL }, "set map        : modify map entry", cli_parse_set_map, NULL },

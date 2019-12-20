@@ -195,7 +195,7 @@ int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample, ch
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err);
 int pat_ref_delete(struct pat_ref *ref, const char *key);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
-void pat_ref_prune(struct pat_ref *ref);
+int pat_ref_prune(struct pat_ref *ref);
 int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr, int patflags, int soe, char **err);
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
 
