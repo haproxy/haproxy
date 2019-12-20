@@ -3273,7 +3273,8 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	X509 *ca;
 	X509 *cert = NULL;
 	EVP_PKEY *key = NULL;
-	DH *dh;
+	DH *dh = NULL;
+	STACK_OF(X509) *chain = NULL;
 
 	if (buf) {
 		/* reading from a buffer */
@@ -3311,13 +3312,6 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 
 	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
 	/* no need to return an error there, dh is not mandatory */
-
-	if (dh) {
-		if (ckch->dh)
-			DH_free(ckch->dh);
-		ckch->dh = dh;
-	}
-
 #endif
 
 	/* Seek back to beginning of file */
@@ -3341,39 +3335,19 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 		goto end;
 	}
 
-	/* Key and Cert are good, we can use them in the ckch */
-	if (ckch->key) /* free the previous key */
-		EVP_PKEY_free(ckch->key);
-	ckch->key = key;
-	key = NULL;
-
-	if (ckch->cert) /* free the previous cert */
-		X509_free(ckch->cert);
-	ckch->cert = cert;
-	cert = NULL;
-
 	/* Look for a Certificate Chain */
-	ca = PEM_read_bio_X509(in, NULL, NULL, NULL);
-	if (ca) {
-		/* there is a chain a in the PEM, clean the previous one in the CKCH */
-		if (ckch->chain) /* free the previous chain */
-			sk_X509_pop_free(ckch->chain, X509_free);
-		ckch->chain = sk_X509_new_null();
-		if (!sk_X509_push(ckch->chain, ca)) {
+	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+		if (chain == NULL)
+			chain = sk_X509_new_null();
+		if (!sk_X509_push(chain, ca)) {
 			X509_free(ca);
 			goto end;
 		}
 	}
-	/* look for other crt in the chain */
-	while ((ca = PEM_read_bio_X509(in, NULL, NULL, NULL)))
-		if (!sk_X509_push(ckch->chain, ca)) {
-			X509_free(ca);
-			goto end;
-		}
 
 	/* no chain */
-	if (ckch->chain == NULL) {
-		ckch->chain = sk_X509_new_null();
+	if (chain == NULL) {
+		chain = sk_X509_new_null();
 	}
 
 	ret = ERR_get_error();
@@ -3382,6 +3356,12 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 		          err && *err ? *err : "", path);
 		goto end;
 	}
+
+	/* no error, fill ckch with new context, old context will be free at end: */
+	SWAP(ckch->key, key);
+	SWAP(ckch->dh, dh);
+	SWAP(ckch->cert, cert);
+	SWAP(ckch->chain, chain);
 
 	ret = 0;
 
@@ -3392,8 +3372,12 @@ end:
 		BIO_free(in);
 	if (key)
 		EVP_PKEY_free(key);
+	if (dh)
+		DH_free(dh);
 	if (cert)
 		X509_free(cert);
+	if (chain)
+		sk_X509_pop_free(chain, X509_free);
 
 	return ret;
 }
