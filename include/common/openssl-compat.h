@@ -374,5 +374,9 @@ static inline void EVP_PKEY_up_ref(EVP_PKEY *pkey)
 #define BIO_meth_set_destroy(m, f) do { (m)->destroy = (f); } while (0)
 #endif
 
+#ifndef SSL_CTX_set_ecdh_auto
+#define SSL_CTX_set_ecdh_auto(dummy, onoff)      ((onoff) != 0)
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _COMMON_OPENSSL_COMPAT_H */
