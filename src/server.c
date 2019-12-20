@@ -3616,7 +3616,7 @@ void apply_server_state(void)
 
 			srv_state_parse_line(mybuf, global_file_version, params, srv_params);
 			if (params[0] == NULL)
-				continue;
+				goto nextline;
 
 			/* bkname */
 			bkname = params[1];
