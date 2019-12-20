@@ -1483,7 +1483,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
-	if (h1s_data_pending(h1s))
+	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 	else if (h1s->flags & H1S_F_REOS) {
 		h1s->cs->flags |= CS_FL_EOS;
