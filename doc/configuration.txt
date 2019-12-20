@@ -4828,6 +4828,21 @@ http-request silent-drop [ { if | unless } <condition> ]
   router, though it's still delivered to local networks. Do not use it unless
   you fully understand how it works.
 
+http-request strict-mode { on | off }
+
+  This enables or disables the strict rewriting mode for following rules. It
+  does not affect rules declared before it and it is only applicable on rules
+  performing a rewrite on the requests. When the strict mode is enabled, any
+  rewrite failure triggers an internal error. Otherwise, such errors are
+  silently ignored. The purpose of the strict rewriting mode is to make some
+  rewrites optionnal while others must be performed to continue the request
+  processing.
+
+  By default, the strict rewriting mode is disabled. Its value is also reset
+  when a ruleset evaluation ends. So, for instance, if you change the mode on
+  the frontend, the default mode is restored when HAProxy starts the backend
+  rules evaluation.
+
 http-request tarpit [deny_status <status>] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediately blocks the request
@@ -5215,6 +5230,21 @@ http-response silent-drop [ { if | unless } <condition> ]
   socket's TTL is reduced to 1 so that the TCP reset doesn't pass the first
   router, though it's still delivered to local networks. Do not use it unless
   you fully understand how it works.
+
+http-response strict-mode { on | off }
+
+  This enables or disables the strict rewriting mode for following rules. It
+  does not affect rules declared before it and it is only applicable on rules
+  performing a rewrite on the responses. When the strict mode is enabled, any
+  rewrite failure triggers an internal error. Otherwise, such errors are
+  silently ignored. The purpose of the strict rewriting mode is to make some
+  rewrites optionnal while others must be performed to continue the response
+  processing.
+
+  By default, the strict rewriting mode is disabled. Its value is also reset
+  when a ruleset evaluation ends. So, for instance, if you change the mode on
+  the bacnkend, the default mode is restored when HAProxy starts the frontend
+  rules evaluation.
 
 http-response track-sc0 <key> [table <table>] [ { if | unless } <condition> ]
 http-response track-sc1 <key> [table <table>] [ { if | unless } <condition> ]

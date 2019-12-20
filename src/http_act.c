@@ -1211,6 +1211,50 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a strict-mode actions. On success, it always returns
+ * ACT_RET_CONT
+ */
+static enum act_return http_action_strict_mode(struct act_rule *rule, struct proxy *px,
+					       struct session *sess, struct stream *s, int flags)
+{
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+
+	if (rule->action == 0) // strict-mode on
+		msg->flags &= ~HTTP_MSGF_SOFT_RW;
+	else // strict-mode off
+		msg->flags |= HTTP_MSGF_SOFT_RW;
+	return ACT_RET_CONT;
+}
+
+/* Parse a "strict-mode" action. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_arg, struct proxy *px,
+						 struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects exactly 1 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (strcasecmp(args[cur_arg], "on") == 0)
+		rule->action = 0; // strict-mode on
+	else if (strcasecmp(args[cur_arg], "off") == 0)
+		rule->action = 1; // strict-mode off
+	else {
+		memprintf(err, "Unexpected value '%s'. Only 'on' and 'off' are supported", args[cur_arg]);
+		return ACT_RET_PRS_ERR;
+	}
+	rule->action_ptr = http_action_strict_mode;
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
@@ -1244,6 +1288,7 @@ static struct action_kw_list http_req_actions = {
 		{ "set-query",        parse_set_req_line,              0 },
 		{ "set-tos",          parse_http_set_tos,              0 },
 		{ "set-uri",          parse_set_req_line,              0 },
+		{ "strict-mode",      parse_http_strict_mode,          0 },
 		{ "tarpit",           parse_http_req_deny,             0 },
 		{ "track-sc",         parse_http_track_sc,             1 },
 		{ NULL, NULL }
@@ -1272,6 +1317,7 @@ static struct action_kw_list http_res_actions = {
 		{ "set-nice",        parse_http_set_nice,       0 },
 		{ "set-status",      parse_http_set_status,     0 },
 		{ "set-tos",         parse_http_set_tos,        0 },
+		{ "strict-mode",     parse_http_strict_mode,    0 },
 		{ "track-sc",        parse_http_track_sc,       1 },
 		{ NULL, NULL }
 	}

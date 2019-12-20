@@ -2943,6 +2943,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	}
 	s->current_rule_list = rules;
 
+	/* start the ruleset evaluation in soft mode */
+	txn->req.flags |= HTTP_MSGF_SOFT_RW;
+
 	list_for_each_entry(rule, rules, list) {
 		/* check optional condition */
 		if (rule->cond) {
@@ -3309,6 +3312,10 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			rule_ret = HTTP_RULE_RES_ERROR;
 	}
 
+	/* if the ruleset evaluation is finished reset the soft mode */
+	if (rule_ret != HTTP_RULE_RES_YIELD)
+		txn->req.flags |= HTTP_MSGF_SOFT_RW;
+
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
 }
@@ -3348,6 +3355,9 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 			goto resume_execution;
 	}
 	s->current_rule_list = rules;
+
+	/* start the ruleset evaluation in soft mode */
+	txn->rsp.flags |= HTTP_MSGF_SOFT_RW;
 
 	list_for_each_entry(rule, rules, list) {
 		/* check optional condition */
@@ -3671,6 +3681,10 @@ resume_execution:
 	}
 
   end:
+	/* if the ruleset evaluation is finished reset the soft mode */
+	if (rule_ret != HTTP_RULE_RES_YIELD)
+		txn->rsp.flags |= HTTP_MSGF_SOFT_RW;
+
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
 }
