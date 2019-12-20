@@ -115,8 +115,8 @@ int poller_wr_pipe[MAX_THREADS]; // Pipe to wake the threads
 
 volatile int ha_used_fds = 0; // Number of FD we're currently using
 
-#define _GET_NEXT(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
-#define _GET_PREV(fd, off) ((struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
+#define _GET_NEXT(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->next
+#define _GET_PREV(fd, off) ((volatile struct fdlist_entry *)(void *)((char *)(&fdtab[fd]) + off))->prev
 /* adds fd <fd> to fd list <list> if it was not yet in it */
 void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off)
 {
@@ -207,7 +207,7 @@ lock_self:
 
 #else
 lock_self_next:
-	next = ({ volatile int *next = &_GET_NEXT(fd, off); *next; });
+	next = _GET_NEXT(fd, off);
 	if (next == -2)
 		goto lock_self_next;
 	if (next <= -3)
@@ -215,7 +215,7 @@ lock_self_next:
 	if (unlikely(!_HA_ATOMIC_CAS(&_GET_NEXT(fd, off), &next, -2)))
 		goto lock_self_next;
 lock_self_prev:
-	prev = ({ volatile int *prev = &_GET_PREV(fd, off); *prev; });
+	prev = _GET_PREV(fd, off);
 	if (prev == -2)
 		goto lock_self_prev;
 	if (unlikely(!_HA_ATOMIC_CAS(&_GET_PREV(fd, off), &prev, -2)))
