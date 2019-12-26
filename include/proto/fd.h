@@ -358,7 +358,7 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
 		fd_may_send(fd);
 
-	if (fdtab[fd].iocb)
+	if (fdtab[fd].iocb && fd_active(fd))
 		fdtab[fd].iocb(fd);
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
