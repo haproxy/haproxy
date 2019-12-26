@@ -68,6 +68,15 @@ static void _update_fd(int fd)
 
 	en = fdtab[fd].state;
 
+	/* if we're already polling or are going to poll for this FD and it's
+	 * neither active nor ready, force it to be active so that we don't
+	 * needlessly unsubscribe then re-subscribe it.
+	 */
+	if (!(en & FD_EV_READY_R) &&
+	    ((en & FD_EV_ACTIVE_W) ||
+	     ((polled_mask[fd].poll_send | polled_mask[fd].poll_recv) & tid_bit)))
+		en |= FD_EV_ACTIVE_R;
+
 	if ((polled_mask[fd].poll_send | polled_mask[fd].poll_recv) & tid_bit) {
 		if (!(fdtab[fd].thread_mask & tid_bit) || !(en & FD_EV_ACTIVE_RW)) {
 			/* fd removed from poll list */
