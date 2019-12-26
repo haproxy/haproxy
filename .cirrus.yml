@@ -1,11 +1,12 @@
 FreeBSD_task:
   freebsd_instance:
-    image: freebsd-12-0-release-amd64
+    matrix:
+      image_family: freebsd-12-1
+      image_family: freebsd-11-3-snap
   only_if: $CIRRUS_BRANCH =~ 'master|next'
-  env:
-    ASSUME_ALWAYS_YES: TRUE # required for unattended "pkg" invocation
+  install_script:
+    - pkg install -y openssl111 git gmake lua53 socat
   script:
-    - pkg install openssl111 git gmake lua53
     - git clone https://github.com/VTest/VTest.git ../vtest
     - make -C ../vtest
     - gmake CC=clang V=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua53 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.3
@@ -18,7 +19,7 @@ centos_6_task:
     image: centos:centos6
   only_if: $CIRRUS_BRANCH =~ 'master|next'
   script:
-    - yum install -q -y gcc git openssl-devel pcre-devel epel-release
+    - yum install -q -y gcc git openssl-devel pcre-devel epel-release socat
     - yum install -q -y python34
     - git clone https://github.com/VTest/VTest.git ../vtest
     # Special flags due to: https://github.com/vtest/VTest/issues/12
