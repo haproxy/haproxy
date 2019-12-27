@@ -71,21 +71,6 @@ void conn_fd_handler(int fd)
 			goto leave;
 	}
 
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
-
-	/* The connection owner might want to be notified about an end of
-	 * handshake indicating the connection is ready, before we proceed with
-	 * any data exchange. The callback may fail and cause the connection to
-	 * be destroyed, thus we must not use it anymore and should immediately
-	 * leave instead. The caller must immediately unregister itself once
-	 * called.
-	 */
-	if (!(conn->flags & CO_FL_HANDSHAKE) &&
-	    conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
-		return;
-
 	if (fd_send_ready(fd) && fd_send_active(fd)) {
 		/* force reporting of activity by clearing the previous flags :
 		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
@@ -121,14 +106,20 @@ void conn_fd_handler(int fd)
 	}
 
  leave:
-	/* The connection owner might want to be notified about failures to
-	 * complete the handshake. The callback may fail and cause the
+	/* Verify if the connection just established. */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
+
+	/* The connection owner might want to be notified about failures
+	 * and/or handshake completeion. The callback may fail and cause the
 	 * connection to be destroyed, thus we must not use it anymore and
 	 * should immediately leave instead. The caller must immediately
 	 * unregister itself once called.
 	 */
-	if (((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) &&
-	    conn->xprt_done_cb && conn->xprt_done_cb(conn) < 0)
+	if (unlikely(conn->xprt_done_cb) &&
+	    (!(conn->flags & CO_FL_HANDSHAKE) ||
+	     ((conn->flags ^ flags) & CO_FL_NOTIFY_DONE)) &&
+	    conn->xprt_done_cb(conn) < 0)
 		return;
 
 	/* The wake callback is normally used to notify the data layer about
