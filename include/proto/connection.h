@@ -43,6 +43,7 @@ extern struct mux_proto_list mux_proto_list;
  * provided by the connection's sock_ops.
  */
 void conn_fd_handler(int fd);
+int conn_fd_check(struct connection *conn);
 
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);

@@ -91,7 +91,7 @@ void conn_fd_handler(int fd)
 		 * attempted yet to probe the connection. Then let's retry the
 		 * connect().
 		 */
-		if (!tcp_connect_probe(conn))
+		if (!conn_fd_check(conn))
 			goto leave;
 	}
 
@@ -189,6 +189,97 @@ void conn_update_xprt_polling(struct connection *c)
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
 	c->flags = f;
+}
+
+/* This is the callback which is set when a connection establishment is pending
+ * and we have nothing to send. It may update the FD polling status to indicate
+ * !READY. It returns 0 if it fails in a fatal way or needs to poll to go
+ * further, otherwise it returns non-zero and removes the CO_FL_WAIT_L4_CONN
+ * flag from the connection's flags. In case of error, it sets CO_FL_ERROR and
+ * leaves the error code in errno.
+ */
+int conn_fd_check(struct connection *conn)
+{
+	struct sockaddr_storage *addr;
+	int fd = conn->handle.fd;
+
+	if (conn->flags & CO_FL_ERROR)
+		return 0;
+
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
+		return 1; /* strange we were called while ready */
+
+	if (!fd_send_ready(fd))
+		return 0;
+
+	/* Here we have 2 cases :
+	 *  - modern pollers, able to report ERR/HUP. If these ones return any
+	 *    of these flags then it's likely a failure, otherwise it possibly
+	 *    is a success (i.e. there may have been data received just before
+	 *    the error was reported).
+	 *  - select, which doesn't report these and with which it's always
+	 *    necessary either to try connect() again or to check for SO_ERROR.
+	 * In order to simplify everything, we double-check using connect() as
+	 * soon as we meet either of these delicate situations. Note that
+	 * SO_ERROR would clear the error after reporting it!
+	 */
+	if (cur_poller.flags & HAP_POLL_F_ERRHUP) {
+		/* modern poller, able to report ERR/HUP */
+		if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_IN)
+			goto done;
+		if ((fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_OUT)
+			goto done;
+		if (!(fdtab[fd].ev & (FD_POLL_ERR|FD_POLL_HUP)))
+			goto wait;
+		/* error present, fall through common error check path */
+	}
+
+	/* Use connect() to check the state of the socket. This has the double
+	 * advantage of *not* clearing the error (so that health checks can
+	 * still use getsockopt(SO_ERROR)) and giving us the following info :
+	 *  - error
+	 *  - connecting (EALREADY, EINPROGRESS)
+	 *  - connected (EISCONN, 0)
+	 */
+	addr = conn->dst;
+	if ((conn->flags & CO_FL_SOCKS4) && obj_type(conn->target) == OBJ_TYPE_SERVER)
+		addr = &objt_server(conn->target)->socks4_addr;
+
+	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
+		if (errno == EALREADY || errno == EINPROGRESS)
+			goto wait;
+
+		if (errno && errno != EISCONN)
+			goto out_error;
+	}
+
+ done:
+	/* The FD is ready now, we'll mark the connection as complete and
+	 * forward the event to the transport layer which will notify the
+	 * data layer.
+	 */
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	fd_may_send(fd);
+	fd_cond_recv(fd);
+	errno = 0; // make health checks happy
+	return 1;
+
+ out_error:
+	/* Write error on the file descriptor. Report it to the connection
+	 * and disable polling on this FD.
+	 */
+	fdtab[fd].linger_risk = 0;
+	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+	__conn_xprt_stop_both(conn);
+	return 0;
+
+ wait:
+	__conn_xprt_want_send(conn);
+	fd_cant_send(fd);
+	return 0;
 }
 
 /* Send a message over an established connection. It makes use of send() and
