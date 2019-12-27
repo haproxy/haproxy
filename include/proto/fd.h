@@ -197,7 +197,6 @@ static inline void fd_stop_recv(int fd)
 	if (!(fdtab[fd].state & FD_EV_ACTIVE_R) ||
 	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_ACTIVE_R_BIT))
 		return;
-	updt_fd_polling(fd);
 }
 
 /* Disable processing send events on fd <fd> */
@@ -206,7 +205,6 @@ static inline void fd_stop_send(int fd)
 	if (!(fdtab[fd].state & FD_EV_ACTIVE_W) ||
 	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_ACTIVE_W_BIT))
 		return;
-	updt_fd_polling(fd);
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
@@ -220,7 +218,6 @@ static inline void fd_stop_both(int fd)
 			return;
 		new = old & ~FD_EV_ACTIVE_RW;
 	} while (unlikely(!_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)));
-	updt_fd_polling(fd);
 }
 
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
@@ -327,7 +324,7 @@ static inline void fd_update_events(int fd, unsigned char evts)
 {
 	unsigned long locked = atleast2(fdtab[fd].thread_mask);
 	unsigned char old, new;
-	int new_flags;
+	int new_flags, must_stop;
 
 	new_flags =
 	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |
@@ -339,6 +336,21 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	/* SHUTW reported while FD was active for writes is an error */
 	if ((fdtab[fd].ev & FD_EV_ACTIVE_W) && (evts & FD_EV_SHUT_W))
 		new_flags |= FD_POLL_ERR;
+
+	/* compute the inactive events reported late that must be stopped */
+	must_stop = 0;
+	if (unlikely(!fd_active(fd))) {
+		/* both sides stopped */
+		must_stop = FD_POLL_IN | FD_POLL_OUT;
+	}
+	else if (unlikely(!fd_recv_active(fd) && (evts & (FD_EV_READY_R | FD_EV_SHUT_R | FD_EV_ERR_R)))) {
+		/* only send remains */
+		must_stop = FD_POLL_IN;
+	}
+	else if (unlikely(!fd_send_active(fd) && (evts & (FD_EV_READY_W | FD_EV_SHUT_W | FD_EV_ERR_W)))) {
+		/* only recv remains */
+		must_stop = FD_POLL_OUT;
+	}
 
 	old = fdtab[fd].ev;
 	new = (old & FD_POLL_STICKY) | new_flags;
@@ -360,6 +372,16 @@ static inline void fd_update_events(int fd, unsigned char evts)
 
 	if (fdtab[fd].iocb && fd_active(fd))
 		fdtab[fd].iocb(fd);
+
+	/* we had to stop this FD and it still must be stopped after the I/O
+	 * cb's changes, so let's program an update for this.
+	 */
+	if (must_stop && !(fdtab[fd].update_mask & tid_bit)) {
+		if (((must_stop & FD_POLL_IN)  && !fd_recv_active(fd)) ||
+		    ((must_stop & FD_POLL_OUT) && !fd_send_active(fd)))
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
+	}
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 }
