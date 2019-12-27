@@ -137,6 +137,17 @@ static const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0:
 	[HANA_STATUS_HTTP_BROKEN_PIPE]	= { "Close from server (http)",        { 0, 1 }},
 };
 
+/* checks if <err> is a real error for errno or one that can be ignored, and
+ * return 0 for these ones or <err> for real ones.
+ */
+static inline int unclean_errno(int err)
+{
+	if (err == EAGAIN || err == EINPROGRESS ||
+	    err == EISCONN || err == EALREADY)
+		return 0;
+	return err;
+}
+
 /*
  * Convert check_status code to description
  */
@@ -548,7 +559,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	int skerr;
 	socklen_t lskerr = sizeof(skerr);
 
-	if (conn->flags & CO_FL_ERROR && ((errno && errno != EAGAIN) || !conn->ctrl))
+	if (conn->flags & CO_FL_ERROR && (unclean_errno(errno) || !conn->ctrl))
 		return 1;
 
 	if (!conn_ctrl_ready(conn))
@@ -557,8 +568,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	if (getsockopt(conn->handle.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
 		errno = skerr;
 
-	if (errno == EAGAIN)
-		errno = 0;
+	errno = unclean_errno(errno);
 
 	if (!errno) {
 		/* we could not retrieve an error, that does not mean there is
@@ -599,8 +609,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (check->result != CHK_RES_UNKNOWN)
 		return;
 
-	errno = errno_bck;
-	if (conn && (!errno || errno == EAGAIN))
+	errno = unclean_errno(errno_bck);
+	if (conn && errno)
 		retrieve_errno_from_socket(conn);
 
 	if (conn && !(conn->flags & CO_FL_ERROR) &&
@@ -644,7 +654,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 
 	if (conn && conn->err_code) {
-		if (errno && errno != EAGAIN)
+		if (unclean_errno(errno))
 			chunk_printf(&trash, "%s (%s)%s", conn_err_code_str(conn), strerror(errno),
 				     chk->area);
 		else
@@ -653,7 +663,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		err_msg = trash.area;
 	}
 	else {
-		if (errno && errno != EAGAIN) {
+		if (unclean_errno(errno)) {
 			chunk_printf(&trash, "%s%s", strerror(errno),
 				     chk->area);
 			err_msg = trash.area;
