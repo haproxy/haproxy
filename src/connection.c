@@ -60,6 +60,21 @@ void conn_fd_handler(int fd)
 
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) &&
+	    ((fd_send_ready(fd) && fd_send_active(fd)) ||
+	     (fd_recv_ready(fd) && fd_recv_active(fd)))) {
+		/* Still waiting for a connection to establish and nothing was
+		 * attempted yet to probe the connection. this will clear the
+		 * CO_FL_WAIT_L4_CONN flag on success.
+		 */
+		if (!conn_fd_check(conn))
+			goto leave;
+	}
+
+	/* Verify if the connection just established. */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
+
 	/* The connection owner might want to be notified about an end of
 	 * handshake indicating the connection is ready, before we proceed with
 	 * any data exchange. The callback may fail and cause the connection to
@@ -86,15 +101,6 @@ void conn_fd_handler(int fd)
 		__conn_xprt_stop_send(conn);
 	}
 
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
-		/* still waiting for a connection to establish and nothing was
-		 * attempted yet to probe the connection. Then let's retry the
-		 * connect().
-		 */
-		if (!conn_fd_check(conn))
-			goto leave;
-	}
-
 	/* The data transfer starts here and stops on error and handshakes. Note
 	 * that we must absolutely test conn->xprt at each step in case it suddenly
 	 * changes due to a quick unexpected close().
@@ -115,10 +121,6 @@ void conn_fd_handler(int fd)
 	}
 
  leave:
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
-
 	/* The connection owner might want to be notified about failures to
 	 * complete the handshake. The callback may fail and cause the
 	 * connection to be destroyed, thus we must not use it anymore and
