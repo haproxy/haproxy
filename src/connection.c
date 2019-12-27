@@ -126,8 +126,8 @@ void conn_fd_handler(int fd)
 	 * data layer activity (successful send/recv), connection establishment,
 	 * shutdown and fatal errors. We need to consider the following
 	 * situations to wake up the data layer :
-	 *  - change among the CO_FL_NOTIFY_DATA flags :
-	 *      {DATA,SOCK}_{RD,WR}_SH, ERROR,
+	 *  - change among the CO_FL_NOTIFY_DONE flags :
+	 *      SOCK_{RD,WR}_SH, ERROR,
 	 *  - absence of any of {L4,L6}_CONN and CONNECTED, indicating the
 	 *    end of handshake and transition to CONNECTED
 	 *  - raise of CONNECTED with HANDSHAKE down
@@ -137,7 +137,7 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DATA) ||
+	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
 	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
 	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
 	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
