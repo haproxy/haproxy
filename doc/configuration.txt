@@ -1476,6 +1476,10 @@ busy-polling
   prefixing it with the "no" keyword. It is ignored by the "select" and
   "poll" pollers.
 
+  This option is automatically disabled on old processes in the context of
+  seamless reload; it avoids too much cpu conflicts when multiple processes
+  stay around for some time waiting for the end of their current connections.
+
 max-spread-checks <delay in milliseconds>
   By default, haproxy tries to spread the start of health checks across the
   smallest health check interval of all the servers in a farm. The principle is

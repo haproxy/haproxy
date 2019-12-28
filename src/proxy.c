@@ -1116,6 +1116,8 @@ void soft_stop(void)
 	struct task *task;
 
 	stopping = 1;
+	/* disable busy polling to avoid cpu eating for the new process */
+	global.tune.options &= ~GTUNE_BUSY_POLLING;
 	if (tick_isset(global.hard_stop_after)) {
 		task = task_new(MAX_THREADS_MASK);
 		if (task) {
