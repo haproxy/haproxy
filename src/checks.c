@@ -1715,6 +1715,9 @@ static int connect_conn_chk(struct task *t)
 	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
+	}
+	if (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4) &&
+	    conn_ctrl_ready(conn)) {
 		if (xprt_add_hs(conn) < 0)
 			ret = SF_ERR_RESOURCE;
 	}
@@ -2962,7 +2965,8 @@ static int tcpcheck_main(struct check *check)
 			if (proto && proto->connect)
 				ret = proto->connect(conn,
 						     CONNECT_HAS_DATA /* I/O polling is always needed */ | (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : CONNECT_DELACK_ALWAYS);
-			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
+			if (conn_ctrl_ready(conn) &&
+				check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
 				conn->flags |= CO_FL_SEND_PROXY;
 				if (xprt_add_hs(conn) < 0)
