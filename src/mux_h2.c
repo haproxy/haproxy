@@ -3901,9 +3901,7 @@ static void h2_detach(struct conn_stream *cs)
 				struct server *srv = objt_server(h2c->conn->target);
 
 				if (srv) {
-					if (h2c->conn->flags & CO_FL_PRIVATE)
-						LIST_ADD(&srv->priv_conns[tid], &h2c->conn->list);
-					else
+					if (!(h2c->conn->flags & CO_FL_PRIVATE))
 						LIST_ADD(&srv->idle_conns[tid], &h2c->conn->list);
 				}
 

@@ -3613,14 +3613,12 @@ out_uri_auth_compat:
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int i;
 
-			newsrv->priv_conns = calloc(global.nbthread, sizeof(*newsrv->priv_conns));
 			newsrv->idle_conns = calloc(global.nbthread, sizeof(*newsrv->idle_conns));
 			newsrv->safe_conns = calloc(global.nbthread, sizeof(*newsrv->safe_conns));
 
-			if (!newsrv->priv_conns || !newsrv->idle_conns || !newsrv->safe_conns) {
+			if (!newsrv->idle_conns || !newsrv->safe_conns) {
 				free(newsrv->safe_conns); newsrv->safe_conns = NULL;
 				free(newsrv->idle_conns); newsrv->idle_conns = NULL;
-				free(newsrv->priv_conns); newsrv->priv_conns = NULL;
 				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
 					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
 				cfgerr++;
@@ -3628,7 +3626,6 @@ out_uri_auth_compat:
 			}
 
 			for (i = 0; i < global.nbthread; i++) {
-				LIST_INIT(&newsrv->priv_conns[i]);
 				LIST_INIT(&newsrv->idle_conns[i]);
 				LIST_INIT(&newsrv->safe_conns[i]);
 			}

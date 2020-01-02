@@ -2425,12 +2425,12 @@ static void h1_detach(struct conn_stream *cs)
 			struct server *srv = objt_server(h1c->conn->target);
 
 			if (srv) {
-				if (h1c->conn->flags & CO_FL_PRIVATE)
-					LIST_ADD(&srv->priv_conns[tid], &h1c->conn->list);
-				else if (is_not_first)
-					LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
-				else
-					LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
+				if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
+					if (is_not_first)
+						LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
+					else
+						LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
+				}
 				TRACE_DEVEL("connection in idle server list", H1_EV_STRM_END, h1c->conn);
 			}
 		}

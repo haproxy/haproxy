@@ -221,7 +221,6 @@ struct server {
 
 	struct eb_root pendconns;		/* pending connections */
 	struct list actconns;			/* active connections */
-	struct list *priv_conns;		/* private idle connections attached to stream interfaces */
 	struct list *idle_conns;		/* sharable idle connections attached or not to a stream interface */
 	struct list *safe_conns;		/* safe idle connections attached to stream interfaces, shared */
 	struct mt_list *idle_orphan_conns;         /* Orphan connections idling */

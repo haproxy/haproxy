@@ -8478,7 +8478,6 @@ void hlua_init(void)
 	socket_tcp.obj_type = OBJ_TYPE_SERVER;
 	LIST_INIT(&socket_tcp.actconns);
 	socket_tcp.pendconns = EB_ROOT;
-	socket_tcp.priv_conns = NULL;
 	socket_tcp.idle_conns = NULL;
 	socket_tcp.safe_conns = NULL;
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
@@ -8524,7 +8523,6 @@ void hlua_init(void)
 	socket_ssl.obj_type = OBJ_TYPE_SERVER;
 	LIST_INIT(&socket_ssl.actconns);
 	socket_ssl.pendconns = EB_ROOT;
-	socket_ssl.priv_conns = NULL;
 	socket_ssl.idle_conns = NULL;
 	socket_ssl.safe_conns = NULL;
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */

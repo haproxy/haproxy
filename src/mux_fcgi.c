@@ -3503,9 +3503,7 @@ static void fcgi_detach(struct conn_stream *cs)
 			struct server *srv = objt_server(fconn->conn->target);
 
 			if (srv) {
-				if (fconn->conn->flags & CO_FL_PRIVATE)
-					LIST_ADD(&srv->priv_conns[tid], &fconn->conn->list);
-				else
+				if (!(fconn->conn->flags & CO_FL_PRIVATE))
 					LIST_ADD(&srv->idle_conns[tid], &fconn->conn->list);
 			}
 			TRACE_DEVEL("connection in idle server list", FCGI_EV_STRM_END, fconn->conn);
