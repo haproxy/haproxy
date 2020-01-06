@@ -1545,7 +1545,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	es->buf_len = buf_len;
 	es->ev_id   = ev_id;
 
-	len1 = b_size(buf) - buf_len;
+	len1 = b_size(buf) - b_peek_ofs(buf, buf_out);
 	if (len1 > buf_len)
 		len1 = buf_len;
 
