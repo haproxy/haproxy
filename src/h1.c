@@ -819,6 +819,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 					if (ret < 0) {
 						state = H1_MSG_HDR_L2_LWS;
+						ptr = v.ptr; /* Set ptr on the error */
 						goto http_msg_invalid;
 					}
 					else if (ret == 0) {
@@ -841,16 +842,18 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						if (authority.len && !isteqi(v, authority)) {
 							if (h1m->err_pos < -1) {
 								state = H1_MSG_HDR_L2_LWS;
+								ptr = v.ptr; /* Set ptr on the error */
 								goto http_msg_invalid;
 							}
 							if (h1m->err_pos == -1) /* capture the error pointer */
-								h1m->err_pos = ptr - start + skip; /* >= 0 now */
+								h1m->err_pos = v.ptr - start + skip; /* >= 0 now */
 						}
 						host_idx = hdr_count;
 					}
 					else {
 						if (!isteqi(v, hdr[host_idx].v)) {
 							state = H1_MSG_HDR_L2_LWS;
+							ptr = v.ptr; /* Set ptr on the error */
 							goto http_msg_invalid;
 						}
 						/* if the same host, skip it */
