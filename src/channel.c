@@ -96,7 +96,7 @@ int co_inject(struct channel *chn, const char *msg, int len)
 	if (len > max)
 		return max;
 
-	memcpy(ci_tail(chn), msg, len);
+	memcpy(co_tail(chn), msg, len);
 	b_add(&chn->buf, len);
 	c_adv(chn, len);
 	chn->total += len;
