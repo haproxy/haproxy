@@ -5,7 +5,13 @@ FreeBSD_task:
       image_family: freebsd-11-3-snap
   only_if: $CIRRUS_BRANCH =~ 'master|next'
   install_script:
-    - pkg install -y openssl111 git gmake lua53 socat
+    - case `uname -r` in
+        11.3*)
+          export SSL=openssl;;
+        12.1*)
+          export SSL=openssl111;;
+      esac
+    - pkg install -y $SSL git gmake lua53 socat
   script:
     - git clone https://github.com/VTest/VTest.git ../vtest
     - make -C ../vtest
