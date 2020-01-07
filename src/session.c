@@ -288,6 +288,12 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (conn_complete_session(cli_conn) >= 0)
 		return 1;
 
+	/* if we reach here we have deliberately decided not to keep this
+	 * session (e.g. tcp-request rule), so that's not an error we should
+	 * try to protect against.
+	 */
+	ret = 0;
+
 	/* error unrolling */
  out_free_sess:
 	 /* prevent call to listener_release during session_free. It will be
