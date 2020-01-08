@@ -1320,22 +1320,22 @@ int val_blk_arg(struct arg *arg, char **err_msg)
  * Note: htx sample fetches should only used for developpement purpose.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
+	{ "internal.strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
 
-	{ "htx.nbblks",          smp_fetch_htx_nbblks,       0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.size",            smp_fetch_htx_size,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.data",            smp_fetch_htx_data,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.used",            smp_fetch_htx_used,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.free",            smp_fetch_htx_free,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.free_data",       smp_fetch_htx_free_data,    0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx.has_eom",         smp_fetch_htx_has_eom,      0,            NULL,           SMP_T_BOOL,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.nbblks",          smp_fetch_htx_nbblks,       0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.size",            smp_fetch_htx_size,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.data",            smp_fetch_htx_data,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.used",            smp_fetch_htx_used,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.free",            smp_fetch_htx_free,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.free_data",       smp_fetch_htx_free_data,    0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx.has_eom",         smp_fetch_htx_has_eom,      0,            NULL,           SMP_T_BOOL,  SMP_USE_HRQHV|SMP_USE_HRSHV},
 
-	{ "htx_blk.type",        smp_fetch_htx_blk_type,     ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx_blk.size",        smp_fetch_htx_blk_size,     ARG1(1,STR),  val_blk_arg,    SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx_blk.start_line",  smp_fetch_htx_blk_stline,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx_blk.hdrname",     smp_fetch_htx_blk_hdrname,  ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx_blk.hdrval",      smp_fetch_htx_blk_hdrval,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "htx_blk.val",         smp_fetch_htx_blk_val,      ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.type",        smp_fetch_htx_blk_type,     ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.size",        smp_fetch_htx_blk_size,     ARG1(1,STR),  val_blk_arg,    SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.start_line",  smp_fetch_htx_blk_stline,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.hdrname",     smp_fetch_htx_blk_hdrname,  ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.hdrval",      smp_fetch_htx_blk_hdrval,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.val",         smp_fetch_htx_blk_val,      ARG1(1,STR),  val_blk_arg,    SMP_T_BIN,   SMP_USE_HRQHV|SMP_USE_HRSHV},
 
 	{ /* END */ },
 }};

@@ -37,7 +37,7 @@ haproxy h1 -conf {
 	tcp-response content accept if { res.len gt 15272 }
 	tcp-response content reject
 
-        http-response deny if { htx.has_eom -m bool } or { htx.free_data gt 1024 }
+        http-response deny if { internal.htx.has_eom -m bool } or { internal.htx.free_data gt 1024 }
         server srv1 ${s1_addr}:${s1_port}
 
     frontend fe1
@@ -45,7 +45,7 @@ haproxy h1 -conf {
         option http-buffer-request
         log ${S_addr}:${S_port} local0 debug err
         bind "fd@${fe1}"
-        http-request deny if ! { req.body_len eq 15200 } or { htx.has_eom -m bool } or { htx.free_data gt 1024 }
+        http-request deny if ! { req.body_len eq 15200 } or { internal.htx.has_eom -m bool } or { internal.htx.free_data gt 1024 }
         use_backend be1
 } -start
 
