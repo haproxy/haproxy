@@ -374,6 +374,8 @@ HAProxy may emit the following status codes by itself :
         accessing the stats page)
    403  when a request is forbidden by a "http-request deny" rule
    408  when the request timeout strikes before the request is complete
+   410  when the requested resource is no longer available and will not
+        be available again
    500  when haproxy encounters an unrecoverable internal error, such as a
         memory allocation failure, which should never happen
    502  when the server returns an empty, invalid or incomplete response, or
@@ -3605,7 +3607,7 @@ errorfile <code> <file>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 200, 400, 403, 405, 408, 425, 429, 500, 502,
+              generating codes 200, 400, 403, 405, 408, 410, 425, 429, 500, 502,
               503, and 504.
 
     <file>    designates a file containing the full HTTP response. It is
@@ -3654,7 +3656,7 @@ errorloc302 <code> <url>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 200, 400, 403, 405, 408, 425, 429, 500, 502,
+              generating codes 200, 400, 403, 405, 408, 410, 425, 429, 500, 502,
               503, and 504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
@@ -3686,7 +3688,7 @@ errorloc303 <code> <url>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 200, 400, 403, 405, 408, 425, 429, 500, 502,
+              generating codes 200, 400, 403, 405, 408, 410, 425, 429, 500, 502,
               503, and 504.
 
     <url>     it is the exact contents of the "Location" header. It may contain

@@ -218,6 +218,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_403] = 403,
 	[HTTP_ERR_405] = 405,
 	[HTTP_ERR_408] = 408,
+	[HTTP_ERR_410] = 410,
 	[HTTP_ERR_421] = 421,
 	[HTTP_ERR_425] = 425,
 	[HTTP_ERR_429] = 429,
@@ -272,6 +273,15 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n",
+
+	[HTTP_ERR_410] =
+	"HTTP/1.1 410 Gone\r\n"
+	"Content-length: 114\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>410 Gone</h1>\nThe resource is no longer available and will not be available again.\n</body></html>\n",
 
 	[HTTP_ERR_421] =
 	"HTTP/1.1 421 Misdirected Request\r\n"
@@ -379,6 +389,7 @@ int http_get_status_idx(unsigned int status)
 	case 403: return HTTP_ERR_403;
 	case 405: return HTTP_ERR_405;
 	case 408: return HTTP_ERR_408;
+	case 410: return HTTP_ERR_410;
 	case 421: return HTTP_ERR_421;
 	case 425: return HTTP_ERR_425;
 	case 429: return HTTP_ERR_429;
