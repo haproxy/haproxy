@@ -378,6 +378,8 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			/* if the system buffer is full, don't insist */
 			if (ret < try)
 				break;
+			if (!count)
+				fd_stop_send(conn->handle.fd);
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* nothing written, we need to poll for write first */
