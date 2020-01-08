@@ -1102,7 +1102,8 @@ void listener_accept(int fd)
 	 * later than <expire> ahead. The listener turns to LI_LIMITED.
 	 */
 	limit_listener(l, &p->listener_queue);
-	task_schedule(p->task, expire);
+	if (p->task && tick_isset(expire))
+		task_schedule(p->task, expire);
 	goto end;
 }
 
