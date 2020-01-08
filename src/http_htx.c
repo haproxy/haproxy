@@ -1226,7 +1226,7 @@ smp_fetch_htx_blk_hdrval(const struct arg *arg_p, struct sample *smp, const char
  * or "head", "tail" or "first". The channel is chosen depending on the sample
  * direction. */
 static int
-smp_fetch_htx_blk_val(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+smp_fetch_htx_blk_data(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
 	struct channel *chn;
 	struct htx *htx;
@@ -1335,7 +1335,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "internal.htx_blk.start_line",  smp_fetch_htx_blk_stline,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
 	{ "internal.htx_blk.hdrname",     smp_fetch_htx_blk_hdrname,  ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
 	{ "internal.htx_blk.hdrval",      smp_fetch_htx_blk_hdrval,   ARG1(1,STR),  val_blk_arg,    SMP_T_STR,   SMP_USE_HRQHV|SMP_USE_HRSHV},
-	{ "internal.htx_blk.val",         smp_fetch_htx_blk_val,      ARG1(1,STR),  val_blk_arg,    SMP_T_BIN,   SMP_USE_HRQHV|SMP_USE_HRSHV},
+	{ "internal.htx_blk.data",        smp_fetch_htx_blk_data,     ARG1(1,STR),  val_blk_arg,    SMP_T_BIN,   SMP_USE_HRQHV|SMP_USE_HRSHV},
 
 	{ /* END */ },
 }};
