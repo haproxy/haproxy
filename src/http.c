@@ -216,6 +216,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
 	[HTTP_ERR_400] = 400,
 	[HTTP_ERR_403] = 403,
+	[HTTP_ERR_404] = 404,
 	[HTTP_ERR_405] = 405,
 	[HTTP_ERR_408] = 408,
 	[HTTP_ERR_410] = 410,
@@ -255,6 +256,15 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n",
+
+	[HTTP_ERR_404] =
+	"HTTP/1.1 404 Not Found\r\n"
+	"Content-length: 83\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>404 Not Found</h1>\nThe resource could not be found.\n</body></html>\n",
 
 	[HTTP_ERR_405] =
 	"HTTP/1.1 405 Method Not Allowed\r\n"
@@ -387,6 +397,7 @@ int http_get_status_idx(unsigned int status)
 	case 200: return HTTP_ERR_200;
 	case 400: return HTTP_ERR_400;
 	case 403: return HTTP_ERR_403;
+	case 404: return HTTP_ERR_404;
 	case 405: return HTTP_ERR_405;
 	case 408: return HTTP_ERR_408;
 	case 410: return HTTP_ERR_410;
