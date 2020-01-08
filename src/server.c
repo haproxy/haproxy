@@ -2053,8 +2053,6 @@ static int server_finalize_init(const char *file, int linenum, char **args, int 
 	srv_lb_commit_status(srv);
 
 	return 0;
-err:
-	return ERR_ALERT | ERR_FATAL;
 }
 
 /*
