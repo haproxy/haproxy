@@ -1261,7 +1261,7 @@ smp_fetch_htx_blk_data(const struct arg *arg_p, struct sample *smp, const char *
 
 		chunk_initlen(&smp->data.u.str, val.ptr, val.len, val.len);
 	}
-	smp->data.type = SMP_T_STR;
+	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_CONST | SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
