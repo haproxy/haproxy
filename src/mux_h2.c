@@ -1347,9 +1347,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 
 	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn, h2s);
 	return h2s;
-
- out_free_h2s:
-	pool_free(pool_head_h2s, h2s);
  out:
 	TRACE_DEVEL("leaving in error", H2_EV_H2S_ERR|H2_EV_H2S_END, h2c->conn);
 	return NULL;
