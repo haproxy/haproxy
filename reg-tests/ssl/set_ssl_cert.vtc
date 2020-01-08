@@ -42,7 +42,7 @@ shell {
 }
 
 shell {
-   echo -e "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/ecdsa.pem)\n" | socat "${tmpdir}/h1/stats" -
+   printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h1/stats" -
 }
 
