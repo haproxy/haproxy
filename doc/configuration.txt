@@ -86,6 +86,7 @@ Summary
 7.3.4.        Fetching samples at Layer 5
 7.3.5.        Fetching samples from buffer contents (Layer 6)
 7.3.6.        Fetching HTTP samples (Layer 7)
+7.3.7.        Fetching samples for developers
 7.4.      Pre-defined ACLs
 
 8.    Logging
@@ -16367,6 +16368,111 @@ url32+src : binary
   This returns the concatenation of the "url32" fetch and the "src" fetch. The
   resulting type is of type binary, with a size of 8 or 20 bytes depending on
   the source address family. This can be used to track per-IP, per-URL counters.
+
+
+7.3.7. Fetching samples for developers
+---------------------------------------
+
+This set of sample fetch methods is reserved to developers and must never be
+used on a production environment, except on developer demand, for debugging
+purposes. Moreover, no special care will be taken on backwards compatibility.
+There is no warranty the following sample fetches will never change, be renamed
+or simply removed. So be really careful if you should use one of them. To avoid
+any ambiguity, these sample fetches are placed in the dedicated scope "internal",
+for instance "internal.strm.is_htx".
+
+internal.htx.data : integer
+  Returns the size in bytes used by data in the HTX message associated to a
+  channel. The channel is chosen depending on the sample direction.
+
+internal.htx.free : integer
+  Returns the free space (size - used) in bytes in the HTX message associated
+  to a channel. The channel is chosen depending on the sample direction.
+
+internal.htx.free_data : integer
+  Returns the free space for the data in bytes in the HTX message associated to
+  a channel. The channel is chosen depending on the sample direction.
+
+internal.htx.has_eom : boolean
+  Returns true if the HTX message associated to a channel contains an
+  end-of-message block (EOM). Otherwise, it returns false. The channel is
+  chosen depending on the sample direction.
+
+internal.htx.nbblks : integer
+  Returns the number of blocks present in the HTX message associated to a
+  channel. The channel is chosen depending on the sample direction.
+
+internal.htx.size : integer
+  Returns the total size in bytes of the HTX message associated to a
+  channel. The channel is chosen depending on the sample direction.
+
+internal.htx.used : integer
+  Returns the total size used in bytes (data + metadata) in the HTX message
+  associated to a channel. The channel is chosen depending on the sample
+  direction.
+
+internal.htx_blk.size(<idx>) : integer
+  Returns the size of the block at the position <idx> in the HTX message
+  associated to a channel or 0 if it does not exist. The channel is chosen
+  depending on the sample direction. <idx> may be any positive integer or one
+  of the special value :
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.htx_blk.type(<idx>) : string
+  Returns the type of the block at the position <idx> in the HTX message
+  associated to a channel or "HTX_BLK_UNUSED" if it does not exist. The channel
+  is chosen depending on the sample direction. <idx> may be any positive
+  integer or one of the special value :
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.htx_blk.data(<idx>) : binary
+  Returns the value of the DATA block at the position <idx> in the HTX message
+  associated to a channel or an empty string if it does not exist or if it is
+  not a DATA block. The channel is chosen depending on the sample direction.
+  <idx> may be any positive integer or one of the special value :
+
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.htx_blk.hdrname(<idx>) : string
+  Returns the header name of the HEADER block at the position <idx> in the HTX
+  message associated to a channel or an empty string if it does not exist or if
+  it is not an HEADER block. The channel is chosen depending on the sample
+  direction.  <idx> may be any positive integer or one of the special value :
+
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.htx_blk.hdrval(<idx>) : string
+  Returns the header value of the HEADER block at the position <idx> in the HTX
+  message associated to a channel or an empty string if it does not exist or if
+  it is not an HEADER block. The channel is chosen depending on the sample
+  direction.  <idx> may be any positive integer or one of the special value :
+
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.htx_blk.start_line(<idx>) : string
+  Returns the value of the REQ_SL or RES_SL block at the position <idx> in the
+  HTX message associated to a channel or an empty string if it does not exist
+  or if it is not a SL block. The channel is chosen depending on the sample
+  direction.  <idx> may be any positive integer or one of the special value :
+
+    * head  : The oldest inserted block
+    * tail  : The newest inserted block
+    * fisrt : The first block where to (re)start the analysis
+
+internal.strm.is_htx : boolean
+  Returns true if the current stream is an HTX stream. It means the data in the
+  channels buffers are stored using the internal HTX representation. Otherwise,
+  it returns false.
 
 
 7.4. Pre-defined ACLs
