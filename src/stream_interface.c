@@ -1372,7 +1372,8 @@ int si_cs_recv(struct conn_stream *cs)
 			break;
 		}
 
-		if (si->flags & SI_FL_L7_RETRY) {
+		/* L7 retries enabled and maximum connection retries not reached */
+		if ((si->flags & SI_FL_L7_RETRY) && si->conn_retries) {
 			struct htx *htx;
 			struct htx_sl *sl;
 
