@@ -1077,16 +1077,13 @@ static void assign_tproxy_address(struct stream *s)
 }
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-/*
- * Pick the right mux once the connection is established, we should now have
- * an alpn if available, so we are now able to choose. In this specific case
- * the connection's context is &si[i].end.
+/* Wake the stream up to finish the connection (attach the mux etc). We should
+ * now have an alpn if available, so we are now able to choose. In this specific
+ * case the connection's context is &si[i].end.
  */
 static int conn_complete_server(struct connection *conn)
 {
-	struct conn_stream *cs = NULL;
 	struct stream *s = container_of(conn->ctx, struct stream, si[1].end);
-	struct server *srv;
 
 	task_wakeup(s->task, TASK_WOKEN_IO);
 	conn_clear_xprt_done_cb(conn);
@@ -1094,33 +1091,7 @@ static int conn_complete_server(struct connection *conn)
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
 		conn->flags |= CO_FL_CONNECTED;
 
-	if (conn->flags & CO_FL_ERROR)
-		goto fail;
-	si_detach_endpoint(&s->si[1]);
-	cs = si_alloc_cs(&s->si[1], conn);
-	if (!cs)
-		goto fail;
-	if (conn_install_mux_be(conn, cs, s->sess) < 0)
-		goto fail;
-	srv = objt_server(s->target);
-	if (srv && ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
-			    conn->mux->avail_streams(conn) > 0)
-				LIST_ADD(&srv->idle_conns[tid], &conn->list);
-
 	return 0;
-
-fail:
-	si_detach_endpoint(&s->si[1]);
-
-	if (cs)
-		cs_free(cs);
-	/* kill the connection now */
-	conn_stop_tracking(conn);
-	conn_full_close(conn);
-	conn_free(conn);
-	/* Let process_stream know it went wrong */
-	s->si[1].flags |= SI_FL_ERR;
-	return -1;
 }
 #endif
 
@@ -1972,6 +1943,9 @@ void back_handle_st_req(struct stream *s)
  * SI_ST_CER (error), SI_ST_DIS (abort), and SI_ST_CON (no change). This only
  * works with connection-based streams. We know that there were no I/O event
  * when reaching this function. Timeouts and errors are *not* cleared.
+ * We might have been woken up as part of the confirmation of a full-stack
+ * connection setup (e.g. raw+PP+TLS+ALPN). It will then be our role to install
+ * a mux on this connection based on what ALPN could have been negotiated.
  */
 void back_handle_st_con(struct stream *s)
 {
@@ -1994,10 +1968,44 @@ void back_handle_st_con(struct stream *s)
 			s->srv_error(s, si);
 		/* Note: state = SI_ST_DIS now */
 		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		goto end;
 	}
 
+	/* first, let's see if we've made any progress on this connection */
+	if (!conn->mux && (conn->flags & CO_FL_CONNECTED)) {
+		/* connection finished to set up */
+		struct server *srv;
+
+		if (conn->flags & CO_FL_ERROR)
+			goto fail;
+		si_detach_endpoint(&s->si[1]);
+		srv_cs = si_alloc_cs(&s->si[1], conn);
+		if (!srv_cs)
+			goto fail;
+		if (conn_install_mux_be(conn, srv_cs, s->sess) < 0)
+			goto fail;
+		srv = objt_server(s->target);
+		if (srv && ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+		    conn->mux->avail_streams(conn) > 0)
+			LIST_ADD(&srv->idle_conns[tid], &conn->list);
+		goto done;
+
+	fail:
+		si_detach_endpoint(&s->si[1]);
+		if (srv_cs)
+			cs_free(srv_cs);
+		/* kill the connection now */
+		conn_stop_tracking(conn);
+		conn_full_close(conn);
+		conn_free(conn);
+		conn = NULL;
+		/* Let process_stream know it went wrong */
+		s->si[1].flags |= SI_FL_ERR;
+	}
+
+ done:
 	/* retryable error ? */
-	else if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
+	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
 		if (!(s->flags & SF_SRV_REUSED) && conn) {
 			conn_stop_tracking(conn);
 			conn_full_close(conn);
@@ -2014,6 +2022,7 @@ void back_handle_st_con(struct stream *s)
 		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 	}
 
+ end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 }
 
