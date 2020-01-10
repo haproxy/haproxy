@@ -206,10 +206,11 @@ struct h2s {
 	uint16_t status;     /* HTTP response status */
 	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
 	struct buffer rxbuf; /* receive buffer, always valid (buf_empty or real buffer) */
-	struct wait_event wait_event; /* Wait list, when we're attempting to send a RST but we can't send */
 	struct wait_event *recv_wait; /* recv wait_event the conn_stream associated is waiting on (via h2_subscribe) */
 	struct wait_event *send_wait; /* send wait_event the conn_stream associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
+	struct tasklet *shut_tl;  /* deferred shutdown tasklet, to retry to send an RST after we failed to,
+				   * in case there's no other subscription to do it */
 };
 
 /* descriptor for an h2 frame header */
@@ -1060,6 +1061,10 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 		h2s->flags |= H2_SF_NOTIFIED;
 		tasklet_wakeup(sw->tasklet);
 	}
+	else if (h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)) {
+		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
+		tasklet_wakeup(h2s->shut_tl);
+	}
 }
 
 /* alerts the data layer, trying to wake it up by all means, following
@@ -1074,7 +1079,8 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
 {
 	TRACE_ENTER(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
 
-	if (h2s->recv_wait || h2s->send_wait) {
+	if (h2s->recv_wait || h2s->send_wait ||
+	    (h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW))) {
 		h2s_notify_recv(h2s);
 		h2s_notify_send(h2s);
 	}
@@ -1269,8 +1275,9 @@ static void h2s_destroy(struct h2s *h2s)
 	 * we're in it, we're getting out anyway
 	 */
 	LIST_DEL_INIT(&h2s->list);
+
 	/* ditto, calling tasklet_free() here should be ok */
-	tasklet_free(h2s->wait_event.tasklet);
+	tasklet_free(h2s->shut_tl);
 	pool_free(pool_head_h2s, h2s);
 
 	TRACE_LEAVE(H2_EV_H2S_END, conn);
@@ -1292,16 +1299,15 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	if (!h2s)
 		goto out;
 
-	h2s->wait_event.tasklet = tasklet_new();
-	if (!h2s->wait_event.tasklet) {
+	h2s->shut_tl = tasklet_new();
+	if (!h2s->shut_tl) {
 		pool_free(pool_head_h2s, h2s);
 		goto out;
 	}
 	h2s->send_wait = NULL;
 	h2s->recv_wait = NULL;
-	h2s->wait_event.tasklet->process = h2_deferred_shut;
-	h2s->wait_event.tasklet->context = h2s;
-	h2s->wait_event.events = 0;
+	h2s->shut_tl->process = h2_deferred_shut;
+	h2s->shut_tl->context = h2s;
 	LIST_INIT(&h2s->list);
 	h2s->h2c       = h2c;
 	h2s->cs        = NULL;
@@ -1976,7 +1982,7 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 		if (h2s->flags & H2_SF_BLK_SFCTL && h2s_mws(h2s) > 0) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
 			LIST_DEL_INIT(&h2s->list);
-			if (h2s->send_wait)
+			if (h2s->send_wait || h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 		node = eb32_next(node);
@@ -2316,7 +2322,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		if (h2s_mws(h2s) > 0 && (h2s->flags & H2_SF_BLK_SFCTL)) {
 			h2s->flags &= ~H2_SF_BLK_SFCTL;
 			LIST_DEL_INIT(&h2s->list);
-			if (h2s->send_wait)
+			if (h2s->send_wait || h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))
 				LIST_ADDQ(&h2c->send_list, &h2s->list);
 		}
 	}
@@ -3254,18 +3260,24 @@ static void h2_resume_each_sending_h2s(struct h2c *h2c, struct list *head)
 		if (h2s->flags & H2_SF_NOTIFIED)
 			continue;
 
-		/* For some reason, the upper layer failed to subscribe again,
-		 * so remove it from the send_list
+		/* If the sender changed his mind and unsubscribed, let's just
+		 * remove the stream from the send_list.
 		 */
-		if (!h2s->send_wait) {
+		if (!h2s->send_wait &&
+		    !(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
 			LIST_DEL_INIT(&h2s->list);
 			continue;
 		}
 
-		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		h2s->flags |= H2_SF_NOTIFIED;
-		tasklet_wakeup(h2s->send_wait->tasklet);
-		h2s->send_wait = NULL;
+		if (h2s->send_wait) {
+			h2s->send_wait->events &= ~SUB_RETRY_SEND;
+			h2s->flags |= H2_SF_NOTIFIED;
+			tasklet_wakeup(h2s->send_wait->tasklet);
+			h2s->send_wait = NULL;
+		}
+		else if (h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW)) {
+			tasklet_wakeup(h2s->shut_tl);
+		}
 	}
 
 	TRACE_LEAVE(H2_EV_H2C_SEND|H2_EV_H2S_WAKE, h2c->conn);
@@ -3848,7 +3860,8 @@ static void h2_detach(struct conn_stream *cs)
 	 */
 	if (!(cs->conn->flags & CO_FL_ERROR) &&
 	    (h2c->st0 < H2_CS_ERROR) &&
-	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) && (h2s->send_wait || h2s->recv_wait)) {
+	    (h2s->flags & (H2_SF_BLK_MBUSY | H2_SF_BLK_MROOM | H2_SF_BLK_MFCTL)) &&
+	    ((h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)) || h2s->send_wait || h2s->recv_wait)) {
 		TRACE_DEVEL("leaving on stream blocked", H2_EV_STRM_END|H2_EV_H2S_BLK, h2c->conn, h2s);
 		return;
 	}
@@ -3931,7 +3944,6 @@ static void h2_detach(struct conn_stream *cs)
 static void h2_do_shutr(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
-	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_CLOSED)
 		goto done;
@@ -3978,18 +3990,18 @@ static void h2_do_shutr(struct h2s *h2s)
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 add_to_list:
-	if (!LIST_ADDED(&h2s->list)) {
-		sw->events |= SUB_RETRY_SEND;
-		if (h2s->flags & H2_SF_BLK_MFCTL) {
-			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
-			h2s->send_wait = sw;
-		} else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM)) {
-			h2s->send_wait = sw;
-			LIST_ADDQ(&h2c->send_list, &h2s->list);
-		}
-	}
-	/* Let the handler know we want shutr */
+	/* Let the handler know we want to shutr, and add ourselves to the
+	 * most relevant list if not yet done. h2_deferred_shut() will be
+	 * automatically called via the shut_tl tasklet when there's room
+	 * again.
+	 */
 	h2s->flags |= H2_SF_WANT_SHUTR;
+	if (!LIST_ADDED(&h2s->list)) {
+		if (h2s->flags & H2_SF_BLK_MFCTL)
+			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+		else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM))
+			LIST_ADDQ(&h2c->send_list, &h2s->list);
+	}
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 }
@@ -3998,7 +4010,6 @@ add_to_list:
 static void h2_do_shutw(struct h2s *h2s)
 {
 	struct h2c *h2c = h2s->h2c;
-	struct wait_event *sw = &h2s->wait_event;
 
 	if (h2s->st == H2_SS_HLOC || h2s->st == H2_SS_CLOSED)
 		goto done;
@@ -4054,23 +4065,23 @@ static void h2_do_shutw(struct h2s *h2s)
 	return;
 
  add_to_list:
-	if (!LIST_ADDED(&h2s->list)) {
-		sw->events |= SUB_RETRY_SEND;
-		if (h2s->flags & H2_SF_BLK_MFCTL) {
-			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
-			h2s->send_wait = sw;
-		} else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM)) {
-			h2s->send_wait = sw;
-			LIST_ADDQ(&h2c->send_list, &h2s->list);
-		}
-	}
-	/* let the handler know we want to shutw */
+	/* Let the handler know we want to shutw, and add ourselves to the
+	 * most relevant list if not yet done. h2_deferred_shut() will be
+	 * automatically called via the shut_tl tasklet when there's room
+	 * again.
+	 */
 	h2s->flags |= H2_SF_WANT_SHUTW;
+	if (!LIST_ADDED(&h2s->list)) {
+		if (h2s->flags & H2_SF_BLK_MFCTL)
+			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+		else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM))
+			LIST_ADDQ(&h2c->send_list, &h2s->list);
+	}
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
 }
 
-/* This is the tasklet referenced in h2s->wait_event.tasklet, it is used for
+/* This is the tasklet referenced in h2s->shut_tl, it is used for
  * deferred shutdowns when the h2_detach() was done but the mux buffer was full
  * and prevented the last frame from being emitted.
  */
@@ -4081,7 +4092,11 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
-	h2s->flags &= ~H2_SF_NOTIFIED;
+	if (h2s->flags & H2_SF_NOTIFIED) {
+		/* some data processing remains to be done first */
+		goto end;
+	}
+
 	if (h2s->flags & H2_SF_WANT_SHUTW)
 		h2_do_shutw(h2s);
 
@@ -4098,7 +4113,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 				h2_release(h2c);
 		}
 	}
-
+ end:
 	TRACE_LEAVE(H2_EV_STRM_SHUT);
 	return NULL;
 }
@@ -5643,8 +5658,8 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 		sw = param;
 		BUG_ON(h2s->send_wait != sw);
-		LIST_DEL(&h2s->list);
-		LIST_INIT(&h2s->list);
+		if (!(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW)))
+			LIST_DEL_INIT(&h2s->list);
 		sw->events &= ~SUB_RETRY_SEND;
 		h2s->flags &= ~H2_SF_NOTIFIED;
 		h2s->send_wait = NULL;
@@ -5895,7 +5910,8 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			cs->flags |= CS_FL_ERR_PENDING;
 	}
 
-	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL)) {
+	if (total > 0 && !(h2s->flags & H2_SF_BLK_SFCTL) &&
+	    !(h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))) {
 		/* Ok we managed to send something, leave the send_list if we were still there */
 		LIST_DEL_INIT(&h2s->list);
 	}
