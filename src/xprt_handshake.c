@@ -15,8 +15,7 @@
 
 struct xprt_handshake_ctx {
 	struct connection *conn;
-	struct wait_event *send_wait;
-	struct wait_event *recv_wait;
+	struct wait_event *subs;
 	struct wait_event wait_event;
 	const struct xprt_ops *xprt;
 	void *xprt_ctx;
@@ -87,21 +86,18 @@ out:
 		int ret = 0;
 		int woke = 0;
 		int was_conn_ctx = 0;
+
 		/* On error, wake any waiter */
-		if (ctx->recv_wait) {
-			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->tasklet);
+		if (ctx->subs) {
+			tasklet_wakeup(ctx->subs->tasklet);
+			ctx->subs->events = 0;
 			woke = 1;
-			ctx->recv_wait = NULL;
+			ctx->subs = NULL;
 		}
-		if (ctx->send_wait) {
-			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->tasklet);
-			woke = 1;
-			ctx->send_wait = NULL;
-		}
+
 		if (!(conn->flags & CO_FL_ERROR))
 			conn->flags |= CO_FL_CONNECTED;
+
 		/* Remove ourself from the xprt chain */
 		if (ctx->wait_event.events != 0)
 			ctx->xprt->unsubscribe(ctx->conn,
@@ -162,7 +158,7 @@ static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)
 	 */
 	ctx->xprt = NULL;
 	ctx->xprt_ctx = NULL;
-	ctx->send_wait = ctx->recv_wait = NULL;
+	ctx->subs = NULL;
 	*xprt_ctx = ctx;
 
 	return 0;
@@ -177,13 +173,9 @@ static void xprt_handshake_close(struct connection *conn, void *xprt_ctx)
 			ctx->xprt->unsubscribe(ctx->conn, ctx->xprt_ctx,
 			                       ctx->wait_event.events,
 					       &ctx->wait_event);
-		if (ctx->send_wait) {
-			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->tasklet);
-		}
-		if (ctx->recv_wait) {
-			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->tasklet);
+		if (ctx->subs) {
+			ctx->subs->events = 0;
+			tasklet_wakeup(ctx->subs->tasklet);
 		}
 
 		if (ctx->xprt && ctx->xprt->close)
@@ -206,46 +198,31 @@ static void xprt_handshake_close(struct connection *conn, void *xprt_ctx)
 
 static int xprt_handshake_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	struct wait_event *sw;
+	struct wait_event *sw = param;
 	struct xprt_handshake_ctx *ctx = xprt_ctx;
 
-	if (event_type & SUB_RETRY_RECV) {
-		sw = param;
-		BUG_ON(ctx->recv_wait !=  NULL || (sw->events & SUB_RETRY_RECV));
-		sw->events |= SUB_RETRY_RECV;
-		ctx->recv_wait = sw;
-		event_type &= ~SUB_RETRY_RECV;
-	}
-	if (event_type & SUB_RETRY_SEND) {
-		sw = param;
-		BUG_ON(ctx->send_wait !=  NULL || (sw->events & SUB_RETRY_SEND));
-		sw->events |= SUB_RETRY_SEND;
-		ctx->send_wait = sw;
-		event_type &= ~SUB_RETRY_SEND;
-        }
-	if (event_type != 0)
-                return -1;
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(ctx->subs && ctx->subs->events & event_type);
+	BUG_ON(ctx->subs && ctx->subs != sw);
+
+	ctx->subs = sw;
+	sw->events |= event_type;
         return 0;
 
 }
 
 static int xprt_handshake_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	struct wait_event *sw;
 	struct xprt_handshake_ctx *ctx = xprt_ctx;
+	struct wait_event *sw = param;
 
-	if (event_type & SUB_RETRY_RECV) {
-		sw = param;
-                BUG_ON(ctx->recv_wait != sw);
-                ctx->recv_wait = NULL;
-                sw->events &= ~SUB_RETRY_RECV;
-	}
-	if (event_type & SUB_RETRY_SEND) {
-		sw = param;
-		BUG_ON(ctx->send_wait != sw);
-		ctx->send_wait = NULL;
-		sw->events &= ~SUB_RETRY_SEND;
-	}
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(ctx->subs && ctx->subs != sw);
+
+	sw->events &= ~event_type;
+	if (!sw->events)
+		ctx->subs = NULL;
+
 	return 0;
 }
 
