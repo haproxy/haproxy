@@ -132,7 +132,6 @@ struct h2c {
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
 	struct list blocked_list; /* list of streams blocked for other reasons (e.g. sfctl, dep) */
-	struct list sending_list; /* list of h2s scheduled to send data */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 };
@@ -177,9 +176,9 @@ enum h2_ss {
 
 /* stream flags indicating how data is supposed to be sent */
 #define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
+/* unused flags: 0x00000200, 0x00000400 */
 
-/* unused flags: 0x00000200, 0x00000400, 0x00000800 */
-
+#define H2_SF_NOTIFIED          0x00000800  // a paused stream was notified to try to send again
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
 #define H2_SF_OUTGOING_DATA     0x00002000  // set whenever we've seen outgoing data
 
@@ -211,7 +210,6 @@ struct h2s {
 	struct wait_event *recv_wait; /* recv wait_event the conn_stream associated is waiting on (via h2_subscribe) */
 	struct wait_event *send_wait; /* send wait_event the conn_stream associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
-	struct list sending_list; /* To be used when adding in h2c->sending_list */
 };
 
 /* descriptor for an h2 frame header */
@@ -569,8 +567,7 @@ static inline int h2c_may_expire(const struct h2c *h2c)
 	       br_data(h2c->mbuf) ||
 	       !LIST_ISEMPTY(&h2c->blocked_list) ||
 	       !LIST_ISEMPTY(&h2c->fctl_list) ||
-	       !LIST_ISEMPTY(&h2c->send_list) ||
-	       !LIST_ISEMPTY(&h2c->sending_list);
+	       !LIST_ISEMPTY(&h2c->send_list);
 }
 
 static __inline int
@@ -860,7 +857,6 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	LIST_INIT(&h2c->send_list);
 	LIST_INIT(&h2c->fctl_list);
 	LIST_INIT(&h2c->blocked_list);
-	LIST_INIT(&h2c->sending_list);
 	LIST_INIT(&h2c->buf_wait.list);
 
 	conn->ctx = h2c;
@@ -1056,11 +1052,12 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 {
 	struct wait_event *sw;
 
-	if (h2s->send_wait && !LIST_ADDED(&h2s->sending_list)) {
+	if (h2s->send_wait) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		sw = h2s->send_wait;
+		h2s->send_wait = NULL;
 		sw->events &= ~SUB_RETRY_SEND;
-		LIST_ADDQ(&h2s->h2c->sending_list, &h2s->sending_list);
+		h2s->flags |= H2_SF_NOTIFIED;
 		tasklet_wakeup(sw->tasklet);
 	}
 }
@@ -1272,14 +1269,6 @@ static void h2s_destroy(struct h2s *h2s)
 	 * we're in it, we're getting out anyway
 	 */
 	LIST_DEL_INIT(&h2s->list);
-	if (LIST_ADDED(&h2s->sending_list)) {
-		/* It should be OK to call tasklet_remove_from_tasklet_list()
-		 * here, as only the thread responsible for the tasklet should
-		 * be called here.
-		 */
-		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
-		LIST_DEL_INIT(&h2s->sending_list);
-	}
 	/* ditto, calling tasklet_free() here should be ok */
 	tasklet_free(h2s->wait_event.tasklet);
 	pool_free(pool_head_h2s, h2s);
@@ -1314,7 +1303,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->wait_event.tasklet->context = h2s;
 	h2s->wait_event.events = 0;
 	LIST_INIT(&h2s->list);
-	LIST_INIT(&h2s->sending_list);
 	h2s->h2c       = h2c;
 	h2s->cs        = NULL;
 	h2s->sws       = 0;
@@ -3263,7 +3251,7 @@ static void h2_resume_each_sending_h2s(struct h2c *h2c, struct list *head)
 
 		h2s->flags &= ~H2_SF_BLK_ANY;
 
-		if (LIST_ADDED(&h2s->sending_list))
+		if (h2s->flags & H2_SF_NOTIFIED)
 			continue;
 
 		/* For some reason, the upper layer failed to subscribe again,
@@ -3275,8 +3263,9 @@ static void h2_resume_each_sending_h2s(struct h2c *h2c, struct list *head)
 		}
 
 		h2s->send_wait->events &= ~SUB_RETRY_SEND;
-		LIST_ADDQ(&h2c->sending_list, &h2s->sending_list);
+		h2s->flags |= H2_SF_NOTIFIED;
 		tasklet_wakeup(h2s->send_wait->tasklet);
+		h2s->send_wait = NULL;
 	}
 
 	TRACE_LEAVE(H2_EV_H2C_SEND|H2_EV_H2S_WAKE, h2c->conn);
@@ -3840,30 +3829,8 @@ static void h2_detach(struct conn_stream *cs)
 		return;
 	}
 
-	/* The stream is about to die, so no need to attempt to run its task */
-	if (LIST_ADDED(&h2s->sending_list) &&
-	    h2s->send_wait != &h2s->wait_event) {
-		/*
-		 * Calling tasklet_remove_from_tasklet_list() here is fine,
-		 * as only the thread responsible for the tasklet should
-		 * call h2_detach().
-		 */
-		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
-		LIST_DEL_INIT(&h2s->sending_list);
-		/*
-		 * At this point, the stream_interface is supposed to have called
-		 * h2_unsubscribe(), so the only way there's still a
-		 * subscription that came from the stream_interface (as we
-		 * can subscribe ourself, in h2_do_shutw() and h2_do_shutr(),
-		 * without the stream_interface involved) is that we subscribed
-		 * for sending, we woke the tasklet up and removed the
-		 * SUB_RETRY_SEND flag, so the stream_interface would not
-		 * know it has to unsubscribe for send, but the tasklet hasn't
-		 * run yet. Make sure to handle that by explicitely setting
-		 * send_wait to NULL, as nothing else will do it for us.
-		 */
-		h2s->send_wait = NULL;
-	}
+	/* there's no txbuf so we're certain not to be able to send anything */
+	h2s->flags &= ~H2_SF_NOTIFIED;
 
 	sess = h2s->sess;
 	h2c = h2s->h2c;
@@ -4114,7 +4081,7 @@ static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short s
 
 	TRACE_ENTER(H2_EV_STRM_SHUT, h2c->conn, h2s);
 
-	LIST_DEL_INIT(&h2s->sending_list);
+	h2s->flags &= ~H2_SF_NOTIFIED;
 	if (h2s->flags & H2_SF_WANT_SHUTW)
 		h2_do_shutw(h2s);
 
@@ -5671,6 +5638,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		sw->events &= ~SUB_RETRY_RECV;
 		h2s->recv_wait = NULL;
 	}
+
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 		sw = param;
@@ -5678,15 +5646,7 @@ static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 		LIST_DEL(&h2s->list);
 		LIST_INIT(&h2s->list);
 		sw->events &= ~SUB_RETRY_SEND;
-		/* We were about to send, make sure it does not happen */
-		if (LIST_ADDED(&h2s->sending_list) &&
-		    h2s->send_wait != &h2s->wait_event) {
-			/* This call should be ok, as only the thread responsible
-			 * for the tasklet should call unsubscribe.
-			 */
-			tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
-			LIST_DEL_INIT(&h2s->sending_list);
-		}
+		h2s->flags &= ~H2_SF_NOTIFIED;
 		h2s->send_wait = NULL;
 	}
 	TRACE_LEAVE(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
@@ -5767,24 +5727,6 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	return ret;
 }
 
-/* stops all senders of this connection for example when the mux buffer is full.
- * They are moved from the sending_list to either fctl_list or send_list.
- */
-static void h2_stop_senders(struct h2c *h2c)
-{
-	struct h2s *h2s, *h2s_back;
-
-	list_for_each_entry_safe(h2s, h2s_back, &h2c->sending_list, sending_list) {
-		LIST_DEL_INIT(&h2s->sending_list);
-		/* XXX: This won't work when/if streams are running on different
-		 * threads, so we will have to find another way to prevent
-		 * tasklets to run when we can no longer send data. The best
-		 * may be to only wake enough tasklets to fill the buffer.
-		 */
-		tasklet_remove_from_tasklet_list(h2s->send_wait->tasklet);
-		h2s->send_wait->events |= SUB_RETRY_SEND;
-	}
-}
 
 /* Called from the upper layer, to send data from buffer <buf> for no more than
  * <count> bytes. Returns the number of bytes effectively sent. Some status
@@ -5807,17 +5749,12 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	 * and there's somebody else that is waiting to send, do nothing,
 	 * we will subscribe later and be put at the end of the list
 	 */
-	if (!LIST_ADDED(&h2s->sending_list) &&
+	if (!(h2s->flags & H2_SF_NOTIFIED) &&
 	    (!LIST_ISEMPTY(&h2s->h2c->send_list) || !LIST_ISEMPTY(&h2s->h2c->fctl_list))) {
 		TRACE_DEVEL("other streams already waiting, going to the queue and leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		return 0;
 	}
-	LIST_DEL_INIT(&h2s->sending_list);
-
-	/* We couldn't set it to NULL before, because we needed it in case
-	 * we had to cancel the tasklet
-	 */
-	h2s->send_wait = NULL;
+	h2s->flags &= ~H2_SF_NOTIFIED;
 
 	if (h2s->h2c->st0 < H2_CS_FRAME_H) {
 		TRACE_DEVEL("connection not ready, leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
@@ -5937,13 +5874,6 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	htx_to_buf(htx, buf);
-
-	/* The mux is full, cancel the pending tasks */
-	if ((h2s->h2c->flags & H2_CF_MUX_BLOCK_ANY) ||
-	    (h2s->flags & H2_SF_BLK_MBUSY)) {
-		TRACE_DEVEL("mux full, stopping senders", H2_EV_H2S_SEND|H2_EV_H2C_BLK|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
-		h2_stop_senders(h2s->h2c);
-	}
 
 	if (total > 0) {
 		if (!(h2s->h2c->wait_event.events & SUB_RETRY_SEND))
