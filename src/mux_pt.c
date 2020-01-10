@@ -59,10 +59,10 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 		 * subscribed to receive events, and otherwise call the wake
 		 * method, to make sure the event is noticed.
 		 */
-		if (ctx->conn->recv_wait) {
-			ctx->conn->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->conn->recv_wait->tasklet);
-			ctx->conn->recv_wait = NULL;
+		if (ctx->conn->subs) {
+			ctx->conn->subs->events = 0;
+			tasklet_wakeup(ctx->conn->subs->tasklet);
+			ctx->conn->subs = NULL;
 		} else if (ctx->cs->data_cb->wake)
 			ctx->cs->data_cb->wake(ctx->cs);
 		return NULL;

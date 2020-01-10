@@ -64,6 +64,11 @@ enum sub_event_type {
 	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
 };
 
+/* Describes a set of subscriptions. Multiple events may be registered at the
+ * same time. The callee should assume everything not pending for completion is
+ * implicitly possible. It's illegal to change the tasklet if events are still
+ * registered.
+ */
 struct wait_event {
 	struct tasklet *tasklet;
 	int events;             /* set of enum sub_event_type above */
@@ -452,8 +457,7 @@ struct connection {
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 
 	/* second cache line */
-	struct wait_event *send_wait; /* Task to wake when we're ready to send */
-	struct wait_event *recv_wait; /* Task to wake when we're ready to recv */
+	struct wait_event *subs; /* Task to wake when awaited events are ready */
 	struct list list;             /* attach point to various connection lists (idle, ...) */
 	struct list session_list;     /* List of attached connections to a session */
 	union conn_handle handle;     /* connection handle at the socket layer */

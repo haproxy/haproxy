@@ -403,8 +403,7 @@ static inline void conn_init(struct connection *conn)
 	conn->proxy_netns = NULL;
 	LIST_INIT(&conn->list);
 	LIST_INIT(&conn->session_list);
-	conn->send_wait = NULL;
-	conn->recv_wait = NULL;
+	conn->subs = NULL;
 	conn->idle_time = 0;
 	conn->src = NULL;
 	conn->dst = NULL;
@@ -530,15 +529,10 @@ static inline const struct conn_stream *cs_get_first(const struct connection *co
 
 static inline void conn_force_unsubscribe(struct connection *conn)
 {
-	if (conn->recv_wait) {
-		conn->recv_wait->events &= ~SUB_RETRY_RECV;
-		conn->recv_wait = NULL;
-	}
-	if (conn->send_wait) {
-		conn->send_wait->events &= ~SUB_RETRY_SEND;
-		conn->send_wait = NULL;
-	}
-
+	if (!conn->subs)
+		return;
+	conn->subs->events = 0;
+	conn->subs = NULL;
 }
 
 /* Releases a connection previously allocated by conn_new() */
