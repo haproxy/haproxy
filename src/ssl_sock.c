@@ -214,8 +214,7 @@ struct ssl_sock_ctx {
 	const struct xprt_ops *xprt;
 	void *xprt_ctx;
 	struct wait_event wait_event;
-	struct wait_event *recv_wait;
-	struct wait_event *send_wait;
+	struct wait_event *subs;
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
@@ -5885,8 +5884,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->sent_early_data = 0;
 	ctx->early_buf = BUF_NULL;
 	ctx->conn = conn;
-	ctx->send_wait = NULL;
-	ctx->recv_wait = NULL;
+	ctx->subs = NULL;
 	ctx->xprt_st = 0;
 	ctx->xprt_ctx = NULL;
 
@@ -6336,69 +6334,46 @@ reneg_ok:
 
 static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	struct wait_event *sw;
+	struct wait_event *sw = param;
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
 	if (!ctx)
 		return -1;
 
-	if (event_type & SUB_RETRY_RECV) {
-		sw = param;
-		BUG_ON(ctx->recv_wait !=  NULL || (sw->events & SUB_RETRY_RECV));
-		sw->events |= SUB_RETRY_RECV;
-		ctx->recv_wait = sw;
-		if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
-		    !(ctx->wait_event.events & SUB_RETRY_RECV))
-			ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-		event_type &= ~SUB_RETRY_RECV;
-	}
-	if (event_type & SUB_RETRY_SEND) {
-sw = param;
-		BUG_ON(ctx->send_wait !=  NULL || (sw->events & SUB_RETRY_SEND));
-		sw->events |= SUB_RETRY_SEND;
-		ctx->send_wait = sw;
-		if (!(conn->flags & CO_FL_SSL_WAIT_HS) &&
-		    !(ctx->wait_event.events & SUB_RETRY_SEND))
-			ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
-		event_type &= ~SUB_RETRY_SEND;
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(ctx->subs && ctx->subs->events & event_type);
+	BUG_ON(ctx->subs && ctx->subs != sw);
 
-	}
-	if (event_type != 0)
-		return -1;
+	ctx->subs = sw;
+	sw->events |= event_type;
+
+	/* we may have to subscribe to lower layers for new events */
+	event_type &= ~ctx->wait_event.events;
+	if (event_type && !(conn->flags & CO_FL_SSL_WAIT_HS))
+		ctx->xprt->subscribe(conn, ctx->xprt_ctx, event_type, &ctx->wait_event);
 	return 0;
 }
 
 static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
 {
-	struct wait_event *sw;
 	struct ssl_sock_ctx *ctx = xprt_ctx;
+	struct wait_event *sw = param;
 
-	if (event_type & SUB_RETRY_RECV) {
-		sw = param;
-		BUG_ON(ctx->recv_wait != sw);
-		ctx->recv_wait = NULL;
-		sw->events &= ~SUB_RETRY_RECV;
-		/* If we subscribed, and we're not doing the handshake,
-		 * then we subscribed because the upper layer asked for it,
-		 * as the upper layer is no longer interested, we can
-		 * unsubscribe too.
-		 */
-		if (!(ctx->conn->flags & CO_FL_SSL_WAIT_HS) &&
-		    (ctx->wait_event.events & SUB_RETRY_RECV))
-			conn_unsubscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV,
-			                 &ctx->wait_event);
-	}
-	if (event_type & SUB_RETRY_SEND) {
-		sw = param;
-		BUG_ON(ctx->send_wait != sw);
-		ctx->send_wait = NULL;
-		sw->events &= ~SUB_RETRY_SEND;
-		if (!(ctx->conn->flags & CO_FL_SSL_WAIT_HS) &&
-		    (ctx->wait_event.events & SUB_RETRY_SEND))
-			conn_unsubscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND,
-			                 &ctx->wait_event);
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(ctx->subs && ctx->subs != sw);
 
-	}
+	sw->events &= ~event_type;
+	if (!sw->events)
+		ctx->subs = NULL;
+
+	/* If we subscribed, and we're not doing the handshake,
+	 * then we subscribed because the upper layer asked for it,
+	 * as the upper layer is no longer interested, we can
+	 * unsubscribe too.
+	 */
+	event_type &= ctx->wait_event.events;
+	if (event_type && !(ctx->conn->flags & CO_FL_SSL_WAIT_HS))
+		conn_unsubscribe(conn, ctx->xprt_ctx, event_type, &ctx->wait_event);
 
 	return 0;
 }
@@ -6454,18 +6429,13 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 		int woke = 0;
 
 		/* On error, wake any waiter */
-		if (ctx->recv_wait) {
-			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->tasklet);
-			ctx->recv_wait = NULL;
+		if (ctx->subs) {
+			tasklet_wakeup(ctx->subs->tasklet);
+			ctx->subs->events = 0;
 			woke = 1;
+			ctx->subs = NULL;
 		}
-		if (ctx->send_wait) {
-			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->tasklet);
-			ctx->send_wait = NULL;
-			woke = 1;
-		}
+
 		/* If we're the first xprt for the connection, let the
 		 * upper layers know. If xprt_done_cb() is set, call it,
 		 * otherwise, we should have a mux, so call its wake
@@ -6481,11 +6451,12 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 	}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	/* If we have early data and somebody wants to receive, let them */
-	else if (b_data(&ctx->early_buf) && ctx->recv_wait) {
-		ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->tasklet);
-			ctx->recv_wait = NULL;
-
+	else if (b_data(&ctx->early_buf) && ctx->subs &&
+		 ctx->subs->events & SUB_RETRY_RECV) {
+		tasklet_wakeup(ctx->subs->tasklet);
+		ctx->subs->events &= ~SUB_RETRY_RECV;
+		if (!ctx->subs->events)
+			ctx->subs = NULL;
 	}
 #endif
 	return NULL;
@@ -6767,14 +6738,11 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 			ctx->xprt->unsubscribe(ctx->conn, ctx->xprt_ctx,
 			                       ctx->wait_event.events,
 					       &ctx->wait_event);
-		if (ctx->send_wait) {
-			ctx->send_wait->events &= ~SUB_RETRY_SEND;
-			tasklet_wakeup(ctx->send_wait->tasklet);
+		if (ctx->subs) {
+			ctx->subs->events = 0;
+			tasklet_wakeup(ctx->subs->tasklet);
 		}
-		if (ctx->recv_wait) {
-			ctx->recv_wait->events &= ~SUB_RETRY_RECV;
-			tasklet_wakeup(ctx->recv_wait->tasklet);
-		}
+
 		if (ctx->xprt->close)
 			ctx->xprt->close(conn, ctx->xprt_ctx);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
