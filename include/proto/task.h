@@ -397,10 +397,8 @@ static inline void task_destroy(struct task *t)
 /* Should only be called by the thread responsible for the tasklet */
 static inline void tasklet_free(struct tasklet *tl)
 {
-	if (!LIST_ISEMPTY(&tl->list)) {
-		LIST_DEL(&tl->list);
+	if (MT_LIST_DEL((struct mt_list *)&tl->list))
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
-	}
 
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
