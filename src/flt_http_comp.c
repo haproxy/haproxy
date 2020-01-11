@@ -577,8 +577,6 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
 
-  deinit_comp_ctx:
-	st->comp_algo->end(&st->comp_ctx);
   fail:
 	st->comp_algo = NULL;
 	return 0;
