@@ -800,8 +800,8 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
-  path is used with "crtfile" directives. Absolute locations specified after
-  "crtfile" prevail and ignore "crt-base".
+  path is used with "crtfile" or "crt" directives. Absolute locations specified
+  prevail and ignore "crt-base".
 
 daemon
   Makes the process fork into background. This is the recommended mode of
