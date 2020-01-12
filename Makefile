@@ -88,6 +88,8 @@
 #           installation only.
 #   DOCDIR  is set to "$(PREFIX)/doc/haproxy" by default and is used for
 #           installation only.
+#   HLUA_PREPEND_PATH may be used to prepend a folder to Lua's default package.path.
+#   HLUA_PREPEND_CPATH may be used to prepend a folder to Lua's default package.cpath.
 #
 # Other variables :
 #   PCRE_CONFIG    : force the binary path to get pcre config (by default
@@ -545,6 +547,14 @@ endif
 LUA_INC := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
 ifneq ($(LUA_INC),)
 OPTIONS_CFLAGS  += -I$(LUA_INC)
+endif
+ifneq ($(HLUA_PREPEND_PATH),)
+OPTIONS_CFLAGS  += -DHLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
+BUILD_OPTIONS += HLUA_PREPEND_PATH=$(HLUA_PREPEND_PATH)
+endif
+ifneq ($(HLUA_PREPEND_CPATH),)
+OPTIONS_CFLAGS  += -DHLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
+BUILD_OPTIONS += HLUA_PREPEND_CPATH=$(HLUA_PREPEND_CPATH)
 endif
 endif
 

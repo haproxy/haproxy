@@ -7651,6 +7651,16 @@ void hlua_init(void)
 
 	/* Initialise lua. */
 	luaL_openlibs(gL.T);
+#define HLUA_PREPEND_PATH_TOSTRING1(x) #x
+#define HLUA_PREPEND_PATH_TOSTRING(x) HLUA_PREPEND_PATH_TOSTRING1(x)
+#ifdef HLUA_PREPEND_PATH
+	hlua_prepend_path(gL, "path", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_PATH));
+#endif
+#ifdef HLUA_PREPEND_CPATH
+	hlua_prepend_path(gL, "cpath", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_CPATH));
+#endif
+#undef HLUA_PREPEND_PATH_TOSTRING
+#undef HLUA_PREPEND_PATH_TOSTRING1
 
 	/* Set safe environment for the initialisation. */
 	if (!SET_SAFE_LJMP(gL.T)) {
