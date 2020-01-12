@@ -7458,6 +7458,22 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+/* Prepend the given <path> followed by a semicolon to the `package.<type>` variable
+ * in the given <ctx>.
+ */
+static int hlua_prepend_path(struct hlua ctx, char *type, char *path)
+{
+	lua_getglobal(ctx.T, "package"); /* push package variable   */
+	lua_pushstring(ctx.T, path);     /* push given path         */
+	lua_pushstring(ctx.T, ";");      /* push semicolon          */
+	lua_getfield(ctx.T, -3, type);   /* push old path           */
+	lua_concat(ctx.T, 3);            /* concatenate to new path */
+	lua_setfield(ctx.T, -2, type);   /* store new path          */
+	lua_pop(ctx.T, 1);               /* pop package variable    */
+
+	return 0;
+}
+
 /* configuration keywords declaration */
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "lua-load",                 hlua_load },
