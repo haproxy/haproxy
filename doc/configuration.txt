@@ -605,6 +605,7 @@ The following keywords are supported in the "global" section :
    - log-tag
    - log-send-hostname
    - lua-load
+   - lua-prepend-path
    - mworker-max-reloads
    - nbproc
    - nbthread
@@ -1081,6 +1082,31 @@ log-tag <string>
 lua-load <file>
   This global directive loads and executes a Lua file. This directive can be
   used multiple times.
+
+lua-prepend-path <string> [<type>]
+  Prepends the given string followed by a semicolon to Lua's package.<type>
+  variable.
+  <type> must either be "path" or "cpath". If <type> is not given it defaults
+  to "path".
+
+  Lua's paths are semicolon delimited lists of patterns that specify how the
+  `require` function attempts to find the source file of a library. Question
+  marks (?) within a pattern will be replaced by module name. The path is
+  evaluated left to right. This implies that paths that are prepended later
+  will be checked earlier.
+
+  As an example by specifying the following path:
+
+    lua-prepend-path /usr/share/haproxy-lua/?/init.lua
+    lua-prepend-path /usr/share/haproxy-lua/?.lua
+
+  When `require "example"` is being called Lua will first attempt to load the
+  /usr/share/haproxy-lua/example.lua script, if that does not exist the
+  /usr/share/haproxy-lua/example/init.lua will be attempted and the default
+  paths if that does not exist either.
+
+  See https://www.lua.org/pil/8.1.html for the details within the Lua
+  documentation.
 
 master-worker [no-exit-on-failure]
   Master-worker mode. It is equivalent to the command line "-W" argument.

@@ -7474,8 +7474,36 @@ static int hlua_prepend_path(struct hlua ctx, char *type, char *path)
 	return 0;
 }
 
+static int hlua_config_prepend_path(char **args, int section_type, struct proxy *curpx,
+                                    struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	char *path;
+	char *type = "path";
+	if (too_many_args(2, args, err, NULL)) {
+		return -1;
+	}
+
+	if (!(*args[1])) {
+		memprintf(err, "'%s' expects to receive a <path> as argument", args[0]);
+		return -1;
+	}
+	path = args[1];
+
+	if (*args[2]) {
+		if (strcmp(args[2], "path") != 0 && strcmp(args[2], "cpath") != 0) {
+			memprintf(err, "'%s' expects <type> to either be 'path' or 'cpath'", args[0]);
+			return -1;
+		}
+		type = args[2];
+	}
+
+	return hlua_prepend_path(gL, type, path);
+}
+
 /* configuration keywords declaration */
 static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "lua-prepend-path",         hlua_config_prepend_path },
 	{ CFG_GLOBAL, "lua-load",                 hlua_load },
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
