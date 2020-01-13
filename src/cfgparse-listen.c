@@ -3857,74 +3857,28 @@ stats_error_parsing:
 		}
 	}
 	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
-		int errnum, errlen, fd;
-		char *err;
-		struct stat stat;
+		struct buffer chk;
+		int status, rc;
 
 		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (*(args[2]) == 0) {
+		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : <%s> expects <status_code> and <file> as arguments.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		fd = open(args[2], O_RDONLY);
-		if ((fd < 0) || (fstat(fd, &stat) < 0)) {
-			ha_alert("parsing [%s:%d] : error opening file <%s> for custom error message <%s>.\n",
-				 file, linenum, args[2], args[1]);
-			if (fd >= 0)
-				close(fd);
+		status = atol(args[1]);
+		rc = http_parse_errorfile(status, args[2], &chk, &errmsg);
+		if (rc == -1) {
+			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if (stat.st_size <= global.tune.bufsize) {
-			errlen = stat.st_size;
-		} else {
-			ha_warning("parsing [%s:%d] : custom error message file <%s> larger than %d bytes. Truncating.\n",
-				   file, linenum, args[2], global.tune.bufsize);
-			err_code |= ERR_WARN;
-			errlen = global.tune.bufsize;
-		}
-
-		err = malloc(errlen); /* malloc() must succeed during parsing */
-		errnum = read(fd, err, errlen);
-		if (errnum != errlen) {
-			ha_alert("parsing [%s:%d] : error reading file <%s> for custom error message <%s>.\n",
-				 file, linenum, args[2], args[1]);
-			close(fd);
-			free(err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		close(fd);
-
-		errnum = atol(args[1]);
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (http_err_codes[rc] == errnum) {
-				struct buffer chk;
-
-				if (!http_str_to_htx(&chk, ist2(err, errlen))) {
-					ha_alert("parsing [%s:%d] : unable to convert message in HTX for HTTP return code %d.\n",
-						 file, linenum, http_err_codes[rc]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					free(err);
-					goto out;
-				}
-				chunk_destroy(&curproxy->errmsg[rc]);
-				curproxy->errmsg[rc] = chk;
-				break;
-			}
-		}
-
-		if (rc >= HTTP_ERR_SIZE) {
-			ha_warning("parsing [%s:%d] : status code %d not handled by '%s', error customization will be ignored.\n",
-				   file, linenum, errnum, args[0]);
-			err_code |= ERR_WARN;
-			free(err);
-		}
+		chunk_destroy(&curproxy->errmsg[rc]);
+		curproxy->errmsg[rc] = chk;
 	}
 	else {
 		struct cfg_kw_list *kwl;
