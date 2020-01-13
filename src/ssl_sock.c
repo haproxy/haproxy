@@ -4249,7 +4249,6 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 {
 	struct dirent **de_list;
 	int i, n;
-	DIR *dir;
 	struct stat buf;
 	char *end;
 	char fp[MAXPATHLEN+1];
@@ -4265,8 +4264,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	}
 
 	if (stat(path, &buf) == 0) {
-		dir = opendir(path);
-		if (!dir) {
+		if (S_ISDIR(buf.st_mode) == 0) {
 			ckchs =  ckchs_load_cert_file(path, 0,  err);
 			if (!ckchs)
 				return ERR_ALERT | ERR_FATAL;
@@ -4355,7 +4353,6 @@ ignore_entry:
 			}
 			free(de_list);
 		}
-		closedir(dir);
 		return cfgerr;
 	}
 
