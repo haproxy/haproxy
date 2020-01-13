@@ -51,7 +51,7 @@ static size_t http_fmt_req_line(const struct htx_sl *sl, char *str, size_t len);
 static void http_debug_stline(const char *dir, struct stream *s, const struct htx_sl *sl);
 static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n, const struct ist v);
 
-static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, int *deny_status);
+static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s);
 static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s);
 
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req);
@@ -472,7 +472,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct htx *htx;
 	struct redirect_rule *rule;
 	enum rule_result verdict;
-	int deny_status = HTTP_ERR_403;
 	struct connection *conn = objt_conn(sess->origin);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
@@ -491,7 +490,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
-		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, &deny_status);
+		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s);
 
 		switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -548,7 +547,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req);
-		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, &deny_status);
+		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s);
 		/* not all actions implemented: deny, allow, auth */
 
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
@@ -640,8 +639,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 */
 	channel_dont_connect(req);
 
-	txn->status = http_err_codes[deny_status];
-
 	req->analysers &= AN_REQ_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
 	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
@@ -662,8 +659,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (s->be->cookie_name || sess->fe->capture_name)
 		http_manage_client_side_cookies(s, req);
 
-	txn->flags |= TX_CLDENY;
-	txn->status = http_err_codes[deny_status];
 	s->logs.tv_request = now;
 	stream_inc_http_err_ctr(s);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
@@ -2141,8 +2136,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	return 1;
 
  deny:
-	txn->flags |= TX_CLDENY;
-	txn->status = 502;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_resp, 1);
 	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
 	if (sess->listener->counters)
@@ -2810,7 +2803,7 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
  * status.
  */
 static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct list *rules,
-						    struct stream *s, int *deny_status)
+						    struct stream *s)
 {
 	struct session *sess = strm_sess(s);
 	struct http_txn *txn = s->txn;
@@ -2880,6 +2873,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					rule_ret = HTTP_RULE_RES_DONE;
 					goto end;
 				case ACT_RET_DENY:
+					txn->flags |= TX_CLDENY;
+					if (txn->status == -1)
+						txn->status = 403;
 					rule_ret = HTTP_RULE_RES_DENY;
 					goto end;
 				case ACT_RET_ABRT:
@@ -2899,15 +2895,14 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				goto end;
 
 			case ACT_ACTION_DENY:
-				if (deny_status)
-					*deny_status = rule->arg.http.i;
+				txn->flags |= TX_CLDENY;
+				txn->status = http_err_codes[rule->arg.http.i];
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_REQ_TARPIT:
 				txn->flags |= TX_CLTARPIT;
-				if (deny_status)
-					*deny_status = rule->arg.http.i;
+				txn->status = http_err_codes[rule->arg.http.i];
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
@@ -3055,6 +3050,9 @@ resume_execution:
 					rule_ret = HTTP_RULE_RES_DONE;
 					goto end;
 				case ACT_RET_DENY:
+					txn->flags |= TX_CLDENY;
+					if (txn->status == -1)
+						txn->status = 502;
 					rule_ret = HTTP_RULE_RES_DENY;
 					goto end;
 				case ACT_RET_ABRT:
@@ -3074,6 +3072,8 @@ resume_execution:
 				goto end;
 
 			case ACT_ACTION_DENY:
+				txn->flags |= TX_CLDENY;
+				txn->status = 502;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
