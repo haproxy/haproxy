@@ -32,6 +32,27 @@ struct buffer http_err_chunks[HTTP_ERR_SIZE];
 struct eb_root http_error_messages = EB_ROOT;
 struct list http_errors_list = LIST_HEAD_INIT(http_errors_list);
 
+/* The declaration of an errorfiles/errorfile directives. Used during config
+ * parsing only. */
+struct conf_errors {
+	char type;                                  /* directive type (0: errorfiles, 1: errorfile) */
+	union {
+		struct {
+			int status;                 /* the status code associated to this error */
+			struct buffer *msg;         /* the HTX error message */
+		} errorfile;                        /* describe an "errorfile" directive */
+		struct {
+			char *name;                 /* the http-errors section name */
+			char status[HTTP_ERR_SIZE]; /* list of status to import (0: ignore, 1: implicit import, 2: explicit import) */
+		} errorfiles;                       /* describe an "errorfiles" directive */
+	} info;
+
+	char *file;                                 /* file where the directive appears */
+	int line;                                   /* line where the directive appears */
+
+	struct list list;                           /* next conf_errors */
+};
+
 static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
 static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);
 
@@ -1064,8 +1085,10 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 				  struct proxy *defpx, const char *file, int line,
 				  char **errmsg)
 {
+	struct conf_errors *conf_err;
 	struct buffer *msg;
-	int errloc, status, rc, ret = 0;
+	int errloc, status;
+	int ret = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
 		ret = 1;
@@ -1087,21 +1110,33 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
-	rc = http_get_status_idx(status);
-	curpx->errmsg[rc] = msg;
+	conf_err = calloc(1, sizeof(*conf_err));
+	if (!conf_err) {
+		memprintf(errmsg, "%s : out of memory.", args[0]);
+		ret = -1;
+		goto out;
+	}
+	conf_err->type = 1;
+	conf_err->info.errorfile.status = status;
+	conf_err->info.errorfile.msg = msg;
+	conf_err->file = strdup(file);
+	conf_err->line = line;
+	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
 
   out:
 	return ret;
-}
 
+}
 
 /* Parses the "errorfile" proxy keyword */
 static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 				 struct proxy *defpx, const char *file, int line,
 				 char **errmsg)
 {
+	struct conf_errors *conf_err;
 	struct buffer *msg;
-	int status, rc, ret = 0;
+	int status;
+	int ret = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
 		ret = 1;
@@ -1122,12 +1157,188 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
-	rc = http_get_status_idx(status);
-	curpx->errmsg[rc] = msg;
+	conf_err = calloc(1, sizeof(*conf_err));
+	if (!conf_err) {
+		memprintf(errmsg, "%s : out of memory.", args[0]);
+		ret = -1;
+		goto out;
+	}
+	conf_err->type = 1;
+	conf_err->info.errorfile.status = status;
+	conf_err->info.errorfile.msg = msg;
+	conf_err->file = strdup(file);
+	conf_err->line = line;
+	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
 
   out:
 	return ret;
 
+}
+
+/* Parses the "errorfiles" proxy keyword */
+static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
+				  struct proxy *defpx, const char *file, int line,
+				  char **err)
+{
+	struct conf_errors *conf_err = NULL;
+	char *name = NULL;
+	int rc, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
+		ret = 1;
+		goto out;
+	}
+
+	if (!*(args[1])) {
+		memprintf(err, "%s : expects <name> as argument.", args[0]);
+		ret = -1;
+		goto out;
+	}
+
+	name = strdup(args[1]);
+	conf_err = calloc(1, sizeof(*conf_err));
+	if (!name || !conf_err) {
+		memprintf(err, "%s : out of memory.", args[0]);
+		ret = -1;
+		goto error;
+	}
+	conf_err->type = 0;
+
+	conf_err->info.errorfiles.name = name;
+	if (!*(args[2])) {
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+			conf_err->info.errorfiles.status[rc] = 1;
+	}
+	else {
+		int cur_arg, status;
+		for (cur_arg = 2; *(args[cur_arg]); cur_arg++) {
+			status = atol(args[cur_arg]);
+
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+				if (http_err_codes[rc] == status) {
+					conf_err->info.errorfiles.status[rc] = 2;
+					break;
+				}
+			}
+			if (rc >= HTTP_ERR_SIZE) {
+				memprintf(err, "%s : status code '%d' not handled.", args[0], status);
+				ret = -1;
+				goto out;
+			}
+		}
+	}
+	conf_err->file = strdup(file);
+	conf_err->line = line;
+	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+  out:
+	return ret;
+
+  error:
+	free(name);
+	free(conf_err);
+	goto out;
+}
+
+/* Check "errorfiles" proxy keyword */
+static int proxy_check_errors(struct proxy *px)
+{
+	struct conf_errors *conf_err, *conf_err_back;
+	struct http_errors *http_errs;
+	int rc, err = 0;
+
+	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
+		if (conf_err->type == 1) {
+			/* errorfile */
+			rc = http_get_status_idx(conf_err->info.errorfile.status);
+			px->errmsg[rc] = conf_err->info.errorfile.msg;
+		}
+		else {
+			/* errorfiles */
+			list_for_each_entry(http_errs, &http_errors_list, list) {
+				if (strcmp(http_errs->id, conf_err->info.errorfiles.name) == 0)
+					break;
+			}
+
+			/* unknown http-errors section */
+			if (&http_errs->list == &http_errors_list) {
+				ha_alert("config : proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
+					 px->id, conf_err->info.errorfiles.name, conf_err->file, conf_err->line);
+				err |= ERR_ALERT | ERR_FATAL;
+				free(conf_err->info.errorfiles.name);
+				goto next;
+			}
+
+			free(conf_err->info.errorfiles.name);
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+				if (conf_err->info.errorfiles.status[rc] > 0) {
+					if (http_errs->errmsg[rc])
+						px->errmsg[rc] = http_errs->errmsg[rc];
+					else if (conf_err->info.errorfiles.status[rc] == 2)
+						ha_warning("config: proxy '%s' : status '%d' not declared in"
+							   " http-errors section '%s' (at %s:%d).\n",
+							   px->id, http_err_codes[rc], http_errs->id,
+							   conf_err->file, conf_err->line);
+				}
+			}
+		}
+	  next:
+		LIST_DEL(&conf_err->list);
+		free(conf_err->file);
+		free(conf_err);
+	}
+
+  out:
+	return err;
+}
+
+int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char **errmsg)
+{
+	struct conf_errors *conf_err, *new_conf_err = NULL;
+	int ret = 0;
+
+	list_for_each_entry(conf_err, &defpx->conf.errors, list) {
+		new_conf_err = calloc(1, sizeof(*new_conf_err));
+		if (!new_conf_err) {
+			memprintf(errmsg, "unable to duplicate default errors (out of memory).");
+			goto out;
+		}
+		new_conf_err->type = conf_err->type;
+		if (conf_err->type == 1) {
+			new_conf_err->info.errorfile.status = conf_err->info.errorfile.status;
+			new_conf_err->info.errorfile.msg    = conf_err->info.errorfile.msg;
+		}
+		else {
+			new_conf_err->info.errorfiles.name = strdup(conf_err->info.errorfiles.name);
+			if (!new_conf_err->info.errorfiles.name) {
+				memprintf(errmsg, "unable to duplicate default errors (out of memory).");
+				goto out;
+			}
+			memcpy(&new_conf_err->info.errorfiles.status, &conf_err->info.errorfiles.status,
+			       sizeof(conf_err->info.errorfiles.status));
+		}
+		new_conf_err->file = strdup(conf_err->file);
+		new_conf_err->line = conf_err->line;
+		LIST_ADDQ(&curpx->conf.errors, &new_conf_err->list);
+		new_conf_err = NULL;
+	}
+	ret = 1;
+
+  out:
+	free(new_conf_err);
+	return ret;
+}
+
+void proxy_release_conf_errors(struct proxy *px)
+{
+	struct conf_errors *conf_err, *conf_err_back;
+
+	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
+		if (conf_err->type == 0)
+			free(conf_err->info.errorfiles.name);
+		LIST_DEL(&conf_err->list);
+		free(conf_err->file);
+		free(conf_err);
+	}
 }
 
 /*
@@ -1218,10 +1429,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "errorloc302",  proxy_parse_errorloc },
         { CFG_LISTEN, "errorloc303",  proxy_parse_errorloc },
         { CFG_LISTEN, "errorfile",    proxy_parse_errorfile },
+        { CFG_LISTEN, "errorfiles",   proxy_parse_errorfiles },
         { 0, NULL, NULL },
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+REGISTER_POST_PROXY_CHECK(proxy_check_errors);
 
 REGISTER_CONFIG_SECTION("http-errors", cfg_parse_http_errors, NULL);
 

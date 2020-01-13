@@ -449,6 +449,7 @@ struct proxy {
 		struct eb_root used_server_name; /* list of server names in use */
 		struct list bind;		/* list of bind settings */
 		struct list listeners;		/* list of listeners belonging to this frontend */
+		struct list errors;             /* list of all custom error files */
 		struct arg_list args;           /* sample arg list that need to be resolved */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		char *logformat_string;		/* log format string */

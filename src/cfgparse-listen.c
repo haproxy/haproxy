@@ -262,7 +262,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* initialize error relocations */
-		memcpy(&curproxy->errmsg, &defproxy.errmsg, sizeof(defproxy.errmsg));
+		if (!proxy_dup_default_conf_errors(curproxy, &defproxy, &errmsg)) {
+			ha_alert("parsing [%s:%d] : proxy '%s' : %s\n", file, linenum, curproxy->id, errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
@@ -502,7 +506,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(defproxy.conf.logformat_sd_string);
 		free(defproxy.conf.lfsd_file);
 
-		memset(&defproxy.errmsg, 0, sizeof(defproxy.errmsg));
+		proxy_release_conf_errors(&defproxy);
 
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();

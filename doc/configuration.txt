@@ -52,6 +52,7 @@ Summary
 3.5.      Peers
 3.6.      Mailers
 3.7.      Programs
+3.8.      HTTP-errors
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -2378,6 +2379,45 @@ no option start-on-reload
   program section.
 
 
+3.8. HTTP-errors
+----------------
+
+It is possible to globally declare several groups of HTTP errors, to be
+imported afterwards in any proxy section. Same group may be referenced at
+several places and can be fully or partially imported.
+
+http-errors <name>
+  Create a new http-errors group with the name <name>. It is an independent
+  section that may be referenced by one or more proxies using its name.
+
+errorfile <code> <file>
+  Associate a file contents to an HTTP error code
+
+  Arguments :
+    <code>    is the HTTP status code. Currently, HAProxy is capable of
+              generating codes 200, 400, 403, 404, 405, 408, 410, 425, 429,
+              500, 502, 503, and 504.
+
+    <file>    designates a file containing the full HTTP response. It is
+              recommended to follow the common practice of appending ".http" to
+              the filename so that people do not confuse the response with HTML
+              error pages, and to use absolute paths, since files are read
+              before any chroot is performed.
+
+  Please referrers to "errorfile" keyword in section 4 for details.
+
+  Example:
+    http-errors website-1
+        errorfile 400 /etc/haproxy/errorfiles/site1/400.http
+        errorfile 404 /etc/haproxy/errorfiles/site1/404.http
+        errorfile 408 /dev/null  # work around Chrome pre-connect bug
+
+    http-errors website-2
+        errorfile 400 /etc/haproxy/errorfiles/site2/400.http
+        errorfile 404 /etc/haproxy/errorfiles/site2/404.http
+        errorfile 408 /dev/null  # work around Chrome pre-connect bug
+
+
 4. Proxies
 ----------
 
@@ -2489,6 +2529,7 @@ email-alert myhostname                    X          X         X         X
 email-alert to                            X          X         X         X
 enabled                                   X          X         X         X
 errorfile                                 X          X         X         X
+errorfiles                                X          X         X         X
 errorloc                                  X          X         X         X
 errorloc302                               X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
@@ -3649,6 +3690,34 @@ errorfile <code> <file>
         errorfile 408 /dev/null  # work around Chrome pre-connect bug
         errorfile 403 /etc/haproxy/errorfiles/403forbid.http
         errorfile 503 /etc/haproxy/errorfiles/503sorry.http
+
+
+errorfiles <name> [<code> ...]
+  Import, fully or partially, the error files defined in the <name> http-errors
+  section.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <name>  is the name of an existing http-errors section.
+
+    <code>  is a HTTP status code. Several status code may be listed.
+            Currently, HAProxy is capable of generating codes 200, 400, 403,
+            404, 405, 408, 410, 425, 429, 500, 502, 503, and 504.
+
+  Errors defined in the http-errors section with the name <name> are imported
+  in the current proxy. If no status code is specified, all error files of the
+  http-errors section are imported. Otherwise, only error files associated to
+  the listed status code are imported. Those error files override the already
+  defined custom errors for the proxy. And they may be overridden by following
+  ones. Fonctionnly, it is exactly the same than declaring all error files by
+  hand using "errorfile" directives.
+
+  See also : "errorfile", "errorloc", "errorloc302" , "errorloc303" and section
+             3.8 about http-errors.
+
+  Example :
+        errorfiles generic
+	errorfiles site-1 403 404
 
 
 errorloc <code> <url>
