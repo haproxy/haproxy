@@ -785,61 +785,30 @@ static enum act_parse_ret parse_http_allow(const char **args, int *orig_arg, str
 	return ACT_RET_PRS_OK;
 }
 
-/* Parse "deny" or "tarpit" actions for a request rule. It may take 2 optional arguments
- * to define the status code. It returns ACT_RET_PRS_OK on success,
- * ACT_RET_PRS_ERR on error.
+/* Parse "deny" or "tarpit" actions for a request rule or "deny" action for a
+ * response rule. It may take 2 optional arguments to define the status code. It
+ * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
-static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, struct proxy *px,
-					      struct act_rule *rule, char **err)
+static enum act_parse_ret parse_http_deny(const char **args, int *orig_arg, struct proxy *px,
+					  struct act_rule *rule, char **err)
 {
 	int code, hc, cur_arg;
 
 	cur_arg = *orig_arg;
-	if (!strcmp(args[cur_arg-1], "tarpit")) {
-		rule->action = ACT_HTTP_REQ_TARPIT;
-		rule->arg.http.i = HTTP_ERR_500;
+	if (rule->from == ACT_F_HTTP_REQ) {
+		if (!strcmp(args[cur_arg-1], "tarpit")) {
+			rule->action = ACT_HTTP_REQ_TARPIT;
+			rule->arg.http.i = HTTP_ERR_500;
+		}
+		else {
+			rule->action = ACT_ACTION_DENY;
+			rule->arg.http.i = HTTP_ERR_403;
+		}
 	}
 	else {
-		rule->action = ACT_ACTION_DENY;
-		rule->arg.http.i = HTTP_ERR_403;
+		rule->action = ACT_ACTION_DENY;;
+		rule->arg.http.i = HTTP_ERR_502;
 	}
-	rule->flags |= ACT_FLAG_FINAL;
-
-	if (strcmp(args[cur_arg], "deny_status") == 0) {
-		cur_arg++;
-		if (!*args[cur_arg]) {
-			memprintf(err, "missing status code.\n");
-			return ACT_RET_PRS_ERR;
-		}
-
-		code = atol(args[cur_arg]);
-		cur_arg++;
-		for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
-			if (http_err_codes[hc] == code) {
-				rule->arg.http.i = hc;
-				break;
-			}
-		}
-		if (hc >= HTTP_ERR_SIZE)
-			memprintf(err, "status code %d not handled, using default code %d",
-				  code, http_err_codes[rule->arg.http.i]);
-	}
-
-	*orig_arg = cur_arg;
-	return ACT_RET_PRS_OK;
-}
-
-/* Parse a "deny" action for a response rule. It takes no argument. It returns
- * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
- */
-static enum act_parse_ret parse_http_res_deny(const char **args, int *orig_arg, struct proxy *px,
-					      struct act_rule *rule, char **err)
-{
-	int code, hc, cur_arg;
-
-	cur_arg = *orig_arg;
-	rule->action = ACT_ACTION_DENY;;
-	rule->arg.http.i = HTTP_ERR_502;
 	rule->flags |= ACT_FLAG_FINAL;
 
 	if (strcmp(args[cur_arg], "deny_status") == 0) {
@@ -1760,7 +1729,7 @@ static struct action_kw_list http_req_actions = {
 		{ "del-acl",          parse_http_set_map,              1 },
 		{ "del-header",       parse_http_del_header,           0 },
 		{ "del-map",          parse_http_set_map,              1 },
-		{ "deny",             parse_http_req_deny,             0 },
+		{ "deny",             parse_http_deny,                 0 },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
 		{ "early-hint",       parse_http_set_header,           0 },
 		{ "redirect",         parse_http_redirect,             0 },
@@ -1780,7 +1749,7 @@ static struct action_kw_list http_req_actions = {
 		{ "set-tos",          parse_http_set_tos,              0 },
 		{ "set-uri",          parse_set_req_line,              0 },
 		{ "strict-mode",      parse_http_strict_mode,          0 },
-		{ "tarpit",           parse_http_req_deny,             0 },
+		{ "tarpit",           parse_http_deny,                 0 },
 		{ "track-sc",         parse_http_track_sc,             1 },
 		{ NULL, NULL }
 	}
@@ -1797,7 +1766,7 @@ static struct action_kw_list http_res_actions = {
 		{ "del-acl",         parse_http_set_map,        1 },
 		{ "del-header",      parse_http_del_header,     0 },
 		{ "del-map",         parse_http_set_map,        1 },
-		{ "deny",            parse_http_res_deny,       0 },
+		{ "deny",            parse_http_deny,           0 },
 		{ "redirect",        parse_http_redirect,       0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
