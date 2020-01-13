@@ -3073,7 +3073,7 @@ resume_execution:
 
 			case ACT_ACTION_DENY:
 				txn->flags |= TX_CLDENY;
-				txn->status = 502;
+				txn->status = http_err_codes[rule->arg.http.i];
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 

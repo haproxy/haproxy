@@ -835,8 +835,34 @@ static enum act_parse_ret parse_http_req_deny(const char **args, int *orig_arg, 
 static enum act_parse_ret parse_http_res_deny(const char **args, int *orig_arg, struct proxy *px,
 					      struct act_rule *rule, char **err)
 {
-	rule->action = ACT_ACTION_DENY;
+	int code, hc, cur_arg;
+
+	cur_arg = *orig_arg;
+	rule->action = ACT_ACTION_DENY;;
+	rule->arg.http.i = HTTP_ERR_502;
 	rule->flags |= ACT_FLAG_FINAL;
+
+	if (strcmp(args[cur_arg], "deny_status") == 0) {
+		cur_arg++;
+		if (!*args[cur_arg]) {
+			memprintf(err, "missing status code.\n");
+			return ACT_RET_PRS_ERR;
+		}
+
+		code = atol(args[cur_arg]);
+		cur_arg++;
+		for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
+			if (http_err_codes[hc] == code) {
+				rule->arg.http.i = hc;
+				break;
+			}
+		}
+		if (hc >= HTTP_ERR_SIZE)
+			memprintf(err, "status code %d not handled, using default code %d",
+				  code, http_err_codes[rule->arg.http.i]);
+	}
+
+	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
 

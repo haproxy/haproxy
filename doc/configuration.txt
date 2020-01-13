@@ -5107,10 +5107,13 @@ http-response del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
   It takes one argument: "file name" It is the equivalent of the "del map"
   command from the stats socket, but can be triggered by an HTTP response.
 
-http-response deny [ { if | unless } <condition> ]
+http-response deny [deny_status <status>] [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediately rejects the response
-  and emits an HTTP 502 error. No further "http-response" rules are evaluated.
+  and emits an HTTP 502 error, or optionally the status code specified as an
+  argument to "deny_status". The list of permitted status codes is limited to
+  those that can be overridden by the "errorfile" directive.
+  No further "http-response" rules are evaluated.
 
 http-response redirect <rule> [ { if | unless } <condition> ]
 
