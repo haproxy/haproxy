@@ -1496,6 +1496,10 @@ static void init(int argc, char **argv)
 	memcpy(localpeer, hostname, (sizeof(hostname) > sizeof(localpeer) ? sizeof(localpeer) : sizeof(hostname)) - 1);
 	setenv("HAPROXY_LOCALPEER", localpeer, 1);
 
+	/* we were in mworker mode, we should restart in mworker mode */
+	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL)
+		global.mode |= MODE_MWORKER;
+
 	/*
 	 * Initialize the previously static variables.
 	 */
