@@ -702,6 +702,17 @@ static enum act_return tcp_action_capture(struct act_rule *rule, struct proxy *p
 	return ACT_RET_CONT;
 }
 
+static void release_tcp_capture(struct act_rule * rule)
+{
+	release_sample_expr(rule->arg.cap.expr);
+}
+
+
+static void release_tcp_track_sc(struct act_rule * rule)
+{
+	release_sample_expr(rule->arg.trk_ctr.expr);
+}
+
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
                                   struct proxy *curpx, struct proxy *defpx,
@@ -811,6 +822,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		rule->action = ACT_CUSTOM;
 		rule->action_ptr = tcp_action_capture;
 		rule->check_ptr = check_capture;
+		rule->release_ptr  = release_tcp_capture;
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0) {
 		struct sample_expr *expr;
@@ -863,6 +875,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		rule->arg.trk_ctr.expr = expr;
 		rule->action_ptr = tcp_action_track_sc;
 		rule->check_ptr = check_trk_action;
+		rule->release_ptr  = release_tcp_track_sc;
 	}
 	else if (strcmp(args[arg], "expect-proxy") == 0) {
 		if (strcmp(args[arg+1], "layer4") != 0) {
