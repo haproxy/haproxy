@@ -1,0 +1,40 @@
+varnishtest "Try to start a master CLI with 2 programs"
+#REGTEST_TYPE=bug
+#REQUIRE_VERSION=2.0
+#REQUIRE_BINARIES=sleep
+
+feature ignore_unknown_macro
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+} -start
+
+haproxy h1 -W -S -conf {
+    global
+        nbproc 1
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend myfrontend
+        bind "fd@${my_fe}"
+        default_backend test
+
+    backend test
+        server www1 ${s1_addr}:${s1_port}
+
+    program foo
+        command sleep 10
+
+    program bar
+        command sleep 10
+
+} -start
+
+haproxy h1 -mcli {
+    send "show proc"
+    expect ~ ".*foo.*\n.*bar.*\n"
+} -wait
