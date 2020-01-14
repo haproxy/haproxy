@@ -2453,6 +2453,10 @@ int mworker_cli_proxy_create()
 		int port1, port2, port;
 		struct protocol *proto;
 
+		/* only the workers support the master CLI */
+		if (!(child->options & PROC_O_TYPE_WORKER))
+			continue;
+
 		newsrv = new_server(mworker_proxy);
 		if (!newsrv)
 			goto error;
