@@ -37,7 +37,7 @@ struct stream;
 #define HLUA_WAKERESWR 0x00000004
 #define HLUA_WAKEREQWR 0x00000008
 #define HLUA_EXIT      0x00000010
-#define HLUA_MUST_GC   0x00000020
+/* unused:   0x00000020 */
 #define HLUA_STOP      0x00000040
 
 #define HLUA_F_AS_STRING    0x01
@@ -93,6 +93,7 @@ struct hlua {
 	struct list com; /* The list head of the signals attached to this task. */
 	struct ebpt_node node;
 	struct hlua_consistency cons; /* Store data consistency check. */
+	int gc_count;  /* number of items which need a GC */
 };
 
 /* This is a part of the list containing references to functions

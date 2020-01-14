@@ -905,6 +905,7 @@ int hlua_ctx_init(struct hlua *lua, struct task *task, int already_safe)
 	}
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
+	lua->gc_count = 0;
 	LIST_INIT(&lua->com);
 	lua->T = lua_newthread(gL.T);
 	if (!lua->T) {
@@ -954,7 +955,7 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * NOTE: maybe this action locks all the Lua threads untiml the en of
 	 * the garbage collection.
 	 */
-	if (lua->flags & HLUA_MUST_GC) {
+	if (lua->gc_count) {
 		if (!SET_SAFE_LJMP(gL.T))
 			return;
 		lua_gc(gL.T, LUA_GCCOLLECT, 0);
@@ -1193,11 +1194,6 @@ resume_execution:
 		ret = HLUA_E_ERR;
 		break;
 	}
-
-	/* This GC permits to destroy some object when a Lua timeout strikes. */
-	if (lua->flags & HLUA_MUST_GC &&
-	    ret != HLUA_E_AGAIN)
-		lua_gc(lua->T, LUA_GCCOLLECT, 0);
 
 	switch (ret) {
 	case HLUA_E_AGAIN:
@@ -1699,6 +1695,7 @@ __LJMP static int hlua_socket_close_helper(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct xref *peer;
+	struct hlua *hlua = hlua_gethlua(L);
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
@@ -1711,6 +1708,8 @@ __LJMP static int hlua_socket_close_helper(lua_State *L)
 	peer = xref_get_peer_and_lock(&socket->xref);
 	if (!peer)
 		return 0;
+
+	hlua->gc_count--;
 	appctx = container_of(peer, struct appctx, ctx.hlua_cosocket.xref);
 
 	/* Set the flag which destroy the session. */
@@ -2463,7 +2462,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	si_rx_endp_more(&s->si[0]);
 	appctx_wakeup(appctx);
 
-	hlua->flags |= HLUA_MUST_GC;
+	hlua->gc_count++;
 
 	if (!notification_new(&hlua->com, &appctx->ctx.hlua_cosocket.wake_on_write, hlua->task)) {
 		xref_unlock(&socket->xref, peer);
