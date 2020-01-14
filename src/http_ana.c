@@ -4597,7 +4597,9 @@ struct buffer *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
-	if (s->be->errmsg[msgnum])
+	if (s->txn && s->txn->errmsg)
+		return s->txn->errmsg;
+	else if (s->be->errmsg[msgnum])
 		return s->be->errmsg[msgnum];
 	else if (strm_fe(s)->errmsg[msgnum])
 		return strm_fe(s)->errmsg[msgnum];
@@ -5024,6 +5026,7 @@ void http_init_txn(struct stream *s)
 		      ? (TX_NOT_FIRST|TX_WAIT_NEXT_RQ)
 		      : 0);
 	txn->status = -1;
+	txn->errmsg = NULL;
 	*(unsigned int *)txn->cache_hash = 0;
 
 	txn->cookie_first_date = 0;
