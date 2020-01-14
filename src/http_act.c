@@ -268,6 +268,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 	px->conf.args.ctx = ARGC_HRQ;
 	if (!parse_logformat_string(args[cur_arg + 1], px, &rule->arg.http.fmt, LOG_OPT_HTTP,
 	                            (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, err)) {
+		regex_free(rule->arg.http.re);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -543,13 +544,13 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
 	if (!args[cur_arg] || !*args[cur_arg]) {
 		memprintf(err, "expects 'len or 'id'");
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -558,6 +559,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 		if (!(px->cap & PR_CAP_FE)) {
 			memprintf(err, "proxy '%s' has no frontend capability", px->id);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 
@@ -565,14 +567,14 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 		if (!args[cur_arg]) {
 			memprintf(err, "missing length value");
-			free(expr);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 		/* we copy the table name for now, it will be resolved later */
 		len = atoi(args[cur_arg]);
 		if (len <= 0) {
 			memprintf(err, "length must be > 0");
-			free(expr);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 		cur_arg++;
@@ -603,14 +605,14 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 		if (!args[cur_arg]) {
 			memprintf(err, "missing id value");
-			free(expr);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 
 		id = strtol(args[cur_arg], &error, 10);
 		if (*error != '\0') {
 			memprintf(err, "cannot parse id '%s'", args[cur_arg]);
-			free(expr);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 		cur_arg++;
@@ -627,7 +629,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 	else {
 		memprintf(err, "expects 'len' or 'id', found '%s'", args[cur_arg]);
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -727,19 +729,19 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
 	if (!args[cur_arg] || !*args[cur_arg]) {
 		memprintf(err, "expects 'id'");
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
 	if (strcmp(args[cur_arg], "id") != 0) {
 		memprintf(err, "expects 'id', found '%s'", args[cur_arg]);
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -747,14 +749,14 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 
 	if (!args[cur_arg]) {
 		memprintf(err, "missing id value");
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
 	id = strtol(args[cur_arg], &error, 10);
 	if (*error != '\0') {
 		memprintf(err, "cannot parse id '%s'", args[cur_arg]);
-		free(expr);
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 	cur_arg++;
@@ -1165,8 +1167,10 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 	}
 
 	cur_arg++;
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err))
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
+		free(rule->arg.http.str.ptr);
 		return ACT_RET_PRS_ERR;
+	}
 
 	free(px->conf.lfs_file);
 	px->conf.lfs_file = strdup(px->conf.args.file);
@@ -1253,8 +1257,10 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	LIST_INIT(&rule->arg.http.fmt);
 
 	cur_arg++;
-	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, err)))
+	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, err))) {
+		free(rule->arg.http.str.ptr);
 		return ACT_RET_PRS_ERR;
+	}
 
 	if (rule->from == ACT_F_HTTP_REQ) {
 		px->conf.args.ctx = ARGC_HRQ;
@@ -1266,8 +1272,11 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	}
 
 	cur_arg++;
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err))
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
+		free(rule->arg.http.str.ptr);
+		regex_free(rule->arg.http.re);
 		return ACT_RET_PRS_ERR;
+	}
 
 	free(px->conf.lfs_file);
 	px->conf.lfs_file = strdup(px->conf.args.file);
@@ -1511,15 +1520,19 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 
 	/* key pattern */
 	LIST_INIT(&rule->arg.map.key);
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.key, LOG_OPT_HTTP, cap, err))
+	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.key, LOG_OPT_HTTP, cap, err)) {
+		free(rule->arg.map.ref);
 		return ACT_RET_PRS_ERR;
+	}
 
 	if (rule->action == 1) {
 		/* value pattern for set-map only */
 		cur_arg++;
 		LIST_INIT(&rule->arg.map.value);
-		if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.value, LOG_OPT_HTTP, cap, err))
+		if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.value, LOG_OPT_HTTP, cap, err)) {
+			free(rule->arg.map.ref);
 			return ACT_RET_PRS_ERR;
+		}
 	}
 
 	free(px->conf.lfs_file);
@@ -1636,6 +1649,7 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 	if (!(expr->fetch->val & where)) {
 		memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -1643,6 +1657,7 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 		cur_arg++;
 		if (!*args[cur_arg]) {
 			memprintf(err, "missing table name");
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 
