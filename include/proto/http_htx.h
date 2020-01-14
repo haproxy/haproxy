@@ -29,6 +29,7 @@
 #include <types/http_htx.h>
 
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
+extern struct list http_errors_list;
 
 struct htx_sl *http_get_stline(struct htx *htx);
 int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);

@@ -2896,13 +2896,17 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 			case ACT_ACTION_DENY:
 				txn->flags |= TX_CLDENY;
-				txn->status = http_err_codes[rule->arg.http.i];
+				txn->status = rule->arg.http_deny.status;
+				if (rule->arg.http_deny.errmsg)
+					txn->errmsg = rule->arg.http_deny.errmsg;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_REQ_TARPIT:
 				txn->flags |= TX_CLTARPIT;
-				txn->status = http_err_codes[rule->arg.http.i];
+				txn->status = rule->arg.http_deny.status;
+				if (rule->arg.http_deny.errmsg)
+					txn->errmsg = rule->arg.http_deny.errmsg;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
@@ -3073,7 +3077,9 @@ resume_execution:
 
 			case ACT_ACTION_DENY:
 				txn->flags |= TX_CLDENY;
-				txn->status = http_err_codes[rule->arg.http.i];
+				txn->status = rule->arg.http_deny.status;
+				if (rule->arg.http_deny.errmsg)
+					txn->errmsg = rule->arg.http_deny.errmsg;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 

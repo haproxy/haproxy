@@ -123,6 +123,10 @@ struct act_rule {
 			struct list fmt;       /* log-format compatible expression */
 			struct my_regex *re;   /* used by replace-header/value/uri/path */
 		} http;                        /* args used by some HTTP rules */
+		struct {
+			int status;            /* status code */
+			struct buffer *errmsg; /* HTTP error message, may be NULL */
+		} http_deny;                   /* args used by HTTP deny rules */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */
