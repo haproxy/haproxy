@@ -40,6 +40,25 @@
 #include <proto/pattern.h>
 #include <proto/stream_interface.h>
 
+/* Release memory allocated by most of HTTP actions. Concretly, it releases
+ * <arg.http>.
+ */
+static void release_http_action(struct act_rule *rule)
+{
+	struct logformat_node *lf, *lfb;
+
+	if (rule->arg.http.str.ptr)
+		free(rule->arg.http.str.ptr);
+	if (rule->arg.http.re)
+		regex_free(rule->arg.http.re);
+	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+}
+
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
@@ -127,6 +146,7 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 	rule->action_ptr = http_action_set_req_line;
+	rule->release_ptr = release_http_action;
 
 	if (!*args[cur_arg] ||
 	    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
@@ -230,6 +250,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 		rule->action = 3; // replace-uri, same as set-uri
 
 	rule->action_ptr = http_action_replace_uri;
+	rule->release_ptr = release_http_action;
 
 	if (!*args[cur_arg] || !*args[cur_arg+1] ||
 	    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
@@ -286,6 +307,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = action_http_set_status;
+	rule->release_ptr = release_http_action;
 
 	/* Check if an argument is available */
 	if (!*args[*orig_arg]) {
@@ -480,6 +502,15 @@ static int check_http_req_capture(struct act_rule *rule, struct proxy *px, char 
 	return 1;
 }
 
+/* Release memory allocate by an http capture action */
+static void release_http_capture(struct act_rule *rule)
+{
+	if (rule->action_ptr == http_action_req_capture)
+		release_sample_expr(rule->arg.cap.expr);
+	else
+		release_sample_expr(rule->arg.capid.expr);
+}
+
 /* parse an "http-request capture" action. It takes a single argument which is
  * a sample fetch expression. It stores the expression into arg->act.p[0] and
  * the allocated hdr_cap struct or the preallocated "id" into arg->act.p[1].
@@ -559,6 +590,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture;
+		rule->release_ptr  = release_http_capture;
 		rule->arg.cap.expr = expr;
 		rule->arg.cap.hdr  = hdr;
 	}
@@ -588,6 +620,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		rule->action       = ACT_CUSTOM;
 		rule->action_ptr   = http_action_req_capture_by_id;
 		rule->check_ptr    = check_http_req_capture;
+		rule->release_ptr  = release_http_capture;
 		rule->arg.capid.expr = expr;
 		rule->arg.capid.idx  = id;
 	}
@@ -731,6 +764,7 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_res_capture_by_id;
 	rule->check_ptr    = check_http_res_capture;
+	rule->release_ptr  = release_http_capture;
 	rule->arg.capid.expr = expr;
 	rule->arg.capid.idx  = id;
 
@@ -814,6 +848,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 
 	rule->action = ACT_HTTP_REQ_AUTH;
 	rule->flags |= ACT_FLAG_FINAL;
+	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;
 	if (!strcmp(args[cur_arg], "realm")) {
@@ -1107,6 +1142,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 			rule->action = 1; // add-header
 		rule->action_ptr = http_action_set_header;
 	}
+	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg] || !*args[cur_arg+1]) {
@@ -1204,6 +1240,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	else
 		rule->action = 1; // replace-value
 	rule->action_ptr = http_action_replace_header;
+	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2]) {
@@ -1249,6 +1286,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	int cur_arg;
 
 	rule->action = ACT_HTTP_DEL_HDR;
+	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg]) {
@@ -1265,6 +1303,27 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	return ACT_RET_PRS_OK;
 }
 
+/* Release memory allocated by an http redirect action. */
+static void release_http_redir(struct act_rule *rule)
+{
+	struct logformat_node *lf, *lfb;
+	struct redirect_rule *redir;
+
+	redir = rule->arg.redir;
+	LIST_DEL(&redir->list);
+	if (redir->cond) {
+		prune_acl_cond(redir->cond);
+		free(redir->cond);
+	}
+	free(redir->rdr_str);
+	free(redir->cookie_str);
+	list_for_each_entry_safe(lf, lfb, &redir->rdr_fmt, list) {
+		LIST_DEL(&lf->list);
+		free(lf);
+	}
+	free(redir);
+}
+
 /* Parse a "redirect" action. It returns ACT_RET_PRS_OK on success,
  * ACT_RET_PRS_ERR on error.
  */
@@ -1276,6 +1335,7 @@ static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, 
 
 	rule->action = ACT_HTTP_REDIR;
 	rule->flags |= ACT_FLAG_FINAL;
+	rule->release_ptr = release_http_redir;
 
 	cur_arg = *orig_arg;
 
@@ -1375,6 +1435,28 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 	goto leave;
 }
 
+/* Release memory allocated by an http map/acl action. */
+static void release_http_map(struct act_rule *rule)
+{
+	struct logformat_node *lf, *lfb;
+
+	free(rule->arg.map.ref);
+	list_for_each_entry_safe(lf, lfb, &rule->arg.map.key, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+	if (rule->action == 1) {
+		list_for_each_entry_safe(lf, lfb, &rule->arg.map.value, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+	}
+}
+
 /* Parse a "add-acl", "del-acl", "set-map" or "del-map" actions. It takes one or
  * two log-format string as argument depending on the action. The action is
  * stored in <.action> as an int (0=add-acl, 1=set-map, 2=del-acl,
@@ -1398,6 +1480,7 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 	rule->action_ptr = http_action_set_map;
+	rule->release_ptr = release_http_map;
 
 	cur_arg = *orig_arg;
 	if (rule->action == 1 && (!*args[cur_arg] || !*args[cur_arg+1])) {
@@ -1517,6 +1600,11 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 	return ACT_RET_CONT;
 }
 
+static void release_http_track_sc(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.trk_ctr.expr);
+}
+
 /* Parse a "track-sc*" actions. It returns ACT_RET_PRS_OK on success,
  * ACT_RET_PRS_ERR on error.
  */
@@ -1566,6 +1654,7 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 	rule->action = tsc_num;
 	rule->arg.trk_ctr.expr = expr;
 	rule->action_ptr = http_action_track_sc;
+	rule->release_ptr = release_http_track_sc;
 	rule->check_ptr = check_trk_action;
 
 	*orig_arg = cur_arg;
