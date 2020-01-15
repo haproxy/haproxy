@@ -15246,7 +15246,7 @@ ssl_c_err : integer
   to your SSL library's documentation to find the exhaustive list of error
   codes.
 
-ssl_c_i_dn([<entry>[,<occ>]]) : string
+ssl_c_i_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the full distinguished name of the issuer of the certificate
   presented by the client when no <entry> is specified, or the value of the
@@ -15255,6 +15255,11 @@ ssl_c_i_dn([<entry>[,<occ>]]) : string
   the value of the nth given entry value from the beginning/end of the DN.
   For instance, "ssl_c_i_dn(OU,2)" the second organization unit, and
   "ssl_c_i_dn(CN)" retrieves the common name.
+  The <format> parameter allows you to receive the DN suitable for
+  consumption by different protocols. Currently supported is rfc2253 for
+  LDAP v3.
+  If you'd like to modify the format only you can specify an empty string
+  and zero for the first two parameters. Example: ssl_c_i_dn(,0,rfc2253)
 
 ssl_c_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
@@ -15271,7 +15276,7 @@ ssl_c_notbefore : string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
 
-ssl_c_s_dn([<entry>[,<occ>]]) : string
+ssl_c_s_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the full distinguished name of the subject of the certificate
   presented by the client when no <entry> is specified, or the value of the
@@ -15280,6 +15285,11 @@ ssl_c_s_dn([<entry>[,<occ>]]) : string
   the value of the nth given entry value from the beginning/end of the DN.
   For instance, "ssl_c_s_dn(OU,2)" the second organization unit, and
   "ssl_c_s_dn(CN)" retrieves the common name.
+  The <format> parameter allows you to receive the DN suitable for
+  consumption by different protocols. Currently supported is rfc2253 for
+  LDAP v3.
+  If you'd like to modify the format only you can specify an empty string
+  and zero for the first two parameters. Example: ssl_c_s_dn(,0,rfc2253)
 
 ssl_c_serial : binary
   Returns the serial of the certificate presented by the client when the
@@ -15320,7 +15330,7 @@ ssl_f_der : binary
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form.
 
-ssl_f_i_dn([<entry>[,<occ>]]) : string
+ssl_f_i_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the full distinguished name of the issuer of the certificate
   presented by the frontend when no <entry> is specified, or the value of the
@@ -15329,6 +15339,11 @@ ssl_f_i_dn([<entry>[,<occ>]]) : string
   the value of the nth given entry value from the beginning/end of the DN.
   For instance, "ssl_f_i_dn(OU,2)" the second organization unit, and
   "ssl_f_i_dn(CN)" retrieves the common name.
+  The <format> parameter allows you to receive the DN suitable for
+  consumption by different protocols. Currently supported is rfc2253 for
+  LDAP v3.
+  If you'd like to modify the format only you can specify an empty string
+  and zero for the first two parameters. Example: ssl_f_i_dn(,0,rfc2253)
 
 ssl_f_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
@@ -15345,7 +15360,7 @@ ssl_f_notbefore : string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
 
-ssl_f_s_dn([<entry>[,<occ>]]) : string
+ssl_f_s_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the full distinguished name of the subject of the certificate
   presented by the frontend when no <entry> is specified, or the value of the
@@ -15354,6 +15369,11 @@ ssl_f_s_dn([<entry>[,<occ>]]) : string
   the value of the nth given entry value from the beginning/end of the DN.
   For instance, "ssl_f_s_dn(OU,2)" the second organization unit, and
   "ssl_f_s_dn(CN)" retrieves the common name.
+  The <format> parameter allows you to receive the DN suitable for
+  consumption by different protocols. Currently supported is rfc2253 for
+  LDAP v3.
+  If you'd like to modify the format only you can specify an empty string
+  and zero for the first two parameters. Example: ssl_f_s_dn(,0,rfc2253)
 
 ssl_f_serial : binary
   Returns the serial of the certificate presented by the frontend when the

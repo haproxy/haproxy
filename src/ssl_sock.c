@@ -7117,6 +7117,39 @@ static int ssl_sock_get_san_oneline(X509 *cert, struct buffer *out)
 }
 #endif
 
+/*
+ * Extract the DN in the specified format from the X509_NAME and copy result to a chunk.
+ * Currently supports rfc2253 for returning LDAP V3 DNs.
+ * Returns 1 if dn entries exist, 0 if no dn entry was found.
+ */
+static int
+ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out)
+{
+	BIO *bio = NULL;
+	int ret = 0;
+	int data_len = 0;
+
+	if (chunk_strcmp(format, "rfc2253") == 0) {
+		bio = BIO_new(BIO_s_mem());
+		if (bio == NULL)
+			goto out;
+
+		if (X509_NAME_print_ex(bio, a, 0, XN_FLAG_RFC2253) < 0)
+			goto out;
+
+		if ((data_len = BIO_read(bio, out->area, out->size)) <= 0)
+			goto out;
+
+		out->data = data_len;
+
+		ret = 1;
+	}
+out:
+	if (bio)
+		BIO_free(bio);
+	return ret;
+}
+
 /* Extract and format full DN from a X509_NAME and copy result into a chunk
  * Returns 1 if dn entries exits, 0 if no dn entry found or -1 if output is not large enough.
  */
@@ -7596,13 +7629,17 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (args && args[0].type == ARGT_STR) {
+	if (args && args[0].type == ARGT_STR && args[0].data.str.data > 0) {
 		int pos = 1;
 
 		if (args[1].type == ARGT_SINT)
 			pos = args[1].data.sint;
 
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
+			goto out;
+	}
+	else if (args && args[2].type == ARGT_STR && args[2].data.str.data > 0) {
+		if (ssl_sock_get_dn_formatted(name, &args[2].data.str, smp_trash) <= 0)
 			goto out;
 	}
 	else if (ssl_sock_get_dn_oneline(name, smp_trash) <= 0)
@@ -7700,13 +7737,17 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (args && args[0].type == ARGT_STR) {
+	if (args && args[0].type == ARGT_STR && args[0].data.str.data > 0) {
 		int pos = 1;
 
 		if (args[1].type == ARGT_SINT)
 			pos = args[1].data.sint;
 
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
+			goto out;
+	}
+	else if (args && args[2].type == ARGT_STR && args[2].data.str.data > 0) {
+		if (ssl_sock_get_dn_formatted(name, &args[2].data.str, smp_trash) <= 0)
 			goto out;
 	}
 	else if (ssl_sock_get_dn_oneline(name, smp_trash) <= 0)
@@ -11076,6 +11117,21 @@ err:
 }
 # endif
 
+/* Argument validation functions */
+
+/* This function is used to validate the arguments passed to any "x_dn" ssl
+ * keywords. These keywords support specifying a third parameter that must be
+ * either empty or the value "rfc2253". Returns 0 on error, non-zero if OK.
+ */
+int val_dnfmt(struct arg *arg, char **err_msg)
+{
+	if (arg && arg[2].type == ARGT_STR && arg[2].data.str.data > 0 && (strcmp(arg[2].data.str.area, "rfc2253") != 0)) {
+		memprintf(err_msg, "only rfc2253 or a blank value are currently supported as the format argument.");
+		return 0;
+	}
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
@@ -11121,24 +11177,24 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
-	{ "ssl_c_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_c_i_dn",             smp_fetch_ssl_x_i_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-	{ "ssl_c_s_dn",             smp_fetch_ssl_x_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_c_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_used",             smp_fetch_ssl_c_used,         0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_f_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
-	{ "ssl_f_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_f_i_dn",             smp_fetch_ssl_x_i_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-	{ "ssl_f_s_dn",             smp_fetch_ssl_x_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_f_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_f_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_f_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
