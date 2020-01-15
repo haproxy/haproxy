@@ -9,6 +9,12 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <types/global.h>
 
 #include <common/config.h>
 #include <common/debug.h>
@@ -831,6 +837,81 @@ end:
 }
 
 REGISTER_CONFIG_POSTPARSER("http_htx", http_htx_init);
+
+/* Reads content of an error file and convert it in an HTX message. On success,
+ * the result is stored in <buf> and 1 is returned. On error, 0 is returned and
+ * an error message is written into the <errmsg> buffer. It is this function
+ * responsibility to allocate <buf> and to release it if an error occurred.
+ */
+int http_load_errorfile(const char *file, struct buffer *buf, char **errmsg)
+{
+	struct stat stat;
+	char *err = NULL;
+	int errnum, errlen;
+	int fd = -1;
+	int ret = 0;
+
+	fd = open(file, O_RDONLY);
+	if ((fd < 0) || (fstat(fd, &stat) < 0)) {
+		memprintf(errmsg, "error opening file '%s'.", file);
+		goto out;
+	}
+
+	if (stat.st_size <= global.tune.bufsize)
+		errlen = stat.st_size;
+	else {
+		ha_warning("custom error message file '%s' larger than %d bytes. Truncating.\n",
+			   file, global.tune.bufsize);
+		errlen = global.tune.bufsize;
+	}
+
+	err = malloc(errlen);
+	if (!err) {
+		memprintf(errmsg, "out of memory.");
+		goto out;
+	}
+
+	errnum = read(fd, err, errlen);
+	if (errnum != errlen) {
+		memprintf(errmsg, "error reading file '%s'.", file);
+		goto out;
+	}
+
+	if (!http_str_to_htx(buf, ist2(err, errlen))) {
+		memprintf(errmsg, "unable to convert custom error message file '%s' in HTX.", file);
+		goto out;
+	}
+
+	ret = 1;
+  out:
+	if (fd >= 0)
+		close(fd);
+	free(err);
+	return ret;
+}
+
+
+/* This function parses the raw HTTP error file <file> for the status code
+ * <status>. On success, it returns the HTTP_ERR_* value corresponding to the
+ * specified status code and it allocated and fills the buffer <buf> with the
+ * HTX message. On error, it returns -1 and nothing is allocated.
+ */
+int http_parse_errorfile(int status, const char *file, struct buffer *buf, char **errmsg)
+{
+	int rc, ret = -1;
+
+	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+		if (http_err_codes[rc] == status) {
+			if (http_load_errorfile(file, buf, errmsg))
+				ret = rc;
+			break;
+		}
+	}
+
+	if (rc >= HTTP_ERR_SIZE)
+		memprintf(errmsg, "status code '%d' not handled.", status);
+	return ret;
+}
 
 /************************************************************************/
 /*                             HTX sample fetches                       */
