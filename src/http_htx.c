@@ -30,6 +30,7 @@
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
 struct eb_root http_error_messages = EB_ROOT;
+struct list http_errors_list = LIST_HEAD_INIT(http_errors_list);
 
 static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
 static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);
@@ -839,6 +840,7 @@ end:
 
 static void http_htx_deinit(void)
 {
+	struct http_errors *http_errs, *http_errsb;
 	struct ebpt_node *node, *next;
 	struct http_error *http_err;
 
@@ -851,6 +853,13 @@ static void http_htx_deinit(void)
 		free(node->key);
 		free(http_err);
 		node = next;
+	}
+
+	list_for_each_entry_safe(http_errs, http_errsb, &http_errors_list, list) {
+		free(http_errs->conf.file);
+		free(http_errs->id);
+		LIST_DEL(&http_errs->list);
+		free(http_errs);
 	}
 }
 
@@ -1121,6 +1130,89 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 
 }
 
+/*
+ * Parse an <http-errors> section.
+ * Returns the error code, 0 if OK, or any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
+ */
+static int cfg_parse_http_errors(const char *file, int linenum, char **args, int kwm)
+{
+	static struct http_errors *curr_errs = NULL;
+	int err_code = 0;
+	const char *err;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "http-errors") == 0) { /* new errors section */
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for http-errors section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		list_for_each_entry(curr_errs, &http_errors_list, list) {
+			/* Error if two errors section owns the same name */
+			if (strcmp(curr_errs->id, args[1]) == 0) {
+				ha_alert("parsing [%s:%d]: http-errors section '%s' already exists (declared at %s:%d).\n",
+					 file, linenum, args[1], curr_errs->conf.file, curr_errs->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+		}
+
+		if ((curr_errs = calloc(1, sizeof(*curr_errs))) == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		LIST_ADDQ(&http_errors_list, &curr_errs->list);
+		curr_errs->id = strdup(args[1]);
+		curr_errs->conf.file = strdup(file);
+		curr_errs->conf.line = linenum;
+	}
+	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
+		struct buffer *msg;
+		int status, rc;
+
+		if (*(args[1]) == 0 || *(args[2]) == 0) {
+			ha_alert("parsing [%s:%d] : %s: expects <status_code> and <file> as arguments.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		status = atol(args[1]);
+		msg = http_parse_errorfile(status, args[2], &errmsg);
+		if (!msg) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		rc = http_get_status_idx(status);
+		curr_errs->errmsg[rc] = msg;
+	}
+	else if (*args[0] != 0) {
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	free(errmsg);
+	return err_code;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "errorloc",     proxy_parse_errorloc },
         { CFG_LISTEN, "errorloc302",  proxy_parse_errorloc },
@@ -1130,6 +1222,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+REGISTER_CONFIG_SECTION("http-errors", cfg_parse_http_errors, NULL);
 
 /************************************************************************/
 /*                             HTX sample fetches                       */
