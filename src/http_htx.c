@@ -29,6 +29,7 @@
 #include <proto/sample.h>
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
+struct eb_root http_error_messages = EB_ROOT;
 
 static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
 static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);
@@ -836,21 +837,50 @@ end:
 	return err_code;
 }
 
-REGISTER_CONFIG_POSTPARSER("http_htx", http_htx_init);
-
-/* Reads content of an error file and convert it in an HTX message. On success,
- * the result is stored in <buf> and 1 is returned. On error, 0 is returned and
- * an error message is written into the <errmsg> buffer. It is this function
- * responsibility to allocate <buf> and to release it if an error occurred.
- */
-int http_load_errorfile(const char *file, struct buffer *buf, char **errmsg)
+static void http_htx_deinit(void)
 {
+	struct ebpt_node *node, *next;
+	struct http_error *http_err;
+
+	node = ebpt_first(&http_error_messages);
+	while (node) {
+		next = ebpt_next(node);
+		ebpt_delete(node);
+		http_err = container_of(node, typeof(*http_err), node);
+		chunk_destroy(&http_err->msg);
+		free(node->key);
+		free(http_err);
+		node = next;
+	}
+}
+
+REGISTER_CONFIG_POSTPARSER("http_htx", http_htx_init);
+REGISTER_POST_DEINIT(http_htx_deinit);
+
+/* Reads content of the error file <file> and convert it into an HTX message. On
+ * success, the HTX message is returned. On error, NULL is returned and an error
+ * message is written into the <errmsg> buffer.
+ */
+struct buffer *http_load_errorfile(const char *file, char **errmsg)
+{
+	struct buffer *buf = NULL;
+	struct buffer chk;
+	struct ebpt_node *node;
+	struct http_error *http_err;
 	struct stat stat;
 	char *err = NULL;
 	int errnum, errlen;
 	int fd = -1;
-	int ret = 0;
 
+	/* already loaded */
+	node = ebis_lookup_len(&http_error_messages, file, strlen(file));
+	if (node) {
+		http_err = container_of(node,  typeof(*http_err), node);
+		buf = &http_err->msg;
+		goto out;
+	}
+
+	/* Read the error file content */
 	fd = open(file, O_RDONLY);
 	if ((fd < 0) || (fstat(fd, &stat) < 0)) {
 		memprintf(errmsg, "error opening file '%s'.", file);
@@ -877,78 +907,125 @@ int http_load_errorfile(const char *file, struct buffer *buf, char **errmsg)
 		goto out;
 	}
 
-	if (!http_str_to_htx(buf, ist2(err, errlen))) {
-		memprintf(errmsg, "unable to convert custom error message file '%s' in HTX.", file);
+	/* Create the node corresponding to the error file */
+	http_err = calloc(1, sizeof(*http_err));
+	if (!http_err) {
+		memprintf(errmsg, "out of memory.");
+		goto out;
+	}
+	http_err->node.key = strdup(file);
+	if (!http_err->node.key) {
+		memprintf(errmsg, "out of memory.");
 		goto out;
 	}
 
-	ret = 1;
+	/* Convert the error file into an HTX message */
+	if (!http_str_to_htx(&chk, ist2(err, errlen))) {
+		memprintf(errmsg, "unable to convert custom error message file '%s' in HTX.", file);
+		free(http_err->node.key);
+		free(http_err);
+		goto out;
+	}
+
+	/* Insert the node in the tree and return the HTX message */
+	http_err->msg = chk;
+	ebis_insert(&http_error_messages, &http_err->node);
+	buf = &http_err->msg;
+
   out:
 	if (fd >= 0)
 		close(fd);
 	free(err);
-	return ret;
+	return buf;
 }
 
-/* Convert the raw http message <msg> into an HTX message. On success, the
- * result is stored in <buf> and 1 is returned. On error, 0 is returned and an
- * error message is written into the <errmsg> buffer. It is this function
- * responsibility to allocate <buf> and to release it if an error occurred.
+/* Convert the raw http message <msg> into an HTX message. On sucess, the HTX
+ * message is returned. On error, NULL is returned and an error message is
+ * written into the <errmsg> buffer.
  */
-int http_load_errormsg(const struct ist msg, struct buffer *buf, char **errmsg)
+struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg)
 {
-	int ret = 0;
+	struct buffer *buf = NULL;
+	struct buffer chk;
+	struct ebpt_node *node;
+	struct http_error *http_err;
 
-	/* Convert the error file into an HTX message */
-	if (!http_str_to_htx(buf, msg)) {
-		memprintf(errmsg, "unable to convert message in HTX.");
+	/* already loaded */
+	node = ebis_lookup_len(&http_error_messages, key, strlen(key));
+	if (node) {
+		http_err = container_of(node,  typeof(*http_err), node);
+		buf = &http_err->msg;
 		goto out;
 	}
-	ret = 1;
+	/* Create the node corresponding to the error file */
+	http_err = calloc(1, sizeof(*http_err));
+	if (!http_err) {
+		memprintf(errmsg, "out of memory.");
+		goto out;
+	}
+	http_err->node.key = strdup(key);
+	if (!http_err->node.key) {
+		memprintf(errmsg, "out of memory.");
+		goto out;
+	}
 
+	/* Convert the error file into an HTX message */
+	if (!http_str_to_htx(&chk, msg)) {
+		memprintf(errmsg, "unable to convert message in HTX.");
+		free(http_err->node.key);
+		free(http_err);
+		goto out;
+	}
+
+	/* Insert the node in the tree and return the HTX message */
+	http_err->msg = chk;
+	ebis_insert(&http_error_messages, &http_err->node);
+	buf = &http_err->msg;
   out:
-	return ret;
+	return buf;
 }
 
-
 /* This function parses the raw HTTP error file <file> for the status code
- * <status>. On success, it returns the HTTP_ERR_* value corresponding to the
- * specified status code and it allocated and fills the buffer <buf> with the
- * HTX message. On error, it returns -1 and nothing is allocated.
+ * <status>. It returns NULL if there is any error, otherwise it return the
+ * corresponding HTX message.
  */
-int http_parse_errorfile(int status, const char *file, struct buffer *buf, char **errmsg)
+struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg)
 {
-	int rc, ret = -1;
+	struct buffer *buf = NULL;
+	int rc;
 
 	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 		if (http_err_codes[rc] == status) {
-			if (http_load_errorfile(file, buf, errmsg))
-				ret = rc;
+			buf = http_load_errorfile(file, errmsg);
 			break;
 		}
 	}
 
 	if (rc >= HTTP_ERR_SIZE)
 		memprintf(errmsg, "status code '%d' not handled.", status);
-	return ret;
+	return buf;
 }
 
 /* This function creates HTX error message corresponding to a redirect message
  * for the status code <status>. <url> is used as location url for the
- * redirect. <errloc> is used to know if it is a 302 or a 303 redirect. On
- * success, it returns the HTTP_ERR_* value corresponding to the specified
- * status code and it allocated and fills the buffer <buf> with the HTX
- * message. On error, it returns -1 and nothing is allocated.
+ * redirect. <errloc> is used to know if it is a 302 or a 303 redirect. It
+ * returns NULL if there is any error, otherwise it return the corresponding HTX
+ * message.
  */
-int http_parse_errorloc(int errloc, int status, const char *url, struct buffer *buf, char **errmsg)
+struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char **errmsg)
 {
+	struct buffer *buf = NULL;
 	const char *msg;
-	char *err = NULL;
+	char *key = NULL, *err = NULL;
 	int rc, errlen;
-	int ret = -1;
 
 	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 		if (http_err_codes[rc] == status) {
+			/*  Create the error key */
+			if (!memprintf(&key, "errorloc%d %s", errloc, url)) {
+				memprintf(errmsg, "out of memory.");
+				goto out;
+			}
 			/* Create the error message */
 			msg = (errloc == 302 ? HTTP_302 : HTTP_303);
 			errlen = strlen(msg) + strlen(url) + 5;
@@ -960,8 +1037,7 @@ int http_parse_errorloc(int errloc, int status, const char *url, struct buffer *
 			errlen = snprintf(err, errlen, "%s%s\r\n\r\n", msg, url);
 
 			/* Load it */
-			if (http_load_errormsg(ist2(err, errlen), buf, errmsg))
-				ret = rc;
+			buf = http_load_errormsg(key, ist2(err, errlen), errmsg);
 			break;
 		}
 	}
@@ -969,8 +1045,9 @@ int http_parse_errorloc(int errloc, int status, const char *url, struct buffer *
 	if (rc >= HTTP_ERR_SIZE)
 		memprintf(errmsg, "status code '%d' not handled.", status);
 out:
+	free(key);
 	free(err);
-	return ret;
+	return buf;
 }
 
 /************************************************************************/

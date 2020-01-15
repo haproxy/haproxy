@@ -2331,7 +2331,6 @@ void deinit(void)
 	struct post_deinit_fct *pdf;
 	struct proxy_deinit_fct *pxdf;
 	struct server_deinit_fct *srvdf;
-	int i;
 
 	deinit_signals();
 	while (p) {
@@ -2358,9 +2357,6 @@ void deinit(void)
 		if (p->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 			free(p->conf.logformat_sd_string);
 		free(p->conf.lfsd_file);
-
-		for (i = 0; i < HTTP_ERR_SIZE; i++)
-			chunk_destroy(&p->errmsg[i]);
 
 		list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
 			LIST_DEL(&cond->list);

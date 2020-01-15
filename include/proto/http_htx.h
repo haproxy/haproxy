@@ -49,9 +49,9 @@ unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 			       int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
 int http_str_to_htx(struct buffer *buf, struct ist raw);
 
-int http_load_errorfile(const char *file, struct buffer *buf, char **errmsg);
-int http_load_errormsg(const struct ist msg, struct buffer *buf, char **errmsg);
-int http_parse_errorfile(int status, const char *file, struct buffer *buf, char **errmsg);
-int http_parse_errorloc(int errloc, int status, const char *url, struct buffer *buf, char **errmsg);
+struct buffer *http_load_errorfile(const char *file, char **errmsg);
+struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);
+struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg);
+struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char **errmsg);
 
 #endif /* _PROTO_HTTP_HTX_H */

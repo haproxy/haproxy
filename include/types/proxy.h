@@ -427,7 +427,7 @@ struct proxy {
 	char *check_path;			/* PATH environment to use for external agent checks */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */
 	struct my_regex *expect_regex;		/* http-check expected content */
-	struct buffer errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
+	struct buffer *errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned long bind_proc;		/* bitmask of processes using this proxy */

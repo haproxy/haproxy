@@ -262,8 +262,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* initialize error relocations */
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
-			chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
+		memcpy(&curproxy->errmsg, &defproxy.errmsg, sizeof(defproxy.errmsg));
 
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
@@ -503,8 +502,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(defproxy.conf.logformat_sd_string);
 		free(defproxy.conf.lfsd_file);
 
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
-			chunk_destroy(&defproxy.errmsg[rc]);
+		memset(&defproxy.errmsg, 0, sizeof(defproxy.errmsg));
 
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
@@ -3810,8 +3808,8 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "errorloc") ||
 		 !strcmp(args[0], "errorloc302") ||
 		 !strcmp(args[0], "errorloc303")) { /* error location */
-		struct buffer chk;
-		int errloc, status, rc;
+		struct buffer *msg;
+		int errloc, status;
 
 		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -3824,39 +3822,38 @@ stats_error_parsing:
 
 		status = atol(args[1]);
 		errloc = (!strcmp(args[0], "errorloc303") ? 303 : 302);
-		rc = http_parse_errorloc(errloc, status, args[2], &chk, &errmsg);
-		if (rc == -1) {
+		msg = http_parse_errorloc(errloc, status, args[2], &errmsg);
+		if (!msg) {
 			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
-		chunk_destroy(&curproxy->errmsg[rc]);
-		curproxy->errmsg[rc] = chk;
+		rc = http_get_status_idx(status);
+		curproxy->errmsg[rc] = msg;
 	}
 	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
-		struct buffer chk;
-		int status, rc;
+		struct buffer *msg;
+		int status;
 
 		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : <%s> expects <status_code> and <file> as arguments.\n", file, linenum, args[0]);
+			ha_alert("parsing [%s:%d] : %s: expects <status_code> and <file> as arguments.\n",
+				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
 		status = atol(args[1]);
-		rc = http_parse_errorfile(status, args[2], &chk, &errmsg);
-		if (rc == -1) {
+		msg = http_parse_errorfile(status, args[2], &errmsg);
+		if (!msg) {
 			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
-		chunk_destroy(&curproxy->errmsg[rc]);
-		curproxy->errmsg[rc] = chk;
+		rc = http_get_status_idx(status);
+		curproxy->errmsg[rc] = msg;
 	}
 	else {
 		struct cfg_kw_list *kwl;
