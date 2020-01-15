@@ -1,0 +1,97 @@
+varnishtest "Hash validity test"
+
+#REQUIRE_VERSION=1.9
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+
+        # base64 encoding of \x00\x01\x02...\xFF
+        http-response set-var(res.key) "str(AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==),b64dec"
+
+        # length (start:0, next:255)
+        http-response set-header x-len0 "%[var(res.key),length]"
+        http-response set-header x-len1 "%[var(res.key),bytes(1),length]"
+
+        # text-based encoding
+        http-response set-header x-hex "%[var(res.key),hex]"
+        http-response set-header x-b64 "%[var(res.key),base64]"
+
+        # SHA family
+        http-response set-header x-sha1 "%[var(res.key),sha1,hex]"
+        #http-response set-header x-sha2 "%[var(res.key),sha2,hex]"
+        #http-response set-header x-sha2-224 "%[var(res.key),sha2(224),hex]"
+        #http-response set-header x-sha2-256 "%[var(res.key),sha2(256),hex]"
+        #http-response set-header x-sha2-384 "%[var(res.key),sha2(384),hex]"
+        #http-response set-header x-sha2-512 "%[var(res.key),sha2(512),hex]"
+
+        # 32-bit hashes, and their avalanche variants
+        http-response set-header x-crc32   "%[var(res.key),crc32]"
+        http-response set-header x-crc32-1 "%[var(res.key),crc32(1)]"
+
+        http-response set-header x-crc32c "%[var(res.key),crc32c]"
+        http-response set-header x-crc32c-1 "%[var(res.key),crc32c(1)]"
+
+        http-response set-header x-djb2 "%[var(res.key),djb2]"
+        http-response set-header x-djb2-1 "%[var(res.key),djb2(1)]"
+
+        http-response set-header x-sdbm "%[var(res.key),sdbm]"
+        http-response set-header x-sdbm-1 "%[var(res.key),sdbm(1)]"
+
+        http-response set-header x-wt6 "%[var(res.key),wt6]"
+        http-response set-header x-wt6-1 "%[var(res.key),wt6(1)]"
+
+        # 32/64-bit hashes, with seed variant
+        http-response set-header x-xxh32 "%[var(res.key),xxh32]"
+        http-response set-header x-xxh32-1 "%[var(res.key),xxh32(1)]"
+        http-response set-header x-xxh64 "%[var(res.key),xxh64]"
+        http-response set-header x-xxh64-1 "%[var(res.key),xxh64(1)]"
+        default_backend be
+
+    backend be
+        server srv1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-len0 == "0"
+    expect resp.http.x-len1 == "255"
+    expect resp.http.x-hex == "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F808182838485868788898A8B8C8D8E8F909192939495969798999A9B9C9D9E9FA0A1A2A3A4A5A6A7A8A9AAABACADAEAFB0B1B2B3B4B5B6B7B8B9BABBBCBDBEBFC0C1C2C3C4C5C6C7C8C9CACBCCCDCECFD0D1D2D3D4D5D6D7D8D9DADBDCDDDEDFE0E1E2E3E4E5E6E7E8E9EAEBECEDEEEFF0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF"
+    expect resp.http.x-b64 == "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+
+    expect resp.http.x-sha1 == "4916D6BDB7F78E6803698CAB32D1586EA457DFC8"
+    #expect resp.http.x-sha2 == "40AFF2E9D2D8922E47AFD4648E6967497158785FBD1DA870E7110266BF944880"
+    #expect resp.http.x-sha2-224 == "88702E63237824C4EB0D0FCFE41469A462493E8BEB2A75BBE5981734"
+    #expect resp.http.x-sha2-256 == "40AFF2E9D2D8922E47AFD4648E6967497158785FBD1DA870E7110266BF944880"
+    #expect resp.http.x-sha2-384 == "FFDAEBFF65ED05CF400F0221C4CCFB4B2104FB6A51F87E40BE6C4309386BFDEC2892E9179B34632331A59592737DB5C5"
+    #expect resp.http.x-sha2-512 == "1E7B80BC8EDC552C8FEEB2780E111477E5BC70465FAC1A77B29B35980C3F0CE4A036A6C9462036824BD56801E62AF7E9FEBA5C22ED8A5AF877BF7DE117DCAC6D"
+    expect resp.http.x-crc32 == "688229491"
+    expect resp.http.x-crc32-1 == "4230317029"
+    expect resp.http.x-crc32c == "2621708363"
+    expect resp.http.x-crc32c-1 == "2242979626"
+    expect resp.http.x-djb2 == "2589693061"
+    expect resp.http.x-djb2-1 == "600622701"
+    expect resp.http.x-sdbm == "905707648"
+    expect resp.http.x-sdbm-1 == "3103804144"
+    expect resp.http.x-wt6 == "4090277559"
+    expect resp.http.x-wt6-1 == "1192658767"
+    expect resp.http.x-xxh32 == "1497633363"
+    expect resp.http.x-xxh32-1 == "1070421674"
+    expect resp.http.x-xxh64 == "2282408585429094475"
+    expect resp.http.x-xxh64-1 == "-4689339368900765961"
+} -run
