@@ -2672,7 +2672,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 		total += ret;
 		count -= ret;
-		if (!h1_send(h1c))
+		if ((h1c->wait_event.events & SUB_RETRY_SEND) || !h1_send(h1c))
 			break;
 	}
 
