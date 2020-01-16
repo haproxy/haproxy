@@ -1786,13 +1786,15 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 		 * An example could be a store of the IP address from an HTTP
 		 * header first, then from the source if not found.
 		 */
-		for (i = 0; i < s->store_count; i++) {
-			if (rule->table.t == s->store[i].table)
-				break;
-		}
+		if (rule->flags & STK_IS_STORE) {
+			for (i = 0; i < s->store_count; i++) {
+				if (rule->table.t == s->store[i].table)
+					break;
+			}
 
-		if (i !=  s->store_count)
-			continue;
+			if (i !=  s->store_count)
+				continue;
+		}
 
 		if (rule->cond) {
 	                ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
