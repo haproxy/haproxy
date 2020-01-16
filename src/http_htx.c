@@ -890,6 +890,26 @@ int http_load_errorfile(const char *file, struct buffer *buf, char **errmsg)
 	return ret;
 }
 
+/* Convert the raw http message <msg> into an HTX message. On success, the
+ * result is stored in <buf> and 1 is returned. On error, 0 is returned and an
+ * error message is written into the <errmsg> buffer. It is this function
+ * responsibility to allocate <buf> and to release it if an error occurred.
+ */
+int http_load_errormsg(const struct ist msg, struct buffer *buf, char **errmsg)
+{
+	int ret = 0;
+
+	/* Convert the error file into an HTX message */
+	if (!http_str_to_htx(buf, msg)) {
+		memprintf(errmsg, "unable to convert message in HTX.");
+		goto out;
+	}
+	ret = 1;
+
+  out:
+	return ret;
+}
+
 
 /* This function parses the raw HTTP error file <file> for the status code
  * <status>. On success, it returns the HTTP_ERR_* value corresponding to the
@@ -910,6 +930,46 @@ int http_parse_errorfile(int status, const char *file, struct buffer *buf, char 
 
 	if (rc >= HTTP_ERR_SIZE)
 		memprintf(errmsg, "status code '%d' not handled.", status);
+	return ret;
+}
+
+/* This function creates HTX error message corresponding to a redirect message
+ * for the status code <status>. <url> is used as location url for the
+ * redirect. <errloc> is used to know if it is a 302 or a 303 redirect. On
+ * success, it returns the HTTP_ERR_* value corresponding to the specified
+ * status code and it allocated and fills the buffer <buf> with the HTX
+ * message. On error, it returns -1 and nothing is allocated.
+ */
+int http_parse_errorloc(int errloc, int status, const char *url, struct buffer *buf, char **errmsg)
+{
+	const char *msg;
+	char *err = NULL;
+	int rc, errlen;
+	int ret = -1;
+
+	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+		if (http_err_codes[rc] == status) {
+			/* Create the error message */
+			msg = (errloc == 302 ? HTTP_302 : HTTP_303);
+			errlen = strlen(msg) + strlen(url) + 5;
+			err = malloc(errlen);
+			if (!err) {
+				memprintf(errmsg, "out of memory.");
+				goto out;
+			}
+			errlen = snprintf(err, errlen, "%s%s\r\n\r\n", msg, url);
+
+			/* Load it */
+			if (http_load_errormsg(ist2(err, errlen), buf, errmsg))
+				ret = rc;
+			break;
+		}
+	}
+
+	if (rc >= HTTP_ERR_SIZE)
+		memprintf(errmsg, "status code '%d' not handled.", status);
+out:
+	free(err);
 	return ret;
 }
 
