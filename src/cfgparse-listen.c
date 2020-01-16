@@ -3810,51 +3810,29 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "errorloc") ||
 		 !strcmp(args[0], "errorloc302") ||
 		 !strcmp(args[0], "errorloc303")) { /* error location */
-		int errnum, errlen;
-		char *err;
+		struct buffer chk;
+		int errloc, status, rc;
 
 		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (*(args[2]) == 0) {
+		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			ha_alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		errnum = atol(args[1]);
-		if (!strcmp(args[0], "errorloc303")) {
-			errlen = strlen(HTTP_303) + strlen(args[2]) + 5;
-			err = malloc(errlen);
-			errlen = snprintf(err, errlen, "%s%s\r\n\r\n", HTTP_303, args[2]);
-		} else {
-			errlen = strlen(HTTP_302) + strlen(args[2]) + 5;
-			err = malloc(errlen);
-			errlen = snprintf(err, errlen, "%s%s\r\n\r\n", HTTP_302, args[2]);
+		status = atol(args[1]);
+		errloc = (!strcmp(args[0], "errorloc303") ? 303 : 302);
+		rc = http_parse_errorloc(errloc, status, args[2], &chk, &errmsg);
+		if (rc == -1) {
+			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (http_err_codes[rc] == errnum) {
-				struct buffer chk;
-
-				if (!http_str_to_htx(&chk, ist2(err, errlen))) {
-					ha_alert("parsing [%s:%d] : unable to convert message in HTX for HTTP return code %d.\n",
-						 file, linenum, http_err_codes[rc]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					free(err);
-					goto out;
-				}
-				chunk_destroy(&curproxy->errmsg[rc]);
-				curproxy->errmsg[rc] = chk;
-				break;
-			}
-		}
-
-		if (rc >= HTTP_ERR_SIZE) {
-			ha_warning("parsing [%s:%d] : status code %d not handled by '%s', error relocation will be ignored.\n",
-				   file, linenum, errnum, args[0]);
-			free(err);
-		}
+		chunk_destroy(&curproxy->errmsg[rc]);
+		curproxy->errmsg[rc] = chk;
 	}
 	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
 		struct buffer chk;
