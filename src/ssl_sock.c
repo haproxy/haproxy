@@ -1606,10 +1606,14 @@ static int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct
 		sctl = NULL;
 		goto end;
 	}
-	ret = 0;
-	/* TODO: free the previous SCTL in the ckch */
+	/* no error, fill ckch with new context, old context must be free */
+	if (ckch->sctl) {
+		free(ckch->sctl->area);
+		ckch->sctl->area = NULL;
+		free(ckch->sctl);
+	}
 	ckch->sctl = sctl;
-
+	ret = 0;
 end:
 	if (fd != -1)
 		close(fd);
