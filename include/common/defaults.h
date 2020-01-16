@@ -116,6 +116,11 @@
 #define STKTABLE_EXTRA_DATA_TYPES 0
 #endif
 
+// max # of stick-table filter entries that can be used during dump
+#ifndef STKTABLE_FILTER_LEN
+#define STKTABLE_FILTER_LEN 4
+#endif
+
 // max # of loops we can perform around a read() which succeeds.
 // It's very frequent that the system returns a few TCP segments at a time.
 #ifndef MAX_READ_POLL_LOOPS

@@ -150,9 +150,9 @@ struct appctx {
 			void *target;		/* table we want to dump, or NULL for all */
 			struct stktable *t;	/* table being currently dumped (first if NULL) */
 			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
-			long long value;	/* value to compare against */
-			signed char data_type;	/* type of data to compare, or -1 if none */
-			signed char data_op;	/* operator (STD_OP_*) when data_type set */
+			long long value[STKTABLE_FILTER_LEN];	     /* value to compare against */
+			signed char data_type[STKTABLE_FILTER_LEN];  /* type of data to compare, or -1 if none */
+			signed char data_op[STKTABLE_FILTER_LEN];    /* operator (STD_OP_*) when data_type set */
 			char action;            /* action on the table : one of STK_CLI_ACT_* */
 		} table;
 		struct {

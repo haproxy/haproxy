@@ -2569,7 +2569,7 @@ show table
     >>> # table: front_pub, type: ip, size:204800, used:171454
     >>> # table: back_rdp, type: ip, size:204800, used:0
 
-show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
+show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <key> ]
   Dump contents of stick-table <name>. In this mode, a first line of generic
   information about the table is reported as with "show table", then all
   entries are dumped. Since this can be quite heavy, it is possible to specify
@@ -2588,6 +2588,8 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
     - lt : match entries whose data is less than this value
     - gt : match entries whose data is greater than this value
 
+  In this form, you can use multiple data filter entries, up to a maximum
+  defined during build time (4 by default).
 
   When the key form is used the entry <key> is shown.  The key must be of the
   same type as the table, which currently is limited to IPv4, IPv6, integer,
