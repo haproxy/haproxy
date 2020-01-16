@@ -330,7 +330,7 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
                                   struct proxy *defpx, const char *file, int line,
                                   char **err)
 {
-	int retval, cap;
+	int retval;
 	char *res;
 	unsigned int *tv = NULL;
 	unsigned int *td = NULL;
@@ -341,7 +341,6 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
 	if (strcmp(args[1], "sessions") == 0) {
 		tv = &proxy->fe_sps_lim;
 		td = &defpx->fe_sps_lim;
-		cap = PR_CAP_FE;
 	}
 	else {
 		memprintf(err, "'%s' only supports 'sessions' (got '%s')", args[0], args[1]);
@@ -359,10 +358,9 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
 		return -1;
 	}
 
-	if (!(proxy->cap & cap)) {
-		memprintf(err, "%s %s will be ignored because %s '%s' has no %s capability",
-			 args[0], args[1], proxy_type_str(proxy), proxy->id,
-			 (cap & PR_CAP_BE) ? "backend" : "frontend");
+	if (!(proxy->cap & PR_CAP_FE)) {
+		memprintf(err, "%s %s will be ignored because %s '%s' has no frontend capability",
+			  args[0], args[1], proxy_type_str(proxy), proxy->id);
 		retval = 1;
 	}
 	else if (defpx && *tv != *td) {
