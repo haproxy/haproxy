@@ -1610,6 +1610,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	int *tmpfd;
 	int tot_fd_nb = 0;
 	struct proxy *px;
+	struct peers *prs;
 	int i = 0;
 	int fd = -1;
 	int curoff = 0;
@@ -1662,6 +1663,22 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		}
 		px = px->next;
 	}
+	prs = cfg_peers;
+	while (prs) {
+		if (prs->peers_fe) {
+			struct listener *l;
+
+			list_for_each_entry(l, &prs->peers_fe->conf.listeners, by_fe) {
+				/* Only transfer IPv4/IPv6/UNIX sockets */
+				if (l->state >= LI_ZOMBIE &&
+				    (l->proto->sock_family == AF_INET ||
+				     l->proto->sock_family == AF_INET6 ||
+				     l->proto->sock_family == AF_UNIX))
+					tot_fd_nb++;
+			}
+		}
+		prs = prs->next;
+	}
 	if (tot_fd_nb == 0)
 		goto out;
 
@@ -1685,7 +1702,6 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	cmsg->cmsg_type = SCM_RIGHTS;
 	tmpfd = (int *)CMSG_DATA(cmsg);
 
-	px = proxies_list;
 	/* For each socket, e message is sent, containing the following :
 	 *  Size of the namespace name (or 0 if none), as an unsigned char.
 	 *  The namespace name, if any
@@ -1702,6 +1718,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		goto out;
 	}
 	iov.iov_base = tmpbuf;
+	px = proxies_list;
 	while (px) {
 		struct listener *l;
 
@@ -1735,7 +1752,6 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 				    sizeof(l->options));
 				curoff += sizeof(l->options);
 
-
 				i++;
 			} else
 				continue;
@@ -1756,10 +1772,70 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 				}
 				curoff = 0;
 			}
-
 		}
 		px = px->next;
 	}
+	/* should be done for peers too */
+	prs = cfg_peers;
+	while (prs) {
+		if (prs->peers_fe) {
+			struct listener *l;
+
+			list_for_each_entry(l, &prs->peers_fe->conf.listeners, by_fe) {
+				int ret;
+				/* Only transfer IPv4/IPv6 sockets */
+				if (l->state >= LI_ZOMBIE &&
+				    (l->proto->sock_family == AF_INET ||
+				     l->proto->sock_family == AF_INET6 ||
+				     l->proto->sock_family == AF_UNIX)) {
+					memcpy(&tmpfd[i % MAX_SEND_FD], &l->fd, sizeof(l->fd));
+					if (!l->netns)
+						tmpbuf[curoff++] = 0;
+#ifdef USE_NS
+					else {
+						char *name = l->netns->node.key;
+						unsigned char len = l->netns->name_len;
+						tmpbuf[curoff++] = len;
+						memcpy(tmpbuf + curoff, name, len);
+						curoff += len;
+					}
+#endif
+					if (l->interface) {
+						unsigned char len = strlen(l->interface);
+						tmpbuf[curoff++] = len;
+						memcpy(tmpbuf + curoff, l->interface, len);
+						curoff += len;
+					} else
+						tmpbuf[curoff++] = 0;
+					memcpy(tmpbuf + curoff, &l->options,
+					       sizeof(l->options));
+					curoff += sizeof(l->options);
+
+					i++;
+				} else
+					continue;
+				if ((!(i % MAX_SEND_FD))) {
+					iov.iov_len = curoff;
+					if (sendmsg(fd, &msghdr, 0) != curoff) {
+						ha_warning("Failed to transfer sockets\n");
+						goto out;
+					}
+					/* Wait for an ack */
+					do {
+						ret = recv(fd, &tot_fd_nb,
+							   sizeof(tot_fd_nb), 0);
+					} while (ret == -1 && errno == EINTR);
+					if (ret <= 0) {
+						ha_warning("Unexpected error while transferring sockets\n");
+						goto out;
+					}
+					curoff = 0;
+				}
+			}
+		}
+		prs = prs->next;
+	}
+
 	if (i % MAX_SEND_FD) {
 		iov.iov_len = curoff;
 		cmsg->cmsg_len = CMSG_LEN((i % MAX_SEND_FD) * sizeof(int));
