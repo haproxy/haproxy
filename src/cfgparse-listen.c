@@ -3805,56 +3805,6 @@ stats_error_parsing:
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "errorloc") ||
-		 !strcmp(args[0], "errorloc302") ||
-		 !strcmp(args[0], "errorloc303")) { /* error location */
-		struct buffer *msg;
-		int errloc, status;
-
-		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		status = atol(args[1]);
-		errloc = (!strcmp(args[0], "errorloc303") ? 303 : 302);
-		msg = http_parse_errorloc(errloc, status, args[2], &errmsg);
-		if (!msg) {
-			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		rc = http_get_status_idx(status);
-		curproxy->errmsg[rc] = msg;
-	}
-	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
-		struct buffer *msg;
-		int status;
-
-		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
-			ha_alert("parsing [%s:%d] : %s: expects <status_code> and <file> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		status = atol(args[1]);
-		msg = http_parse_errorfile(status, args[2], &errmsg);
-		if (!msg) {
-			ha_alert("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		rc = http_get_status_idx(status);
-		curproxy->errmsg[rc] = msg;
-	}
 	else {
 		struct cfg_kw_list *kwl;
 		int index;

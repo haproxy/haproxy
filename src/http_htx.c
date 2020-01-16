@@ -1050,6 +1050,87 @@ out:
 	return buf;
 }
 
+/* Parses the "errorloc[302|303]" proxy keyword */
+static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
+				  struct proxy *defpx, const char *file, int line,
+				  char **errmsg)
+{
+	struct buffer *msg;
+	int errloc, status, rc, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
+		ret = 1;
+		goto out;
+	}
+
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+		memprintf(errmsg, "%s : expects <status_code> and <url> as arguments.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
+
+	status = atol(args[1]);
+	errloc = (!strcmp(args[0], "errorloc303") ? 303 : 302);
+	msg = http_parse_errorloc(errloc, status, args[2], errmsg);
+	if (!msg) {
+		memprintf(errmsg, "%s : %s", args[0], *errmsg);
+		ret = -1;
+		goto out;
+	}
+
+	rc = http_get_status_idx(status);
+	curpx->errmsg[rc] = msg;
+
+  out:
+	return ret;
+}
+
+
+/* Parses the "errorfile" proxy keyword */
+static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
+				 struct proxy *defpx, const char *file, int line,
+				 char **errmsg)
+{
+	struct buffer *msg;
+	int status, rc, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
+		ret = 1;
+		goto out;
+	}
+
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+		memprintf(errmsg, "%s : expects <status_code> and <file> as arguments.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
+
+	status = atol(args[1]);
+	msg = http_parse_errorfile(status, args[2], errmsg);
+	if (!msg) {
+		memprintf(errmsg, "%s : %s", args[0], *errmsg);
+		ret = -1;
+		goto out;
+	}
+
+	rc = http_get_status_idx(status);
+	curpx->errmsg[rc] = msg;
+
+  out:
+	return ret;
+
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+        { CFG_LISTEN, "errorloc",     proxy_parse_errorloc },
+        { CFG_LISTEN, "errorloc302",  proxy_parse_errorloc },
+        { CFG_LISTEN, "errorloc303",  proxy_parse_errorloc },
+        { CFG_LISTEN, "errorfile",    proxy_parse_errorfile },
+        { 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
 /************************************************************************/
 /*                             HTX sample fetches                       */
 /************************************************************************/
