@@ -4391,9 +4391,12 @@ http-request capture <sample> [ len <length> | id <id> ]
   If the keyword "id" is used instead of "len", the action tries to store the
   captured string in a previously declared capture slot. This is useful to run
   captures in backends. The slot id can be declared by a previous directive
-  "http-request capture" or with the "declare capture" keyword. If the slot
-  <id> doesn't exist, then HAProxy fails parsing the configuration to prevent
-  unexpected behavior at run time.
+  "http-request capture" or with the "declare capture" keyword.
+
+  When using this action in a backend, double check that the relevant
+  frontend(s) have the required capture slots otherwise, this rule will be
+  ignored at run time. This can't be detected at configuration parsing time
+  due to HAProxy's ability to dynamically resolve backend name at runtime.
 
 http-request del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
 
@@ -5097,8 +5100,11 @@ http-response capture <sample> id <id> [ { if | unless } <condition> ]
   This is useful to run captures in backends. The slot id can be declared by a
   previous directive "http-response capture" or with the "declare capture"
   keyword.
-  If the slot <id> doesn't exist, then HAProxy fails parsing the configuration
-  to prevent unexpected behavior at run time.
+
+  When using this action in a backend, double check that the relevant
+  frontend(s) have the required capture slots otherwise, this rule will be
+  ignored at run time. This can't be detected at configuration parsing time
+  due to HAProxy's ability to dynamically resolve backend name at runtime.
 
 http-response del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
 
