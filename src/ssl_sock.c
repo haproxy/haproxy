@@ -1106,7 +1106,12 @@ static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *bu
 		ocsp_response = NULL;
 		goto end;
 	}
-
+	/* no error, fill ckch with new context, old context must be free */
+	if (ckch->ocsp_response) {
+		free(ckch->ocsp_response->area);
+		ckch->ocsp_response->area = NULL;
+		free(ckch->ocsp_response);
+	}
 	ckch->ocsp_response = ocsp_response;
 	ret = 0;
 end:
