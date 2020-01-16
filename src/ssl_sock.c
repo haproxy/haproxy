@@ -3237,8 +3237,11 @@ static int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, stru
 		          err && *err ? *err : "", path);
 		goto end;
 	}
-	ret = 0;
+	/* no error, fill ckch with new context, old context must be free */
+	if (ckch->ocsp_issuer)
+		X509_free(ckch->ocsp_issuer);
 	ckch->ocsp_issuer = issuer;
+	ret = 0;
 
 end:
 
