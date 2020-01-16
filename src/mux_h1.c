@@ -102,8 +102,7 @@ struct h1s {
 	struct cs_info csinfo;         /* CS info, only used for client connections */
 	uint32_t flags;                /* Connection flags: H1S_F_* */
 
-	struct wait_event *recv_wait; /* Address of the wait_event the conn_stream associated is waiting on */
-	struct wait_event *send_wait; /* Address of the wait_event the conn_stream associated is waiting on */
+	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
 
 	struct session *sess;         /* Associated session */
 	struct h1m req;
@@ -523,8 +522,7 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 	h1s->cs    = NULL;
 	h1s->flags = H1S_F_WANT_KAL;
 
-	h1s->recv_wait = NULL;
-	h1s->send_wait = NULL;
+	h1s->subs = NULL;
 
 	h1m_init_req(&h1s->req);
 	h1s->req.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
@@ -601,10 +599,8 @@ static void h1s_destroy(struct h1s *h1s)
 		TRACE_POINT(H1_EV_H1S_END, h1c->conn, h1s);
 		h1c->h1s = NULL;
 
-		if (h1s->recv_wait != NULL)
-			h1s->recv_wait->events &= ~SUB_RETRY_RECV;
-		if (h1s->send_wait != NULL)
-			h1s->send_wait->events &= ~SUB_RETRY_SEND;
+		if (h1s->subs)
+			h1s->subs->events = 0;
 
 		h1c->flags &= ~H1C_F_IN_BUSY;
 		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR)) {
@@ -1960,20 +1956,22 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 /*********************************************************/
 static void h1_wake_stream_for_recv(struct h1s *h1s)
 {
-	if (h1s && h1s->recv_wait) {
+	if (h1s && h1s->subs && h1s->subs->events & SUB_RETRY_RECV) {
 		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		h1s->recv_wait->events &= ~SUB_RETRY_RECV;
-		tasklet_wakeup(h1s->recv_wait->tasklet);
-		h1s->recv_wait = NULL;
+		tasklet_wakeup(h1s->subs->tasklet);
+		h1s->subs->events &= ~SUB_RETRY_RECV;
+		if (!h1s->subs->events)
+			h1s->subs = NULL;
 	}
 }
 static void h1_wake_stream_for_send(struct h1s *h1s)
 {
-	if (h1s && h1s->send_wait) {
+	if (h1s && h1s->subs && h1s->subs->events & SUB_RETRY_SEND) {
 		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		h1s->send_wait->events &= ~SUB_RETRY_SEND;
-		tasklet_wakeup(h1s->send_wait->tasklet);
-		h1s->send_wait = NULL;
+		tasklet_wakeup(h1s->subs->tasklet);
+		h1s->subs->events &= ~SUB_RETRY_SEND;
+		if (!h1s->subs->events)
+			h1s->subs = NULL;
 	}
 }
 
@@ -2547,54 +2545,51 @@ static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 /* Called from the upper layer, to unsubscribe to events */
 static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 {
-	struct wait_event *sw;
+	struct wait_event *sw = param;
 	struct h1s *h1s = cs->ctx;
 
 	if (!h1s)
 		return 0;
 
-	if (event_type & SUB_RETRY_RECV) {
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(h1s->subs && h1s->subs != sw);
+
+	sw->events &= ~event_type;
+	if (!sw->events)
+		h1s->subs = NULL;
+
+	if (event_type & SUB_RETRY_RECV)
 		TRACE_DEVEL("unsubscribe(recv)", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);
-		sw = param;
-		BUG_ON(h1s->recv_wait != sw);
-		sw->events &= ~SUB_RETRY_RECV;
-		h1s->recv_wait = NULL;
-	}
-	if (event_type & SUB_RETRY_SEND) {
+
+	if (event_type & SUB_RETRY_SEND)
 		TRACE_DEVEL("unsubscribe(send)", H1_EV_STRM_SEND, h1s->h1c->conn, h1s);
-		sw = param;
-		BUG_ON(h1s->send_wait != sw);
-		sw->events &= ~SUB_RETRY_SEND;
-		h1s->send_wait = NULL;
-	}
+
 	return 0;
 }
 
 /* Called from the upper layer, to subscribe to events, such as being able to send */
 static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 {
-	struct wait_event *sw;
+	struct wait_event *sw = param;
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
 
 	if (!h1s)
 		return -1;
 
-	if (event_type & SUB_RETRY_RECV) {
+	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
+	BUG_ON(h1s->subs && h1s->subs->events & event_type);
+	BUG_ON(h1s->subs && h1s->subs != sw);
+
+	sw->events |= event_type;
+	h1s->subs = sw;
+
+	if (event_type & SUB_RETRY_RECV)
 		TRACE_DEVEL("subscribe(recv)", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);
-		sw = param;
-		BUG_ON(h1s->recv_wait != NULL || (sw->events & SUB_RETRY_RECV));
-		sw->events |= SUB_RETRY_RECV;
-		h1s->recv_wait = sw;
-		event_type &= ~SUB_RETRY_RECV;
-	}
+
+
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("subscribe(send)", H1_EV_STRM_SEND, h1s->h1c->conn, h1s);
-		sw = param;
-		BUG_ON(h1s->send_wait != NULL || (sw->events & SUB_RETRY_SEND));
-		sw->events |= SUB_RETRY_SEND;
-		h1s->send_wait = sw;
-		event_type &= ~SUB_RETRY_SEND;
 		/*
 		 * If the conn_stream attempt to subscribe, and the
 		 * mux isn't subscribed to the connection, then it
@@ -2608,8 +2603,6 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 						   SUB_RETRY_SEND,
 						   &h1c->wait_event);
 	}
-	if (event_type != 0)
-		return -1;
 	return 0;
 }
 
