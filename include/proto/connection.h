@@ -161,54 +161,11 @@ static inline void conn_stop_tracking(struct connection *conn)
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the upper layer expectations indicated by CO_FL_XPRT_*.
- * The connection flags are updated with the new flags at the end of the
- * operation. Polling is totally disabled if an error was reported.
+ * state as reported in the connection's CO_FL_XPRT_* flags. The connection
+ * flags are updated with the new flags at the end of the operation. Polling
+ * is totally disabled if an error was reported.
  */
 void conn_update_xprt_polling(struct connection *c);
-
-/* Refresh the connection's polling flags from its file descriptor status.
- * This should be called at the beginning of a connection handler. It does
- * nothing if CO_FL_WILL_UPDATE is present, indicating that an upper caller
- * has already done it.
- */
-static inline void conn_refresh_polling_flags(struct connection *conn)
-{
-	if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_WILL_UPDATE)) {
-		unsigned int flags = conn->flags;
-
-		flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
-		if (fd_recv_active(conn->handle.fd))
-			flags |= CO_FL_CURR_RD_ENA;
-		if (fd_send_active(conn->handle.fd))
-			flags |= CO_FL_CURR_WR_ENA;
-		conn->flags = flags;
-	}
-}
-
-/* inspects c->flags and returns non-zero if XPRT ENA changes from the CURR ENA
- * or if the WAIT flags are set with their respective ENA flags. Additionally,
- * non-zero is also returned if an error was reported on the connection. This
- * function is used quite often and is inlined. In order to proceed optimally
- * with very little code and CPU cycles, the bits are arranged so that a change
- * can be detected by a few left shifts, a xor, and a mask. These operations
- * detect when W&D are both enabled for either direction, when C&D differ for
- * either direction and when Error is set. The trick consists in first keeping
- * only the bits we're interested in, since they don't collide when shifted,
- * and to perform the AND at the end. In practice, the compiler is able to
- * replace the last AND with a TEST in boolean conditions. This results in
- * checks that are done in 4-6 cycles and less than 30 bytes.
- */
-static inline unsigned int conn_xprt_polling_changes(const struct connection *c)
-{
-	unsigned int f = c->flags;
-	f &= CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA | CO_FL_CURR_WR_ENA |
-	     CO_FL_CURR_RD_ENA | CO_FL_ERROR;
-
-	f = (f ^ (f << 1)) & (CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_ENA);    /* test C ^ D */
-	return f & (CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
-}
 
 /* Automatically updates polling on connection <c> depending on the XPRT flags.
  * It does nothing if CO_FL_WILL_UPDATE is present, indicating that an upper
@@ -217,8 +174,7 @@ static inline unsigned int conn_xprt_polling_changes(const struct connection *c)
 static inline void conn_cond_update_xprt_polling(struct connection *c)
 {
 	if (!(c->flags & CO_FL_WILL_UPDATE))
-		if (conn_xprt_polling_changes(c))
-			conn_update_xprt_polling(c);
+		conn_update_xprt_polling(c);
 }
 
 /* Stop all polling on the fd. This might be used when an error is encountered
@@ -228,8 +184,7 @@ static inline void conn_cond_update_xprt_polling(struct connection *c)
  */
 static inline void conn_stop_polling(struct connection *c)
 {
-	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
-		      CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
+	c->flags &= ~(CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
 	if (!(c->flags & CO_FL_WILL_UPDATE) && conn_ctrl_ready(c))
 		fd_stop_both(c->handle.fd);
 }
@@ -245,10 +200,8 @@ static inline void conn_cond_update_polling(struct connection *c)
 {
 	if (unlikely(c->flags & CO_FL_ERROR))
 		conn_stop_polling(c);
-	else if (!(c->flags & CO_FL_WILL_UPDATE)) {
-		if (conn_xprt_polling_changes(c))
-			conn_update_xprt_polling(c);
-	}
+	else if (!(c->flags & CO_FL_WILL_UPDATE))
+		conn_update_xprt_polling(c);
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
@@ -333,7 +286,6 @@ static inline void conn_sock_read0(struct connection *c)
 static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
-	conn_refresh_polling_flags(c);
 	__conn_xprt_stop_send(c);
 	conn_cond_update_xprt_polling(c);
 

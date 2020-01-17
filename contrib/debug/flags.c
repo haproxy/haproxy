@@ -139,9 +139,7 @@ void show_conn_flags(unsigned int f)
 	SHOW_FLAG(f, CO_FL_WILL_UPDATE);
 	SHOW_FLAG(f, CO_FL_XPRT_READY);
 	SHOW_FLAG(f, CO_FL_CTRL_READY);
-	SHOW_FLAG(f, CO_FL_CURR_WR_ENA);
 	SHOW_FLAG(f, CO_FL_XPRT_WR_ENA);
-	SHOW_FLAG(f, CO_FL_CURR_RD_ENA);
 	SHOW_FLAG(f, CO_FL_XPRT_RD_ENA);
 
 	if (f) {

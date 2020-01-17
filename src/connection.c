@@ -55,7 +55,6 @@ void conn_fd_handler(int fd)
 		return;
 	}
 
-	conn_refresh_polling_flags(conn);
 	conn->flags |= CO_FL_WILL_UPDATE;
 
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
@@ -150,10 +149,9 @@ void conn_fd_handler(int fd)
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
- * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_XPRT_*.
- * The connection flags are updated with the new flags at the end of the
- * operation. Polling is totally disabled if an error was reported.
+ * state as reported in the connection's CO_FL_XPRT_* flags. The connection
+ * flags are updated with the new flags at the end of the operation. Polling
+ * is totally disabled if an error was reported.
  */
 void conn_update_xprt_polling(struct connection *c)
 {
@@ -163,25 +161,16 @@ void conn_update_xprt_polling(struct connection *c)
 		return;
 
 	/* update read status if needed */
-	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_XPRT_RD_ENA)) == CO_FL_XPRT_RD_ENA)) {
+	if (f & CO_FL_XPRT_RD_ENA)
 		fd_want_recv(c->handle.fd);
-		f |= CO_FL_CURR_RD_ENA;
-	}
-	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_XPRT_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
+	else
 		fd_stop_recv(c->handle.fd);
-		f &= ~CO_FL_CURR_RD_ENA;
-	}
 
 	/* update write status if needed */
-	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_XPRT_WR_ENA)) == CO_FL_XPRT_WR_ENA)) {
+	if (f & CO_FL_XPRT_WR_ENA)
 		fd_want_send(c->handle.fd);
-		f |= CO_FL_CURR_WR_ENA;
-	}
-	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_XPRT_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
+	else
 		fd_stop_send(c->handle.fd);
-		f &= ~CO_FL_CURR_WR_ENA;
-	}
-	c->flags = f;
 }
 
 /* This is the callback which is set when a connection establishment is pending

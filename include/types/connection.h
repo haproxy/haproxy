@@ -118,17 +118,16 @@ enum cs_shw_mode {
 	CS_SHW_SILENT       = 1,           /* imminent close, don't notify peer */
 };
 
-/* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
+/* For each direction, we have a CO_FL_XPRT_<DIR>_ENA flag, which
  * indicates if read or write is desired in that direction for the respective
  * layers. The current status corresponding to the current layer being used is
- * remembered in the CO_FL_CURR_<DIR>_ENA flag. The need to poll (ie receipt of
+ * remembered in the CO_FL_XPRT_<DIR>_ENA flag. The need to poll (ie receipt of
  * EAGAIN) is remembered at the file descriptor level so that even when the
  * activity is stopped and restarted, we still remember whether it was needed
  * to poll before attempting the I/O.
  *
- * The CO_FL_CURR_<DIR>_ENA flag is set from the FD status in
- * conn_refresh_polling_flags(). The FD state is updated according to these
- * flags in conn_cond_update_polling().
+ * The FD state is updated according to CO_FL_XPRT_<DIR>_ENA in
+ * conn_cond_update_polling().
  */
 
 /* flags for use in connection->flags */
@@ -136,15 +135,13 @@ enum {
 	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
 	/* Do not change these values without updating conn_*_poll_changes() ! */
-	/* unusued : 0x00000001 */
+	/* unused : 0x00000001 */
 	CO_FL_XPRT_RD_ENA   = 0x00000002,  /* receiving data is allowed */
-	CO_FL_CURR_RD_ENA   = 0x00000004,  /* receiving is currently allowed */
-	/* unused : 0x00000008 */
+	/* unused : 0x00000004, 0x00000008 */
 
 	/* unused : 0x00000010 */
 	CO_FL_XPRT_WR_ENA   = 0x00000020,  /* sending data is desired */
-	CO_FL_CURR_WR_ENA   = 0x00000040,  /* sending is currently desired */
-	/* unused : 0x00000080 */
+	/* unused : 0x00000040, 0x00000080 */
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */

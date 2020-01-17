@@ -6505,8 +6505,6 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	ssize_t ret;
 	size_t try, done = 0;
 
-	conn_refresh_polling_flags(conn);
-
 	if (!ctx)
 		goto out_error;
 
@@ -6631,7 +6629,6 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	size_t try, done;
 
 	done = 0;
-	conn_refresh_polling_flags(conn);
 
 	if (!ctx)
 		goto out_error;

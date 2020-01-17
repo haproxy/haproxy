@@ -73,7 +73,6 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 		return 0;
 
 	conn->flags &= ~CO_FL_WAIT_ROOM;
-	conn_refresh_polling_flags(conn);
 	errno = 0;
 
 	/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
@@ -186,7 +185,6 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
-	conn_refresh_polling_flags(conn);
 	done = 0;
 	while (pipe->data) {
 		ret = splice(pipe->cons, NULL, conn->handle.fd, NULL, pipe->data,
@@ -241,7 +239,6 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		return 0;
 
 	conn->flags &= ~CO_FL_WAIT_ROOM;
-	conn_refresh_polling_flags(conn);
 	errno = 0;
 
 	if (unlikely(!(fdtab[conn->handle.fd].ev & FD_POLL_IN))) {
@@ -354,7 +351,6 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
-	conn_refresh_polling_flags(conn);
 	done = 0;
 	/* send the largest possible block. For this we perform only one call
 	 * to send() unless the buffer wraps and we exactly fill the first hunk,
@@ -380,10 +376,8 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			/* if the system buffer is full, don't insist */
 			if (ret < try)
 				break;
-			if (!count) {
+			if (!count)
 				conn_xprt_stop_send(conn);
-				conn_refresh_polling_flags(conn);
-			}
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* nothing written, we need to poll for write first */
