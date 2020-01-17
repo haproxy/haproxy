@@ -304,15 +304,23 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 	return ret;
 }
 
-/* Called from the upper layer, to subscribe to events */
-static int mux_pt_subscribe(struct conn_stream *cs, int event_type, void *param)
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
+ */
+static int mux_pt_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	return (cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, event_type, param));
+	return cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, event_type, es);
 }
 
-static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, void *param)
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
+ */
+static int mux_pt_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	return (cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx, event_type, param));
+	return cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx, event_type, es);
 }
 
 #if defined(USE_LINUX_SPLICE)

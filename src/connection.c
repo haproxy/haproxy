@@ -322,15 +322,18 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	return ret;
 }
 
-int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
+ */
+int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
-
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(conn->subs && conn->subs != sw);
+	BUG_ON(conn->subs && conn->subs != es);
 
-	sw->events &= ~event_type;
-	if (!sw->events)
+	es->events &= ~event_type;
+	if (!es->events)
 		conn->subs = NULL;
 
 	if (event_type & SUB_RETRY_RECV)
@@ -343,16 +346,18 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, vo
 	return 0;
 }
 
-int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>
+ * (undo fcgi_subscribe). The <es> struct is not allowed to differ from the one
+ * passed to the subscribe() call. It always returns zero.
+ */
+int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
-
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(conn->subs && conn->subs->events & event_type);
-	BUG_ON(conn->subs && conn->subs != sw);
+	BUG_ON(conn->subs && conn->subs != es);
 
-	conn->subs = sw;
-	sw->events |= event_type;
+	conn->subs = es;
+	es->events |= event_type;
 
 	if (event_type & SUB_RETRY_RECV)
 		__conn_xprt_want_recv(conn);

@@ -6332,9 +6332,14 @@ reneg_ok:
 	return 0;
 }
 
-static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0,
+ * unless the transport layer was already released.
+ */
+static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
 	if (!ctx)
@@ -6342,10 +6347,10 @@ static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(ctx->subs && ctx->subs->events & event_type);
-	BUG_ON(ctx->subs && ctx->subs != sw);
+	BUG_ON(ctx->subs && ctx->subs != es);
 
-	ctx->subs = sw;
-	sw->events |= event_type;
+	ctx->subs = es;
+	es->events |= event_type;
 
 	/* we may have to subscribe to lower layers for new events */
 	event_type &= ~ctx->wait_event.events;
@@ -6354,16 +6359,19 @@ static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type
 	return 0;
 }
 
-static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
+ */
+static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
-	struct wait_event *sw = param;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(ctx->subs && ctx->subs != sw);
+	BUG_ON(ctx->subs && ctx->subs != es);
 
-	sw->events &= ~event_type;
-	if (!sw->events)
+	es->events &= ~event_type;
+	if (!es->events)
 		ctx->subs = NULL;
 
 	/* If we subscribed, and we're not doing the handshake,

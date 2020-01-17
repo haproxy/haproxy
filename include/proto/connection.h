@@ -51,8 +51,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
-int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param);
-int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param);
+int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es);
+int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es);
 
 /* receive a NetScaler Client IP insertion header over a connection */
 int conn_recv_netscaler_cip(struct connection *conn, int flag);

@@ -326,8 +326,8 @@ struct xprt_ops {
 	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
 	int  (*get_alpn)(const struct connection *conn, void *xprt_ctx, const char **str, int *len); /* get application layer name */
 	char name[8];                               /* transport layer name, zero-terminated */
-	int (*subscribe)(struct connection *conn, void *xprt_ctx, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
-	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, void *param); /* Unsubscribe to events */
+	int (*subscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
+	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*remove_xprt)(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx); /* Remove an xprt from the connection, used by temporary xprt such as the handshake one */
 	int (*add_xprt)(struct connection *conn, void *xprt_ctx, void *toadd_ctx, const struct xprt_ops *toadd_ops, void **oldxprt_ctx, const struct xprt_ops **oldxprt_ops); /* Add a new XPRT as the new xprt, and return the old one */
 };
@@ -359,8 +359,8 @@ struct mux_ops {
 	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
 	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
-	int (*subscribe)(struct conn_stream *cs, int event_type, void *param); /* Subscribe to events, such as "being able to send" */
-	int (*unsubscribe)(struct conn_stream *cs, int event_type, void *param); /* Unsubscribe to events */
+	int (*subscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
+	int (*unsubscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */

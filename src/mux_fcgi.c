@@ -3695,24 +3695,22 @@ static void fcgi_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	fcgi_do_shutw(fstrm);
 }
 
-/* Called from the upper layer, to subscribe to events, such as being able to send.
- * The <param> argument here is supposed to be a pointer to a wait_event struct
- * which will be passed to fstrm->subs. The event_type must only be a
- * combination of SUB_RETRY_RECV and SUB_RETRY_SEND, other values will lead to -1
- * being returned. It always returns 0 except for the error above.
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int fcgi_subscribe(struct conn_stream *cs, int event_type, void *param)
+static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct fcgi_strm *fstrm = cs->ctx;
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(fstrm->subs && fstrm->subs->events & event_type);
-	BUG_ON(fstrm->subs && fstrm->subs != sw);
+	BUG_ON(fstrm->subs && fstrm->subs != es);
 
-	sw->events |= event_type;
-	fstrm->subs = sw;
+	es->events |= event_type;
+	fstrm->subs = es;
 
 	if (event_type & SUB_RETRY_RECV)
 		TRACE_DEVEL("unsubscribe(recv)", FCGI_EV_STRM_RECV, fconn->conn, fstrm);
@@ -3725,22 +3723,20 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, void *param)
 	return 0;
 }
 
-/* Called from the upper layer, to unsubscribe some events (undo fcgi_subscribe).
- * The <param> argument here is supposed to be a pointer to the same wait_event
- * struct that was passed to fcgi_subscribe() otherwise nothing will be changed.
- * It always returns zero.
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>
+ * (undo fcgi_subscribe). The <es> pointer is not allowed to differ from the one
+ * passed to the subscribe() call. It always returns zero.
  */
-static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, void *param)
+static int fcgi_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct fcgi_strm *fstrm = cs->ctx;
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(fstrm->subs && fstrm->subs != sw);
+	BUG_ON(fstrm->subs && fstrm->subs != es);
 
-	sw->events &= ~event_type;
-	if (!sw->events)
+	es->events &= ~event_type;
+	if (!es->events)
 		fstrm->subs = NULL;
 
 	if (event_type & SUB_RETRY_RECV)

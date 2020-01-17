@@ -5589,15 +5589,13 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	goto end;
 }
 
-/* Called from the upper layer, to subscribe to events, such as being able to send.
- * The <param> argument here is supposed to be a pointer to a wait_event struct
- * which will be passed to h2s->subs. The event_type must only be a
- * combination of SUB_RETRY_RECV and SUB_RETRY_SEND, other values will lead to -1
- * being returned. It always returns 0 except for the error above.
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
-static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
+static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct h2s *h2s = cs->ctx;
 	struct h2c *h2c = h2s->h2c;
 
@@ -5605,10 +5603,10 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(h2s->subs && h2s->subs->events & event_type);
-	BUG_ON(h2s->subs && h2s->subs != sw);
+	BUG_ON(h2s->subs && h2s->subs != es);
 
-	sw->events |= event_type;
-	h2s->subs = sw;
+	es->events |= event_type;
+	h2s->subs = es;
 
 	if (event_type & SUB_RETRY_RECV)
 		TRACE_DEVEL("subscribe(recv)", H2_EV_STRM_RECV, h2c->conn, h2s);
@@ -5627,23 +5625,21 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, void *param)
 	return 0;
 }
 
-/* Called from the upper layer, to unsubscribe some events (undo h2_subscribe).
- * The <param> argument here is supposed to be a pointer to the same wait_event
- * struct that was passed to h2_subscribe() otherwise nothing will be changed.
- * It always returns zero.
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
  */
-static int h2_unsubscribe(struct conn_stream *cs, int event_type, void *param)
+static int h2_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct h2s *h2s = cs->ctx;
 
 	TRACE_ENTER(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2s->h2c->conn, h2s);
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(h2s->subs && h2s->subs != sw);
+	BUG_ON(h2s->subs && h2s->subs != es);
 
-	sw->events &= ~event_type;
-	if (!sw->events)
+	es->events &= ~event_type;
+	if (!es->events)
 		h2s->subs = NULL;
 
 	if (event_type & SUB_RETRY_RECV)

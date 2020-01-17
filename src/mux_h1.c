@@ -2542,20 +2542,22 @@ static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 	TRACE_LEAVE(H1_EV_STRM_SHUT, conn, h1c->h1s);
 }
 
-/* Called from the upper layer, to unsubscribe to events */
-static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
+ */
+static int h1_unsubscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct h1s *h1s = cs->ctx;
 
 	if (!h1s)
 		return 0;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(h1s->subs && h1s->subs != sw);
+	BUG_ON(h1s->subs && h1s->subs != es);
 
-	sw->events &= ~event_type;
-	if (!sw->events)
+	es->events &= ~event_type;
+	if (!es->events)
 		h1s->subs = NULL;
 
 	if (event_type & SUB_RETRY_RECV)
@@ -2567,10 +2569,14 @@ static int h1_unsubscribe(struct conn_stream *cs, int event_type, void *param)
 	return 0;
 }
 
-/* Called from the upper layer, to subscribe to events, such as being able to send */
-static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0, unless
+ * the conn_stream <cs> was already detached, in which case it will return -1.
+ */
+static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_event *es)
 {
-	struct wait_event *sw = param;
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
 
@@ -2579,10 +2585,10 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, void *param)
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(h1s->subs && h1s->subs->events & event_type);
-	BUG_ON(h1s->subs && h1s->subs != sw);
+	BUG_ON(h1s->subs && h1s->subs != es);
 
-	sw->events |= event_type;
-	h1s->subs = sw;
+	es->events |= event_type;
+	h1s->subs = es;
 
 	if (event_type & SUB_RETRY_RECV)
 		TRACE_DEVEL("subscribe(recv)", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);

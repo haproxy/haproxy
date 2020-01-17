@@ -405,14 +405,23 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	return done;
 }
 
-static int raw_sock_subscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
+ */
+static int raw_sock_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	return conn_subscribe(conn, xprt_ctx, event_type, param);
+	return conn_subscribe(conn, xprt_ctx, event_type, es);
 }
 
-static int raw_sock_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, void *param)
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
+ */
+static int raw_sock_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
-	return conn_unsubscribe(conn, xprt_ctx, event_type, param);
+	return conn_unsubscribe(conn, xprt_ctx, event_type, es);
 }
 
 /* We can't have an underlying XPRT, so just return -1 to signify failure */
