@@ -2787,7 +2787,7 @@ static int http_add_early_hint_header(struct stream *s, int early_hints, const s
 		goto fail;
 
 	free_trash_chunk(value);
-	return 1;
+	return 0;
 
   fail:
 	/* If an error occurred during an Early-hint rule, remove the incomplete
@@ -2889,7 +2889,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	const char *auth_realm;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_opts = 0;
-	int early_hints = 0;
 
 	htx = htxbuf(&s->req.buf);
 
@@ -2926,14 +2925,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 		act_opts |= ACT_OPT_FIRST;
   resume_execution:
-		if (early_hints && rule->action != ACT_HTTP_EARLY_HINT) {
-			early_hints = 0;
-			if (http_reply_103_early_hints(&s->res) == -1) {
-				rule_ret = HTTP_RULE_RES_BADREQ;
-				goto end;
-			}
-		}
-
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->req.flags & CF_READ_ERROR) ||
@@ -3037,15 +3028,35 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					http_remove_header(htx, &ctx);
 				break;
 
-			case ACT_HTTP_EARLY_HINT:
+			case ACT_HTTP_EARLY_HINT: {
+				struct act_rule *prev_rule, *next_rule;
+				int early_hints;
+
 				if (!(txn->req.flags & HTTP_MSGF_VER_11))
 					break;
-				early_hints = http_add_early_hint_header(s, early_hints, rule->arg.http.str, &rule->arg.http.fmt);
-				if (early_hints == -1) {
+
+				/* get previous and next rules */
+				prev_rule = LIST_PREV(&rule->list, typeof(rule), list);
+				next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
+
+				/* if no previous rule or previous rule is not early-hint, start a new response. Otherwise,
+				 * continue to add link to a previously started response */
+				early_hints = (&prev_rule->list != rules && prev_rule->action == ACT_HTTP_EARLY_HINT);
+
+				if (http_add_early_hint_header(s, early_hints, rule->arg.http.str, &rule->arg.http.fmt) == -1) {
 					rule_ret = HTTP_RULE_RES_ERROR;
 					goto end;
 				}
+				/* if it is the last rule or the next one is not an early-hint, terminate the current
+				 * response. */
+				if (&next_rule->list == rules || next_rule->action != ACT_HTTP_EARLY_HINT) {
+					if (http_reply_103_early_hints(&s->res) == -1) {
+						rule_ret = HTTP_RULE_RES_ERROR;
+						goto end;
+					}
+				}
 				break;
+			}
 
 			case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 				/* Note: only the first valid tracking parameter of each
@@ -3098,11 +3109,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	}
 
   end:
-	if (early_hints) {
-		if (http_reply_103_early_hints(&s->res) == -1)
-			rule_ret = HTTP_RULE_RES_ERROR;
-	}
-
 	/* if the ruleset evaluation is finished reset the strict mode */
 	if (rule_ret != HTTP_RULE_RES_YIELD)
 		txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
