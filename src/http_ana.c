@@ -2728,75 +2728,6 @@ int http_replace_hdrs(struct stream* s, struct htx *htx, struct ist name,
 	return 0;
 }
 
-/* Terminate a 103-Erly-hints response and send it to the client. It returns 0
- * on success and -1 on error. The response channel is updated accordingly.
- */
-static int http_reply_103_early_hints(struct channel *res)
-{
-	struct htx *htx = htx_from_buf(&res->buf);
-	size_t data;
-
-	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
-		/* If an error occurred during an Early-hint rule,
-		 * remove the incomplete HTTP 103 response from the
-		 * buffer */
-		channel_htx_truncate(res, htx);
-		return -1;
-	}
-
-	data = htx->data - co_data(res);
-	c_adv(res, data);
-	res->total += data;
-	return 0;
-}
-
-/*
- * Build an HTTP Early Hint HTTP 103 response header with <name> as name and with a value
- * built according to <fmt> log line format.
- * If <early_hints> is 0, it is starts a new response by adding the start
- * line. If an error occurred -1 is returned. On success 0 is returned. The
- * channel is not updated here. It must be done calling the function
- * http_reply_103_early_hints().
- */
-static int http_add_early_hint_header(struct stream *s, int early_hints, const struct ist name, struct list *fmt)
-{
-	struct channel *res = &s->res;
-	struct htx *htx = htx_from_buf(&res->buf);
-	struct buffer *value = alloc_trash_chunk();
-
-	if (!value) {
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_RESOURCE;
-		goto fail;
-	}
-
-	if (!early_hints) {
-		struct htx_sl *sl;
-		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
-				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
-
-		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
-				    ist("HTTP/1.1"), ist("103"), ist("Early Hints"));
-		if (!sl)
-			goto fail;
-		sl->info.res.status = 103;
-	}
-
-	value->data = build_logline(s, b_tail(value), b_room(value), fmt);
-	if (!htx_add_header(htx, name, ist2(b_head(value), b_data(value))))
-		goto fail;
-
-	free_trash_chunk(value);
-	return 0;
-
-  fail:
-	/* If an error occurred during an Early-hint rule, remove the incomplete
-	 * HTTP 103 response from the buffer */
-	channel_htx_truncate(res, htx);
-	free_trash_chunk(value);
-	return -1;
-}
-
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * takes the string from the variable 'replace' with length 'len', then modifies
  * the relevant part of the request line accordingly. Then it updates various
@@ -3027,36 +2958,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				while (http_find_header(htx, rule->arg.http.str, &ctx, 1))
 					http_remove_header(htx, &ctx);
 				break;
-
-			case ACT_HTTP_EARLY_HINT: {
-				struct act_rule *prev_rule, *next_rule;
-				int early_hints;
-
-				if (!(txn->req.flags & HTTP_MSGF_VER_11))
-					break;
-
-				/* get previous and next rules */
-				prev_rule = LIST_PREV(&rule->list, typeof(rule), list);
-				next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
-
-				/* if no previous rule or previous rule is not early-hint, start a new response. Otherwise,
-				 * continue to add link to a previously started response */
-				early_hints = (&prev_rule->list != rules && prev_rule->action == ACT_HTTP_EARLY_HINT);
-
-				if (http_add_early_hint_header(s, early_hints, rule->arg.http.str, &rule->arg.http.fmt) == -1) {
-					rule_ret = HTTP_RULE_RES_ERROR;
-					goto end;
-				}
-				/* if it is the last rule or the next one is not an early-hint, terminate the current
-				 * response. */
-				if (&next_rule->list == rules || next_rule->action != ACT_HTTP_EARLY_HINT) {
-					if (http_reply_103_early_hints(&s->res) == -1) {
-						rule_ret = HTTP_RULE_RES_ERROR;
-						goto end;
-					}
-				}
-				break;
-			}
 
 			case ACT_ACTION_TRK_SC0 ... ACT_ACTION_TRK_SCMAX:
 				/* Note: only the first valid tracking parameter of each

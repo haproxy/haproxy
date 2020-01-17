@@ -84,7 +84,6 @@ enum act_name {
 	ACT_HTTP_SET_LOGL,
 	ACT_HTTP_SET_TOS,
 	ACT_HTTP_SET_MARK,
-	ACT_HTTP_EARLY_HINT,
 
 	/* http request actions. */
 	ACT_HTTP_REQ_TARPIT,

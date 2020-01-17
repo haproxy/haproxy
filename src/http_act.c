@@ -944,6 +944,86 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a early-hint action. It adds an HTTP Early Hint HTTP
+ * 103 response header with <.arg.http.str> name and with a value built
+ * according to <.arg.http.fmt> log line format. If it is the first early-hint
+ * rule of a serie, the 103 response start-line is added first. At the end, if
+ * the next rule is not an early-hint rule or if it is the last rule, the EOH
+ * block is added to terminate the response. On success, it returns
+ * ACT_RET_CONT. If an error occurs while soft rewrites are enabled, the action
+ * is canceled, but the rule processing continue. Otherwsize ACT_RET_ERR is
+ * returned.
+ */
+static enum act_return http_action_early_hint(struct act_rule *rule, struct proxy *px,
+					      struct session *sess, struct stream *s, int flags)
+{
+	struct act_rule *prev_rule, *next_rule;
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct buffer *value = alloc_trash_chunk();
+	enum act_return ret = ACT_RET_CONT;
+
+	if (!(s->txn->req.flags & HTTP_MSGF_VER_11))
+		goto leave;
+
+	if (!value) {
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_RESOURCE;
+		goto error;
+	}
+
+	/* get previous and next rules */
+	prev_rule = LIST_PREV(&rule->list, typeof(rule), list);
+	next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
+
+	/* if no previous rule or previous rule is not early-hint, start a new response. Otherwise,
+	 * continue to add link to a previously started response */
+	if (&prev_rule->list == s->current_rule_list || prev_rule->action_ptr != http_action_early_hint) {
+		struct htx_sl *sl;
+		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
+				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
+
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+				    ist("HTTP/1.1"), ist("103"), ist("Early Hints"));
+		if (!sl)
+			goto error;
+		sl->info.res.status = 103;
+	}
+
+	/* Add the HTTP Early Hint HTTP 103 response heade */
+	value->data = build_logline(s, b_tail(value), b_room(value), &rule->arg.http.fmt);
+	if (!htx_add_header(htx, rule->arg.http.str, ist2(b_head(value), b_data(value))))
+		goto error;
+
+	/* if it is the last rule or the next one is not an early-hint, terminate the current
+	 * response. */
+	if (&next_rule->list == s->current_rule_list || next_rule->action_ptr != http_action_early_hint) {
+		size_t data;
+
+		if (!htx_add_endof(htx, HTX_BLK_EOH)) {
+			/* If an error occurred during an Early-hint rule,
+			 * remove the incomplete HTTP 103 response from the
+			 * buffer */
+			goto error;
+		}
+
+		data = htx->data - co_data(res);
+		c_adv(res, data);
+		res->total += data;
+	}
+
+  leave:
+	free_trash_chunk(value);
+	return ret;
+
+  error:
+	/* If an error occurred during an Early-hint rule, remove the incomplete
+	 * HTTP 103 response from the buffer */
+	channel_htx_truncate(res, htx);
+	ret = ACT_RET_ERR;
+	goto leave;
+}
+
 /* This function executes a set-header or add-header actions. It builds a string
  * in the trash from the specified format string. It finds the action to be
  * performed in <.action>, previously filled by function parse_set_header(). The
@@ -1016,8 +1096,10 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 {
 	int cap, cur_arg;
 
-	if (args[*orig_arg-1][0] == 'e')
-		rule->action = ACT_HTTP_EARLY_HINT;
+	if (args[*orig_arg-1][0] == 'e') {
+		rule->action = ACT_CUSTOM;
+		rule->action_ptr = http_action_early_hint;
+	}
 	else {
 		if (args[*orig_arg-1][0] == 's')
 			rule->action = 0; // set-header
