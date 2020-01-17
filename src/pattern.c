@@ -12,6 +12,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <common/config.h>
 #include <common/standard.h>
