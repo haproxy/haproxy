@@ -5056,7 +5056,7 @@ http-response replace-header <name> <regex-match> <replace-fmt>
 http-response replace-value <name> <regex-match> <replace-fmt>
                             [ { if | unless } <condition> ]
 
-  This works like "http-response replace-value" except that it works on the
+  This works like "http-request replace-value" except that it works on the
   server's response instead of the client's request.
 
   Example:
