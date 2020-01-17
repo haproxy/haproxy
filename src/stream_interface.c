@@ -1316,10 +1316,6 @@ int si_cs_recv(struct conn_stream *cs)
 
 		/* splice not possible (anymore), let's go on on standard copy */
 	}
-	else {
-		/* be sure not to block regular receive path below */
-		conn->flags &= ~CO_FL_WAIT_ROOM;
-	}
 
  abort_splice:
 	if (ic->pipe && unlikely(!ic->pipe->data)) {
@@ -1344,7 +1340,7 @@ int si_cs_recv(struct conn_stream *cs)
 	 * recv().
 	 */
 	while ((cs->flags & CS_FL_RCV_MORE) ||
-	    (!(conn->flags & (CO_FL_ERROR | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE)) &&
+	    (!(conn->flags & (CO_FL_ERROR | CO_FL_HANDSHAKE)) &&
 	       (!(cs->flags & (CS_FL_ERROR|CS_FL_EOS))) && !(ic->flags & CF_SHUTR))) {
 		/* <max> may be null. This is the mux responsibility to set
 		 * CS_FL_RCV_MORE on the CS if more space is needed.
