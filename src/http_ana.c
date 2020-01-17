@@ -2943,8 +2943,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	}
 	s->current_rule_list = rules;
 
-	/* start the ruleset evaluation in soft mode */
-	txn->req.flags |= HTTP_MSGF_SOFT_RW;
+	/* start the ruleset evaluation in strict mode */
+	txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	list_for_each_entry(rule, rules, list) {
 		/* check optional condition */
@@ -3312,9 +3312,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 			rule_ret = HTTP_RULE_RES_ERROR;
 	}
 
-	/* if the ruleset evaluation is finished reset the soft mode */
+	/* if the ruleset evaluation is finished reset the strict mode */
 	if (rule_ret != HTTP_RULE_RES_YIELD)
-		txn->req.flags |= HTTP_MSGF_SOFT_RW;
+		txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
@@ -3356,8 +3356,8 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 	}
 	s->current_rule_list = rules;
 
-	/* start the ruleset evaluation in soft mode */
-	txn->rsp.flags |= HTTP_MSGF_SOFT_RW;
+	/* start the ruleset evaluation in strict mode */
+	txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	list_for_each_entry(rule, rules, list) {
 		/* check optional condition */
@@ -3681,9 +3681,9 @@ resume_execution:
 	}
 
   end:
-	/* if the ruleset evaluation is finished reset the soft mode */
+	/* if the ruleset evaluation is finished reset the strict mode */
 	if (rule_ret != HTTP_RULE_RES_YIELD)
-		txn->rsp.flags |= HTTP_MSGF_SOFT_RW;
+		txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
@@ -5568,13 +5568,13 @@ struct http_txn *http_alloc_txn(struct stream *s)
 
 void http_txn_reset_req(struct http_txn *txn)
 {
-	txn->req.flags = HTTP_MSGF_SOFT_RW;
+	txn->req.flags = 0;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 }
 
 void http_txn_reset_res(struct http_txn *txn)
 {
-	txn->rsp.flags = HTTP_MSGF_SOFT_RW;
+	txn->rsp.flags = 0;
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 }
 

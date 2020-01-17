@@ -4838,7 +4838,7 @@ http-request strict-mode { on | off }
   rewrites optionnal while others must be performed to continue the request
   processing.
 
-  By default, the strict rewriting mode is disabled. Its value is also reset
+  By default, the strict rewriting mode is enabled. Its value is also reset
   when a ruleset evaluation ends. So, for instance, if you change the mode on
   the frontend, the default mode is restored when HAProxy starts the backend
   rules evaluation.
@@ -5241,7 +5241,7 @@ http-response strict-mode { on | off }
   rewrites optionnal while others must be performed to continue the response
   processing.
 
-  By default, the strict rewriting mode is disabled. Its value is also reset
+  By default, the strict rewriting mode is enabled. Its value is also reset
   when a ruleset evaluation ends. So, for instance, if you change the mode on
   the bacnkend, the default mode is restored when HAProxy starts the frontend
   rules evaluation.
