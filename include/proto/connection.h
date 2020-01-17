@@ -178,7 +178,7 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 	if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_WILL_UPDATE)) {
 		unsigned int flags = conn->flags;
 
-		flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA | CO_FL_WAIT_ROOM);
+		flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
 		if (fd_recv_active(conn->handle.fd))
 			flags |= CO_FL_CURR_RD_ENA;
 		if (fd_send_active(conn->handle.fd))

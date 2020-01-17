@@ -72,6 +72,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
+	conn->flags &= ~CO_FL_WAIT_ROOM;
 	conn_refresh_polling_flags(conn);
 	errno = 0;
 
@@ -239,6 +240,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
+	conn->flags &= ~CO_FL_WAIT_ROOM;
 	conn_refresh_polling_flags(conn);
 	errno = 0;
 
