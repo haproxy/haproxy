@@ -57,7 +57,7 @@ haproxy h1 -conf {
 	http-request set-header     sl1      "sl1: "
 
 	http-request set-method              "%[str(GET)]"
-	http-request set-uri                 concat(/bu/,req.uri,/eu)
+	http-request set-uri                 %[str(),concat(/bu/,req.uri,/eu)]
 	http-request set-path                "/bp/%[var(req.path)]/ep"
 	http-request set-query               "bq&%[var(req.query)]&eq"
 
@@ -124,7 +124,7 @@ haproxy h1 -conf {
 	http-request set-header     sl1      "sl1: "
 
 	http-request set-method              "%[str(GET)]"
-	http-request set-uri                 concat(/bu/,req.uri,/eu)
+	http-request set-uri                 %[str(),concat(/bu/,req.uri,/eu)]
 	http-request set-path                "/bp/%[var(req.path)]/ep"
 	http-request set-query               "bq&%[var(req.query)]&eq"
 
