@@ -111,6 +111,8 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	conn->ctx = ctx;
 	ctx->cs = cs;
 	cs->flags |= CS_FL_RCV_MORE;
+	if (global.tune.options & GTUNE_USE_SPLICE)
+		cs->flags |= CS_FL_MAY_SPLICE;
 	return 0;
 
  fail_free:

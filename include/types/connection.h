@@ -95,7 +95,7 @@ enum {
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
 	/* unused: 0x00002000 */
 	CS_FL_EOI           = 0x00004000,  /* end-of-input reached */
-	/* unused: 0x00008000 */
+	CS_FL_MAY_SPLICE    = 0x00008000,  /* caller may use rcv_pipe() only if this flag is set */
 	CS_FL_WAIT_FOR_HS   = 0x00010000,  /* This stream is waiting for handhskae */
 	CS_FL_KILL_CONN     = 0x00020000,  /* must kill the connection when the CS closes */
 
