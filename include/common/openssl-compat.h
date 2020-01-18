@@ -284,8 +284,11 @@ static inline void EVP_PKEY_up_ref(EVP_PKEY *pkey)
 #define X509_getm_notAfter      X509_get_notAfter
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL || defined LIBRESSL_VERSION_NUMBER)
+#if !defined(EVP_CTRL_AEAD_SET_IVLEN)
 #define EVP_CTRL_AEAD_SET_IVLEN EVP_CTRL_GCM_SET_IVLEN
+#endif
+
+#if !defined(EVP_CTRL_AEAD_SET_TAG)
 #define EVP_CTRL_AEAD_SET_TAG   EVP_CTRL_GCM_SET_TAG
 #endif
 
