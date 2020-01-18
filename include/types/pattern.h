@@ -150,8 +150,8 @@ struct pattern {
 		int i;                          /* integer value */
 		struct {
 			signed long long min, max;
-			int min_set :1;
-			int max_set :1;
+			unsigned int min_set:1;
+			unsigned int max_set:1;
 		} range; /* integer range */
 		struct {
 			struct in_addr addr;

@@ -36,8 +36,8 @@ struct pkey_info {
 struct sni_ctx {
 	SSL_CTX *ctx;             /* context associated to the certificate */
 	int order;                /* load order for the certificate */
-	uint8_t neg:1;              /* reject if match */
-	uint8_t wild:1;            /* wildcard sni */
+	unsigned int neg:1;       /* reject if match */
+	unsigned int wild:1;      /* wildcard sni */
 	struct pkey_info kinfo;   /* pkey info */
 	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
 	struct list by_ckch_inst; /* chained in ckch_inst's list of sni_ctx */
@@ -109,8 +109,8 @@ struct cert_key_and_chain {
  */
 struct ckch_store {
 	struct cert_key_and_chain *ckch;
-	int multi:1; /* is it a multi-cert bundle ? */
-	int filters:1; /* one of the instances is using filters, TODO:remove this flag once filters are supported */
+	unsigned int multi:1;  /* is it a multi-cert bundle ? */
+	unsigned int filters:1;/* one of the instances is using filters, TODO:remove this flag once filters are supported */
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct ebmb_node node;
 	char path[0];
