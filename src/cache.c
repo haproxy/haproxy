@@ -1452,7 +1452,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 			cconf = NULL;
 			memprintf(err, "%s: multiple explicit declarations of the cache filter '%s'",
 				  px->id, name);
-			return -1;
+			goto error;
 		}
 
 		/* Remove the implicit filter. <cconf> is kept for the explicit one */
