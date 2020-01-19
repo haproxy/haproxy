@@ -4694,7 +4694,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 #ifdef OPENSSL_IS_BORINGSSL
 	SSL_CTX_set_select_certificate_cb(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_err_cbk);
-#elif (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#elif defined(SSL_OP_NO_ANTI_REPLAY)
 	if (bind_conf->ssl_conf.early_data)
 		SSL_CTX_set_options(ctx, SSL_OP_NO_ANTI_REPLAY);
 	SSL_CTX_set_client_hello_cb(ctx, ssl_sock_switchctx_cbk, NULL);
