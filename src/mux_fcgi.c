@@ -3476,46 +3476,37 @@ static void fcgi_detach(struct conn_stream *cs)
 
 	if (!(fconn->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) &&
 	    !(fconn->flags & FCGI_CF_KEEP_CONN)) {
-		if (!fconn->conn->owner) {
+		/* Never ever allow to reuse a connection from a non-reuse backend */
+		if ((fconn->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+			fconn->conn->flags |= CO_FL_PRIVATE;
+		if (!fconn->conn->owner && (fconn->conn->flags & CO_FL_PRIVATE)) {
 			fconn->conn->owner = sess;
 			if (!session_add_conn(sess, fconn->conn, fconn->conn->target)) {
 				fconn->conn->owner = NULL;
 				if (eb_is_empty(&fconn->streams_by_id)) {
-					if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn)) {
-						/* The server doesn't want it, let's kill the connection right away */
-						fconn->conn->mux->destroy(fconn);
-						TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
-					}
-					TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
-					return;
+					/* let's kill the connection right away */
+					fconn->conn->mux->destroy(fconn);
+					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 				}
 			}
 		}
 		if (eb_is_empty(&fconn->streams_by_id)) {
-			int ret = session_check_idle_conn(fconn->conn->owner, fconn->conn);
-			if (ret == -1) {
+			if (sess && fconn->conn->owner == sess &&
+			    session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0) {
 				/* The connection is destroyed, let's leave */
 				TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 				return;
 			}
-			else if (ret == 1) {
-				/* The connection was added to the server idle list, just stop */
+			if (!(fconn->conn->flags & CO_FL_PRIVATE)) {
+				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn)) {
+					/* The server doesn't want it, let's kill the connection right away */
+					fconn->conn->mux->destroy(fconn);
+					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
+					return;
+				}
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-			TRACE_DEVEL("connection in idle session list", FCGI_EV_STRM_END, fconn->conn);
-		}
-		/* Never ever allow to reuse a connection from a non-reuse backend */
-		if ((fconn->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-			fconn->conn->flags |= CO_FL_PRIVATE;
-		if (!LIST_ADDED(&fconn->conn->list) && fconn->nb_streams < fconn->streams_limit) {
-			struct server *srv = objt_server(fconn->conn->target);
-
-			if (srv) {
-				if (!(fconn->conn->flags & CO_FL_PRIVATE))
-					LIST_ADD(&srv->idle_conns[tid], &fconn->conn->list);
-			}
-			TRACE_DEVEL("connection in idle server list", FCGI_EV_STRM_END, fconn->conn);
 		}
 	}
 

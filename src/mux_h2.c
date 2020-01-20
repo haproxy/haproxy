@@ -3874,37 +3874,38 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2c->flags & H2_CF_IS_BACK) {
 		if (!(h2c->conn->flags &
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
-			if (!h2c->conn->owner) {
+			/* Never ever allow to reuse a connection from a non-reuse backend */
+			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+				h2c->conn->flags |= CO_FL_PRIVATE;
+			if (!h2c->conn->owner && (h2c->conn->flags & CO_FL_PRIVATE)) {
 				h2c->conn->owner = sess;
 				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
 					h2c->conn->owner = NULL;
 					if (eb_is_empty(&h2c->streams_by_id)) {
-						if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn))
-							/* The server doesn't want it, let's kill the connection right away */
-							h2c->conn->mux->destroy(h2c);
+						h2c->conn->mux->destroy(h2c);
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}
 				}
 			}
 			if (eb_is_empty(&h2c->streams_by_id)) {
-				if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
+				if (sess && h2c->conn->owner == sess &&
+				    session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
 					/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
 					TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
 					return;
 				}
-			}
-			/* Never ever allow to reuse a connection from a non-reuse backend */
-			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-				h2c->conn->flags |= CO_FL_PRIVATE;
-			if (!LIST_ADDED(&h2c->conn->list) && h2c->nb_streams < h2c->streams_limit) {
-				struct server *srv = objt_server(h2c->conn->target);
+				if (!(h2c->conn->flags & CO_FL_PRIVATE)) {
+					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn)) {
+						/* The server doesn't want it, let's kill the connection right away */
+						h2c->conn->mux->destroy(h2c);
+						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
+						return;
+					}
+					TRACE_DEVEL("reusable idle connection", H2_EV_STRM_END);
+					return;
 
-				if (srv) {
-					if (!(h2c->conn->flags & CO_FL_PRIVATE))
-						LIST_ADD(&srv->idle_conns[tid], &h2c->conn->list);
 				}
-
 			}
 		}
 	}

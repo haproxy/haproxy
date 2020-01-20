@@ -2360,7 +2360,9 @@ static void h1_detach(struct conn_stream *cs)
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
 	struct session *sess;
+#if 0
 	int is_not_first;
+#endif
 
 	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
 
@@ -2374,7 +2376,9 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
+#if 0
 	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
+#endif
 	h1s_destroy(h1s);
 
 	if (conn_is_back(h1c->conn) && (h1c->flags & H1C_F_CS_IDLE)) {
@@ -2395,51 +2399,30 @@ static void h1_detach(struct conn_stream *cs)
 		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			h1c->conn->flags |= CO_FL_PRIVATE;
 
-		if (!(h1c->conn->owner)) {
+		if (!(h1c->conn->owner) && (h1c->conn->flags & CO_FL_PRIVATE)) {
 			h1c->conn->owner = sess;
 			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
 				h1c->conn->owner = NULL;
-				if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn)) {
-					/* The server doesn't want it, let's kill the connection right away */
-					h1c->conn->mux->destroy(h1c);
-					TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
-					goto end;
-				}
-				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
+				h1c->conn->mux->destroy(h1c);
 				goto end;
 			}
-		}
-		if (h1c->conn->owner == sess) {
-			int ret = session_check_idle_conn(sess, h1c->conn);
-			if (ret == -1) {
+			if (session_check_idle_conn(sess, h1c->conn)) {
 				/* The connection got destroyed, let's leave */
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto end;
 			}
-			else if (ret == 1) {
-				/* The connection was added to the server list,
-				 * wake the task so we can subscribe to events
-				 */
-				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
+		}
+		if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
+			if (h1c->conn->owner == sess)
+				h1c->conn->owner = NULL;
+			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn)) {
+				/* The server doesn't want it, let's kill the connection right away */
+				h1c->conn->mux->destroy(h1c);
+				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto end;
 			}
-			TRACE_DEVEL("connection in idle session list", H1_EV_STRM_END, h1c->conn);
-		}
-		/* we're in keep-alive with an idle connection, monitor it if not already done */
-		if (LIST_ISEMPTY(&h1c->conn->list)) {
-			struct server *srv = objt_server(h1c->conn->target);
-
-			if (srv) {
-				if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
-					if (is_not_first)
-						LIST_ADD(&srv->safe_conns[tid], &h1c->conn->list);
-					else
-						LIST_ADD(&srv->idle_conns[tid], &h1c->conn->list);
-				}
-				TRACE_DEVEL("connection in idle server list", H1_EV_STRM_END, h1c->conn);
-			}
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+			return;
 		}
 	}
 

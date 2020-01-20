@@ -82,8 +82,7 @@ void session_free(struct session *sess)
 			if (conn->mux) {
 				conn->owner = NULL;
 				conn->flags &= ~CO_FL_SESS_IDLE;
-				if (!srv_add_to_idle_list(objt_server(conn->target), conn))
-					conn->mux->destroy(conn->ctx);
+				conn->mux->destroy(conn->ctx);
 			} else {
 				/* We have a connection, but not yet an associated mux.
 				 * So destroy it now.

@@ -1093,14 +1093,12 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
-	struct connection *old_conn = NULL;
 	struct conn_stream *srv_cs = NULL;
 	struct sess_srv_list *srv_list;
 	struct server *srv;
 	int reuse = 0;
 	int reuse_orphan = 0;
 	int init_mux = 0;
-	int alloced_cs = 0;
 	int err;
 
 
@@ -1123,26 +1121,8 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (!reuse) {
-		/* no connection was found in our session's list. Pick any
-		 * random one that we could trade against another one.
-		 */
+	if (!reuse)
 		srv_conn = NULL;
-		if (!LIST_ISEMPTY(&s->sess->srv_list)) {
-			srv_list = LIST_ELEM(s->sess->srv_list.n, struct sess_srv_list *, srv_list);
-			if (!LIST_ISEMPTY(&srv_list->conn_list))
-				srv_conn = LIST_ELEM(srv_list->conn_list.n, struct connection *, session_list);
-		}
-
-	}
-	/* OK at this point we have this :
-	 *   - srv_conn points to an existing connection or NULL
-	 *   - if reuse is set, srv_conn holds a valid connection, otherwise it
-	 *     points to any of our old connections we may want to trade against
-	 *     another one
-	 */
-
-	old_conn = srv_conn;
 
 	srv = objt_server(s->target);
 
@@ -1283,29 +1263,6 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	/* We're about to use another connection, let the mux know we're
-	 * done with this one.
-	 */
-	if (old_conn != srv_conn && old_conn && reuse && !reuse_orphan) {
-		struct session *sess = srv_conn->owner;
-
-		if (sess) {
-			if (old_conn && !(old_conn->flags & CO_FL_PRIVATE) &&
-			    old_conn->mux != NULL) {
-				if (old_conn->flags & CO_FL_SESS_IDLE)
-					s->sess->idle_conns--;
-				session_unown_conn(s->sess, old_conn);
-				old_conn->owner = sess;
-				if (!session_add_conn(sess, old_conn, old_conn->target)) {
-					old_conn->flags &= ~CO_FL_SESS_IDLE;
-					old_conn->owner = NULL;
-					old_conn->mux->destroy(old_conn->ctx);
-				} else
-					session_check_idle_conn(sess, old_conn);
-			}
-		}
-	}
-
 	if (reuse) {
 		if (srv_conn->mux) {
 			int avail = srv_conn->mux->avail_streams(srv_conn);
@@ -1318,10 +1275,9 @@ int connect_server(struct stream *s)
 
 			if (avail >= 1) {
 				srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
-				if (srv_cs) {
-					alloced_cs = 1;
+				if (srv_cs)
 					si_attach_cs(&s->si[1], srv_cs);
-				} else
+				else
 					srv_conn = NULL;
 			}
 			else
@@ -1338,24 +1294,6 @@ int connect_server(struct stream *s)
 		if (srv_conn)
 			srv_conn->target = s->target;
 		srv_cs = NULL;
-	}
-
-	if (srv_conn && old_conn != srv_conn) {
-		if (srv_conn->owner)
-			session_unown_conn(srv_conn->owner, srv_conn);
-		srv_conn->owner = s->sess;
-		if (!session_add_conn(s->sess, srv_conn, srv_conn->target)) {
-			/* If we failed to attach the connection, detach the
-			 * conn_stream, possibly destroying the connection */
-			if (alloced_cs)
-				si_release_endpoint(&s->si[1]);
-			srv_conn->owner = NULL;
-			if (srv_conn->mux && !srv_add_to_idle_list(objt_server(srv_conn->target), srv_conn))
-			/* The server doesn't want it, let's kill the connection right away */
-				srv_conn->mux->destroy(srv_conn->ctx);
-			srv_conn = NULL;
-
-		}
 	}
 
 	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst))
