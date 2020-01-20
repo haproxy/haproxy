@@ -1,0 +1,164 @@
+varnishtest "Test the strict rewriting mode"
+#REQUIRE_VERSION=2.2
+
+# This config tests the strict-mode of HTTP rules.
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        txresp \
+          -status 200
+        expect req.method == "GET"
+        expect req.url == "/req1"
+        expect req.http.x-hdr1 == "123456789012345678901234567890123456789012345678901234567890"
+
+        accept
+        rxreq
+        txresp \
+          -status 200
+        expect req.method == "GET"
+        expect req.url == "/req3"
+        expect req.http.x-hdr1 == "123456789012345678901234567890123456789012345678901234567890"
+        expect req.http.x-hdr3 == <undef>
+} -start
+
+server s2 {
+        rxreq
+        txresp \
+          -status 200 \
+          -hdr "x-req: /req1" \
+          -bodylen 2000
+        expect req.method == "GET"
+        expect req.url == "/req1"
+
+        accept
+        rxreq
+        txresp \
+          -status 200 \
+          -hdr "x-req: /req2" \
+          -bodylen 2000
+        expect req.method == "GET"
+        expect req.url == "/req2"
+
+        accept
+        rxreq
+        txresp \
+          -status 200 \
+          -hdr "x-req: /req3" \
+          -bodylen 2000
+        expect req.method == "GET"
+        expect req.url == "/req3"
+
+        accept
+        rxreq
+        txresp \
+          -status 200 \
+          -hdr "x-req: /req4" \
+          -bodylen 2000
+        expect req.method == "GET"
+        expect req.url == "/req4"
+
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 2048
+        tune.maxrewrite 128
+
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+        option http-buffer-request
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request set-header x-hdr1 123456789012345678901234567890123456789012345678901234567890
+        http-request set-header x-hdr2 123456789012345678901234567890123456789012345678901234567890 if { path /req2 }
+        http-request strict-mode off if { path /req3 }
+        http-request set-header x-hdr3 123456789012345678901234567890123456789012345678901234567890 if { path /req3 }
+        default_backend be1
+
+    backend be1
+        http-request set-header x-hdr3 123456789012345678901234567890123456789012345678901234567890 if { path /req4 }
+        server s1 ${s1_addr}:${s1_port}
+
+    frontend fe2
+        bind "fd@${fe2}"
+        http-response set-header x-hdr4 123456789012345678901234567890123456789012345678901234567890 if { res.hdr(x-req) /req4 }
+        default_backend be2
+    backend be2
+        http-response set-header x-hdr1 123456789012345678901234567890123456789012345678901234567890
+        http-response set-header x-hdr2 123456789012345678901234567890123456789012345678901234567890 if { res.hdr(x-req) /req2 }
+        http-response strict-mode off if { res.hdr(x-req) /req3 }
+        http-response set-header x-hdr3 123456789012345678901234567890123456789012345678901234567890 if { res.hdr(-req) /req3 }
+        server s2 ${s2_addr}:${s2_port}
+
+} -start
+
+client c1r1  -connect ${h1_fe1_sock} {
+        txreq \
+          -req GET \
+          -url /req1 \
+          -bodylen 2000
+        rxresp
+        expect resp.status == 200
+} -run
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq \
+          -req GET \
+          -url /req2 \
+          -bodylen 2000
+        rxresp
+        expect resp.status == 500
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq \
+          -req GET \
+          -url /req3 \
+          -bodylen 2000
+        rxresp
+        expect resp.status == 200
+} -run
+client c1r4  -connect ${h1_fe1_sock} {
+        txreq \
+          -req GET \
+          -url /req4 \
+          -bodylen 2000
+        rxresp
+        expect resp.status == 500
+} -run
+
+client c2r1  -connect ${h1_fe2_sock} {
+        txreq \
+          -req GET \
+          -url /req1
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-hdr1 == "123456789012345678901234567890123456789012345678901234567890"
+} -run
+client c2r2  -connect ${h1_fe2_sock} {
+        txreq \
+          -req GET \
+          -url /req2
+        rxresp
+        expect resp.status == 500
+} -run
+client c2r3  -connect ${h1_fe2_sock} {
+        txreq \
+          -req GET \
+          -url /req3
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-hdr1 == "123456789012345678901234567890123456789012345678901234567890"
+        expect resp.http.x-hdr3 == <undef>
+} -run
+client c2r4  -connect ${h1_fe2_sock} {
+        txreq \
+          -req GET \
+          -url /req4
+        rxresp
+        expect resp.status == 500
+} -run
