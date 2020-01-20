@@ -1,0 +1,57 @@
+varnishtest "Test the custom erorrs for HTTP deny rules"
+#REQUIRE_VERSION=2.2
+
+# This config tests the custom errors for HTTP deny rules.
+
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+    http-errors errors-1
+        errorfile 400  ${testdir}/errors/400-1.http
+        errorfile 403  ${testdir}/errors/403-1.http
+        errorfile 404  ${testdir}/errors/404-1.http
+        errorfile 500  /dev/null
+
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 errorfile  ${testdir}/errors/403.http if { path /403 }
+        http-request deny deny_status 404 errorfiles errors-1 if { path /404 }
+        http-request deny deny_status 500 errorfile  /dev/null if { path /500-1 }
+        http-request deny deny_status 500 errorfiles errors-1 if { path /500-2 }
+
+} -start
+
+client c1r1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == <undef>
+} -run
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+	expect resp.http.x-err-type == "default"
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /404
+        rxresp
+        expect resp.status == 404
+	expect resp.http.x-err-type == "errors-1"
+} -run
+client c1r4  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /500-1
+        expect_close
+} -run
+client c1r5  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /500-2
+        expect_close
+} -run

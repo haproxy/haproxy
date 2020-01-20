@@ -1,0 +1,9 @@
+HTTP/1.1 400 Bad request
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+x-err-type: errors-3
+
+<html><body><h1>400 Bad request</h1>
+Your browser sent an invalid request.
+</body></html>

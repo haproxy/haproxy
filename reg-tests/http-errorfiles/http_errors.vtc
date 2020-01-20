@@ -1,0 +1,134 @@
+varnishtest "Test the errorfiles directive"
+#REQUIRE_VERSION=2.2
+
+# This config tests the errorfiles directive.
+
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+    http-errors errors-1
+        errorfile 400  ${testdir}/errors/400-1.http
+        errorfile 403  ${testdir}/errors/403-1.http
+        errorfile 404  ${testdir}/errors/404-1.http
+        errorfile 500  ${testdir}/errors/500-1.http
+
+    http-errors errors-2
+        errorfile 400  ${testdir}/errors/400-2.http
+        errorfile 403  ${testdir}/errors/403-2.http
+        errorfile 404  ${testdir}/errors/404-2.http
+
+    http-errors errors-3
+        errorfile 400  ${testdir}/errors/400-3.http
+        errorfile 404  ${testdir}/errors/404-3.http
+
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+	errorfiles errors-2
+        errorfile 400  ${testdir}/errors/400.http
+        errorfile 404  ${testdir}/errors/404.http
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 if { path /403 }
+        http-request deny deny_status 404 if { path /404 }
+        http-request deny deny_status 500 if { path /500 }
+
+    frontend fe2
+        bind "fd@${fe2}"
+        errorfiles errors-1
+        errorfile 500  ${testdir}/errors/500.http
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 if { path /403 }
+        http-request deny deny_status 404 if { path /404 }
+        http-request deny deny_status 500 if { path /500 }
+
+    frontend fe3
+        bind "fd@${fe3}"
+        errorfile 500  ${testdir}/errors/500.http
+        errorfiles errors-1 500
+        errorfiles errors-3 400
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 if { path /403 }
+        http-request deny deny_status 404 if { path /404 }
+        http-request deny deny_status 500 if { path /500 }
+} -start
+
+client c1r1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "default"
+} -run
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+	expect resp.http.x-err-type == "errors-2"
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /404
+        rxresp
+        expect resp.status == 404
+	expect resp.http.x-err-type == "default"
+} -run
+client c1r4  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /500
+        rxresp
+        expect resp.status == 500
+	expect resp.http.x-err-type == <undef>
+} -run
+
+client c2r1  -connect ${h1_fe2_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "errors-1"
+} -run
+client c2r2  -connect ${h1_fe2_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+	expect resp.http.x-err-type == "errors-1"
+} -run
+client c2r3  -connect ${h1_fe2_sock} {
+        txreq -req GET -url /404
+        rxresp
+        expect resp.status == 404
+	expect resp.http.x-err-type == "errors-1"
+} -run
+client c2r4  -connect ${h1_fe2_sock} {
+        txreq -req GET -url /500
+        rxresp
+        expect resp.status == 500
+	expect resp.http.x-err-type == "default"
+} -run
+
+client c3r1  -connect ${h1_fe3_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "errors-3"
+} -run
+client c3r2  -connect ${h1_fe3_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+	expect resp.http.x-err-type == "errors-2"
+} -run
+client c3r3  -connect ${h1_fe3_sock} {
+        txreq -req GET -url /404
+        rxresp
+        expect resp.status == 404
+	expect resp.http.x-err-type == "default"
+} -run
+client c3r4  -connect ${h1_fe3_sock} {
+        txreq -req GET -url /500
+        rxresp
+        expect resp.status == 500
+	expect resp.http.x-err-type == "errors-1"
+} -run

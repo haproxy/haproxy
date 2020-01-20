@@ -1,0 +1,9 @@
+HTTP/1.1 404 Not Found
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+x-err-type: errors-2
+
+<html><body><h1>404 Not Found</h1>
+The resource could not be found.
+</body></html>
