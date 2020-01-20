@@ -10493,7 +10493,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
 				list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
 					struct ckch_inst *new_inst;
-					int verify = 0;
 
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
@@ -10501,15 +10500,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						appctx->ctx.ssl.next_ckchi = ckchi;
 						goto yield;
 					}
-
-					/* prevent ssl_sock_prepare_ctx() to do file access which is only for verify (crl/ca file) */
-					verify = (ckchi->ssl_conf && ckchi->ssl_conf->verify) ? ckchi->ssl_conf->verify : ckchi->bind_conf->ssl_conf.verify;
-					if (verify & SSL_VERIFY_PEER) {
-						memprintf(&err, "%sCan't commit a certificate which use the 'verify' bind SSL option [%s:%d]\n", err ? err : "", ckchi->bind_conf->file, ckchi->bind_conf->line);
-						errcode |= ERR_FATAL | ERR_ABORT;
-						goto error;
-					}
-
 
 					if (new_ckchs->multi)
 						errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, NULL, 0, &new_inst, &err);
