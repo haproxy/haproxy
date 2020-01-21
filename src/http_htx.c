@@ -946,6 +946,7 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	http_err->node.key = strdup(file);
 	if (!http_err->node.key) {
 		memprintf(errmsg, "out of memory.");
+		free(http_err);
 		goto out;
 	}
 
@@ -996,6 +997,7 @@ struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **
 	http_err->node.key = strdup(key);
 	if (!http_err->node.key) {
 		memprintf(errmsg, "out of memory.");
+		free(http_err);
 		goto out;
 	}
 
@@ -1199,7 +1201,6 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!name || !conf_err) {
 		memprintf(err, "%s : out of memory.", args[0]);
-		ret = -1;
 		goto error;
 	}
 	conf_err->type = 0;
@@ -1222,8 +1223,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 			}
 			if (rc >= HTTP_ERR_SIZE) {
 				memprintf(err, "%s : status code '%d' not handled.", args[0], status);
-				ret = -1;
-				goto out;
+				goto error;
 			}
 		}
 	}
@@ -1236,6 +1236,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
   error:
 	free(name);
 	free(conf_err);
+	ret = -1;
 	goto out;
 }
 
