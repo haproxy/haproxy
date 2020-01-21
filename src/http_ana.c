@@ -4603,7 +4603,7 @@ struct buffer *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
-	if (s->txn && s->txn->errmsg)
+	if (s->txn->errmsg)
 		return s->txn->errmsg;
 	else if (s->be->errmsg[msgnum])
 		return s->be->errmsg[msgnum];
