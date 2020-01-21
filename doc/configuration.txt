@@ -3340,7 +3340,7 @@ compression offload
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ postonly ] [ preserve ] [ httponly ] [ secure ]
               [ domain <domain> ]* [ maxidle <idle> ] [ maxlife <life> ]
-              [ dynamic ]
+              [ dynamic ] [ attr <value> ]*
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -3498,6 +3498,11 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               "dynamic-cookie-key" backend directive.
               The cookie will be regenerated each time the IP address change,
               and is only generated for IPv4/IPv6.
+
+    attr      This option tells haproxy to add an extra attribute when a
+              cookie is inserted. The attribute value can contain any
+              characters except control ones or ";". This option may be
+              repeated.
 
   There can be only one persistence cookie per HTTP backend, and it can be
   declared in a defaults section. The value of the cookie will be the value

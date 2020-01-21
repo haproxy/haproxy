@@ -338,6 +338,7 @@ struct proxy {
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
+	char *cookie_attrs;                     /* list of attributes to add to the cookie */
 	char *dyncookie_key;			/* Secret key used to generate dynamic persistent cookies */
 	unsigned int cookie_maxidle;		/* max idle time for this cookie */
 	unsigned int cookie_maxlife;		/* max life time for this cookie */
