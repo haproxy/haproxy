@@ -3620,7 +3620,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 		if (appctx->ctx.table.data_op[i] < 0)
 			return cli_err(appctx, "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n");
 
-		if (!*args[5] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &appctx->ctx.table.value[i]) != 0)
+		if (!*args[5+3*i] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &appctx->ctx.table.value[i]) != 0)
 			return cli_err(appctx, "Require a valid integer value to compare against\n");
 	}
 
