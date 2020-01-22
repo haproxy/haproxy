@@ -242,6 +242,249 @@ ChangeLog :
     - CLEANUP: pattern: remove the pat_time definition
     - BUG/MINOR: http_act: don't check capture id in backend
     - BUG/MINOR: ssl: fix build on development versions of openssl-1.1.x
+    - [RELEASE] Released version 2.2-dev1
+
+2020/01/22 : 2.2-dev1
+    - DOC: this is development again
+    - MINOR: version: this is development again, update the status
+    - SCRIPTS: update create-release to fix the changelog on new branches
+    - CLEANUP: ssl: Clean up error handling
+    - BUG/MINOR: contrib/prometheus-exporter: decode parameter and value only
+    - BUG/MINOR: h1: Don't test the host header during response parsing
+    - BUILD/MINOR: trace: fix use of long type in a few printf format strings
+    - DOC: Clarify behavior of server maxconn in HTTP mode
+    - MINOR: ssl: deduplicate ca-file
+    - MINOR: ssl: compute ca-list from deduplicate ca-file
+    - MINOR: ssl: deduplicate crl-file
+    - CLEANUP: dns: resolution can never be null
+    - BUG/MINOR: http-htx: Don't make http_find_header() fail if the value is empty
+    - DOC: ssl/cli: set/commit/abort ssl cert
+    - BUG/MINOR: ssl: fix SSL_CTX_set1_chain compatibility for openssl < 1.0.2
+    - BUG/MINOR: fcgi-app: Make the directive pass-header case insensitive
+    - BUG/MINOR: stats: Fix HTML output for the frontends heading
+    - BUG/MINOR: ssl: fix X509 compatibility for openssl < 1.1.0
+    - DOC: clarify matching strings on binary fetches
+    - DOC: Fix ordered list in summary
+    - DOC: move the "group" keyword at the right place
+    - MEDIUM: init: prevent process and thread creation at runtime
+    - BUG/MINOR: ssl/cli: 'ssl cert' cmd only usable w/ admin rights
+    - BUG/MEDIUM: stream-int: don't subscribed for recv when we're trying to flush data
+    - BUG/MINOR: stream-int: avoid calling rcv_buf() when splicing is still possible
+    - BUG/MINOR: ssl/cli: don't overwrite the filters variable
+    - BUG/MEDIUM: listener/thread: fix a race when pausing a listener
+    - BUG/MINOR: ssl: certificate choice can be unexpected with openssl >= 1.1.1
+    - BUG/MEDIUM: mux-h1: Never reuse H1 connection if a shutw is pending
+    - BUG/MINOR: mux-h1: Don't rely on CO_FL_SOCK_RD_SH to set H1C_F_CS_SHUTDOWN
+    - BUG/MINOR: mux-h1: Fix conditions to know whether or not we may receive data
+    - BUG/MEDIUM: tasks: Make sure we switch wait queues in task_set_affinity().
+    - BUG/MEDIUM: checks: Make sure we set the task affinity just before connecting.
+    - MINOR: debug: replace popen() with pipe+fork() in "debug dev exec"
+    - MEDIUM: init: set NO_NEW_PRIVS by default when supported
+    - BUG/MINOR: mux-h1: Be sure to set CS_FL_WANT_ROOM when EOM can't be added
+    - BUG/MEDIUM: mux-fcgi: Handle cases where the HTX EOM block cannot be inserted
+    - BUG/MINOR: proxy: make soft_stop() also close FDs in LI_PAUSED state
+    - BUG/MINOR: listener/threads: always use atomic ops to clear the FD events
+    - BUG/MINOR: listener: also clear the error flag on a paused listener
+    - BUG/MEDIUM: listener/threads: fix a remaining race in the listener's accept()
+    - MINOR: listener: make the wait paths cleaner and more reliable
+    - MINOR: listener: split dequeue_all_listener() in two
+    - REORG: listener: move the global listener queue code to listener.c
+    - DOC: document the listener state transitions
+    - BUG/MEDIUM: kqueue: Make sure we report read events even when no data.
+    - BUG/MAJOR: dns: add minimalist error processing on the Rx path
+    - BUG/MEDIUM: proto_udp/threads: recv() and send() must not be exclusive.
+    - DOC: listeners: add a few missing transitions
+    - BUG/MINOR: tasks: only requeue a task if it was already in the queue
+    - MINOR: tasks: split wake_expired_tasks() in two parts to avoid useless wakeups
+    - DOC: proxies: HAProxy only supports 3 connection modes
+    - DOC: remove references to the outdated architecture.txt
+    - BUG/MINOR: log: fix minor resource leaks on logformat error path
+    - BUG/MINOR: mworker: properly pass SIGTTOU/SIGTTIN to workers
+    - BUG/MINOR: listener: do not immediately resume on transient error
+    - BUG/MINOR: server: make "agent-addr" work on default-server line
+    - BUG/MINOR: listener: fix off-by-one in state name check
+    - BUILD/MINOR: unix sockets: silence an absurd gcc warning about strncpy()
+    - MEDIUM: h1-htx: Add HTX EOM block when the message is in H1_MSG_DONE state
+    - MINOR: http-htx: Add some htx sample fetches for debugging purpose
+    - REGTEST: Add an HTX reg-test to check an edge case
+    - DOC: clarify the fact that replace-uri works on a full URI
+    - BUG/MINOR: sample: fix the closing bracket and LF in the debug converter
+    - BUG/MINOR: sample: always check converters' arguments
+    - MINOR: sample: Validate the number of bits for the sha2 converter
+    - BUG/MEDIUM: ssl: Don't set the max early data we can receive too early.
+    - MINOR: ssl/cli: 'show ssl cert' give information on the certificates
+    - BUG/MINOR: ssl/cli: fix build for openssl < 1.0.2
+    - MINOR: debug: support logging to various sinks
+    - MINOR: http: add a new "replace-path" action
+    - REGTEST: ssl: test the "set ssl cert" CLI command
+    - REGTEST: run-regtests: implement #REQUIRE_BINARIES
+    - MINOR: task: only check TASK_WOKEN_ANY to decide to requeue a task
+    - BUG/MAJOR: task: add a new TASK_SHARED_WQ flag to fix foreing requeuing
+    - BUG/MEDIUM: ssl: Revamp the way early data are handled.
+    - MINOR: fd/threads: make _GET_NEXT()/_GET_PREV() use the volatile attribute
+    - BUG/MEDIUM: fd/threads: fix a concurrency issue between add and rm on the same fd
+    - REGTEST: make the "set ssl cert" require version 2.1
+    - BUG/MINOR: ssl: openssl-compat: Fix getm_ defines
+    - BUG/MEDIUM: state-file: do not allocate a full buffer for each server entry
+    - BUG/MINOR: state-file: do not store duplicates in the global tree
+    - BUG/MINOR: state-file: do not leak memory on parse errors
+    - BUG/MAJOR: mux-h1: Don't pretend the input channel's buffer is full if empty
+    - BUG/MEDIUM: stream: Be sure to never assign a TCP backend to an HTX stream
+    - BUILD: ssl: improve SSL_CTX_set_ecdh_auto compatibility
+    - BUILD: travis-ci: link with ssl libraries using rpath instead of LD_LIBRARY_PATH/DYLD_LIBRARY_PATH
+    - BUILD: travis-ci: reenable address sanitizer for clang builds
+    - BUG/MINOR: checks: refine which errno values are really errors.
+    - BUG/MINOR: connection: only wake send/recv callbacks if the FD is active
+    - CLEANUP: connection: conn->xprt is never NULL
+    - MINOR: pollers: add a new flag to indicate pollers reporting ERR & HUP
+    - MEDIUM: tcp: make tcp_connect_probe() consider ERR/HUP
+    - REORG: connection: move tcp_connect_probe() to conn_fd_check()
+    - MINOR: connection: check for connection validation earlier
+    - MINOR: connection: remove the double test on xprt_done_cb()
+    - CLEANUP: connection: merge CO_FL_NOTIFY_DATA and CO_FL_NOTIFY_DONE
+    - MINOR: poller: do not call the IO handler if the FD is not active
+    - OPTIM: epoll: always poll for recv if neither active nor ready
+    - OPTIM: polling: do not create update entries for FD removal
+    - BUG/MEDIUM: checks: Only attempt to do handshakes if the connection is ready.
+    - BUG/MEDIUM: connections: Hold the lock when wanting to kill a connection.
+    - BUILD: CI: modernize cirrus-ci
+    - MINOR: config: disable busy polling on old processes
+    - MINOR: ssl: Remove unused variable "need_out".
+    - BUG/MINOR: h1: Report the right error position when a header value is invalid
+    - BUG/MINOR: proxy: Fix input data copy when an error is captured
+    - BUG/MEDIUM: http-ana: Truncate the response when a redirect rule is applied
+    - BUG/MINOR: channel: inject output data at the end of output
+    - BUG/MEDIUM: session: do not report a failure when rejecting a session
+    - MEDIUM: dns: implement synchronous send
+    - MINOR: raw_sock: make sure to disable polling once everything is sent
+    - MINOR: http: Add 410 to http-request deny
+    - MINOR: http: Add 404 to http-request deny
+    - CLEANUP: mux-h2: remove unused goto "out_free_h2s"
+    - BUILD: cirrus-ci: choose proper openssl package name
+    - BUG/MAJOR: listener: do not schedule a task-less proxy
+    - CLEANUP: server: remove unused err section in server_finalize_init
+    - REGTEST: set_ssl_cert.vtc: replace "echo" with "printf"
+    - BUG/MINOR: stream-int: Don't trigger L7 retry if max retries is already reached
+    - BUG/MEDIUM: tasks: Use the MT macros in tasklet_free().
+    - BUG/MINOR: mux-h2: use a safe list_for_each_entry in h2_send()
+    - BUG/MEDIUM: mux-h2: fix missing test on sending_list in previous patch
+    - CLEANUP: ssl: remove opendir call in ssl_sock_load_cert
+    - MEDIUM: lua: don't call the GC as often when dealing with outgoing connections
+    - BUG/MEDIUM: mux-h2: don't stop sending when crossing a buffer boundary
+    - BUG/MINOR: cli/mworker: can't start haproxy with 2 programs
+    - REGTEST: mcli/mcli_start_progs: start 2 programs
+    - BUG/MEDIUM: mworker: remain in mworker mode during reload
+    - DOC: clarify crt-base usage
+    - CLEANUP: compression: remove unused deinit_comp_ctx section
+    - BUG/MEDIUM: mux_h1: Don't call h1_send if we subscribed().
+    - BUG/MEDIUM: raw_sock: Make sur the fd and conn are sync.
+    - CLEANUP: proxy: simplify proxy_parse_rate_limit proxy checks
+    - BUG/MAJOR: hashes: fix the signedness of the hash inputs
+    - REGTEST: add sample_fetches/hashes.vtc to validate hashes
+    - BUG/MEDIUM: cli: _getsocks must send the peers sockets
+    - CLEANUP: cli: deduplicate the code in _getsocks
+    - BUG/MINOR: stream: don't mistake match rules for store-request rules
+    - BUG/MEDIUM: connection: add a mux flag to indicate splice usability
+    - BUG/MINOR: pattern: handle errors from fgets when trying to load patterns
+    - MINOR: connection: move the CO_FL_WAIT_ROOM cleanup to the reader only
+    - MINOR: stream-int: remove dependency on CO_FL_WAIT_ROOM for rcv_buf()
+    - MEDIUM: connection: get rid of CO_FL_CURR_* flags
+    - BUILD: pattern: include errno.h
+    - MEDIUM: mux-h2: do not try to stop sending streams on blocked mux
+    - MEDIUM: mux-fcgi: do not try to stop sending streams on blocked mux
+    - MEDIUM: mux-h2: do not make an h2s subscribe to itself on deferred shut
+    - MEDIUM: mux-fcgi: do not make an fstrm subscribe to itself on deferred shut
+    - REORG: stream/backend: move backend-specific stuff to backend.c
+    - MEDIUM: backend: move the connection finalization step to back_handle_st_con()
+    - MEDIUM: connection: merge the send_wait and recv_wait entries
+    - MEDIUM: xprt: merge recv_wait and send_wait in xprt_handshake
+    - MEDIUM: ssl: merge recv_wait and send_wait in ssl_sock
+    - MEDIUM: mux-h1: merge recv_wait and send_wait
+    - MEDIUM: mux-h2: merge recv_wait and send_wait event notifications
+    - MEDIUM: mux-fcgi: merge recv_wait and send_wait event notifications
+    - MINOR: connection: make the last arg of subscribe() a struct wait_event*
+    - MINOR: ssl: Add support for returning the dn samples from ssl_(c|f)_(i|s)_dn in LDAP v3 (RFC2253) format.
+    - DOC: Fix copy and paste mistake in http-response replace-value doc
+    - BUG/MINOR: cache: Fix leak of cache name in error path
+    - BUG/MINOR: dns: Make dns_query_id_seed unsigned
+    - BUG/MINOR: 51d: Fix bug when HTX is enabled
+    - MINOR: http-htx: Move htx sample fetches in the scope "internal"
+    - MINOR: http-htx: Rename 'internal.htx_blk.val' to 'internal.htx_blk.data'
+    - MINOR: http-htx: Make 'internal.htx_blk_data' return a binary string
+    - DOC: Add a section to document the internal sample fetches
+    - MINOR: mux-h1: Inherit send flags from the upper layer
+    - MINOR: contrib/prometheus-exporter: Add heathcheck status/code in server metrics
+    - BUG/MINOR: http-ana/filters: Wait end of the http_end callback for all filters
+    - BUG/MINOR: http-rules: Remove buggy deinit functions for HTTP rules
+    - BUG/MINOR: stick-table: Use MAX_SESS_STKCTR as the max track ID during parsing
+    - MEDIUM: http-rules: Register an action keyword for all http rules
+    - MINOR: tcp-rules: Always set from which ruleset a rule comes from
+    - MINOR: actions: Use ACT_RET_CONT code to ignore an error from a custom action
+    - MINOR: tcp-rules: Kill connections when custom actions return ACT_RET_ERR
+    - MINOR: http-rules: Return an error when custom actions return ACT_RET_ERR
+    - MINOR: counters: Add a counter to report internal processing errors
+    - MEDIUM: http-ana: Properly handle internal processing errors
+    - MINOR: http-rules: Add a rule result to report internal error
+    - MINOR: http-rules: Handle internal errors during HTTP rules evaluation
+    - MINOR: http-rules: Add more return codes to let custom actions act as normal ones
+    - MINOR: tcp-rules: Handle denied/aborted/invalid connections from TCP rules
+    - MINOR: http-rules: Handle denied/aborted/invalid connections from HTTP rules
+    - MINOR: stats: Report internal errors in the proxies/listeners/servers stats
+    - MINOR: contrib/prometheus-exporter: Export internal errors per proxy/server
+    - MINOR: counters: Remove failed_secu counter and use denied_resp instead
+    - MINOR: counters: Review conditions to increment counters from analysers
+    - MINOR: http-ana: Add a txn flag to support soft/strict message rewrites
+    - MINOR: http-rules: Handle all message rewrites the same way
+    - MINOR: http-rules: Add a rule to enable or disable the strict rewriting mode
+    - MEDIUM: http-rules: Enable the strict rewriting mode by default
+    - REGTEST: Fix format of set-uri HTTP request rule in h1or2_to_h1c.vtc
+    - MINOR: actions: Add a function pointer to release args used by actions
+    - MINOR: actions: Regroup some info about HTTP rules in the same struct
+    - MINOR: http-rules/tcp-rules: Call the defined action function first if defined
+    - MINOR: actions: Rename the act_flag enum into act_opt
+    - MINOR: actions: Add flags to configure the action behaviour
+    - MINOR: actions: Use an integer to set the action type
+    - MINOR: http-rules: Use a specific action type for some custom HTTP actions
+    - MINOR: http-rules: Make replace-header and replace-value custom actions
+    - MINOR: http-rules: Make set-header and add-header custom actions
+    - MINOR: http-rules: Make set/del-map and add/del-acl custom actions
+    - MINOR: http-rules: Group all processing of early-hint rule in its case clause
+    - MEDIUM: http-rules: Make early-hint custom actions
+    - MINOR: http-rule/tcp-rules: Make track-sc* custom actions
+    - MINOR: tcp-rules: Make tcp-request capture a custom action
+    - MINOR: http-rules: Add release functions for existing HTTP actions
+    - BUG/MINOR: http-rules: Fix memory releases on error path during action parsing
+    - MINOR: tcp-rules: Add release functions for existing TCP actions
+    - BUG/MINOR: tcp-rules: Fix memory releases on error path during action parsing
+    - MINOR: http-htx: Add functions to read a raw error file and convert it in HTX
+    - MINOR: http-htx: Add functions to create HTX redirect message
+    - MINOR: config: Use dedicated function to parse proxy's errorfiles
+    - MINOR: config: Use dedicated function to parse proxy's errorloc
+    - MEDIUM: http-htx/proxy: Use a global and centralized storage for HTTP error messages
+    - MINOR: proxy: Register keywords to parse errorfile and errorloc directives
+    - MINOR: http-htx: Add a new section to create groups of custom HTTP errors
+    - MEDIUM: proxy: Add a directive to reference an http-errors section in a proxy
+    - MINOR: http-rules: Update txn flags and status when a deny rule is executed
+    - MINOR: http-rules: Support an optional status on deny rules for http reponses
+    - MINOR: http-rules: Use same function to parse request and response deny actions
+    - MINOR: http-ana: Add an error message in the txn and send it when defined
+    - MEDIUM: http-rules: Support an optional error message in http deny rules
+    - REGTEST: Add a strict rewriting mode reg test
+    - REGEST: Add reg tests about error files
+    - MINOR: ssl: accept 'verify' bind option with 'set ssl cert'
+    - BUG/MINOR: ssl: ssl_sock_load_ocsp_response_from_file memory leak
+    - BUG/MINOR: ssl: ssl_sock_load_issuer_file_into_ckch memory leak
+    - BUG/MINOR: ssl: ssl_sock_load_sctl_from_file memory leak
+    - BUG/MINOR: http_htx: Fix some leaks on error path when error files are loaded
+    - CLEANUP: http-ana: Remove useless test on txn when the error message is retrieved
+    - BUILD: CI: introduce ARM64 builds
+    - BUILD: ssl: more elegant anti-replay feature presence check
+    - MINOR: proxy/http-ana: Add support of extra attributes for the cookie directive
+    - MEDIUM: dns: use Additional records from SRV responses
+    - CLEANUP: Consistently `unsigned int` for bitfields
+    - CLEANUP: pattern: remove the pat_time definition
+    - BUG/MINOR: http_act: don't check capture id in backend
+    - BUG/MINOR: ssl: fix build on development versions of openssl-1.1.x
 
 2019/11/25 : 2.2-dev0
     - exact copy of 2.1.0
