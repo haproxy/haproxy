@@ -3601,6 +3601,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 static int table_prepare_data_request(struct appctx *appctx, char **args)
 {
 	int i;
+	char *err = NULL;
 
 	if (appctx->ctx.table.action != STK_CLI_ACT_SHOW && appctx->ctx.table.action != STK_CLI_ACT_CLR)
 		return cli_err(appctx, "content-based lookup is only supported with the \"show\" and \"clear\" actions\n");
@@ -3611,17 +3612,21 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 		/* condition on stored data value */
 		appctx->ctx.table.data_type[i] = stktable_get_data_type(args[3+3*i] + 5);
 		if (appctx->ctx.table.data_type[i] < 0)
-			return cli_err(appctx, "Unknown data type\n");
+			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Unknown data type\n", i + 1));
 
 		if (!((struct stktable *)appctx->ctx.table.target)->data_ofs[appctx->ctx.table.data_type[i]])
-			return cli_err(appctx, "Data type not stored in this table\n");
+			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Data type not stored in this table\n", i + 1));
 
 		appctx->ctx.table.data_op[i] = get_std_op(args[4+3*i]);
 		if (appctx->ctx.table.data_op[i] < 0)
-			return cli_err(appctx, "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n");
+			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n", i + 1));
 
 		if (!*args[5+3*i] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &appctx->ctx.table.value[i]) != 0)
-			return cli_err(appctx, "Require a valid integer value to compare against\n");
+			return cli_dynerr(appctx, memprintf(&err, "Filter entry #%i: Require a valid integer value to compare against\n", i + 1));
+	}
+
+	if (*args[3+3*i]) {
+		return cli_dynerr(appctx, memprintf(&err, "Detected extra data in filter, %ith word of input, after '%s'\n", 3+3*i + 1, args[2+3*i]));
 	}
 
 	/* OK we're done, all the fields are set */
