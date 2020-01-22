@@ -1083,7 +1083,8 @@ static void assign_tproxy_address(struct stream *s)
  */
 static int conn_complete_server(struct connection *conn)
 {
-	struct stream *s = container_of(conn->ctx, struct stream, si[1].end);
+	struct conn_stream *cs = conn->ctx;
+	struct stream *s = si_strm((struct stream_interface *)cs->data);
 
 	task_wakeup(s->task, TASK_WOKEN_IO);
 	conn_clear_xprt_done_cb(conn);
@@ -1408,32 +1409,20 @@ int connect_server(struct stream *s)
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
+		srv_cs = si_alloc_cs(&s->si[1], srv_conn);
+		if (!srv_cs) {
+			conn_free(srv_conn);
+			return SF_ERR_RESOURCE;
+		}
+		srv_conn->ctx = srv_cs;
 		if (!srv ||
 		    ((!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
 		    srv->mux_proto || s->be->mode != PR_MODE_HTTP))
 #endif
-		{
-			srv_cs = objt_cs(s->si[1].end);
-			if (!srv_cs || srv_cs->conn != srv_conn)
-				srv_cs = si_alloc_cs(&s->si[1], srv_conn);
-			if (!srv_cs) {
-				conn_free(srv_conn);
-				return SF_ERR_RESOURCE;
-			}
 			init_mux = 1;
-		}
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-		else {
-			srv_conn->ctx = &s->si[1].end;
-			/* Store the connection into the stream interface,
-			 * while we still don't have a mux, so that if the
-			 * stream is destroyed before the connection is
-			 * established, we have a chance to destroy it even
-			 * if it is no longer referenced in the session.
-			 */
-			s->si[1].end = &srv_conn->obj_type;
+		else
 			conn_set_xprt_done_cb(srv_conn, conn_complete_server);
-		}
 
 #endif
 		/* process the case where the server requires the PROXY protocol to be sent */
@@ -1978,10 +1967,6 @@ void back_handle_st_con(struct stream *s)
 
 		if (conn->flags & CO_FL_ERROR)
 			goto fail;
-		si_detach_endpoint(&s->si[1]);
-		srv_cs = si_alloc_cs(&s->si[1], conn);
-		if (!srv_cs)
-			goto fail;
 		if (conn_install_mux_be(conn, srv_cs, s->sess) < 0)
 			goto fail;
 		srv = objt_server(s->target);
@@ -1991,16 +1976,7 @@ void back_handle_st_con(struct stream *s)
 		goto done;
 
 	fail:
-		si_detach_endpoint(&s->si[1]);
-		if (srv_cs)
-			cs_free(srv_cs);
-		/* kill the connection now */
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		conn_free(conn);
-		conn = NULL;
-		/* Let process_stream know it went wrong */
-		s->si[1].flags |= SI_FL_ERR;
+		si_release_endpoint(&s->si[1]);
 	}
 
  done:

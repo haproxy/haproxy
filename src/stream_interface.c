@@ -923,7 +923,7 @@ void si_sync_send(struct stream_interface *si)
 		return;
 
 	cs = objt_cs(si->end);
-	if (!cs)
+	if (!cs || !cs->conn->mux)
 		return;
 
 	si_cs_send(cs);

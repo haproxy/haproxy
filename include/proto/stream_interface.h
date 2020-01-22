@@ -172,7 +172,6 @@ static inline enum obj_type *si_detach_endpoint(struct stream_interface *si)
  */
 static inline void si_release_endpoint(struct stream_interface *si)
 {
-	struct connection *conn;
 	struct conn_stream *cs;
 	struct appctx *appctx;
 
@@ -189,10 +188,6 @@ static inline void si_release_endpoint(struct stream_interface *si)
 		if (appctx->applet->release && !si_state_in(si->state, SI_SB_DIS|SI_SB_CLO))
 			appctx->applet->release(appctx);
 		appctx_free(appctx);
-	} else if ((conn = objt_conn(si->end))) {
-		conn_stop_tracking(conn);
-		conn_full_close(conn);
-		conn_free(conn);
 	}
 	si_detach_endpoint(si);
 }
@@ -478,7 +473,7 @@ static inline int si_sync_recv(struct stream_interface *si)
 		return 0;
 
 	cs = objt_cs(si->end);
-	if (!cs)
+	if (!cs || !cs->conn->mux)
 		return 0; // only conn_streams are supported
 
 	if (si->wait_event.events & SUB_RETRY_RECV)
