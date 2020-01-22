@@ -3274,6 +3274,7 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 {
 	BIO *in = NULL;
 	int ret = 1;
+	int i;
 	X509 *ca;
 	X509 *cert = NULL;
 	EVP_PKEY *key = NULL;
@@ -3387,6 +3388,15 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	SWAP(ckch->cert, cert);
 	SWAP(ckch->chain, chain);
 
+	/* check if one of the certificate of the chain is the issuer */
+	for (i = 0; i < sk_X509_num(ckch->chain); i++) {
+		X509 *issuer = sk_X509_value(ckch->chain, i);
+		if (X509_check_issued(issuer, ckch->cert) == X509_V_OK) {
+			ckch->ocsp_issuer = issuer;
+			X509_up_ref(issuer);
+			break;
+		}
+	}
 	ret = 0;
 
 end:
@@ -3464,22 +3474,8 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 
 #ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
 	if (ckch->ocsp_response) {
-		X509 *issuer;
-		int i;
-
-		/* check if one of the certificate of the chain is the issuer */
-		for (i = 0; i < sk_X509_num(ckch->chain); i++) {
-			issuer = sk_X509_value(ckch->chain, i);
-			if (X509_check_issued(issuer, ckch->cert) == X509_V_OK) {
-				ckch->ocsp_issuer = issuer;
-				X509_up_ref(ckch->ocsp_issuer);
-				break;
-			} else
-				issuer = NULL;
-		}
-
 		/* if no issuer was found, try to load an issuer from the .issuer */
-		if (!issuer) {
+		if (!ckch->ocsp_issuer) {
 			struct stat st;
 			char fp[MAXPATHLEN+1];
 
