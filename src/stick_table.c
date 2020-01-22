@@ -3617,7 +3617,7 @@ static int table_prepare_data_request(struct appctx *appctx, char **args)
 			return cli_err(appctx, "Data type not stored in this table\n");
 
 		appctx->ctx.table.data_op[i] = get_std_op(args[4+3*i]);
-		if (appctx->ctx.table.data_op < 0)
+		if (appctx->ctx.table.data_op[i] < 0)
 			return cli_err(appctx, "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n");
 
 		if (!*args[5] || strl2llrc(args[5+3*i], strlen(args[5+3*i]), &appctx->ctx.table.value[i]) != 0)
@@ -3755,12 +3755,12 @@ static int cli_io_handler_table(struct appctx *appctx)
 			if (appctx->ctx.table.data_type[0] >= 0) {
 				/* we're filtering on some data contents */
 				void *ptr;
-				int dt;
+				int dt, i;
 				signed char op;
 				long long data, value;
 
 
-				for (int i = 0; i < STKTABLE_FILTER_LEN; i++) {
+				for (i = 0; i < STKTABLE_FILTER_LEN; i++) {
 					if (appctx->ctx.table.data_type[i] == -1)
 						break;
 					dt = appctx->ctx.table.data_type[i];
