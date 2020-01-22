@@ -107,8 +107,11 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
 	goto leave;
 }
 
@@ -227,8 +230,11 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
 	goto leave;
 }
 
@@ -289,8 +295,11 @@ static enum act_return action_http_set_status(struct act_rule *rule, struct prox
 		if (objt_server(s->target))
 			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 			return ACT_RET_ERR;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_PRXCOND;
+		}
 	}
 
 	return ACT_RET_CONT;
@@ -1187,8 +1196,11 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(msg->flags & HTTP_MSGF_SOFT_RW))
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
 	goto leave;
 }
 
@@ -1297,8 +1309,11 @@ static enum act_return http_action_replace_header(struct act_rule *rule, struct 
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(msg->flags & HTTP_MSGF_SOFT_RW))
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
 	goto leave;
 }
 
