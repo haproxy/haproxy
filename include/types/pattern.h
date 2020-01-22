@@ -121,13 +121,6 @@ struct pat_ref_elt {
 	int line;
 };
 
-/* How to store a time range and the valid days in 29 bits */
-struct pat_time {
-	int dow:7;              /* 1 bit per day of week: 0-6 */
-	int h1:5, m1:6;         /* 0..24:0..60. Use 0:0 for all day. */
-	int h2:5, m2:6;         /* 0..24:0..60. Use 24:0 for all day. */
-};
-
 /* This contain each tree indexed entry. This struct permit to associate
  * "sample" with a tree entry. It is used with maps.
  */
@@ -161,7 +154,6 @@ struct pattern {
 			struct in6_addr addr;
 			unsigned char mask;     /* number of bits */
 		} ipv6;                         /* IPv6 address/mask */
-		struct pat_time time;           /* valid hours and days */
 		struct eb_root *tree;           /* tree storing all values if any */
 	} val;                                  /* direct value */
 	union {
