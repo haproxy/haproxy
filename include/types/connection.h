@@ -437,10 +437,7 @@ struct cs_info {
  * socket, and can also be made to an internal applet. It can support
  * several transport schemes (raw, ssl, ...). It can support several
  * connection control schemes, generally a protocol for socket-oriented
- * connections, but other methods for applets. The xprt_done_cb() callback
- * is called once the transport layer initialization is done (success or
- * failure). It may return < 0 to report an error and require an abort of the
- * connection being instanciated. It must be removed once done.
+ * connections, but other methods for applets.
  */
 struct connection {
 	/* first cache line */
@@ -462,7 +459,6 @@ struct connection {
 	struct list session_list;     /* List of attached connections to a session */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;
-	int (*xprt_done_cb)(struct connection *conn);  /* callback to notify of end of handshake */
 
 	/* third cache line and beyond */
 	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */

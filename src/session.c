@@ -32,7 +32,7 @@ DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
 DECLARE_POOL(pool_head_sess_srv_list, "session server list",
 		sizeof(struct sess_srv_list));
 
-static int conn_complete_session(struct connection *conn);
+int conn_complete_session(struct connection *conn);
 static struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state);
 
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
@@ -274,8 +274,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		if (unlikely((sess->task = task_new(tid_bit)) == NULL))
 			goto out_free_sess;
 
-		conn_set_xprt_done_cb(cli_conn, conn_complete_session);
-
 		sess->task->context = sess;
 		sess->task->nice    = l->nice;
 		sess->task->process = session_expire_embryonic;
@@ -422,21 +420,15 @@ static struct task *session_expire_embryonic(struct task *t, void *context, unsi
 
 /* Finish initializing a session from a connection, or kills it if the
  * connection shows and error. Returns <0 if the connection was killed. It may
- * be called either asynchronously as an xprt_done callback with an embryonic
+ * be called either asynchronously when ssl handshake is done with an embryonic
  * session, or synchronously to finalize the session. The distinction is made
  * on sess->task which is only set in the embryonic session case.
  */
-static int conn_complete_session(struct connection *conn)
+int conn_complete_session(struct connection *conn)
 {
 	struct session *sess = conn->owner;
 
 	sess->t_handshake = tv_ms_elapsed(&sess->tv_accept, &now);
-
-	conn_clear_xprt_done_cb(conn);
-
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;

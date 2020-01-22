@@ -112,13 +112,13 @@ out:
 			conn->xprt->remove_xprt(conn, conn->xprt_ctx, ctx,
 			    ctx->xprt, ctx->xprt_ctx);
 		/* If we're the first xprt for the connection, let the
-		 * upper layers know. If xprt_done_cb() is set, call it,
-		 * and if we have a mux, and it has a wake method, call it
-		 * too.
+		 * upper layers know. If no mux was set up yet, then call
+		 * conn_create_mux, and if we have a mux, and it has a wake
+		 * method, call it too.
 		 */
 		if (was_conn_ctx) {
-			if (ctx->conn->xprt_done_cb)
-				ret = ctx->conn->xprt_done_cb(ctx->conn);
+			if (!ctx->conn->mux)
+				ret = conn_create_mux(ctx->conn);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
 				ret = ctx->conn->mux->wake(ctx->conn);
 		}

@@ -41,6 +41,34 @@ struct mux_proto_list mux_proto_list = {
         .list = LIST_HEAD_INIT(mux_proto_list.list)
 };
 
+int conn_create_mux(struct connection *conn)
+{
+	/* Verify if the connection just established. */
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+		conn->flags |= CO_FL_CONNECTED;
+
+	if (conn_is_back(conn)) {
+		struct server *srv;
+		struct conn_stream *cs = conn->ctx;
+
+		if (conn->flags & CO_FL_ERROR)
+			goto fail;
+		if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
+			goto fail;
+		srv = objt_server(conn->target);
+		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+		    conn->mux->avail_streams(conn) > 0)
+			LIST_ADD(&srv->idle_conns[tid], &conn->list);
+		return 0;
+fail:
+		/* let the upper layer know the connection failed */
+		cs->data_cb->wake(cs);
+		return -1;
+	} else
+		return conn_complete_session(conn);
+
+}
+
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops, which must be valid.
  */
@@ -111,17 +139,13 @@ void conn_fd_handler(int fd)
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
 		conn->flags |= CO_FL_CONNECTED;
 
-	/* The connection owner might want to be notified about failures
-	 * and/or handshake completeion. The callback may fail and cause the
-	 * connection to be destroyed, thus we must not use it anymore and
-	 * should immediately leave instead. The caller must immediately
-	 * unregister itself once called.
+	/* If we don't yet have a mux, that means we were waiting for
+	 * informations to create one, typically from the ALPN. If we're
+	 * done with the handshake, attempt to create one.
 	 */
-	if (unlikely(conn->xprt_done_cb) &&
-	    (!(conn->flags & CO_FL_HANDSHAKE) ||
-	     ((conn->flags ^ flags) & CO_FL_NOTIFY_DONE)) &&
-	    conn->xprt_done_cb(conn) < 0)
-		return;
+	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_HANDSHAKE))
+		if (conn_create_mux(conn) < 0)
+			return;
 
 	/* The wake callback is normally used to notify the data layer about
 	 * data layer activity (successful send/recv), connection establishment,

@@ -1076,27 +1076,6 @@ static void assign_tproxy_address(struct stream *s)
 #endif
 }
 
-#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-/* Wake the stream up to finish the connection (attach the mux etc). We should
- * now have an alpn if available, so we are now able to choose. In this specific
- * case the connection's context is &si[i].end.
- */
-static int conn_complete_server(struct connection *conn)
-{
-	struct conn_stream *cs = conn->ctx;
-	struct stream *s = si_strm((struct stream_interface *)cs->data);
-
-	task_wakeup(s->task, TASK_WOKEN_IO);
-	conn_clear_xprt_done_cb(conn);
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
-
-	return 0;
-}
-#endif
-
-
 /*
  * This function initiates a connection to the server assigned to this stream
  * (s->target, s->si[1].addr.to). It will assign a server if none
@@ -1420,11 +1399,6 @@ int connect_server(struct stream *s)
 		    srv->mux_proto || s->be->mode != PR_MODE_HTTP))
 #endif
 			init_mux = 1;
-#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-		else
-			conn_set_xprt_done_cb(srv_conn, conn_complete_server);
-
-#endif
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
 

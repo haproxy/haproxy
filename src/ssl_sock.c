@@ -6423,8 +6423,7 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
 	/* If we had an error, or the handshake is done and I/O is available,
 	 * let the upper layer know.
-	 * If no mux was set up yet, and nobody subscribed, then call
-	 * xprt_done_cb() ourself if it's set, or destroy the connection,
+	 * If no mux was set up yet, then call conn_create_mux()
 	 * we can't be sure conn_fd_handler() will be called again.
 	 */
 	if ((ctx->conn->flags & CO_FL_ERROR) ||
@@ -6441,13 +6440,13 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 		}
 
 		/* If we're the first xprt for the connection, let the
-		 * upper layers know. If xprt_done_cb() is set, call it,
-		 * otherwise, we should have a mux, so call its wake
-		 * method if we didn't woke a tasklet already.
+		 * upper layers know. If we have no mux, create it,
+		 * and once we have a mux, call its wake method if we didn't
+		 * woke a tasklet already.
 		 */
 		if (ctx->conn->xprt_ctx == ctx) {
-			if (ctx->conn->xprt_done_cb)
-				ret = ctx->conn->xprt_done_cb(ctx->conn);
+			if (!ctx->conn->mux)
+				ret = conn_create_mux(ctx->conn);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
 				ctx->conn->mux->wake(ctx->conn);
 			return NULL;
