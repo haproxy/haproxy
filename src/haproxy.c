@@ -163,7 +163,7 @@ struct global global = {
 	.tune = {
 		.options = GTUNE_LISTENER_MQ,
 		.bufsize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
-		.maxrewrite = -1,
+		.maxrewrite = MAXREWRITE,
 		.chksize = (BUFSIZE + 2*sizeof(void *) - 1) & -(2*sizeof(void *)),
 		.reserved_bufs = RESERVED_BUFS,
 		.pattern_cache = DEFAULT_PAT_LRU_SIZE,
@@ -2163,9 +2163,6 @@ static void init(int argc, char **argv)
 
 	if (global.tune.recv_enough == 0)
 		global.tune.recv_enough = MIN_RECV_AT_ONCE_ENOUGH;
-
-	if (global.tune.maxrewrite < 0)
-		global.tune.maxrewrite = MAXREWRITE;
 
 	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 		global.tune.maxrewrite = global.tune.bufsize / 2;
