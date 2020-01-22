@@ -29,9 +29,11 @@
 
 extern struct action_kw_list http_req_keywords;
 extern struct action_kw_list http_res_keywords;
+extern struct action_kw_list http_after_res_keywords;
 
 struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
+struct act_rule *parse_http_after_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt, int dir);
 
@@ -43,6 +45,11 @@ static inline void http_req_keywords_register(struct action_kw_list *kw_list)
 static inline void http_res_keywords_register(struct action_kw_list *kw_list)
 {
 	LIST_ADDQ(&http_res_keywords.list, &kw_list->list);
+}
+
+static inline void http_after_res_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_ADDQ(&http_after_res_keywords.list, &kw_list->list);
 }
 
 #endif /* _PROTO_HTTP_RULES_H */

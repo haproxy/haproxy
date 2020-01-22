@@ -2440,6 +2440,7 @@ void deinit(void)
 		deinit_act_rules(&p->tcp_req.l5_rules);
 		deinit_act_rules(&p->http_req_rules);
 		deinit_act_rules(&p->http_res_rules);
+		deinit_act_rules(&p->http_after_res_rules);
 
 		deinit_stick_rules(&p->storersp_rules);
 		deinit_stick_rules(&p->sticking_rules);

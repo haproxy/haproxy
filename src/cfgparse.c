@@ -2841,6 +2841,16 @@ int check_config_validity()
 			}
 		}
 
+		/* check validity for 'http-after-response' layer 7 rules */
+		list_for_each_entry(arule, &curproxy->http_after_res_rules, list) {
+			err = NULL;
+			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
+				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
+				free(err);
+				cfgerr++;
+			}
+		}
+
 		if (curproxy->table && curproxy->table->peers.name) {
 			struct peers *curpeers;
 

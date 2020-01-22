@@ -1986,15 +1986,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		cur_proxy = sess->fe;
 	}
 
-	/* After this point, this anayzer can't return yield, so we can
-	 * remove the bit corresponding to this analyzer from the list.
-	 *
-	 * Note that the intermediate returns and goto found previously
-	 * reset the analyzers.
-	 */
-	rep->analysers &= ~an_bit;
-	rep->analyse_exp = TICK_ETERNITY;
-
 	/* OK that's all we can do for 1xx responses */
 	if (unlikely(txn->status < 200 && txn->status != 101))
 		goto end;
@@ -2116,6 +2107,14 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	}
 
   end:
+	/*
+	 * Evaluate after-response rules before forwarding the response. rules
+	 * from the backend are evaluated first, then one from the frontend if
+	 * it differs.
+	 */
+	if (!http_eval_after_res_rules(s))
+		goto return_int_err;
+
 	/* Always enter in the body analyzer */
 	rep->analysers &= ~AN_RES_FLT_XFER_DATA;
 	rep->analysers |= AN_RES_HTTP_XFER_BODY;
@@ -2130,10 +2129,9 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		s->do_log(s);
 		s->logs.bytes_out = 0;
 	}
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-	return 1;
 
  done:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
 	return 1;
@@ -3118,6 +3116,31 @@ resume_execution:
 
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
+}
+
+/* Executes backend and frontend http-after-response rules for the stream <s>,
+ * in that order. it return 1 on success and 0 on error. It is the caller
+ * responsibility to catch error or ignore it. If it catches it, this function
+ * may be called a second time, for the internal error.
+ */
+int http_eval_after_res_rules(struct stream *s)
+{
+	struct session *sess = s->sess;
+	enum rule_result ret = HTTP_RULE_RES_CONT;
+
+	/* prune the request variables if not already done and swap to the response variables. */
+	if (s->vars_reqres.scope != SCOPE_RES) {
+		if (!LIST_ISEMPTY(&s->vars_reqres.head))
+			vars_prune(&s->vars_reqres, s->sess, s);
+		vars_init(&s->vars_reqres, SCOPE_RES);
+	}
+
+	ret = http_res_get_intercept_rule(s->be, &s->be->http_after_res_rules, s);
+	if ((ret == HTTP_RULE_RES_CONT || ret == HTTP_RULE_RES_STOP) && sess->fe != s->be)
+		ret = http_res_get_intercept_rule(sess->fe, &sess->fe->http_after_res_rules, s);
+
+	/* All other codes than CONTINUE, STOP or DONE are forbidden */
+	return (ret == HTTP_RULE_RES_CONT || ret == HTTP_RULE_RES_STOP || ret == HTTP_RULE_RES_DONE);
 }
 
 /*
@@ -4534,6 +4557,8 @@ int http_forward_proxy_resp(struct stream *s, int final)
 
 	if (final) {
 		htx->flags |= HTX_FL_PROXY_RESP;
+		if (!http_eval_after_res_rules(s))
+			return 0;
 
 		channel_auto_read(req);
 		channel_abort(req);

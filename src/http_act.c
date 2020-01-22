@@ -1875,6 +1875,22 @@ static struct action_kw_list http_res_actions = {
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
 
+static struct action_kw_list http_after_res_actions = {
+	.kw = {
+		{ "add-header",      parse_http_set_header,     0 },
+		{ "allow",           parse_http_allow,          0 },
+		{ "del-header",      parse_http_del_header,     0 },
+		{ "replace-header",  parse_http_replace_header, 0 },
+		{ "replace-value",   parse_http_replace_header, 0 },
+		{ "set-header",      parse_http_set_header,     0 },
+		{ "set-status",      parse_http_set_status,     0 },
+		{ "strict-mode",     parse_http_strict_mode,    0 },
+		{ NULL, NULL }
+	}
+};
+
+INITCALL1(STG_REGISTER, http_after_res_keywords_register, &http_after_res_actions);
+
 /*
  * Local variables:
  *  c-indent-level: 8

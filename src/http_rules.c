@@ -47,6 +47,11 @@ struct action_kw_list http_res_keywords = {
        .list = LIST_HEAD_INIT(http_res_keywords.list)
 };
 
+/* List head of all known action keywords for "http-after-response" */
+struct action_kw_list http_after_res_keywords = {
+       .list = LIST_HEAD_INIT(http_after_res_keywords.list)
+};
+
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
@@ -61,6 +66,14 @@ static struct action_kw *action_http_req_custom(const char *kw)
 static struct action_kw *action_http_res_custom(const char *kw)
 {
 	return action_lookup(&http_res_keywords.list, kw);
+}
+
+/*
+ * Return the struct http_after_res_action_kw associated to a keyword.
+ */
+static struct action_kw *action_http_after_res_custom(const char *kw)
+{
+	return action_lookup(&http_after_res_keywords.list, kw);
 }
 
 /* parse an "http-request" rule */
@@ -180,6 +193,71 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	}
 	else if (*args[cur_arg]) {
 		ha_alert("parsing [%s:%d]: 'http-response %s' expects"
+			 " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+			 file, linenum, args[0], args[cur_arg]);
+		goto out_err;
+	}
+
+	return rule;
+ out_err:
+	free(rule);
+	return NULL;
+}
+
+
+/* parse an "http-after-response" rule */
+struct act_rule *parse_http_after_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
+{
+	struct act_rule *rule;
+	struct action_kw *custom = NULL;
+	int cur_arg;
+
+	rule = calloc(1, sizeof(*rule));
+	if (!rule) {
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		goto out_err;
+	}
+	rule->from = ACT_F_HTTP_RES;
+
+	if (((custom = action_http_after_res_custom(args[0])) != NULL)) {
+		char *errmsg = NULL;
+
+		cur_arg = 1;
+		/* try in the module list */
+		rule->kw = custom;
+		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
+			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-after-response %s' rule : %s.\n",
+				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			free(errmsg);
+			goto out_err;
+		}
+		else if (errmsg) {
+			ha_warning("parsing [%s:%d] : %s.\n", file, linenum, errmsg);
+			free(errmsg);
+		}
+	}
+	else {
+		action_build_list(&http_after_res_keywords.list, &trash);
+		ha_alert("parsing [%s:%d]: 'http-after-response' expects %s%s, but got '%s'%s.\n",
+			 file, linenum, *trash.area ? ", " : "", trash.area,
+			 args[0], *args[0] ? "" : " (missing argument)");
+		goto out_err;
+	}
+
+	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
+		struct acl_cond *cond;
+		char *errmsg = NULL;
+
+		if ((cond = build_acl_cond(file, linenum, &proxy->acl, proxy, args+cur_arg, &errmsg)) == NULL) {
+			ha_alert("parsing [%s:%d] : error detected while parsing an 'http-after-response %s' condition : %s.\n",
+				 file, linenum, args[0], errmsg);
+			free(errmsg);
+			goto out_err;
+		}
+		rule->cond = cond;
+	}
+	else if (*args[cur_arg]) {
+		ha_alert("parsing [%s:%d]: 'http-after-response %s' expects"
 			 " either 'if' or 'unless' followed by a condition but found '%s'.\n",
 			 file, linenum, args[0], args[cur_arg]);
 		goto out_err;

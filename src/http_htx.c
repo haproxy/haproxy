@@ -1308,7 +1308,7 @@ static int post_check_errors()
 		if (htx_free_data_space(htx) < global.tune.maxrewrite) {
 			ha_warning("config: errorfile '%s' runs over the buffer space"
 				   " reserved to headers rewritting. It may lead to internal errors if "
-				   " http-final-response rules are evaluated on this message.\n",
+				   " http-after-response rules are evaluated on this message.\n",
 				   (char *)node->key);
 			err_code |= ERR_WARN;
 		}

@@ -1413,6 +1413,36 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->http_res_rules, &rule->list);
 	}
+	else if (!strcmp(args[0], "http-after-response")) {
+		struct act_rule *rule;
+
+		if (curproxy == &defproxy) {
+			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (!LIST_ISEMPTY(&curproxy->http_after_res_rules) &&
+		    !LIST_PREV(&curproxy->http_after_res_rules, struct act_rule *, list)->cond &&
+		    (LIST_PREV(&curproxy->http_after_res_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
+			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
+				   file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		rule = parse_http_after_res_cond((const char **)args + 1, file, linenum, curproxy);
+
+		if (!rule) {
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err_code |= warnif_cond_conflicts(rule->cond,
+	                                          (curproxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+	                                          file, linenum);
+
+		LIST_ADDQ(&curproxy->http_after_res_rules, &rule->list);
+	}
 	else if (!strcmp(args[0], "http-send-name-header")) { /* send server name in request header */
 		/* set the header name and length into the proxy structure */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
