@@ -1292,6 +1292,33 @@ static int proxy_check_errors(struct proxy *px)
 	return err;
 }
 
+static int post_check_errors()
+{
+	struct ebpt_node *node;
+	struct http_error *http_err;
+	struct htx *htx;
+	int err_code = 0;
+
+	node = ebpt_first(&http_error_messages);
+	while (node) {
+		http_err = container_of(node, typeof(*http_err), node);
+		if (b_is_null(&http_err->msg))
+			goto next;
+		htx = htxbuf(&http_err->msg);
+		if (htx_free_data_space(htx) < global.tune.maxrewrite) {
+			ha_warning("config: errorfile '%s' runs over the buffer space"
+				   " reserved to headers rewritting. It may lead to internal errors if "
+				   " http-final-response rules are evaluated on this message.\n",
+				   (char *)node->key);
+			err_code |= ERR_WARN;
+		}
+	  next:
+		node = ebpt_next(node);
+	}
+
+	return err_code;
+}
+
 int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char **errmsg)
 {
 	struct conf_errors *conf_err, *new_conf_err = NULL;
@@ -1436,6 +1463,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 REGISTER_POST_PROXY_CHECK(proxy_check_errors);
+REGISTER_POST_CHECK(post_check_errors);
 
 REGISTER_CONFIG_SECTION("http-errors", cfg_parse_http_errors, NULL);
 
