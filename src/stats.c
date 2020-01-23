@@ -2411,7 +2411,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 	              "-->\n"
 	              "</style></head>\n",
 	              (appctx->ctx.stats.flags & STAT_SHNODE) ? " on " : "",
-	              (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : ""
+	              (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri && uri->node ? uri->node : global.node) : ""
 	              );
 }
 
