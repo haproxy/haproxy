@@ -668,7 +668,7 @@ int si_cs_send(struct conn_stream *cs)
 		return 0;
 
 	/* we might have been called just after an asynchronous shutw */
-	if (conn->flags & CO_FL_SOCK_WR_SH || oc->flags & CF_SHUTW)
+	if (oc->flags & CF_SHUTW)
 		return 1;
 
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {

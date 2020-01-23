@@ -765,13 +765,6 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 		goto out_wakeup;
 	}
 
-	if (conn->flags & CO_FL_SOCK_WR_SH) {
-		/* if the output is closed, we can't do anything */
-		conn->flags |= CO_FL_ERROR;
-		chk_report_conn_err(check, 0, 0);
-		goto out_wakeup;
-	}
-
 	/* here, we know that the connection is established. That's enough for
 	 * a pure TCP check.
 	 */
@@ -3034,12 +3027,6 @@ static int tcpcheck_main(struct check *check)
 			if (*b_head(&check->bi) != '\0') {
 				*b_head(&check->bi) = '\0';
 				b_reset(&check->bi);
-			}
-
-			if (conn->flags & CO_FL_SOCK_WR_SH) {
-				conn->flags |= CO_FL_ERROR;
-				chk_report_conn_err(check, 0, 0);
-				goto out_end_tcpcheck;
 			}
 
 			if (check->current_step->string_len >= b_size(&check->bo)) {
