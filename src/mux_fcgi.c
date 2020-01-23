@@ -3016,7 +3016,7 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	int ret = 0;
 	switch (mux_ctl) {
 	case MUX_STATUS:
-		if (conn->flags & CO_FL_CONNECTED)
+		if (!(conn->flags & CO_FL_WAIT_L4L6))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	default:

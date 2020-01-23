@@ -95,9 +95,6 @@ out:
 			ctx->subs = NULL;
 		}
 
-		if (!(conn->flags & CO_FL_ERROR))
-			conn->flags |= CO_FL_CONNECTED;
-
 		/* Remove ourself from the xprt chain */
 		if (ctx->wait_event.events != 0)
 			ctx->xprt->unsubscribe(ctx->conn,

@@ -49,9 +49,6 @@ int conn_create_mux(struct connection *conn)
 
 		if (conn->flags & CO_FL_ERROR)
 			goto fail;
-		/* Verify if the connection just established. */
-		if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-			conn->flags |= CO_FL_CONNECTED;
 
 		if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
 			goto fail;
@@ -135,10 +132,6 @@ void conn_fd_handler(int fd)
 	}
 
  leave:
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
-
 	/* If we don't yet have a mux, that means we were waiting for
 	 * informations to create one, typically from the ALPN. If we're
 	 * done with the handshake, attempt to create one.
@@ -163,8 +156,8 @@ void conn_fd_handler(int fd)
 	 * the fd (and return < 0 in this case).
 	 */
 	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
-	     ((flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) != CO_FL_CONNECTED &&
-	      (conn->flags & (CO_FL_CONNECTED|CO_FL_HANDSHAKE)) == CO_FL_CONNECTED))) &&
+	     ((flags & (CO_FL_WAIT_L4L6|CO_FL_HANDSHAKE)) &&
+	      (conn->flags & (CO_FL_WAIT_L4L6|CO_FL_HANDSHAKE)) == 0))) &&
 	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
 
@@ -534,6 +527,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto fail;
 	}
 
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
 	if (trash.data < 6)
 		goto missing;
 
@@ -858,6 +853,8 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		trash.data = ret;
 	} while (0);
 
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
 	if (!trash.data) {
 		/* client shutdown */
 		conn->err_code = CO_ER_CIP_EMPTY;
@@ -1069,8 +1066,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	/* The connection is ready now, simply return and let the connection
 	 * handler notify upper layers if needed.
 	 */
-	if (conn->flags & CO_FL_WAIT_L4_CONN)
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	if (conn->flags & CO_FL_SEND_PROXY) {
 		/*
@@ -1147,6 +1143,8 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 			goto recv_abort;
 		}
 	} while (0);
+
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	if (ret < SOCKS4_HS_RSP_LEN) {
 		/* Missing data. Since we're using MSG_PEEK, we can only poll again if
@@ -1532,7 +1530,7 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 	if (!conn)
 		return 0;
 
-	if (!(conn->flags & CO_FL_CONNECTED)) {
+	if (conn->flags & CO_FL_WAIT_L4L6) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -1553,7 +1551,7 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 	if (!conn)
 		return 0;
 
-	if (!(conn->flags & CO_FL_CONNECTED)) {
+	if (conn->flags & CO_FL_WAIT_L4L6) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}

@@ -626,8 +626,7 @@ int assign_server(struct stream *s)
 			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
 			    srv_currently_usable(tmpsrv)) {
 				list_for_each_entry(conn, &srv_list->conn_list, session_list) {
-					if (conn->flags & CO_FL_CONNECTED) {
-
+					if (!(conn->flags & CO_FL_WAIT_L4L6)) {
 						srv = tmpsrv;
 						s->target = &srv->obj_type;
 						goto out_ok;
@@ -1221,7 +1220,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (((!reuse || (srv_conn && !(srv_conn->flags & CO_FL_CONNECTED)))
+	if (((!reuse || (srv_conn && (srv_conn->flags & CO_FL_WAIT_L4L6)))
 	    && ha_used_fds > global.tune.pool_high_count) && srv && srv->idle_orphan_conns) {
 		struct connection *tokill_conn;
 
@@ -1935,7 +1934,7 @@ void back_handle_st_con(struct stream *s)
 	}
 
 	/* first, let's see if we've made any progress on this connection */
-	if (!conn->mux && (conn->flags & CO_FL_CONNECTED)) {
+	if (!conn->mux && !(conn->flags & CO_FL_WAIT_L4L6)) {
 		/* connection finished to set up */
 		struct server *srv;
 

@@ -178,9 +178,9 @@ enum {
 	CO_FL_NOTIFY_DONE   = 0x001C0000,  /* any xprt shut/error flags above needs to be reported */
 
 	/* flags used to report connection status updates */
-	CO_FL_CONNECTED     = 0x00200000,  /* L4+L6 now ready ; extra handshakes may or may not exist */
 	CO_FL_WAIT_L4_CONN  = 0x00400000,  /* waiting for L4 to be connected */
 	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */
+	CO_FL_WAIT_L4L6     = 0x00C00000,  /* waiting for L4 and/or L6 to be connected */
 
 	/*** All the flags below are used for connection handshakes. Any new
 	 * handshake should be added after this point, and CO_FL_HANDSHAKE

@@ -415,8 +415,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	/* The connection is ready now, simply return and let the connection
 	 * handler notify upper layers if needed.
 	 */
-	if (conn->flags & CO_FL_WAIT_L4_CONN)
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	conn->flags &= ~flag;
 	return 1;
 
@@ -615,7 +614,7 @@ static int si_cs_process(struct conn_stream *cs)
 	}
 
 	if (!si_state_in(si->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
-	    (conn->flags & (CO_FL_CONNECTED | CO_FL_HANDSHAKE)) == CO_FL_CONNECTED) {
+	    (conn->flags & (CO_FL_WAIT_L4L6 | CO_FL_HANDSHAKE)) == 0) {
 		si->exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
 		if (si->state == SI_ST_CON)
@@ -1501,7 +1500,7 @@ int si_cs_recv(struct conn_stream *cs)
 	}
 	else if (cs->flags & CS_FL_EOS) {
 		/* connection closed */
-		if (conn->flags & CO_FL_CONNECTED) {
+		if (!(conn->flags & CO_FL_WAIT_L4L6)) {
 			/* we received a shutdown */
 			ic->flags |= CF_READ_NULL;
 			if (ic->flags & CF_AUTO_CLOSE)
