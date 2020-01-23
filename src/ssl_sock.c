@@ -3357,6 +3357,26 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 		goto end;
 	}
 
+	/* once it loaded the PEM, it should remove everything else in the ckch */
+	if (ckch->ocsp_response) {
+		free(ckch->ocsp_response->area);
+		ckch->ocsp_response->area = NULL;
+		free(ckch->ocsp_response);
+		ckch->ocsp_response = NULL;
+	}
+
+	if (ckch->sctl) {
+		free(ckch->sctl->area);
+		ckch->sctl->area = NULL;
+		free(ckch->sctl);
+		ckch->sctl = NULL;
+	}
+
+	if (ckch->ocsp_issuer) {
+		X509_free(ckch->ocsp_issuer);
+		ckch->ocsp_issuer = NULL;
+	}
+
 	/* no error, fill ckch with new context, old context will be free at end: */
 	SWAP(ckch->key, key);
 	SWAP(ckch->dh, dh);
