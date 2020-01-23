@@ -1916,7 +1916,7 @@ void back_handle_st_con(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 	struct conn_stream *srv_cs = objt_cs(si->end);
-	struct connection *conn = srv_cs ? srv_cs->conn : objt_conn(si->end);
+	struct connection *conn = srv_cs ? srv_cs->conn : __objt_conn(si->end);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
