@@ -1040,3 +1040,34 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 	*blk = cblk;
 	*ref = pblk;
 }
+
+/* Append the HTX message <src> to the HTX message <dst>. It returns 1 on
+ * success and 0 on error.  All the message or nothing is copied. If an error
+ * occurred, all blocks from <src> already appended to <dst> are truncated.
+ */
+int htx_append_msg(struct htx *dst, const struct htx *src)
+{
+	struct htx_blk *blk, *newblk;
+	enum htx_blk_type type;
+	uint32_t blksz, offset = dst->data;
+
+	for (blk = htx_get_head_blk(src); blk; blk = htx_get_next_blk(src, blk)) {
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		blksz = htx_get_blksz(blk);
+		newblk = htx_add_blk(dst, type, blksz);
+		if (!newblk)
+			goto error;
+		newblk->info = blk->info;
+		memcpy(htx_get_blk_ptr(dst, newblk), htx_get_blk_ptr(src, blk), blksz);
+	}
+
+	return 1;
+
+  error:
+	htx_truncate(dst, offset);
+	return 0;
+}
