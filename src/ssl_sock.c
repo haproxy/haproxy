@@ -7393,7 +7393,7 @@ smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const cha
 	}
 #else
 	smp->data.u.sint = ((conn->flags & CO_FL_EARLY_DATA)  &&
-	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE))) ? 1 : 0;
+	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_SSL_WAIT_HS))) ? 1 : 0;
 #endif
 	return 1;
 }
