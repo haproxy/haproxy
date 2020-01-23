@@ -4547,6 +4547,7 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 	channel_abort(si_oc(si));
 	channel_auto_close(si_oc(si));
 	channel_htx_erase(si_oc(si), htxbuf(&(si_oc(si))->buf));
+	channel_htx_truncate(si_ic(si), htxbuf(&(si_ic(si))->buf));
 	channel_auto_close(si_ic(si));
 	channel_auto_read(si_ic(si));
 
@@ -4555,14 +4556,16 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 	if (msg && !b_is_null(msg)) {
 		struct channel *chn = si_ic(si);
 		struct htx *htx;
+		size_t data;
 
 		FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
-		chn->buf.data = msg->data;
-		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
-		htx->flags |= HTX_FL_PROXY_RESP;
-		c_adv(chn, htx->data);
-		chn->total += htx->data;
+		if (channel_htx_copy_msg(chn, htx, msg)) {
+			htx->flags |= HTX_FL_PROXY_RESP;
+			data = htx->data - co_data(chn);
+			c_adv(chn, data);
+			chn->total += data;
+		}
 	}
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
@@ -4582,18 +4585,19 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 
 	/* <msg> is an HTX structure. So we copy it in the response's
 	 * channel */
-	/* FIXME: It is a problem for now if there is some outgoing data */
 	if (msg && !b_is_null(msg)) {
 		struct channel *chn = &s->res;
 		struct htx *htx;
+		size_t data;
 
 		FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
-		chn->buf.data = msg->data;
-		memcpy(chn->buf.area, msg->area, msg->data);
 		htx = htx_from_buf(&chn->buf);
-		htx->flags |= HTX_FL_PROXY_RESP;
-		c_adv(chn, htx->data);
-		chn->total += htx->data;
+		if (channel_htx_copy_msg(chn, htx, msg)) {
+			htx->flags |= HTX_FL_PROXY_RESP;
+			data = htx->data - co_data(chn);
+			c_adv(chn, data);
+			chn->total += data;
+		}
 	}
 
 	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
