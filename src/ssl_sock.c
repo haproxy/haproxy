@@ -3468,6 +3468,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 			issuer = sk_X509_value(ckch->chain, i);
 			if (X509_check_issued(issuer, ckch->cert) == X509_V_OK) {
 				ckch->ocsp_issuer = issuer;
+				X509_up_ref(ckch->ocsp_issuer);
 				break;
 			} else
 				issuer = NULL;
