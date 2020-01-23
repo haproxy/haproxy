@@ -329,10 +329,6 @@ struct appctx *si_register_handler(struct stream_interface *si, struct applet *a
  */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
-	/* we might have been called just after an asynchronous shutw */
-	if (conn->flags & CO_FL_SOCK_WR_SH)
-		goto out_error;
-
 	if (!conn_ctrl_ready(conn))
 		goto out_error;
 

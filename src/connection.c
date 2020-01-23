@@ -1003,10 +1003,6 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 {
 	struct socks4_request req_line;
 
-	/* we might have been called just after an asynchronous shutw */
-	if (conn->flags & CO_FL_SOCK_WR_SH)
-		goto out_error;
-
 	if (!conn_ctrl_ready(conn))
 		goto out_error;
 
