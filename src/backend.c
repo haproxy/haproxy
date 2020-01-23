@@ -1956,7 +1956,7 @@ void back_handle_st_con(struct stream *s)
  done:
 	/* retryable error ? */
 	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
-		if (!(s->flags & SF_SRV_REUSED) && conn) {
+		if (!(s->flags & SF_SRV_REUSED)) {
 			conn_stop_tracking(conn);
 			conn_full_close(conn);
 		}
