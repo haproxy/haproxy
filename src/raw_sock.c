@@ -185,6 +185,13 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
 
+	if (conn->flags & CO_FL_SOCK_WR_SH) {
+		/* it's already closed */
+		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
+		errno = EPIPE;
+		return 0;
+	}
+
 	done = 0;
 	while (pipe->data) {
 		ret = splice(pipe->cons, NULL, conn->handle.fd, NULL, pipe->data,
@@ -350,6 +357,13 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 	if (!fd_send_ready(conn->handle.fd))
 		return 0;
+
+	if (conn->flags & CO_FL_SOCK_WR_SH) {
+		/* it's already closed */
+		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
+		errno = EPIPE;
+		return 0;
+	}
 
 	done = 0;
 	/* send the largest possible block. For this we perform only one call
