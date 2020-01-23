@@ -493,10 +493,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	int tlv_offset = 0;
 	int ret;
 
-	/* we might have been called just after an asynchronous shutr */
-	if (conn->flags & CO_FL_SOCK_RD_SH)
-		goto fail;
-
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
@@ -825,10 +821,6 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	uint8_t ip_ver;
 	int ret;
 
-	/* we might have been called just after an asynchronous shutr */
-	if (conn->flags & CO_FL_SOCK_RD_SH)
-		goto fail;
-
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
@@ -1093,10 +1085,6 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 {
 	char line[SOCKS4_HS_RSP_LEN];
 	int ret;
-
-	/* we might have been called just after an asynchronous shutr */
-	if (conn->flags & CO_FL_SOCK_RD_SH)
-		goto fail;
 
 	if (!conn_ctrl_ready(conn))
 		goto fail;
