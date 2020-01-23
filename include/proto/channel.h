@@ -935,6 +935,22 @@ static inline int32_t channel_htx_fwd_headers(struct channel *chn, struct htx *h
 	return pos;
 }
 
+/* Copy an HTX message stored in the buffer <msg> to the channel's one. We
+ * take care to not overwrite existing data in the channel. All the message is
+ * copied or nothing. It returns 1 on success and 0 on error.
+ */
+static inline int channel_htx_copy_msg(struct channel *chn, struct htx *htx, const struct buffer *msg)
+{
+	/* The channel buffer is empty, we can do a raw copy */
+	if (c_empty(chn)) {
+		chn->buf.data = msg->data;
+		memcpy(chn->buf.area, msg->area, msg->data);
+		return 1;
+	}
+
+	/* Otherwise, we need to append the HTX message */
+	return htx_append_msg(htx, htxbuf(msg));
+}
 /*
  * Advance the channel buffer's read pointer by <len> bytes. This is useful
  * when data have been read directly from the buffer. It is illegal to call
