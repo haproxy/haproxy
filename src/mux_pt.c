@@ -295,8 +295,6 @@ static size_t mux_pt_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t 
 {
 	size_t ret;
 
-	if (cs->conn->flags & CO_FL_HANDSHAKE)
-		return 0;
 	ret = cs->conn->xprt->snd_buf(cs->conn, cs->conn->xprt_ctx, buf, count, flags);
 
 	if (ret > 0)

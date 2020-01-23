@@ -760,12 +760,6 @@ static void __event_srv_chk_w(struct conn_stream *cs)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		if (!(conn->flags & CO_FL_ERROR))
-			cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-		goto out;
-	}
-
 	if (retrieve_errno_from_socket(conn)) {
 		chk_report_conn_err(check, errno, 0);
 		goto out_wakeup;
@@ -848,12 +842,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
-
-	if (conn->flags & CO_FL_HANDSHAKE) {
-		if (!(conn->flags & CO_FL_ERROR))
-			cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
-		goto out;
-	}
 
 	/* wake() will take care of calling tcpcheck_main() */
 	if (check->type == PR_O2_TCPCHK_CHK)
