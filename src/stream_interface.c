@@ -1499,14 +1499,11 @@ int si_cs_recv(struct conn_stream *cs)
 		ret = 1;
 	}
 	else if (cs->flags & CS_FL_EOS) {
-		/* connection closed */
-		if (!(conn->flags & CO_FL_WAIT_L4L6)) {
-			/* we received a shutdown */
-			ic->flags |= CF_READ_NULL;
-			if (ic->flags & CF_AUTO_CLOSE)
-				channel_shutw_now(ic);
-			stream_int_read0(si);
-		}
+		/* we received a shutdown */
+		ic->flags |= CF_READ_NULL;
+		if (ic->flags & CF_AUTO_CLOSE)
+			channel_shutw_now(ic);
+		stream_int_read0(si);
 		ret = 1;
 	}
 	else if (!si_rx_blocked(si)) {
