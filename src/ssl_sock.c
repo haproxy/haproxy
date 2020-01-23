@@ -6517,7 +6517,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	}
 #endif
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS))
 		/* a handshake was requested */
 		return 0;
 
@@ -6628,7 +6628,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (!ctx)
 		goto out_error;
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS))
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS))
 		/* a handshake was requested */
 		return 0;
 
@@ -6830,7 +6830,7 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS))
 		return;
 	if (!clean)
 		/* don't sent notify on SSL_shutdown */

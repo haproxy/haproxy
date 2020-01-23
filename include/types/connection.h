@@ -182,18 +182,18 @@ enum {
 	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */
 	CO_FL_WAIT_L4L6     = 0x00C00000,  /* waiting for L4 and/or L6 to be connected */
 
-	/*** All the flags below are used for connection handshakes. Any new
+	/* All the flags below are used for connection handshakes. Any new
 	 * handshake should be added after this point, and CO_FL_HANDSHAKE
 	 * should be updated.
 	 */
 	CO_FL_SEND_PROXY    = 0x01000000,  /* send a valid PROXY protocol header */
-	CO_FL_SSL_WAIT_HS   = 0x02000000,  /* wait for an SSL handshake to complete */
-	CO_FL_ACCEPT_PROXY  = 0x04000000,  /* receive a valid PROXY protocol header */
-	CO_FL_ACCEPT_CIP    = 0x08000000,  /* receive a valid NetScaler Client IP header */
+	CO_FL_ACCEPT_PROXY  = 0x02000000,  /* receive a valid PROXY protocol header */
+	CO_FL_ACCEPT_CIP    = 0x04000000,  /* receive a valid NetScaler Client IP header */
 
 	/* below we have all handshake flags grouped into one */
-	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP | CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
-	CO_FL_HANDSHAKE_NOSSL = CO_FL_SEND_PROXY | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP | CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
+	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP | CO_FL_SOCKS4_SEND | CO_FL_SOCKS4_RECV,
+
+	CO_FL_SSL_WAIT_HS   = 0x08000000,  /* wait for an SSL handshake to complete */
 
 	/* This connection may not be shared between clients */
 	CO_FL_PRIVATE       = 0x10000000,

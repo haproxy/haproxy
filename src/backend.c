@@ -1471,7 +1471,7 @@ int connect_server(struct stream *s)
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.
 	 */
-	if ((srv_conn->flags & CO_FL_HANDSHAKE_NOSSL)) {
+	if ((srv_conn->flags & CO_FL_HANDSHAKE)) {
 		if (xprt_add_hs(srv_conn) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;

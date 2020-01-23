@@ -82,7 +82,7 @@ out:
 	 * connection error
 	 * */
 	if ((conn->flags & CO_FL_ERROR) ||
-	    !(conn->flags & CO_FL_HANDSHAKE_NOSSL)) {
+	    !(conn->flags & CO_FL_HANDSHAKE)) {
 		int ret = 0;
 		int woke = 0;
 		int was_conn_ctx = 0;
@@ -185,7 +185,7 @@ static void xprt_handshake_close(struct connection *conn, void *xprt_ctx)
 		 * to fallback to the original XPRT to re-initiate the
 		 * connection.
 		 */
-		conn->flags &= ~CO_FL_HANDSHAKE_NOSSL;
+		conn->flags &= ~CO_FL_HANDSHAKE;
 		if (conn->xprt == xprt_get(XPRT_HANDSHAKE))
 			conn->xprt = xprt_get(XPRT_RAW);
 		tasklet_free(ctx->wait_event.tasklet);

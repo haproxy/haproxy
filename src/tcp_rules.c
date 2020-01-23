@@ -468,7 +468,7 @@ int tcp_exec_l4_rules(struct session *sess)
 				goto end;
 			}
 			else if (rule->action == ACT_TCP_EXPECT_PX) {
-				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
+				if (!(conn->flags & CO_FL_HANDSHAKE)) {
 					if (xprt_add_hs(conn) < 0) {
 						result = 0;
 						goto end;
@@ -477,7 +477,7 @@ int tcp_exec_l4_rules(struct session *sess)
 				conn->flags |= CO_FL_ACCEPT_PROXY;
 			}
 			else if (rule->action == ACT_TCP_EXPECT_CIP) {
-				if (!(conn->flags & (CO_FL_HANDSHAKE_NOSSL))) {
+				if (!(conn->flags & CO_FL_HANDSHAKE)) {
 					if (xprt_add_hs(conn) < 0) {
 						result = 0;
 						goto end;
