@@ -3128,7 +3128,7 @@ static void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain 
 	}
 
 	if (ckch->ocsp_issuer)
-		X509_free(ocsp_issuer);
+		X509_free(ckch->ocsp_issuer);
 	ckch->ocsp_issuer = NULL;
 }
 
