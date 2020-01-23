@@ -136,7 +136,7 @@ void conn_fd_handler(int fd)
 	 * informations to create one, typically from the ALPN. If we're
 	 * done with the handshake, attempt to create one.
 	 */
-	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_HANDSHAKE))
+	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_WAIT_XPRT))
 		if (conn_create_mux(conn) < 0)
 			return;
 
@@ -155,9 +155,8 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((io_available || (((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
-	     ((flags & (CO_FL_WAIT_L4L6|CO_FL_HANDSHAKE)) &&
-	      (conn->flags & (CO_FL_WAIT_L4L6|CO_FL_HANDSHAKE)) == 0))) &&
+	if ((io_available || ((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
+	     ((flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
 	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
 
@@ -1530,7 +1529,7 @@ int smp_fetch_fc_rcvd_proxy(const struct arg *args, struct sample *smp, const ch
 	if (!conn)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_L4L6) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -1551,7 +1550,7 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 	if (!conn)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_L4L6) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}

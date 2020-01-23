@@ -6517,7 +6517,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	}
 #endif
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS))
+	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
 		/* a handshake was requested */
 		return 0;
 
@@ -6628,7 +6628,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	if (!ctx)
 		goto out_error;
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS))
+	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS))
 		/* a handshake was requested */
 		return 0;
 
@@ -6830,7 +6830,7 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_SSL_WAIT_HS))
+	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
 		return;
 	if (!clean)
 		/* don't sent notify on SSL_shutdown */
@@ -7411,7 +7411,7 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7442,7 +7442,7 @@ smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, 
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7489,7 +7489,7 @@ smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *k
 
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7536,7 +7536,7 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7582,7 +7582,7 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7628,7 +7628,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7690,7 +7690,7 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7736,7 +7736,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7792,7 +7792,7 @@ smp_fetch_ssl_c_used(const struct arg *args, struct sample *smp, const char *kw,
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7825,7 +7825,7 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7865,7 +7865,7 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -7917,7 +7917,7 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -8397,7 +8397,7 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -8435,7 +8435,7 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -8458,7 +8458,7 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -8482,7 +8482,7 @@ smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, 
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -8507,7 +8507,7 @@ smp_fetch_ssl_c_verify(const struct arg *args, struct sample *smp, const char *k
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_L6_CONN) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}

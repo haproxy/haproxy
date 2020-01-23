@@ -451,7 +451,7 @@ static void stream_int_notify(struct stream_interface *si)
 		struct connection *conn = objt_cs(si->end) ? objt_cs(si->end)->conn : NULL;
 
 		if (((oc->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
-		    (si->state == SI_ST_EST) && (!conn || !(conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS))))
+		    (si->state == SI_ST_EST) && (!conn || !(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS))))
 			si_shutw(si);
 		oc->wex = TICK_ETERNITY;
 	}
@@ -607,14 +607,14 @@ static int si_cs_process(struct conn_stream *cs)
 	 * in the event there's an analyser waiting for the end of
 	 * the handshake.
 	 */
-	if (!(conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS)) &&
+	if (!(conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) &&
 	    (cs->flags & CS_FL_WAIT_FOR_HS)) {
 		cs->flags &= ~CS_FL_WAIT_FOR_HS;
 		task_wakeup(si_task(si), TASK_WOKEN_MSG);
 	}
 
 	if (!si_state_in(si->state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
-	    (conn->flags & (CO_FL_WAIT_L4L6 | CO_FL_HANDSHAKE)) == 0) {
+	    (conn->flags & CO_FL_WAIT_XPRT) == 0) {
 		si->exp = TICK_ETERNITY;
 		oc->flags |= CF_WRITE_NULL;
 		if (si->state == SI_ST_CON)

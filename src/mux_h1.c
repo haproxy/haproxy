@@ -2667,7 +2667,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	 * now, as we don't want to remove everything from the channel buffer
 	 * before we're sure we can send it.
 	 */
-	if (h1c->conn->flags & (CO_FL_WAIT_L4L6|CO_FL_HANDSHAKE)) {
+	if (h1c->conn->flags & CO_FL_WAIT_XPRT) {
 		TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s);
 		return 0;
 	}
@@ -2781,7 +2781,7 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	int ret = 0;
 	switch (mux_ctl) {
 	case MUX_STATUS:
-		if (!(conn->flags & CO_FL_WAIT_L4L6))
+		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	default:

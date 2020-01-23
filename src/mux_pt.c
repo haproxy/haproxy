@@ -150,7 +150,7 @@ static int mux_pt_wake(struct connection *conn)
 	/* If we had early data, and we're done with the handshake
 	 * then whe know the data are safe, and we can remove the flag.
 	 */
-	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE)) ==
+	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS | CO_FL_WAIT_XPRT)) ==
 	    CO_FL_EARLY_DATA)
 		conn->flags &= ~CO_FL_EARLY_DATA;
 	return ret;
@@ -348,7 +348,7 @@ static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *
 	int ret = 0;
 	switch (mux_ctl) {
 	case MUX_STATUS:
-		if (!(conn->flags & CO_FL_WAIT_L4L6))
+		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	default:

@@ -270,7 +270,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	 *           v       |           |        |
 	 *          conn -- owner ---> task <-----+
 	 */
-	if (cli_conn->flags & (CO_FL_HANDSHAKE | CO_FL_EARLY_SSL_HS)) {
+	if (cli_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) {
 		if (unlikely((sess->task = task_new(tid_bit)) == NULL))
 			goto out_free_sess;
 

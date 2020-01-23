@@ -3425,7 +3425,7 @@ static int h2_send(struct h2c *h2c)
 		return 1;
 	}
 
-	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		/* a handshake was requested */
 		goto schedule;
 	}
@@ -3578,7 +3578,7 @@ static int h2_process(struct h2c *h2c)
 	 * any stream that was waiting for it.
 	 */
 	if (!(h2c->flags & H2_CF_WAIT_FOR_HS) &&
-	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE | CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA) {
+	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_WAIT_XPRT | CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA) {
 		struct eb32_node *node;
 		struct h2s *h2s;
 

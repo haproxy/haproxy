@@ -2770,7 +2770,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 	}
 
 
-	if (conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		/* a handshake was requested */
 		goto schedule;
 	}
@@ -2954,7 +2954,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 	 * any stream that was waiting for it.
 	 */
 	if (!(fconn->flags & FCGI_CF_WAIT_FOR_HS) &&
-	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_HANDSHAKE | CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA) {
+	    (conn->flags & (CO_FL_EARLY_SSL_HS | CO_FL_WAIT_XPRT | CO_FL_EARLY_DATA)) == CO_FL_EARLY_DATA) {
 		struct eb32_node *node;
 		struct fcgi_strm *fstrm;
 
@@ -3016,7 +3016,7 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	int ret = 0;
 	switch (mux_ctl) {
 	case MUX_STATUS:
-		if (!(conn->flags & CO_FL_WAIT_L4L6))
+		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	default:

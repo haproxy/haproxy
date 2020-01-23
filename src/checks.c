@@ -886,7 +886,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	}
 
 	/* the rest of the code below expects the connection to be ready! */
-	if (conn->flags & CO_FL_WAIT_L4L6 && !done)
+	if (conn->flags & CO_FL_WAIT_XPRT && !done)
 		goto wait_more_data;
 
 	/* Intermediate or complete response received.
@@ -1392,7 +1392,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 
 	default:
 		/* good connection is enough for pure TCP check */
-		if (!(conn->flags & CO_FL_WAIT_L4L6) && !check->type) {
+		if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
 			if (check->use_ssl)
 				set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 			else
@@ -1477,7 +1477,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		chk_report_conn_err(check, errno, 0);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
-	else if (!(conn->flags & CO_FL_HANDSHAKE) && !check->type) {
+	else if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
 		/* we may get here if only a connection probe was required : we
 		 * don't have any data to send nor anything expected in response,
 		 * so the completion of the connection establishment is enough.
@@ -2285,7 +2285,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 				 * sending since otherwise we won't be woken up.
 				 */
 				__event_srv_chk_w(cs);
-				if (!(conn->flags & CO_FL_WAIT_L4_CONN) ||
+				if (!(conn->flags & CO_FL_WAIT_XPRT) ||
 				    !(check->wait_list.events & SUB_RETRY_SEND))
 					__event_srv_chk_r(cs);
 			}
@@ -2352,7 +2352,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		 */
 		if (check->result == CHK_RES_UNKNOWN) {
 			/* good connection is enough for pure TCP check */
-			if (!(conn->flags & CO_FL_WAIT_L4L6) && !check->type) {
+			if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
 				if (check->use_ssl)
 					set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 				else
@@ -2785,7 +2785,7 @@ static int tcpcheck_main(struct check *check)
 		next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
 
 	if ((check->current_step || &next->list == head) &&
-	    (conn->flags & (CO_FL_WAIT_L4L6 | CO_FL_HANDSHAKE))) {
+	    (conn->flags & CO_FL_WAIT_XPRT)) {
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
@@ -3034,7 +3034,7 @@ static int tcpcheck_main(struct check *check)
 				break;
 
 			/* don't do anything until the connection is established */
-			if (conn->flags & CO_FL_WAIT_L4L6)
+			if (conn->flags & CO_FL_WAIT_XPRT)
 				break;
 
 		} /* end 'connect' */
@@ -3233,7 +3233,7 @@ static int tcpcheck_main(struct check *check)
 	} /* end loop over double chained step list */
 
 	/* don't do anything until the connection is established */
-	if (conn->flags & CO_FL_WAIT_L4L6) {
+	if (conn->flags & CO_FL_WAIT_XPRT) {
 		/* update expire time, should be done by process_chk */
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
