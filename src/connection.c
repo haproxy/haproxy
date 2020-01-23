@@ -43,16 +43,16 @@ struct mux_proto_list mux_proto_list = {
 
 int conn_create_mux(struct connection *conn)
 {
-	/* Verify if the connection just established. */
-	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
-		conn->flags |= CO_FL_CONNECTED;
-
 	if (conn_is_back(conn)) {
 		struct server *srv;
 		struct conn_stream *cs = conn->ctx;
 
 		if (conn->flags & CO_FL_ERROR)
 			goto fail;
+		/* Verify if the connection just established. */
+		if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
+			conn->flags |= CO_FL_CONNECTED;
+
 		if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
