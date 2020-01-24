@@ -2945,7 +2945,7 @@ static int tcpcheck_main(struct check *check)
 			ret = SF_ERR_INTERNAL;
 			if (proto && proto->connect)
 				ret = proto->connect(conn,
-						     CONNECT_HAS_DATA /* I/O polling is always needed */ | (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : CONNECT_DELACK_ALWAYS);
+						     CONNECT_HAS_DATA /* I/O polling is always needed */ | ((next && next->action == TCPCHK_ACT_EXPECT) ? 0 : CONNECT_DELACK_ALWAYS));
 			if (conn_ctrl_ready(conn) &&
 				check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
