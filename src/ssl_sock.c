@@ -5999,18 +5999,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data) {
-			b_alloc(&ctx->early_buf);
-			SSL_set_max_early_data(ctx->ssl,
-			    /* Only allow early data if we managed to allocate
-			     * a buffer.
-			     */
-			    (!b_is_null(&ctx->early_buf)) ?
-			    global.tune.bufsize - global.tune.maxrewrite : 0);
-		}
-#endif
-
 		ctx->bio = BIO_new(ha_meth);
 		if (!ctx->bio) {
 			if (may_retry--) {
@@ -6034,6 +6022,18 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			goto err;
 		}
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data) {
+			b_alloc(&ctx->early_buf);
+			SSL_set_max_early_data(ctx->ssl,
+			    /* Only allow early data if we managed to allocate
+			     * a buffer.
+			     */
+			    (!b_is_null(&ctx->early_buf)) ?
+			    global.tune.bufsize - global.tune.maxrewrite : 0);
+		}
+#endif
 
 		SSL_set_accept_state(ctx->ssl);
 
