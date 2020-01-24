@@ -1142,7 +1142,8 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 static enum act_return http_action_set_header(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
-	struct htx *htx = htxbuf((rule->from == ACT_F_HTTP_REQ) ? &s->req.buf : &s->res.buf);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct htx *htx = htxbuf(&msg->chn->buf);
 	enum act_return ret = ACT_RET_CONT;
 	struct buffer *replace;
 	struct http_hdr_ctx ctx;
@@ -1186,7 +1187,7 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW))
 		ret = ACT_RET_ERR;
 	goto leave;
 }
@@ -1261,7 +1262,8 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 static enum act_return http_action_replace_header(struct act_rule *rule, struct proxy *px,
 						  struct session *sess, struct stream *s, int flags)
 {
-	struct htx *htx = htxbuf((rule->from == ACT_F_HTTP_REQ) ? &s->req.buf : &s->res.buf);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct htx *htx = htxbuf(&msg->chn->buf);
 	enum act_return ret = ACT_RET_CONT;
 	struct buffer *replace;
 	int r;
@@ -1295,7 +1297,7 @@ static enum act_return http_action_replace_header(struct act_rule *rule, struct 
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW))
+	if (!(msg->flags & HTTP_MSGF_SOFT_RW))
 		ret = ACT_RET_ERR;
 	goto leave;
 }
