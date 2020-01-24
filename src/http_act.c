@@ -1125,6 +1125,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 
 		data = htx->data - co_data(res);
 		c_adv(res, data);
+		htx->first = -1;
 		res->total += data;
 	}
 

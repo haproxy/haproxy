@@ -2669,6 +2669,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	htx->flags |= HTX_FL_PROXY_RESP;
 	data = htx->data - co_data(res);
 	c_adv(res, data);
+	htx->first = -1;
 	res->total += data;
 
 	channel_auto_read(req);
@@ -4258,6 +4259,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	 */
 	data = htx->data - co_data(res);
 	c_adv(res, data);
+	htx->first = -1;
 	res->total += data;
 
 	/* return without error. */
@@ -4564,6 +4566,7 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 			htx->flags |= HTX_FL_PROXY_RESP;
 			data = htx->data - co_data(chn);
 			c_adv(chn, data);
+			htx->first = -1;
 			chn->total += data;
 		}
 	}
@@ -4596,6 +4599,7 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 			htx->flags |= HTX_FL_PROXY_RESP;
 			data = htx->data - co_data(chn);
 			c_adv(chn, data);
+			htx->first = -1;
 			chn->total += data;
 		}
 	}
@@ -4719,6 +4723,7 @@ static int http_reply_100_continue(struct stream *s)
 
 	data = htx->data - co_data(res);
 	c_adv(res, data);
+	htx->first = -1;
 	res->total += data;
 	return 0;
 
@@ -4795,6 +4800,7 @@ static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	htx->flags |= HTX_FL_PROXY_RESP;
 	data = htx->data - co_data(res);
 	c_adv(res, data);
+	htx->first = -1;
 	res->total += data;
 
 	channel_auto_read(&s->req);
