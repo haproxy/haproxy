@@ -2728,7 +2728,7 @@ int check_config_validity()
 
 			if (!target) {
 				ha_alert("Proxy '%s': unable to find stick-table '%s'.\n",
-					 curproxy->id, mrule->table.name);
+					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
 			else if (!stktable_compatible_sample(mrule->expr,  target->type)) {
@@ -2766,7 +2766,7 @@ int check_config_validity()
 
 			if (!target) {
 				ha_alert("Proxy '%s': unable to find store table '%s'.\n",
-					 curproxy->id, mrule->table.name);
+					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
 			else if (!stktable_compatible_sample(mrule->expr, target->type)) {
