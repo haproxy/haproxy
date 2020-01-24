@@ -112,7 +112,7 @@ script:
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
-  - env VTEST_PROGRAM=../vtest/vtest make reg-tests
+  - make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
 
 after_failure:
   - |
