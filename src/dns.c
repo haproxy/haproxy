@@ -1629,7 +1629,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 			hostname_dn     = &stream->dns_ctx.hostname_dn;
 			hostname_dn_len = stream->dns_ctx.hostname_dn_len;
 			resolvers       = stream->dns_ctx.parent->arg.dns.resolvers;
-			query_type      = ((stream->dns_ctx.parent->arg.dns.dns_opts.family_prio == AF_INET)
+			query_type      = ((stream->dns_ctx.parent->arg.dns.dns_opts->family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA);
 			break;
@@ -2415,7 +2415,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 				short ip_sin_family = 0;
 				void *ip = NULL;
 
-				dns_get_ip_from_response(&resolution->response, &rule->arg.dns.dns_opts, NULL,
+				dns_get_ip_from_response(&resolution->response, rule->arg.dns.dns_opts, NULL,
 							 0, &ip, &ip_sin_family, NULL);
 
 				switch (ip_sin_family) {
@@ -2533,8 +2533,12 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 		goto do_resolve_parse_error;
 
 
+	rule->arg.dns.dns_opts = calloc(1, sizeof(*rule->arg.dns.dns_opts));
+	if (rule->arg.dns.dns_opts == NULL)
+		goto do_resolve_parse_error;
+
 	/* Default priority is ipv6 */
-	rule->arg.dns.dns_opts.family_prio = AF_INET6;
+	rule->arg.dns.dns_opts->family_prio = AF_INET6;
 
 	/* optional arguments accepted for now:
 	 *  ipv4 or ipv6
@@ -2548,10 +2552,10 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 			goto do_resolve_parse_error;
 
 		if (strncmp(beg, "ipv4", end - beg) == 0) {
-			rule->arg.dns.dns_opts.family_prio = AF_INET;
+			rule->arg.dns.dns_opts->family_prio = AF_INET;
 		}
 		else if (strncmp(beg, "ipv6", end - beg) == 0) {
-			rule->arg.dns.dns_opts.family_prio = AF_INET6;
+			rule->arg.dns.dns_opts->family_prio = AF_INET6;
 		}
 		else {
 			goto do_resolve_parse_error;

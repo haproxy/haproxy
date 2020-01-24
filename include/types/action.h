@@ -115,7 +115,7 @@ struct act_rule {
 			char *varname;
 			char *resolvers_id;
 			struct dns_resolvers *resolvers;
-			struct dns_options dns_opts;
+			struct dns_options *dns_opts;
 		} dns;                         /* dns resolution */
 		struct {
 			int i;                 /* integer param (status, nice, loglevel, ..) */
