@@ -5011,23 +5011,36 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	 * do not provide an authority.
 	 */
 	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
+		struct ist n = list[hdr].n;
+		struct ist v = list[hdr].v;
+
 		/* these ones do not exist in H2 and must be dropped. */
-		if (isteq(list[hdr].n, ist("connection")) ||
-		    (auth.len && isteq(list[hdr].n, ist("host"))) ||
-		    isteq(list[hdr].n, ist("proxy-connection")) ||
-		    isteq(list[hdr].n, ist("keep-alive")) ||
-		    isteq(list[hdr].n, ist("upgrade")) ||
-		    isteq(list[hdr].n, ist("transfer-encoding")))
+		if (isteq(n, ist("connection")) ||
+		    (auth.len && isteq(n, ist("host"))) ||
+		    isteq(n, ist("proxy-connection")) ||
+		    isteq(n, ist("keep-alive")) ||
+		    isteq(n, ist("upgrade")) ||
+		    isteq(n, ist("transfer-encoding")))
 			continue;
+
+		if (isteq(n, ist("te"))) {
+			/* "te" may only be sent with "trailers" if this value
+			 * is present, otherwise it must be deleted.
+			 */
+			v = istist(v, ist("trailers"));
+			if (!v.ptr || (v.len > 8 && v.ptr[8] != ','))
+				continue;
+			v = ist("trailers");
+		}
 
 		/* Skip all pseudo-headers */
-		if (*(list[hdr].n.ptr) == ':')
+		if (*(n.ptr) == ':')
 			continue;
 
-		if (isteq(list[hdr].n, ist("")))
+		if (isteq(n, ist("")))
 			break; // end
 
-		if (!hpack_encode_header(&outbuf, list[hdr].n, list[hdr].v)) {
+		if (!hpack_encode_header(&outbuf, n, v)) {
 			/* output full */
 			if (b_space_wraps(mbuf))
 				goto realign_again;
