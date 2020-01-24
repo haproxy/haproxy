@@ -4254,6 +4254,8 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	if (!htx_add_endof(htx, HTX_BLK_EOH) || !htx_add_endof(htx, HTX_BLK_EOM))
 		goto fail;
 
+	htx_to_buf(htx, &res->buf);
+	htx->flags |= HTX_FL_PROXY_RESP;
 	/*
 	 * Send the message
 	 */
