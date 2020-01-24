@@ -5981,8 +5981,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		*xprt_ctx = ctx;
 		/* Start the handshake */
 		tasklet_wakeup(ctx->wait_event.tasklet);
-		if (conn->flags & CO_FL_ERROR)
-			goto err;
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -6048,8 +6046,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		*xprt_ctx = ctx;
 		/* Start the handshake */
 		tasklet_wakeup(ctx->wait_event.tasklet);
-		if (conn->flags & CO_FL_ERROR)
-			goto err;
 		return 0;
 	}
 	/* don't know how to handle such a target */
