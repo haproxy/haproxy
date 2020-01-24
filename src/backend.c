@@ -1905,9 +1905,6 @@ void back_handle_st_req(struct stream *s)
  * SI_ST_CER (error), SI_ST_DIS (abort), and SI_ST_CON (no change). This only
  * works with connection-based streams. We know that there were no I/O event
  * when reaching this function. Timeouts and errors are *not* cleared.
- * We might have been woken up as part of the confirmation of a full-stack
- * connection setup (e.g. raw+PP+TLS+ALPN). It will then be our role to install
- * a mux on this connection based on what ALPN could have been negotiated.
  */
 void back_handle_st_con(struct stream *s)
 {
@@ -1931,25 +1928,6 @@ void back_handle_st_con(struct stream *s)
 		/* Note: state = SI_ST_DIS now */
 		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
 		goto end;
-	}
-
-	/* first, let's see if we've made any progress on this connection */
-	if (!conn->mux && !(conn->flags & CO_FL_WAIT_XPRT)) {
-		/* connection finished to set up */
-		struct server *srv;
-
-		if (conn->flags & CO_FL_ERROR)
-			goto fail;
-		if (conn_install_mux_be(conn, srv_cs, s->sess) < 0)
-			goto fail;
-		srv = objt_server(s->target);
-		if (srv && ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
-		    conn->mux->avail_streams(conn) > 0)
-			LIST_ADD(&srv->idle_conns[tid], &conn->list);
-		goto done;
-
-	fail:
-		si_release_endpoint(&s->si[1]);
 	}
 
  done:
