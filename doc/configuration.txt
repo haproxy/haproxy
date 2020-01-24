@@ -4840,6 +4840,73 @@ http-request replace-value <name> <match-regex> <replace-fmt>
     # outputs:
     X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
 
+http-request return [status <code>] [content-type <type>]
+          [ { default-errorfiles | errorfile <file> | errorfiles <name> |
+              file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+          [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediatly returns a response. The
+  default status code used for the response is 200. It can be optionally
+  specified as an arguments to "status". The response content-type may also be
+  specified as an argument to "content-type". Finally the response itselft may
+  be defined. If can be a full HTTP response specifying the errorfile to use,
+  or the response payload specifing the file or the string to use. These rules
+  are followed to create the response :
+
+  * If neither the errorfile nor the payload to use is defined, a dummy
+    response is returned. Only the "status" argument is considered. It can be
+    any code in the range [200, 599]. The "content-type" argument, if any, is
+    ignored.
+
+  * If "default-errorfiles" argument is set, the proxy's errorfiles are
+    considered.  If the "status" argument is defined, it must be one of the
+    status code handled by hparoxy (200, 400, 403, 404, 405, 408, 410, 425,
+    429, 500, 502, 503, and 504). The "content-type" argument, if any, is
+    ignored.
+
+  * If a specific errorfile is defined, with an "errorfile" argument, the
+    corresponding file, containing a full HTTP response, is returned. Only the
+    "status" argument is considered. It must be one of the status code handled
+    by hparoxy (200, 400, 403, 404, 405, 408, 410, 425, 429, 500, 502, 503, and
+    504). The "content-type" argument, if any, is ignored.
+
+  * If an http-errors section is defined, with an "errorfiles" argument, the
+    corresponding file in the specified http-errors section, containing a full
+    HTTP response, is returned. Only the "status" argument is considered. It
+    must be one of the status code handled by hparoxy (200, 400, 403, 404, 405,
+    408, 410, 425, 429, 500, 502, 503, and 504). The "content-type" argument,
+    if any, is ignored.
+
+  * If a "file" or a "lf-file" argument is specified, the file's content is
+    used as the response payload. If the file is not empty, its content-type
+    must be set as argument to "content-type". Otherwise, any "content-type"
+    argument is ignored. With a "lf-file" argument, the file's content is
+    evaluated as a log-format string. With a "file" argument, it is considered
+    as a raw content.
+
+  * If a "string" or "lf-string" argument is specified, the defined string is
+    used as the response payload. The content-type must always be set as
+    argument to "content-type". With a "lf-string" argument, the string is
+    evaluated as a log-format string. With a "string" argument, it is
+    considered as a raw string.
+
+  Note that the generated response must be smaller than a buffer. And to avoid
+  any warning, when an errorfile or a raw file is loaded, the buffer space
+  reserved to the headers rewritting should also be free.
+
+  No further "http-request" rules are evaluated.
+
+  Example:
+    http-request return errorfile /etc/haproy/errorfiles/200.http \
+        if { path /ping }
+
+    http-request return content-type image/x-icon file /var/www/favicon.ico  \
+        if { path /favicon.ico }
+
+    http-request return status 403 content-type text/plain    \
+        lf-string "Access denied. IP %[src] is blacklisted."  \
+        if { src -f /etc/haproxy/blacklist.lst }
+
 http-request sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
 
@@ -5396,6 +5463,70 @@ http-response replace-value <name> <regex-match> <replace-fmt>
 
     # outputs:
     Cache-Control: max-age=3600, private
+
+http-response return [status <code>] [content-type <type>]
+          [ { default-errorfiles | errorfile <file> | errorfiles <name> |
+              file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+          [ { if | unless } <condition> ]
+
+  This stops the evaluation of the rules and immediatly returns a response. The
+  default status code used for the response is 200. It can be optionally
+  specified as an arguments to "status". The response content-type may also be
+  specified as an argument to "content-type". Finally the response itselft may
+  be defined. If can be a full HTTP response specifying the errorfile to use,
+  or the response payload specifing the file or the string to use. These rules
+  are followed to create the response :
+
+  * If neither the errorfile nor the payload to use is defined, a dummy
+    response is returned. Only the "status" argument is considered. It can be
+    any code in the range [200, 599]. The "content-type" argument, if any, is
+    ignored.
+
+  * If "default-errorfiles" argument is set, the proxy's errorfiles are
+    considered.  If the "status" argument is defined, it must be one of the
+    status code handled by hparoxy (200, 400, 403, 404, 405, 408, 410, 425,
+    429, 500, 502, 503, and 504). The "content-type" argument, if any, is
+    ignored.
+
+  * If a specific errorfile is defined, with an "errorfile" argument, the
+    corresponding file, containing a full HTTP response, is returned. Only the
+    "status" argument is considered. It must be one of the status code handled
+    by hparoxy (200, 400, 403, 404, 405, 408, 410, 425, 429, 500, 502, 503, and
+    504). The "content-type" argument, if any, is ignored.
+
+  * If an http-errors section is defined, with an "errorfiles" argument, the
+    corresponding file in the specified http-errors section, containing a full
+    HTTP response, is returned. Only the "status" argument is considered. It
+    must be one of the status code handled by hparoxy (200, 400, 403, 404, 405,
+    408, 410, 425, 429, 500, 502, 503, and 504). The "content-type" argument,
+    if any, is ignored.
+
+  * If a "file" or a "lf-file" argument is specified, the file's content is
+    used as the response payload. If the file is not empty, its content-type
+    must be set as argument to "content-type". Otherwise, any "content-type"
+    argument is ignored. With a "lf-file" argument, the file's content is
+    evaluated as a log-format string. With a "file" argument, it is considered
+    as a raw content.
+
+  * If a "string" or "lf-string" argument is specified, the defined string is
+    used as the response payload. The content-type must always be set as
+    argument to "content-type". With a "lf-string" argument, the string is
+    evaluated as a log-format string. With a "string" argument, it is
+    considered as a raw string.
+
+  Note that the generated response must be smaller than a buffer. And to avoid
+  any warning, when an errorfile or a raw file is loaded, the buffer space
+  reserved to the headers rewritting should also be free.
+
+  No further "http-response" rules are evaluated.
+
+  Example:
+    http-response return errorfile /etc/haproy/errorfiles/200.http \
+        if { status eq 404 }
+
+    http-response return content-type text/plain  \
+        string "This is the end !"                \
+        if { status eq 500 }
 
 http-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]

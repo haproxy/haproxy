@@ -11,6 +11,8 @@
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <ctype.h>
 #include <string.h>
@@ -1784,7 +1786,6 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 {
 	int cur_arg;
 
-
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg]) {
 		memprintf(err, "expects exactly 1 arguments");
@@ -1803,6 +1804,517 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
+}
+
+/* Release <.arg.http_return> */
+static void release_http_return(struct act_rule *rule)
+{
+	struct logformat_node *lf, *lfb;
+
+	free(rule->arg.http_return.ctype);
+	if (rule->action == 2) {
+		chunk_destroy(&rule->arg.http_return.body.obj);
+	}
+	else if (rule->action == 3) {
+		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+	}
+}
+
+/* This function executes a return action. It builds an HTX message from an
+ * errorfile, an raw file or a log-format string, depending on <.action>
+ * value. On success, it returns ACT_RET_ABRT. If an error occurs ACT_RET_ERR is
+ * returned.
+ */
+static enum act_return http_action_return(struct act_rule *rule, struct proxy *px,
+					  struct session *sess, struct stream *s, int flags)
+{
+	struct channel *req = &s->req;
+	struct channel *res = &s->res;
+	struct buffer *errmsg;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct htx_sl *sl;
+	struct buffer *body = NULL;
+	const char *status, *reason, *clen, *ctype;
+	unsigned int slflags;
+	enum act_return ret = ACT_RET_DONE;
+
+	s->txn->status = rule->arg.http_return.status;
+	channel_htx_truncate(res, htx);
+
+	if (rule->action == 1) {
+		/* implicit or explicit error message*/
+		errmsg = rule->arg.http_return.body.errmsg;
+		if (!errmsg) {
+			/* get default error message */
+			errmsg = http_error_message(s);
+		}
+		if (b_is_null(errmsg))
+			goto end;
+		if (!channel_htx_copy_msg(res, htx, errmsg))
+			goto fail;
+	}
+	else {
+		/* no payload, file or log-format string */
+		if (rule->action == 2) {
+			/* file */
+			body = &rule->arg.http_return.body.obj;
+		}
+		else if (rule->action == 3) {
+			/* log-format string */
+			body = alloc_trash_chunk();
+			if (!body)
+				goto fail_alloc;
+			body->data = build_logline(s, body->area, body->size, &rule->arg.http_return.body.fmt);
+		}
+		/* else no payload */
+
+		status = ultoa(rule->arg.http_return.status);
+		reason = http_get_reason(rule->arg.http_return.status);
+		slflags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+		if (!body || !b_data(body))
+			slflags |= HTX_SL_F_BODYLESS;
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, slflags, ist("HTTP/1.1"), ist(status), ist(reason));
+		if (!sl)
+			goto fail;
+		sl->info.res.status = rule->arg.http_return.status;
+
+		clen = (body ? ultoa(b_data(body)) : "0");
+		ctype = rule->arg.http_return.ctype;
+
+		if (!htx_add_header(htx, ist("content-length"), ist(clen)) ||
+		    (body && b_data(body) && ctype && !htx_add_header(htx, ist("content-type"), ist(ctype))) ||
+		    !htx_add_endof(htx, HTX_BLK_EOH) ||
+		    (body && b_data(body) && !htx_add_data_atonce(htx, ist2(b_head(body), b_data(body)))) ||
+		    !htx_add_endof(htx, HTX_BLK_EOM))
+			goto fail;
+	}
+
+	htx_to_buf(htx, &s->res.buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
+
+  end:
+	if (rule->from == ACT_F_HTTP_REQ) {
+		/* let's log the request time */
+		s->logs.tv_request = now;
+		req->analysers &= AN_REQ_FLT_END;
+
+		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+			_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+	}
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= ((rule->from == ACT_F_HTTP_REQ) ? SF_FINST_R : SF_FINST_H);
+
+  leave:
+	if (rule->action == 3)
+		free_trash_chunk(body);
+	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_htx_truncate(res, htx);
+	ret = ACT_RET_ERR;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	goto leave;
+}
+
+/* Check an "http-request return" action when an http-errors section is referenced.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+static int check_http_return_action(struct act_rule *rule, struct proxy *px, char **err)
+{
+	struct http_errors *http_errs;
+	int status = (intptr_t)(rule->arg.act.p[0]);
+	int ret = 1;
+
+	list_for_each_entry(http_errs, &http_errors_list, list) {
+		if (strcmp(http_errs->id, (char *)rule->arg.act.p[1]) == 0) {
+			free(rule->arg.act.p[1]);
+			rule->arg.http_return.status = status;
+			rule->arg.http_return.ctype = NULL;
+			rule->action = 1;
+			rule->arg.http_return.body.errmsg = http_errs->errmsg[http_get_status_idx(status)];
+			rule->action_ptr = http_action_return;
+			rule->release_ptr = release_http_return;
+
+			if (!rule->arg.http_return.body.errmsg)
+				ha_warning("Proxy '%s': status '%d' referenced by http return rule "
+					   "not declared in http-errors section '%s'.\n",
+					   px->id, status, http_errs->id);
+			break;
+		}
+	}
+
+	if (&http_errs->list == &http_errors_list) {
+		memprintf(err, "unknown http-errors section '%s' referenced by http return rule",
+			  (char *)rule->arg.act.p[1]);
+		free(rule->arg.act.p[1]);
+		ret = 0;
+	}
+
+	return ret;
+}
+
+/* Parse a "return" action. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error. This function creates 4 action types:
+ *
+ *   - action 0  : dummy response, no payload
+ *   - action 1  : implicit error message depending on the status code or explicit one
+ *   - action 2  : explicit file oject ('file' argument)
+ *   - action 3  : explicit log-format string ('content' argument)
+ *
+ * The content-type must be defined for non-empty payload. It is ignored for
+ * error messages (implicit or explicit). When an http-errors section is
+ * referenced, action is set to -1 and the real action is resolved during the
+ * configuration validity check.
+ */
+static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, struct proxy *px,
+					    struct act_rule *rule, char **err)
+{
+	struct logformat_node *lf, *lfb;
+	struct stat stat;
+	const char *file = NULL, *act_arg = NULL;
+	char *obj = NULL, *ctype = NULL, *name = NULL;
+	int cur_arg, cap, objlen = 0, action = 0, status = 200, fd = -1;
+
+	cur_arg = *orig_arg;
+
+	while (*args[cur_arg]) {
+		if (strcmp(args[cur_arg], "status") == 0) {
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <status_code> as argument", args[cur_arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			status = atol(args[cur_arg]);
+			if (status < 200 || status > 599) {
+				memprintf(err, "Unexpected status code '%d'", status);
+				goto error;
+			}
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "content-type") == 0) {
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <ctype> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			free(ctype);
+			ctype = strdup(args[cur_arg]);
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "errorfiles") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <name> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			/* Must be resolved during the config validity check */
+			name = strdup(args[cur_arg]);
+			action = -1;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "default-errorfiles") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			action = 1;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "errorfile") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <fmt> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			file = args[cur_arg];
+			rule->arg.http_return.body.errmsg = http_load_errorfile(args[cur_arg], err);
+			if (!rule->arg.http_return.body.errmsg) {
+				goto error;
+			}
+			action = 1;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "file") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <file> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			file = args[cur_arg];
+			fd = open(args[cur_arg], O_RDONLY);
+			if ((fd < 0) || (fstat(fd, &stat) < 0)) {
+				memprintf(err, "error opening file '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (stat.st_size > global.tune.bufsize) {
+				memprintf(err, "file '%s' exceeds the buffer size (%ld > %d)",
+					  args[cur_arg], stat.st_size, global.tune.bufsize);
+				goto error;
+			}
+			objlen = stat.st_size;
+			obj = malloc(objlen);
+			if (!obj || read(fd, obj, objlen) != objlen) {
+				memprintf(err, "error reading file '%s'", args[cur_arg]);
+				goto error;
+			}
+			close(fd);
+			fd = -1;
+			action = 2;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "string") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <str> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			obj = strdup(args[cur_arg]);
+			objlen = strlen(args[cur_arg]);
+			action = 2;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "lf-file") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <file> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			file = args[cur_arg];
+			fd = open(args[cur_arg], O_RDONLY);
+			if ((fd < 0) || (fstat(fd, &stat) < 0)) {
+				memprintf(err, "error opening file '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (stat.st_size > global.tune.bufsize) {
+				memprintf(err, "file '%s' exceeds the buffer size (%ld > %d)",
+					  args[cur_arg], stat.st_size, global.tune.bufsize);
+				goto error;
+			}
+			objlen = stat.st_size;
+			obj = malloc(objlen + 1);
+			if (!obj || read(fd, obj, objlen) != objlen) {
+				memprintf(err, "error reading file '%s'", args[cur_arg]);
+				goto error;
+			}
+			close(fd);
+			fd = -1;
+			obj[objlen] = '\0';
+			action = 3;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "lf-string") == 0) {
+			if (action != 0) {
+				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
+				goto error;
+			}
+			act_arg = args[cur_arg];
+			cur_arg++;
+			if (!*args[cur_arg]) {
+				memprintf(err, "'%s' expects <fmt> as argument", args[cur_arg-1]);
+				goto error;
+			}
+			obj = strdup(args[cur_arg]);
+			objlen = strlen(args[cur_arg]);
+			action = 3;
+			cur_arg++;
+		}
+		else
+			break;
+	}
+
+
+	if (action == -1) { /* errorfiles */
+		int rc;
+
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (http_err_codes[rc] == status)
+				break;
+		}
+
+		if (rc >= HTTP_ERR_SIZE) {
+			memprintf(err, "status code '%d' not handled by default with '%s' argument.",
+				  status, act_arg);
+			goto error;
+		}
+		if (ctype) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
+				   "returned response is an erorrfile.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+				   ctype);
+			free(ctype);
+			ctype = NULL;
+		}
+
+		rule->arg.act.p[0] = (void *)((intptr_t)status);
+		rule->arg.act.p[1] = name;
+		rule->check_ptr    = check_http_return_action;
+		goto out;
+	}
+	else if (action == 0) { /* no payload */
+		if (ctype) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored because"
+				   " neither errorfile nor payload defined.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+				   ctype);
+			free(ctype);
+			ctype = NULL;
+		}
+	}
+	else if (action == 1) { /* errorfile */
+		if (!rule->arg.http_return.body.errmsg) { /* default errorfile */
+			int rc;
+
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+				if (http_err_codes[rc] == status)
+					break;
+			}
+
+			if (rc >= HTTP_ERR_SIZE) {
+				memprintf(err, "status code '%d' not handled by default with '%s' argument",
+					  status, act_arg);
+				goto error;
+			}
+			if (ctype) {
+				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
+					   "returned response is an erorrfile.\n",
+					   px->conf.args.file, px->conf.args.line,
+					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+					   ctype);
+				free(ctype);
+				ctype = NULL;
+			}
+		}
+		else { /* explicit payload using 'errorfile' parameter */
+			if (ctype) {
+				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored because"
+					   " the errorfile '%s' is used.\n",
+					   px->conf.args.file, px->conf.args.line,
+					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+					   ctype, file);
+				free(ctype);
+				ctype = NULL;
+			}
+		}
+	}
+	else if (action == 2) { /* explicit parameter using 'file' parameter*/
+		if (!ctype && objlen) {
+			memprintf(err, "a content type must be defined when non-empty payload is configured");
+			goto error;
+		}
+		if (ctype && !objlen) {
+				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
+					   "configured payload is empty.\n",
+					   px->conf.args.file, px->conf.args.line,
+					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+					   ctype);
+			free(ctype);
+			ctype = NULL;
+		}
+		if (global.tune.bufsize - objlen < global.tune.maxrewrite) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : the payload runs ober the buffer space reserved to headers rewritting."
+				   " It may lead to internal errors if strict rewritting mode is enabled.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
+		}
+		chunk_initlen(&rule->arg.http_return.body.obj, obj, global.tune.bufsize, objlen);
+	}
+	else if (action == 3) { /* log-format payload using 'lf-file' of 'lf-string' parameter */
+		LIST_INIT(&rule->arg.http_return.body.fmt);
+		if (!ctype) {
+			memprintf(err, "a content type must be defined with a log-format payload");
+			goto error;
+		}
+		if (rule->from == ACT_F_HTTP_REQ) {
+			px->conf.args.ctx = ARGC_HRQ;
+			cap = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+		}
+		else {
+			px->conf.args.ctx =  ARGC_HRS;
+			cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+		}
+		if (!parse_logformat_string(obj, px, &rule->arg.http_return.body.fmt, LOG_OPT_HTTP, cap, err))
+			goto error;
+
+		free(px->conf.lfs_file);
+		px->conf.lfs_file = strdup(px->conf.args.file);
+		px->conf.lfs_line = px->conf.args.line;
+		free(obj);
+	}
+
+	rule->arg.http_return.status = status;
+	rule->arg.http_return.ctype = ctype;
+	rule->action = action;
+	rule->action_ptr = http_action_return;
+	rule->release_ptr = release_http_return;
+
+  out:
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+
+  error:
+	free(obj);
+	free(ctype);
+	free(name);
+	if (fd >= 0)
+		close(fd);
+	if (action == 3) {
+		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+	}
+	free(rule->arg.http_return.ctype);
+	return ACT_RET_PRS_ERR;
 }
 
 /************************************************************************/
@@ -1828,6 +2340,7 @@ static struct action_kw_list http_req_actions = {
 		{ "replace-path",     parse_replace_uri,               0 },
 		{ "replace-uri",      parse_replace_uri,               0 },
 		{ "replace-value",    parse_http_replace_header,       0 },
+		{ "return",           parse_http_return,               0 },
 		{ "set-header",       parse_http_set_header,           0 },
 		{ "set-log-level",    parse_http_set_log_level,        0 },
 		{ "set-map",          parse_http_set_map,              1 },
@@ -1860,6 +2373,7 @@ static struct action_kw_list http_res_actions = {
 		{ "redirect",        parse_http_redirect,       0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
+		{ "return",          parse_http_return,         0 },
 		{ "set-header",      parse_http_set_header,     0 },
 		{ "set-log-level",   parse_http_set_log_level,  0 },
 		{ "set-map",         parse_http_set_map,        1 },

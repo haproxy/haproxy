@@ -127,6 +127,15 @@ struct act_rule {
 			int status;            /* status code */
 			struct buffer *errmsg; /* HTTP error message, may be NULL */
 		} http_deny;                   /* args used by HTTP deny rules */
+		struct {
+			int status;
+			char *ctype;
+			union {
+				struct list   fmt;
+				struct buffer obj;
+				struct buffer *errmsg;
+			} body;
+		} http_return;
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */
