@@ -2482,6 +2482,14 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_YIELD;
 }
 
+static void release_dns_action(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.dns.expr);
+	free(rule->arg.dns.varname);
+	free(rule->arg.dns.resolvers_id);
+	free(rule->arg.dns.dns_opts);
+}
+
 
 /* parse "do-resolve" action
  * This action takes the following arguments:
@@ -2588,6 +2596,7 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 	*orig_arg = cur_arg;
 
 	rule->check_ptr = check_action_do_resolve;
+	rule->release_ptr = release_dns_action;
 
 	return ACT_RET_PRS_OK;
 
