@@ -938,7 +938,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_ADD(&sess->fe->be_counters.internal_errors, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
 	goto return_prx_cond;
@@ -1100,7 +1100,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_ADD(&sess->fe->be_counters.internal_errors, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
 	goto return_prx_cond;
