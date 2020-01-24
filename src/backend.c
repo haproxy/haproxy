@@ -1911,8 +1911,6 @@ void back_handle_st_con(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
-	struct conn_stream *srv_cs = objt_cs(si->end);
-	struct connection *conn = srv_cs ? srv_cs->conn : __objt_conn(si->end);
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 
@@ -1933,11 +1931,6 @@ void back_handle_st_con(struct stream *s)
  done:
 	/* retryable error ? */
 	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
-		if (!(s->flags & SF_SRV_REUSED)) {
-			conn_stop_tracking(conn);
-			conn_full_close(conn);
-		}
-
 		if (!si->err_type) {
 			if (si->flags & SI_FL_ERR)
 				si->err_type = SI_ET_CONN_ERR;
