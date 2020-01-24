@@ -20,7 +20,7 @@ env:
 addons:
   apt:
     update: true
-    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, socat ]
+    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat ]
   homebrew:
     update: true
     packages: [ socat ]
@@ -41,12 +41,12 @@ matrix:
     arch: amd64
     if: type != cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
   - os: linux
     arch: arm64
     if: type != cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
   - os: linux
     arch: s390x
     if: type != cron
@@ -65,27 +65,27 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie"
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie" CC=clang-9
   - os: linux
     if: type != cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2
+    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2
+    env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2 CC=clang-9
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
+    env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o" CC=clang-9
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc BORINGSSL=yes
+    env: TARGET=linux-glibc BORINGSSL=yes CC=clang-9
   - os: linux
     if: type != cron
     compiler: clang
-    env: TARGET=linux-glibc FLAGS=
+    env: TARGET=linux-glibc FLAGS= CC=clang-9
   - os: osx
     if: type != cron
     compiler: clang
@@ -93,7 +93,7 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc FLAGS="USE_SLZ=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_51DEGREES=1"
+    env: TARGET=linux-glibc FLAGS="USE_SLZ=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_51DEGREES=1" CC=clang-9
     before_script:
       - git clone http://git.1wt.eu/git/libslz.git/
       - cd libslz && make && make PREFIX=${HOME}/opt install && cd ..
