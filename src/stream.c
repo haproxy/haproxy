@@ -1616,7 +1616,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->cli_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.cli_aborts, 1);
@@ -1639,7 +1639,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			if (!(req->analysers) && !(res->analysers)) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.srv_aborts, 1);
@@ -1894,7 +1894,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			if (req->flags & CF_READ_ERROR) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->cli_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.cli_aborts, 1);
@@ -1903,7 +1903,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else if (req->flags & CF_READ_TIMEOUT) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->cli_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.cli_aborts, 1);
@@ -1912,7 +1912,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else if (req->flags & CF_WRITE_ERROR) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.srv_aborts, 1);
@@ -1921,7 +1921,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else {
 				_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.srv_aborts, 1);
@@ -1948,7 +1948,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			if (res->flags & CF_READ_ERROR) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.srv_aborts, 1);
@@ -1957,7 +1957,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else if (res->flags & CF_READ_TIMEOUT) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.srv_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.srv_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.srv_aborts, 1);
@@ -1966,7 +1966,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else if (res->flags & CF_WRITE_ERROR) {
 				_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->cli_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.cli_aborts, 1);
@@ -1975,7 +1975,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			else {
 				_HA_ATOMIC_ADD(&s->be->be_counters.cli_aborts, 1);
 				_HA_ATOMIC_ADD(&sess->fe->fe_counters.cli_aborts, 1);
-				if (sess->listener->counters)
+				if (sess->listener && sess->listener->counters)
 					_HA_ATOMIC_ADD(&sess->listener->counters->cli_aborts, 1);
 				if (srv)
 					_HA_ATOMIC_ADD(&srv->counters.cli_aborts, 1);
