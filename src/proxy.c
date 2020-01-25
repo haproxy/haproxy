@@ -975,9 +975,9 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 		int t;
 		t = tick_remain(now_ms, p->stop_time);
 		if (t == 0) {
-			ha_warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+			ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 				   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-			send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+			send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 				 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 			stop_proxy(p);
 			/* try to free more memory */
@@ -2071,9 +2071,9 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 	if (px->state == PR_STSTOPPED)
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was already shut down.\n");
 
-	ha_warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+	ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 		   px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
-	send_log(px, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+	send_log(px, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 	         px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
 
 	stop_proxy(px);
