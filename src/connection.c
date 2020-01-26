@@ -1372,7 +1372,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			if (dst->ss_family == AF_INET) {
 				v4tov6(&tmp, &((struct sockaddr_in *)dst)->sin_addr);
 				memcpy(hdr->addr.ip6.dst_addr, &tmp, 16);
-				hdr->addr.ip6.src_port = ((struct sockaddr_in *)src)->sin_port;
+				hdr->addr.ip6.dst_port = ((struct sockaddr_in *)dst)->sin_port;
 			}
 			else {
 				memcpy(hdr->addr.ip6.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
