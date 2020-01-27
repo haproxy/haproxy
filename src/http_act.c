@@ -335,6 +335,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
 		(*orig_arg)++;
 	}
 
+	LIST_INIT(&rule->arg.http.fmt);
 	return ACT_RET_PRS_OK;
 }
 
@@ -928,6 +929,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 		cur_arg++;
 	}
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
@@ -953,6 +955,7 @@ static enum act_parse_ret parse_http_set_nice(const char **args, int *orig_arg, 
 	else if (rule->arg.http.i > 1024)
 		rule->arg.http.i = 1024;
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
 }
@@ -980,6 +983,7 @@ static enum act_parse_ret parse_http_set_tos(const char **args, int *orig_arg, s
 		return ACT_RET_PRS_ERR;
 	}
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
 #else
@@ -1011,6 +1015,7 @@ static enum act_parse_ret parse_http_set_mark(const char **args, int *orig_arg, 
 		return ACT_RET_PRS_ERR;
 	}
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg + 1;
 	global.last_checks |= LSTCHK_NETADM;
 	return ACT_RET_PRS_OK;
@@ -1041,6 +1046,7 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 	else if ((rule->arg.http.i = get_log_level(args[cur_arg]) + 1) == 0)
 		goto bad_log_level;
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
 }
@@ -1372,6 +1378,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 
 	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
 
+	LIST_INIT(&rule->arg.http.fmt);
 	*orig_arg = cur_arg + 1;
 	return ACT_RET_PRS_OK;
 }
