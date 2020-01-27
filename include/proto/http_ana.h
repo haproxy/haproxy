@@ -48,7 +48,7 @@ void http_check_request_for_cacheability(struct stream *s, struct channel *req);
 void http_check_response_for_cacheability(struct stream *s, struct channel *res);
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si);
 void http_server_error(struct stream *s, struct stream_interface *si, int err, int finst, const struct buffer *msg);
-void http_reply_and_close(struct stream *s, short status, struct buffer *msg);
+void http_reply_and_close(struct stream *s, short status, const struct buffer *msg);
 void http_return_srv_error(struct stream *s, struct stream_interface *si);
 struct buffer *http_error_message(struct stream *s);
 

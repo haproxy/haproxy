@@ -4550,45 +4550,25 @@ static void http_end_response(struct stream *s)
 void http_server_error(struct stream *s, struct stream_interface *si, int err,
 		       int finst, const struct buffer *msg)
 {
-	channel_auto_read(si_oc(si));
-	channel_abort(si_oc(si));
-	channel_auto_close(si_oc(si));
-	channel_htx_erase(si_oc(si), htxbuf(&(si_oc(si))->buf));
-	channel_htx_truncate(si_ic(si), htxbuf(&(si_ic(si))->buf));
-	channel_auto_close(si_ic(si));
-	channel_auto_read(si_ic(si));
-
-	/* <msg> is an HTX structure. So we copy it in the response's
-	 * channel */
-	if (msg && !b_is_null(msg)) {
-		struct channel *chn = si_ic(si);
-		struct htx *htx;
-		size_t data;
-
-		FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
-		htx = htx_from_buf(&chn->buf);
-		if (channel_htx_copy_msg(chn, htx, msg)) {
-			htx->flags |= HTX_FL_PROXY_RESP;
-			data = htx->data - co_data(chn);
-			c_adv(chn, data);
-			htx->first = -1;
-			chn->total += data;
-		}
-	}
+	http_reply_and_close(s, s->txn->status, msg);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
 }
 
-void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
+void http_reply_and_close(struct stream *s, short status, const struct buffer *msg)
 {
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
 	channel_auto_close(&s->req);
 	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
 	channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
+	channel_auto_read(&s->res);
+	channel_auto_close(&s->res);
+	channel_shutr_now(&s->res);
 
+	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
 	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 
 	/* <msg> is an HTX structure. So we copy it in the response's
@@ -4608,11 +4588,6 @@ void http_reply_and_close(struct stream *s, short status, struct buffer *msg)
 			chn->total += data;
 		}
 	}
-
-	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
-	channel_auto_read(&s->res);
-	channel_auto_close(&s->res);
-	channel_shutr_now(&s->res);
 }
 
 struct buffer *http_error_message(struct stream *s)
