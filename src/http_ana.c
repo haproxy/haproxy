@@ -2464,7 +2464,6 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	struct buffer *chunk;
 	struct ist status, reason, location;
 	unsigned int flags;
-	size_t data;
 	int close = 0; /* Try to keep the connection alive byt default */
 
 	chunk = alloc_trash_chunk();
@@ -2662,22 +2661,9 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 		goto fail;
 
 	htx_to_buf(htx, &res->buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
 
-	htx->flags |= HTX_FL_PROXY_RESP;
-	data = htx->data - co_data(res);
-	c_adv(res, data);
-	htx->first = -1;
-	res->total += data;
-
-	channel_auto_read(req);
-	channel_abort(req);
-	channel_auto_close(req);
-	channel_htx_erase(req, htxbuf(&req->buf));
-
-	res->wex = tick_add_ifset(now_ms, res->wto);
-	channel_auto_read(res);
-	channel_auto_close(res);
-	channel_shutr_now(res);
 	if (rule->flags & REDIRECT_FLAG_FROM_REQ) {
 		/* let's log the request time */
 		s->logs.tv_request = now;
@@ -4210,7 +4196,6 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	struct htx_sl *sl;
 	struct ist path, location;
 	unsigned int flags;
-	size_t data;
 
 	/*
 	 * Create the location
@@ -4258,27 +4243,14 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 		goto fail;
 
 	htx_to_buf(htx, &res->buf);
-	htx->flags |= HTX_FL_PROXY_RESP;
-	/*
-	 * Send the message
-	 */
-	data = htx->data - co_data(res);
-	c_adv(res, data);
-	htx->first = -1;
-	res->total += data;
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
 
 	/* return without error. */
 	si_shutr(si);
 	si_shutw(si);
 	si->err_type = SI_ET_NONE;
 	si->state    = SI_ST_CLO;
-
-	channel_auto_read(req);
-	channel_abort(req);
-	channel_auto_close(req);
-	channel_htx_erase(req, htxbuf(&req->buf));
-	channel_auto_read(res);
-	channel_auto_close(res);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
@@ -4610,16 +4582,14 @@ void http_reply_and_close(struct stream *s, short status, const struct buffer *m
 	if (msg && !b_is_null(msg)) {
 		struct channel *chn = &s->res;
 		struct htx *htx;
-		size_t data;
 
 		FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
 		htx = htx_from_buf(&chn->buf);
 		if (channel_htx_copy_msg(chn, htx, msg)) {
-			htx->flags |= HTX_FL_PROXY_RESP;
-			data = htx->data - co_data(chn);
-			c_adv(chn, data);
-			htx->first = -1;
-			chn->total += data;
+			if (!http_forward_proxy_resp(s, 1) && s->txn->status != 500) {
+				s->txn->status = 500;
+				http_reply_and_close(s, s->txn->status, http_error_message(s));
+			}
 		}
 	}
 }
@@ -4724,7 +4694,6 @@ static int http_reply_100_continue(struct stream *s)
 	struct htx_sl *sl;
 	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
 			      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
-	size_t data;
 
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
 			    ist("HTTP/1.1"), ist("100"), ist("Continue"));
@@ -4735,10 +4704,8 @@ static int http_reply_100_continue(struct stream *s)
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
 
-	data = htx->data - co_data(res);
-	c_adv(res, data);
-	htx->first = -1;
-	res->total += data;
+	if (!http_forward_proxy_resp(s, 0))
+		goto fail;
 	return 0;
 
   fail:
@@ -4761,7 +4728,6 @@ static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	struct ist code, body;
 	int status;
 	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
-	size_t data;
 
 	if (!(s->txn->flags & TX_USE_PX_CONN)) {
 		status = 401;
@@ -4811,21 +4777,8 @@ static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 	if (!htx_add_endof(htx, HTX_BLK_EOM))
 		goto fail;
 
-	htx->flags |= HTX_FL_PROXY_RESP;
-	data = htx->data - co_data(res);
-	c_adv(res, data);
-	htx->first = -1;
-	res->total += data;
-
-	channel_auto_read(&s->req);
-	channel_abort(&s->req);
-	channel_auto_close(&s->req);
-	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
-
-	res->wex = tick_add_ifset(now_ms, res->wto);
-	channel_auto_read(res);
-	channel_auto_close(res);
-	channel_shutr_now(res);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
 	return 0;
 
   fail:

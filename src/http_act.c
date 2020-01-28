@@ -1114,8 +1114,6 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	/* if it is the last rule or the next one is not an early-hint, terminate the current
 	 * response. */
 	if (&next_rule->list == s->current_rule_list || next_rule->action_ptr != http_action_early_hint) {
-		size_t data;
-
 		if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 			/* If an error occurred during an Early-hint rule,
 			 * remove the incomplete HTTP 103 response from the
@@ -1123,10 +1121,8 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 			goto error;
 		}
 
-		data = htx->data - co_data(res);
-		c_adv(res, data);
-		htx->first = -1;
-		res->total += data;
+		if (!http_forward_proxy_resp(s, 0))
+			goto error;
 	}
 
   leave:
