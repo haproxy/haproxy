@@ -10211,7 +10211,6 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	struct ebmb_node *node;
 	struct stream_interface *si = appctx->owner;
 	struct ckch_store *ckchs;
-	int n;
 
 	if (trash == NULL)
 		return 1;
@@ -10224,6 +10223,8 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 				chunk_appendf(trash, "*%s\n", ckchs->path);
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			} else {
+				int n;
+
 				chunk_appendf(trash, "*%s:", ckchs->path);
 				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 					if (ckchs->ckch[n].cert)
@@ -10247,6 +10248,8 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 			chunk_appendf(trash, "%s\n", ckchs->path);
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 		} else {
+			int n;
+
 			chunk_appendf(trash, "%s:", ckchs->path);
 			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 				if (ckchs->ckch[n].cert)
