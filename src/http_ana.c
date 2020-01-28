@@ -2663,9 +2663,6 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 
 	htx_to_buf(htx, &res->buf);
 
-	/* let's log the request time */
-	s->logs.tv_request = now;
-
 	htx->flags |= HTX_FL_PROXY_RESP;
 	data = htx->data - co_data(res);
 	c_adv(res, data);
@@ -2681,13 +2678,19 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	channel_auto_read(res);
 	channel_auto_close(res);
 	channel_shutr_now(res);
+	if (rule->flags & REDIRECT_FLAG_FROM_REQ) {
+		/* let's log the request time */
+		s->logs.tv_request = now;
+		req->analysers &= AN_REQ_FLT_END;
 
-	req->analysers &= AN_REQ_FLT_END;
+		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+			_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+	}
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
 	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
+		s->flags |= ((rule->flags & REDIRECT_FLAG_FROM_REQ) ? SF_FINST_R : SF_FINST_H);
 
 	free_trash_chunk(chunk);
 	return 1;
