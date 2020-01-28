@@ -206,7 +206,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	const char *destination = NULL;
 	const char *cookie = NULL;
 	int cookie_set = 0;
-	unsigned int flags = REDIRECT_FLAG_NONE;
+	unsigned int flags = (!dir ? REDIRECT_FLAG_FROM_REQ : REDIRECT_FLAG_NONE);
 	struct acl_cond *cond = NULL;
 
 	cur_arg = 0;
