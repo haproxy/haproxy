@@ -118,8 +118,6 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 					conn->flags |= CO_FL_WAIT_ROOM;
 					break;
 				}
-
-				fd_cant_recv(conn->handle.fd);
 				break;
 			}
 			else if (errno == ENOSYS || errno == EINVAL || errno == EBADF) {
@@ -148,7 +146,6 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 			 * being asked to poll.
 			 */
 			conn->flags |= CO_FL_WAIT_ROOM;
-			fd_done_recv(conn->handle.fd);
 			break;
 		}
 	} /* while */
@@ -199,7 +196,6 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
-				fd_cant_send(conn->handle.fd);
 				break;
 			}
 			else if (errno == EINTR)
@@ -215,7 +211,6 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 	}
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done) {
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		fd_cond_recv(conn->handle.fd);
 	}
 
 	return done;
@@ -293,7 +288,6 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 				if ((!fdtab[conn->handle.fd].linger_risk) ||
 				    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
-					fd_done_recv(conn->handle.fd);
 					break;
 				}
 			}
@@ -303,7 +297,6 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			goto read0;
 		}
 		else if (errno == EAGAIN || errno == ENOTCONN) {
-			fd_cant_recv(conn->handle.fd);
 			break;
 		}
 		else if (errno != EINTR) {
@@ -393,7 +386,6 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* nothing written, we need to poll for write first */
-			fd_cant_send(conn->handle.fd);
 			break;
 		}
 		else if (errno != EINTR) {
@@ -403,7 +395,6 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	}
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done) {
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
-		fd_cond_recv(conn->handle.fd);
 	}
 
 	if (done > 0) {
