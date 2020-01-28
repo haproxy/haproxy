@@ -14170,6 +14170,7 @@ word(<index>,<delimiters>[,<count>])
   Extracts the nth word counting from the beginning (positive index) or from
   the end (negative index) considering given delimiters from an input string.
   Indexes start at 1 or -1 and delimiters are a string formatted list of chars.
+  Delimiters at the beginning or end of the input string are ignored.
   Optionally you can specify <count> of words to extract (default: 1).
   Value of 0 indicates extraction of all remaining words.
 
@@ -14179,6 +14180,7 @@ word(<index>,<delimiters>[,<count>])
       str(f1_f2_f3__f5),word(3,_,2)  # f3__f5
       str(f1_f2_f3__f5),word(-2,_,3) # f1_f2_f3
       str(f1_f2_f3__f5),word(-3,_,0) # f1_f2
+      str(/f1/f2/f3/f4),word(1,/)    # f1
 
 wt6([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the WT6
