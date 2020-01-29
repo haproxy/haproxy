@@ -37,13 +37,17 @@ struct pipe *get_pipe()
 	struct pipe *ret = NULL;
 	int pipefd[2];
 
-	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
 	if (likely(pipes_live)) {
+		HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
 		ret = pipes_live;
-		pipes_live = pipes_live->next;
-		pipes_free--;
-		pipes_used++;
-		goto out;
+		if (likely(ret)) {
+			pipes_live = ret->next;
+			pipes_free--;
+			pipes_used++;
+		}
+		HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
+		if (ret)
+			goto out;
 	}
 
 	if (pipes_used >= global.maxpipes)
@@ -65,19 +69,9 @@ struct pipe *get_pipe()
 	ret->prod = pipefd[1];
 	ret->cons = pipefd[0];
 	ret->next = NULL;
-	pipes_used++;
+	HA_ATOMIC_ADD(&pipes_used, 1);
  out:
-	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
 	return ret;
-}
-
-static inline void __kill_pipe(struct pipe *p)
-{
-	close(p->prod);
-	close(p->cons);
-	pool_free(pool_head_pipe, p);
-	pipes_used--;
-	return;
 }
 
 /* destroy a pipe, possibly because an error was encountered on it. Its FDs
@@ -85,10 +79,10 @@ static inline void __kill_pipe(struct pipe *p)
  */
 void kill_pipe(struct pipe *p)
 {
-	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
-	__kill_pipe(p);
-	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
-	return;
+	close(p->prod);
+	close(p->cons);
+	pool_free(pool_head_pipe, p);
+	HA_ATOMIC_SUB(&pipes_used, 1);
 }
 
 /* put back a unused pipe into the live pool. If it still has data in it, it is
@@ -97,16 +91,16 @@ void kill_pipe(struct pipe *p)
  */
 void put_pipe(struct pipe *p)
 {
-	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
-	if (p->data) {
-		__kill_pipe(p);
-		goto out;
+	if (unlikely(p->data)) {
+		kill_pipe(p);
+		return;
 	}
+
+	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
 	p->next = pipes_live;
 	pipes_live = p;
 	pipes_free++;
 	pipes_used--;
- out:
 	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
 }
 
