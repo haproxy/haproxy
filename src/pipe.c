@@ -26,6 +26,9 @@ struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
 
 __decl_spinlock(pipes_lock); /* lock used to protect pipes list */
 
+static THREAD_LOCAL int local_pipes_free = 0;  /* #cache objects   */
+static THREAD_LOCAL struct pipe *local_pipes = NULL;
+
 int pipes_used = 0;             /* # of pipes in use (2 fds each) */
 int pipes_free = 0;             /* # of pipes unused */
 
@@ -36,6 +39,15 @@ struct pipe *get_pipe()
 {
 	struct pipe *ret = NULL;
 	int pipefd[2];
+
+	ret = local_pipes;
+	if (likely(ret)) {
+		local_pipes = ret->next;
+		local_pipes_free--;
+		HA_ATOMIC_SUB(&pipes_free, 1);
+		HA_ATOMIC_ADD(&pipes_used, 1);
+		goto out;
+	}
 
 	if (likely(pipes_live)) {
 		HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
@@ -93,6 +105,15 @@ void put_pipe(struct pipe *p)
 {
 	if (unlikely(p->data)) {
 		kill_pipe(p);
+		return;
+	}
+
+	if (likely(local_pipes_free * global.nbthread < global.maxpipes)) {
+		p->next = local_pipes;
+		local_pipes = p;
+		local_pipes_free++;
+		HA_ATOMIC_ADD(&pipes_free, 1);
+		HA_ATOMIC_SUB(&pipes_used, 1);
 		return;
 	}
 
