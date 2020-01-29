@@ -1146,7 +1146,7 @@ resume_execution:
 		 */
 		if (lua->flags & HLUA_EXIT) {
 			ret = HLUA_E_OK;
-			hlua_ctx_renew(lua, 0);
+			hlua_ctx_renew(lua, 1);
 			break;
 		}
 
@@ -5365,12 +5365,10 @@ __LJMP static int hlua_txn_set_priority_offset(lua_State *L)
 __LJMP static int hlua_txn_done(lua_State *L)
 {
 	struct hlua_txn *htxn;
-	struct hlua *hlua;
 	struct channel *ic, *oc;
 
 	MAY_LJMP(check_args(L, 1, "close"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
-	hlua = hlua_gethlua(L);
 
 	/* If the flags NOTERM is set, we cannot terminate the http
 	 * session, so we just end the execution of the current
@@ -5407,7 +5405,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	if (!(htxn->s->flags & SF_ERR_MASK))      // this is not really an error but it is
 		htxn->s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
 
-	hlua->flags |= HLUA_STOP;
+	lua_pushinteger(L, ACT_RET_DONE);
 	WILL_LJMP(hlua_done(L));
 	return 0;
 }
@@ -6055,18 +6053,18 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	return 0;
 }
 
-/* This function is a wrapper to execute each LUA function declared
- * as an action wrapper during the initialisation period. This function
- * return ACT_RET_CONT if the processing is finished (with or without
- * error) and return ACT_RET_YIELD if the function must be called again
- * because the LUA returns a yield.
+/* This function is a wrapper to execute each LUA function declared as an action
+ * wrapper during the initialisation period. This function may return any
+ * ACT_RET_* value. On error ACT_RET_CONT is returned and the action is
+ * ignored. If the lua action yields, ACT_RET_YIELD is returned. On success, the
+ * return value is the first element on the stack.
  */
 static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
                                    struct session *sess, struct stream *s, int flags)
 {
 	char **arg;
 	unsigned int hflags = 0;
-	int dir;
+	int dir, act_ret = ACT_RET_CONT;
 	const char *error;
 
 	switch (rule->from) {
@@ -6076,7 +6074,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case ACT_F_HTTP_RES:    hflags = HLUA_TXN_HTTP_RDY ; dir = SMP_OPT_DIR_RES; break;
 	default:
 		SEND_ERR(px, "Lua: internal error while execute action.\n");
-		return ACT_RET_CONT;
+		goto end;
 	}
 
 	/* In the execution wrappers linked with a stream, the
@@ -6089,12 +6087,12 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		if (!s->hlua) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn.name);
-			return ACT_RET_CONT;
+			goto end;
 		}
 		if (!hlua_ctx_init(s->hlua, s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn.name);
-			return ACT_RET_CONT;
+			goto end;
 		}
 	}
 
@@ -6109,7 +6107,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 				error = "critical error";
 			SEND_ERR(px, "Lua function '%s': %s.\n",
 			         rule->arg.hlua_rule->fcn.name, error);
-			return ACT_RET_CONT;
+			goto end;
 		}
 
 		/* Check stack available size. */
@@ -6117,7 +6115,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			RESET_SAFE_LJMP(s->hlua->T);
-			return ACT_RET_CONT;
+			goto end;
 		}
 
 		/* Restore the function in the stack. */
@@ -6128,7 +6126,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn.name);
 			RESET_SAFE_LJMP(s->hlua->T);
-			return ACT_RET_CONT;
+			goto end;
 		}
 		s->hlua->nargs = 1;
 
@@ -6138,7 +6136,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 				SEND_ERR(px, "Lua function '%s': full stack.\n",
 				         rule->arg.hlua_rule->fcn.name);
 				RESET_SAFE_LJMP(s->hlua->T);
-				return ACT_RET_CONT;
+				goto end;
 			}
 			lua_pushstring(s->hlua->T, *arg);
 			s->hlua->nargs++;
@@ -6155,9 +6153,9 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	switch (hlua_ctx_resume(s->hlua, !(flags & ACT_OPT_FINAL))) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (s->hlua->flags & HLUA_STOP)
-			return ACT_RET_DONE;
-		return ACT_RET_CONT;
+		/* Catch the return value */
+		if (lua_gettop(s->hlua->T) > 0)
+			act_ret = lua_tointeger(s->hlua->T, -1);
 
 	/* yield. */
 	case HLUA_E_AGAIN:
@@ -6176,7 +6174,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			s->res.flags |= CF_WAKE_WRITE;
 		if (HLUA_IS_WAKEREQWR(s->hlua))
 			s->req.flags |= CF_WAKE_WRITE;
-		return ACT_RET_YIELD;
+		act_ret = ACT_RET_YIELD;
+		goto end;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
@@ -6184,20 +6183,20 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		SEND_ERR(px, "Lua function '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua->T, -1));
 		lua_pop(s->hlua->T, 1);
-		return ACT_RET_CONT;
+		goto end;
 
 	case HLUA_E_ETMOUT:
 		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn.name);
-		return 0;
+		goto end;
 
 	case HLUA_E_NOMEM:
 		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn.name);
-		return 0;
+		goto end;
 
 	case HLUA_E_YIELD:
 		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
 		         rule->arg.hlua_rule->fcn.name);
-		return 0;
+		goto end;
 
 	case HLUA_E_ERR:
 		/* Display log. */
@@ -6205,8 +6204,11 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		         rule->arg.hlua_rule->fcn.name);
 
 	default:
-		return ACT_RET_CONT;
+		goto end;
 	}
+
+ end:
+	return act_ret;
 }
 
 struct task *hlua_applet_wakeup(struct task *t, void *context, unsigned short state)
