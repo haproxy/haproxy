@@ -2662,53 +2662,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
  *
  */
 
-/* This function is called before the Lua execution. It stores
- * the differents parsers state before executing some Lua code.
- */
-static inline void consistency_set(struct stream *stream, int opt, struct hlua_consistency *c)
-{
-	c->mode = stream->be->mode;
-	switch (c->mode) {
-	case PR_MODE_HTTP:
-		c->data.http.dir = opt & SMP_OPT_DIR;
-		if (c->data.http.dir == SMP_OPT_DIR_REQ)
-			c->data.http.state = stream->txn->req.msg_state;
-		else
-			c->data.http.state = stream->txn->rsp.msg_state;
-		break;
-	default:
-		break;
-	}
-}
-
-/* This function is called after the Lua execution. it
- * returns true if the parser state is consistent, otherwise,
- * it return false.
- *
- * In HTTP mode, the parser state must be in the same state
- * or greater when we exit the function. Even if we do a
- * control yield. This prevent to break the HTTP message
- * from the Lua code.
- */
-static inline int consistency_check(struct stream *stream, int opt, struct hlua_consistency *c)
-{
-	if (c->mode != stream->be->mode)
-		return 0;
-
-	switch (c->mode) {
-	case PR_MODE_HTTP:
-		if (c->data.http.dir != (opt & SMP_OPT_DIR))
-			return 0;
-		if (c->data.http.dir == SMP_OPT_DIR_REQ)
-			return stream->txn->req.msg_state >= c->data.http.state;
-		else
-			return stream->txn->rsp.msg_state >= c->data.http.state;
-	default:
-		return 1;
-	}
-	return 1;
-}
-
 /* Returns the struct hlua_channel join to the class channel in the
  * stack entry "ud" or throws an argument error.
  */
@@ -5858,7 +5811,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
-	const struct buffer msg = { };
 	unsigned int hflags = HLUA_TXN_NOTERM;
 
 	if (!stream)
@@ -5880,8 +5832,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			return 0;
 		}
 	}
-
-	consistency_set(stream, smp->opt, &stream->hlua->cons);
 
 	if (stream->be->mode == PR_MODE_HTTP) {
 		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
@@ -5944,10 +5894,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	switch (hlua_ctx_resume(stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons)) {
-			si_retnclose(&stream->si[0], &msg);
-			return 0;
-		}
 		/* If the stack is empty, the function fails. */
 		if (lua_gettop(stream->hlua->T) <= 0)
 			return 0;
@@ -5962,15 +5908,11 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': %s.\n",
 		         fcn->name, lua_tostring(stream->hlua->T, -1));
@@ -5978,26 +5920,18 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		return 0;
 
 	case HLUA_E_ETMOUT:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': execution timeout.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_NOMEM:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': out of memory error.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_YIELD:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		SEND_ERR(smp->px, "Lua sample-fetch '%s': yield not allowed.\n", fcn->name);
 		return 0;
 
 	case HLUA_E_ERR:
-		if (!consistency_check(stream, smp->opt, &stream->hlua->cons))
-			si_retnclose(&stream->si[0], &msg);
 		/* Display log. */
 		SEND_ERR(smp->px, "Lua sample-fetch '%s' returns an unknown error.\n", fcn->name);
 
@@ -6134,7 +6068,6 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	unsigned int hflags = 0;
 	int dir;
 	const char *error;
-	const struct buffer msg = { };
 
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_CNT:                            ; dir = SMP_OPT_DIR_REQ; break;
@@ -6164,8 +6097,6 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_CONT;
 		}
 	}
-
-	consistency_set(s, dir, &s->hlua->cons);
 
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(s->hlua)) {
@@ -6224,10 +6155,6 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	switch (hlua_ctx_resume(s->hlua, !(flags & ACT_OPT_FINAL))) {
 	/* finished. */
 	case HLUA_E_OK:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		if (s->hlua->flags & HLUA_STOP)
 			return ACT_RET_DONE;
 		return ACT_RET_CONT;
@@ -6249,17 +6176,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			s->res.flags |= CF_WAKE_WRITE;
 		if (HLUA_IS_WAKEREQWR(s->hlua))
 			s->req.flags |= CF_WAKE_WRITE;
-		/* We can quit the function without consistency check
-		 * because HAProxy is not able to manipulate data, it
-		 * is only allowed to call me again. */
 		return ACT_RET_YIELD;
 
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s': %s.\n",
 		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua->T, -1));
@@ -6267,35 +6187,19 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 
 	case HLUA_E_ETMOUT:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn.name);
 		return 0;
 
 	case HLUA_E_NOMEM:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn.name);
 		return 0;
 
 	case HLUA_E_YIELD:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
 		         rule->arg.hlua_rule->fcn.name);
 		return 0;
 
 	case HLUA_E_ERR:
-		if (!consistency_check(s, dir, &s->hlua->cons)) {
-			si_retnclose(&s->si[0], &msg);
-			return ACT_RET_DONE;
-		}
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s' return an unknown error.\n",
 		         rule->arg.hlua_rule->fcn.name);
