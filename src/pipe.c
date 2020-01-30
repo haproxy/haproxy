@@ -52,27 +52,27 @@ struct pipe *get_pipe()
 	if (likely(pipes_live)) {
 		HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
 		ret = pipes_live;
-		if (likely(ret)) {
+		if (likely(ret))
 			pipes_live = ret->next;
-			pipes_free--;
-			pipes_used++;
-		}
 		HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
-		if (ret)
+		if (ret) {
+			HA_ATOMIC_SUB(&pipes_free, 1);
+			HA_ATOMIC_ADD(&pipes_used, 1);
 			goto out;
+		}
 	}
 
-	if (pipes_used >= global.maxpipes)
-		goto out;
+	HA_ATOMIC_ADD(&pipes_used, 1);
+	if (pipes_used + pipes_free >= global.maxpipes)
+		goto fail;
 
 	ret = pool_alloc(pool_head_pipe);
 	if (!ret)
-		goto out;
+		goto fail;
 
-	if (pipe(pipefd) < 0) {
-		pool_free(pool_head_pipe, ret);
-		goto out;
-	}
+	if (pipe(pipefd) < 0)
+		goto fail;
+
 #ifdef F_SETPIPE_SZ
 	if (global.tune.pipesize)
 		fcntl(pipefd[0], F_SETPIPE_SZ, global.tune.pipesize);
@@ -81,9 +81,13 @@ struct pipe *get_pipe()
 	ret->prod = pipefd[1];
 	ret->cons = pipefd[0];
 	ret->next = NULL;
-	HA_ATOMIC_ADD(&pipes_used, 1);
  out:
 	return ret;
+ fail:
+	pool_free(pool_head_pipe, ret);
+	HA_ATOMIC_SUB(&pipes_used, 1);
+	return NULL;
+
 }
 
 /* destroy a pipe, possibly because an error was encountered on it. Its FDs
@@ -108,21 +112,20 @@ void put_pipe(struct pipe *p)
 		return;
 	}
 
-	if (likely(local_pipes_free * global.nbthread < global.maxpipes)) {
+	if (likely(local_pipes_free * global.nbthread < global.maxpipes - pipes_used)) {
 		p->next = local_pipes;
 		local_pipes = p;
 		local_pipes_free++;
-		HA_ATOMIC_ADD(&pipes_free, 1);
-		HA_ATOMIC_SUB(&pipes_used, 1);
-		return;
+		goto out;
 	}
 
 	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
 	p->next = pipes_live;
 	pipes_live = p;
-	pipes_free++;
-	pipes_used--;
 	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
+ out:
+	HA_ATOMIC_ADD(&pipes_free, 1);
+	HA_ATOMIC_SUB(&pipes_used, 1);
 }
 
 /*
