@@ -245,7 +245,10 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	if (likely(tl->tid < 0)) {
 		/* this tasklet runs on the caller thread */
 		if (LIST_ISEMPTY(&tl->list)) {
-			LIST_ADDQ(&task_per_thread[tid].tasklets[TL_URGENT], &tl->list);
+			if (tl->state & TASK_RUNNING)
+				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_BULK], &tl->list);
+			else
+				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_URGENT], &tl->list);
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 		}
 	} else {
