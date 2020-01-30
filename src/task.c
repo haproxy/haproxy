@@ -427,7 +427,7 @@ void process_runnable_tasks()
 	 */
 	tmp_list = MT_LIST_BEHEAD(&sched->shared_tasklet_list);
 	if (tmp_list)
-		LIST_SPLICE_END_DETACHED(&sched->task_list, (struct list *)tmp_list);
+		LIST_SPLICE_END_DETACHED(&sched->tasklets[TL_URGENT], (struct list *)tmp_list);
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -436,9 +436,15 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
+	/* run up to 3*max_processed/4 urgent tasklets */
+	done = run_tasks_from_list(&tt->tasklets[TL_URGENT], 3*(max_processed + 1) / 4);
+	max_processed -= done;
+
+	/* pick up to (max_processed-done+1)/2 regular tasks from prio-ordered run queues */
+
 	/* Note: the grq lock is always held when grq is not null */
 
-	while (tt->task_list_size < max_processed) {
+	while (tt->task_list_size < (max_processed + 1) / 2) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -489,7 +495,7 @@ void process_runnable_tasks()
 		/* Make sure the entry doesn't appear to be in a list */
 		LIST_INIT(&((struct tasklet *)t)->list);
 		/* And add it to the local task list */
-		tasklet_insert_into_tasklet_list((struct tasklet *)t);
+		tasklet_insert_into_tasklet_list(&tt->tasklets[TL_NORMAL], (struct tasklet *)t);
 		tt->task_list_size++;
 		activity[tid].tasksw++;
 	}
@@ -500,10 +506,17 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	done = run_tasks_from_list(&tt->task_list, max_processed);
+	/* run between max_processed/8 and max_processed/2 regular tasks */
+	done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], (max_processed + 1) / 2);
 	max_processed -= done;
 
-	if (!LIST_ISEMPTY(&tt->task_list))
+	/* run between max_processed/8 and max_processed bulk tasklets */
+	done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
+	max_processed -= done;
+
+	if (!LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
+	    !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
+	    !LIST_ISEMPTY(&sched->tasklets[TL_BULK]))
 		activity[tid].long_rq++;
 }
 
@@ -607,7 +620,9 @@ static void init_task()
 #endif
 	memset(&task_per_thread, 0, sizeof(task_per_thread));
 	for (i = 0; i < MAX_THREADS; i++) {
-		LIST_INIT(&task_per_thread[i].task_list);
+		LIST_INIT(&task_per_thread[i].tasklets[TL_URGENT]);
+		LIST_INIT(&task_per_thread[i].tasklets[TL_NORMAL]);
+		LIST_INIT(&task_per_thread[i].tasklets[TL_BULK]);
 		MT_LIST_INIT(&task_per_thread[i].shared_tasklet_list);
 	}
 }

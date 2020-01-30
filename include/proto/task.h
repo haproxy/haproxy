@@ -245,7 +245,7 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	if (likely(tl->tid < 0)) {
 		/* this tasklet runs on the caller thread */
 		if (LIST_ISEMPTY(&tl->list)) {
-			LIST_ADDQ(&task_per_thread[tid].task_list, &tl->list);
+			LIST_ADDQ(&task_per_thread[tid].tasklets[TL_URGENT], &tl->list);
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 		}
 	} else {
@@ -264,10 +264,10 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 /* Insert a tasklet into the tasklet list. If used with a plain task instead,
  * the caller must update the task_list_size.
  */
-static inline void tasklet_insert_into_tasklet_list(struct tasklet *tl)
+static inline void tasklet_insert_into_tasklet_list(struct list *list, struct tasklet *tl)
 {
 	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-	LIST_ADDQ(&sched->task_list, &tl->list);
+	LIST_ADDQ(list, &tl->list);
 }
 
 /* Remove the tasklet from the tasklet list. The tasklet MUST already be there.
@@ -581,7 +581,10 @@ static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
 	        (sched->rqueue_size > 0) |
-	        !LIST_ISEMPTY(&sched->task_list) | !MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
+	        !LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
+	        !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
+	        !LIST_ISEMPTY(&sched->tasklets[TL_BULK])   |
+		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
 }
 
 /* adds list item <item> to work list <work> and wake up the associated task */
