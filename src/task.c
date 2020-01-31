@@ -436,15 +436,15 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
-	/* run up to 3*max_processed/4 urgent tasklets */
-	done = run_tasks_from_list(&tt->tasklets[TL_URGENT], 3*(max_processed + 1) / 4);
+	/* run up to max_processed/6 urgent tasklets */
+	done = run_tasks_from_list(&tt->tasklets[TL_URGENT], (max_processed + 5) / 6);
 	max_processed -= done;
 
-	/* pick up to (max_processed-done+1)/2 regular tasks from prio-ordered run queues */
+	/* pick up to max_processed/3 (~=0.4*(max_processed-done)) regular tasks from prio-ordered run queues */
 
 	/* Note: the grq lock is always held when grq is not null */
 
-	while (tt->task_list_size < (max_processed + 1) / 2) {
+	while (tt->task_list_size < 2 * (max_processed + 4) / 5) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -506,11 +506,11 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	/* run between max_processed/8 and max_processed/2 regular tasks */
-	done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], (max_processed + 1) / 2);
+	/* run between max_processed/3 and max_processed/2 regular tasks */
+	done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], 2 * (max_processed + 4) / 5);
 	max_processed -= done;
 
-	/* run between max_processed/8 and max_processed bulk tasklets */
+	/* run between max_processed/2 and max_processed bulk tasklets */
 	done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
 	max_processed -= done;
 
