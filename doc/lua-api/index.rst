@@ -2560,6 +2560,87 @@ StickTable class
       {"gpc0", "gt", 30}, {"gpc1", "gt", 20}}, {"conn_rate", "le", 10}
     }
 
+.. _action_class:
+
+Action class
+=============
+
+.. js:class:: Act
+
+  **context**: action
+
+  This class contains all return codes an action may return. It is the lua
+  equivalent to HAProxy "ACT_RET_*" code.
+
+.. code-block:: lua
+
+  core.register_action("deny", { "http-req" }, function (txn)
+      return act.DENY
+   end)
+..
+.. js:attribute:: act.CONTINUE
+
+  This attribute is an integer (0). It instructs HAProxy to continue the current
+  ruleset processing on the message. It is the default return code for a lua
+  action.
+
+  :returns: integer
+
+.. js:attribute:: act.STOP
+
+  This attribute is an integer (1). It instructs HAProxy to stop the current
+  ruleset processing on the message.
+
+.. js:attribute:: act.YIELD
+
+  This attribute is an integer (2). It instructs HAProxy to temporarily pause
+  the message processing. It will be resumed later on the same rule. The
+  corresponding lua script is re-executed for the start.
+
+.. js:attribute:: act.ERROR
+
+  This attribute is an integer (3). It triggers an internal errors The message
+  processing is stopped and the transaction is terminated. For HTTP streams, an
+  HTTP 500 error is returned to the client.
+
+  :returns: integer
+
+.. js:attribute:: act.DONE
+
+  This attribute is an integer (4). It instructs HAProxy to stop the message
+  processing.
+
+  :returns: integer
+
+.. js:attribute:: act.DENY
+
+  This attribute is an integer (5). It denies the current message. The message
+  processing is stopped and the transaction is terminated. For HTTP streams, an
+  HTTP 403 error is returned to the client if the deny is returned during the
+  request analysis. During the response analysis, an HTTP 502 error is returned
+  and the server response is discarded.
+
+  :returns: integer
+
+.. js:attribute:: act.ABORT
+
+  This attribute is an integer (6). It aborts the current message. The message
+  processing is stopped and the transaction is terminated. For HTTP streams,
+  HAproxy assumes a response was already sent to the client. From the Lua
+  actions point of view, when this code is used, the transaction is terminated
+  with no reply.
+
+  :returns: integer
+
+.. js:attribute:: act.INVALID
+
+  This attribute is an integer (7). It triggers an internal errors. The message
+  processing is stopped and the transaction is terminated. For HTTP streams, an
+  HTTP 400 error is returned to the client if the error is returned during the
+  request analysis. During the response analysis, an HTTP 502 error is returned
+  and the server response is discarded.
+
+  :returns: integer
 
 External Lua libraries
 ======================

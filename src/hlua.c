@@ -7620,6 +7620,27 @@ void hlua_init(void)
 
 	/*
 	 *
+	 * Create "act" object.
+	 *
+	 */
+
+	/* This table entry is the object "act" base. */
+	lua_newtable(gL.T);
+
+	/* push action return constants */
+	hlua_class_const_int(gL.T, "CONTINUE", ACT_RET_CONT);
+	hlua_class_const_int(gL.T, "STOP",     ACT_RET_STOP);
+	hlua_class_const_int(gL.T, "YIELD",    ACT_RET_YIELD);
+	hlua_class_const_int(gL.T, "ERROR",    ACT_RET_ERR);
+	hlua_class_const_int(gL.T, "DONE",     ACT_RET_DONE);
+	hlua_class_const_int(gL.T, "DENY",     ACT_RET_DENY);
+	hlua_class_const_int(gL.T, "ABORT",    ACT_RET_ABRT);
+	hlua_class_const_int(gL.T, "INVALID",  ACT_RET_INV);
+
+	lua_setglobal(gL.T, "act");
+
+	/*
+	 *
 	 * Register class Map
 	 *
 	 */
