@@ -339,10 +339,13 @@ static int run_tasks_from_list(struct list *list, int max)
 		ctx = t->context;
 		process = t->process;
 		t->calls++;
+		sched->current = t;
 
 		if (TASK_IS_TASKLET(t)) {
 			process(NULL, ctx, state);
 			done++;
+			sched->current = NULL;
+			__ha_barrier_store();
 			continue;
 		}
 
@@ -356,7 +359,6 @@ static int run_tasks_from_list(struct list *list, int max)
 			t->call_date = now_ns;
 		}
 
-		sched->current = t;
 		__ha_barrier_store();
 		if (likely(process == process_stream))
 			t = process_stream(t, ctx, state);
