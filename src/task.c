@@ -329,7 +329,7 @@ static int run_tasks_from_list(struct list *list, int max)
 
 	while (done < max && !LIST_ISEMPTY(list)) {
 		t = (struct task *)LIST_ELEM(list->n, struct tasklet *, list);
-		state = (t->state & TASK_SHARED_WQ) | TASK_RUNNING;
+		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING)) | TASK_RUNNING;
 		state = _HA_ATOMIC_XCHG(&t->state, state);
 		__ha_barrier_atomic_store();
 		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
