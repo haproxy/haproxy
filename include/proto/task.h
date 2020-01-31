@@ -248,7 +248,7 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 			if (tl->state & TASK_SELF_WAKING) {
 				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_BULK], &tl->list);
 			}
-			else if (tl->state & TASK_RUNNING) {
+			else if ((struct task *)tl == sched->current) {
 				_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
 				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_BULK], &tl->list);
 			}
