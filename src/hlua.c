@@ -190,6 +190,7 @@ static int class_http_ref;
 static int class_map_ref;
 static int class_applet_tcp_ref;
 static int class_applet_http_ref;
+static int class_txn_reply_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with stream (actions, sample-fetches and converters) have a
@@ -4489,7 +4490,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 
 			/* Simple Protocol checks. */
 			if (isteqi(ist2(name, nlen), ist("transfer-encoding")))
-				h1_parse_xfer_enc_header(&h1m, ist2(name, nlen));
+				h1_parse_xfer_enc_header(&h1m, ist2(value, vlen));
 			else if (isteqi(ist2(name, nlen), ist("content-length"))) {
 				struct ist v = ist2(value, vlen);
 				int ret;
@@ -5359,55 +5360,493 @@ __LJMP static int hlua_txn_set_priority_offset(lua_State *L)
 	return 0;
 }
 
-/* This function is an Lua binding that send pending data
- * to the client, and close the stream interface.
+/* Forward the Reply object to the client. This function converts the reply in
+ * HTX an push it to into the response channel. It is response to foward the
+ * message and terminate the transaction. It returns 1 on success and 0 on
+ * error. The Reply must be on top of the stack.
+ */
+__LJMP static int hlua_txn_forward_reply(lua_State *L, struct stream *s)
+{
+	struct htx *htx;
+	struct htx_sl *sl;
+	struct h1m h1m;
+	const char *status, *reason, *body;
+	size_t status_len, reason_len, body_len;
+	int ret, code, flags;
+
+	code = 200;
+	status = "200";
+	status_len = 3;
+	ret = lua_getfield(L, -1, "status");
+	if (ret == LUA_TNUMBER) {
+		code = lua_tointeger(L, -1);
+		status = lua_tolstring(L, -1, &status_len);
+	}
+	lua_pop(L, 1);
+
+	reason = http_get_reason(code);
+	reason_len = strlen(reason);
+	ret = lua_getfield(L, -1, "reason");
+	if (ret == LUA_TSTRING)
+		reason = lua_tolstring(L, -1, &reason_len);
+	lua_pop(L, 1);
+
+	body = NULL;
+	body_len = 0;
+	ret = lua_getfield(L, -1, "body");
+	if (ret == LUA_TSTRING)
+		body = lua_tolstring(L, -1, &body_len);
+	lua_pop(L, 1);
+
+	/* Prepare the response before inserting the headers */
+	h1m_init_res(&h1m);
+	htx = htx_from_buf(&s->res.buf);
+	channel_htx_truncate(&s->res, htx);
+	if (s->txn->req.flags & HTTP_MSGF_VER_11) {
+		flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"),
+				    ist2(status, status_len), ist2(reason, reason_len));
+	}
+	else {
+		flags = HTX_SL_F_IS_RESP;
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.0"),
+				    ist2(status, status_len), ist2(reason, reason_len));
+	}
+	if (!sl)
+		goto fail;
+	sl->info.res.status = code;
+
+	/* Push in the stack the "headers" entry. */
+	ret = lua_getfield(L, -1, "headers");
+	if (ret != LUA_TTABLE)
+		goto skip_headers;
+
+	lua_pushnil(L);
+	while (lua_next(L, -2) != 0) {
+		struct ist name, value;
+		const char *n, *v;
+		size_t nlen, vlen;
+
+		if (!lua_isstring(L, -2) || !lua_istable(L, -1)) {
+			/* Skip element if the key is not a string or if the value is not a table */
+			goto next_hdr;
+		}
+
+		n = lua_tolstring(L, -2, &nlen);
+		name = ist2(n, nlen);
+		if (isteqi(name, ist("content-length"))) {
+			/* Always skip content-length header. It will be added
+			 * later with the correct len
+			 */
+			goto next_hdr;
+		}
+
+		/* Loop on header's values */
+		lua_pushnil(L);
+		while (lua_next(L, -2)) {
+			if (!lua_isstring(L, -1)) {
+				/* Skip the value if it is not a string */
+				goto next_value;
+			}
+
+			v = lua_tolstring(L, -1, &vlen);
+			value = ist2(v, vlen);
+
+			if (isteqi(name, ist("transfer-encoding")))
+				h1_parse_xfer_enc_header(&h1m, value);
+			if (!htx_add_header(htx, ist2(n, nlen), ist2(v, vlen)))
+				goto fail;
+
+		  next_value:
+			lua_pop(L, 1);
+		}
+
+	  next_hdr:
+		lua_pop(L, 1);
+	}
+  skip_headers:
+	lua_pop(L, 1);
+
+	/* Update h1m flags: CLEN is set if CHNK is not present */
+	if (!(h1m.flags & H1_MF_CHNK)) {
+		const char *clen = ultoa(body_len);
+
+		h1m.flags |= H1_MF_CLEN;
+		if (!htx_add_header(htx, ist("content-length"), ist(clen)))
+			goto fail;
+	}
+	if (h1m.flags & (H1_MF_CLEN|H1_MF_CHNK))
+		h1m.flags |= H1_MF_XFER_LEN;
+
+	/* Update HTX start-line flags */
+	if (h1m.flags & H1_MF_XFER_ENC)
+		flags |= HTX_SL_F_XFER_ENC;
+	if (h1m.flags & H1_MF_XFER_LEN) {
+		flags |= HTX_SL_F_XFER_LEN;
+		if (h1m.flags & H1_MF_CHNK)
+			flags |= HTX_SL_F_CHNK;
+		else if (h1m.flags & H1_MF_CLEN)
+			flags |= HTX_SL_F_CLEN;
+		if (h1m.body_len == 0)
+			flags |= HTX_SL_F_BODYLESS;
+	}
+	sl->flags |= flags;
+
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH) ||
+	    (body_len && !htx_add_data_atonce(htx, ist2(body, body_len))) ||
+	    !htx_add_endof(htx, HTX_BLK_EOM))
+		goto fail;
+
+	/* Now, forward the response and terminate the transaction */
+	s->txn->status = code;
+	htx_to_buf(htx, &s->res.buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
+
+	return 1;
+
+  fail:
+	channel_htx_truncate(&s->res, htx);
+	return 0;
+}
+
+/* Terminate a transaction if called from a lua action. For TCP streams,
+ * processing is just aborted. Nothing is returned to the client and all
+ * arguments are ignored. For HTTP streams, if a reply is passed as argument, it
+ * is forwarded to the client before terminating the transaction. On success,
+ * the function exits with ACT_RET_DONE code. If an error occurred, it exits
+ * with ACT_RET_ERR code. If this function is not called from a lua action, it
+ * just exits without any processing.
  */
 __LJMP static int hlua_txn_done(lua_State *L)
 {
 	struct hlua_txn *htxn;
-	struct channel *ic, *oc;
+	struct stream *s;
+	int finst;
 
-	MAY_LJMP(check_args(L, 1, "close"));
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 
-	/* If the flags NOTERM is set, we cannot terminate the http
-	 * session, so we just end the execution of the current
-	 * lua code.
-	 */
-	if (htxn->flags & HLUA_TXN_NOTERM) {
+	/* If the flags NOTERM is set, we cannot terminate the session, so we
+	 * just end the execution of the current lua code. */
+	if (htxn->flags & HLUA_TXN_NOTERM)
 		WILL_LJMP(hlua_done(L));
-		return 0;
+
+	s = htxn->s;
+	if (!(htxn->flags & HLUA_TXN_HTTP_RDY)) {
+		struct channel *req = &s->req;
+		struct channel *res = &s->res;
+
+		channel_auto_read(req);
+		channel_abort(req);
+		channel_auto_close(req);
+		channel_erase(req);
+
+		res->wex = tick_add_ifset(now_ms, res->wto);
+		channel_auto_read(res);
+		channel_auto_close(res);
+		channel_shutr_now(res);
+
+		finst = ((htxn->dir == SMP_OPT_DIR_REQ) ? SF_FINST_R : SF_FINST_D);
+		goto done;
 	}
 
-	ic = &htxn->s->req;
-	oc = &htxn->s->res;
-
-	if (IS_HTX_STRM(htxn->s)) {
-		htxn->s->txn->status = 0;
-		http_reply_and_close(htxn->s, 0, NULL);
+	if (lua_gettop(L) == 1 || !lua_istable(L, 2)) {
+		/* No reply or invalid reply */
+		s->txn->status = 0;
+		http_reply_and_close(s, 0, NULL);
 	}
 	else {
-		channel_auto_read(ic);
-		channel_abort(ic);
-		channel_auto_close(ic);
-		channel_erase(ic);
+		/* Remove extra args to have the reply on top of the stack */
+		if (lua_gettop(L) > 2)
+			lua_pop(L, lua_gettop(L) - 2);
 
-		oc->wex = tick_add_ifset(now_ms, oc->wto);
-		channel_auto_read(oc);
-		channel_auto_close(oc);
-		channel_shutr_now(oc);
-
+		if (!hlua_txn_forward_reply(L, s)) {
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_PRXCOND;
+			lua_pushinteger(L, ACT_RET_ERR);
+			WILL_LJMP(hlua_done(L));
+			return 0; /* Never reached */
+		}
 	}
 
-	ic->analysers &= AN_REQ_FLT_END;
-	oc->analysers &= AN_RES_FLT_END;
+	finst = ((htxn->dir == SMP_OPT_DIR_REQ) ? SF_FINST_R : SF_FINST_H);
+	if (htxn->dir == SMP_OPT_DIR_REQ) {
+		/* let's log the request time */
+		s->logs.tv_request = now;
+		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+			_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+	}
 
-	if (!(htxn->s->flags & SF_ERR_MASK))      // this is not really an error but it is
-		htxn->s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
+  done:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= finst;
 
 	lua_pushinteger(L, ACT_RET_DONE);
 	WILL_LJMP(hlua_done(L));
 	return 0;
+}
+
+/*
+ *
+ *
+ * Class REPLY
+ *
+ *
+ */
+
+/* Pushes the TXN reply onto the top of the stack. If the stask does not have a
+ * free slots, the function fails and returns 0;
+ */
+static int hlua_txn_reply_new(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	const char *reason, *body = NULL;
+	int ret, status;
+
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	if (!(htxn->flags & HLUA_TXN_HTTP_RDY)) {
+		hlua_pusherror(L, "txn object is not an HTTP transaction.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Default value */
+	status = 200;
+	reason = http_get_reason(status);
+
+	if (lua_istable(L, 2)) {
+		/* load status and reason from the table argument at index 2 */
+		ret = lua_getfield(L, 2, "status");
+		if (ret == LUA_TNIL)
+			goto reason;
+		else if (ret != LUA_TNUMBER) {
+			/* invalid status: ignore the reason */
+			goto body;
+		}
+		status = lua_tointeger(L, -1);
+
+	  reason:
+		lua_pop(L, 1); /* restore the stack: remove status */
+		ret = lua_getfield(L, 2, "reason");
+		if (ret == LUA_TSTRING)
+			reason = lua_tostring(L, -1);
+
+	  body:
+		lua_pop(L, 1); /* restore the stack: remove invalid status or reason */
+		ret = lua_getfield(L, 2, "body");
+		if (ret == LUA_TSTRING)
+			body = lua_tostring(L, -1);
+		lua_pop(L, 1); /* restore the stack: remove  body */
+	}
+
+	/* Create the Reply table */
+	lua_newtable(L);
+
+	/* Add status element */
+	lua_pushstring(L, "status");
+	lua_pushinteger(L, status);
+	lua_settable(L, -3);
+
+	/* Add reason element */
+	reason = http_get_reason(status);
+	lua_pushstring(L, "reason");
+	lua_pushstring(L, reason);
+	lua_settable(L, -3);
+
+	/* Add body element, nil if undefined */
+	lua_pushstring(L, "body");
+	if (body)
+		lua_pushstring(L, body);
+	else
+		lua_pushnil(L);
+	lua_settable(L, -3);
+
+	/* Add headers element */
+	lua_pushstring(L, "headers");
+	lua_newtable(L);
+
+	/* stack: [ txn, <Arg:table>, <Reply:table>, "headers", <headers:table> ] */
+	if (lua_istable(L, 2)) {
+		/* load headers from the table argument at index 2. If it is a table, copy it. */
+		ret = lua_getfield(L, 2, "headers");
+		if (ret == LUA_TTABLE) {
+			/* stack: [ ... <headers:table>, <table> ] */
+			lua_pushnil(L);
+			while (lua_next(L, -2) != 0) {
+				/* stack: [ ... <headers:table>, <table>, k, v] */
+				if (!lua_isstring(L, -1) && !lua_istable(L, -1)) {
+					/* invalid value type, skip it */
+					lua_pop(L, 1);
+					continue;
+				}
+
+
+				/* Duplicate the key and swap it with the value. */
+				lua_pushvalue(L, -2);
+				lua_insert(L, -2);
+				/* stack: [ ... <headers:table>, <table>, k, k, v ] */
+
+				lua_newtable(L);
+				lua_insert(L, -2);
+				/* stack: [ ... <headers:table>, <table>, k, k, <inner:table>, v ] */
+
+				if (lua_isstring(L, -1)) {
+					/* push the value in the inner table */
+					lua_rawseti(L, -2, 1);
+				}
+				else { /* table */
+					lua_pushnil(L);
+					while (lua_next(L, -2) != 0) {
+						/* stack: [ ... <headers:table>, <table>, k, k, <inner:table>, <v:table>, k2, v2 ] */
+						if (!lua_isstring(L, -1)) {
+							/* invalid value type, skip it*/
+							lua_pop(L, 1);
+							continue;
+						}
+						/* push the value in the inner table */
+						lua_rawseti(L, -4, lua_rawlen(L, -4) + 1);
+						/* stack: [ ... <headers:table>, <table>, k, k, <inner:table>, <v:table>, k2 ] */
+					}
+					lua_pop(L, 1);
+					/* stack: [ ... <headers:table>, <table>, k, k, <inner:table> ] */
+				}
+
+				/* push (k,v) on the stack in the headers table:
+				 * stack: [ ... <headers:table>, <table>, k, k, v ]
+				 */
+				lua_settable(L, -5);
+				/* stack: [ ... <headers:table>, <table>, k ] */
+			}
+		}
+		lua_pop(L, 1);
+	}
+	/* stack: [ txn, <Arg:table>, <Reply:table>, "headers", <headers:table> ] */
+	lua_settable(L, -3);
+	/* stack: [ txn, <Arg:table>, <Reply:table> ] */
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_reply_ref);
+	lua_setmetatable(L, -2);
+	return 1;
+}
+
+/* Set the reply status code, and optionally the reason. If no reason is
+ * provided, the default one corresponding to the status code is used.
+ */
+__LJMP static int hlua_txn_reply_set_status(lua_State *L)
+{
+	int status = MAY_LJMP(luaL_checkinteger(L, 2));
+	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
+
+	/* First argument (self) must be a table */
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	if (status < 100 || status > 599) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	if (!reason)
+		reason = http_get_reason(status);
+
+	lua_pushinteger(L, status);
+	lua_setfield(L, 1, "status");
+
+	lua_pushstring(L, reason);
+	lua_setfield(L, 1, "reason");
+
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
+/* Add a header into the reply object. Each header name is associated to an
+ * array of values in the "headers" table. If the header name is not found, a
+ * new entry is created.
+ */
+__LJMP static int hlua_txn_reply_add_header(lua_State *L)
+{
+	const char *name = MAY_LJMP(luaL_checkstring(L, 2));
+	const char *value = MAY_LJMP(luaL_checkstring(L, 3));
+	int ret;
+
+	/* First argument (self) must be a table */
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	/* Push in the stack the "headers" entry. */
+	ret = lua_getfield(L, 1, "headers");
+	if (ret != LUA_TTABLE) {
+		hlua_pusherror(L, "Reply['headers'] is expected to a an array. %s found", lua_typename(L, ret));
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* check if the header is already registered. If not, register it. */
+	ret = lua_getfield(L, -1, name);
+	if (ret == LUA_TNIL) {
+		/* Entry not found. */
+		lua_pop(L, 1); /* remove the nil. The "headers" table is the top of the stack. */
+
+		/* Insert the new header name in the array in the top of the stack.
+		 * It left the new array in the top of the stack.
+		 */
+		lua_newtable(L);
+		lua_pushstring(L, name);
+		lua_pushvalue(L, -2);
+		lua_settable(L, -4);
+	}
+	else if (ret != LUA_TTABLE) {
+		hlua_pusherror(L, "Reply['headers']['%s'] is expected to be an array. %s found", name, lua_typename(L, ret));
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Now the top od thestack is an array of values. We push
+	 * the header value as new entry.
+	 */
+	lua_pushstring(L, value);
+	ret = lua_rawlen(L, -2);
+	lua_rawseti(L, -2, ret + 1);
+
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
+/* Remove all occurrences of a given header name. */
+__LJMP static int hlua_txn_reply_del_header(lua_State *L)
+{
+	const char *name = MAY_LJMP(luaL_checkstring(L, 2));
+	int ret;
+
+	/* First argument (self) must be a table */
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	/* Push in the stack the "headers" entry. */
+	ret = lua_getfield(L, 1, "headers");
+	if (ret != LUA_TTABLE) {
+		hlua_pusherror(L, "Reply['headers'] is expected to be an array. %s found", lua_typename(L, ret));
+		WILL_LJMP(lua_error(L));
+	}
+
+	lua_pushstring(L, name);
+	lua_pushnil(L);
+	lua_settable(L, -3);
+
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
+/* Set the reply's body. Overwrite any existing entry. */
+__LJMP static int hlua_txn_reply_set_body(lua_State *L)
+{
+	const char *payload = MAY_LJMP(luaL_checkstring(L, 2));
+
+	/* First argument (self) must be a table */
+	luaL_checktype(L, 1, LUA_TTABLE);
+
+	lua_pushstring(L, payload);
+	lua_setfield(L, 1, "body");
+
+	lua_pushboolean(L, 1);
+	return 1;
 }
 
 __LJMP static int hlua_log(lua_State *L)
@@ -7954,6 +8393,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "unset_var",           hlua_unset_var);
 	hlua_class_function(gL.T, "get_var",             hlua_get_var);
 	hlua_class_function(gL.T, "done",                hlua_txn_done);
+	hlua_class_function(gL.T, "reply",               hlua_txn_reply_new);
 	hlua_class_function(gL.T, "set_loglevel",        hlua_txn_set_loglevel);
 	hlua_class_function(gL.T, "set_tos",             hlua_txn_set_tos);
 	hlua_class_function(gL.T, "set_mark",            hlua_txn_set_mark);
@@ -7970,6 +8410,22 @@ void hlua_init(void)
 
 	/* Register previous table in the registry with reference and named entry. */
 	class_txn_ref = hlua_register_metatable(gL.T, CLASS_TXN);
+
+	/*
+	 *
+	 * Register class reply
+	 *
+	 */
+	lua_newtable(gL.T);
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+	hlua_class_function(gL.T, "set_status", hlua_txn_reply_set_status);
+	hlua_class_function(gL.T, "add_header", hlua_txn_reply_add_header);
+	hlua_class_function(gL.T, "del_header", hlua_txn_reply_del_header);
+	hlua_class_function(gL.T, "set_body",   hlua_txn_reply_set_body);
+	lua_settable(gL.T, -3); /* Sets the __index entry. */
+	class_txn_reply_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+
 
 	/*
 	 *

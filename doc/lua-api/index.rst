@@ -1733,18 +1733,86 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :param string var: The variable name according with the HAProxy variable syntax.
 
-.. js:function:: TXN.done(txn)
+.. js:function:: TXN.reply([reply])
+
+  Return a new reply object
+
+  :param table reply: A table containing info to initialize the reply fields.
+  :returns: A :ref:`reply_class` object.
+
+  The table used to initialized the reply object may contain following entries :
+
+  * status : The reply status code. the code 200 is used by default.
+  * reason : The reply reason. The reason corresponding to the status code is
+    used by default.
+  * headers : An list of headers, indexed by header name. Empty by default. For
+    a given name, multiple values are possible, stored in an ordered list.
+  * body : The reply body, empty by default.
+
+.. code-block:: lua
+
+  local reply = txn:reply{
+      status  = 400,
+      reason  = "Bad request",
+      headers = {
+          ["content-type"]  = { "text/html" },
+          ["cache-control"] = {"no-cache", "no-store" }
+      },
+      body = "<html><body><h1>invalid request<h1></body></html>"
+  }
+..
+  :see: :js:class:`Reply`
+
+.. js:function:: TXN.done(txn[, reply])
 
   This function terminates processing of the transaction and the associated
-  session. It can be used when a critical error is detected or to terminate
+  session and optionally reply to the client for HTTP sessions.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param class_reply reply: The class reply object to return to the client.
+
+  This functions can be used when a critical error is detected or to terminate
   processing after some data have been returned to the client (eg: a redirect).
+  To do so, a reply may be provided. This object is optional and may contain a
+  status code, a reason, a header list and a body. All these fields are
+  optionnals. When not provided, the default values are used. By default, with
+  an empty reply object, an empty HTTP 200 response is returned to the
+  client. If no reply object is provided, the transaction is terminated without
+  any reply.
+
+  The reply object may be fully created in lua or the class Reply may be used to
+  create it.
+
+.. code-block:: lua
+
+  local reply = txn:reply()
+  reply:set_status(400, "Bad request")
+  reply:add_header("content-type", "text/html")
+  reply:add_header("cache-control", "no-cache")
+  reply:add_header("cache-control", "no-store")
+  reply:set_body("<html><body><h1>invalid request<h1></body></html>")
+  txn:done(reply)
+..
+
+.. code-block:: lua
+
+   txn:done{
+       status  = 400,
+       reason  = "Bad request",
+       headers = {
+           ["content-type"]  = { "text/html" },
+           ["cache-control"] = { "no-cache", "no-store" },
+       },
+       body = "<html><body><h1>invalid request<h1></body></html>"
+   }
+..
 
   *Warning*: It not make sense to call this function from sample-fetches. In
   this case the behaviour of this one is the same than core.done(): it quit
   the Lua execution. The transaction is really aborted only from an action
   registered function.
 
-  :param class_txn txn: The class txn object containing the data.
+  :see: :js:func:`TXN.reply`, :js:class:`Reply`
 
 .. js:function:: TXN.set_loglevel(txn, loglevel)
 
@@ -1790,6 +1858,98 @@ TXN class
 
   See the HAProxy configuration.txt file keyword "http-request" action
   "set-priority-offset" for details.
+
+.. _reply_class:
+
+Reply class
+============
+
+.. js:class:: Reply
+
+  **context**: action
+
+  This class represents an HTTP response message. It provides some methods to
+  enrich it.
+
+.. code-block:: lua
+
+  local reply = txn:reply({status = 400}) -- default HTTP 400 reason-phase used
+  reply:add_header("content-type", "text/html")
+  reply:add_header("cache-control", "no-cache")
+  reply:add_header("cache-control", "no-store")
+  reply:set_body("<html><body><h1>invalid request<h1></body></html>")
+..
+
+  :see: :js:func:`TXN.reply`
+
+.. js:attribute:: Reply.status
+
+  The reply status code. By default, the status code is set to 200.
+
+  :returns: integer
+
+.. js:attribute:: Reply.reason
+
+  The reason string describing the status code.
+
+  :returns: string
+
+.. js:attribute:: Reply.headers
+
+  A table indexing all reply headers by name. To each name is associated an
+  ordered list of values.
+
+  :returns: Lua table
+
+.. code-block:: lua
+
+  {
+    ["content-type"]  = { "text/html" },
+    ["cache-control"] = {"no-cache", "no-store" },
+    x_header_name     = { "value1", "value2", ... }
+    ...
+  }
+..
+
+.. js:attribute:: Reply.body
+
+  The reply payload.
+
+  :returns: string
+
+.. js:function:: Reply.set_status(REPLY, status[, reason])
+
+  Set the reply status code and optionally the reason-phrase. If the reason is
+  not provided, the default reason corresponding to the status code is used.
+
+  :param class_reply reply: The related Reply object.
+  :param integer status: The reply status code.
+  :param string reason: The reply status reason (optional).
+
+.. js:function:: Reply.add_header(REPLY, name, value)
+
+  Add a header to the reply object. If the header does not already exist, a new
+  entry is created with its name as index and a one-element list containing its
+  value as value. Otherwise, the header value is appended to the ordered list of
+  values associated to the header name.
+
+  :param class_reply reply: The related Reply object.
+  :param string name: The header field name.
+  :param string value: The header field value.
+
+.. js:function:: Reply.del_header(REPLY, name)
+
+  Remove all occurrences of a header name from the reply object.
+
+  :param class_reply reply: The related Reply object.
+  :param string name: The header field name.
+
+.. js:function:: Reply.set_body(REPLY, body)
+
+  Set the reply payload.
+
+  :param class_reply reply: The related Reply object.
+  :param string body: The reply payload.
 
 .. _socket_class:
 
@@ -2694,4 +2854,3 @@ OpenSSL:
 
 * `https://github.com/brunoos/luasec/wiki
   <https://github.com/brunoos/luasec/wiki>`_
-
