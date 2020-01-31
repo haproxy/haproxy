@@ -329,10 +329,7 @@ static int run_tasks_from_list(struct list *list, int max)
 
 	while (done < max && !LIST_ISEMPTY(list)) {
 		t = (struct task *)LIST_ELEM(list->n, struct tasklet *, list);
-		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING)) | TASK_RUNNING;
-		state = _HA_ATOMIC_XCHG(&t->state, state);
-		__ha_barrier_atomic_store();
-		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
+		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING));
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -342,12 +339,19 @@ static int run_tasks_from_list(struct list *list, int max)
 		sched->current = t;
 
 		if (TASK_IS_TASKLET(t)) {
+			state = _HA_ATOMIC_XCHG(&t->state, state);
+			__ha_barrier_atomic_store();
+			__tasklet_remove_from_tasklet_list((struct tasklet *)t);
 			process(NULL, ctx, state);
 			done++;
 			sched->current = NULL;
 			__ha_barrier_store();
 			continue;
 		}
+
+		state = _HA_ATOMIC_XCHG(&t->state, state | TASK_RUNNING);
+		__ha_barrier_atomic_store();
+		__tasklet_remove_from_tasklet_list((struct tasklet *)t);
 
 		/* OK then this is a regular task */
 
