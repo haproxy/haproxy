@@ -1255,6 +1255,7 @@ int connect_server(struct stream *s)
 					MT_LIST_ADDQ(&toremove_connections[i],
 					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
+					HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 					break;
 				}
 				HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
