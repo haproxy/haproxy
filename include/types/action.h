@@ -130,6 +130,7 @@ struct act_rule {
 		struct {
 			int status;
 			char *ctype;
+			struct list *hdrs;
 			union {
 				struct list   fmt;
 				struct buffer obj;

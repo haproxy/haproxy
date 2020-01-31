@@ -42,6 +42,13 @@
 #include <proto/pattern.h>
 #include <proto/stream_interface.h>
 
+/* Structure used to build the header list of an HTTP return action */
+struct http_ret_hdr {
+	struct ist  name;  /* the header name */
+	struct list value; /* the log-format string value */
+	struct list list;  /* header chained list */
+};
+
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.
  */
@@ -1810,8 +1817,25 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 static void release_http_return(struct act_rule *rule)
 {
 	struct logformat_node *lf, *lfb;
+	struct http_ret_hdr *hdr, *hdrb;
 
 	free(rule->arg.http_return.ctype);
+
+	if (rule->arg.http_return.hdrs) {
+		list_for_each_entry_safe(hdr, hdrb, rule->arg.http_return.hdrs, list) {
+			LIST_DEL(&hdr->list);
+			list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+				LIST_DEL(&lf->list);
+				release_sample_expr(lf->expr);
+				free(lf->arg);
+				free(lf);
+			}
+			free(hdr->name.ptr);
+			free(hdr);
+		}
+		free(rule->arg.http_return.hdrs);
+	}
+
 	if (rule->action == 2) {
 		chunk_destroy(&rule->arg.http_return.body.obj);
 	}
@@ -1885,6 +1909,25 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 
 		clen = (body ? ultoa(b_data(body)) : "0");
 		ctype = rule->arg.http_return.ctype;
+
+		if (rule->arg.http_return.hdrs) {
+			struct http_ret_hdr *hdr;
+			struct buffer *value = alloc_trash_chunk();
+
+			if (!value)
+				goto fail;
+
+			list_for_each_entry(hdr, rule->arg.http_return.hdrs, list) {
+				chunk_reset(value);
+				value->data = build_logline(s, value->area, value->size, &hdr->value);
+				if (b_data(value) && !htx_add_header(htx, hdr->name, ist2(b_head(value), b_data(value)))) {
+					free_trash_chunk(value);
+					goto fail;
+				}
+				chunk_reset(value);
+			}
+			free_trash_chunk(value);
+		}
 
 		if (!htx_add_header(htx, ist("content-length"), ist(clen)) ||
 		    (body && b_data(body) && ctype && !htx_add_header(htx, ist("content-type"), ist(ctype))) ||
@@ -1990,13 +2033,21 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 					    struct act_rule *rule, char **err)
 {
 	struct logformat_node *lf, *lfb;
+	struct http_ret_hdr *hdr, *hdrb;
+	struct list *hdrs = NULL;
 	struct stat stat;
 	const char *file = NULL, *act_arg = NULL;
 	char *obj = NULL, *ctype = NULL, *name = NULL;
 	int cur_arg, cap, objlen = 0, action = 0, status = 200, fd = -1;
 
-	cur_arg = *orig_arg;
+	hdrs = calloc(1, sizeof(*hdrs));
+	if (!hdrs) {
+		memprintf(err, "out of memory");
+		goto error;
+	}
+	LIST_INIT(hdrs);
 
+	cur_arg = *orig_arg;
 	while (*args[cur_arg]) {
 		if (strcmp(args[cur_arg], "status") == 0) {
 			cur_arg++;
@@ -2164,6 +2215,47 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			action = 3;
 			cur_arg++;
 		}
+		else if (strcmp(args[cur_arg], "hdr") == 0) {
+			cur_arg++;
+			if (!*args[cur_arg] || !*args[cur_arg+1]) {
+				memprintf(err, "'%s' expects <name> and <value> as arguments", args[cur_arg-1]);
+				goto error;
+			}
+			if (strcasecmp(args[cur_arg], "content-length") == 0 ||
+			    strcasecmp(args[cur_arg], "transfer-encoding") == 0 ||
+			    strcasecmp(args[cur_arg], "content-type") == 0) {
+				ha_warning("parsing [%s:%d] : 'http-%s return' : header '%s' ignored.\n",
+					   px->conf.args.file, px->conf.args.line,
+					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+					   args[cur_arg]);
+				cur_arg += 2;
+				continue;
+			}
+			hdr = calloc(1, sizeof(*hdr));
+			if (!hdr) {
+				memprintf(err, "'%s' : out of memory", args[cur_arg-1]);
+				goto error;
+			}
+			LIST_INIT(&hdr->value);
+			hdr->name = ist(strdup(args[cur_arg]));
+			LIST_ADDQ(hdrs, &hdr->list);
+
+			if (rule->from == ACT_F_HTTP_REQ) {
+				px->conf.args.ctx = ARGC_HRQ;
+				cap = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+			}
+			else {
+				px->conf.args.ctx =  ARGC_HRS;
+				cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+			}
+			if (!parse_logformat_string(args[cur_arg+1], px, &hdr->value, LOG_OPT_HTTP, cap, err))
+				goto error;
+
+			free(px->conf.lfs_file);
+			px->conf.lfs_file = strdup(px->conf.args.file);
+			px->conf.lfs_line = px->conf.args.line;
+			cur_arg += 2;
+		}
 		else
 			break;
 	}
@@ -2191,6 +2283,25 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			free(ctype);
 			ctype = NULL;
 		}
+		if (!LIST_ISEMPTY(hdrs)) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : hdr parameters ignored when the "
+				   "returned response is an erorrfile.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
+			list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
+				LIST_DEL(&hdr->list);
+				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+					LIST_DEL(&lf->list);
+					release_sample_expr(lf->expr);
+					free(lf->arg);
+					free(lf);
+				}
+				free(hdr->name.ptr);
+				free(hdr);
+			}
+		}
+		free(hdrs);
+		hdrs = NULL;
 
 		rule->arg.act.p[0] = (void *)((intptr_t)status);
 		rule->arg.act.p[1] = name;
@@ -2243,6 +2354,25 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				ctype = NULL;
 			}
 		}
+		if (!LIST_ISEMPTY(hdrs)) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : hdr parameters ignored when the "
+				   "returned response is an erorrfile.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
+			list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
+				LIST_DEL(&hdr->list);
+				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+					LIST_DEL(&lf->list);
+					release_sample_expr(lf->expr);
+					free(lf->arg);
+					free(lf);
+				}
+				free(hdr->name.ptr);
+				free(hdr);
+			}
+		}
+		free(hdrs);
+		hdrs = NULL;
 	}
 	else if (action == 2) { /* explicit parameter using 'file' parameter*/
 		if (!ctype && objlen) {
@@ -2291,6 +2421,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 
 	rule->arg.http_return.status = status;
 	rule->arg.http_return.ctype = ctype;
+	rule->arg.http_return.hdrs = hdrs;
 	rule->action = action;
 	rule->action_ptr = http_action_return;
 	rule->release_ptr = release_http_return;
@@ -2305,6 +2436,18 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 	free(name);
 	if (fd >= 0)
 		close(fd);
+	list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
+		LIST_DEL(&hdr->list);
+		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+		free(hdr->name.ptr);
+		free(hdr);
+	}
+	free(hdrs);
 	if (action == 3) {
 		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
 			LIST_DEL(&lf->list);

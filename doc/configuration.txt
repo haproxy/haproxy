@@ -4843,6 +4843,7 @@ http-request replace-value <name> <match-regex> <replace-fmt>
 http-request return [status <code>] [content-type <type>]
           [ { default-errorfiles | errorfile <file> | errorfiles <name> |
               file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+	  [ hdr <name> <fmt> ]*
           [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediatly returns a response. The
@@ -4889,6 +4890,11 @@ http-request return [status <code>] [content-type <type>]
     argument to "content-type". With a "lf-string" argument, the string is
     evaluated as a log-format string. With a "string" argument, it is
     considered as a raw string.
+
+  When the response is not based an errorfile, it is possible to appends HTTP
+  header fields to the response using "hdr" arguments. Otherwise, all "hdr"
+  arguments are ignored. For each one, the header name is specified in <name>
+  and its value is defined by <fmt> which follows the log-format rules.
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
@@ -5467,6 +5473,7 @@ http-response replace-value <name> <regex-match> <replace-fmt>
 http-response return [status <code>] [content-type <type>]
           [ { default-errorfiles | errorfile <file> | errorfiles <name> |
               file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+	  [ hdr <name> <value> ]*
           [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediatly returns a response. The
@@ -5513,6 +5520,11 @@ http-response return [status <code>] [content-type <type>]
     argument to "content-type". With a "lf-string" argument, the string is
     evaluated as a log-format string. With a "string" argument, it is
     considered as a raw string.
+
+  When the response is not based an errorfile, it is possible to appends HTTP
+  header fields to the response using "hdr" arguments. Otherwise, all "hdr"
+  arguments are ignored. For each one, the header name is specified in <name>
+  and its value is defined by <fmt> which follows the log-format rules.
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
