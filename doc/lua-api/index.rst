@@ -2642,6 +2642,18 @@ Action class
 
   :returns: integer
 
+.. js:function:: act:wake_time(milliseconds)
+
+  **context**: action
+
+  Set the script pause timeout to the specified time, defined in
+  milliseconds.
+
+  :param integer milliseconds: the required milliseconds.
+
+  This function may be used when a lua action returns `act.YIELD`, to force its
+  wake-up at most after the specified number of milliseconds.
+
 External Lua libraries
 ======================
 

@@ -6053,6 +6053,24 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	return 0;
 }
 
+/* This function is a lua binding to set the wake_time from an action. It is
+ * only used if the action return ACT_RET_YIELD.
+ */
+__LJMP static int hlua_action_wake_time(lua_State *L)
+{
+	struct hlua *hlua = hlua_gethlua(L);
+	unsigned int delay;
+	unsigned int wakeup_ms;
+
+	MAY_LJMP(check_args(L, 1, "wake_time"));
+
+	delay = MAY_LJMP(luaL_checkinteger(L, 1));
+	wakeup_ms = tick_add(now_ms, delay);
+	hlua->wake_time = wakeup_ms;
+	return 0;
+}
+
+
 /* This function is a wrapper to execute each LUA function declared as an action
  * wrapper during the initialisation period. This function may return any
  * ACT_RET_* value. On error ACT_RET_CONT is returned and the action is
@@ -6156,6 +6174,15 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		/* Catch the return value */
 		if (lua_gettop(s->hlua->T) > 0)
 			act_ret = lua_tointeger(s->hlua->T, -1);
+
+		/* Set timeout in the required channel. */
+		if (act_ret == ACT_RET_YIELD && s->hlua->wake_time != TICK_ETERNITY) {
+			if (dir == SMP_OPT_DIR_REQ)
+				s->req.analyse_exp = s->hlua->wake_time;
+			else
+				s->res.analyse_exp = s->hlua->wake_time;
+		}
+		goto end;
 
 	/* yield. */
 	case HLUA_E_AGAIN:
@@ -7636,6 +7663,8 @@ void hlua_init(void)
 	hlua_class_const_int(gL.T, "DENY",     ACT_RET_DENY);
 	hlua_class_const_int(gL.T, "ABORT",    ACT_RET_ABRT);
 	hlua_class_const_int(gL.T, "INVALID",  ACT_RET_INV);
+
+	hlua_class_function(gL.T, "wake_time", hlua_action_wake_time);
 
 	lua_setglobal(gL.T, "act");
 
