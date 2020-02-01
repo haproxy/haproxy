@@ -139,11 +139,11 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			for (thr = 0; thr < MAX_THREADS; thr++)
 				pool_cache[thr][idx].size = size;
 		}
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
+		HA_SPIN_INIT(&pool->lock);
+#endif
 	}
 	pool->users++;
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
-	HA_SPIN_INIT(&pool->lock);
-#endif
 	return pool;
 }
 
