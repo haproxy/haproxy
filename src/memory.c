@@ -141,6 +141,8 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		}
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_INIT(&pool->lock);
+#else
+		HA_RWLOCK_INIT(&pool->flush_lock);
 #endif
 	}
 	pool->users++;
@@ -223,6 +225,7 @@ void pool_flush(struct pool_head *pool)
 
 	if (!pool)
 		return;
+	HA_RWLOCK_WRLOCK(POOL_LOCK, &pool->flush_lock);
 	do {
 		cmp.free_list = pool->free_list;
 		cmp.seq = pool->seq;
@@ -230,6 +233,7 @@ void pool_flush(struct pool_head *pool)
 		new.seq = cmp.seq + 1;
 	} while (!_HA_ATOMIC_DWCAS(&pool->free_list, &cmp, &new));
 	__ha_barrier_atomic_store();
+	HA_RWLOCK_WRUNLOCK(POOL_LOCK, &pool->flush_lock);
 	next = cmp.free_list;
 	while (next) {
 		temp = next;
@@ -259,6 +263,7 @@ void pool_gc(struct pool_head *pool_ctx)
 		return;
 
 	list_for_each_entry(entry, &pools, list) {
+		HA_RWLOCK_WRLOCK(POOL_LOCK, &entry->flush_lock);
 		while ((int)((volatile int)entry->allocated - (volatile int)entry->used) > (int)entry->minavail) {
 			struct pool_free_list cmp, new;
 
@@ -275,6 +280,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			free(cmp.free_list);
 			_HA_ATOMIC_SUB(&entry->allocated, 1);
 		}
+		HA_RWLOCK_WRUNLOCK(POOL_LOCK, &entry->flush_lock);
 	}
 
 	_HA_ATOMIC_STORE(&recurse, 0);
@@ -629,7 +635,7 @@ int mem_should_fail(const struct pool_head *pool)
 		else
 			ret = 0;
 	}
-	HA_SPIN_LOCK(OTHER_LOCK, &mem_fail_lock);
+	HA_SPIN_LOCK(POOL_LOCK, &mem_fail_lock);
 	n = snprintf(&mem_fail_str[mem_fail_cur_idx * MEM_FAIL_MAX_CHAR],
 	    MEM_FAIL_MAX_CHAR - 2,
 	    "%d %.18s %d %d", mem_fail_cur_idx, pool->name, ret, tid);
@@ -642,7 +648,7 @@ int mem_should_fail(const struct pool_head *pool)
 	mem_fail_cur_idx++;
 	if (mem_fail_cur_idx == MEM_FAIL_MAX_STR)
 		mem_fail_cur_idx = 0;
-	HA_SPIN_UNLOCK(OTHER_LOCK, &mem_fail_lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &mem_fail_lock);
 	return ret;
 
 }
