@@ -217,15 +217,20 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
  */
 void pool_flush(struct pool_head *pool)
 {
+	struct pool_free_list cmp, new;
 	void **next, *temp;
 	int removed = 0;
 
 	if (!pool)
 		return;
 	do {
-		next = pool->free_list;
-	} while (!_HA_ATOMIC_CAS(&pool->free_list, &next, NULL));
+		cmp.free_list = pool->free_list;
+		cmp.seq = pool->seq;
+		new.free_list = NULL;
+		new.seq = cmp.seq + 1;
+	} while (!_HA_ATOMIC_DWCAS(&pool->free_list, &cmp, &new));
 	__ha_barrier_atomic_store();
+	next = cmp.free_list;
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);
