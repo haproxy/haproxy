@@ -124,6 +124,15 @@
 #define MC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
 #define MC_SSL_O_NO_TLSV13      0x0010	/* disable TLSv13 */
 
+/* file to guess during file loading */
+#define SSL_GF_NONE         0x00000000   /* Don't guess any file, only open the files specified in the configuration files */
+#define SSL_GF_BUNDLE       0x00000001   /* try to open the bundles */
+#define SSL_GF_SCTL         0x00000002   /* try to open the .sctl file */
+#define SSL_GF_OCSP         0x00000004   /* try to open the .ocsp file */
+#define SSL_GF_OCSP_ISSUER  0x00000008   /* try to open the .issuer file if an OCSP file was loaded */
+
+#define SSL_GF_ALL          (SSL_GF_BUNDLE|SSL_GF_SCTL|SSL_GF_OCSP|SSL_GF_OCSP_ISSUER)
+
 /* ssl_methods versions */
 enum {
 	CONF_TLSV_NONE = 0,
@@ -172,6 +181,7 @@ static struct {
 	unsigned int default_dh_param; /* SSL maximum DH parameter size */
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
+	int extra_files; /* which files not defined in the configuration file are we looking for */
 } global_ssl = {
 #ifdef LISTEN_DEFAULT_CIPHERS
 	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
@@ -203,6 +213,7 @@ static struct {
 	.default_dh_param = SSL_DEFAULT_DH_PARAM,
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
 	.capture_cipherlist = 0,
+	.extra_files = SSL_GF_ALL,
 };
 
 static BIO_METHOD *ha_meth;
@@ -3442,7 +3453,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	/* try to load the sctl file */
-	{
+	if (global_ssl.extra_files & SSL_GF_SCTL) {
 		char fp[MAXPATHLEN+1];
 		struct stat st;
 
@@ -3459,7 +3470,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 #endif
 
 	/* try to load an ocsp response file */
-	{
+	if (global_ssl.extra_files & SSL_GF_OCSP) {
 		char fp[MAXPATHLEN+1];
 		struct stat st;
 
@@ -3473,7 +3484,7 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 	}
 
 #ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
-	if (ckch->ocsp_response) {
+	if (ckch->ocsp_response && (global_ssl.extra_files & SSL_GF_OCSP_ISSUER)) {
 		/* if no issuer was found, try to load an issuer from the .issuer */
 		if (!ckch->ocsp_issuer) {
 			struct stat st;
@@ -4320,7 +4331,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				is_bundle = 0;
 				/* Check if current entry in directory is part of a multi-cert bundle */
 
-				if (end) {
+				if ((global_ssl.extra_files & SSL_GF_BUNDLE) && end) {
 					for (j = 0; j < SSL_SOCK_NUM_KEYTYPES; j++) {
 						if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
 							is_bundle = 1;
@@ -4370,13 +4381,22 @@ ignore_entry:
 			free(de_list);
 		}
 		return cfgerr;
+
+	} else {
+		/* stat failed */
+
+		if (global_ssl.extra_files & SSL_GF_BUNDLE) {
+			/* try to load a bundle if it is permitted */
+			ckchs =  ckchs_load_cert_file(path, 1,  err);
+			if (!ckchs)
+				return ERR_ALERT | ERR_FATAL;
+			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+		} else {
+			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+			          err && *err ? *err : "", fp, strerror(errno));
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+		}
 	}
-
-	ckchs =  ckchs_load_cert_file(path, 1,  err);
-	if (!ckchs)
-		return ERR_ALERT | ERR_FATAL;
-
-	cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 
 	return cfgerr;
 }
@@ -9941,6 +9961,69 @@ static int ssl_parse_global_default_dh(char **args, int section_type, struct pro
 #endif
 
 
+/*
+ * parse "ssl-load-extra-files".
+ * multiple arguments are allowed: "bundle", "sctl", "ocsp", "issuer", "all", "none"
+ */
+static int ssl_parse_global_extra_files(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	int i;
+	int gf = SSL_GF_NONE;
+
+	if (*(args[1]) == 0)
+		goto err_arg;
+
+	for (i = 1; *args[i]; i++) {
+
+		if (!strcmp("bundle", args[i])) {
+			gf |= SSL_GF_BUNDLE;
+
+		} else if (!strcmp("sctl", args[i])) {
+			gf |= SSL_GF_SCTL;
+
+		} else if (!strcmp("ocsp", args[i])){
+			gf |= SSL_GF_OCSP;
+
+		} else if (!strcmp("issuer", args[i])){
+			gf |= SSL_GF_OCSP_ISSUER;
+
+		} else if (!strcmp("none", args[i])) {
+			if (gf != SSL_GF_NONE)
+				goto err_alone;
+			gf = SSL_GF_NONE;
+			i++;
+			break;
+
+		} else if (!strcmp("all", args[i])) {
+			if (gf != SSL_GF_NONE)
+				goto err_alone;
+			gf = SSL_GF_ALL;
+			i++;
+			break;
+		} else {
+			goto err_arg;
+		}
+	}
+	/* break from loop but there are still arguments */
+	if (*args[i])
+		goto err_alone;
+
+	global_ssl.extra_files = gf;
+
+	return 0;
+
+err_alone:
+	memprintf(err, "'%s' 'none' and 'all' can be only used alone", args[0]);
+	return -1;
+
+err_arg:
+	memprintf(err, "'%s' expects one or multiple arguments (none, all, bundle, sctl, ocsp, issuer).", args[0]);
+	return -1;
+}
+
+
 /* This function is used with TLS ticket keys management. It permits to browse
  * each reference. The variable <getnext> must contain the current node,
  * <end> point to the root node.
@@ -11407,6 +11490,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },
 	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },
 #endif
+	{ CFG_GLOBAL, "ssl-load-extra-files", ssl_parse_global_extra_files },
 	{ 0, NULL, NULL },
 }};
 
