@@ -225,8 +225,10 @@ static inline void *__pool_get_first(struct pool_head *pool)
 	HA_RWLOCK_RDLOCK(POOL_LOCK, &pool->flush_lock);
 	cmp.free_list = pool->free_list;
 	do {
-		if (cmp.free_list == NULL)
+		if (cmp.free_list == NULL) {
+			HA_RWLOCK_RDUNLOCK(POOL_LOCK, &pool->flush_lock);
 			return NULL;
+		}
 		new.seq = cmp.seq + 1;
 		__ha_barrier_load();
 		new.free_list = *POOL_LINK(pool, cmp.free_list);
