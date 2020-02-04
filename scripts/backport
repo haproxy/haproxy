@@ -1,0 +1,146 @@
+#!/bin/bash
+
+USAGE="Usage: ${0##*/} <last> <commit> [...]"
+START="$PWD"
+LAST=
+UPSTREAM=
+COMMIT=
+BRANCH=
+
+die() {
+	[ "$#" -eq 0 ] || echo "$*" >&2
+	exit 1
+}
+
+err() {
+	echo "$*" >&2
+}
+
+quit() {
+	[ "$#" -eq 0 ] || echo "$*"
+	exit 0
+}
+
+short() {
+	# git rev-parse --short $1
+	echo "${1::8}"
+}
+
+# returns the latest commit ID in $REPLY. Returns 0 on success, non-zero on
+# failure with $REPLY empty.
+get_last_commit() {
+	REPLY=$(git rev-parse HEAD)
+	test -n "$REPLY"
+}
+
+# returns the name of the current branch (1.8, 1.9, etc) in $REPLY. Returns 0
+# on success, non-zero on failure with $REPLY empty.
+get_branch() {
+	local major subver ext
+	REPLY=$(git describe --tags HEAD --abbrev=0 2>/dev/null)
+	REPLY=${REPLY#v}
+	subver=${REPLY#[0-9]*.[0-9]*[-.]*[0-9].}
+	[ "${subver}" != "${REPLY}" ] || subver=""
+	major=${REPLY%.$subver}
+	ext=${major#*[0-9].*[0-9]}
+	REPLY=${major%${ext}}
+	test -n "$REPLY"
+}
+
+# returns the path to the next "up" remote in $REPLY, and zero on success
+# or non-zero when the last one was reached.
+up() {
+	REPLY=$(git remote -v | awk '/^up\t.*\(fetch\)$/{print $2}')
+	test -n "$REPLY"
+}
+
+# returns the path to the next "down" remote in $REPLY, and zero on success
+# or non-zero when the last one was reached.
+down() {
+	REPLY=$(git remote -v | awk '/^down\t.*\(fetch\)$/{print $2}')
+	test -n "$REPLY"
+}
+
+# verifies that the repository is clean of any pending changes
+check_clean() {
+	test -z "$(git status -s -uno)"
+}
+
+# verifies that HEAD is the master
+check_master() {
+	test "$(git rev-parse --verify -q HEAD 2>&1)" != "$(git rev-parse --verify -q master 2>&1)"
+}
+
+# tries to switch to the master branch, only if the current one is clean. Dies on failure.
+switch_master() {
+	check_clean || die "$BRANCH: local changes, stopping on commit $COMMIT (upstream $UPSTREAM)"
+	git checkout master >/dev/null 2>&1 || die "$BRANCH: failed to checkout master, stopping on commit $COMMIT (upstream $UPSTREAM)"
+}
+
+# walk up to the first repo
+walk_up() {
+	cd "$START"
+}
+
+# updates the "up" remote repository. Returns non-zero on error.
+update_up() {
+	git remote update up >/dev/null 2>&1
+}
+
+# backports commit "$1" with a signed-off by tag. In case of failure, aborts
+# the change and returns non-zero. Unneeded cherry-picks do return an error
+# because we don't want to accidently backport the latest commit instead of
+# this one, and we don't know this one's ID.
+backport_commit() {
+	local empty=1
+
+	if ! git cherry-pick -sx "$1"; then
+		[ -n "$(git diff)" -o -n "$(git diff HEAD)" ] || empty=0
+		git cherry-pick --abort
+		return 1
+	fi
+}
+
+[ "$1" != "-h" -a "$1" != "--help" ] || quit "$USAGE"
+[ -n "$1" -a -n "$2" ] || die "$USAGE"
+
+LAST="$1"
+shift
+
+# go back to the root of the repo
+cd $(git rev-parse --show-toplevel)
+START="$PWD"
+
+while [ -n "$1" ]; do
+	UPSTREAM="$1"
+	COMMIT="$1"
+	BRANCH="-source-"
+	while :; do
+		if ! down; then
+			err "branch $BRANCH: can't go further, is repository 'down' properly set ?"
+			break
+		fi
+
+		cd "$REPLY" || die "Failed to 'cd' to '$REPLY' from '$PWD', is repository 'down' properly set ?"
+
+		check_clean || die "Local changes in $PWD, stopping before backporting commit $COMMIT (upstream $UPSTREAM)"
+
+		check_master || switch_master || die "Cannot switch to 'master' branch in $PWD, stopping before backporting commit $COMMIT (upstream $UPSTREAM)"
+		get_branch || die "Failed to get branch name in $PWD, stopping before backporting commit $COMMIT (upstream $UPSTREAM)"
+		BRANCH="$REPLY"
+
+		update_up || die "$BRANCH: failed to update repository 'up', stopping before backporting commit $COMMIT (upstream $UPSTREAM)"
+
+		backport_commit "$COMMIT" || die "$BRANCH: failed to backport commit $COMMIT (upstream $UPSTREAM). Leaving repository $PWD intact."
+
+		if [ "$BRANCH" = "$LAST" ]; then
+			# reached the stop point, don't apply further
+			break
+		fi
+
+		get_last_commit || die "$BRANCH: cannot retrieve last commit ID, stopping after backporting commit $COMMIT (upstream $UPSTREAM)"
+		COMMIT="$REPLY"
+	done
+	walk_up || die "Failed to go back to $PWD, stopping *after* backporting upstream $UPSTREAM"
+	shift
+done
