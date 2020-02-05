@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # prepares a template e-mail and HTML file to announce a new release
 # Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
 #

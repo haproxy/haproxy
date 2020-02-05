@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Compares multiple branches against a reference and shows which ones contain
 # each commit, and the level of backports since the origin or its own ancestors.

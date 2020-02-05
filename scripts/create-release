@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # creates a new haproxy release at the current commit
 # Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
 #

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # puts the public files online after a release
 # Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
 #
