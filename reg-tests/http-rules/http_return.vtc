@@ -1,0 +1,93 @@
+varnishtest "Test the HTTP return action"
+#REQUIRE_VERSION=2.2
+
+# This config tests the HTTP return action.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request return if { path /def-1 }
+        http-request return hdr "x-custom-hdr" "%[url]" if { path /def-2 }
+        http-request return status 403 if { path /def-3 }
+        http-request return content-type "text/plain" if { path /def-4 }
+
+        http-request return content-type "text/plain" string "hello" hdr "x-custom-hdr" "%[url]"  if { path /string }
+        http-request return content-type "text/plain" lf-string "path is %[url]" hdr "x-custom-hdr" "%[url]"  if { path /lf-string }
+        http-request return content-type "text/plain" file /dev/null hdr "x-custom-hdr" "%[url]"  if { path /empty-file }
+        http-request return content-type "text/plain" file ${testdir}/1k.txt hdr "x-custom-hdr" "%[url]"  if { path /file }
+        http-request return content-type "text/plain" lf-file ${testdir}/lf-file.txt hdr "x-custom-hdr" "%[url]"  if { path /lf-file }
+} -start
+
+client c1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /def-1
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 0
+        expect resp.http.content-type == <undef>
+        expect resp.http.x-custom-hdr == <undef>
+
+        txreq -req GET -url /def-2
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 0
+        expect resp.http.content-type == <undef>
+        expect resp.http.x-custom-hdr == "/def-2"
+
+        txreq -req GET -url /def-3
+        rxresp
+        expect resp.status == 403
+        expect resp.http.content-length == 0
+        expect resp.http.content-type == <undef>
+
+        txreq -req GET -url /def-4
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 0
+        expect resp.http.content-type == <undef>
+
+        txreq -req GET -url /string
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 5
+        expect resp.http.content-type == "text/plain"
+        expect resp.http.x-custom-hdr == "/string"
+        expect resp.body == "hello"
+
+        txreq -req GET -url /lf-string
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 18
+        expect resp.http.content-type == "text/plain"
+        expect resp.http.x-custom-hdr == "/lf-string"
+        expect resp.body == "path is /lf-string"
+
+        txreq -req GET -url /empty-file
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 0
+        expect resp.http.content-type == <undef>
+        expect resp.http.x-custom-hdr == "/empty-file"
+
+        txreq -req GET -url /file
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 1024
+        expect resp.http.content-type == "text/plain"
+        expect resp.http.x-custom-hdr == "/file"
+
+        txreq -req GET -url /lf-file
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-length == 17
+        expect resp.http.content-type == "text/plain"
+        expect resp.http.x-custom-hdr == "/lf-file"
+        expect resp.body == "path is /lf-file\n"
+} -run

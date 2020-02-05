@@ -1,0 +1,46 @@
+varnishtest "Test the HTTP return action with errorfiles"
+#REQUIRE_VERSION=2.2
+
+# This config tests the HTTP return action when error files are used to reply to
+# the client.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    http-errors errors-2
+        errorfile 400 ${testdir}/errors/400-2.http
+
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        errorfile 400 ${testdir}/errors/400.http
+        http-request return status 400 default-errorfiles if { path /def }
+        http-request return status 400 errorfile ${testdir}/errors/400-1.http if { path /400-1 }
+        http-request return status 400 errorfiles errors-2 if { path /400-2 }
+} -start
+
+client c1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /def
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "default"
+} -run
+
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400-1
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "errors-1"
+} -run
+
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400-2
+        rxresp
+        expect resp.status == 400
+	expect resp.http.x-err-type == "errors-2"
+} -run
