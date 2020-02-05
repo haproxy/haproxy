@@ -2851,13 +2851,6 @@ static struct dcache_tx *new_dcache_tx(size_t max_entries)
 	return NULL;
 }
 
-static void free_dcache_tx(struct dcache_tx *dc)
-{
-	free(dc->entries);
-	dc->entries = NULL;
-	free(dc);
-}
-
 /*
  * Allocate a cache of dictionary entries with <name> as name and <max_entries>
  * as maximum of entries.
