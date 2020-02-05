@@ -2890,18 +2890,6 @@ static struct dcache *new_dcache(size_t max_entries)
 }
 
 /*
- * Deallocate a cache of dictionary entries.
- */
-static inline void free_dcache(struct dcache *dc)
-{
-	free_dcache_tx(dc->tx);
-	dc->tx = NULL;
-	free(dc->rx); dc->rx = NULL;
-	free(dc);
-}
-
-
-/*
  * Look for the dictionary entry with the value of <i> in <d> cache of dictionary
  * entries used upon transmission.
  * Return the entry if found, NULL if not.
