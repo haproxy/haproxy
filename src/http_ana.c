@@ -2159,6 +2159,11 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_bad_res:
 	txn->status = 502;
+	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	if (objt_server(s->target)) {
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
+	}
 	/* fall through */
 
  return_prx_err:
