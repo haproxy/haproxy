@@ -65,11 +65,7 @@ static uint32_t get_var_int(const uint8_t **raw_in, uint32_t *len_in, int b)
 	if (ret != (uint32_t)((1 << b) - 1))
 		goto end;
 
-	while (1) {
-		if (!len)
-			goto too_short;
-		if (!(*raw & 128))
-			break;
+	while (len && (*raw & 128)) {
 		ret += ((uint32_t)(*raw++) & 127) << shift;
 		shift += 7;
 		len--;
