@@ -885,11 +885,20 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			ha_alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
 				 file, linenum, *err, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
-		else if (parse_acl((const char **)args+1, &curapp->acls, &errmsg, &curapp->conf.args, file, linenum) == NULL) {
+		if (strcasecmp(args[1], "or") == 0) {
+			ha_warning("parsing [%s:%d] : acl name '%s' will never match. 'or' is used to express a "
+				   "logical disjunction within a condition.\n",
+				   file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (parse_acl((const char **)args+1, &curapp->acls, &errmsg, &curapp->conf.args, file, linenum) == NULL) {
 			ha_alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
 				 file, linenum, args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 	}
 	else if (!strcmp(args[0], "set-param")) {
