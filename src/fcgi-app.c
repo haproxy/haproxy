@@ -888,7 +888,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			goto out;
 		}
 		if (strcasecmp(args[1], "or") == 0) {
-			ha_warning("parsing [%s:%d] : acl name '%s' will never match. 'or' is used to express a "
+			ha_alert("parsing [%s:%d] : acl name '%s' will never match. 'or' is used to express a "
 				   "logical disjunction within a condition.\n",
 				   file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
