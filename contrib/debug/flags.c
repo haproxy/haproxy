@@ -395,7 +395,7 @@ void show_strm_flags(unsigned int f)
 
 void usage_exit(const char *name)
 {
-	fprintf(stderr, "Usage: %s [ana|chn|conn|cs|si|sierr|strm|task|txn]* [0x]value*\n", name);
+	fprintf(stderr, "Usage: %s [ana|chn|conn|cs|si|sierr|strm|task|txn]* { [+-][0x]value* | - }\n", name);
 	exit(1);
 }
 
@@ -405,7 +405,10 @@ int main(int argc, char **argv)
 	unsigned int show_as = 0;
 	unsigned int f;
 	const char *name = argv[0];
+	char line[20];
+	char *value;
 	int multi = 0;
+	int use_stdin = 0;
 	char *err;
 
 	while (argc > 0) {
@@ -425,14 +428,38 @@ int main(int argc, char **argv)
 	if (argc > 1)
 		multi = 1;
 
+	if (strcmp(argv[0], "-") == 0)
+		use_stdin = 1;
+
 	while (argc > 0) {
-		flags = strtoul(argv[0], &err, 0);
-		if (!*argv[0] || *err) {
-			fprintf(stderr, "Unparsable value: <%s>\n", argv[0]);
+		if (use_stdin) {
+			value = fgets(line, sizeof(line), stdin);
+			if (!value)
+				break;
+
+			/* skip common leading delimitors that slip from copy-paste */
+			while (*value == ' ' || *value == '\t' || *value == ':' || *value == '=')
+				value++;
+
+			/* stop at the end of the number and trim any C suffix like "UL" */
+			err = value;
+			while (*err == '-' || *err == '+' ||
+			       (isalnum(*err) && toupper(*err) != 'U' && toupper(*err) != 'L'))
+				err++;
+			if (err)
+				*err = 0;
+		} else {
+			value = argv[0];
+			argv++; argc--;
+		}
+
+		flags = strtoul(value, &err, 0);
+		if (!*value || *err) {
+			fprintf(stderr, "Unparsable value: <%s>\n", value);
 			usage_exit(name);
 		}
 
-		if (multi)
+		if (multi || use_stdin)
 			printf("### 0x%08x:\n", flags);
 
 		if (show_as & SHOW_AS_ANA)   show_chn_ana(flags);
@@ -444,8 +471,6 @@ int main(int argc, char **argv)
 		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
 		if (show_as & SHOW_AS_TASK)  show_task_state(flags);
 		if (show_as & SHOW_AS_TXN)   show_txn_flags(flags);
-
-		argv++; argc--;
 	}
 	return 0;
 }
