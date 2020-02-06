@@ -395,7 +395,7 @@ void show_strm_flags(unsigned int f)
 
 void usage_exit(const char *name)
 {
-	fprintf(stderr, "Usage: %s [ana|chn|conn|cs|si|sierr|strm|task|txn]* [0x]value\n", name);
+	fprintf(stderr, "Usage: %s [ana|chn|conn|cs|si|sierr|strm|task|txn]* [0x]value*\n", name);
 	exit(1);
 }
 
@@ -405,6 +405,7 @@ int main(int argc, char **argv)
 	unsigned int show_as = 0;
 	unsigned int f;
 	const char *name = argv[0];
+	int multi = 0;
 	char *err;
 
 	while (argc > 0) {
@@ -412,30 +413,39 @@ int main(int argc, char **argv)
 		if (argc < 1)
 			usage_exit(name);
 
-		flags = strtoul(argv[0], &err, 0);
-		if (*argv[0] && !*err)
-			break;
-
 		f = get_show_as(argv[0]);
-		if (!f) {
-			fprintf(stderr, "Unknown argument: <%s>\n", argv[0]);
-			usage_exit(name);
-		}
+		if (!f)
+			break;
 		show_as |= f;
 	}
 
 	if (!show_as)
 		show_as = ~0U;
 
-	if (show_as & SHOW_AS_ANA)   show_chn_ana(flags);
-	if (show_as & SHOW_AS_CHN)   show_chn_flags(flags);
-	if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
-	if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
-	if (show_as & SHOW_AS_SI)    show_si_flags(flags);
-	if (show_as & SHOW_AS_SIET)  show_si_et(flags);
-	if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
-	if (show_as & SHOW_AS_TASK)  show_task_state(flags);
-	if (show_as & SHOW_AS_TXN)   show_txn_flags(flags);
+	if (argc > 1)
+		multi = 1;
 
+	while (argc > 0) {
+		flags = strtoul(argv[0], &err, 0);
+		if (!*argv[0] || *err) {
+			fprintf(stderr, "Unparsable value: <%s>\n", argv[0]);
+			usage_exit(name);
+		}
+
+		if (multi)
+			printf("### 0x%08x:\n", flags);
+
+		if (show_as & SHOW_AS_ANA)   show_chn_ana(flags);
+		if (show_as & SHOW_AS_CHN)   show_chn_flags(flags);
+		if (show_as & SHOW_AS_CONN)  show_conn_flags(flags);
+		if (show_as & SHOW_AS_CS)    show_cs_flags(flags);
+		if (show_as & SHOW_AS_SI)    show_si_flags(flags);
+		if (show_as & SHOW_AS_SIET)  show_si_et(flags);
+		if (show_as & SHOW_AS_STRM)  show_strm_flags(flags);
+		if (show_as & SHOW_AS_TASK)  show_task_state(flags);
+		if (show_as & SHOW_AS_TXN)   show_txn_flags(flags);
+
+		argv++; argc--;
+	}
 	return 0;
 }
