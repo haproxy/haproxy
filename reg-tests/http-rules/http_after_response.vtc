@@ -1,0 +1,192 @@
+varnishtest "Test HTTP response manipulation under the http-after-response rulesets"
+#REQUIRE_VERSION=2.2
+
+# This config tests various http-after-response rules for HTTP responses from a
+# server and the stats applet, but also for internal responses
+# (deny/redirect/auth/return).
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        txresp \
+          -status 234 \
+          -hdr "hdr1: val1" \
+          -hdr "hdr2:  val2a" \
+          -hdr "hdr2:    val2b" \
+          -hdr "hdr3:      val3a, val3b" \
+          -hdr "hdr4:" \
+          -body "This is a body"
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${feh1}"
+
+        http-request deny if { path /deny }
+        http-request redirect location / if { path /redir }
+        http-request auth if { path /auth }
+
+	http-after-response allow if { status eq 403 }
+	http-after-response allow if { status eq 302 }
+	http-after-response allow if { status eq 401 }
+
+        http-after-response set-header    be-sl1   "%[res.fhdr(sl1)]"
+        http-after-response set-header    be-sl2   "%[res.fhdr(sl2)]"
+        http-after-response set-header    be-hdr   "%[res.fhdr(hdr)]"
+
+        http-after-response set-header  be-sl1-crc "%[res.fhdr(sl1-crc)]"
+        http-after-response set-header  be-sl2-crc "%[res.fhdr(sl2-crc)]"
+        http-after-response set-header  be-hdr-crc "%[res.fhdr(hdr-crc)]"
+
+        http-after-response set-var(res.status)    status
+        http-after-response set-header    sl1      "sl1: "
+
+        http-after-response set-status    200
+
+        http-after-response set-header    sl2      "sl2: "
+
+        http-after-response set-header    sl1      "%[res.fhdr(sl1)] status=<%[var(res.status)]>;"
+        http-after-response set-header    sl2      "%[res.fhdr(sl2)] status=<%[status]>;"
+        http-after-response set-header    hdr      "%[res.fhdr(hdr)] hdr1=<%[res.hdr(hdr1)]>; fhdr1=<%[res.fhdr(hdr1)]>;"
+        http-after-response set-header    hdr      "%[res.fhdr(hdr)] hdr2=<%[res.hdr(hdr2)]>; fhdr2=<%[res.fhdr(hdr2)]>;"
+        http-after-response set-header    hdr      "%[res.fhdr(hdr)] hdr3=<%[res.hdr(hdr3)]>; fhdr3=<%[res.fhdr(hdr3)]>;"
+        http-after-response set-header    hdr      "%[res.fhdr(hdr)] hdr4=<%[res.hdr(hdr4)]>; fhdr4=<%[res.fhdr(hdr4)]>;"
+
+        http-after-response set-header  fe-sl1-crc "%[res.fhdr(sl1),crc32]"
+        http-after-response set-header  fe-sl2-crc "%[res.fhdr(sl2),crc32]"
+        http-after-response set-header  fe-hdr-crc "%[res.fhdr(hdr),crc32]"
+
+        default_backend be
+
+    backend be
+        stats enable
+        stats uri /stats
+
+	http-request return status 234 content-type "text/plain" string "This is a body" if { path /return }
+
+	http-response deny if { capture.req.uri /deny-srv }
+
+	http-after-response allow if { status eq 502 }
+
+        http-after-response set-status 234                if { capture.req.uri /stats }
+        http-after-response add-header hdr1 val1           unless { capture.req.uri / }
+        http-after-response add-header hdr2 val2a          unless { capture.req.uri / }
+        http-after-response add-header hdr2 val2b          unless { capture.req.uri / }
+        http-after-response add-header hdr3 "val3a, val3b" unless { capture.req.uri / }
+        http-after-response add-header hdr4 "%[str()]"     unless { capture.req.uri / }
+	http-after-response del-header content-type
+
+        http-after-response set-var(res.status)    status
+        http-after-response set-header     sl1     "sl1: "
+
+        http-after-response set-status     200
+
+        http-after-response set-header     sl2     "sl2: "
+
+        http-after-response set-header     sl1     "%[res.fhdr(sl1)] status=<%[var(res.status)]>;"
+        http-after-response set-header     sl2     "%[res.fhdr(sl2)] status=<%[status]>;"
+        http-after-response set-header     hdr     "%[res.fhdr(hdr)] hdr1=<%[res.hdr(hdr1)]>; fhdr1=<%[res.fhdr(hdr1)]>;"
+        http-after-response set-header     hdr     "%[res.fhdr(hdr)] hdr2=<%[res.hdr(hdr2)]>; fhdr2=<%[res.fhdr(hdr2)]>;"
+        http-after-response set-header     hdr     "%[res.fhdr(hdr)] hdr3=<%[res.hdr(hdr3)]>; fhdr3=<%[res.fhdr(hdr3)]>;"
+        http-after-response set-header     hdr     "%[res.fhdr(hdr)] hdr4=<%[res.hdr(hdr4)]>; fhdr4=<%[res.fhdr(hdr4)]>;"
+
+        http-after-response set-header     sl1-crc "%[res.fhdr(sl1),crc32]"
+        http-after-response set-header     sl2-crc "%[res.fhdr(sl2),crc32]"
+        http-after-response set-header     hdr-crc "%[res.fhdr(hdr),crc32]"
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /
+        rxresp
+        expect resp.status == 200
+        expect resp.http.be-sl1-crc == 487202719
+        expect resp.http.be-sl2-crc == 561949791
+        expect resp.http.be-hdr-crc == 1719311923
+        expect resp.http.fe-sl1-crc == 146151597
+        expect resp.http.fe-sl2-crc == 561949791
+        expect resp.http.fe-hdr-crc == 3634102538
+        expect resp.http.content-type == <undef>
+        expect resp.bodylen == 14
+        expect resp.body == "This is a body"
+
+        txreq -req GET -url /return
+        rxresp
+        expect resp.status == 200
+        expect resp.http.be-sl1-crc == 487202719
+        expect resp.http.be-sl2-crc == 561949791
+        expect resp.http.be-hdr-crc == 1719311923
+        expect resp.http.fe-sl1-crc == 146151597
+        expect resp.http.fe-sl2-crc == 561949791
+        expect resp.http.fe-hdr-crc == 3634102538
+        expect resp.http.content-type == <undef>
+        expect resp.bodylen == 14
+        expect resp.body == "This is a body"
+
+        txreq -req GET -url /stats
+        rxresp
+        expect resp.status == 200
+        expect resp.http.be-sl1-crc == 487202719
+        expect resp.http.be-sl2-crc == 561949791
+        expect resp.http.be-hdr-crc == 1719311923
+        expect resp.http.fe-sl1-crc == 146151597
+        expect resp.http.fe-sl2-crc == 561949791
+        expect resp.http.fe-hdr-crc == 3634102538
+        expect resp.http.content-type == <undef>
+} -run
+
+client c2 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /deny
+        rxresp
+        expect resp.status == 403
+        expect resp.http.be-sl1 == <undef>
+        expect resp.http.be-sl2 == <undef>
+        expect resp.http.be-hdr == <undef>
+        expect resp.http.sl1 == <undef>
+        expect resp.http.sl2 == <undef>
+        expect resp.http.hdr == <undef>
+} -run
+
+client c3 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /redir
+        rxresp
+        expect resp.status == 302
+        expect resp.http.be-sl1 == <undef>
+        expect resp.http.be-sl2 == <undef>
+        expect resp.http.be-hdr == <undef>
+        expect resp.http.sl1 == <undef>
+        expect resp.http.sl2 == <undef>
+        expect resp.http.hdr == <undef>
+} -run
+
+client c4 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /auth
+        rxresp
+        expect resp.status == 401
+        expect resp.http.be-sl1 == <undef>
+        expect resp.http.be-sl2 == <undef>
+        expect resp.http.be-hdr == <undef>
+        expect resp.http.sl1 == <undef>
+        expect resp.http.sl2 == <undef>
+        expect resp.http.hdr == <undef>
+} -run
+
+client c5 -connect ${h1_feh1_sock} {
+        txreq -req GET -url /deny-srv
+        rxresp
+        expect resp.status == 200
+        expect resp.http.be-sl1 == ""
+        expect resp.http.be-sl2 == ""
+        expect resp.http.be-hdr == ""
+        expect resp.http.fe-sl1-crc == 3104968915
+        expect resp.http.fe-sl2-crc == 561949791
+        expect resp.http.fe-hdr-crc == 623352154
+} -run
