@@ -347,7 +347,9 @@ void show_strm_flags(unsigned int f)
 	case SF_ERR_CHK_PORT: f &= ~SF_ERR_MASK ; printf("SF_ERR_CHK_PORT%s",       f ? " | " : ""); break;
 	}
 
+	SHOW_FLAG(f, SF_HTX);
 	SHOW_FLAG(f, SF_REDIRECTABLE);
+	SHOW_FLAG(f, SF_IGNORE);
 	SHOW_FLAG(f, SF_REDISP);
 	SHOW_FLAG(f, SF_CURR_SESS);
 	SHOW_FLAG(f, SF_MONITOR);
