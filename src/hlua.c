@@ -125,7 +125,7 @@
 __decl_spinlock(hlua_global_lock);
 THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
-static int hlua_panic_ljmp(lua_State *L) { longjmp(safe_ljmp_env, 1); }
+static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); }
 
 #define SET_SAFE_LJMP(__L) \
 	({ \
