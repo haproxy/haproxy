@@ -22,8 +22,7 @@ quit() {
 }
 
 short() {
-	# git rev-parse --short $1
-	echo "${1::8}"
+	git rev-parse --short "$1"
 }
 
 # returns the latest commit ID in $REPLY. Returns 0 on success, non-zero on
@@ -112,8 +111,9 @@ cd $(git rev-parse --show-toplevel)
 START="$PWD"
 
 while [ -n "$1" ]; do
-	UPSTREAM="$1"
-	COMMIT="$1"
+	UPSTREAM="$(short $1)"
+        [ -n "$UPSTREAM" ] || die "branch $BRANCH: unknown commit ID $1, cannot backport."
+	COMMIT="$UPSTREAM"
 	BRANCH="-source-"
 	while :; do
 		if ! down; then
@@ -139,7 +139,7 @@ while [ -n "$1" ]; do
 		fi
 
 		get_last_commit || die "$BRANCH: cannot retrieve last commit ID, stopping after backporting commit $COMMIT (upstream $UPSTREAM)"
-		COMMIT="$REPLY"
+		COMMIT="$(short $REPLY)"
 	done
 	walk_up || die "Failed to go back to $PWD, stopping *after* backporting upstream $UPSTREAM"
 	shift
