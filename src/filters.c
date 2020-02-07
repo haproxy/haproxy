@@ -611,7 +611,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	struct filter *filter;
 	unsigned long long *strm_off = &FLT_STRM_OFF(s, msg->chn);
 	unsigned int out = co_data(msg->chn);
-	int ret = len - out;
+	int ret = 0, data = len - out;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
@@ -623,14 +623,19 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			unsigned int offset = *flt_off - *strm_off;
 
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
-			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, ret - offset);
+			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
 			if (ret < 0)
 				goto end;
 			*flt_off += ret;
-			ret += offset;
+			data = ret + offset;
 		}
 	}
-	*strm_off += ret;
+
+	/* Only forward data if the last filter decides to forward something */
+	if (ret > 0) {
+		ret = data;
+		*strm_off += ret;
+	}
  end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
@@ -861,7 +866,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 	struct filter *filter;
 	unsigned long long *strm_off = &FLT_STRM_OFF(s, chn);
 	unsigned int out = co_data(chn);
-	int ret = len - out;
+	int ret = 0, data = len - out;
 
 	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
@@ -873,14 +878,19 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 			unsigned int offset = *flt_off - *strm_off;
 
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
-			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, ret - offset);
+			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
 			if (ret < 0)
 				goto end;
 			*flt_off += ret;
-			ret += offset;
+			data = ret + offset;
 		}
 	}
-	*strm_off += ret;
+
+	/* Only forward data if the last filter decides to forward something */
+	if (ret > 0) {
+		ret = data;
+		*strm_off += ret;
+	}
  end:
 	DBG_TRACE_LEAVE(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
