@@ -3159,14 +3159,23 @@ static int tcpcheck_main(struct check *check)
 			}
 
 		tcpcheck_expect:
-			if (!done && (check->current_step->string != NULL) && (b_data(&check->bi) < check->current_step->string_len) )
+
+			/* The current expect might need more data than the previous one, check again
+			 * that the minimum amount data required to match is respected.
+			 */
+			if (!done &&
+			    (((check->current_step->string != NULL) && (b_data(&check->bi) < check->current_step->string_len)) ||
+			     ((check->current_step->min_recv > 0 && (b_data(&check->bi) < check->current_step->min_recv)))))
 				continue; /* try to read more */
 			if (check->current_step->string != NULL)
 				ret = my_memmem(contentptr, b_data(&check->bi), check->current_step->string, check->current_step->string_len) != NULL;
 			else if (check->current_step->expect_regex != NULL)
 				ret = regex_exec(check->current_step->expect_regex, contentptr);
 
-			if (!ret && !done)
+			/* Wait for more data on mismatch only if no minimum is defined (-1),
+			 * otherwise the absence of match is already conclusive.
+			 */
+			if (!ret && !done && (check->current_step->min_recv == -1))
 				continue; /* try to read more */
 
 			/* matched */

@@ -3192,6 +3192,7 @@ stats_error_parsing:
 		}
 		else if (strcmp(args[1], "expect") == 0) {
 			struct tcpcheck_rule *tcpcheck, *prev_check;
+			long min_recv = -1;
 			const char *ptr_arg;
 			int cur_arg;
 			int inverse = 0;
@@ -3203,6 +3204,30 @@ stats_error_parsing:
 			}
 
 			cur_arg = 2;
+
+			/* Parse potential the minimum amount of data
+			 * required before proceeding with the match.
+			 */
+			if (strcmp(args[cur_arg], "min-recv") == 0) {
+				if (!*(args[cur_arg + 1])) {
+					ha_alert("parsing [%s:%d] : '%s %s %s' expects an integer as an argument.\n",
+						 file, linenum, args[0], args[1], args[2]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				/* Use an signed integer here because of chksize */
+				min_recv = atol(args[cur_arg + 1]);
+				if (min_recv < -1 || min_recv > INT_MAX) {
+					ha_alert("parsing [%s:%d] : '%s %s %s' expects -1 or an integer from 0 to INT_MAX.\n",
+						 file, linenum, args[0], args[1], args[2]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
+
 			/* consider exclamation marks, sole or at the beginning of a word */
 			while (*(ptr_arg = args[cur_arg])) {
 				while (*ptr_arg == '!') {
@@ -3221,6 +3246,7 @@ stats_error_parsing:
 			tcpcheck = calloc(1, sizeof(*tcpcheck));
 			tcpcheck->action = TCPCHK_ACT_EXPECT;
 			tcpcheck->inverse = inverse;
+			tcpcheck->min_recv = min_recv;
 
 			if (strcmp(ptr_arg, "binary") == 0) {
 				char *err = NULL;

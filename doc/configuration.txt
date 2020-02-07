@@ -9845,12 +9845,23 @@ tcp-check connect [params*]
   See also : "option tcp-check", "tcp-check send", "tcp-check expect"
 
 
-tcp-check expect [!] <match> <pattern>
+tcp-check expect [min-recv <int>] [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
                                no     |    no    |   yes  |   yes
 
   Arguments :
+    min-recv  is optional and can define the minimum amount of data required to
+              evaluate the current expect rule. If the number of received bytes
+              is under this limit, the check will wait for more data. This
+              option can be used to resolve some ambiguous matching rules or to
+              avoid executing costly regex matches on content known to be still
+              incomplete. If an exact string (string or binary) is used, the
+              minimum between the string length and this parameter is used.
+              This parameter is ignored if it is set to -1. If the expect rule
+              does not match, the check will wait for more data. If set to 0,
+              the evaluation result is always conclusive.
+
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "string", "rstring" or
               binary.

@@ -232,6 +232,7 @@ struct tcpcheck_rule {
 	/* sent string is string */
 	char *string;                           /* sent or expected string */
 	int string_len;                         /* string length */
+	int min_recv;                           /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
 	struct my_regex *expect_regex;          /* expected */
 	int inverse;                            /* 0 = regular match, 1 = inverse match */
 	unsigned short port;                    /* port to connect to */
