@@ -1,6 +1,123 @@
 ChangeLog :
 ===========
 
+2020/02/07 : 2.2-dev2
+    - BUILD: CI: temporarily mark openssl-1.0.2 as allowed failure
+    - MEDIUM: cli: Allow multiple filter entries for "show table"
+    - BUG/MEDIUM: netscaler: Don't forget to allocate storage for conn->src/dst.
+    - BUG/MINOR: ssl: ssl_sock_load_pem_into_ckch is not consistent
+    - BUILD: stick-table: fix build errors introduced by last stick-table change
+    - BUG/MINOR: cli: Missing arg offset for filter data values.
+    - MEDIUM: streams: Always create a conn_stream in connect_server().
+    - MEDIUM: connections: Get ride of the xprt_done callback.
+    - CLEANUP: changelog: remove the duplicate entry for 2.2-dev1
+    - BUILD: CI: move cygwin builds to Github Actions
+    - MINOR: cli: Report location of errors or any extra data for "show table"
+    - BUG/MINOR: ssl/cli: free the previous ckch content once a PEM is loaded
+    - CLEANUP: backend: remove useless test for inexistent connection
+    - CLEANUP: backend: shut another false null-deref in back_handle_st_con()
+    - CLEANUP: stats: shut up a wrong null-deref warning from gcc 9.2
+    - BUG/MINOR: ssl: increment issuer refcount if in chain
+    - BUG/MINOR: ssl: memory leak w/ the ocsp_issuer
+    - BUG/MINOR: ssl: typo in previous patch
+    - BUG/MEDIUM: connections: Set CO_FL_CONNECTED in conn_complete_session().
+    - BUG/MINOR: ssl/cli: ocsp_issuer must be set w/ "set ssl cert"
+    - MEDIUM: connection: remove CO_FL_CONNECTED and only rely on CO_FL_WAIT_*
+    - BUG/MEDIUM: 0rtt: Only consider the SSL handshake.
+    - MINOR: stream-int: always report received shutdowns
+    - MINOR: connection: remove CO_FL_SSL_WAIT_HS from CO_FL_HANDSHAKE
+    - MEDIUM: connection: use CO_FL_WAIT_XPRT more consistently than L4/L6/HANDSHAKE
+    - MINOR: connection: remove checks for CO_FL_HANDSHAKE before I/O
+    - MINOR: connection: do not check for CO_FL_SOCK_RD_SH too early
+    - MINOR: connection: don't check for CO_FL_SOCK_WR_SH too early in handshakes
+    - MINOR: raw-sock: always check for CO_FL_SOCK_WR_SH before sending
+    - MINOR: connection: remove some unneeded checks for CO_FL_SOCK_WR_SH
+    - BUG/MINOR: stktable: report the current proxy name in error messages
+    - BUG/MEDIUM: mux-h2: make sure we don't emit TE headers with anything but "trailers"
+    - MINOR: lua: Add hlua_prepend_path function
+    - MINOR: lua: Add lua-prepend-path configuration option
+    - MINOR: lua: Add HLUA_PREPEND_C?PATH build option
+    - BUILD: cfgparse: silence a bogus gcc warning on 32-bit machines
+    - BUG/MINOR: http-ana: Increment the backend counters on the backend
+    - BUG/MINOR: stream: Be sure to have a listener to increment its counters
+    - BUG/MEDIUM: streams: Move the conn_stream allocation outside #IF USE_OPENSSL.
+    - REGTESTS: make the set_ssl_cert test require version 2.2
+    - BUG/MINOR: ssl: Possible memleak when allowing the 0RTT data buffer.
+    - MINOR: ssl: Remove dead code.
+    - BUG/MEDIUM: ssl: Don't forget to free ctx->ssl on failure.
+    - BUG/MEDIUM: stream: Don't install the mux in back_handle_st_con().
+    - MEDIUM: streams: Don't close the connection in back_handle_st_con().
+    - MEDIUM: streams: Don't close the connection in back_handle_st_rdy().
+    - BUILD: CI: disable slow regtests on Travis
+    - BUG/MINOR: tcpchecks: fix the connect() flags regarding delayed ack
+    - BUG/MINOR: http-rules: Always init log-format expr for common HTTP actions
+    - BUG/MINOR: connection: fix ip6 dst_port copy in make_proxy_line_v2
+    - BUG/MINOR: dns: allow 63 char in hostname
+    - MINOR: proxy: clarify number of connections log when stopping
+    - DOC: word converter ignores delimiters at the start or end of input string
+    - MEDIUM: raw-sock: remove obsolete calls to fd_{cant,cond,done}_{send,recv}
+    - BUG/MINOR: ssl/cli: fix unused variable with openssl < 1.0.2
+    - MEDIUM: pipe/thread: reduce the locking overhead
+    - MEDIUM: pipe/thread: maintain a per-thread local cache of recently used pipes
+    - BUG/MEDIUM: pipe/thread: fix atomicity of pipe counters
+    - MINOR: tasks: move the list walking code to its own function
+    - MEDIUM: tasks: implement 3 different tasklet classes with their own queues
+    - MEDIUM: tasks: automatically requeue into the bulk queue an already running tasklet
+    - OPTIM: task: refine task classes default CPU bandwidth ratios
+    - BUG/MEDIUM: connections: Don't forget to unlock when killing a connection.
+    - MINOR: task: permanently flag tasklets waking themselves up
+    - MINOR: task: make sched->current also reflect tasklets
+    - MINOR: task: detect self-wakeups on tl==sched->current instead of TASK_RUNNING
+    - OPTIM: task: readjust CPU bandwidth distribution since last update
+    - MINOR: task: don't set TASK_RUNNING on tasklets
+    - BUG/MEDIUM: memory_pool: Update the seq number in pool_flush().
+    - MINOR: memory: Only init the pool spinlock once.
+    - BUG/MEDIUM: memory: Add a rwlock before freeing memory.
+    - BUG/MAJOR: memory: Don't forget to unlock the rwlock if the pool is empty.
+    - MINOR: ssl: ssl-load-extra-files configure loading of files
+    - SCRIPTS: add a new "backport" script to simplify long series of backports
+    - BUG/MINOR: ssl: we may only ignore the first 64 errors
+    - SCRIPTS: use /usr/bin/env bash instead of /bin/bash for scripts
+    - BUG/MINOR: ssl: clear the SSL errors on DH loading failure
+    - CLEANUP: hpack: remove a redundant test in the decoder
+    - CLEANUP: peers: Remove unused static function `free_dcache`
+    - CLEANUP: peers: Remove unused static function `free_dcache_tx`
+    - CONTRIB: debug: add missing flags SF_HTX and SF_MUX
+    - CONTRIB: debug: add the possibility to decode the value as certain types only
+    - CONTRIB: debug: support reporting multiple values at once
+    - BUG/MINOR: http-act: Use the good message to test strict rewritting mode
+    - MINOR: global: Set default tune.maxrewrite value during global structure init
+    - MINOR: http-rules: Set SF_ERR_PRXCOND termination flag when a header rewrite fails
+    - MINOR: http-htx: Emit a warning if an error file runs over the buffer's reserve
+    - MINOR: htx: Add a function to append an HTX message to another one
+    - MINOR: htx/channel: Add a function to copy an HTX message in a channel's buffer
+    - BUG/MINOR: http-ana: Don't overwrite outgoing data when an error is reported
+    - MINOR: dns: Dynamically allocate dns options to reduce the act_rule size
+    - MINOR: dns: Add function to release memory allocated for a do-resolve rule
+    - BUG/MINOR: http-ana: Reset HTX first index when HAPRoxy sends a response
+    - BUG/MINOR: http-ana: Set HTX_FL_PROXY_RESP flag if a server perform a redirect
+    - MINOR: http-rules: Add a flag on redirect rules to know the rule direction
+    - MINOR: http-rules: Handle the rule direction when a redirect is evaluated
+    - MINOR: http-ana: Rely on http_reply_and_close() to handle server error
+    - MINOR: http-ana: Add a function for forward internal responses
+    - MINOR: http-ana/http-rules: Use dedicated function to forward internal responses
+    - MEDIUM: http: Add a ruleset evaluated on all responses just before forwarding
+    - MEDIUM: http-rules: Add the return action to HTTP rules
+    - MEDIUM: http-rules: Support extra headers for HTTP return actions
+    - CLEANUP: lua: Remove consistency check for sample fetches and actions
+    - BUG/MINOR: http-ana: Increment failed_resp counters on invalid response
+    - MINOR: lua: Get the action return code on the stack when an action finishes
+    - MINOR: lua: Create the global 'act' object to register all action return codes
+    - MINOR: lua: Add act:wake_time() function to set a timeout when an action yields
+    - MEDIUM: lua: Add ability for actions to intercept HTTP messages
+    - REGTESTS: Add reg tests for the HTTP return action
+    - REGTESTS: Add a reg test for http-after-response rulesets
+    - BUILD: lua: silence a warning on systems where longjmp is not marked as noreturn
+    - MINOR: acl: Warn when an ACL is named 'or'
+    - CONTRIB: debug: also support reading values from stdin
+    - SCRIPTS: backport: use short revs and resolve the initial commit
+    - BUG/MINOR: acl: Fix type of log message when an acl is named 'or'
+
 2020/01/22 : 2.2-dev1
     - DOC: this is development again
     - MINOR: version: this is development again, update the status
