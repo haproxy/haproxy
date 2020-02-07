@@ -10,7 +10,8 @@
 #   - creates web-$version.html
 #   - indicates how to edit the mail and how to send it
 
-USAGE="Usage: ${0##*/} [-b branch] [-d date] [-o oldver] [-n newver]"
+USAGE="Usage: ${0##*/} [-f] [-b branch] [-d date] [-o oldver] [-n newver]"
+FORCE=
 OUTPUT=
 BRANCH=
 HTML=
@@ -38,6 +39,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 	case "$1" in
 		-d)        DATE="$2"      ; shift 2 ;;
 		-b)        BRANCH="$2"    ; shift 2 ;;
+		-f)        FORCE=1        ; shift   ;;
 		-o)        OLD="$2"       ; shift 2 ;;
 		-n)        NEW="$2"       ; shift 2 ;;
 		-h|--help) quit "$USAGE" ;;
@@ -108,13 +110,16 @@ fi
 YEAR="${DATE%%/*}"
 
 OUTPUT="$DIR/mail-haproxy-$NEW.txt"
+HTML="$DIR/web-haproxy-$NEW.html"
+
+[ -z "$FORCE" ] || rm -f "${OUTPUT}" "${HTML}"
+
 if [ -e "$OUTPUT" ]; then
-	die "$OUTPUT already exists, please remove it."
+	die "${OUTPUT##*/} already exists, please remove it or retry with -f."
 fi
 
-HTML="$DIR/web-haproxy-$NEW.html"
 if [ -e "$HTML" ]; then
-	die "$HTML already exists, please remove it."
+	die "$HTML already exists, please remove it or retry with -f."
 fi
 
 (
