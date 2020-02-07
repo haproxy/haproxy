@@ -2053,7 +2053,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			cur_arg++;
 			if (!*args[cur_arg]) {
 				memprintf(err, "'%s' expects <status_code> as argument", args[cur_arg-1]);
-				return ACT_RET_PRS_ERR;
+				goto error;
 			}
 			status = atol(args[cur_arg]);
 			if (status < 200 || status > 599) {
@@ -2436,18 +2436,20 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 	free(name);
 	if (fd >= 0)
 		close(fd);
-	list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
-		LIST_DEL(&hdr->list);
-		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
+	if (hdrs) {
+		list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
+			LIST_DEL(&hdr->list);
+			list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+				LIST_DEL(&lf->list);
+				release_sample_expr(lf->expr);
+				free(lf->arg);
+				free(lf);
+			}
+			free(hdr->name.ptr);
+			free(hdr);
 		}
-		free(hdr->name.ptr);
-		free(hdr);
+		free(hdrs);
 	}
-	free(hdrs);
 	if (action == 3) {
 		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
 			LIST_DEL(&lf->list);
