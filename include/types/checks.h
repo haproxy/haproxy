@@ -228,6 +228,7 @@ struct tcpcheck_expect {
 	struct tcpcheck_rule *head;     /* first expect of a chain. */
 	int length;                     /* Size in bytes of the pattern referenced by string / binary. */
 	int inverse;                    /* Match is inversed. */
+	int with_capture;               /* Match will store captured groups for back-reference in comment. */
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
 };
 

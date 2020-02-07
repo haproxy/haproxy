@@ -162,6 +162,55 @@ int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, c
 		warnif_misplaced_tcp_sess(proxy, file, line, arg);
 }
 
+/* Parse a comment string for an expect check rule to find a potential
+ * regex backreference. If so, check that it is valid.
+ * returns:
+ *   0 if none found.
+ *   1 if at least one found and all are valid.
+ *  -1 if at least one found and at least one is invalid.
+ */
+static int find_and_check_backreferences(const char *str, char **err)
+{
+	static char *errors[] = {
+		"invalid backreference value",
+		"backreference is not within range [1, 9]",
+	};
+	char *backslash;
+	unsigned long int ref;
+	int found = 0;
+
+	while ((backslash = strchr(str, '\\'))) {
+		char *next, *end;
+
+		next = backslash + 1;
+		if (!isdigit(*next)) {
+			str = next;
+			continue;
+		}
+
+		errno = 0;
+		ref = strtoul(next, &end, 10);
+		if (errno == EINVAL) {
+			*err = errors[0];
+			return -1;
+		}
+		else if (errno == ERANGE) {
+			*err = errors[1];
+			return -1;
+		}
+
+		if (ref == 0 || ref > 9) {
+			*err = errors[1];
+			return -1;
+		}
+
+		found = 1;
+		str = end;
+	}
+
+	return found;
+}
+
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
@@ -3318,6 +3367,22 @@ stats_error_parsing:
 					goto out;
 				}
 				tcpcheck->comment = strdup(args[cur_arg + 1]);
+				rc = find_and_check_backreferences(tcpcheck->comment, &error);
+				if (rc > 0) {
+					if (!inverse) {
+						ha_warning("parsing [%s:%d] : "
+						           "using backreference in a positive expect comment is useless.\n",
+						           file, linenum);
+						err_code |= ERR_WARN;
+					}
+					expect->with_capture = 1;
+				}
+				else if (rc < 0) {
+					ha_alert("parsing [%s:%d] : %s.\n",
+						 file, linenum, error);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 			}
 
 			/* All tcp-check expect points back to the first inverse expect rule

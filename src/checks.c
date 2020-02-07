@@ -3187,13 +3187,21 @@ static int tcpcheck_main(struct check *check)
 				match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->string, expect->length) != NULL;
 				break;
 			case TCPCHK_EXPECT_REGEX:
-				match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
+				if (expect->with_capture)
+					match = regex_exec_match2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1),
+								  MAX_MATCH, pmatch, 0);
+				else
+					match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
 				break;
 
 			case TCPCHK_EXPECT_REGEX_BINARY:
 				chunk_reset(&trash);
 				dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
-				match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
+				if (expect->with_capture)
+					match = regex_exec_match2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1),
+								  MAX_MATCH, pmatch, 0);
+				else
+					match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
 				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
@@ -3248,6 +3256,19 @@ static int tcpcheck_main(struct check *check)
 			case TCPCHK_EXPECT_REGEX_BINARY:
 				chunk_printf(&trash, "TCPCHK %s (binary regex) at step %d",
 					     diag, step);
+
+				/* If references to the matched text were made,
+				 * divide the offsets by 2 to match offset of
+				 * the original response buffer.
+				 */
+				if (expect->with_capture) {
+					int i;
+
+					for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
+						pmatch[i].rm_so /= 2; /* at first matched char. */
+						pmatch[i].rm_eo /= 2; /* at last matched char. */
+					}
+				}
 				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
@@ -3256,11 +3277,16 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			comment = tcpcheck_get_step_comment(check);
-			if (comment)
-				chunk_appendf(&trash, " comment: '%s'", comment);
-			set_server_check_status(check, HCHK_STATUS_L7RSP,
-						trash.area);
-
+			if (comment) {
+				if (expect->with_capture) {
+					ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), comment, pmatch);
+					if (ret > 0) /* ignore comment if too large */
+						trash.data += ret;
+				}
+				else
+					chunk_appendf(&trash, " comment: '%s'", comment);
+			}
+			set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
 			goto out_end_tcpcheck;
 		} /* end expect */
 	} /* end loop over double chained step list */
