@@ -2993,6 +2993,12 @@ static int tcpcheck_main(struct check *check)
 					ret = SF_ERR_RESOURCE;
 			}
 
+			if (conn_ctrl_ready(conn) &&
+			    check->current_step->conn_opts & TCPCHK_OPT_LINGER) {
+				/* Some servers don't like reset on close */
+				fdtab[cs->conn->handle.fd].linger_risk = 0;
+			}
+
 			/* It can return one of :
 			 *  - SF_ERR_NONE if everything's OK
 			 *  - SF_ERR_SRVTO if there are no more servers

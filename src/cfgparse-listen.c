@@ -3097,6 +3097,10 @@ stats_error_parsing:
 					cur_arg++;
 				}
 #endif /* USE_OPENSSL */
+				else if (strcmp(args[cur_arg], "linger") == 0) {
+					tcpcheck->conn_opts |= TCPCHK_OPT_LINGER;
+					cur_arg++;
+				}
 				/* comment for this tcpcheck line */
 				else if (strcmp(args[cur_arg], "comment") == 0) {
 					if (!*args[cur_arg + 1]) {
@@ -3110,9 +3114,9 @@ stats_error_parsing:
 				}
 				else {
 #ifdef USE_OPENSSL
-					ha_alert("parsing [%s:%d] : '%s %s' expects 'comment', 'port', 'send-proxy' or 'ssl' but got '%s' as argument.\n",
+					ha_alert("parsing [%s:%d] : '%s %s' expects 'comment', 'port', 'send-proxy', 'ssl' or 'linger' but got '%s' as argument.\n",
 #else /* USE_OPENSSL */
-					ha_alert("parsing [%s:%d] : '%s %s' expects 'comment', 'port', 'send-proxy' or but got '%s' as argument.\n",
+					ha_alert("parsing [%s:%d] : '%s %s' expects 'comment', 'port', 'send-proxy' or 'linger' but got '%s' as argument.\n",
 #endif /* USE_OPENSSL */
 						 file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;

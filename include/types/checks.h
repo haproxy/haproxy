@@ -223,6 +223,7 @@ enum tcpcheck_rule_type {
 #define TCPCHK_OPT_NONE         0x0000  /* no options specified, default */
 #define TCPCHK_OPT_SEND_PROXY   0x0001  /* send proxy-protocol string */
 #define TCPCHK_OPT_SSL          0x0002  /* SSL connection */
+#define TCPCHK_OPT_LINGER       0x0004  /* Do not RST connection, let it linger */
 
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */

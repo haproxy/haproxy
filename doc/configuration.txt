@@ -9817,6 +9817,8 @@ tcp-check connect [params*]
 
     ssl          opens a ciphered connection
 
+    linger    cleanly close the connection instead of using a single RST.
+
     Examples:
          # check HTTP and HTTPs services on a server.
          # first open port 80 thanks to server line port directive, then
@@ -9836,7 +9838,7 @@ tcp-check connect [params*]
 
          # check both POP and IMAP from a single server:
          option tcp-check
-         tcp-check connect port 110
+         tcp-check connect port 110 linger
          tcp-check expect string +OK\ POP3\ ready
          tcp-check connect port 143
          tcp-check expect string *\ OK\ IMAP4\ ready
