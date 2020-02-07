@@ -67,7 +67,7 @@ check_clean() {
 
 # verifies that HEAD is the master
 check_master() {
-	test "$(git rev-parse --verify -q HEAD 2>&1)" != "$(git rev-parse --verify -q master 2>&1)"
+	test "$(git rev-parse --verify -q HEAD 2>&1)" = "$(git rev-parse --verify -q master 2>&1)"
 }
 
 # tries to switch to the master branch, only if the current one is clean. Dies on failure.
