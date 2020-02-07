@@ -215,6 +215,7 @@ enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_UNDEF = 0, /* Match is not used. */
 	TCPCHK_EXPECT_STRING, /* Matches a string. */
 	TCPCHK_EXPECT_REGEX, /* Matches a regular pattern. */
+	TCPCHK_EXPECT_REGEX_BINARY, /* Matches a regular pattern on a hex-encoded text. */
 	TCPCHK_EXPECT_BINARY, /* Matches a binary sequence. */
 };
 

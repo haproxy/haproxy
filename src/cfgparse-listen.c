@@ -3282,7 +3282,8 @@ stats_error_parsing:
 				expect->string = strdup(args[cur_arg + 1]);
 				expect->length = strlen(expect->string);
 			}
-			else if (strcmp(ptr_arg, "rstring") == 0) {
+			else if (strcmp(ptr_arg, "rstring") == 0 ||
+				 strcmp(ptr_arg, "rbinary") == 0) {
 				if (!*(args[cur_arg + 1])) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' expects <regex> as an argument.\n",
 						 file, linenum, args[0], args[1], ptr_arg);
@@ -3290,8 +3291,7 @@ stats_error_parsing:
 					goto out;
 				}
 
-				expect->type = TCPCHK_EXPECT_REGEX;
-
+				expect->type = ((strcmp(ptr_arg, "rbinary") == 0) ? TCPCHK_EXPECT_REGEX_BINARY : TCPCHK_EXPECT_REGEX);
 				error = NULL;
 				if (!(expect->regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
@@ -3302,7 +3302,7 @@ stats_error_parsing:
 				}
 			}
 			else {
-				ha_alert("parsing [%s:%d] : '%s %s' only supports [!] 'binary', 'string', 'rstring', found '%s'.\n",
+				ha_alert("parsing [%s:%d] : '%s %s' only supports [!] 'binary', 'string', 'rstring', 'rbinary', found '%s'.\n",
 					 file, linenum, args[0], args[1], ptr_arg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

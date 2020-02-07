@@ -9865,8 +9865,8 @@ tcp-check expect [min-recv <int>] [!] <match> <pattern>
               the evaluation result is always conclusive.
 
     <match>   is a keyword indicating how to look for a specific pattern in the
-              response. The keyword may be one of "string", "rstring" or
-              binary.
+              response. The keyword may be one of "string", "rstring", "binary" or
+              "rbinary".
               The keyword may be preceded by an exclamation mark ("!") to negate
               the match. Spaces are allowed between the exclamation mark and the
               keyword. See below for more details on the supported keywords.
@@ -9903,6 +9903,15 @@ tcp-check expect [min-recv <int>] [!] <match> <pattern>
                          be considered valid if the response's buffer contains
                          this exact hexadecimal string.
                          Purpose is to match data on binary protocols.
+
+    rbinary <regex> : test a regular expression on the response buffer, like
+                      "rstring". However, the response buffer is transformed
+                      into its hexadecimal form, including NUL-bytes. This
+                      allows using all regex engines to match any binary
+                      content.  The hexadecimal transformation takes twice the
+                      size of the original response. As such, the expected
+                      pattern should work on at-most half the response buffer
+                      size.
 
   It is important to note that the responses will be limited to a certain size
   defined by the global "tune.chksize" option, which defaults to 16384 bytes.

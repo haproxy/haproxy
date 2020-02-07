@@ -652,6 +652,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_REGEX:
 					chunk_appendf(chk, " (expect regex)");
 					break;
+				case TCPCHK_EXPECT_REGEX_BINARY:
+					chunk_appendf(chk, " (expect binary regex)");
+					break;
 				case TCPCHK_EXPECT_UNDEF:
 					chunk_appendf(chk, " (undefined expect!)");
 					break;
@@ -2775,7 +2778,6 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
  */
 static int tcpcheck_main(struct check *check)
 {
-	char *comment;
 	struct tcpcheck_rule *next;
 	int done = 0, ret = 0, step = 0;
 	struct conn_stream *cs = check->cs;
@@ -2784,6 +2786,7 @@ static int tcpcheck_main(struct check *check)
 	struct proxy *proxy = check->proxy;
 	struct task *t = check->task;
 	struct list *head = check->tcpcheck_rules;
+	char *comment;
 	int retcode = 0;
 
 	/* here, we know that the check is complete or that it failed */
@@ -3064,8 +3067,7 @@ static int tcpcheck_main(struct check *check)
 			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			/* bypass all comment rules */
-			while (&check->current_step->list != head &&
-				check->current_step->action == TCPCHK_ACT_COMMENT)
+			while (&check->current_step->list != head && check->current_step->action == TCPCHK_ACT_COMMENT)
 				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
 			if (&check->current_step->list == head)
@@ -3189,6 +3191,12 @@ static int tcpcheck_main(struct check *check)
 			case TCPCHK_EXPECT_REGEX:
 				match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
 				break;
+
+			case TCPCHK_EXPECT_REGEX_BINARY:
+				chunk_reset(&trash);
+				dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
+				match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
+				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
 				retcode = -1;
@@ -3238,6 +3246,10 @@ static int tcpcheck_main(struct check *check)
 			case TCPCHK_EXPECT_REGEX:
 				chunk_printf(&trash, "TCPCHK %s (regex) at step %d",
 				             diag, step);
+				break;
+			case TCPCHK_EXPECT_REGEX_BINARY:
+				chunk_printf(&trash, "TCPCHK %s (binary regex) at step %d",
+					     diag, step);
 				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
@@ -3356,6 +3368,7 @@ void email_alert_free(struct email_alert *alert)
 			free(rule->expect.string);
 			break;
 		case TCPCHK_EXPECT_REGEX:
+		case TCPCHK_EXPECT_REGEX_BINARY:
 			regex_free(rule->expect.regex);
 			break;
 		case TCPCHK_EXPECT_UNDEF:
