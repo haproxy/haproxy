@@ -117,9 +117,12 @@ if [ -e "$HTML" ]; then
 	die "$HTML already exists, please remove it."
 fi
 
-(echo "Subject: [ANNOUNCE] haproxy-$NEW"
- echo "To: haproxy@formilux.org"
- echo
+(
+ echo "# Send this using:"
+ echo "#   mutt -i <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+) >> "$OUTPUT"
+
+(echo
  echo "Hi,"
  echo
  echo -n "HAProxy $NEW was released on $DATE. It added "
@@ -210,7 +213,7 @@ humandate=$(date "+%B, $day, %Y" -d "$DATE")
 echo "The announce was emitted into file $OUTPUT."
 echo "You can edit it and send it this way :"
 echo
-echo "   mutt -i ${OUTPUT##*/} -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+echo "   mutt -i <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
 echo
 echo "The HTML block was emitted into $HTML and needs to be finished by hand."
 echo
