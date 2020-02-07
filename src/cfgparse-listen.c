@@ -3142,7 +3142,6 @@ stats_error_parsing:
 				tcpcheck->action = TCPCHK_ACT_SEND;
 				tcpcheck->string_len = strlen(args[2]);
 				tcpcheck->string = strdup(args[2]);
-				tcpcheck->expect_regex = NULL;
 
 				/* comment for this tcpcheck line */
 				if (strcmp(args[3], "comment") == 0) {
@@ -3178,7 +3177,6 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				tcpcheck->expect_regex = NULL;
 
 				/* comment for this tcpcheck line */
 				if (strcmp(args[3], "comment") == 0) {
@@ -3196,6 +3194,7 @@ stats_error_parsing:
 		}
 		else if (strcmp(args[1], "expect") == 0) {
 			struct tcpcheck_rule *tcpcheck, *prev_check;
+			struct tcpcheck_expect *expect;
 			long min_recv = -1;
 			const char *ptr_arg;
 			int cur_arg;
@@ -3249,8 +3248,9 @@ stats_error_parsing:
 
 			tcpcheck = calloc(1, sizeof(*tcpcheck));
 			tcpcheck->action = TCPCHK_ACT_EXPECT;
-			tcpcheck->inverse = inverse;
-			tcpcheck->min_recv = min_recv;
+			expect = &tcpcheck->expect;
+			expect->inverse = inverse;
+			expect->min_recv = min_recv;
 
 			if (strcmp(ptr_arg, "binary") == 0) {
 				char *err = NULL;
@@ -3262,7 +3262,8 @@ stats_error_parsing:
 					goto out;
 				}
 
-				if (parse_binary(args[cur_arg + 1], &tcpcheck->string, &tcpcheck->string_len, &err) == 0) {
+				expect->type = TCPCHK_EXPECT_BINARY;
+				if (parse_binary(args[cur_arg + 1], &expect->string, &expect->length, &err) == 0) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' expects <BINARY STRING> as argument, but %s\n",
 						 file, linenum, args[0], args[1], args[2], err);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3277,8 +3278,9 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck->string_len = strlen(args[cur_arg + 1]);
-				tcpcheck->string = strdup(args[cur_arg + 1]);
+				expect->type = TCPCHK_EXPECT_STRING;
+				expect->string = strdup(args[cur_arg + 1]);
+				expect->length = strlen(expect->string);
 			}
 			else if (strcmp(ptr_arg, "rstring") == 0) {
 				if (!*(args[cur_arg + 1])) {
@@ -3288,8 +3290,10 @@ stats_error_parsing:
 					goto out;
 				}
 
+				expect->type = TCPCHK_EXPECT_REGEX;
+
 				error = NULL;
-				if (!(tcpcheck->expect_regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
+				if (!(expect->regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
 						 file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1], error);
 					free(error);
@@ -3319,11 +3323,11 @@ stats_error_parsing:
 			/* All tcp-check expect points back to the first inverse expect rule
 			 * in a chain of one or more expect rule, potentially itself.
 			 */
-			tcpcheck->expect_head = tcpcheck;
+			tcpcheck->expect.head = tcpcheck;
 			list_for_each_entry_rev(prev_check, &curproxy->tcpcheck_rules, list) {
 				if (prev_check->action == TCPCHK_ACT_EXPECT) {
-					if (prev_check->inverse)
-						tcpcheck->expect_head = prev_check;
+					if (prev_check->expect.inverse)
+						tcpcheck->expect.head = prev_check;
 					continue;
 				}
 				if (prev_check->action != TCPCHK_ACT_COMMENT)

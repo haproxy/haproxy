@@ -640,10 +640,22 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					chunk_appendf(chk, " (connect)");
 			}
 			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_EXPECT) {
-				if (check->last_started_step->string)
-					chunk_appendf(chk, " (expect string '%s')", check->last_started_step->string);
-				else if (check->last_started_step->expect_regex)
+				struct tcpcheck_expect *expect = &check->last_started_step->expect;
+
+				switch (expect->type) {
+				case TCPCHK_EXPECT_STRING:
+					chunk_appendf(chk, " (expect string '%s')", expect->string);
+					break;
+				case TCPCHK_EXPECT_BINARY:
+					chunk_appendf(chk, " (expect binary '%s')", expect->string);
+					break;
+				case TCPCHK_EXPECT_REGEX:
 					chunk_appendf(chk, " (expect regex)");
+					break;
+				case TCPCHK_EXPECT_UNDEF:
+					chunk_appendf(chk, " (undefined expect!)");
+					break;
+				}
 			}
 			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_SEND) {
 				chunk_appendf(chk, " (send)");
@@ -3100,6 +3112,8 @@ static int tcpcheck_main(struct check *check)
 
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
+			struct tcpcheck_expect *expect = &check->current_step->expect;
+
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
@@ -3128,7 +3142,7 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			/* Having received new data, reset the expect chain to its head. */
-			check->current_step = check->current_step->expect_head;
+			check->current_step = expect->head;
 
 			/* mark the step as started */
 			check->last_started_step = check->current_step;
@@ -3165,39 +3179,61 @@ static int tcpcheck_main(struct check *check)
 			}
 
 		tcpcheck_expect:
-
 			/* The current expect might need more data than the previous one, check again
 			 * that the minimum amount data required to match is respected.
 			 */
-			if (!done &&
-			    (((check->current_step->string != NULL) && (b_data(&check->bi) < check->current_step->string_len)) ||
-			     ((check->current_step->min_recv > 0 && (b_data(&check->bi) < check->current_step->min_recv)))))
-				continue; /* try to read more */
-			if (check->current_step->string != NULL)
-				ret = my_memmem(contentptr, b_data(&check->bi), check->current_step->string, check->current_step->string_len) != NULL;
-			else if (check->current_step->expect_regex != NULL)
-				ret = regex_exec(check->current_step->expect_regex, contentptr);
+			if (!done) {
+				if ((expect->type == TCPCHK_EXPECT_STRING || expect->type == TCPCHK_EXPECT_BINARY) &&
+				    (b_data(&check->bi) < expect->length))
+					continue; /* try to read more */
+				if (expect->min_recv > 0 && (b_data(&check->bi) < expect->min_recv))
+					continue; /* try to read more */
+			}
+
+			switch (expect->type) {
+			case TCPCHK_EXPECT_STRING:
+			case TCPCHK_EXPECT_BINARY:
+				ret = my_memmem(contentptr, b_data(&check->bi), expect->string, expect->length) != NULL;
+				break;
+			case TCPCHK_EXPECT_REGEX:
+				ret = regex_exec(expect->regex, contentptr);
+				break;
+			case TCPCHK_EXPECT_UNDEF:
+				/* Should never happen. */
+				retcode = -1;
+				goto out;
+			}
 
 			/* Wait for more data on mismatch only if no minimum is defined (-1),
 			 * otherwise the absence of match is already conclusive.
 			 */
-			if (!ret && !done && (check->current_step->min_recv == -1))
+			if (!ret && !done && (expect->min_recv == -1))
 				continue; /* try to read more */
 
 			/* matched */
 			step = tcpcheck_get_step_id(check);
 			if (ret) {
 				/* matched but we did not want to => ERROR */
-				if (check->current_step->inverse) {
-					/* we were looking for a string */
-					if (check->current_step->string != NULL) {
+				if (expect->inverse) {
+					switch (expect->type) {
+					case TCPCHK_EXPECT_STRING:
 						chunk_printf(&trash, "TCPCHK matched unwanted content '%s' at step %d",
-						             check->current_step->string, step);
+						             expect->string, step);
+						break;
+					case TCPCHK_EXPECT_BINARY:
+						chunk_printf(&trash, "TCPCHK matched unwanted content (binary) at step %d",
+						             step);
+						break;
+					case TCPCHK_EXPECT_REGEX:
+						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d",
+							     step);
+						break;
+					case TCPCHK_EXPECT_UNDEF:
+						/* Should never happen. */
+						retcode = -1;
+						goto out;
 					}
-					else {
-					/* we were looking for a regex */
-						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d", step);
-					}
+
 					comment = tcpcheck_get_step_comment(check, step);
 					if (comment)
 						chunk_appendf(&trash, " comment: '%s'", comment);
@@ -3218,14 +3254,16 @@ static int tcpcheck_main(struct check *check)
 					if (&check->current_step->list == head)
 						break;
 
-					if (check->current_step->action == TCPCHK_ACT_EXPECT)
+					if (check->current_step->action == TCPCHK_ACT_EXPECT) {
+						expect = &check->current_step->expect;
 						goto tcpcheck_expect;
+					}
 				}
 			}
 			else {
 			/* not matched */
 				/* not matched and was not supposed to => OK, next step */
-				if (check->current_step->inverse) {
+				if (expect->inverse) {
 					/* allow next rule */
 					check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
@@ -3237,21 +3275,32 @@ static int tcpcheck_main(struct check *check)
 					if (&check->current_step->list == head)
 						break;
 
-					if (check->current_step->action == TCPCHK_ACT_EXPECT)
+					if (check->current_step->action == TCPCHK_ACT_EXPECT) {
+						expect = &check->current_step->expect;
 						goto tcpcheck_expect;
+					}
 				}
 				/* not matched but was supposed to => ERROR */
 				else {
-					/* we were looking for a string */
-					if (check->current_step->string != NULL) {
+					switch (expect->type) {
+					case TCPCHK_EXPECT_STRING:
 						chunk_printf(&trash, "TCPCHK did not match content '%s' at step %d",
 						             check->current_step->string, step);
-					}
-					else {
-					/* we were looking for a regex */
+						break;
+					case TCPCHK_EXPECT_BINARY:
+						chunk_printf(&trash, "TCPCHK did not match content (binary) at step %d",
+						             step);
+						break;
+					case TCPCHK_EXPECT_REGEX:
 						chunk_printf(&trash, "TCPCHK did not match content (regex) at step %d",
-								step);
+						             step);
+						break;
+					case TCPCHK_EXPECT_UNDEF:
+						/* Should never happen. */
+						retcode = -1;
+						goto out;
 					}
+
 					comment = tcpcheck_get_step_comment(check, step);
 					if (comment)
 						chunk_appendf(&trash, " comment: '%s'", comment);
@@ -3358,8 +3407,17 @@ void email_alert_free(struct email_alert *alert)
 	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list) {
 		LIST_DEL(&rule->list);
 		free(rule->comment);
-		free(rule->string);
-		regex_free(rule->expect_regex);
+		switch (rule->expect.type) {
+		case TCPCHK_EXPECT_STRING:
+		case TCPCHK_EXPECT_BINARY:
+			free(rule->expect.string);
+			break;
+		case TCPCHK_EXPECT_REGEX:
+			regex_free(rule->expect.regex);
+			break;
+		case TCPCHK_EXPECT_UNDEF:
+			break;
+		}
 		pool_free(pool_head_tcpcheck_rule, rule);
 	}
 	pool_free(pool_head_email_alert, alert);
@@ -3480,27 +3538,30 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 static int add_tcpcheck_expect_str(struct list *list, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck, *prev_check;
+	struct tcpcheck_expect *expect;
 
 	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
-	tcpcheck->action       = TCPCHK_ACT_EXPECT;
-	tcpcheck->string       = strdup(str);
-	tcpcheck->expect_regex = NULL;
-	tcpcheck->comment      = NULL;
-	if (!tcpcheck->string) {
+	tcpcheck->action = TCPCHK_ACT_EXPECT;
+
+	expect = &tcpcheck->expect;
+	expect->type = TCPCHK_EXPECT_STRING;
+	expect->string = strdup(str);
+	if (!expect->string) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
+	expect->length = strlen(expect->string);
 
 	/* All tcp-check expect points back to the first inverse expect rule
 	 * in a chain of one or more expect rule, potentially itself.
 	 */
-	tcpcheck->expect_head = tcpcheck;
+	tcpcheck->expect.head = tcpcheck;
 	list_for_each_entry_rev(prev_check, list, list) {
 		if (prev_check->action == TCPCHK_ACT_EXPECT) {
-			if (prev_check->inverse)
-				tcpcheck->expect_head = prev_check;
+			if (prev_check->expect.inverse)
+				tcpcheck->expect.head = prev_check;
 			continue;
 		}
 		if (prev_check->action != TCPCHK_ACT_COMMENT)
@@ -3521,7 +3582,6 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 		return 0;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_SEND;
-	tcpcheck->expect_regex = NULL;
 	tcpcheck->comment      = NULL;
 	tcpcheck->string_len = 0;
 	for (i = 0; strs[i]; i++)
@@ -3561,7 +3621,6 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
 	tcpcheck->comment      = NULL;
 	tcpcheck->string       = NULL;
-	tcpcheck->expect_regex = NULL;
 	LIST_ADDQ(&alert->tcpcheck_rules, &tcpcheck->list);
 
 	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "220 "))

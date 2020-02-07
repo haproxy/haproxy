@@ -211,6 +211,25 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
+enum tcpcheck_expect_type {
+	TCPCHK_EXPECT_UNDEF = 0, /* Match is not used. */
+	TCPCHK_EXPECT_STRING, /* Matches a string. */
+	TCPCHK_EXPECT_REGEX, /* Matches a regular pattern. */
+	TCPCHK_EXPECT_BINARY, /* Matches a binary sequence. */
+};
+
+struct tcpcheck_expect {
+	enum tcpcheck_expect_type type; /* Type of pattern used for matching. */
+	union {
+		char *string;           /* Matching a literal string / binary anywhere in the response. */
+		struct my_regex *regex; /* Matching a regex pattern. */
+	};
+	struct tcpcheck_rule *head;     /* first expect of a chain. */
+	int length;                     /* Size in bytes of the pattern referenced by string / binary. */
+	int inverse;                    /* Match is inversed. */
+	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
+};
+
 /* possible actions for tcpcheck_rule->action */
 enum tcpcheck_rule_type {
 	TCPCHK_ACT_SEND = 0, /* send action, regular string format */
@@ -229,16 +248,11 @@ struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
 	enum tcpcheck_rule_type action;         /* type of the rule. */
 	char *comment;				/* comment to be used in the logs and on the stats socket */
-	/* match type uses NON-NULL pointer from either string or expect_regex below */
-	/* sent string is string */
-	char *string;                           /* sent or expected string */
-	int string_len;                         /* string length */
-	int min_recv;                           /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
-	struct my_regex *expect_regex;          /* expected */
-	int inverse;                            /* 0 = regular match, 1 = inverse match */
+	char *string;                           /* sent string */
+	int string_len;                         /* sent string length */
+	struct tcpcheck_expect expect;          /* Expected pattern. */
 	unsigned short port;                    /* port to connect to */
 	unsigned short conn_opts;               /* options when setting up a new connection */
-	struct tcpcheck_rule *expect_head;      /* first expect of a chain. */
 };
 
 #endif /* _TYPES_CHECKS_H */
