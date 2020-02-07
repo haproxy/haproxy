@@ -3213,9 +3213,15 @@ stats_error_parsing:
 					break;
 				cur_arg++;
 			}
+
 			/* now ptr_arg points to the beginning of a word past any possible
 			 * exclamation mark, and cur_arg is the argument which holds this word.
 			 */
+
+			tcpcheck = calloc(1, sizeof(*tcpcheck));
+			tcpcheck->action = TCPCHK_ACT_EXPECT;
+			tcpcheck->inverse = inverse;
+
 			if (strcmp(ptr_arg, "binary") == 0) {
 				char *err = NULL;
 
@@ -3226,28 +3232,11 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = calloc(1, sizeof(*tcpcheck));
-
-				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				if (parse_binary(args[cur_arg + 1], &tcpcheck->string, &tcpcheck->string_len, &err) == 0) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' expects <BINARY STRING> as argument, but %s\n",
 						 file, linenum, args[0], args[1], args[2], err);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
-				}
-				tcpcheck->expect_regex = NULL;
-				tcpcheck->inverse = inverse;
-
-				/* tcpcheck comment */
-				cur_arg += 2;
-				if (strcmp(args[cur_arg], "comment") == 0) {
-					if (!*args[cur_arg + 1]) {
-						ha_alert("parsing [%s:%d] : '%s' expects a comment string.\n",
-							 file, linenum, args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					tcpcheck->comment = strdup(args[cur_arg + 1]);
 				}
 			}
 			else if (strcmp(ptr_arg, "string") == 0) {
@@ -3258,25 +3247,8 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = calloc(1, sizeof(*tcpcheck));
-
-				tcpcheck->action = TCPCHK_ACT_EXPECT;
 				tcpcheck->string_len = strlen(args[cur_arg + 1]);
 				tcpcheck->string = strdup(args[cur_arg + 1]);
-				tcpcheck->expect_regex = NULL;
-				tcpcheck->inverse = inverse;
-
-				/* tcpcheck comment */
-				cur_arg += 2;
-				if (strcmp(args[cur_arg], "comment") == 0) {
-					if (!*args[cur_arg + 1]) {
-						ha_alert("parsing [%s:%d] : '%s' expects a comment string.\n",
-							 file, linenum, args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					tcpcheck->comment = strdup(args[cur_arg + 1]);
-				}
 			}
 			else if (strcmp(ptr_arg, "rstring") == 0) {
 				if (!*(args[cur_arg + 1])) {
@@ -3286,11 +3258,6 @@ stats_error_parsing:
 					goto out;
 				}
 
-				tcpcheck = calloc(1, sizeof(*tcpcheck));
-
-				tcpcheck->action = TCPCHK_ACT_EXPECT;
-				tcpcheck->string_len = 0;
-				tcpcheck->string = NULL;
 				error = NULL;
 				if (!(tcpcheck->expect_regex = regex_comp(args[cur_arg + 1], 1, 1, &error))) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' : regular expression '%s': %s.\n",
@@ -3299,25 +3266,24 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				tcpcheck->inverse = inverse;
-
-				/* tcpcheck comment */
-				cur_arg += 2;
-				if (strcmp(args[cur_arg], "comment") == 0) {
-					if (!*args[cur_arg + 1]) {
-						ha_alert("parsing [%s:%d] : '%s' expects a comment string.\n",
-							 file, linenum, args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					tcpcheck->comment = strdup(args[cur_arg + 1]);
-				}
 			}
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s' only supports [!] 'binary', 'string', 'rstring', found '%s'.\n",
 					 file, linenum, args[0], args[1], ptr_arg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
+			}
+
+			/* tcpcheck comment */
+			cur_arg += 2;
+			if (strcmp(args[cur_arg], "comment") == 0) {
+				if (!*args[cur_arg + 1]) {
+					ha_alert("parsing [%s:%d] : '%s' expects a comment string.\n",
+						 file, linenum, args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				tcpcheck->comment = strdup(args[cur_arg + 1]);
 			}
 
 			/* All tcp-check expect points back to the first inverse expect rule
