@@ -72,6 +72,24 @@ struct htx_sl *http_get_stline(struct htx *htx)
 	return htx_get_blk_ptr(htx, blk);
 }
 
+/* Returns the headers size in the HTX message */
+size_t http_get_hdrs_size(struct htx *htx)
+{
+	struct htx_blk *blk;
+	size_t sz = 0;
+
+	blk = htx_get_first_blk(htx);
+	if (!blk || htx_get_blk_type(blk) > HTX_BLK_EOH)
+		return sz;
+
+	for (; blk; blk = htx_get_next_blk(htx, blk)) {
+		sz += htx_get_blksz(blk);
+		if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+			break;
+	}
+	return sz;
+}
+
 /* Finds the first or next occurrence of header <name> in the HTX message <htx>
  * using the context <ctx>. This structure holds everything necessary to use the
  * header and find next occurrence. If its <blk> member is NULL, the header is
