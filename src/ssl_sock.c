@@ -10617,8 +10617,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						new_inst->is_default = 1;
 
 					/* we need to initialize the SSL_CTX generated */
-					/* TODO: the prepare_ctx function need to be reworked to be safer there */
-					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
+					list_for_each_entry_safe(sc0, sc0s, &new_inst->sni_ctx, by_ckch_inst) {
 						if (!sc0->order) { /* we initiliazed only the first SSL_CTX because it's the same in the other sni_ctx's */
 							errcode |= ssl_sock_prepare_ctx(ckchi->bind_conf, ckchi->ssl_conf, sc0->ctx, &err);
 							if (errcode & ERR_CODE)
