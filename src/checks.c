@@ -3804,7 +3804,7 @@ static int init_srv_check(struct server *srv)
 	    (!is_inet_addr(&srv->check.addr) && (is_addr(&srv->check.addr) || !is_inet_addr(&srv->addr))))
 		goto init;
 
-	if (!LIST_ISEMPTY(&srv->proxy->tcpcheck_rules)) {
+	if (!srv->proxy->tcpcheck_rules || LIST_ISEMPTY(srv->proxy->tcpcheck_rules)) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port.\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 		ret |= ERR_ALERT | ERR_ABORT;
@@ -3812,7 +3812,7 @@ static int init_srv_check(struct server *srv)
 	}
 
 	/* search the first action (connect / send / expect) in the list */
-	r = get_first_tcpcheck_rule(&srv->proxy->tcpcheck_rules);
+	r = get_first_tcpcheck_rule(srv->proxy->tcpcheck_rules);
 	if (!r || (r->action != TCPCHK_ACT_CONNECT) || !r->port) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
 			 "nor tcp_check rule 'connect' with port information.\n",
@@ -3822,7 +3822,7 @@ static int init_srv_check(struct server *srv)
 	}
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
-	list_for_each_entry(r, &srv->proxy->tcpcheck_rules, list) {
+	list_for_each_entry(r, srv->proxy->tcpcheck_rules, list) {
 		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",

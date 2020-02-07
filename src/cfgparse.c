@@ -3133,7 +3133,7 @@ out_uri_auth_compat:
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, curproxy->check_len);
 		}
 
-		if (!LIST_ISEMPTY(&curproxy->tcpcheck_rules) &&
+		if (curproxy->tcpcheck_rules != NULL &&
 		    (curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
 			ha_warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
 				   proxy_type_str(curproxy), curproxy->id);

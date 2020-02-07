@@ -352,6 +352,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			curproxy->check_body_len = defproxy.check_body_len;
 
+			if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK) {
+				curproxy->tcpcheck_rules =  calloc(1, sizeof(*curproxy->tcpcheck_rules));
+				if (!curproxy->tcpcheck_rules) {
+					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				LIST_INIT(curproxy->tcpcheck_rules);
+			}
+
 			if (defproxy.expect_str) {
 				curproxy->expect_str = strdup(defproxy.expect_str);
 				if (defproxy.expect_regex) {
@@ -2712,6 +2722,16 @@ stats_error_parsing:
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
 				err_code |= ERR_WARN;
 
+			if ((curproxy != &defproxy) && !curproxy->tcpcheck_rules) {
+				curproxy->tcpcheck_rules =  calloc(1, sizeof(*curproxy->tcpcheck_rules));
+				if (!curproxy->tcpcheck_rules) {
+					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				LIST_INIT(curproxy->tcpcheck_rules);
+			}
+
 			free(curproxy->check_req);
 			curproxy->check_req = NULL;
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
@@ -3075,6 +3095,16 @@ stats_error_parsing:
 			goto out;
 		}
 
+		if (curproxy->tcpcheck_rules == NULL) {
+			curproxy->tcpcheck_rules = calloc(1, sizeof(*curproxy->tcpcheck_rules));
+			if (curproxy->tcpcheck_rules == NULL) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			LIST_INIT(curproxy->tcpcheck_rules);
+		}
+
 		if (strcmp(args[1], "comment") == 0) {
 			int cur_arg;
 			struct tcpcheck_rule *tcpcheck;
@@ -3092,7 +3122,7 @@ stats_error_parsing:
 
 			tcpcheck->comment = strdup(args[cur_arg + 1]);
 
-			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+			LIST_ADDQ(curproxy->tcpcheck_rules, &tcpcheck->list);
 			if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
 				goto out;
 		}
@@ -3102,13 +3132,13 @@ stats_error_parsing:
 			struct tcpcheck_rule *tcpcheck;
 
 			/* check if first rule is also a 'connect' action */
-			tcpcheck = LIST_NEXT(&curproxy->tcpcheck_rules, struct tcpcheck_rule *, list);
-			while (&tcpcheck->list != &curproxy->tcpcheck_rules &&
+			tcpcheck = LIST_NEXT(curproxy->tcpcheck_rules, struct tcpcheck_rule *, list);
+			while (&tcpcheck->list != curproxy->tcpcheck_rules &&
 			       tcpcheck->action == TCPCHK_ACT_COMMENT) {
 				tcpcheck = LIST_NEXT(&tcpcheck->list, struct tcpcheck_rule *, list);
 			}
 
-			if (&tcpcheck->list != &curproxy->tcpcheck_rules
+			if (&tcpcheck->list != curproxy->tcpcheck_rules
 			    && tcpcheck->action != TCPCHK_ACT_CONNECT) {
 				ha_alert("parsing [%s:%d] : first step MUST also be a 'connect' when there is a 'connect' step in the tcp-check ruleset.\n",
 					 file, linenum);
@@ -3174,7 +3204,7 @@ stats_error_parsing:
 
 			}
 
-			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+			LIST_ADDQ(curproxy->tcpcheck_rules, &tcpcheck->list);
 		}
 		else if (strcmp(args[1], "send") == 0) {
 			if (! *(args[2]) ) {
@@ -3203,7 +3233,7 @@ stats_error_parsing:
 					tcpcheck->comment = strdup(args[4]);
 				}
 
-				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+				LIST_ADDQ(curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 		}
 		else if (strcmp(args[1], "send-binary") == 0) {
@@ -3238,7 +3268,7 @@ stats_error_parsing:
 					tcpcheck->comment = strdup(args[4]);
 				}
 
-				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+				LIST_ADDQ(curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 		}
 		else if (strcmp(args[1], "expect") == 0) {
@@ -3389,7 +3419,7 @@ stats_error_parsing:
 			 * in a chain of one or more expect rule, potentially itself.
 			 */
 			tcpcheck->expect.head = tcpcheck;
-			list_for_each_entry_rev(prev_check, &curproxy->tcpcheck_rules, list) {
+			list_for_each_entry_rev(prev_check, curproxy->tcpcheck_rules, list) {
 				if (prev_check->action == TCPCHK_ACT_EXPECT) {
 					if (prev_check->expect.inverse)
 						tcpcheck->expect.head = prev_check;
@@ -3398,7 +3428,7 @@ stats_error_parsing:
 				if (prev_check->action != TCPCHK_ACT_COMMENT)
 					break;
 			}
-			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+			LIST_ADDQ(curproxy->tcpcheck_rules, &tcpcheck->list);
 		}
 		else {
 			ha_alert("parsing [%s:%d] : '%s' only supports 'comment', 'connect', 'send' or 'expect'.\n", file, linenum, args[0]);

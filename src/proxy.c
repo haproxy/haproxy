@@ -876,7 +876,6 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.errors);
 	LIST_INIT(&p->conf.args.list);
-	LIST_INIT(&p->tcpcheck_rules);
 	LIST_INIT(&p->filter_configs);
 
 	/* Timeouts are defined as -1 */
