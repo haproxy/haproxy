@@ -144,13 +144,13 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
 #    linux-glibc, linux-glibc-legacy, solaris, freebsd, openbsd, netbsd,
-#    cygwin, haiku, aix51, aix52, osx, generic, custom
+#    cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom
 TARGET =
 
 #### TARGET CPU
 # Use CPU=<cpu_name> to optimize for a particular CPU, among the following
 # list :
-#    generic, native, i586, i686, ultrasparc, custom
+#    generic, native, i586, i686, ultrasparc, power8, power9, custom
 CPU = generic
 
 #### Architecture, used when not building for native architecture
@@ -257,6 +257,8 @@ CPU_CFLAGS.native     = -O2 -march=native
 CPU_CFLAGS.i586       = -O2 -march=i586
 CPU_CFLAGS.i686       = -O2 -march=i686
 CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
+CPU_CFLAGS.power8     = -O2 -mcpu=power8 -mtune=power8
+CPU_CFLAGS.power9     = -O2 -mcpu=power9 -mtune=power9
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
 #### ARCH dependant flags, may be overridden by CPU flags
@@ -381,12 +383,20 @@ ifeq ($(TARGET),aix51)
   DEBUG_CFLAGS    =
 endif
 
-# AIX 5.2 and above
+# AIX 5.2
 ifeq ($(TARGET),aix52)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -D_MSGQSUPPORT
   DEBUG_CFLAGS    =
+endif
+
+# AIX 7.2 and above
+ifeq ($(TARGET),aix72-gcc)
+  set_target_defaults = $(call default_opts, \
+    USE_POLL USE_THREAD USE_LIBCRYPT USE_OBSOLETE_LINKER USE_GETADDRINFO)
+  TARGET_CFLAGS   = -D_H_XMEM -D_H_VAR
+  TARGET_LDFLAGS  = -latomic
 endif
 
 # Cygwin
@@ -754,7 +764,7 @@ all:
 	@echo "Please choose the target among the following supported list :"
 	@echo
 	@echo "   linux-glibc, linux-glibc-legacy, solaris, freebsd, openbsd, netbsd,"
-	@echo "   cygwin, haiku, aix51, aix52, osx, generic, custom"
+	@echo "   cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"
@@ -832,7 +842,7 @@ help:
 	   else \
 	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
 	     echo "  linux-glibc, linux-glibc-legacy, solaris, freebsd, netbsd, osx,"; \
-	     echo "  openbsd, aix51, aix52, cygwin, haiku, generic, custom"; \
+	     echo "  openbsd, aix51, aix52, aix72-gcc, cygwin, haiku, generic, custom"; \
 	   fi
 	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
 	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
