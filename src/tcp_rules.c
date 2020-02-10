@@ -635,26 +635,34 @@ static enum act_return tcp_action_track_sc(struct act_rule *rule, struct proxy *
 	struct sample smp;
 	int opt;
 
-	opt = ((rule->from == ACT_F_TCP_REQ_CNT) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
+	opt = SMP_OPT_DIR_REQ;
 	if (flags & ACT_FLAG_FINAL)
 		opt |= SMP_OPT_FINAL;
 
-	if (stkctr_entry(&s->stkctr[rule->action]))
-		goto end;
-
 	t = rule->arg.trk_ctr.table.t;
-	key = stktable_fetch_key(t, s->be, sess, s, opt, rule->arg.trk_ctr.expr, &smp);
+	if (rule->from == ACT_F_TCP_REQ_CNT) { /* L7 rules: use the stream */
+		if (stkctr_entry(&s->stkctr[rule->action]))
+			goto end;
 
-	if ((smp.flags & SMP_F_MAY_CHANGE) && !(flags & ACT_FLAG_FINAL))
-		return ACT_RET_YIELD; /* key might appear later */
+		key = stktable_fetch_key(t, s->be, sess, s, opt, rule->arg.trk_ctr.expr, &smp);
 
-	if (key && (ts = stktable_get_entry(t, key))) {
-		stream_track_stkctr(&s->stkctr[rule->action], t, ts);
-		if (rule->from == ACT_F_TCP_REQ_CNT) {
+		if ((smp.flags & SMP_F_MAY_CHANGE) && !(flags & ACT_FLAG_FINAL))
+			return ACT_RET_YIELD; /* key might appear later */
+
+		if (key && (ts = stktable_get_entry(t, key))) {
+			stream_track_stkctr(&s->stkctr[rule->action], t, ts);
 			stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_CONTENT);
 			if (sess->fe != s->be)
 				stkctr_set_flags(&s->stkctr[rule->action], STKCTR_TRACK_BACKEND);
 		}
+	}
+	else {  /* L4/L5 rules: use the session */
+		if (stkctr_entry(&sess->stkctr[rule->action]))
+			goto end;
+
+		key = stktable_fetch_key(t, sess->fe, sess, NULL, opt, rule->arg.trk_ctr.expr, NULL);
+		if (key && (ts = stktable_get_entry(t, key)))
+			stream_track_stkctr(&sess->stkctr[rule->action], t, ts);
 	}
 
   end:
