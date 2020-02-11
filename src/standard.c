@@ -938,7 +938,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 */
 		prefix_path_len = (pfx && !abstract) ? strlen(pfx) : 0;
 		max_path_len = (sizeof(un->sun_path) - 1) -
-			(prefix_path_len ? prefix_path_len + 1 + 5 + 1 + 3 : 0);
+			(abstract ? 0 : prefix_path_len + 1 + 5 + 1 + 3);
 
 		adr_len = strlen(str2);
 		if (adr_len > max_path_len) {

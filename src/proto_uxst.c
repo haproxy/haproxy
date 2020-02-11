@@ -187,6 +187,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	struct sockaddr_un addr;
 	const char *msg = NULL;
 	const char *path;
+	int maxpathlen;
 	int ext, ready;
 	socklen_t ready_len;
 	int err;
@@ -205,6 +206,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		listener->fd = uxst_find_compatible_fd(listener);
 	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
 
+	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
+
 	/* if the listener already has an fd assigned, then we were offered the
 	 * fd by an external process (most likely the parent), and we don't want
 	 * to create a new socket. However we still want to set a few flags on
@@ -216,17 +219,17 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto fd_ready;
 
 	if (path[0]) {
-		ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
-		if (ret < 0 || ret >= MAXPATHLEN) {
+		ret = snprintf(tempname, maxpathlen, "%s.%d.tmp", path, pid);
+		if (ret < 0 || ret >= maxpathlen) {
 			err |= ERR_FATAL | ERR_ALERT;
-			msg = "name too long for UNIX socket";
+			msg = "name too long for UNIX socket (limit usually 97)";
 			goto err_return;
 		}
 
-		ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
-		if (ret < 0 || ret >= MAXPATHLEN) {
+		ret = snprintf(backname, maxpathlen, "%s.%d.bak", path, pid);
+		if (ret < 0 || ret >= maxpathlen) {
 			err |= ERR_FATAL | ERR_ALERT;
-			msg = "name too long for UNIX socket";
+			msg = "name too long for UNIX socket (limit usually 97)";
 			goto err_return;
 		}
 
