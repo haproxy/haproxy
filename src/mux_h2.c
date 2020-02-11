@@ -3650,7 +3650,8 @@ static int h2_wake(struct connection *conn)
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 	ret = h2_process(h2c);
-	h2_wake_some_streams(h2c, 0);
+	if (ret >= 0)
+		h2_wake_some_streams(h2c, 0);
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return ret;
 }
