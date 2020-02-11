@@ -2134,8 +2134,8 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				goto error;
 			}
 			if (stat.st_size > global.tune.bufsize) {
-				memprintf(err, "file '%s' exceeds the buffer size (%ld > %d)",
-					  args[cur_arg], stat.st_size, global.tune.bufsize);
+				memprintf(err, "file '%s' exceeds the buffer size (%lld > %d)",
+					  args[cur_arg], (long long)stat.st_size, global.tune.bufsize);
 				goto error;
 			}
 			objlen = stat.st_size;
@@ -2183,8 +2183,8 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				goto error;
 			}
 			if (stat.st_size > global.tune.bufsize) {
-				memprintf(err, "file '%s' exceeds the buffer size (%ld > %d)",
-					  args[cur_arg], stat.st_size, global.tune.bufsize);
+				memprintf(err, "file '%s' exceeds the buffer size (%lld > %d)",
+					  args[cur_arg], (long long)stat.st_size, global.tune.bufsize);
 				goto error;
 			}
 			objlen = stat.st_size;
