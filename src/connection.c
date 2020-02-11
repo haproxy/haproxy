@@ -502,7 +502,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 
-	do {
+	while (1) {
 		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
 		if (ret < 0) {
 			if (errno == EINTR)
@@ -514,7 +514,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			goto recv_abort;
 		}
 		trash.data = ret;
-	} while (0);
+		break;
+	}
 
 	if (!trash.data) {
 		/* client shutdown */
@@ -760,13 +761,14 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * exact line at once. If we don't get the exact same result, we
 	 * fail.
 	 */
-	do {
+	while (1) {
 		int len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.data)
 			goto recv_abort;
-	} while (0);
+		break;
+	}
 
 	conn->flags &= ~flag;
 	conn->flags |= CO_FL_RCVD_PROXY;
@@ -830,7 +832,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 
-	do {
+	while (1) {
 		ret = recv(conn->handle.fd, trash.area, trash.size, MSG_PEEK);
 		if (ret < 0) {
 			if (errno == EINTR)
@@ -842,7 +844,8 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			goto recv_abort;
 		}
 		trash.data = ret;
-	} while (0);
+		break;
+	}
 
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
@@ -962,13 +965,14 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	 * we re-read the exact line at once. If we don't get the exact same
 	 * result, we fail.
 	 */
-	do {
+	while (1) {
 		int len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.data)
 			goto recv_abort;
-	} while (0);
+		break;
+	}
 
 	conn->flags &= ~flag;
 	return 1;
@@ -1088,7 +1092,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	if (!fd_recv_ready(conn->handle.fd))
 		goto not_ready;
 
-	do {
+	while (1) {
 		/* SOCKS4 Proxy will response with 8 bytes, 0x00 | 0x5A | 0x00 0x00 | 0x00 0x00 0x00 0x00
 		 * Try to peek into it, before all 8 bytes ready.
 		 */
@@ -1125,7 +1129,8 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 			}
 			goto recv_abort;
 		}
-	} while (0);
+		break;
+	}
 
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
@@ -1163,7 +1168,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	}
 
 	/* remove the 8 bytes response from the stream */
-	do {
+	while (1) {
 		ret = recv(conn->handle.fd, line, SOCKS4_HS_RSP_LEN, 0);
 		if (ret < 0 && errno == EINTR) {
 			continue;
@@ -1174,7 +1179,8 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 			}
 			goto fail;
 		}
-	} while (0);
+		break;
+	}
 
 	conn->flags &= ~CO_FL_SOCKS4_RECV;
 	return 1;
