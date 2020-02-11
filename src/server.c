@@ -1569,15 +1569,27 @@ static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char *
 }
 #endif
 
-static void display_parser_err(const char *file, int linenum, char **args, int cur_arg, char **err)
+static void display_parser_err(const char *file, int linenum, char **args, int cur_arg, int err_code, char **err)
 {
+	char *msg = "error encountered while processing ";
+	char *quote = "'";
+	char *token = args[cur_arg];
+
 	if (err && *err) {
 		indent_msg(err, 2);
-		ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], *err);
+		msg = *err;
+		quote = "";
+		token = "";
 	}
+
+	if (err_code & ERR_WARN && !(err_code & ERR_ALERT))
+		ha_warning("parsing [%s:%d] : '%s %s' : %s%s%s%s.\n",
+		           file, linenum, args[0], args[1],
+		           msg, quote, token, quote);
 	else
-		ha_alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
-			 file, linenum, args[0], args[1], args[cur_arg]);
+		ha_alert("parsing [%s:%d] : '%s %s' : %s%s%s%s.\n",
+		         file, linenum, args[0], args[1],
+		         msg, quote, token, quote);
 }
 
 static void srv_conn_src_sport_range_cpy(struct server *srv,
@@ -2030,7 +2042,7 @@ static int server_sni_expr_init(const char *file, int linenum, char **args, int 
 	if (!ret)
 	    return 0;
 
-	display_parser_err(file, linenum, args, cur_arg, &err);
+	display_parser_err(file, linenum, args, cur_arg, ret, &err);
 	free(err);
 
 	return ret;
@@ -2834,7 +2846,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					err_code |= code;
 
 					if (code) {
-						display_parser_err(file, linenum, args, cur_arg, &err);
+						display_parser_err(file, linenum, args, cur_arg, code, &err);
 						if (code & ERR_FATAL) {
 							free(err);
 							if (kw->skip != -1)
