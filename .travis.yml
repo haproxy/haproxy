@@ -92,12 +92,6 @@ matrix:
     before_script:
       - git clone http://git.1wt.eu/git/libslz.git/
       - cd libslz && make && make PREFIX=${HOME}/opt install && cd ..
-  allow_failures:
-  - os: linux
-    arch: ppc64le
-    if: type == cron
-    compiler: gcc
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2u
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
