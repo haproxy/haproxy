@@ -28,11 +28,14 @@ build_openssl_osx () {
 build_openssl () {
     if [ "$(cat ${HOME}/opt/.openssl-version)" != "${OPENSSL_VERSION}" ]; then
         tar zxf "download-cache/openssl-${OPENSSL_VERSION}.tar.gz"
-        if [ "${TRAVIS_OS_NAME}" = "osx" ]; then
-            build_openssl_osx
-        elif [ "${TRAVIS_OS_NAME}" = "linux" ]; then
-            build_openssl_linux
-        fi
+	case `uname` in
+		'Darwin')
+			build_openssl_osx
+			;;
+		'Linux')
+			build_openssl_linux
+			;;
+	esac
         echo "${OPENSSL_VERSION}" > "${HOME}/opt/.openssl-version"
     fi
 }
