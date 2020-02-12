@@ -906,9 +906,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			defaultmss = default_tcp6_maxseg;
 
 		getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &tmpmaxseg, &len);
-		if (tmpmaxseg != defaultmss && setsockopt(fd, IPPROTO_TCP,
-						TCP_MAXSEG, &defaultmss,
-						sizeof(defaultmss)) == -1) {
+		if (defaultmss > 0 &&
+		    tmpmaxseg != defaultmss &&
+		    setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &defaultmss, sizeof(defaultmss)) == -1) {
 			msg = "cannot set MSS";
 			err |= ERR_WARN;
 		}
