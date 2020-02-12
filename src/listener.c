@@ -392,7 +392,7 @@ int resume_listener(struct listener *l)
 		/* we're not allowed to touch this listener's FD, let's requeue
 		 * the listener into one of its owning thread's queue instead.
 		 */
-		int first_thread = my_flsl(thread_mask(l->bind_conf->bind_thread)) - 1;
+		int first_thread = my_flsl(thread_mask(l->bind_conf->bind_thread) & all_threads_mask) - 1;
 		work_list_add(&local_listener_queue[first_thread], &l->wait_queue);
 		goto end;
 	}
