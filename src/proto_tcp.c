@@ -749,8 +749,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp_maxseg,
 			    &ready_len) == -1)
 				ha_warning("Failed to get the default value of TCP_MAXSEG\n");
+			close(fd);
 		}
-		close(fd);
 	}
 	if (default_tcp6_maxseg == -1) {
 		default_tcp6_maxseg = -2;
