@@ -774,7 +774,16 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 				BREAK_EXECUTION(s, chn, check_result);
 		}
 	} RESUME_FILTER_END;
-	channel_htx_fwd_headers(chn, htxbuf(&chn->buf));
+
+	if (HAS_DATA_FILTERS(s, chn)) {
+		size_t data = http_get_hdrs_size(htxbuf(&chn->buf));
+		struct filter *f;
+
+		list_for_each_entry(f, &strm_flt(s)->filters, list) {
+			if (IS_DATA_FILTER(f, chn))
+				FLT_OFF(f, chn) = data;
+		}
+	}
 
  check_result:
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
