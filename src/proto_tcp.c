@@ -999,7 +999,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->proto->accept,
-	          thread_mask(listener->bind_conf->bind_thread));
+	          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
 
  tcp_return:
 	if (msg && errlen) {
