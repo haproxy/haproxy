@@ -1129,7 +1129,8 @@ int connect_server(struct stream *s)
 	if (srv && !reuse) {
 		srv_conn = NULL;
 
-		/* Below we pick connections from the safe or idle lists based
+		/* Below we pick connections from the safe, idle  or
+		 * available (which are safe too) lists based
 		 * on the strategy, the fact that this is a first or second
 		 * (retryable) request, with the indicated priority (1 or 2) :
 		 *
@@ -1146,37 +1147,33 @@ int connect_server(struct stream *s)
 		 * Idle conns are necessarily looked up on the same thread so
 		 * that there is no concurrency issues.
 		 */
-		if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
+		if (srv->available_conns && !LIST_ISEMPTY(&srv->available_conns[tid]) &&
+		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR))
+			    srv_conn = LIST_ELEM(srv->available_conns[tid].n, struct connection *, list);
+		if (srv->idle_conns && !MT_LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
 		     s->txn && (s->txn->flags & TX_NOT_FIRST))) {
-			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
+			srv_conn = MT_LIST_POP(&srv->idle_conns[tid], struct connection *, list);
 		}
-		else if (srv->safe_conns && !LIST_ISEMPTY(&srv->safe_conns[tid]) &&
+		else if (srv->safe_conns && !MT_LIST_ISEMPTY(&srv->safe_conns[tid]) &&
 			 ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
 			  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR)) {
-			srv_conn = LIST_ELEM(srv->safe_conns[tid].n, struct connection *, list);
+			srv_conn = MT_LIST_POP(&srv->safe_conns[tid], struct connection *, list);
 		}
-		else if (srv->idle_conns && !LIST_ISEMPTY(&srv->idle_conns[tid]) &&
+		else if (srv->idle_conns && !MT_LIST_ISEMPTY(&srv->idle_conns[tid]) &&
 			 (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) {
-			srv_conn = LIST_ELEM(srv->idle_conns[tid].n, struct connection *, list);
-		} else if (srv->idle_orphan_conns && !MT_LIST_ISEMPTY(&srv->idle_orphan_conns[tid]) &&
-		    (((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) ||
-		    (((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
-		     s->txn && (s->txn->flags & TX_NOT_FIRST)))) {
-			srv_conn = MT_LIST_POP(&srv->idle_orphan_conns[tid],
-			                           struct connection *, list);
-			if (srv_conn)
-				reuse_orphan = 1;
+			srv_conn = MT_LIST_POP(&srv->idle_conns[tid], struct connection *, list);
 		}
-
 		/* If we've picked a connection from the pool, we now have to
 		 * detach it. We may have to get rid of the previous idle
 		 * connection we had, so for this we try to swap it with the
 		 * other owner's. That way it may remain alive for others to
 		 * pick.
 		 */
-		if (srv_conn)
+		if (srv_conn) {
+			reuse_orphan = 1;
 			reuse = 1;
+		}
 	}
 
 
@@ -1200,14 +1197,14 @@ int connect_server(struct stream *s)
 	}
 
 	if (((!reuse || (srv_conn && (srv_conn->flags & CO_FL_WAIT_XPRT)))
-	    && ha_used_fds > global.tune.pool_high_count) && srv && srv->idle_orphan_conns) {
+	    && ha_used_fds > global.tune.pool_high_count) && srv && srv->idle_conns) {
 		struct connection *tokill_conn;
 
 		/* We can't reuse a connection, and e have more FDs than deemd
 		 * acceptable, attempt to kill an idling connection
 		 */
 		/* First, try from our own idle list */
-		tokill_conn = MT_LIST_POP(&srv->idle_orphan_conns[tid],
+		tokill_conn = MT_LIST_POP(&srv->idle_conns[tid],
 		    struct connection *, list);
 		if (tokill_conn)
 			tokill_conn->mux->destroy(tokill_conn->ctx);
@@ -1226,8 +1223,11 @@ int connect_server(struct stream *s)
 				ALREADY_CHECKED(i);
 
 				HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
-				tokill_conn = MT_LIST_POP(&srv->idle_orphan_conns[i],
+				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
 				    struct connection *, list);
+				if (!tokill_conn)
+					tokill_conn = MT_LIST_POP(&srv->safe_conns[i],
+					    struct connection *, list);
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
@@ -1251,7 +1251,7 @@ int connect_server(struct stream *s)
 			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			__ha_barrier_atomic_store();
 			srv->curr_idle_thr[tid]--;
-			LIST_ADDQ(&srv->idle_conns[tid], &srv_conn->list);
+			LIST_ADDQ(&srv->available_conns[tid], &srv_conn->list);
 		}
 		else {
 			if (srv_conn->flags & CO_FL_SESS_IDLE) {
@@ -1404,7 +1404,7 @@ int connect_server(struct stream *s)
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    srv_conn->mux->avail_streams(srv_conn) > 0)
-			LIST_ADD(&srv->idle_conns[tid], &srv_conn->list);
+			LIST_ADD(&srv->available_conns[tid], &srv_conn->list);
 	}
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.

@@ -2663,7 +2663,7 @@ void deinit(void)
 			free((char*)s->conf.file);
 			free(s->idle_conns);
 			free(s->safe_conns);
-			free(s->idle_orphan_conns);
+			free(s->available_conns);
 			free(s->curr_idle_thr);
 
 			if (s->use_ssl || s->check.use_ssl) {

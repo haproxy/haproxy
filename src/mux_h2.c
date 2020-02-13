@@ -3896,7 +3896,7 @@ static void h2_detach(struct conn_stream *cs)
 					return;
 				}
 				if (!(h2c->conn->flags & CO_FL_PRIVATE)) {
-					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn)) {
+					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
 						/* The server doesn't want it, let's kill the connection right away */
 						h2c->conn->mux->destroy(h2c);
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
@@ -3906,6 +3906,9 @@ static void h2_detach(struct conn_stream *cs)
 					return;
 
 				}
+			} else if (LIST_ISEMPTY(&h2c->conn->list) &&
+			           h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target)) {
+				LIST_ADD(&__objt_server(h2c->conn->target)->available_conns[tid], &h2c->conn->list);
 			}
 		}
 	}

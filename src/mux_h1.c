@@ -2360,9 +2360,7 @@ static void h1_detach(struct conn_stream *cs)
 	struct h1s *h1s = cs->ctx;
 	struct h1c *h1c;
 	struct session *sess;
-#if 0
 	int is_not_first;
-#endif
 
 	TRACE_ENTER(H1_EV_STRM_END, h1s ? h1s->h1c->conn : NULL, h1s);
 
@@ -2376,9 +2374,7 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
-#if 0
 	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
-#endif
 	h1s_destroy(h1s);
 
 	if (conn_is_back(h1c->conn) && (h1c->flags & H1C_F_CS_IDLE)) {
@@ -2415,7 +2411,7 @@ static void h1_detach(struct conn_stream *cs)
 		if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
 			if (h1c->conn->owner == sess)
 				h1c->conn->owner = NULL;
-			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn)) {
+			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
 				/* The server doesn't want it, let's kill the connection right away */
 				h1c->conn->mux->destroy(h1c);
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);

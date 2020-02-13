@@ -3498,7 +3498,7 @@ static void fcgi_detach(struct conn_stream *cs)
 				return;
 			}
 			if (!(fconn->conn->flags & CO_FL_PRIVATE)) {
-				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn)) {
+				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
 					fconn->conn->mux->destroy(fconn);
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
@@ -3507,7 +3507,11 @@ static void fcgi_detach(struct conn_stream *cs)
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-		}
+		} else if (LIST_ISEMPTY(&fconn->conn->list) &&
+			   fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target)) {
+				LIST_ADD(&__objt_server(fconn->conn->target)->available_conns[tid], &fconn->conn->list);
+			}
+
 	}
 
 	/* We don't want to close right now unless we're removing the last

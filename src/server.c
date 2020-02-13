@@ -5617,7 +5617,10 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 
 			HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[i]);
 			for (j = 0; j < max_conn; j++) {
-				struct connection *conn = MT_LIST_POP(&srv->idle_orphan_conns[i], struct connection *, list);
+				struct connection *conn = MT_LIST_POP(&srv->idle_conns[i], struct connection *, list);
+				if (!conn)
+					conn = MT_LIST_POP(&srv->safe_conns[i],
+					                   struct connection *, list);
 				if (!conn)
 					break;
 				did_remove = 1;
