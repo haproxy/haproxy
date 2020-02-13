@@ -181,12 +181,6 @@ static inline X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a)
     return a->data.crl;
 }
 
-static inline const unsigned char *SSL_SESSION_get0_id_context(const SSL_SESSION *sess, unsigned int *sid_ctx_length)
-{
-	*sid_ctx_length = sess->sid_ctx_length;
-	return sess->sid_ctx;
-}
-
 static inline int SSL_SESSION_set1_id(SSL_SESSION *s, const unsigned char *sid, unsigned int sid_len)
 {
 	s->session_id_length = sid_len;
@@ -205,16 +199,6 @@ static inline const OCSP_CERTID *OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP *
 	return single->certId;
 }
 #endif
-
-static inline pem_password_cb *SSL_CTX_get_default_passwd_cb(SSL_CTX *ctx)
-{
-	return ctx->default_passwd_callback;
-}
-
-static inline void *SSL_CTX_get_default_passwd_cb_userdata(SSL_CTX *ctx)
-{
-	return ctx->default_passwd_callback_userdata;
-}
 
 #ifndef OPENSSL_NO_DH
 static inline int DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g)
