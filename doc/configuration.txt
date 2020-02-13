@@ -12771,7 +12771,7 @@ tls-tickets
   setting which would have been inherited from "default-server" directive as
   default value.
   It may also be used as "default-server" setting to reset any previous
-  "default-server" "no-tlsv-tickets" setting.
+  "default-server" "no-tls-tickets" setting.
 
 verify [none|required]
   This setting is only available when support for OpenSSL was built in. If set
