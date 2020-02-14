@@ -15,6 +15,8 @@
 #include <arpa/inet.h>
 
 #include <common/standard.h>
+#include <common/chunk.h>
+#include <types/global.h>
 #include <proto/arg.h>
 
 const char *arg_type_names[ARGT_NBTYPES] = {
@@ -111,7 +113,6 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	int pos;
 	struct arg *arg;
 	const char *beg;
-	char *word = NULL;
 	const char *ptr_err = NULL;
 	int min_arg;
 	int empty;
@@ -163,17 +164,18 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		 * By default, the output argument will be the same type of the
 		 * expected one.
 		 */
-		free(word);
-		word = my_strndup(beg, in - beg);
+		if (!chunk_strncpy(&trash, beg, in - beg))
+			goto buffer_err;
 
 		arg->type = (mask >> (pos * ARGT_BITS)) & ARGT_MASK;
 
 		switch (arg->type) {
 		case ARGT_SINT:
-			if (in == beg)	  // empty number
+			if (!trash.data)	  // empty number
 				goto empty_err;
-			arg->data.sint = read_int64(&beg, in);
-			if (beg < in)
+			beg = trash.area;
+			arg->data.sint = read_int64(&beg, trash.area + trash.data);
+			if (beg < trash.area + trash.data)
 				goto parse_err;
 			arg->type = ARGT_SINT;
 			break;
@@ -196,56 +198,55 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			 * during the parsing. The caller must at one point resolve
 			 * them and free the string.
 			 */
-			arg->data.str.area = word;
-			arg->data.str.data = in - beg;
-			arg->data.str.size = arg->data.str.data + 1;
-			word = NULL;
+			arg->data.str.area = my_strndup(trash.area, trash.data);
+			arg->data.str.data = trash.data;
+			arg->data.str.size = trash.data + 1;
 			break;
 
 		case ARGT_IPV4:
-			if (in == beg)    // empty address
+			if (!trash.data)    // empty address
 				goto empty_err;
 
-			if (inet_pton(AF_INET, word, &arg->data.ipv4) <= 0)
+			if (inet_pton(AF_INET, trash.area, &arg->data.ipv4) <= 0)
 				goto parse_err;
 			break;
 
 		case ARGT_MSK4:
-			if (in == beg)    // empty mask
+			if (!trash.data)    // empty mask
 				goto empty_err;
 
-			if (!str2mask(word, &arg->data.ipv4))
+			if (!str2mask(trash.area, &arg->data.ipv4))
 				goto parse_err;
 
 			arg->type = ARGT_IPV4;
 			break;
 
 		case ARGT_IPV6:
-			if (in == beg)    // empty address
+			if (!trash.data)    // empty address
 				goto empty_err;
 
-			if (inet_pton(AF_INET6, word, &arg->data.ipv6) <= 0)
+			if (inet_pton(AF_INET6, trash.area, &arg->data.ipv6) <= 0)
 				goto parse_err;
 			break;
 
 		case ARGT_MSK6:
-			if (in == beg)    // empty mask
+			if (!trash.data)    // empty mask
 				goto empty_err;
 
-			if (!str2mask6(word, &arg->data.ipv6))
+			if (!str2mask6(trash.area, &arg->data.ipv6))
 				goto parse_err;
 
 			arg->type = ARGT_IPV6;
 			break;
 
 		case ARGT_TIME:
-			if (in == beg)    // empty time
+			if (!trash.data)    // empty time
 				goto empty_err;
 
-			ptr_err = parse_time_err(word, &uint, TIME_UNIT_MS);
+			ptr_err = parse_time_err(trash.area, &uint, TIME_UNIT_MS);
 			if (ptr_err) {
 				if (ptr_err == PARSE_TIME_OVER || ptr_err == PARSE_TIME_UNDER)
-					ptr_err = word;
+					ptr_err = trash.area;
 				goto parse_err;
 			}
 			arg->data.sint = uint;
@@ -253,10 +254,10 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			break;
 
 		case ARGT_SIZE:
-			if (in == beg)    // empty size
+			if (!trash.data)    // empty size
 				goto empty_err;
 
-			ptr_err = parse_size_err(word, &uint);
+			ptr_err = parse_size_err(trash.area, &uint);
 			if (ptr_err)
 				goto parse_err;
 
@@ -265,10 +266,10 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			break;
 
 		case ARGT_PBUF_FNUM:
-			if (in == beg)
+			if (!trash.data)
 				goto empty_err;
 
-			if (!parse_dotted_uints(word, &arg->data.fid.ids, &arg->data.fid.sz))
+			if (!parse_dotted_uints(trash.area, &arg->data.fid.ids, &arg->data.fid.sz))
 				goto parse_err;
 
 			break;
@@ -290,8 +291,6 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	}
 
  end_parse:
-	free(word); word = NULL;
-
 	if (pos < min_arg) {
 		/* not enough arguments */
 		memprintf(err_msg,
@@ -307,11 +306,10 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		in++;
 	} else {
 		/* the caller is responsible for freeing this message */
-		word = (len > 0) ? my_strndup(in, len) : (char *)in;
+		char *word = (len > 0) ? my_strndup(in, len) : (char *)in;
 		memprintf(err_msg, "expected ')' before '%s'", word);
 		if (len > 0)
 			free(word);
-		word = NULL;
 		/* when we're missing a right paren, the empty part preceeding
 		 * already created an empty arg, adding one to the position, so
 		 * let's fix the reporting to avoid being confusing.
@@ -331,7 +329,6 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	return pos;
 
  err:
-	free(word);
 	if (new_al == al) {
 		/* only free the arg area if we have not queued unresolved args
 		 * still pointing to it.
@@ -351,12 +348,18 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	goto err;
 
  parse_err:
+	/* come here with the word attempted to parse in trash */
 	memprintf(err_msg, "failed to parse '%s' as type '%s' at position %d",
-	          word, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
+	          trash.area, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
 
  not_impl:
 	memprintf(err_msg, "parsing for type '%s' was not implemented, please report this bug",
 	          arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK]);
+	goto err;
+
+ buffer_err:
+	memprintf(err_msg, "too small buffer size to store decoded argument %d, increase bufsize ?",
+	          pos + 1);
 	goto err;
 }
