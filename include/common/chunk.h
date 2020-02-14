@@ -176,6 +176,26 @@ static inline int chunk_strcpy(struct buffer *chk, const char *str)
 	return 1;
 }
 
+/* copies at most <max> chars from str into <chk> followed by a trailing zero.
+ * Returns 0 in case of failure.
+ */
+static inline int chunk_strncpy(struct buffer *chk, const char *str, size_t max)
+{
+	size_t len;
+
+	len = strlen(str);
+	if (len > max)
+		len = max;
+
+	if (unlikely(len >= chk->size))
+		return 0;
+
+	memcpy(chk->area, str, len);
+	chk->area[len] = 0;
+	chk->data = len;
+	return 1;
+}
+
 /* appends str after <chk> followed by a trailing zero. Returns 0 in
  * case of failure.
  */
