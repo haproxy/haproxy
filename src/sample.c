@@ -856,24 +856,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		goto out_error;
 	}
 
-	endt = endw;
-	if (*endt == '(') {
-		/* look for the end of this term and skip the opening parenthesis */
-		endt = ++endw;
-		while (*endt && *endt != ')')
-			endt++;
-		if (*endt != ')') {
-			memprintf(err_msg, "missing closing ')' after arguments to fetch keyword '%s'", fkw);
-			goto out_error;
-		}
-	}
-
 	/* At this point, we have :
 	 *   - begw : beginning of the keyword
 	 *   - endw : end of the keyword, first character not part of keyword
-	 *            nor the opening parenthesis (so first character of args
-	 *            if present).
-	 *   - endt : end of the term (=endw or last parenthesis if args are present)
 	 */
 
 	if (fetch->out_type >= SMP_TYPES) {
@@ -896,10 +881,15 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	 */
 	al->kw = expr->fetch->kw;
 	al->conv = NULL;
-	if (make_arg_list(endw, endt - endw, fetch->arg_mask, &expr->arg_p, err_msg, NULL, &err_arg, al) < 0) {
+	if (make_arg_list(endw, -1, fetch->arg_mask, &expr->arg_p, err_msg, &endt, &err_arg, al) < 0) {
 		memprintf(err_msg, "fetch method '%s' : %s", fkw, *err_msg);
 		goto out_error;
 	}
+
+	/* now endt is our first char not part of the arg list, typically the
+	 * comma after the sample fetch name or after the closing parenthesis,
+	 * or the NUL char.
+	 */
 
 	if (!expr->arg_p) {
 		expr->arg_p = empty_arg_list;
@@ -926,9 +916,6 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		int err_arg;
 		int argcnt;
 
-		if (*endt == ')') /* skip last closing parenthesis */
-			endt++;
-
 		if (*endt && *endt != ',') {
 			if (ckw)
 				memprintf(err_msg, "missing comma after converter '%s'", ckw);
@@ -937,6 +924,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			goto out_error;
 		}
 
+		/* FIXME: how long should we support such idiocies ? Maybe we
+		 * should already warn ?
+		 */
 		while (*endt == ',') /* then trailing commas */
 			endt++;
 
@@ -965,18 +955,6 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			goto out_error;
 		}
 
-		endt = endw;
-		if (*endt == '(') {
-			/* look for the end of this term */
-			endt = ++endw;
-			while (*endt && *endt != ')')
-				endt++;
-			if (*endt != ')') {
-				memprintf(err_msg, "syntax error: missing ')' after converter '%s'", ckw);
-				goto out_error;
-			}
-		}
-
 		if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
 			memprintf(err_msg, "returns type of converter '%s' is unknown", ckw);
 			goto out_error;
@@ -998,7 +976,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 
 		al->kw = expr->fetch->kw;
 		al->conv = conv_expr->conv->kw;
-		argcnt = make_arg_list(endw, endt - endw, conv->arg_mask, &conv_expr->arg_p, err_msg, NULL, &err_arg, al);
+		argcnt = make_arg_list(endw, -1, conv->arg_mask, &conv_expr->arg_p, err_msg, &endt, &err_arg, al);
 		if (argcnt < 0) {
 			memprintf(err_msg, "invalid arg %d in converter '%s' : %s", err_arg+1, ckw, *err_msg);
 			goto out_error;

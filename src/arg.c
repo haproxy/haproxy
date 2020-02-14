@@ -81,21 +81,30 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
 	return new;
 }
 
-/* This function builds an argument list from a config line. It returns the
- * number of arguments found, or <0 in case of any error. Everything needed
- * it automatically allocated. A pointer to an error message might be returned
- * in err_msg if not NULL, in which case it would be allocated and the caller
- * will have to check it and free it. The output arg list is returned in argp
- * which must be valid. The returned array is always terminated by an arg of
- * type ARGT_STOP (0), unless the mask indicates that no argument is supported.
- * Unresolved arguments are appended to arg list <al>, which also serves as a
- * template to create new entries. The mask is composed of a number of
- * mandatory arguments in its lower ARGM_BITS bits, and a concatenation of each
- * argument type in each subsequent ARGT_BITS-bit sblock. If <err_msg> is not
- * NULL, it must point to a freeable or NULL pointer.
+/* This function builds an argument list from a config line, and stops at the
+ * first non-matching character, which is pointed to in <end_ptr>. A valid arg
+ * list starts with an opening parenthesis '(', contains a number of comma-
+ * delimited words, and ends with the closing parenthesis ')'. An empty list
+ * (with or without the parenthesis) will lead to a valid empty argument if the
+ * keyword has a mandatory one. The function returns the number of arguments
+ * emitted, or <0 in case of any error. Everything needed it automatically
+ * allocated. A pointer to an error message might be returned in err_msg if not
+ * NULL, in which case it would be allocated and the caller will have to check
+ * it and free it. The output arg list is returned in argp which must be valid.
+ * The returned array is always terminated by an arg of type ARGT_STOP (0),
+ * unless the mask indicates that no argument is supported. Unresolved arguments
+ * are appended to arg list <al>, which also serves as a template to create new
+ * entries. The mask is composed of a number of mandatory arguments in its lower
+ * ARGM_BITS bits, and a concatenation of each argument type in each subsequent
+ * ARGT_BITS-bit sblock. If <err_msg> is not NULL, it must point to a freeable
+ * or NULL pointer. The caller is expected to restart the parsing from the new
+ * pointer set in <end_ptr>, which is the first character considered as not
+ * being part of the arg list. The input string ends on the first between <len>
+ * characters (when len is positive) or the first NUL character. Placing -1 in
+ * <len> will make it virtually unbounded (~2GB long strings).
  */
 int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
-                  char **err_msg, const char **err_ptr, int *err_arg,
+                  char **err_msg, const char **end_ptr, int *err_arg,
                   struct arg_list *al)
 {
 	int nbarg;
@@ -105,9 +114,21 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	char *word = NULL;
 	const char *ptr_err = NULL;
 	int min_arg;
+	int empty;
 	struct arg_list *new_al = al;
 
 	*argp = NULL;
+
+	empty = 0;
+	if (!len || *in != '(') {
+		/* it's already not for us, stop here */
+		empty = 1;
+		len = 0;
+	} else {
+		/* skip opening parenthesis */
+		len--;
+		in++;
+	}
 
 	min_arg = mask & ARGM_MASK;
 	mask >>= ARGM_BITS;
@@ -122,7 +143,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	/* Note: an empty input string contains an empty argument if this argument
 	 * is marked mandatory. Otherwise we can ignore it.
 	 */
-	if (!len && !min_arg)
+	if (empty && !min_arg)
 		goto end_parse;
 
 	arg = *argp = calloc(nbarg + 1, sizeof(*arg));
@@ -132,7 +153,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		unsigned int uint;
 
 		beg = in;
-		while (len && *in != ',') {
+		while (len && *in != ',' && *in && *in != ')') {
 			in++;
 			len--;
 		}
@@ -261,7 +282,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		arg++;
 
 		/* don't go back to parsing if we reached end */
-		if (!len || pos >= nbarg)
+		if (!len || !*in || *in == ')' || pos >= nbarg)
 			break;
 
 		/* skip comma */
@@ -279,16 +300,24 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		goto err;
 	}
 
-	if (len) {
-		/* too many arguments, starting at <in> */
+	if (empty) {
+		/* nothing to do */
+	} else if (*in == ')') {
+		/* skip the expected closing parenthesis */
+		in++;
+	} else {
 		/* the caller is responsible for freeing this message */
-		word = my_strndup(in, len);
-		if (nbarg)
-			memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
-			          pos + 1, word);
-		else
-			memprintf(err_msg, "no argument supported, but got '%s'", word);
-		free(word); word = NULL;
+		word = (len > 0) ? my_strndup(in, len) : (char *)in;
+		memprintf(err_msg, "expected ')' before '%s'", word);
+		if (len > 0)
+			free(word);
+		word = NULL;
+		/* when we're missing a right paren, the empty part preceeding
+		 * already created an empty arg, adding one to the position, so
+		 * let's fix the reporting to avoid being confusing.
+		 */
+		if (pos > 1)
+			pos--;
 		goto err;
 	}
 
@@ -297,8 +326,8 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	 */
 	if (err_arg)
 		*err_arg = pos;
-	if (err_ptr)
-		*err_ptr = in;
+	if (end_ptr)
+		*end_ptr = in;
 	return pos;
 
  err:
@@ -312,8 +341,8 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	*argp = NULL;
 	if (err_arg)
 		*err_arg = pos;
-	if (err_ptr)
-		*err_ptr = in;
+	if (end_ptr)
+		*end_ptr = in;
 	return -1;
 
  empty_err:

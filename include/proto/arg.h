@@ -80,7 +80,7 @@ extern struct arg empty_arg_list[ARGM_NBARGS];
 struct arg_list *arg_list_clone(const struct arg_list *orig);
 struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos);
 int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
-                  char **err_msg, const char **err_ptr, int *err_arg,
+                  char **err_msg, const char **end_ptr, int *err_arg,
                   struct arg_list *al);
 
 #endif /* _PROTO_ARG_H */

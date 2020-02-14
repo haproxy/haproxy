@@ -193,27 +193,12 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		for (arg = args[0]; is_idchar(*arg); arg++)
 			;
 
-		endt = arg;
-		if (*endt == '(') {
-			/* look for the end of this term and skip the opening parenthesis */
-			endt = ++arg;
-			while (*endt && *endt != ')')
-				endt++;
-			if (*endt != ')') {
-				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
-				goto out_free_smp;
-			}
-		}
-
 		/* At this point, we have :
 		 *   - args[0] : beginning of the keyword
 		 *   - arg     : end of the keyword, first character not part of keyword
-		 *               nor the opening parenthesis (so first character of args
-		 *               if present).
-		 *   - endt    : end of the term (=arg or last parenthesis if args are present)
 		 */
-		nbargs = make_arg_list(arg, endt - arg, smp->fetch->arg_mask, &smp->arg_p,
-		                       err, NULL, NULL, al);
+		nbargs = make_arg_list(arg, -1, smp->fetch->arg_mask, &smp->arg_p,
+		                       err, &endt, NULL, al);
 		if (nbargs < 0) {
 			/* note that make_arg_list will have set <err> here */
 			memprintf(err, "ACL keyword '%s' : %s", aclkw->kw, *err);
@@ -241,9 +226,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		while (*arg) {
 			struct sample_conv *conv;
 			struct sample_conv_expr *conv_expr;
-
-			if (*arg == ')') /* skip last closing parenthesis */
-				arg++;
+			int err_arg;
+			int argcnt;
 
 			if (*arg && *arg != ',') {
 				if (ckw)
@@ -255,6 +239,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_smp;
 			}
 
+			/* FIXME: how long should we support such idiocies ? Maybe we
+			 * should already warn ?
+			 */
 			while (*arg == ',') /* then trailing commas */
 				arg++;
 
@@ -279,16 +266,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 
 			arg = endw;
-			if (*arg == '(') {
-				/* look for the end of this term */
-				while (*arg && *arg != ')')
-					arg++;
-				if (*arg != ')') {
-					memprintf(err, "ACL keyword '%s' : syntax error: missing ')' after converter '%s'.",
-						  aclkw->kw, ckw);
-					goto out_free_smp;
-				}
-			}
 
 			if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
 				memprintf(err, "ACL keyword '%s' : returns type of converter '%s' is unknown.",
@@ -312,35 +289,26 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			conv_expr->conv = conv;
 			acl_conv_found = 1;
 
-			if (arg != endw) {
-				int err_arg;
-
-				if (!conv->arg_mask) {
-					memprintf(err, "ACL keyword '%s' : converter '%s' does not support any args.",
-						  aclkw->kw, ckw);
-					goto out_free_smp;
-				}
-
-				al->kw = smp->fetch->kw;
-				al->conv = conv_expr->conv->kw;
-				if (make_arg_list(endw + 1, arg - endw - 1, conv->arg_mask, &conv_expr->arg_p, err, NULL, &err_arg, al) < 0) {
-					memprintf(err, "ACL keyword '%s' : invalid arg %d in converter '%s' : %s.",
-						  aclkw->kw, err_arg+1, ckw, *err);
-					goto out_free_smp;
-				}
-
-				if (!conv_expr->arg_p)
-					conv_expr->arg_p = empty_arg_list;
-
-				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err)) {
-					memprintf(err, "ACL keyword '%s' : invalid args in converter '%s' : %s.",
-						  aclkw->kw, ckw, *err);
-					goto out_free_smp;
-				}
+			al->kw = smp->fetch->kw;
+			al->conv = conv_expr->conv->kw;
+			argcnt = make_arg_list(endw, -1, conv->arg_mask, &conv_expr->arg_p, err, &arg, &err_arg, al);
+			if (argcnt < 0) {
+				memprintf(err, "ACL keyword '%s' : invalid arg %d in converter '%s' : %s.",
+				          aclkw->kw, err_arg+1, ckw, *err);
+				goto out_free_smp;
 			}
-			else if (ARGM(conv->arg_mask)) {
-				memprintf(err, "ACL keyword '%s' : missing args for converter '%s'.",
-					  aclkw->kw, ckw);
+
+			if (argcnt && !conv->arg_mask) {
+				memprintf(err, "converter '%s' does not support any args", ckw);
+				goto out_free_smp;
+			}
+
+			if (!conv_expr->arg_p)
+				conv_expr->arg_p = empty_arg_list;
+
+			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err)) {
+				memprintf(err, "ACL keyword '%s' : invalid args in converter '%s' : %s.",
+					  aclkw->kw, ckw, *err);
 				goto out_free_smp;
 			}
 		}
