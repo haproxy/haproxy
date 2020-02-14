@@ -1561,6 +1561,25 @@ static struct tcpcheck_rule *get_first_tcpcheck_rule(struct list *list)
 	return NULL;
 }
 
+/* returns the NON-COMMENT tcp-check rule from list <list> following <start> or
+ * NULL if non was found. If <start> is NULL, it relies on
+ * get_first_tcpcheck_rule().
+ */
+static struct tcpcheck_rule *get_next_tcpcheck_rule(struct list *list, struct tcpcheck_rule *start)
+{
+	struct tcpcheck_rule *r;
+
+	if (!start)
+		return get_first_tcpcheck_rule(list);
+
+	r = LIST_NEXT(&start->list, typeof(r), list);
+	list_for_each_entry_from(r, list, list) {
+		if (r->action != TCPCHK_ACT_COMMENT)
+			return r;
+	}
+	return NULL;
+}
+
 /*
  * establish a server health-check that makes use of a connection.
  *
@@ -1594,7 +1613,7 @@ static int connect_conn_chk(struct task *t)
 
 	/* tcpcheck send/expect initialisation */
 	if (check->type == PR_O2_TCPCHK_CHK) {
-		check->current_step = NULL;
+		check->current_step = check->last_started_step = NULL;
 		tcp_rule = get_first_tcpcheck_rule(check->tcpcheck_rules);
 	}
 
@@ -2714,7 +2733,7 @@ static int tcpcheck_get_step_id(struct check *check)
 	int i = 0;
 
 	/* not even started anything yet => step 0 = initial connect */
-	if (!check->current_step)
+	if (!check->current_step && !check->last_started_step)
 		return 0;
 
 	/* no last started step => first step */
@@ -2808,11 +2827,9 @@ static int tcpcheck_main(struct check *check)
 	 */
 
 	/* find first rule and skip comments */
-	next = LIST_NEXT(head, struct tcpcheck_rule *, list);
-	while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
-		next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
+	next = get_first_tcpcheck_rule(head);
 
-	if ((check->current_step || &next->list == head) &&
+	if ((check->current_step || next == NULL) &&
 	    (conn->flags & CO_FL_WAIT_XPRT)) {
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
@@ -2831,14 +2848,13 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* special case: option tcp-check with no rule, a connect is enough */
-	if (&next->list == head) {
+	if (next == NULL) {
 		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 		goto out_end_tcpcheck;
 	}
 
 	/* no step means first step initialisation */
-	if (check->current_step == NULL) {
-		check->last_started_step = NULL;
+	if (check->current_step == NULL && check->last_started_step == NULL) {
 		b_reset(&check->bo);
 		b_reset(&check->bi);
 		check->current_step = next;
@@ -2854,7 +2870,7 @@ static int tcpcheck_main(struct check *check)
 		 * loop after this control. If we have data, conn is valid.
 		 */
 		if (b_data(&check->bo) &&
-		    (&check->current_step->list == head ||
+		    (check->current_step == NULL ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= b_room(&check->bo))) {
 			int ret;
@@ -2875,21 +2891,13 @@ static int tcpcheck_main(struct check *check)
 			}
 		}
 
-		if (&check->current_step->list == head)
+		if (check->current_step == NULL)
 			break;
 
 		/* have 'next' point to the next rule or NULL if we're on the
 		 * last one, connect() needs this.
 		 */
-		next = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-		/* bypass all comment rules */
-		while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
-			next = LIST_NEXT(&next->list, struct tcpcheck_rule *, list);
-
-		/* NULL if we're on the last rule */
-		if (&next->list == head)
-			next = NULL;
+		next = get_next_tcpcheck_rule(head, check->current_step);
 
 		if (check->current_step->action == TCPCHK_ACT_CONNECT) {
 			struct protocol *proto;
@@ -3062,13 +3070,8 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			/* allow next rule */
-			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-			/* bypass all comment rules */
-			while (&check->current_step->list != head && check->current_step->action == TCPCHK_ACT_COMMENT)
-				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-			if (&check->current_step->list == head)
+			check->current_step = get_next_tcpcheck_rule(head, check->current_step);
+			if (check->current_step == NULL)
 				break;
 
 			/* don't do anything until the connection is established */
@@ -3098,14 +3101,7 @@ static int tcpcheck_main(struct check *check)
 
 			b_putblk(&check->bo, check->current_step->string, check->current_step->string_len);
 
-			/* go to next rule and try to send */
-			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-			/* bypass all comment rules */
-			while (&check->current_step->list != head &&
-				check->current_step->action == TCPCHK_ACT_COMMENT)
-				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
+			check->current_step = get_next_tcpcheck_rule(head, check->current_step);
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			struct tcpcheck_expect *expect = &check->current_step->expect;
@@ -3217,14 +3213,8 @@ static int tcpcheck_main(struct check *check)
 
 			if (match ^ expect->inverse) {
 				/* Result as expected, next rule. */
-				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-				/* bypass all comment rules */
-				while (&check->current_step->list != head &&
-				       check->current_step->action == TCPCHK_ACT_COMMENT)
-					check->current_step = LIST_NEXT(&check->current_step->list,
-									struct tcpcheck_rule *, list);
-				if (&check->current_step->list == head)
+				check->current_step = get_next_tcpcheck_rule(head, check->current_step);
+				if (check->current_step == NULL)
 					break;
 
 				if (check->current_step->action == TCPCHK_ACT_EXPECT) {
@@ -3313,12 +3303,12 @@ static int tcpcheck_main(struct check *check)
 	/* We're waiting for some I/O to complete, we've reached the end of the
 	 * rules, or both. Do what we have to do, otherwise we're done.
 	 */
-	if (&check->current_step->list == head && !b_data(&check->bo)) {
+	if (check->current_step == NULL && !b_data(&check->bo)) {
 		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 		goto out_end_tcpcheck;
 	}
 
-	if (&check->current_step->list != head &&
+	if (check->current_step != NULL &&
 	    check->current_step->action == TCPCHK_ACT_EXPECT)
 		__event_srv_chk_r(cs);
 	goto out;
@@ -3329,7 +3319,7 @@ static int tcpcheck_main(struct check *check)
 		chk_report_conn_err(check, 0, 0);
 
 	/* cleanup before leaving */
-	check->current_step = NULL;
+	check->current_step = check->last_started_step = NULL;
 
 	if (check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
