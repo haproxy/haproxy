@@ -18727,10 +18727,13 @@ pass-header <name> [ { if | unless } <condition> ]
 
 path-info <regex>
   Define a regular expression to extract the script-name and the path-info from
-  the URL-decoded path. Thus, <regex> should have two captures: the first one
-  to capture the script name and the second one to capture the path-info. It is
-  an optional setting. If it is not defined, no matching is performed on the
-  path. and the FastCGI parameters PATH_INFO and PATH_TRANSLATED are not filled.
+  the URL-decoded path. Thus, <regex> may have two captures: the first one to
+  capture the script name and the second one to capture the path-info. The
+  first one is mandatory, the second one is optional. This way, it is possible
+  to extract the script-name from the path ignoring the path-info. It is an
+  optional setting. If it is not defined, no matching is performed on the
+  path. and the FastCGI parameters PATH_INFO and PATH_TRANSLATED are not
+  filled.
 
   For security reason, when this regular expression is defined, the newline and
   the null characters are forbiden from the path, once URL-decoded. The reason
@@ -18740,7 +18743,8 @@ path-info <regex>
   returned to the client. The principle of least astonishment is applied here.
 
   Example :
-     path-info ^(/.+\.php)(/.*)?$
+     path-info ^(/.+\.php)(/.*)?$ # both script-name and path-info may be set
+     path-info ^(/.+\.php)        # the path-info is ignored
 
 option get-values
 no option get-values

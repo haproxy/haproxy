@@ -1360,16 +1360,19 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		if (!regex_exec_match2(fconn->app->pathinfo_re, path.ptr, len, MAX_MATCH, pmatch, 0))
 			goto check_index;
 
-		/* We must have at least 2 captures, otherwise we do nothing and
-		 * jump to the last part. Only first 2 ones will be considered
+		/* We must have at least 1 capture for the script name,
+		 * otherwise we do nothing and jump to the last part.
 		 */
-		if (pmatch[1].rm_so == -1 || pmatch[1].rm_eo == -1 ||
-		    pmatch[2].rm_so == -1 || pmatch[2].rm_eo == -1)
+		if (pmatch[1].rm_so == -1 || pmatch[1].rm_eo == -1)
 			goto check_index;
 
-		/* Finally we can set the script_name and the path_info */
+		/* Finally we can set the script_name and the path_info. The
+		 * path_info is set if not already defined, and if it was
+		 * captured
+		 */
 		params->scriptname = ist2(path.ptr + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
-		params->pathinfo   = ist2(path.ptr + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
+		if (!(params->mask & FCGI_SP_PATH_INFO) &&  (pmatch[2].rm_so == -1 || pmatch[2].rm_eo == -1))
+			params->pathinfo = ist2(path.ptr + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
 
 	  check_index:
 		len = params->scriptname.len;
