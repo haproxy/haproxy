@@ -76,6 +76,8 @@ static int srv_check_healthcheck_port(struct check *chk);
 DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
 DECLARE_STATIC_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
 
+/* Dummy frontend used to create all checks sessions. */
+static struct proxy checks_fe;
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { CHK_RES_UNKNOWN,  "UNK",     "Unknown" },
@@ -2405,6 +2407,13 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		}
 
 		/* check complete or aborted */
+
+		check->current_step = NULL;
+		if (check->sess != NULL) {
+			session_free(check->sess);
+			check->sess = NULL;
+		}
+
 		if (conn && conn->xprt) {
 			/* The check was aborted and the connection was not yet closed.
 			 * This can happen upon timeout, or when an external event such
@@ -2526,6 +2535,15 @@ static int start_checks()
 	struct server *s;
 	struct task *t;
 	int nbcheck=0, mininter=0, srvpos=0;
+
+	/* 0- init the dummy frontend used to create all checks sessions */
+	init_new_proxy(&checks_fe);
+	checks_fe.cap = PR_CAP_FE | PR_CAP_BE;
+        checks_fe.mode = PR_MODE_TCP;
+	checks_fe.maxconn = 0;
+	checks_fe.conn_retries = CONN_RETRIES;
+	checks_fe.options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
+	checks_fe.timeout.client = TICK_ETERNITY;
 
 	/* 1- count the checkers to run simultaneously.
 	 * We also determine the minimum interval among all of those which
@@ -2859,7 +2877,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		: ((connect->options & TCPCHK_OPT_SSL) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW)));
 
 	conn_prepare(conn, proto, xprt);
-	if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0) {
+	if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, check->sess) < 0) {
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
@@ -3204,8 +3222,16 @@ static int tcpcheck_main(struct check *check)
 		else
 			rule = check->current_step;
 	}
-	else
+	else {
+		/* First evaluation, create a session */
+		check->sess = session_new(&checks_fe, NULL, NULL);
+		if (!check->sess) {
+			chunk_printf(&trash, "TCPCHK error allocating check session");
+			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+			goto out_end_tcpcheck;
+		}
 		rule = LIST_NEXT(check->tcpcheck_rules, typeof(rule), list);
+	}
 
 	list_for_each_entry_from(rule, check->tcpcheck_rules, list) {
 		enum tcpcheck_eval_ret eval_ret;
@@ -3305,10 +3331,6 @@ static int tcpcheck_main(struct check *check)
 
 	/* All rules was evaluated */
 	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
-	check->current_step = NULL;
-
-  out:
-	return retcode;
 
   out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
@@ -3316,8 +3338,13 @@ static int tcpcheck_main(struct check *check)
 
 	/* cleanup before leaving */
 	check->current_step = NULL;
+	if (check->sess != NULL) {
+		session_free(check->sess);
+		check->sess = NULL;
+	}
+  out:
+	return retcode;
 
-	goto out;
 }
 
 static const char *init_check(struct check *check, int type)
