@@ -212,11 +212,11 @@ struct analyze_status {
 };
 
 /* possible actions for tcpcheck_rule->action */
-enum {
-	TCPCHK_ACT_SEND        = 0,             /* send action, regular string format */
-	TCPCHK_ACT_EXPECT,                      /* expect action, either regular or binary string */
-	TCPCHK_ACT_CONNECT,                     /* connect action, to probe a new port */
-	TCPCHK_ACT_COMMENT,                     /* no action, simply a comment used for logs */
+enum tcpcheck_rule_type {
+	TCPCHK_ACT_SEND = 0, /* send action, regular string format */
+	TCPCHK_ACT_EXPECT, /* expect action, either regular or binary string */
+	TCPCHK_ACT_CONNECT, /* connect action, to probe a new port */
+	TCPCHK_ACT_COMMENT, /* no action, simply a comment used for logs */
 };
 
 /* flags used by tcpcheck_rule->conn_opts */
@@ -226,7 +226,7 @@ enum {
 
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
-	int action;                             /* action: send or expect */
+	enum tcpcheck_rule_type action;         /* type of the rule. */
 	char *comment;				/* comment to be used in the logs and on the stats socket */
 	/* match type uses NON-NULL pointer from either string or expect_regex below */
 	/* sent string is string */
