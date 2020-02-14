@@ -2572,7 +2572,7 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 
 	cur_arg = cur_arg + 1;
 
-	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
 	if (!expr)
 		goto do_resolve_parse_error;
 

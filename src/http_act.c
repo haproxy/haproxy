@@ -558,7 +558,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 	}
 
 	cur_arg = *orig_arg;
-	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
 	if (!expr)
 		return ACT_RET_PRS_ERR;
 
@@ -743,7 +743,7 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 	}
 
 	cur_arg = *orig_arg;
-	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
 	if (!expr)
 		return ACT_RET_PRS_ERR;
 
@@ -1730,7 +1730,7 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 
 	cur_arg = *orig_arg;
 	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line,
-				 err, &px->conf.args);
+				 err, &px->conf.args, NULL);
 	if (!expr)
 		return ACT_RET_PRS_ERR;
 

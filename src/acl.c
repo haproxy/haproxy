@@ -321,7 +321,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 * so, we retrieve a completely parsed expression with args and
 		 * convs already done.
 		 */
-		smp = sample_parse_expr((char **)args, &idx, file, line, err, al);
+		smp = sample_parse_expr((char **)args, &idx, file, line, err, al, NULL);
 		if (!smp) {
 			memprintf(err, "%s in ACL expression '%s'", *err, *args);
 			goto out_return;

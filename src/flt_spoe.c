@@ -3968,7 +3968,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 			}
 			arg->expr = sample_parse_expr((char*[]){delim, NULL},
 						      &idx, file, linenum, &errmsg,
-						      &curproxy->conf.args);
+						      &curproxy->conf.args, NULL);
 			if (arg->expr == NULL) {
 				ha_alert("parsing [%s:%d] : '%s': %s.\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;

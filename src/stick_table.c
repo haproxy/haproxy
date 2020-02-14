@@ -2118,7 +2118,7 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 	rule->arg.gpt.value = strtol(args[*arg], &error, 10);
 	if (*error != '\0') {
 		rule->arg.gpt.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-		                                       px->conf.args.line, err, &px->conf.args);
+		                                       px->conf.args.line, err, &px->conf.args, NULL);
 		if (!rule->arg.gpt.expr)
 			return ACT_RET_PRS_ERR;
 

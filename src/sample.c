@@ -824,8 +824,11 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
  *        fetch keyword followed by format conversion keywords.
  * Returns a pointer on allocated sample expression structure.
  * The caller must have set al->ctx.
+ * If <endptr> is non-nul, it will be set to the first unparsed character
+ * (which may be the final '\0') on success. If it is nul, the expression
+ * must be properly terminated by a '\0' otherwise an error is reported.
  */
-struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err_msg, struct arg_list *al)
+struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err_msg, struct arg_list *al, char **endptr)
 {
 	const char *begw; /* beginning of word */
 	const char *endw; /* end of word */
@@ -917,6 +920,10 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		int argcnt;
 
 		if (*endt && *endt != ',') {
+			if (endptr) {
+				/* end found, let's stop here */
+				break;
+			}
 			if (ckw)
 				memprintf(err_msg, "missing comma after converter '%s'", ckw);
 			else
@@ -949,8 +956,10 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		conv = find_sample_conv(begw, endw - begw);
 		if (!conv) {
 			/* we found an isolated keyword that we don't know, it's not ours */
-			if (begw == str[*idx])
+			if (begw == str[*idx]) {
+				endt = begw;
 				break;
+			}
 			memprintf(err_msg, "unknown converter '%s'", ckw);
 			goto out_error;
 		}
@@ -994,6 +1003,11 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 			memprintf(err_msg, "invalid args in converter '%s' : %s", ckw, *err_msg);
 			goto out_error;
 		}
+	}
+
+	if (endptr) {
+		/* end found, let's stop here */
+		*endptr = (char *)endt;
 	}
 
  out:

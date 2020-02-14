@@ -1538,7 +1538,7 @@ static struct sample_expr *srv_sni_sample_parse_expr(struct server *srv, struct 
 	idx = 0;
 	px->conf.args.ctx = ARGC_SRV;
 
-	return sample_parse_expr((char **)args, &idx, file, linenum, err, &px->conf.args);
+	return sample_parse_expr((char **)args, &idx, file, linenum, err, &px->conf.args, NULL);
 }
 
 static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char **err)

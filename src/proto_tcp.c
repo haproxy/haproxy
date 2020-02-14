@@ -1287,7 +1287,7 @@ enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg, struc
 	unsigned int where;
 
 	cur_arg = *orig_arg;
-	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args, NULL);
 	if (!expr)
 		return ACT_RET_PRS_ERR;
 

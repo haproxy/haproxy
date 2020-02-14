@@ -749,7 +749,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	kw_name = args[*arg-1];
 
 	rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                        px->conf.args.line, err, &px->conf.args);
+	                                        px->conf.args.line, err, &px->conf.args, NULL);
 	if (!rule->arg.vars.expr)
 		return ACT_RET_PRS_ERR;
 

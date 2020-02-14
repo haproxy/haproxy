@@ -1727,7 +1727,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->conf.args.ctx = ARGC_STK;
-		expr = sample_parse_expr(args, &myidx, file, linenum, &errmsg, &curproxy->conf.args);
+		expr = sample_parse_expr(args, &myidx, file, linenum, &errmsg, &curproxy->conf.args, NULL);
 		if (!expr) {
 			ha_alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

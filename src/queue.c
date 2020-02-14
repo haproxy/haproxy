@@ -544,7 +544,7 @@ static enum act_parse_ret parse_set_priority_class(const char **args, int *arg, 
 	unsigned int where = 0;
 
 	rule->arg.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                   px->conf.args.line, err, &px->conf.args);
+	                                   px->conf.args.line, err, &px->conf.args, NULL);
 	if (!rule->arg.expr)
 		return ACT_RET_PRS_ERR;
 
@@ -572,7 +572,7 @@ static enum act_parse_ret parse_set_priority_offset(const char **args, int *arg,
 	unsigned int where = 0;
 
 	rule->arg.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                   px->conf.args.line, err, &px->conf.args);
+	                                   px->conf.args.line, err, &px->conf.args, NULL);
 	if (!rule->arg.expr)
 		return ACT_RET_PRS_ERR;
 
