@@ -839,7 +839,8 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	int err_arg;
 
 	begw = str[*idx];
-	for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
+	for (endw = begw; is_idchar(*endw); endw++)
+		;
 
 	if (endw == begw) {
 		memprintf(err_msg, "missing fetch method");
@@ -949,7 +950,8 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 				break;
 		}
 
-		for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
+		for (endw = begw; is_idchar(*endw); endw++)
+			;
 
 		free(ckw);
 		ckw = my_strndup(begw, endw - begw);

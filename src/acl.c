@@ -90,7 +90,7 @@ struct acl_keyword *find_acl_kw(const char *kw)
 	struct acl_kw_list *kwl;
 
 	kwend = kw;
-	while (*kwend && *kwend != '(' && *kwend != ',')
+	while (is_idchar(*kwend))
 		kwend++;
 
 	list_for_each_entry(kwl, &acl_keywords.list, list) {
@@ -190,7 +190,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		smp->arg_p = empty_arg_list;
 
 		/* look for the beginning of the subject arguments */
-		for (arg = args[0]; *arg && *arg != '(' && *arg != ','; arg++);
+		for (arg = args[0]; is_idchar(*arg); arg++)
+			;
 
 		endt = arg;
 		if (*endt == '(') {
@@ -263,7 +264,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				/* none ? end of converters */
 				break;
 
-			for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
+			for (endw = begw; is_idchar(*endw); endw++)
+				;
 
 			free(ckw);
 			ckw = my_strndup(begw, endw - begw);
