@@ -152,20 +152,68 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	/* Note: empty arguments after a comma always exist. */
 	while (pos < nbarg) {
 		unsigned int uint;
+		int squote = 0, dquote = 0;
+		char *out;
 
-		beg = in;
-		while (len && *in != ',' && *in && *in != ')') {
-			in++;
-			len--;
+		chunk_reset(&trash);
+		out = trash.area;
+
+		while (len && *in && trash.data < trash.size - 1) {
+			if (*in == '"' && !squote) {  /* double quote outside single quotes */
+				if (dquote)
+					dquote = 0;
+				else
+					dquote = 1;
+				in++; len--;
+				continue;
+			}
+			else if (*in == '\'' && !dquote) { /* single quote outside double quotes */
+				if (squote)
+					squote = 0;
+				else
+					squote = 1;
+				in++; len--;
+				continue;
+			}
+			else if (*in == '\\' && !squote && len != 1) {
+				/* '\', ', ' ', '"' support being escaped by '\' */
+				if (len == 1 || in[1] == 0)
+					goto unquote_err;
+
+				if (in[1] == '\\' || in[1] == ' ' || in[1] == '"' || in[1] == '\'') {
+					in++; len--;
+					*out++ = *in;
+				}
+				else if (in[1] == 'r') {
+					in++; len--;
+					*out++ = '\r';
+				}
+				else if (in[1] == 'n') {
+					in++; len--;
+					*out++ = '\n';
+				}
+				else if (in[1] == 't') {
+					in++; len--;
+					*out++ = '\t';
+				}
+				else {
+					/* just a lone '\' */
+					*out++ = *in;
+				}
+				in++; len--;
+			}
+			else {
+				if (!squote && !dquote && (*in == ',' || *in == ')')) {
+					/* end of argument */
+					break;
+				}
+				/* verbatim copy */
+				*out++ = *in++;
+				len--;
+			}
+			trash.data = out - trash.area;
 		}
-
-		/* we have a new argument between <beg> and <in> (not included).
-		 * For ease of handling, we copy it into a zero-terminated word.
-		 * By default, the output argument will be the same type of the
-		 * expected one.
-		 */
-		if (!chunk_strncpy(&trash, beg, in - beg))
-			goto buffer_err;
+		trash.area[trash.data] = 0;
 
 		arg->type = (mask >> (pos * ARGT_BITS)) & ARGT_MASK;
 
@@ -362,4 +410,14 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	memprintf(err_msg, "too small buffer size to store decoded argument %d, increase bufsize ?",
 	          pos + 1);
 	goto err;
+
+ unquote_err:
+	/* come here with the parsed part in <trash.area>:<trash.data> and the
+	 * unparsable part in <in>.
+	 */
+	trash.area[trash.data] = 0;
+	memprintf(err_msg, "failed to parse '%s' after '%s' as type '%s' at position %d",
+	          in, trash.area, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
+	goto err;
+
 }

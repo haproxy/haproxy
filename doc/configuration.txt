@@ -13752,14 +13752,16 @@ concat([<start>],[<var>],[<end>])
   appended after the variable. It may also be omitted. Together, these elements
   allow to concatenate variables with delimiters to an existing set of
   variables. This can be used to build new variables made of a succession of
-  other variables, such as colon-delimited values. Note that due to the config
-  parser, it is not possible to use a comma nor a closing parenthesis as
-  delimiters.
+  other variables, such as colon-delimited values. If commas or closing
+  parethesis are needed as delimiters, they must be protected by quotes or
+  backslashes, themselves protected so that they are not stripped by the first
+  level parser. See examples below.
 
   Example:
     tcp-request session set-var(sess.src) src
     tcp-request session set-var(sess.dn)  ssl_c_s_dn
     tcp-request session set-var(txn.sig) str(),concat(<ip=,sess.ip,>),concat(<dn=,sess.dn,>)
+    tcp-request session set-var(txn.ipport) "str(),concat('addr=(',sess.ip),concat(',',sess.port,')')"
     http-request set-header x-hap-sig %[var(txn.sig)]
 
 cpl
@@ -14139,18 +14141,22 @@ regsub(<regex>,<subst>[,<flags>])
   regex case insensitive by adding the flag "i" in <flags>. Since <flags> is a
   string, it is made up from the concatenation of all desired flags. Thus if
   both "i" and "g" are desired, using "gi" or "ig" will have the same effect.
-  It is important to note that due to the current limitations of the
-  configuration parser, some characters such as closing parenthesis, closing
-  square brackets or comma are not possible to use in the arguments. The first
-  use of this converter is to replace certain characters or sequence of
-  characters with other ones.
+  The first use of this converter is to replace certain characters or sequence
+  of characters with other ones.
+
+  It is highly recommended to enclose the regex part using protected quotes to
+  improve clarity and never have a closing parenthesis from the regex mixed up
+  with the parenthesis from the function. Just like in Bourne shell, the first
+  level of quotes is processed when delimiting word groups on the line, a
+  second level is usable for argument. It is recommended to use single quotes
+  outside since these ones do not try to resolve backslashes nor dollar signs.
 
   Example :
 
      # de-duplicate "/" in header "x-path".
      # input:  x-path: /////a///b/c/xzxyz/
      # output: x-path: /a/b/c/xzxyz/
-     http-request set-header x-path %[hdr(x-path),regsub(/+,/,g)]
+     http-request set-header x-path "%[hdr(x-path),regsub('/+','/','g')]"
 
 capture-req(<id>)
   Capture the string entry in the request slot <id> and returns the entry as
