@@ -18726,11 +18726,18 @@ pass-header <name> [ { if | unless } <condition> ]
   the FastCGI application because they are already converted into parameters.
 
 path-info <regex>
-  Define a regular expression to extract the script-name and the path-info
-  from the URI. Thus, <regex> should have two captures: the first one to
-  capture the script name and the second one to capture the path-info. It is an
-  optional setting. If it is not defined, no matching is performed on the
-  URI. and the FastCGI parameters PATH_INFO and PATH_TRANSLATED are not filled.
+  Define a regular expression to extract the script-name and the path-info from
+  the URL-decoded path. Thus, <regex> should have two captures: the first one
+  to capture the script name and the second one to capture the path-info. It is
+  an optional setting. If it is not defined, no matching is performed on the
+  path. and the FastCGI parameters PATH_INFO and PATH_TRANSLATED are not filled.
+
+  For security reason, when this regular expression is defined, the newline and
+  the null characters are forbiden from the path, once URL-decoded. The reason
+  to such limitation is because otherwise the matching always fails (due to a
+  limitation one the way regular expression are executed in HAProxy). So if one
+  of these two characters is found in the URL-decoded path, an error is
+  returned to the client. The principle of least astonishment is applied here.
 
   Example :
      path-info ^(/.+\.php)(/.*)?$

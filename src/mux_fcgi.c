@@ -1345,6 +1345,15 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		if (!fconn->app->pathinfo_re)
 			goto check_index;
 
+		/* If some special characters are found in the decoded path (\n
+		 * or \0), the PATH_INFO regex cannot match. This is theorically
+		 * valid, but probably unexpected, to have such characters. So,
+		 * to avoid any suprises, an error is triggered in this
+		 * case.
+		 */
+		if (istchr(path, '\n') || istchr(path, '\0'))
+			goto error;
+
 		/* The regex does not match, just to the last part and see if
 		 * the index must be used.
 		 */
