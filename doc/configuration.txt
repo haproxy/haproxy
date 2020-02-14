@@ -14151,12 +14151,15 @@ regsub(<regex>,<subst>[,<flags>])
   second level is usable for argument. It is recommended to use single quotes
   outside since these ones do not try to resolve backslashes nor dollar signs.
 
-  Example :
+  Examples:
 
      # de-duplicate "/" in header "x-path".
      # input:  x-path: /////a///b/c/xzxyz/
      # output: x-path: /a/b/c/xzxyz/
      http-request set-header x-path "%[hdr(x-path),regsub('/+','/','g')]"
+
+     # copy query string to x-query and drop all leading '?', ';' and '&'
+     http-request set-header x-query "%[query,regsub([?;&]*,'')]"
 
 capture-req(<id>)
   Capture the string entry in the request slot <id> and returns the entry as

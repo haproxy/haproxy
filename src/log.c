@@ -473,11 +473,13 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 /*
  * Parse the sample fetch expression <text> and add a node to <list_format> upon
  * success. At the moment, sample converters are not yet supported but fetch arguments
- * should work. The curpx->conf.args.ctx must be set by the caller.
+ * should work. The curpx->conf.args.ctx must be set by the caller. If an end pointer
+ * is passed in <endptr>, it will be updated with the pointer to the first character
+ * not part of the sample expression.
  *
  * In error case, the function returns 0, otherwise it returns 1.
  */
-int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err)
+int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, char **err, char **endptr)
 {
 	char *cmd[2];
 	struct sample_expr *expr = NULL;
@@ -488,7 +490,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, curpx->conf.args.file, curpx->conf.args.line, err, &curpx->conf.args, NULL);
+	expr = sample_parse_expr(cmd, &cmd_arg, curpx->conf.args.file, curpx->conf.args.line, err, &curpx->conf.args, endptr);
 	if (!expr) {
 		memprintf(err, "failed to parse sample expression <%s> : %s", text, *err);
 		goto error_free;
@@ -648,10 +650,26 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			goto fail;
 
 		case LF_STEXPR:                        // text immediately following '%['
-			if (*str == ']') {             // end of arg
-				cformat = LF_EDEXPR;
-				var_len = str - var;
-				*str = 0;              // needed for parsing the expression
+			/* the whole sample expression is parsed at once,
+			 * returning the pointer to the first character not
+			 * part of the expression, which MUST be the trailing
+			 * angle bracket.
+			 */
+			if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err, &str))
+				goto fail;
+
+			if (*str == ']') {
+				// end of arg, go on with next state
+				cformat = pformat = LF_EDEXPR;
+				sp = str;
+			}
+			else {
+				char c = *str;
+				*str = 0;
+				if (isprint(c))
+					memprintf(err, "expected ']' after '%s', but found '%c'", var, c);
+				else
+					memprintf(err, "missing ']' after '%s'", var);
 			}
 			break;
 
@@ -681,7 +699,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 					goto fail;
 				break;
 			case LF_STEXPR:
-				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err))
+				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err, &sp))
 					goto fail;
 				break;
 			case LF_TEXT:
