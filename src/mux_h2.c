@@ -3887,7 +3887,7 @@ static void h2_detach(struct conn_stream *cs)
 					if (eb_is_empty(&h2c->streams_by_id)) {
 						if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn))
 							/* The server doesn't want it, let's kill the connection right away */
-							h2c->conn->mux->destroy(h2c->conn);
+							h2c->conn->mux->destroy(h2c);
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}

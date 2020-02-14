@@ -2396,7 +2396,7 @@ static void h1_detach(struct conn_stream *cs)
 				h1c->conn->owner = NULL;
 				if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn)) {
 					/* The server doesn't want it, let's kill the connection right away */
-					h1c->conn->mux->destroy(h1c->conn);
+					h1c->conn->mux->destroy(h1c);
 					TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 					goto end;
 				}

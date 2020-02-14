@@ -3468,7 +3468,7 @@ static void fcgi_detach(struct conn_stream *cs)
 				if (eb_is_empty(&fconn->streams_by_id)) {
 					if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn)) {
 						/* The server doesn't want it, let's kill the connection right away */
-						fconn->conn->mux->destroy(fconn->conn);
+						fconn->conn->mux->destroy(fconn);
 						TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					}
 					TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
