@@ -16,5 +16,5 @@ jobs:
     - name: fake step
       run: C:\\tools\\cygwin\\bin\\bash -lc 'pwd'
     - name: build
-      run: C:\\tools\\cygwin\\bin\\bash -lc 'cd $OLDPWD && make TARGET=cygwin USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_THREAD=1 && ./haproxy -vv'
+      run: C:\\tools\\cygwin\\bin\\bash -lc 'cd $OLDPWD && make TARGET=cygwin ERR=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_THREAD=1 && ./haproxy -vv'
 
