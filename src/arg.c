@@ -213,6 +213,10 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			}
 			trash.data = out - trash.area;
 		}
+
+		if (len && *in)
+			goto buffer_err;
+
 		trash.area[trash.data] = 0;
 
 		arg->type = (mask >> (pos * ARGT_BITS)) & ARGT_MASK;
