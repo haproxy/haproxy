@@ -124,7 +124,7 @@ fi
 
 (
  echo "# Send this using:"
- echo "#   mutt -i <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+ echo "#   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
 ) >> "$OUTPUT"
 
 (echo
@@ -218,7 +218,7 @@ humandate=$(date "+%B, $day, %Y" -d "$DATE")
 echo "The announce was emitted into file $OUTPUT."
 echo "You can edit it and send it this way :"
 echo
-echo "   mutt -i <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
 echo
 echo "The HTML block was emitted into $HTML and needs to be finished by hand."
 echo
