@@ -214,7 +214,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 			trash.data = out - trash.area;
 		}
 
-		if (len && *in)
+		if (len && *in && *in != ',' && *in != ')')
 			goto buffer_err;
 
 		trash.area[trash.data] = 0;
