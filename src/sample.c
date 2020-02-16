@@ -2354,6 +2354,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	struct my_regex *reg = arg_p[0].data.reg;
 	regmatch_t pmatch[MAX_MATCH];
 	struct buffer *trash = get_trash_chunk();
+	struct buffer *output;
 	int flag, max;
 	int found;
 
@@ -2386,15 +2387,20 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 		if (!found)
 			break;
 
+		output = alloc_trash_chunk();
+		output->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
+
 		/* replace the matching part */
-		max = trash->size - trash->data;
+		max = output->size - output->data;
 		if (max) {
-			if (max > arg_p[1].data.str.data)
-				max = arg_p[1].data.str.data;
+			if (max > output->data)
+				max = output->data;
 			memcpy(trash->area + trash->data,
-			       arg_p[1].data.str.area, max);
+			       output->area, max);
 			trash->data += max;
 		}
+
+		free_trash_chunk(output);
 
 		/* stop here if we're done with this string */
 		if (start >= end)

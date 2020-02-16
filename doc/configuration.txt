@@ -14161,6 +14161,11 @@ regsub(<regex>,<subst>[,<flags>])
      # copy query string to x-query and drop all leading '?', ';' and '&'
      http-request set-header x-query "%[query,regsub([?;&]*,'')]"
 
+     # capture groups and backreferences
+     # both lines do the same.
+     http-request redirect location %[url,'regsub("(foo|bar)([0-9]+)?","\2\1",i)]'
+     http-request redirect location %[url,regsub(\"(foo|bar)([0-9]+)?\",\"\2\1\",i)]
+
 capture-req(<id>)
   Capture the string entry in the request slot <id> and returns the entry as
   is. If the slot doesn't exist, the capture fails silently.
