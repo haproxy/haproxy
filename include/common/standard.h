@@ -373,13 +373,13 @@ extern const char *invalid_domainchar(const char *name);
 extern const char *invalid_prefix_char(const char *name);
 
 /* returns true if <c> is an identifier character, that is, a digit, a letter,
- * or '-', '_', ':' or '.'. This is usable for proxy names, server names, ACL
- * names, sample fetch names, and converter names.
+ * or '-', '+', '_', ':' or '.'. This is usable for proxy names, server names,
+ * ACL names, sample fetch names, and converter names.
  */
 static inline int is_idchar(char c)
 {
 	return isalnum((int)(unsigned char)c) ||
-	       c == '.' || c == '_' || c == '-' || c == ':';
+	       c == '.' || c == '_' || c == '-' || c == '+' || c == ':';
 }
 
 /*
