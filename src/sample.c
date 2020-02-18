@@ -2388,6 +2388,9 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 			break;
 
 		output = alloc_trash_chunk();
+		if (!output)
+			break;
+
 		output->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
 
 		/* replace the matching part */
