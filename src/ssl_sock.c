@@ -3356,17 +3356,6 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 			goto end;
 		}
 	}
-	/* Find Certificate Chain in global */
-	if (chain == NULL) {
-		struct issuer_chain *issuer;
-		issuer = ssl_get_issuer_chain(cert);
-		if (issuer)
-			chain = X509_chain_up_ref(issuer->chain);
-	}
-	/* no chain */
-	if (chain == NULL) {
-		chain = sk_X509_new_null();
-	}
 
 	ret = ERR_get_error();
 	if (ret && (ERR_GET_LIB(ret) != ERR_LIB_PEM && ERR_GET_REASON(ret) != PEM_R_NO_START_LINE)) {
@@ -3619,6 +3608,7 @@ end:
 static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
 {
 	int errcode = 0;
+	STACK_OF(X509) *find_chain = NULL;
 
 	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
 		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
@@ -3634,9 +3624,18 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		goto end;
 	}
 
+	if (ckch->chain) {
+		find_chain = ckch->chain;
+	} else {
+		/* Find Certificate Chain in global */
+		struct issuer_chain *issuer;
+		issuer = ssl_get_issuer_chain(ckch->cert);
+		if (issuer)
+			find_chain = issuer->chain;
+	}
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
 #ifdef SSL_CTX_set1_chain
-        if (!SSL_CTX_set1_chain(ctx, ckch->chain)) {
+        if (!SSL_CTX_set1_chain(ctx, find_chain)) {
 		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
 			  err && *err ? *err : "", path);
 		errcode |= ERR_ALERT | ERR_FATAL;
@@ -3646,7 +3645,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	{ /* legacy compat (< openssl 1.0.2) */
 		X509 *ca;
 		STACK_OF(X509) *chain;
-		chain = X509_chain_up_ref(ckch->chain);
+		chain = X509_chain_up_ref(find_chain);
 		while ((ca = sk_X509_shift(chain)))
 			if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
 				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
