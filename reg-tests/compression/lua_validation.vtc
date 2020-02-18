@@ -40,7 +40,7 @@ shell {
         HOST="\[::1\]"
     fi
 
-    md5=$(which md5 || which md5sum)
+    md5=$(command -v md5 || command -v md5sum)
 
     if [ -z $md5 ] ; then
         echo "MD5 checksum utility not found"
