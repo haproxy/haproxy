@@ -2394,7 +2394,6 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 
 		if (sess->fe->mode == PR_MODE_HTTP) {
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[n], 1);
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.cum_req, 1);
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
