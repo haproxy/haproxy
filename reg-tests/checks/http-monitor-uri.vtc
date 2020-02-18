@@ -1,0 +1,56 @@
+varnishtest "Test the HTTP directive monitor-uri"
+#REQUIRE_VERSION=2.2
+
+# This config tests the HTTP directive monitor-uri. Especially the path matching
+# when an absolute-form uri is received from the client. But also the
+# case-sensitivity of the matching.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        monitor-uri /health
+
+    frontend fe2
+        bind "fd@${fe2}"
+        monitor-uri http://www.haproxy.org/health
+} -start
+
+client c1  -connect ${h1_fe1_sock} {
+    txreq -req GET -url /health
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2  -connect ${h1_fe1_sock} {
+    txreq -req GET -url http://www.haproxy.org/health \
+          -hdr "Host: www.haproxy.org"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3  -connect ${h1_fe1_sock} {
+    txreq -req GET -url /hEAlth
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c4  -connect ${h1_fe2_sock} {
+    txreq -req GET -url http://www.haproxy.org/health \
+          -hdr "Host: www.haproxy.org"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c5  -connect ${h1_fe2_sock} {
+    txreq -req GET -url /health
+    rxresp
+    expect resp.status == 503
+} -run

@@ -6375,6 +6375,11 @@ monitor-uri <uri>
   "monitor fail" and ACLs so that the result can be adjusted to whatever check
   can be imagined (most often the number of available servers in a backend).
 
+  Note: if <uri> starts by a slash ('/'), the matching is performed against the
+        request's path instead of the request's uri. It is a workaround to let
+        the HTTP/2 requests match the monitor-uri. Indeed, in HTTP/2, clients
+        are encouraged to send absolute URIs only.
+
   Example :
     # Use /haproxy_test to report haproxy's status
     frontend www

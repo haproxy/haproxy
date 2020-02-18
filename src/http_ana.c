@@ -319,12 +319,17 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	/*
-	 * 2: check if the URI matches the monitor_uri.
-	 * We have to do this for every request which gets in, because
-	 * the monitor-uri is defined by the frontend.
+	 * 2: check if the URI matches the monitor_uri.  We have to do this for
+	 * every request which gets in, because the monitor-uri is defined by
+	 * the frontend. If the monitor-uri starts with a '/', the matching is
+	 * done against the request's path. Otherwise, the request's uri is
+	 * used. It is a workaround to let HTTP/2 health-checks work as
+	 * expected.
 	 */
 	if (unlikely((sess->fe->monitor_uri_len != 0) &&
-		     isteq(htx_sl_req_uri(sl), ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len)))) {
+		     ((*sess->fe->monitor_uri == '/' && isteq(http_get_path(htx_sl_req_uri(sl)),
+							      ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len))) ||
+		      isteq(htx_sl_req_uri(sl), ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len))))) {
 		/*
 		 * We have found the monitor URI
 		 */
