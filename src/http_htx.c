@@ -584,8 +584,12 @@ static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struc
 
 	uri = htx_sl_req_uri(sl);
 	authority = http_get_authority(uri, 1);
-	if (!authority.len || isteq(host, authority))
+	if (!authority.len)
 		return 0;
+
+	/* Don't update the uri if there is no change */
+	if (isteq(host, authority))
+		return 1;
 
 	/* Start by copying old method and version */
 	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
