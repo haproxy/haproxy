@@ -160,6 +160,7 @@ static struct xprt_ops ssl_sock;
 int nb_engines = 0;
 
 static struct eb_root cert_issuer_tree = EB_ROOT; /* issuers tree from "issuers-chain-path" */
+static struct issuer_chain* ssl_get_issuer_chain(X509 *cert);
 
 static struct {
 	char *crt_base;             /* base directory path for certificates */
@@ -3357,22 +3358,10 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	}
 	/* Find Certificate Chain in global */
 	if (chain == NULL) {
-		AUTHORITY_KEYID *akid;
-		akid = X509_get_ext_d2i(cert, NID_authority_key_identifier, NULL, NULL);
-		if (akid) {
-			struct issuer_chain *issuer;
-			struct eb64_node *node;
-			u64 hk;
-			hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
-			for (node = eb64_lookup(&cert_issuer_tree, hk); node; node = eb64_next(node)) {
-				issuer = container_of(node, typeof(*issuer), node);
-				if (X509_check_issued(sk_X509_value(issuer->chain, 0), cert) == X509_V_OK) {
-					chain = X509_chain_up_ref(issuer->chain);
-					break;
-				}
-			}
-			AUTHORITY_KEYID_free(akid);
-		}
+		struct issuer_chain *issuer;
+		issuer = ssl_get_issuer_chain(cert);
+		if (issuer)
+			chain = X509_chain_up_ref(issuer->chain);
 	}
 	/* no chain */
 	if (chain == NULL) {
@@ -9841,6 +9830,28 @@ static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 	if (chain)
 		sk_X509_pop_free(chain, X509_free);
 	return ret;
+}
+
+static struct issuer_chain* ssl_get_issuer_chain(X509 *cert)
+{
+	AUTHORITY_KEYID *akid;
+	struct issuer_chain *issuer = NULL;
+
+	akid = X509_get_ext_d2i(cert, NID_authority_key_identifier, NULL, NULL);
+	if (akid) {
+		struct eb64_node *node;
+		u64 hk;
+		hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
+		for (node = eb64_lookup(&cert_issuer_tree, hk); node; node = eb64_next(node)) {
+			struct issuer_chain *ti = container_of(node, typeof(*issuer), node);
+			if (X509_check_issued(sk_X509_value(ti->chain, 0), cert) == X509_V_OK) {
+				issuer = ti;
+				break;
+			}
+		}
+		AUTHORITY_KEYID_free(akid);
+	}
+	return issuer;
 }
 
 static void ssl_free_global_issuers(void)
