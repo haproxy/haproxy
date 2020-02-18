@@ -1404,9 +1404,9 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
  * successfully enabled, or -1 in other error case.
  */
 #ifndef OPENSSL_IS_BORINGSSL
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch, STACK_OF(X509) *chain)
 {
-	X509 *x = NULL, *issuer = NULL;
+	X509 *x, *issuer;
 	OCSP_CERTID *cid = NULL;
 	int i, ret = -1;
 	struct certificate_ocsp *ocsp = NULL, *iocsp;
@@ -1420,6 +1420,17 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 		goto out;
 
 	issuer = ckch->ocsp_issuer;
+	/* take issuer from chain over ocsp_issuer, is what is done historicaly */
+	if (chain) {
+		/* check if one of the certificate of the chain is the issuer */
+		for (i = 0; i < sk_X509_num(chain); i++) {
+			X509 *ti = sk_X509_value(chain, i);
+			if (X509_check_issued(ti, x) == X509_V_OK) {
+				issuer = ti;
+				break;
+			}
+		}
+	}
 	if (!issuer)
 		goto out;
 
@@ -1520,7 +1531,7 @@ out:
 	return ret;
 }
 #else /* OPENSSL_IS_BORINGSSL */
-static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch)
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckch, STACK_OF(X509) *chain)
 {
 	return SSL_CTX_set_ocsp_response(ctx, (const uint8_t *)ckch->ocsp_response->area, ckch->ocsp_response->data);
 }
@@ -3291,7 +3302,6 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 {
 	BIO *in = NULL;
 	int ret = 1;
-	int i;
 	X509 *ca;
 	X509 *cert = NULL;
 	EVP_PKEY *key = NULL;
@@ -3390,15 +3400,6 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	SWAP(ckch->cert, cert);
 	SWAP(ckch->chain, chain);
 
-	/* check if one of the certificate of the chain is the issuer */
-	for (i = 0; i < sk_X509_num(ckch->chain); i++) {
-		X509 *issuer = sk_X509_value(ckch->chain, i);
-		if (X509_check_issued(issuer, ckch->cert) == X509_V_OK) {
-			ckch->ocsp_issuer = issuer;
-			X509_up_ref(issuer);
-			break;
-		}
-	}
 	ret = 0;
 
 end:
@@ -3574,11 +3575,6 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 					ret = 1;
 					goto end;
 				}
-			} else {
-				memprintf(err, "%sNo issuer found, cannot use the OCSP response'.\n",
-				          err && *err ? *err : "");
-				ret = 1;
-				goto end;
 			}
 		}
 	}
@@ -3687,7 +3683,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	/* Load OCSP Info into context */
 	if (ckch->ocsp_response) {
-		if (ssl_sock_load_ocsp(ctx, ckch) < 0) {
+		if (ssl_sock_load_ocsp(ctx, ckch, find_chain) < 0) {
 			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 			          err && *err ? *err : "", path);
 			errcode |= ERR_ALERT | ERR_FATAL;
