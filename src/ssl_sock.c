@@ -10635,6 +10635,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	struct buffer *out = alloc_trash_chunk();
 	struct buffer *tmp = alloc_trash_chunk();
 	X509_NAME *name = NULL;
+	STACK_OF(X509) *chain;
 	unsigned int len = 0;
 	int write = -1;
 	BIO *bio = NULL;
@@ -10648,6 +10649,17 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		if (ckchs == ckchs_transaction.new_ckchs)
 			chunk_appendf(out, "*");
 		chunk_appendf(out, "%s\n", ckchs->path);
+
+		chain = ckchs->ckch->chain;
+		if (chain == NULL) {
+			struct issuer_chain *issuer;
+			issuer = ssl_get_issuer_chain(ckchs->ckch->cert);
+			if (issuer) {
+				chain = issuer->chain;
+				chunk_appendf(out, "Chain Filename: ");
+				chunk_appendf(out, "%s\n", issuer->path);
+			}
+		}
 		chunk_appendf(out, "Serial: ");
 		if (ssl_sock_get_serial(ckchs->ckch->cert, tmp) == -1)
 			goto end;
@@ -10715,8 +10727,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chunk_appendf(out, "%s\n", tmp->area);
 
 		/* Displays subject of each certificate in the chain */
-		for (i = 0; i < sk_X509_num(ckchs->ckch->chain); i++) {
-			X509 *ca = sk_X509_value(ckchs->ckch->chain, i);
+		for (i = 0; i < sk_X509_num(chain); i++) {
+			X509 *ca = sk_X509_value(chain, i);
 
 			chunk_appendf(out, "Chain Subject: ");
 			if ((name = X509_get_subject_name(ca)) == NULL)
