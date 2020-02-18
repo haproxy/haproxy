@@ -1030,7 +1030,6 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 	/* now parsing additional records */
 	nb_saved_records = 0;
-	//TODO: check with Dinko for DNS poisoning
 	for (i = 0; i < dns_p->header.arcount; i++) {
 		if (reader >= bufend)
 			return DNS_RESP_INVALID;
@@ -1202,7 +1201,6 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 					continue;
 				tmp_record->ar_item = dns_answer_record;
 			}
-			//TODO: there is a leak for now, since we don't clean up AR records
 
 			LIST_ADDQ(&dns_p->ar_list, &dns_answer_record->list);
 		}
