@@ -1370,7 +1370,7 @@ process_frame_cb(evutil_socket_t fd, short events, void *arg)
 	end = frame->buf+max_frame_size;
 
 	if (frame->ip_score != -1) {
-		DEBUG(frame->worker, "Add action : set variable ip_scode=%u",
+		DEBUG(frame->worker, "Add action : set variable ip_score=%u",
 		      frame->ip_score);
 
 		*p++ = SPOE_ACT_T_SET_VAR;                     /* Action type */
@@ -1419,7 +1419,7 @@ read_frame_cb(evutil_socket_t fd, short events, void *arg)
 		 frame->len - frame->offset);
 	if (n <= 0) {
 		if (n < 0) {
-			LOG(client->worker, "Frame to read frame : %m");
+			LOG(client->worker, "Failed to read frame : %m");
 			goto close;
 		}
 		return;
@@ -1548,7 +1548,7 @@ write_frame_cb(evutil_socket_t fd, short events, void *arg)
 	if (frame->offset != frame->len)
 		return;
 
-	DEBUG(client->worker, "<%lu> Frame of %u bytes send",
+	DEBUG(client->worker, "<%lu> Frame of %u bytes sent",
 	      client->id, frame->len);
 
 	switch (client->state) {
