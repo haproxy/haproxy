@@ -9857,7 +9857,7 @@ static int ssl_load_global_issuers_from_path(char **args, int section_type, stru
 			goto next;
 		ssl_load_global_issuer_from_BIO(in, fp, &warn);
 		if (warn) {
-			ha_warning(warn);
+			ha_warning("%s", warn);
 			free(warn);
 			warn = NULL;
 		}
