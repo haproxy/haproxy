@@ -1318,11 +1318,18 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		ret = PP2_HDR_LEN_UNSPEC;
 	}
 	else {
+		/* Note: due to historic compatibility with V1 which required
+		 * to send "PROXY" with local addresses for local connections,
+		 * we can end up here with the remote in fact being our outgoing
+		 * connection. We still want to send real addresses and LOCAL on
+		 * it.
+		 */
+		hdr->ver_cmd = PP2_VERSION;
+		hdr->ver_cmd |= conn_is_back(remote) ? PP2_CMD_LOCAL : PP2_CMD_PROXY;
 		/* IPv4 for both src and dst */
 		if (src->ss_family == AF_INET && dst->ss_family == AF_INET) {
 			if (buf_len < PP2_HDR_LEN_INET)
 				return 0;
-			hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
 			hdr->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
 			hdr->addr.ip4.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
 			hdr->addr.ip4.src_port = ((struct sockaddr_in *)src)->sin_port;
@@ -1336,7 +1343,6 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 			if (buf_len < PP2_HDR_LEN_INET6)
 				return 0;
-			hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
 			hdr->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
 			if (src->ss_family == AF_INET) {
 				v4tov6(&tmp, &((struct sockaddr_in *)src)->sin_addr);
