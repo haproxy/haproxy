@@ -1028,7 +1028,9 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* Save the number of records we really own */
 	dns_p->header.ancount = nb_saved_records;
 
-	/* now parsing additional records */
+	/* now parsing additional records for SRV queries only */
+	if (dns_query->type != DNS_RTYPE_SRV)
+		goto skip_parsing_additional_records;
 	nb_saved_records = 0;
 	for (i = 0; i < dns_p->header.arcount; i++) {
 		if (reader >= bufend)
@@ -1043,25 +1045,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		if (len == 0) {
 			pool_free(dns_answer_item_pool, dns_answer_record);
-			return DNS_RESP_INVALID;
-		}
-
-		/* Check if the current record dname is valid.  previous_dname
-		 * points either to queried dname or last CNAME target */
-		if (dns_query->type != DNS_RTYPE_SRV && memcmp(previous_dname, tmpname, len) != 0) {
-			pool_free(dns_answer_item_pool, dns_answer_record);
-			if (i == 0) {
-				/* First record, means a mismatch issue between
-				 * queried dname and dname found in the first
-				 * record */
-				return DNS_RESP_INVALID;
-			}
-			else {
-				/* If not the first record, this means we have a
-				 * CNAME resolution error */
-				return DNS_RESP_CNAME_ERROR;
-			}
-
+			continue;
 		}
 
 		memcpy(dns_answer_record->name, tmpname, len);
@@ -1205,6 +1189,8 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			LIST_ADDQ(&dns_p->ar_list, &dns_answer_record->list);
 		}
 	} /* for i 0 to arcount */
+
+ skip_parsing_additional_records:
 
 	/* Save the number of records we really own */
 	dns_p->header.arcount = nb_saved_records;
