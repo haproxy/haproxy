@@ -34,11 +34,6 @@
 static THREAD_LOCAL struct epoll_event *epoll_events = NULL;
 static int epoll_fd[MAX_THREADS]; // per-thread epoll_fd
 
-/* This structure may be used for any purpose. Warning! do not use it in
- * recursive functions !
- */
-static THREAD_LOCAL struct epoll_event ev;
-
 #ifndef EPOLLRDHUP
 /* EPOLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
 #define EPOLLRDHUP 0x2000
@@ -54,6 +49,7 @@ REGPRM1 static void __fd_clo(int fd)
 {
 	if (unlikely(fdtab[fd].cloned)) {
 		unsigned long m = polled_mask[fd].poll_recv | polled_mask[fd].poll_send;
+		struct epoll_event ev;
 		int i;
 
 		for (i = global.nbthread - 1; i >= 0; i--)
@@ -65,6 +61,7 @@ REGPRM1 static void __fd_clo(int fd)
 static void _update_fd(int fd)
 {
 	int en, opcode;
+	struct epoll_event ev;
 
 	en = fdtab[fd].state;
 
@@ -209,8 +206,10 @@ REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
 	/* process polled events */
 
 	for (count = 0; count < status; count++) {
-		unsigned int n;
-		unsigned int e = epoll_events[count].events;
+		struct epoll_event ev;
+		unsigned int n, e;
+
+		e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
 		if (!fdtab[fd].owner) {
