@@ -292,6 +292,9 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				}
 			}
 			count -= ret;
+
+			if (flags & CO_RFL_READ_ONCE)
+				break;
 		}
 		else if (ret == 0) {
 			goto read0;
