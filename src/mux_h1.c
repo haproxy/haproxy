@@ -2213,17 +2213,56 @@ static int h1_process(struct h1c * h1c)
 
 static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 {
-	struct h1c *h1c = ctx;
+	struct connection *conn;
+	struct tasklet *tl = (struct tasklet *)t;
+	int conn_in_list;
+	struct h1c *h1c;
 	int ret = 0;
 
-	TRACE_POINT(H1_EV_H1C_WAKE, h1c->conn);
+
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+	if (tl->context == NULL) {
+		/* The connection has been taken over by another thread,
+		 * we're no longer responsible for it, so just free the
+		 * tasklet, and do nothing.
+		 */
+		HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
+		tasklet_free(tl);
+		return NULL;
+	}
+	h1c = ctx;
+	conn = h1c->conn;
+
+	TRACE_POINT(H1_EV_H1C_WAKE, conn);
+
+	/* Remove the connection from the list, to be sure nobody attempts
+	 * to use it while we handle the I/O events
+	 */
+	conn_in_list = conn->flags & CO_FL_LIST_MASK;
+	if (conn_in_list)
+		MT_LIST_DEL(&conn->list);
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 		ret = h1_send(h1c);
 	if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h1_recv(h1c);
 	if (ret || !h1c->h1s)
-		h1_process(h1c);
+		ret = h1_process(h1c);
+	/* If we were in an idle list, we want to add it back into it,
+	 * unless h1_process() returned -1, which mean it has destroyed
+	 * the connection (testing !ret is enough, if h1_process() wasn't
+	 * called then ret will be 0 anyway.
+	 */
+	if (!ret && conn_in_list) {
+		struct server *srv = objt_server(conn->target);
+
+		if (conn_in_list == CO_FL_SAFE_LIST)
+			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+		else
+			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+	}
 	return NULL;
 }
 
@@ -2266,6 +2305,22 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 		TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn);
 		return t;
 	}
+
+	/* We're about to destroy the connection, so make sure nobody attempts
+	 * to steal it from us.
+	 */
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+
+	if (h1c && h1c->conn->flags & CO_FL_LIST_MASK)
+		MT_LIST_DEL(&h1c->conn->list);
+
+	/* Somebody already stole the connection from us, so we should not
+	 * free it, we just have to free the task.
+	 */
+	if (!t->context)
+		h1c = NULL;
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	task_destroy(t);
 
@@ -2848,6 +2903,51 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 	return 0;
 }
 
+/* Migrate the the connection to the current thread.
+ * Return 0 if successful, non-zero otherwise.
+ * Expected to be called with the old thread lock held.
+ */
+static int h1_takeover(struct connection *conn)
+{
+	struct h1c *h1c = conn->ctx;
+
+	if (fd_takeover(conn->handle.fd, conn) != 0)
+		return -1;
+	if (h1c->wait_event.events)
+		h1c->conn->xprt->unsubscribe(h1c->conn, h1c->conn->xprt_ctx,
+		    h1c->wait_event.events, &h1c->wait_event);
+	/* To let the tasklet know it should free itself, and do nothing else,
+	 * set its context to NULL.
+	 */
+	h1c->wait_event.tasklet->context = NULL;
+	tasklet_wakeup(h1c->wait_event.tasklet);
+	if (h1c->task) {
+		h1c->task->context = NULL;
+		/* Wake the task, to let it free itself */
+		task_wakeup(h1c->task, TASK_WOKEN_OTHER);
+
+		h1c->task = task_new(tid_bit);
+		if (!h1c->task) {
+			h1_release(h1c);
+			return -1;
+		}
+		h1c->task->process = h1_timeout_task;
+		h1c->task->context = h1c;
+	}
+	h1c->wait_event.tasklet = tasklet_new();
+	if (!h1c->wait_event.tasklet) {
+		h1_release(h1c);
+		return -1;
+	}
+	h1c->wait_event.tasklet->process = h1_io_cb;
+	h1c->wait_event.tasklet->context = h1c;
+	h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx,
+		                   SUB_RETRY_RECV, &h1c->wait_event);
+
+	return 0;
+}
+
+
 static void h1_hdeaders_case_adjust_deinit()
 {
 	struct ebpt_node *node, *next;
@@ -3020,6 +3120,7 @@ static const struct mux_ops mux_h1_ops = {
 	.show_fd     = h1_show_fd,
 	.reset       = h1_reset,
 	.ctl         = h1_ctl,
+	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX,
 	.name        = "H1",
 };
