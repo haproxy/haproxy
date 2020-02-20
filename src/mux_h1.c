@@ -1986,6 +1986,7 @@ static int h1_recv(struct h1c *h1c)
 	struct h1s *h1s = h1c->h1s;
 	size_t ret = 0, max;
 	int rcvd = 0;
+	int flags = 0;
 
 	TRACE_ENTER(H1_EV_H1C_RECV, h1c->conn);
 
@@ -2021,6 +2022,10 @@ static int h1_recv(struct h1c *h1c)
 	if (b_data(&h1c->ibuf) > 0 && b_data(&h1c->ibuf) < 128)
 		b_slow_realign(&h1c->ibuf, trash.area, 0);
 
+	/* avoid useless reads after first responses */
+	if (h1s && (h1s->req.state == H1_MSG_RQBEFORE || h1s->res.state == H1_MSG_RPBEFORE))
+		flags |= CO_RFL_READ_ONCE;
+
 	max = buf_room_for_htx_data(&h1c->ibuf);
 	if (max) {
 		if (h1c->flags & H1C_F_IN_FULL) {
@@ -2035,7 +2040,7 @@ static int h1_recv(struct h1c *h1c)
 			 */
 			h1c->ibuf.head  = sizeof(struct htx);
 		}
-		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, 0);
+		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, flags);
 	}
 	if (ret > 0) {
 		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn,,, (size_t[]){ret});
