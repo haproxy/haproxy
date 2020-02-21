@@ -80,8 +80,6 @@ void conn_fd_handler(int fd)
 		return;
 	}
 
-	conn->flags |= CO_FL_WILL_UPDATE;
-
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) &&
@@ -161,34 +159,8 @@ void conn_fd_handler(int fd)
 		return;
 
 	/* commit polling changes */
-	conn->flags &= ~CO_FL_WILL_UPDATE;
 	conn_cond_update_polling(conn);
 	return;
-}
-
-/* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_XPRT_* flags. The connection
- * flags are updated with the new flags at the end of the operation. Polling
- * is totally disabled if an error was reported.
- */
-void conn_update_xprt_polling(struct connection *c)
-{
-	unsigned int f = c->flags;
-
-	if (!conn_ctrl_ready(c))
-		return;
-
-	/* update read status if needed */
-	if (f & CO_FL_XPRT_RD_ENA)
-		fd_want_recv(c->handle.fd);
-	else
-		fd_stop_recv(c->handle.fd);
-
-	/* update write status if needed */
-	if (f & CO_FL_XPRT_WR_ENA)
-		fd_want_send(c->handle.fd);
-	else
-		fd_stop_send(c->handle.fd);
 }
 
 /* This is the callback which is set when a connection establishment is pending
@@ -358,7 +330,6 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, st
 	if (event_type & SUB_RETRY_SEND)
 		__conn_xprt_stop_send(conn);
 
-	conn_update_xprt_polling(conn);
 	return 0;
 }
 
@@ -381,7 +352,6 @@ int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, stru
 	if (event_type & SUB_RETRY_SEND)
 		__conn_xprt_want_send(conn);
 
-	conn_update_xprt_polling(conn);
 	return 0;
 }
 
@@ -1036,7 +1006,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 				conn,
 				((char *)(&req_line)) + (sizeof(req_line)+conn->send_proxy_ofs),
 				-conn->send_proxy_ofs,
-				(conn->flags & CO_FL_XPRT_WR_ENA) ? MSG_MORE : 0);
+				(conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0);
 
 		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Before send remain is [%d], sent [%d]\n",
 				conn->handle.fd, -conn->send_proxy_ofs, ret);

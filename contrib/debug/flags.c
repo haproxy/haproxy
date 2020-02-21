@@ -163,11 +163,8 @@ void show_conn_flags(unsigned int f)
 	SHOW_FLAG(f, CO_FL_ADDR_TO_SET);
 	SHOW_FLAG(f, CO_FL_ADDR_FROM_SET);
 	SHOW_FLAG(f, CO_FL_WAIT_ROOM);
-	SHOW_FLAG(f, CO_FL_WILL_UPDATE);
 	SHOW_FLAG(f, CO_FL_XPRT_READY);
 	SHOW_FLAG(f, CO_FL_CTRL_READY);
-	SHOW_FLAG(f, CO_FL_XPRT_WR_ENA);
-	SHOW_FLAG(f, CO_FL_XPRT_RD_ENA);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

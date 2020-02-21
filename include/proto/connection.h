@@ -163,48 +163,20 @@ static inline void conn_stop_tracking(struct connection *conn)
 	conn->flags &= ~CO_FL_XPRT_TRACKED;
 }
 
-/* Update polling on connection <c>'s file descriptor depending on its current
- * state as reported in the connection's CO_FL_XPRT_* flags. The connection
- * flags are updated with the new flags at the end of the operation. Polling
- * is totally disabled if an error was reported.
- */
-void conn_update_xprt_polling(struct connection *c);
-
-/* Automatically updates polling on connection <c> depending on the XPRT flags.
- * It does nothing if CO_FL_WILL_UPDATE is present, indicating that an upper
- * caller is going to do it again later.
- */
-static inline void conn_cond_update_xprt_polling(struct connection *c)
-{
-	if (!(c->flags & CO_FL_WILL_UPDATE))
-		conn_update_xprt_polling(c);
-}
-
 /* Stop all polling on the fd. This might be used when an error is encountered
- * for example. It does not propage the change to the fd layer if
- * CO_FL_WILL_UPDATE is present, indicating that an upper caller is going to do
- * it later.
+ * for example.
  */
 static inline void conn_stop_polling(struct connection *c)
 {
-	c->flags &= ~(CO_FL_XPRT_RD_ENA | CO_FL_XPRT_WR_ENA);
-	if (!(c->flags & CO_FL_WILL_UPDATE) && conn_ctrl_ready(c))
+	if (conn_ctrl_ready(c))
 		fd_stop_both(c->handle.fd);
 }
 
-/* Automatically update polling on connection <c> depending on the XPRT and
- * SOCK flags, and on whether a handshake is in progress or not. This may be
- * called at any moment when there is a doubt about the effectiveness of the
- * polling state, for instance when entering or leaving the handshake state.
- * It does nothing if CO_FL_WILL_UPDATE is present, indicating that an upper
- * caller is going to do it again later.
- */
+/* Stops polling in case of error on the connection. */
 static inline void conn_cond_update_polling(struct connection *c)
 {
 	if (unlikely(c->flags & CO_FL_ERROR))
 		conn_stop_polling(c);
-	else if (!(c->flags & CO_FL_WILL_UPDATE))
-		conn_update_xprt_polling(c);
 }
 
 /***** Event manipulation primitives for use by DATA I/O callbacks *****/
@@ -214,57 +186,57 @@ static inline void conn_cond_update_polling(struct connection *c)
  */
 static inline void __conn_xprt_want_recv(struct connection *c)
 {
-	c->flags |= CO_FL_XPRT_RD_ENA;
+	if (conn_ctrl_ready(c))
+		fd_want_recv(c->handle.fd);
 }
 
 static inline void __conn_xprt_stop_recv(struct connection *c)
 {
-	c->flags &= ~CO_FL_XPRT_RD_ENA;
+	if (conn_ctrl_ready(c))
+		fd_stop_recv(c->handle.fd);
 }
 
 static inline void __conn_xprt_want_send(struct connection *c)
 {
-	c->flags |= CO_FL_XPRT_WR_ENA;
+	if (conn_ctrl_ready(c))
+		fd_want_send(c->handle.fd);
 }
 
 static inline void __conn_xprt_stop_send(struct connection *c)
 {
-	c->flags &= ~CO_FL_XPRT_WR_ENA;
+	if (conn_ctrl_ready(c))
+		fd_stop_send(c->handle.fd);
 }
 
 static inline void __conn_xprt_stop_both(struct connection *c)
 {
-	c->flags &= ~(CO_FL_XPRT_WR_ENA | CO_FL_XPRT_RD_ENA);
+	if (conn_ctrl_ready(c))
+		fd_stop_both(c->handle.fd);
 }
 
 static inline void conn_xprt_want_recv(struct connection *c)
 {
 	__conn_xprt_want_recv(c);
-	conn_cond_update_xprt_polling(c);
 }
 
 static inline void conn_xprt_stop_recv(struct connection *c)
 {
 	__conn_xprt_stop_recv(c);
-	conn_cond_update_xprt_polling(c);
 }
 
 static inline void conn_xprt_want_send(struct connection *c)
 {
 	__conn_xprt_want_send(c);
-	conn_cond_update_xprt_polling(c);
 }
 
 static inline void conn_xprt_stop_send(struct connection *c)
 {
 	__conn_xprt_stop_send(c);
-	conn_cond_update_xprt_polling(c);
 }
 
 static inline void conn_xprt_stop_both(struct connection *c)
 {
 	__conn_xprt_stop_both(c);
-	conn_cond_update_xprt_polling(c);
 }
 
 /* read shutdown, called from the rcv_buf/rcv_pipe handlers when
@@ -290,7 +262,6 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	__conn_xprt_stop_send(c);
-	conn_cond_update_xprt_polling(c);
 
 	/* don't perform a clean shutdown if we're going to reset or
 	 * if the shutr was already received.

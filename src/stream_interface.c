@@ -396,7 +396,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		ret = conn_sock_send(conn,
 				     trash.area + ret + conn->send_proxy_ofs,
 		                     -conn->send_proxy_ofs,
-		                     (conn->flags & CO_FL_XPRT_WR_ENA) ? MSG_MORE : 0);
+		                     (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0);
 
 		if (ret < 0)
 			goto out_error;

@@ -141,18 +141,18 @@ enum {
 
 	/* Do not change these values without updating conn_*_poll_changes() ! */
 	/* unused : 0x00000001 */
-	CO_FL_XPRT_RD_ENA   = 0x00000002,  /* receiving data is allowed */
+	/* unused : 0x00000002 */
 	/* unused : 0x00000004, 0x00000008 */
 
 	/* unused : 0x00000010 */
-	CO_FL_XPRT_WR_ENA   = 0x00000020,  /* sending data is desired */
+	/* unused : 0x00000020 */
 	/* unused : 0x00000040, 0x00000080 */
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
 	CO_FL_XPRT_READY    = 0x00000200, /* xprt_init() done, xprt_close() needed */
 
-	CO_FL_WILL_UPDATE   = 0x00000400, /* the conn handler will take care of updating the polling */
+	/* unused : 0x00000400 */
 
 	/* This flag is used by data layers to indicate they had to stop
 	 * receiving data because a buffer was full. The connection handler
