@@ -151,5 +151,36 @@
 #endif
 #endif
 
+/* Some architectures have a double-word CAS, sometimes even dual-8 bytes.
+ * Some architectures support unaligned accesses, others are fine with them
+ * but only for non-atomic operations. Also mention those supporting unaligned
+ * accesses and being little endian, and those where unaligned accesses are
+ * known to be fast (almost as fast as aligned ones).
+ */
+#if defined(__x86_64__)
+#define HA_UNALIGNED
+#define HA_UNALIGNED_LE
+#define HA_UNALIGNED_LE64
+#define HA_UNALIGNED_FAST
+#define HA_UNALIGNED_ATOMIC
+#define HA_HAVE_CAS_DW
+#define HA_CAS_IS_8B
+#elif defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__)
+#define HA_UNALIGNED
+#define HA_UNALIGNED_LE
+#define HA_UNALIGNED_ATOMIC
+#elif defined (__aarch64__) || defined(__ARM_ARCH_8A)
+#define HA_UNALIGNED
+#define HA_UNALIGNED_LE
+#define HA_UNALIGNED_LE64
+#define HA_UNALIGNED_FAST
+#define HA_HAVE_CAS_DW
+#define HA_CAS_IS_8B
+#elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
+#define HA_UNALIGNED
+#define HA_UNALIGNED_LE
+#define HA_UNALIGNED_FAST
+#define HA_HAVE_CAS_DW
+#endif
 
 #endif /* _COMMON_COMPILER_H */
