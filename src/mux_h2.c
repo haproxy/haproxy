@@ -686,7 +686,6 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &h2c->buf_wait.list);
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		__conn_xprt_stop_recv(h2c->conn);
 	}
 	return buf;
 }

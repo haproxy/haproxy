@@ -608,7 +608,6 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 		LIST_ADDQ(&buffer_wq, &fconn->buf_wait.list);
 		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		__conn_xprt_stop_recv(fconn->conn);
 	}
 	return buf;
 }
