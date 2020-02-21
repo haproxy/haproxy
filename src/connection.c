@@ -245,7 +245,7 @@ int conn_fd_check(struct connection *conn)
 	 */
 	fdtab[fd].linger_risk = 0;
 	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-	__conn_xprt_stop_both(conn);
+	conn_stop_polling(conn);
 	return 0;
 
  wait:

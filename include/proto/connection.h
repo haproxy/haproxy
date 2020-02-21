@@ -179,66 +179,6 @@ static inline void conn_cond_update_polling(struct connection *c)
 		conn_stop_polling(c);
 }
 
-/***** Event manipulation primitives for use by DATA I/O callbacks *****/
-/* The __conn_* versions do not propagate to lower layers and are only meant
- * to be used by handlers called by the connection handler. The other ones
- * may be used anywhere.
- */
-static inline void __conn_xprt_want_recv(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_want_recv(c->handle.fd);
-}
-
-static inline void __conn_xprt_stop_recv(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_stop_recv(c->handle.fd);
-}
-
-static inline void __conn_xprt_want_send(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_want_send(c->handle.fd);
-}
-
-static inline void __conn_xprt_stop_send(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_stop_send(c->handle.fd);
-}
-
-static inline void __conn_xprt_stop_both(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_stop_both(c->handle.fd);
-}
-
-static inline void conn_xprt_want_recv(struct connection *c)
-{
-	__conn_xprt_want_recv(c);
-}
-
-static inline void conn_xprt_stop_recv(struct connection *c)
-{
-	__conn_xprt_stop_recv(c);
-}
-
-static inline void conn_xprt_want_send(struct connection *c)
-{
-	__conn_xprt_want_send(c);
-}
-
-static inline void conn_xprt_stop_send(struct connection *c)
-{
-	__conn_xprt_stop_send(c);
-}
-
-static inline void conn_xprt_stop_both(struct connection *c)
-{
-	__conn_xprt_stop_both(c);
-}
-
 /* read shutdown, called from the rcv_buf/rcv_pipe handlers when
  * detecting an end of connection.
  */
