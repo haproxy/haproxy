@@ -400,12 +400,12 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 	struct conn_stream *cs;
 
 	cs = pool_alloc(pool_head_connstream);
-	if (!likely(cs))
+	if (unlikely(!cs))
 		return NULL;
 
 	if (!conn) {
 		conn = conn_new();
-		if (!likely(conn)) {
+		if (unlikely(!conn)) {
 			cs_free(cs);
 			return NULL;
 		}
