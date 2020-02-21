@@ -172,7 +172,7 @@ static inline uint32_t readv_u32(const void *p1, size_t s1, const void *p2)
 {
 	uint32_t u32;
 
-	if (!unlikely(s1 < sizeof(u32)))
+	if (likely(s1 >= sizeof(u32)))
 		u32 = read_u32(p1);
 	else
 		readv_bytes(&u32, sizeof(u32), p1, s1, p2);
@@ -186,7 +186,7 @@ static inline uint32_t readv_u32(const void *p1, size_t s1, const void *p2)
  */
 static inline void writev_u32(void *p1, size_t s1, void *p2, const uint32_t u32)
 {
-	if (!unlikely(s1 < sizeof(u32)))
+	if (likely(s1 >= sizeof(u32)))
 		write_u32(p1, u32);
 	else
 		writev_bytes(&u32, sizeof(u32), p1, s1, p2);
@@ -201,7 +201,7 @@ static inline uint64_t readv_u64(const void *p1, size_t s1, const void *p2)
 {
 	uint64_t u64;
 
-	if (!unlikely(s1 < sizeof(u64)))
+	if (likely(s1 >= sizeof(u64)))
 		u64 = read_u64(p1);
 	else
 		readv_bytes(&u64, sizeof(u64), p1, s1, p2);
@@ -215,7 +215,7 @@ static inline uint64_t readv_u64(const void *p1, size_t s1, const void *p2)
  */
 static inline void writev_u64(void *p1, size_t s1, void *p2, const uint64_t u64)
 {
-	if (!unlikely(s1 < sizeof(u64)))
+	if (likely(s1 >= sizeof(u64)))
 		write_u64(p1, u64);
 	else
 		writev_bytes(&u64, sizeof(u64), p1, s1, p2);
