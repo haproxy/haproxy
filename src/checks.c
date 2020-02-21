@@ -635,8 +635,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 			chunk_printf(chk, " at step %d of tcp-check", step);
 			/* we were looking for a string */
 			if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_CONNECT) {
-				if (check->last_started_step->port)
-					chunk_appendf(chk, " (connect port %d)" ,check->last_started_step->port);
+				if (check->last_started_step->connect.port)
+					chunk_appendf(chk, " (connect port %d)" ,check->last_started_step->connect.port);
 				else
 					chunk_appendf(chk, " (connect)");
 			}
@@ -2893,6 +2893,7 @@ static int tcpcheck_main(struct check *check)
 		next = get_next_tcpcheck_rule(head, check->current_step);
 
 		if (check->current_step->action == TCPCHK_ACT_CONNECT) {
+			struct tcpcheck_connect *connect = &check->current_step->connect;
 			struct protocol *proto;
 			struct xprt_ops *xprt;
 
@@ -2967,14 +2968,14 @@ static int tcpcheck_main(struct check *check)
 			proto = protocol_by_family(conn->dst->ss_family);
 
 			/* port */
-			if (check->current_step->port)
-				set_host_port(conn->dst, check->current_step->port);
+			if (connect->port)
+				set_host_port(conn->dst, connect->port);
 			else if (check->port)
 				set_host_port(conn->dst, check->port);
 			else if (s->svc_port)
 				set_host_port(conn->dst, s->svc_port);
 
-			if (check->current_step->conn_opts & TCPCHK_OPT_SSL) {
+			if (connect->options & TCPCHK_OPT_SSL) {
 				xprt = xprt_get(XPRT_SSL);
 			}
 			else {
@@ -3000,7 +3001,7 @@ static int tcpcheck_main(struct check *check)
 				ret = proto->connect(conn, flags);
 			}
 			if (conn_ctrl_ready(conn) &&
-				check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
+				connect->options & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
 				conn->flags |= CO_FL_SEND_PROXY;
 				if (xprt_add_hs(conn) < 0)
@@ -3008,7 +3009,7 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			if (conn_ctrl_ready(conn) &&
-			    check->current_step->conn_opts & TCPCHK_OPT_LINGER) {
+			    connect->options & TCPCHK_OPT_LINGER) {
 				/* Some servers don't like reset on close */
 				fdtab[cs->conn->handle.fd].linger_risk = 0;
 			}
@@ -3839,7 +3840,7 @@ static int init_srv_check(struct server *srv)
 
 	/* search the first action (connect / send / expect) in the list */
 	r = get_first_tcpcheck_rule(srv->proxy->tcpcheck_rules);
-	if (!r || (r->action != TCPCHK_ACT_CONNECT) || !r->port) {
+	if (!r || (r->action != TCPCHK_ACT_CONNECT) || !r->connect.port) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
 			 "nor tcp_check rule 'connect' with port information.\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
@@ -3849,7 +3850,7 @@ static int init_srv_check(struct server *srv)
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
 	list_for_each_entry(r, srv->proxy->tcpcheck_rules, list) {
-		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
+		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port)) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",
 				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
@@ -4007,10 +4008,10 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 		memprintf(errmsg, "out of memory");
 		goto error;
 	}
-	chk->action    = TCPCHK_ACT_CONNECT;
-	chk->port      = port;
-	chk->conn_opts = conn_opts;
-	chk->comment   = comment;
+	chk->action  = TCPCHK_ACT_CONNECT;
+	chk->comment = comment;
+	chk->connect.port    = port;
+	chk->connect.options = conn_opts;
 	return chk;
 
   error:

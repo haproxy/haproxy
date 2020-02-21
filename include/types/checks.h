@@ -211,6 +211,16 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
+#define TCPCHK_OPT_NONE         0x0000  /* no options specified, default */
+#define TCPCHK_OPT_SEND_PROXY   0x0001  /* send proxy-protocol string */
+#define TCPCHK_OPT_SSL          0x0002  /* SSL connection */
+#define TCPCHK_OPT_LINGER       0x0004  /* Do not RST connection, let it linger */
+
+struct tcpcheck_connect {
+	uint16_t port; /* port to connect to */
+	uint16_t options; /* options when setting up a new connection */
+};
+
 enum tcpcheck_send_type {
 	TCPCHK_SEND_UNDEF = 0, /* Send is not parsed. */
 	TCPCHK_SEND_STRING, /* Send an ASCII string. */
@@ -252,23 +262,16 @@ enum tcpcheck_rule_type {
 	TCPCHK_ACT_COMMENT, /* no action, simply a comment used for logs */
 };
 
-/* flags used by tcpcheck_rule->conn_opts */
-#define TCPCHK_OPT_NONE         0x0000  /* no options specified, default */
-#define TCPCHK_OPT_SEND_PROXY   0x0001  /* send proxy-protocol string */
-#define TCPCHK_OPT_SSL          0x0002  /* SSL connection */
-#define TCPCHK_OPT_LINGER       0x0004  /* Do not RST connection, let it linger */
-
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
 	enum tcpcheck_rule_type action;         /* type of the rule. */
 	int index;                              /* Index within the list. Starts at 0. */
 	char *comment;				/* comment to be used in the logs and on the stats socket */
 	union {
+		struct tcpcheck_connect connect; /* Connect rule. */
 		struct tcpcheck_send send;      /* Send rule. */
 		struct tcpcheck_expect expect;  /* Expected pattern. */
 	};
-	unsigned short port;                    /* port to connect to */
-	unsigned short conn_opts;               /* options when setting up a new connection */
 };
 
 #endif /* _TYPES_CHECKS_H */
