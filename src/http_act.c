@@ -202,7 +202,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
 	if (rule->action == 1) // replace-path
-		uri = http_get_path(uri);
+		uri = iststop(http_get_path(uri), '?');
 
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
