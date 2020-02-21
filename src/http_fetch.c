@@ -982,23 +982,19 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 	struct htx *htx = smp_prefetch_htx(smp, chn, 1);
 	struct htx_sl *sl;
 	struct ist path;
-	size_t len;
 
 	if (!htx)
 		return 0;
 
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
 	if (!path.ptr)
 		return 0;
-
-	for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
-		;
 
 	/* OK, we got the '/' ! */
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str.area = path.ptr;
-	smp->data.u.str.data = len;
+	smp->data.u.str.data = path.len;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
