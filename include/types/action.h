@@ -34,6 +34,7 @@ enum act_from {
 	ACT_F_TCP_RES_CNT, /* tcp-response content */
 	ACT_F_HTTP_REQ,    /* http-request */
 	ACT_F_HTTP_RES,    /* http-response */
+	ACT_F_TCP_CHK,     /* tcp-check. */
 };
 
 enum act_return {

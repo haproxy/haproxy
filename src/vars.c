@@ -788,6 +788,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	case ACT_F_TCP_RES_CNT: flags = SMP_VAL_BE_RES_CNT; break;
 	case ACT_F_HTTP_REQ:    flags = SMP_VAL_FE_HRQ_HDR; break;
 	case ACT_F_HTTP_RES:    flags = SMP_VAL_BE_HRS_HDR; break;
+	case ACT_F_TCP_CHK:     flags = SMP_VAL_BE_CHK_RUL; break;
 	default:
 		memprintf(err,
 			  "internal error, unexpected rule->from=%d, please report this bug!",
@@ -902,6 +903,14 @@ static struct action_kw_list tcp_res_kws = { { }, {
 }};
 
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
+
+static struct action_kw_list tcp_check_kws = {ILH, {
+	{ "set-var",   parse_store, 1 },
+	{ "unset-var", parse_store, 1 },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, tcp_check_keywords_register, &tcp_check_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
 	{ "set-var",   parse_store, 1 },

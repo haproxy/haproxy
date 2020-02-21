@@ -43,6 +43,7 @@
 #include <types/dns.h>
 #include <types/stats.h>
 
+#include <proto/action.h>
 #include <proto/backend.h>
 #include <proto/checks.h>
 #include <proto/stats.h>
@@ -1559,7 +1560,7 @@ static struct tcpcheck_rule *get_first_tcpcheck_rule(struct list *list)
 	struct tcpcheck_rule *r;
 
 	list_for_each_entry(r, list, list) {
-		if (r->action != TCPCHK_ACT_COMMENT)
+		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
 	return NULL;
@@ -1578,7 +1579,7 @@ static struct tcpcheck_rule *get_next_tcpcheck_rule(struct list *list, struct tc
 
 	r = LIST_NEXT(&start->list, typeof(r), list);
 	list_for_each_entry_from(r, list, list) {
-		if (r->action != TCPCHK_ACT_COMMENT)
+		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
 	return NULL;
@@ -3421,6 +3422,9 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 	case TCPCHK_ACT_CONNECT:
 	case TCPCHK_ACT_COMMENT:
 		break;
+	case TCPCHK_ACT_ACTION_KW:
+		free(rule->action_kw.rule);
+		break;
 	}
 
 	if (in_pool)
@@ -3983,6 +3987,56 @@ REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
 
+struct action_kw_list tcp_check_keywords = {
+	.list = LIST_HEAD_INIT(tcp_check_keywords.list),
+};
+
+/* Return the struct action_kw associated to a keyword */
+static struct action_kw *action_kw_tcp_check_lookup(const char *kw)
+{
+	return action_lookup(&tcp_check_keywords.list, kw);
+}
+
+static void action_kw_tcp_check_build_list(struct buffer *chk)
+{
+	action_build_list(&tcp_check_keywords.list, chk);
+}
+
+/* Create a tcp-check rule resulting from parsing a custom keyword. */
+static struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, struct proxy *px,
+						   struct list *rules, struct action_kw *kw, char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	struct act_rule *actrule = NULL;
+
+	actrule = calloc(1, sizeof(*actrule));
+	if (!actrule) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	actrule->kw = kw;
+	actrule->from = ACT_F_TCP_CHK;
+
+	cur_arg++;
+	if (kw->parse((const char **)args, &cur_arg, px, actrule, errmsg) == ACT_RET_PRS_ERR) {
+		memprintf(errmsg, "'%s' : %s", kw->kw, *errmsg);
+		goto error;
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action = TCPCHK_ACT_ACTION_KW;
+	chk->action_kw.rule = actrule;
+	return chk;
+
+  error:
+	free(actrule);
+	return NULL;
+}
+
 static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct proxy *px, struct list *rules,
 						    char **errmsg)
 {
@@ -3992,11 +4046,13 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	long port = 0;
 
 	list_for_each_entry(chk, rules, list) {
-		if (chk->action != TCPCHK_ACT_COMMENT)
+		if (chk->action != TCPCHK_ACT_COMMENT && chk->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
 	if (&chk->list != rules && chk->action != TCPCHK_ACT_CONNECT) {
-		memprintf(errmsg, "first step MUST also be a 'connect' when there is a 'connect' step in the tcp-check ruleset");
+		memprintf(errmsg, "first step MUST also be a 'connect', "
+			  "optionnaly preceded by a 'set-var', an 'unset-var' or a 'comment', "
+			  "when there is a 'connect' step in the tcp-check ruleset");
 		goto error;
 	}
 
@@ -4367,9 +4423,16 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	else if (strcmp(args[cur_arg], "comment") == 0)
 		chk = parse_tcpcheck_comment(args, cur_arg, rules, errmsg);
 	else {
-		memprintf(errmsg, "'%s %s' only supports 'comment', 'connect', 'send', 'send-binary' or 'expect'.",
-			  args[0], args[1]);
-		goto error;
+		struct action_kw *kw = action_kw_tcp_check_lookup(args[cur_arg]);
+
+		if (!kw) {
+			action_kw_tcp_check_build_list(&trash);
+			memprintf(errmsg, "'%s' only supports 'comment', 'connect', 'send', 'send-binary', 'expect'"
+				  "%s%s. but got '%s'",
+				  args[0], (*trash.area ? ", " : ""), trash.area, args[1]);
+			goto error;
+		}
+		chk = parse_tcpcheck_action(args, cur_arg, curpx, rules, kw, errmsg);
 	}
 
 	if (!chk) {

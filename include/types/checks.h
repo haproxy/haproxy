@@ -256,12 +256,17 @@ struct tcpcheck_expect {
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
 };
 
+struct tcpcheck_action_kw {
+	struct act_rule *rule;
+};
+
 /* possible actions for tcpcheck_rule->action */
 enum tcpcheck_rule_type {
 	TCPCHK_ACT_SEND = 0, /* send action, regular string format */
 	TCPCHK_ACT_EXPECT, /* expect action, either regular or binary string */
 	TCPCHK_ACT_CONNECT, /* connect action, to probe a new port */
 	TCPCHK_ACT_COMMENT, /* no action, simply a comment used for logs */
+	TCPCHK_ACT_ACTION_KW, /* custom registered action_kw rule. */
 };
 
 struct tcpcheck_rule {
@@ -273,6 +278,7 @@ struct tcpcheck_rule {
 		struct tcpcheck_connect connect; /* Connect rule. */
 		struct tcpcheck_send send;      /* Send rule. */
 		struct tcpcheck_expect expect;  /* Expected pattern. */
+		struct tcpcheck_action_kw action_kw;  /* Custom action. */
 	};
 };
 

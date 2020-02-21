@@ -56,6 +56,12 @@ int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
 void send_email_alert(struct server *s, int priority, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
 
+extern struct action_kw_list tcp_check_keywords;
+static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
+}
+
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);

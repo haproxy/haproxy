@@ -99,6 +99,7 @@ enum {
 	SMP_CKP_FE_HRS_HDR,  /* FE HTTP response headers (rules, headers) */
 	SMP_CKP_FE_HRS_BDY,  /* FE HTTP response body */
 	SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/stream */
+	SMP_CKP_BE_CHK_RUL,  /* BE tcp-check rules */
 	SMP_CKP_ENTRIES /* nothing after this */
 };
 
@@ -164,16 +165,18 @@ enum {
 	SMP_VAL_FE_HRS_HDR = 1 << SMP_CKP_FE_HRS_HDR,  /* FE HTTP response headers (rules, headers) */
 	SMP_VAL_FE_HRS_BDY = 1 << SMP_CKP_FE_HRS_BDY,  /* FE HTTP response body */
 	SMP_VAL_FE_LOG_END = 1 << SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/stream */
+	SMP_VAL_BE_CHK_RUL = 1 << SMP_CKP_BE_CHK_RUL,  /* BE tcp-check rule */
 
 	/* a few combinations to decide what direction to try to fetch (useful for logs) */
 	SMP_VAL_REQUEST    = SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                     SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
 	                     SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
-	                     SMP_VAL_BE_SET_SRV,
+	                     SMP_VAL_BE_SET_SRV | SMP_VAL_BE_CHK_RUL,
 
 	SMP_VAL_RESPONSE   = SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT | SMP_VAL_BE_HRS_HDR |
 	                     SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL | SMP_VAL_FE_RES_CNT |
-	                     SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY | SMP_VAL_FE_LOG_END,
+	                     SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY | SMP_VAL_FE_LOG_END |
+	                     SMP_VAL_BE_CHK_RUL,
 };
 
 extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
