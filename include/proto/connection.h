@@ -245,12 +245,13 @@ static inline void conn_xprt_stop_both(struct connection *c)
 static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
-	__conn_xprt_stop_recv(c);
-	/* we don't risk keeping ports unusable if we found the
-	 * zero from the other side.
-	 */
-	if (conn_ctrl_ready(c))
+	if (conn_ctrl_ready(c)) {
+		fd_stop_recv(c->handle.fd);
+		/* we don't risk keeping ports unusable if we found the
+		 * zero from the other side.
+		 */
 		fdtab[c->handle.fd].linger_risk = 0;
+	}
 }
 
 /* write shutdown, indication that the upper layer is not willing to send
@@ -261,18 +262,20 @@ static inline void conn_sock_read0(struct connection *c)
 static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
-	__conn_xprt_stop_send(c);
-
-	/* don't perform a clean shutdown if we're going to reset or
-	 * if the shutr was already received.
-	 */
-	if (conn_ctrl_ready(c) && !(c->flags & CO_FL_SOCK_RD_SH) && clean)
-		shutdown(c->handle.fd, SHUT_WR);
+	if (conn_ctrl_ready(c)) {
+		fd_stop_send(c->handle.fd);
+		/* don't perform a clean shutdown if we're going to reset or
+		 * if the shutr was already received.
+		 */
+		if (!(c->flags & CO_FL_SOCK_RD_SH) && clean)
+			shutdown(c->handle.fd, SHUT_WR);
+	}
 }
 
 static inline void conn_xprt_shutw(struct connection *c)
 {
-	__conn_xprt_stop_send(c);
+	if (conn_ctrl_ready(c))
+		fd_stop_send(c->handle.fd);
 
 	/* clean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
@@ -281,7 +284,8 @@ static inline void conn_xprt_shutw(struct connection *c)
 
 static inline void conn_xprt_shutw_hard(struct connection *c)
 {
-	__conn_xprt_stop_send(c);
+	if (conn_ctrl_ready(c))
+		fd_stop_send(c->handle.fd);
 
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)

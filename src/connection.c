@@ -106,7 +106,7 @@ void conn_fd_handler(int fd)
 				conn->subs = NULL;
 		} else
 			io_available = 1;
-		__conn_xprt_stop_send(conn);
+		fd_stop_send(fd);
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
@@ -126,7 +126,7 @@ void conn_fd_handler(int fd)
 				conn->subs = NULL;
 		} else
 			io_available = 1;
-		__conn_xprt_stop_recv(conn);
+		fd_stop_recv(fd);
 	}
 
  leave:
@@ -249,8 +249,8 @@ int conn_fd_check(struct connection *conn)
 	return 0;
 
  wait:
-	__conn_xprt_want_send(conn);
 	fd_cant_send(fd);
+	fd_want_send(fd);
 	return 0;
 }
 
@@ -324,12 +324,13 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, st
 	if (!es->events)
 		conn->subs = NULL;
 
-	if (event_type & SUB_RETRY_RECV)
-		__conn_xprt_stop_recv(conn);
+	if (conn_ctrl_ready(conn)) {
+		if (event_type & SUB_RETRY_RECV)
+			fd_stop_recv(conn->handle.fd);
 
-	if (event_type & SUB_RETRY_SEND)
-		__conn_xprt_stop_send(conn);
-
+		if (event_type & SUB_RETRY_SEND)
+			fd_stop_send(conn->handle.fd);
+	}
 	return 0;
 }
 
@@ -346,12 +347,13 @@ int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, stru
 	conn->subs = es;
 	es->events |= event_type;
 
-	if (event_type & SUB_RETRY_RECV)
-		__conn_xprt_want_recv(conn);
+	if (conn_ctrl_ready(conn)) {
+		if (event_type & SUB_RETRY_RECV)
+			fd_want_recv(conn->handle.fd);
 
-	if (event_type & SUB_RETRY_SEND)
-		__conn_xprt_want_send(conn);
-
+		if (event_type & SUB_RETRY_SEND)
+			fd_want_send(conn->handle.fd);
+	}
 	return 0;
 }
 
