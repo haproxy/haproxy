@@ -26,6 +26,8 @@
 #include <common/config.h>
 #include <types/mailers.h>
 
+#include <types/action.h>
+
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 void __health_adjust(struct server *s, short status);

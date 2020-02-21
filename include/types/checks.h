@@ -159,6 +159,7 @@ enum {
 
 struct check {
 	struct session *sess;			/* Health check session. */
+	struct vars vars;			/* Health check dynamic variables. */
 	struct xprt_ops *xprt;			/* transport layer operations for health checks */
 	struct conn_stream *cs;			/* conn_stream state for health checks */
 	struct buffer bi, bo;			/* input and output buffers to send/recv check */

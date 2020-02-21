@@ -58,6 +58,7 @@
 #include <proto/signal.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/vars.h>
 #include <proto/log.h>
 #include <proto/dns.h>
 #include <proto/proto_udp.h>
@@ -3224,12 +3225,13 @@ static int tcpcheck_main(struct check *check)
 	}
 	else {
 		/* First evaluation, create a session */
-		check->sess = session_new(&checks_fe, NULL, NULL);
+		check->sess = session_new(&checks_fe, NULL, (check->server ? &check->server->obj_type : NULL));
 		if (!check->sess) {
 			chunk_printf(&trash, "TCPCHK error allocating check session");
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 			goto out_end_tcpcheck;
 		}
+		vars_init(&check->vars, SCOPE_CHECK);
 		rule = LIST_NEXT(check->tcpcheck_rules, typeof(rule), list);
 	}
 
@@ -3339,12 +3341,12 @@ static int tcpcheck_main(struct check *check)
 	/* cleanup before leaving */
 	check->current_step = NULL;
 	if (check->sess != NULL) {
+		vars_prune(&check->vars, check->sess, NULL);
 		session_free(check->sess);
 		check->sess = NULL;
 	}
   out:
 	return retcode;
-
 }
 
 static const char *init_check(struct check *check, int type)

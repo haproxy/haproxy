@@ -12,6 +12,7 @@ enum vars_scope {
 	SCOPE_REQ,
 	SCOPE_RES,
 	SCOPE_PROC,
+	SCOPE_CHECK,
 };
 
 struct vars {
