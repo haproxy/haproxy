@@ -47,11 +47,11 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
-/* FD bits used for different polling states in each direction */
-#define FD_EV_ACTIVE    1U
-#define FD_EV_READY     2U
-#define FD_EV_SHUT      4U
-#define FD_EV_ERR       8U
+/* FD_EV_* are the values used in fdtab[].state to define the polling states in
+ * each direction. Most of them are manipulated using test-and-set operations
+ * which require the bit position in the mask, which is given in the _BIT
+ * variant.
+ */
 
 /* bits positions for a few flags */
 #define FD_EV_ACTIVE_R_BIT 0
@@ -64,22 +64,23 @@ enum {
 #define FD_EV_SHUT_W_BIT   6
 #define FD_EV_ERR_W_BIT    7
 
-#define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
-#define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 4)
+/* and flag values */
+#define FD_EV_ACTIVE_R  (1U << FD_EV_ACTIVE_R_BIT)
+#define FD_EV_ACTIVE_W  (1U << FD_EV_ACTIVE_W_BIT)
 #define FD_EV_ACTIVE_RW (FD_EV_ACTIVE_R | FD_EV_ACTIVE_W)
 
-#define FD_EV_READY_R   (FD_EV_READY)
-#define FD_EV_READY_W   (FD_EV_READY << 4)
+#define FD_EV_READY_R   (1U << FD_EV_READY_R_BIT)
+#define FD_EV_READY_W   (1U << FD_EV_READY_W_BIT)
 #define FD_EV_READY_RW  (FD_EV_READY_R | FD_EV_READY_W)
 
 /* note that when FD_EV_SHUT is set, ACTIVE and READY are cleared */
-#define FD_EV_SHUT_R    (FD_EV_SHUT)
-#define FD_EV_SHUT_W    (FD_EV_SHUT << 4)
+#define FD_EV_SHUT_R    (1U << FD_EV_SHUT_R_BIT)
+#define FD_EV_SHUT_W    (1U << FD_EV_SHUT_W_BIT)
 #define FD_EV_SHUT_RW   (FD_EV_SHUT_R | FD_EV_SHUT_W)
 
 /* note that when FD_EV_ERR is set, SHUT is also set */
-#define FD_EV_ERR_R     (FD_EV_ERR)
-#define FD_EV_ERR_W     (FD_EV_ERR << 4)
+#define FD_EV_ERR_R     (1U << FD_EV_ERR_R_BIT)
+#define FD_EV_ERR_W     (1U << FD_EV_ERR_W_BIT)
 #define FD_EV_ERR_RW    (FD_EV_ERR_R | FD_EV_ERR_W)
 
 
@@ -123,7 +124,7 @@ struct fdtab {
 	struct fdlist_entry update;          /* Entry in the global update list */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
+	unsigned char state;                 /* FD state for read and write directions (FD_EV_*) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
