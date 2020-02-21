@@ -640,9 +640,7 @@ char *http_find_hdr_value_end(char *s, const char *e)
 
 	quoted = qdpair = 0;
 
-#if defined(__x86_64__) ||						\
-    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
-    defined(__ARM_ARCH_7A__)
+#ifdef HA_UNALIGNED_LE
 	/* speedup: skip everything not a comma nor a double quote */
 	for (; s <= e - sizeof(int); s += sizeof(int)) {
 		unsigned int c = *(int *)s; // comma

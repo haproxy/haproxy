@@ -386,9 +386,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 	case H1_MSG_RQURI:
 	http_msg_rquri:
-#if defined(__x86_64__) ||						\
-    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
-    defined(__ARM_ARCH_7A__)
+#ifdef HA_UNALIGNED_LE
 		/* speedup: skip bytes not between 0x21 and 0x7e inclusive */
 		while (ptr <= end - sizeof(int)) {
 			int x = *(int *)ptr - 0x21212121;
@@ -734,16 +732,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 * also remove the sign bit test so that bytes 0x8e..0x0d break the
 		 * loop, but we don't care since they're very rare in header values.
 		 */
-#if defined(__x86_64__)
+#ifdef HA_UNALIGNED_LE64
 		while (ptr <= end - sizeof(long)) {
 			if ((*(long *)ptr - 0x0e0e0e0e0e0e0e0eULL) & 0x8080808080808080ULL)
 				goto http_msg_hdr_val2;
 			ptr += sizeof(long);
 		}
 #endif
-#if defined(__x86_64__) || \
-    defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__) || \
-    defined(__ARM_ARCH_7A__)
+#ifdef HA_UNALIGNED_LE
 		while (ptr <= end - sizeof(int)) {
 			if ((*(int*)ptr - 0x0e0e0e0e) & 0x80808080)
 				goto http_msg_hdr_val2;
