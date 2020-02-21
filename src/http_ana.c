@@ -1001,8 +1001,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	if (!(req->flags & CF_READ_ERROR))
-		http_reply_and_close(s, txn->status, http_error_message(s));
+	http_reply_and_close(s, txn->status, (!(req->flags & CF_READ_ERROR) ? http_error_message(s) : NULL));
 
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
