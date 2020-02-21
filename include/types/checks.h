@@ -211,6 +211,18 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
+enum tcpcheck_send_type {
+	TCPCHK_SEND_UNDEF = 0, /* Send is not parsed. */
+	TCPCHK_SEND_STRING, /* Send an ASCII string. */
+	TCPCHK_SEND_BINARY, /* Send a binary sequence. */
+};
+
+struct tcpcheck_send {
+	enum tcpcheck_send_type type;
+	char *string; /* Sending an ASCII string or a binary sequence. */
+	int length; /* Size in bytes of the sequence referenced by string / binary. */
+};
+
 enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_UNDEF = 0, /* Match is not used. */
 	TCPCHK_EXPECT_STRING, /* Matches a string. */
@@ -251,9 +263,10 @@ struct tcpcheck_rule {
 	enum tcpcheck_rule_type action;         /* type of the rule. */
 	int index;                              /* Index within the list. Starts at 0. */
 	char *comment;				/* comment to be used in the logs and on the stats socket */
-	char *string;                           /* sent string */
-	int string_len;                         /* sent string length */
-	struct tcpcheck_expect expect;          /* Expected pattern. */
+	union {
+		struct tcpcheck_send send;      /* Send rule. */
+		struct tcpcheck_expect expect;  /* Expected pattern. */
+	};
 	unsigned short port;                    /* port to connect to */
 	unsigned short conn_opts;               /* options when setting up a new connection */
 };

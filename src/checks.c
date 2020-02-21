@@ -2865,7 +2865,7 @@ static int tcpcheck_main(struct check *check)
 		if (b_data(&check->bo) &&
 		    (check->current_step == NULL ||
 		     check->current_step->action != TCPCHK_ACT_SEND ||
-		     check->current_step->string_len >= b_room(&check->bo))) {
+		     check->current_step->send.length >= b_room(&check->bo))) {
 			int ret;
 
 			ret = cs->conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
@@ -3073,15 +3073,17 @@ static int tcpcheck_main(struct check *check)
 
 		} /* end 'connect' */
 		else if (check->current_step->action == TCPCHK_ACT_SEND) {
+			struct tcpcheck_send *send = &check->current_step->send;
+
 			/* mark the step as started */
 			check->last_started_step = check->current_step;
 
 			/* reset the read buffer */
 			b_reset(&check->bi);
 
-			if (check->current_step->string_len >= b_size(&check->bo)) {
+			if (send->length >= b_size(&check->bo)) {
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
-					     check->current_step->string_len, (unsigned int)b_size(&check->bo),
+					     send->length, (unsigned int)b_size(&check->bo),
 					     tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_L7RSP,
 							trash.area);
@@ -3089,10 +3091,19 @@ static int tcpcheck_main(struct check *check)
 			}
 
 			/* do not try to send if there is no space */
-			if (check->current_step->string_len >= b_room(&check->bo))
+			if (send->length >= b_room(&check->bo))
 				continue;
 
-			b_putblk(&check->bo, check->current_step->string, check->current_step->string_len);
+			switch (send->type) {
+			case TCPCHK_SEND_STRING:
+			case TCPCHK_SEND_BINARY:
+				b_putblk(&check->bo, send->string, send->length);
+				break;
+			case TCPCHK_SEND_UNDEF:
+				/* Should never happen. */
+				retcode = -1;
+				goto out;
+			};
 
 			check->current_step = get_next_tcpcheck_rule(head, check->current_step);
 		} /* end 'send' */
@@ -3365,19 +3376,36 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		return;
 
 	free(rule->comment);
-	free(rule->string);
-	switch (rule->expect.type) {
-	case TCPCHK_EXPECT_STRING:
-	case TCPCHK_EXPECT_BINARY:
-		free(rule->expect.string);
+	switch (rule->action) {
+	case TCPCHK_ACT_SEND:
+		switch (rule->send.type) {
+		case TCPCHK_SEND_STRING:
+		case TCPCHK_SEND_BINARY:
+			free(rule->send.string);
+			break;
+		case TCPCHK_SEND_UNDEF:
+			break;
+		}
 		break;
-	case TCPCHK_EXPECT_REGEX:
-	case TCPCHK_EXPECT_REGEX_BINARY:
-		regex_free(rule->expect.regex);
+	case TCPCHK_ACT_EXPECT:
+		switch (rule->expect.type) {
+		case TCPCHK_EXPECT_STRING:
+		case TCPCHK_EXPECT_BINARY:
+			free(rule->expect.string);
+			break;
+		case TCPCHK_EXPECT_REGEX:
+		case TCPCHK_EXPECT_REGEX_BINARY:
+			regex_free(rule->expect.regex);
+			break;
+		case TCPCHK_EXPECT_UNDEF:
+			break;
+		}
 		break;
-	case TCPCHK_EXPECT_UNDEF:
+	case TCPCHK_ACT_CONNECT:
+	case TCPCHK_ACT_COMMENT:
 		break;
 	}
+
 	if (in_pool)
 		pool_free(pool_head_tcpcheck_rule, rule);
 	else
@@ -3549,6 +3577,7 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 {
 	struct tcpcheck_rule *tcpcheck;
+	struct tcpcheck_send *send;
 	const char *in;
 	char *dst;
 	int i;
@@ -3557,18 +3586,20 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 		return 0;
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_SEND;
-	tcpcheck->comment      = NULL;
-	tcpcheck->string_len = 0;
-	for (i = 0; strs[i]; i++)
-		tcpcheck->string_len += strlen(strs[i]);
 
-	tcpcheck->string = malloc(tcpcheck->string_len + 1);
-	if (!tcpcheck->string) {
+	send = &tcpcheck->send;
+	send->type = TCPCHK_SEND_STRING;
+
+	for (i = 0; strs[i]; i++)
+		send->length += strlen(strs[i]);
+
+	send->string = malloc(send->length + 1);
+	if (!send->string) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
-	dst = tcpcheck->string;
+	dst = send->string;
 	for (i = 0; strs[i]; i++)
 		for (in = strs[i]; (*dst = *in++); dst++);
 	*dst = 0;
@@ -3595,7 +3626,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
 	tcpcheck->comment      = NULL;
-	tcpcheck->string       = NULL;
+
 	LIST_ADDQ(&alert->tcpcheck_rules, &tcpcheck->list);
 
 	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "220 "))
@@ -3991,15 +4022,17 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 {
 	struct tcpcheck_rule *chk = NULL;
 	char *str = NULL, *comment = NULL;
-	int len, is_binary;
+	enum tcpcheck_send_type type = TCPCHK_SEND_UNDEF;
+	int len;
 
-	is_binary = (strcmp(args[cur_arg], "send-binary") == 0);
+	type = ((strcmp(args[cur_arg], "send-binary") == 0) ? TCPCHK_SEND_BINARY : TCPCHK_SEND_STRING);
 	if (!*(args[cur_arg+1])) {
-		memprintf(errmsg, "'%s' expects a %s as argument", (is_binary ? "binary string": "string"), args[cur_arg]);
+		memprintf(errmsg, "'%s' expects a %s as argument",
+			  (type == TCPCHK_SEND_BINARY ? "binary string": "string"), args[cur_arg]);
 		goto error;
 	}
 
-	if (is_binary) {
+	if (type == TCPCHK_SEND_BINARY) {
 		if (parse_binary(args[cur_arg+1], &str, &len, errmsg) == 0) {
 			memprintf(errmsg, "'%s' invalid binary string (%s).\n", args[cur_arg], *errmsg);
 			goto error;
@@ -4033,10 +4066,11 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 		memprintf(errmsg, "out of memory");
 		goto error;
 	}
-	chk->action     = TCPCHK_ACT_SEND;
-	chk->string     = str;
-	chk->string_len = len;
-	chk->comment    = comment;
+	chk->action      = TCPCHK_ACT_SEND;
+	chk->comment     = comment;
+	chk->send.type   = type;
+	chk->send.string = str;
+	chk->send.length = len;
 	return chk;
 
   error:
