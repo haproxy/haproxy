@@ -308,6 +308,10 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	if (maxblocks <= 0)
 		return 0;
 
+	/* make sure to align the records on a pointer size */
+	blocksize = (blocksize + sizeof(void *) - 1) & -sizeof(void *);
+	extra     = (extra     + sizeof(void *) - 1) & -sizeof(void *);
+
 #ifndef USE_PRIVATE_CACHE
 	if (shared)
 		maptype = MAP_SHARED;
