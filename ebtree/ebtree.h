@@ -381,8 +381,9 @@ struct eb_node {
 	short unsigned int pfx; /* data prefix length, always related to leaf */
 }
 #ifdef HA_UNALIGNED
-   __attribute__((packed));
+   __attribute__((packed))
 #endif
+   ;
 
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define eb_entry(ptr, type, member) container_of(ptr, type, member)
