@@ -136,14 +136,6 @@ static inline void done_update_polling(int fd)
 }
 
 /*
- * returns the FD's recv state (FD_EV_*)
- */
-static inline int fd_recv_state(const int fd)
-{
-	return ((unsigned)fdtab[fd].state >> (4 * DIR_RD)) & FD_EV_STATUS;
-}
-
-/*
  * returns true if the FD is active for recv
  */
 static inline int fd_recv_active(const int fd)
@@ -157,14 +149,6 @@ static inline int fd_recv_active(const int fd)
 static inline int fd_recv_ready(const int fd)
 {
 	return (unsigned)fdtab[fd].state & FD_EV_READY_R;
-}
-
-/*
- * returns the FD's send state (FD_EV_*)
- */
-static inline int fd_send_state(const int fd)
-{
-	return ((unsigned)fdtab[fd].state >> (4 * DIR_WR)) & FD_EV_STATUS;
 }
 
 /*

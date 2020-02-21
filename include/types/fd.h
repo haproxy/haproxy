@@ -64,10 +64,6 @@ enum {
 #define FD_EV_SHUT_W_BIT   6
 #define FD_EV_ERR_W_BIT    7
 
-#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_READY | FD_EV_SHUT | FD_EV_ERR)
-#define FD_EV_STATUS_R  (FD_EV_STATUS)
-#define FD_EV_STATUS_W  (FD_EV_STATUS << 4)
-
 #define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
 #define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 4)
 #define FD_EV_ACTIVE_RW (FD_EV_ACTIVE_R | FD_EV_ACTIVE_W)
