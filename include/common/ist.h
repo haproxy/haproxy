@@ -708,4 +708,16 @@ static inline struct ist istist(const struct ist ist, const struct ist pat)
 	return ist2(NULL, 0);
 }
 
+/*
+ * looks for the first occurence of <chr> in string <ist> and returns a shorter
+ * ist if char is found.
+ */
+static inline struct ist iststop(const struct ist ist, char chr)
+{
+	size_t len = 0;
+
+	while (len++ < ist.len && ist.ptr[len - 1] != chr)
+		;
+	return ist2(ist.ptr, len - 1);
+}
 #endif
