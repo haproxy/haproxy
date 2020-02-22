@@ -3654,7 +3654,7 @@ out_uri_auth_compat:
 					goto err;
 				for (i = 0; i < global.nbthread; i++)
 					MT_LIST_INIT(&newsrv->idle_orphan_conns[i]);
-				newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(int));
+				newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
 				if (!newsrv->curr_idle_thr)
 					goto err;
 				continue;
