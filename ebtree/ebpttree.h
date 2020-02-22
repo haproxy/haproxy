@@ -44,11 +44,14 @@ typedef PTR_INT_TYPE ptr_t;
  * sort of transparent union here to reduce the indirection level, but the fact
  * is, the end user is not meant to manipulate internals, so this is pointless.
  * Internally, it is automatically cast as an eb32_node or eb64_node.
+ * We always align the key since the struct itself will be padded to the same
+ * size anyway.
  */
 struct ebpt_node {
 	struct eb_node node; /* the tree node, must be at the beginning */
+	ALWAYS_ALIGN(sizeof(void*));
 	void *key;
-};
+} ALIGNED(sizeof(void*));
 
 /*
  * Exported functions and macros.

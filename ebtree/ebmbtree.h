@@ -36,11 +36,16 @@
  * is, the end user is not meant to manipulate internals, so this is pointless.
  * The 'node.bit' value here works differently from scalar types, as it contains
  * the number of identical bits between the two branches.
+ * Note that we take a great care of making sure the key is located exactly at
+ * the end of the struct even if that involves holes before it, so that it
+ * always aliases any external key a user would append after. This is why the
+ * key uses the same alignment as the struct.
  */
 struct ebmb_node {
 	struct eb_node node; /* the tree node, must be at the beginning */
+	ALWAYS_ALIGN(sizeof(void*));
 	unsigned char key[0]; /* the key, its size depends on the application */
-};
+} ALIGNED(sizeof(void*));
 
 /*
  * Exported functions and macros.

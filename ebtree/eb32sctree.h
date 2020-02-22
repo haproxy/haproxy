@@ -38,13 +38,18 @@ typedef   signed int s32;
  * have put some sort of transparent union here to reduce the indirection
  * level, but the fact is, the end user is not meant to manipulate internals,
  * so this is pointless.
+ * In case sizeof(void*)>=sizeof(long), we know there will be some padding after
+ * the leaf if it's unaligned. In this case we force the alignment on void* so
+ * that we prefer to have the padding before for more efficient accesses.
  */
 struct eb32sc_node {
 	struct eb_node node; /* the tree node, must be at the beginning */
+	MAYBE_ALIGN(sizeof(u32));
 	u32 key;
+	ALWAYS_ALIGN(sizeof(void*));
 	unsigned long node_s; /* visibility of this node's branches */
 	unsigned long leaf_s; /* visibility of this node's leaf */
-};
+} ALIGNED(sizeof(void*));
 
 /*
  * Exported functions and macros.

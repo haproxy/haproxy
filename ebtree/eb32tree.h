@@ -41,8 +41,9 @@ typedef   signed int s32;
  */
 struct eb32_node {
 	struct eb_node node; /* the tree node, must be at the beginning */
+	MAYBE_ALIGN(sizeof(u32));
 	u32 key;
-};
+} ALIGNED(sizeof(void*));
 
 /*
  * Exported functions and macros.

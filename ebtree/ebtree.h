@@ -379,11 +379,7 @@ struct eb_node {
 	eb_troot_t    *leaf_p;  /* leaf node's parent */
 	short int      bit;     /* link's bit position. */
 	short unsigned int pfx; /* data prefix length, always related to leaf */
-}
-#ifdef HA_UNALIGNED
-   __attribute__((packed))
-#endif
-   ;
+} __attribute__((packed));
 
 /* Return the structure of type <type> whose member <member> points to <ptr> */
 #define eb_entry(ptr, type, member) container_of(ptr, type, member)
