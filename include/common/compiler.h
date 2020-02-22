@@ -144,4 +144,55 @@
 #define HA_HAVE_CAS_DW
 #endif
 
+
+/* sets alignment for current field or variable */
+#ifndef ALIGNED
+#define ALIGNED(x) __attribute__((aligned(x)))
+#endif
+
+/* sets alignment only on architectures preventing unaligned atomic accesses */
+#ifndef MAYBE_ALIGNED
+#ifndef HA_UNALIGNED
+#define MAYBE_ALIGNED(x)  ALIGNED(x)
+#else
+#define MAYBE_ALIGNED(x)
+#endif
+#endif
+
+/* sets alignment only on architectures preventing unaligned atomic accesses */
+#ifndef ATOMIC_ALIGNED
+#ifndef HA_UNALIGNED_ATOMIC
+#define ATOMIC_ALIGNED(x)  ALIGNED(x)
+#else
+#define ATOMIC_ALIGNED(x)
+#endif
+#endif
+
+/* add a mandatory alignment for next fields in a structure */
+#ifndef ALWAYS_ALIGN
+#define ALWAYS_ALIGN(x)  union { } ALIGNED(x)
+#endif
+
+/* add an optional alignment for next fields in a structure, only for archs
+ * which do not support unaligned accesses.
+ */
+#ifndef MAYBE_ALIGN
+#ifndef HA_UNALIGNED
+#define MAYBE_ALIGN(x)  union { } ALIGNED(x)
+#else
+#define MAYBE_ALIGN(x)
+#endif
+#endif
+
+/* add an optional alignment for next fields in a structure, only for archs
+ * which do not support unaligned accesses for atomic operations.
+ */
+#ifndef ATOMIC_ALIGN
+#ifndef HA_UNALIGNED_ATOMIC
+#define ATOMIC_ALIGN(x)  union { } ALIGNED(x)
+#else
+#define ATOMIC_ALIGN(x)
+#endif
+#endif
+
 #endif /* _COMMON_COMPILER_H */
