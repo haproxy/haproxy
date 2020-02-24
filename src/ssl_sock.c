@@ -4416,7 +4416,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				struct dirent *de = de_list[i];
 
 				end = strrchr(de->d_name, '.');
-				if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl")))
+				if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
 					goto ignore_entry;
 
 				snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
