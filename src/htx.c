@@ -422,18 +422,12 @@ struct htx_ret htx_find_offset(struct htx *htx, uint32_t offset)
 void htx_truncate(struct htx *htx, uint32_t offset)
 {
 	struct htx_blk *blk;
+	struct htx_ret htxret = htx_find_offset(htx, offset);
 
-	for (blk = htx_get_head_blk(htx); blk && offset; blk = htx_get_next_blk(htx, blk)) {
-		uint32_t sz = htx_get_blksz(blk);
-		enum htx_blk_type type = htx_get_blk_type(blk);
-
-		if (offset >= sz) {
-			offset -= sz;
-			continue;
-		}
-		if (type == HTX_BLK_DATA)
-			htx_change_blk_value_len(htx, blk, offset);
-		offset = 0;
+	blk = htxret.blk;
+	if (blk && htxret.ret && htx_get_blk_type(blk) == HTX_BLK_DATA) {
+		htx_change_blk_value_len(htx, blk, htxret.ret);
+		blk = htx_get_next_blk(htx, blk);
 	}
 	while (blk)
 		blk = htx_remove_blk(htx, blk);
