@@ -2759,6 +2759,8 @@ tcp-check connect                         -          -         X         X
 tcp-check expect                          -          -         X         X
 tcp-check send                            -          -         X         X
 tcp-check send-binary                     -          -         X         X
+tcp-check set-var                         -          -         X         X
+tcp-check unset-var                       -          -         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
 tcp-request inspect-delay                 -          X         X         X
@@ -7986,6 +7988,10 @@ option tcp-check
     in debug mode. It is useful to make user-friendly error reporting.
     The "comment" is of course optional.
 
+    During the execution of a health check, a variable scope is made available
+    to store data samples, using the "tcp-check set-var" operation. Freeing
+    those variable is possible using "tcp-check unset-var".
+
 
   Examples :
          # perform a POP check (analyze only server's banner)
@@ -9805,6 +9811,9 @@ tcp-check connect [params*]
   the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
   do.
 
+  When a connect must start the ruleset, if may still be preceded by set-var,
+  unset-var or comment rules.
+
   Parameters :
     They are optional and can be used to describe how HAProxy should open and
     use the TCP connection.
@@ -9989,6 +9998,50 @@ tcp-check send-binary <hexstring>
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
              "tcp-check send", tune.chksize
+
+
+tcp-check set-var(<var-name>) <expr>
+
+  This operation sets the content of a variable. The variable is declared inline.
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed for tcp-check are:
+                  "proc" : the variable is shared with the whole process.
+                  "sess" : the variable is shared with the tcp-check session.
+                  "check": the variable is declared for the lifetime of the tcp-check.
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
+                and '-'.
+
+    <expr>      Is a sample-fetch expression potentially followed by converters.
+
+  Example:
+    tcp-check set-var(check.port) int(1234)
+
+
+tcp-check unset-var(<var-name>)
+
+  Free a reference to a variable within its scope.
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed for tcp-check are:
+                  "proc" : the variable is shared with the whole process.
+                  "sess" : the variable is shared with the tcp-check session.
+                  "check": the variable is declared for the lifetime of the tcp-check.
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
+                and '-'.
+
+  Example:
+    tcp-check unset-var(check.port)
 
 
 tcp-request connection <action> [{if | unless} <condition>]

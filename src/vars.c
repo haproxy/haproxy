@@ -671,6 +671,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	case ACT_F_TCP_RES_CNT: dir = SMP_OPT_DIR_RES; break;
 	case ACT_F_HTTP_REQ:    dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_HTTP_RES:    dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_TCP_CHK:     dir = SMP_OPT_DIR_REQ; break;
 	default:
 		send_log(px, LOG_ERR, "Vars: internal error while execute action store.");
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))

@@ -3042,8 +3042,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 }
 
 /* Evaluate a TCPCHK_ACT_EXPECT rule. It returns 1 to evaluate the next rule, 0
- * to wait and -1 to stop the check. <rule> is updated to point on the last
- * evaluated TCPCHK_ACT_EXPECT rule.
+ * to wait and -1 to stop the check.
  */
 static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
@@ -3164,6 +3163,27 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	ret = TCPCHK_EVAL_STOP;
 
   out:
+	return ret;
+}
+
+/* Evaluate a TCPCHK_ACT_ACTION_KW rule. It returns 1 to evaluate the next rule, 0
+ * to wait and -1 to stop the check.
+ */
+static enum tcpcheck_eval_ret tcpcheck_eval_action_kw(struct check *check, struct tcpcheck_rule *rule)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	struct act_rule *act_rule;
+	enum act_return act_ret;
+
+	act_rule =rule->action_kw.rule;
+	act_ret = act_rule->action_ptr(act_rule, check->proxy, check->sess, NULL, 0);
+	if (act_ret != ACT_RET_CONT) {
+		chunk_printf(&trash, "TCPCHK ACTION unexpected result at step %d\n",
+			     tcpcheck_get_step_id(check, rule));
+		set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+	}
+
 	return ret;
 }
 
@@ -3308,11 +3328,16 @@ static int tcpcheck_main(struct check *check)
 				}
 				must_read = 0;
 			}
+
 			eval_ret = tcpcheck_eval_expect(check, rule, last_read);
 			if (eval_ret == TCPCHK_EVAL_WAIT) {
 				check->current_step = rule->expect.head;
 				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			}
+			break;
+		case TCPCHK_ACT_ACTION_KW:
+			/* Don't update the current step */
+			eval_ret = tcpcheck_eval_action_kw(check, rule);
 			break;
 		default:
 			/* Otherwise, just go to the next one and don't update
@@ -3588,7 +3613,7 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 				tcpcheck->expect.head = prev_check;
 			continue;
 		}
-		if (prev_check->action != TCPCHK_ACT_COMMENT)
+		if (prev_check->action != TCPCHK_ACT_COMMENT && prev_check->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
 	LIST_ADDQ(list, &tcpcheck->list);
@@ -4368,7 +4393,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				chk->expect.head = prev_check;
 			continue;
 		}
-		if (prev_check->action != TCPCHK_ACT_COMMENT)
+		if (prev_check->action != TCPCHK_ACT_COMMENT && prev_check->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
 	return chk;
