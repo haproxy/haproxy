@@ -673,6 +673,35 @@ static inline int b_rep_blk(struct buffer *b, char *pos, char *end, const char *
 	return delta;
 }
 
+/* b_insert_blk(): inserts the block <blk> at the absolute offset <off> moving
+ * data between this offset and the buffer's tail just after the end of the copy
+ * of <blk>. The buffer's length is automatically updated. It Supports
+ * wrapping. If there are not enough space to perform the copy, 0 is
+ * returned. Otherwise, the number of bytes copied is returned
+*/
+static inline int b_insert_blk(struct buffer *b, size_t off, const char *blk, size_t len)
+{
+	size_t pos;
+
+	if (!len || len > b_room(b))
+		return 0; /* nothing to copy or not enough space left */
+
+	pos = b_peek_ofs(b, off);
+	if (pos == b_tail_ofs(b))
+		__b_putblk(b, blk, len);
+	else {
+		size_t delta = b_data(b) - off;
+
+		/* first, protect the end of the buffer */
+		b_move(b, pos, delta, len);
+
+		/* change the amount of data in the buffer during the copy */
+		b_sub(b, delta);
+		__b_putblk(b, blk, len);
+		b_add(b, delta);
+	}
+	return len;
+}
 
 /* __b_put_varint(): encode 64-bit value <v> as a varint into buffer <b>. The
  * caller must have checked that the encoded value fits in the buffer so that
