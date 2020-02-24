@@ -130,8 +130,9 @@
 #define SSL_GF_SCTL         0x00000002   /* try to open the .sctl file */
 #define SSL_GF_OCSP         0x00000004   /* try to open the .ocsp file */
 #define SSL_GF_OCSP_ISSUER  0x00000008   /* try to open the .issuer file if an OCSP file was loaded */
+#define SSL_GF_KEY          0x00000010   /* try to open the .key file to load a private key */
 
-#define SSL_GF_ALL          (SSL_GF_BUNDLE|SSL_GF_SCTL|SSL_GF_OCSP|SSL_GF_OCSP_ISSUER)
+#define SSL_GF_ALL          (SSL_GF_BUNDLE|SSL_GF_SCTL|SSL_GF_OCSP|SSL_GF_OCSP_ISSUER|SSL_GF_KEY)
 
 /* ssl_methods versions */
 enum {
@@ -3287,8 +3288,8 @@ end:
 
 /*
  *  Try to load a PEM file from a <path> or a buffer <buf>
- *  The PEM must contain at least a Private Key and a Certificate,
- *  It could contain a DH and a certificate chain.
+ *  The PEM must contain at least a Certificate,
+ *  It could contain a DH, a certificate chain and a PrivateKey.
  *
  *  If it failed you should not attempt to use the ckch but free it.
  *
@@ -3325,11 +3326,7 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 
 	/* Read Private Key */
 	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
-	if (key == NULL) {
-		memprintf(err, "%sunable to load private key from file '%s'.\n",
-		          err && *err ? *err : "", path);
-		goto end;
-	}
+	/* no need to check for errors here, because the private key could be loaded later */
 
 #ifndef OPENSSL_NO_DH
 	/* Seek back to beginning of file */
@@ -3354,12 +3351,6 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	cert = PEM_read_bio_X509_AUX(in, NULL, NULL, NULL);
 	if (cert == NULL) {
 		memprintf(err, "%sunable to load certificate from file '%s'.\n",
-		          err && *err ? *err : "", path);
-		goto end;
-	}
-
-	if (!X509_check_private_key(cert, key)) {
-		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
 		          err && *err ? *err : "", path);
 		goto end;
 	}
@@ -3459,6 +3450,60 @@ end:
 }
 
 /*
+ *  Try to load a private key file from a <path> or a buffer <buf>
+ *
+ *  If it failed you should not attempt to use the ckch but free it.
+ *
+ *  Return 0 on success or != 0 on failure
+ */
+static int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err)
+{
+	BIO *in = NULL;
+	int ret = 1;
+	EVP_PKEY *key = NULL;
+
+	if (buf) {
+		/* reading from a buffer */
+		in = BIO_new_mem_buf(buf, -1);
+		if (in == NULL) {
+			memprintf(err, "%sCan't allocate memory\n", err && *err ? *err : "");
+			goto end;
+		}
+
+	} else {
+		/* reading from a file */
+		in = BIO_new(BIO_s_file());
+		if (in == NULL)
+			goto end;
+
+		if (BIO_read_filename(in, path) <= 0)
+			goto end;
+	}
+
+	/* Read Private Key */
+	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	if (key == NULL) {
+		memprintf(err, "%sunable to load private key from file '%s'.\n",
+		          err && *err ? *err : "", path);
+		goto end;
+	}
+
+	ret = 0;
+
+	SWAP(ckch->key, key);
+
+end:
+
+	ERR_clear_error();
+	if (in)
+		BIO_free(in);
+	if (key)
+		EVP_PKEY_free(key);
+
+	return ret;
+}
+
+/*
  * Try to load in a ckch every files related to a ckch.
  * (PEM, sctl, ocsp, issuer etc.)
  *
@@ -3479,6 +3524,32 @@ static int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_c
 
 	/* try to load the PEM */
 	if (ssl_sock_load_pem_into_ckch(path, NULL, ckch , err) != 0) {
+		goto end;
+	}
+
+	/* try to load an external private key if it wasn't in the PEM */
+	if ((ckch->key == NULL) && (global_ssl.extra_files & SSL_GF_KEY)) {
+		char fp[MAXPATHLEN+1];
+		struct stat st;
+
+		snprintf(fp, MAXPATHLEN+1, "%s.key", path);
+		if (stat(fp, &st) == 0) {
+			if (ssl_sock_load_key_into_ckch(fp, NULL, ckch, err)) {
+				memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
+					  err && *err ? *err : "", fp);
+				goto end;
+			}
+		}
+	}
+
+	if (ckch->key == NULL) {
+		memprintf(err, "%sNo Private Key found in '%s' or '%s.key'.\n", err && *err ? *err : "", path, path);
+		goto end;
+	}
+
+	if (!X509_check_private_key(ckch->cert, ckch->key)) {
+		memprintf(err, "%sinconsistencies between private key and certificate loaded '%s'.\n",
+		          err && *err ? *err : "", path);
 		goto end;
 	}
 
@@ -10179,6 +10250,9 @@ static int ssl_parse_global_extra_files(char **args, int section_type, struct pr
 		} else if (!strcmp("issuer", args[i])){
 			gf |= SSL_GF_OCSP_ISSUER;
 
+		} else if (!strcmp("key", args[i])) {
+			gf |= SSL_GF_KEY;
+
 		} else if (!strcmp("none", args[i])) {
 			if (gf != SSL_GF_NONE)
 				goto err_alone;
@@ -10436,6 +10510,7 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 
 enum {
 	CERT_TYPE_PEM = 0,
+	CERT_TYPE_KEY,
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	CERT_TYPE_OCSP,
 #endif
@@ -10453,6 +10528,7 @@ struct {
 	/* add a parsing callback */
 } cert_exts[CERT_TYPE_MAX+1] = {
 	[CERT_TYPE_PEM]    = { "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
+	[CERT_TYPE_KEY]    = { "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	[CERT_TYPE_OCSP]   = { "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
 #endif
@@ -10926,6 +11002,25 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 	if (strcmp(ckchs_transaction.path, args[3]) != 0) {
 		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, args[3]);
 		goto error;
+	}
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+	if (ckchs_transaction.new_ckchs->multi) {
+		int n;
+
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+			if (ckchs_transaction.new_ckchs->ckch[n].cert && !X509_check_private_key(ckchs_transaction.new_ckchs->ckch[n].cert, ckchs_transaction.new_ckchs->ckch[n].key)) {
+				memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
+				goto error;
+			}
+		}
+	} else
+#endif
+	{
+		if (!X509_check_private_key(ckchs_transaction.new_ckchs->ckch->cert, ckchs_transaction.new_ckchs->ckch->key)) {
+			memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
+			goto error;
+		}
 	}
 
 	/* init the appctx structure */

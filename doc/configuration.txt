@@ -1320,7 +1320,7 @@ ssl-dh-param-file <file>
   "openssl dhparam <size>", where size should be at least 2048, as 1024-bit DH
   parameters should not be considered secure anymore.
 
-ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer>*
+ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   This setting alters the way HAProxy will look for unspecified files during
   the loading of the SSL certificates.
 
@@ -1333,7 +1333,7 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer>*
   it won't try to bundle the certificates if they have the same basename.
 
   "all": This is the default behavior, it will try to load everything,
-  bundles, sctl, ocsp, issuer.
+  bundles, sctl, ocsp, issuer, key.
 
   "bundle": When a file specified in the configuration does not exist, HAProxy
   will try to load a certificate bundle. This is done by looking for
@@ -1350,6 +1350,9 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer>*
 
   "issuer": Try to load "<basename>.issuer" if the issuer of the OCSP file is
   not provided in the PEM file.
+
+  "key": If the private key was not provided by the PEM file, try to load a
+  file "<basename>.key" containing a private key.
 
   The default behavior is "all".
 
@@ -11330,6 +11333,9 @@ crt <cert>
   requires an intermediate certificate, this can also be concatenated into this
   file. Intermediate certificate can also be shared in a directory via
   "issuers-chain-path" directive.
+
+  If the file does not contain a private key, HAProxy will try to load
+  the key at the same path suffixed by a ".key".
 
   If the OpenSSL used supports Diffie-Hellman, parameters present in this file
   are loaded.
