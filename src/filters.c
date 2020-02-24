@@ -626,8 +626,8 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
 			if (ret < 0)
 				goto end;
+			data = ret + *flt_off - *strm_off;
 			*flt_off += ret;
-			data = ret + offset;
 		}
 	}
 
@@ -890,8 +890,8 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
 			if (ret < 0)
 				goto end;
+			data = ret + *flt_off - *strm_off;
 			*flt_off += ret;
-			data = ret + offset;
 		}
 	}
 
