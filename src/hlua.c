@@ -251,7 +251,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp);
 static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
-__LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg);
+__LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg);
 
 #define SEND_ERR(__be, __fmt, __args...) \
 	do { \
@@ -3887,7 +3887,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	htxn.s = s;
 	htxn.p = px;
 	htxn.dir = SMP_OPT_DIR_REQ;
-	if (!hlua_http_get_headers(L, &htxn, &htxn.s->txn->req))
+	if (!hlua_http_get_headers(L, &htxn.s->txn->req))
 		return 0;
 	lua_settable(L, -3);
 
@@ -4658,7 +4658,7 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
  * This function does not fails. It is used as wrapper with the
  * 2 following functions.
  */
-__LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+__LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg)
 {
 	struct htx *htx;
 	int32_t pos;
@@ -4666,8 +4666,6 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 	/* Create the table. */
 	lua_newtable(L);
 
-	if (!htxn->s->txn)
-		return 1;
 
 	htx = htxbuf(&msg->chn->buf);
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
@@ -4731,7 +4729,7 @@ __LJMP static int hlua_http_req_get_headers(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_get_headers(L, htxn, &htxn->s->txn->req);
+	return hlua_http_get_headers(L, &htxn->s->txn->req);
 }
 
 __LJMP static int hlua_http_res_get_headers(lua_State *L)
@@ -4744,7 +4742,7 @@ __LJMP static int hlua_http_res_get_headers(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_get_headers(L, htxn, &htxn->s->txn->rsp);
+	return hlua_http_get_headers(L, &htxn->s->txn->rsp);
 }
 
 /* This function replace full header, or just a value in
