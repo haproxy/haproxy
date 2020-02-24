@@ -391,6 +391,31 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	return blk;
 }
 
+/* Looks for the HTX block containing the offset <offset>, starting at the HTX
+ * message's head. The function returns an htx_ret with the found HTX block and
+ * the position inside this block where the offset is. If the offset <offset> is
+ * ouside of the HTX message, htx_ret.blk is set to NULL.
+ */
+struct htx_ret htx_find_offset(struct htx *htx, uint32_t offset)
+{
+	struct htx_blk *blk;
+	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
+
+	if (offset >= htx->data)
+		return htxret;
+
+	for (blk = htx_get_head_blk(htx); blk && offset; blk = htx_get_next_blk(htx, blk)) {
+		uint32_t sz = htx_get_blksz(blk);
+
+		if (offset < sz)
+			break;
+		offset -= sz;
+	}
+	htxret.blk = blk;
+	htxret.ret = offset;
+	return htxret;
+}
+
 /* Removes all blocks after the one containing the offset <offset>. This last
  * one may be truncated if it is a DATA block.
  */
