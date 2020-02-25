@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <common/config.h>
+#include <common/net_helper.h>
 #include <common/standard.h>
 
 #include <types/global.h>
@@ -925,7 +926,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV4;
-				static_pattern.val.ipv4.addr = *(struct in_addr *)elt->node.key;
+				static_pattern.val.ipv4.addr.s_addr = read_u32(elt->node.key);
 				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
 					return NULL;
 			}
@@ -937,8 +938,8 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		 * prefix, and try to lookup in the IPv6 tree.
 		 */
 		memset(&tmp6, 0, 10);
-		*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
-		*(uint32_t*)&tmp6.s6_addr[12] = smp->data.u.ipv4.s_addr;
+		write_u16(&tmp6.s6_addr[10], htons(0xffff));
+		write_u32(&tmp6.s6_addr[12], smp->data.u.ipv4.s_addr);
 		node = ebmb_lookup_longest(&expr->pattern_tree_2, &tmp6);
 		if (node) {
 			if (fill) {
@@ -947,7 +948,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
-				static_pattern.val.ipv6.addr = *(struct in6_addr *)elt->node.key;
+				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
 			}
 			return &static_pattern;
@@ -967,7 +968,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
-				static_pattern.val.ipv6.addr = *(struct in6_addr *)elt->node.key;
+				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
 			}
 			return &static_pattern;
@@ -979,16 +980,15 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		 *   - ::0000:ip:v4 (old ipv4 mapped)
 		 *   - 2002:ip:v4:: (6to4)
 		 */
-		if ((*(uint32_t*)&smp->data.u.ipv6.s6_addr[0] == 0 &&
-		     *(uint32_t*)&smp->data.u.ipv6.s6_addr[4]  == 0 &&
-		     (*(uint32_t*)&smp->data.u.ipv6.s6_addr[8] == 0 ||
-		      *(uint32_t*)&smp->data.u.ipv6.s6_addr[8] == htonl(0xFFFF))) ||
-		    *(uint16_t*)&smp->data.u.ipv6.s6_addr[0] == htons(0x2002)) {
-			if (*(uint32_t*)&smp->data.u.ipv6.s6_addr[0] == 0)
-				v4 = *(uint32_t*)&smp->data.u.ipv6.s6_addr[12];
+		if ((read_u64(&smp->data.u.ipv6.s6_addr[0]) == 0 &&
+		     (read_u32(&smp->data.u.ipv6.s6_addr[8]) == 0 ||
+		      read_u32(&smp->data.u.ipv6.s6_addr[8]) == htonl(0xFFFF))) ||
+		    read_u16(&smp->data.u.ipv6.s6_addr[0]) == htons(0x2002)) {
+			if (read_u32(&smp->data.u.ipv6.s6_addr[0]) == 0)
+				v4 = read_u32(&smp->data.u.ipv6.s6_addr[12]);
 			else
-				v4 = htonl((ntohs(*(uint16_t*)&smp->data.u.ipv6.s6_addr[2]) << 16) +
-				            ntohs(*(uint16_t*)&smp->data.u.ipv6.s6_addr[4]));
+				v4 = htonl((ntohs(read_u16(&smp->data.u.ipv6.s6_addr[2])) << 16) +
+				           ntohs(read_u16(&smp->data.u.ipv6.s6_addr[4])));
 
 			/* Lookup an IPv4 address in the expression's pattern tree using the longest
 			 * match method.
@@ -1001,7 +1001,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 					static_pattern.ref = elt->ref;
 					static_pattern.sflags = PAT_SF_TREE;
 					static_pattern.type = SMP_T_IPV4;
-					static_pattern.val.ipv4.addr = *(struct in_addr *)elt->node.key;
+					static_pattern.val.ipv4.addr.s_addr = read_u32(elt->node.key);
 					if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
 						return NULL;
 				}
@@ -1025,15 +1025,14 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			 *   - ::0000:ip:v4 (old ipv4 mapped)
 			 *   - 2002:ip:v4:: (6to4)
 			 */
-			if (*(uint32_t*)&smp->data.u.ipv6.s6_addr[0] == 0 &&
-			    *(uint32_t*)&smp->data.u.ipv6.s6_addr[4]  == 0 &&
-			    (*(uint32_t*)&smp->data.u.ipv6.s6_addr[8] == 0 ||
-			     *(uint32_t*)&smp->data.u.ipv6.s6_addr[8] == htonl(0xFFFF))) {
-				v4 = *(uint32_t*)&smp->data.u.ipv6.s6_addr[12];
+			if (read_u64(&smp->data.u.ipv6.s6_addr[0]) == 0 &&
+			    (read_u32(&smp->data.u.ipv6.s6_addr[8]) == 0 ||
+			     read_u32(&smp->data.u.ipv6.s6_addr[8]) == htonl(0xFFFF))) {
+				v4 = read_u32(&smp->data.u.ipv6.s6_addr[12]);
 			}
-			else if (*(uint16_t*)&smp->data.u.ipv6.s6_addr[0] == htons(0x2002)) {
-				v4 = htonl((ntohs(*(uint16_t*)&smp->data.u.ipv6.s6_addr[2]) << 16) +
-				            ntohs(*(uint16_t*)&smp->data.u.ipv6.s6_addr[4]));
+			else if (read_u16(&smp->data.u.ipv6.s6_addr[0]) == htons(0x2002)) {
+				v4 = htonl((ntohs(read_u16(&smp->data.u.ipv6.s6_addr[2])) << 16) +
+				           ntohs(read_u16(&smp->data.u.ipv6.s6_addr[4])));
 			}
 			else
 				continue;
