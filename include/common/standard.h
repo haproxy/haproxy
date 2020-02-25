@@ -378,7 +378,7 @@ extern const char *invalid_prefix_char(const char *name);
  */
 static inline int is_idchar(char c)
 {
-	return isalnum((int)(unsigned char)c) ||
+	return isalnum((unsigned char)c) ||
 	       c == '.' || c == '_' || c == '-' || c == '+' || c == ':';
 }
 

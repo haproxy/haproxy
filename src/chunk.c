@@ -193,7 +193,7 @@ int chunk_htmlencode(struct buffer *dst, struct buffer *src)
 
 		c = src->area[i];
 
-		if (!isascii(c) || !isprint((unsigned char)c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
+		if (!isascii((unsigned char)c) || !isprint((unsigned char)c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
 			l = snprintf(dst->area + dst->data, free, "&#%u;",
 				     (unsigned char)c);
 
@@ -235,7 +235,7 @@ int chunk_asciiencode(struct buffer *dst, struct buffer *src, char qc)
 
 		c = src->area[i];
 
-		if (!isascii(c) || !isprint((unsigned char)c) || c == '<' || c == '>' || c == qc) {
+		if (!isascii((unsigned char)c) || !isprint((unsigned char)c) || c == '<' || c == '>' || c == qc) {
 			l = snprintf(dst->area + dst->data, free, "<%02X>",
 				     (unsigned char)c);
 

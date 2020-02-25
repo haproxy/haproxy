@@ -666,7 +666,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 			else {
 				char c = *str;
 				*str = 0;
-				if (isprint(c))
+				if (isprint((unsigned char)c))
 					memprintf(err, "expected ']' after '%s', but found '%c'", var, c);
 				else
 					memprintf(err, "missing ']' after '%s'", var);

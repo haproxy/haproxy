@@ -586,7 +586,7 @@ const char *invalid_char(const char *name)
 		return name;
 
 	while (*name) {
-		if (!isalnum((int)(unsigned char)*name) && *name != '.' && *name != ':' &&
+		if (!isalnum((unsigned char)*name) && *name != '.' && *name != ':' &&
 		    *name != '_' && *name != '-')
 			return name;
 		name++;
@@ -606,7 +606,7 @@ static inline const char *__invalid_char(const char *name, int (*f)(int)) {
 		return name;
 
 	while (*name) {
-		if (!f((int)(unsigned char)*name) && *name != '.' &&
+		if (!f((unsigned char)*name) && *name != '.' &&
 		    *name != '_' && *name != '-')
 			return name;
 
@@ -977,7 +977,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			port1 = "";
 		}
 
-		if (isdigit((int)(unsigned char)*port1)) {	/* single port or range */
+		if (isdigit((unsigned char)*port1)) {	/* single port or range */
 			port2 = strchr(port1, '-');
 			if (port2)
 				*port2++ = '\0';
@@ -3820,7 +3820,7 @@ char *env_expand(char *in)
 				var_beg++;
 
 			var_end = var_beg;
-			while (isalnum((int)(unsigned char)*var_end) || *var_end == '_') {
+			while (isalnum((unsigned char)*var_end) || *var_end == '_') {
 				var_end++;
 			}
 
@@ -4087,7 +4087,7 @@ int dump_text(struct buffer *out, const char *buf, int bsize)
 
 	while (buf[ptr] && ptr < bsize) {
 		c = buf[ptr];
-		if (isprint(c) && isascii(c) && c != '\\' && c != ' ' && c != '=') {
+		if (isprint((unsigned char)c) && isascii((unsigned char)c) && c != '\\' && c != ' ' && c != '=') {
 			if (out->data > out->size - 1)
 				break;
 			out->area[out->data++] = c;
@@ -4183,7 +4183,7 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int
 				chunk_strcat(out, "'");
 			else if (unsafe > 1)
 				chunk_strcat(out, "*");
-			else if (isprint(d[i + j]))
+			else if (isprint((unsigned char)d[i + j]))
 				chunk_appendf(out, "%c", d[i + j]);
 			else
 				chunk_strcat(out, ".");
@@ -4214,7 +4214,7 @@ int dump_text_line(struct buffer *out, const char *buf, int bsize, int len,
 
 	while (ptr < len && ptr < bsize) {
 		c = buf[ptr];
-		if (isprint(c) && isascii(c) && c != '\\') {
+		if (isprint((unsigned char)c) && isascii((unsigned char)c) && c != '\\') {
 			if (out->data > end - 2)
 				break;
 			out->area[out->data++] = c;

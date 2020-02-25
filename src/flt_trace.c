@@ -103,7 +103,7 @@ trace_hexdump(struct ist ist)
                 if (i % 16 == 15) {
                         fprintf(stderr, "  |");
                         for(j = i - 15; j <= i && j < ist.len; j++)
-				fprintf(stderr, "%c", (isprint(*(ist.ptr+j)) ? *(ist.ptr+j) : '.'));
+				fprintf(stderr, "%c", (isprint((unsigned char)*(ist.ptr+j)) ? *(ist.ptr+j) : '.'));
                         fprintf(stderr, "|\n");
                 }
         }

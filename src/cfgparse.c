@@ -374,7 +374,7 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 		for (p = arg; *p; p++) {
 			if (*p == '-' && !dash)
 				dash = p;
-			else if (!isdigit((int)*p)) {
+			else if (!isdigit((unsigned char)*p)) {
 				memprintf(err, "'%s' is not a valid number/range.", arg);
 				return -1;
 			}
@@ -420,7 +420,7 @@ unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **er
 		char        *dash;
 		unsigned int low, high;
 
-		if (!isdigit((int)*args[cur_arg])) {
+		if (!isdigit((unsigned char)*args[cur_arg])) {
 			memprintf(err, "'%s' is not a CPU range.\n", args[cur_arg]);
 			return -1;
 		}
@@ -2035,13 +2035,13 @@ next_line:
 					braces = 1;
 				}
 
-				if (!isalpha((int)(unsigned char)*var_beg) && *var_beg != '_') {
+				if (!isalpha((unsigned char)*var_beg) && *var_beg != '_') {
 					ha_alert("parsing [%s:%d] : Variable expansion: Unrecognized character '%c' in variable name.\n", file, linenum, *var_beg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto next_line; /* skip current line */
 				}
 
-				while (isalnum((int)(unsigned char)*var_end) || *var_end == '_')
+				while (isalnum((unsigned char)*var_end) || *var_end == '_')
 					var_end++;
 
 				save_char = *var_end;

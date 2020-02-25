@@ -1680,7 +1680,7 @@ static void init(int argc, char **argv)
 							 *argv, strerror(errno));
 						exit(1);
 					} else if (endptr && strlen(endptr)) {
-						while (isspace(*endptr)) endptr++;
+						while (isspace((unsigned char)*endptr)) endptr++;
 						if (*endptr != 0) {
 							ha_alert("-%2s option: some bytes unconsumed in PID list {%s}\n",
 								 flag, endptr);

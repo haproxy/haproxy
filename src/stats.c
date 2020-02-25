@@ -853,7 +853,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		if (flags & STAT_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
-			if (isdigit(*field_str(stats, ST_F_ADDR)))
+			if (isdigit((unsigned char)*field_str(stats, ST_F_ADDR)))
 				chunk_appendf(out, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR) == '[')
 				chunk_appendf(out, "IPv6: %s, ", field_str(stats, ST_F_ADDR));
@@ -958,7 +958,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		if (flags & STAT_SHLGNDS) {
 			chunk_appendf(out, "<div class=tips>");
 
-			if (isdigit(*field_str(stats, ST_F_ADDR)))
+			if (isdigit((unsigned char)*field_str(stats, ST_F_ADDR)))
 				chunk_appendf(out, "IPv4: %s, ", field_str(stats, ST_F_ADDR));
 			else if (*field_str(stats, ST_F_ADDR) == '[')
 				chunk_appendf(out, "IPv6: %s, ", field_str(stats, ST_F_ADDR));

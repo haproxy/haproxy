@@ -135,7 +135,7 @@ int fcgi_encode_param(struct buffer *out, const struct fcgi_param *p)
 	}
 
 	for (off = 0; off < p->n.len; off++) {
-		if (isalnum((int)p->n.ptr[off]))
+		if (isalnum((unsigned char)p->n.ptr[off]))
 			out->area[len++] = ist_uc[(unsigned char)p->n.ptr[off]];
 		else
 			out->area[len++] = '_';

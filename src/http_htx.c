@@ -1953,7 +1953,7 @@ int val_blk_arg(struct arg *arg, char **err_msg)
 		int pos;
 
 		for (pos = 0; pos < arg[0].data.str.data; pos++) {
-			if (!isdigit(arg[0].data.str.area[pos])) {
+			if (!isdigit((unsigned char)arg[0].data.str.area[pos])) {
 				memprintf(err_msg, "invalid block position");
 				return 0;
 			}

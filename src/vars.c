@@ -271,7 +271,7 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	/* Check variable name syntax. */
 	tmp = var_names[var_names_nb - 1];
 	while (*tmp) {
-		if (!isalnum((int)(unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
+		if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 			memprintf(err, "invalid syntax at char '%s'", tmp);
 			res = NULL;
 			goto end;

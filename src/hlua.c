@@ -838,7 +838,7 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 			*(p-1) = '.';
 			break;
 		}
-		if (isprint(*msg))
+		if (isprint((unsigned char)*msg))
 			*p = *msg;
 		else
 			*p = '.';

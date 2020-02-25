@@ -85,7 +85,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 		}
 		fprintf(o, "  ");
 		for (i = 0; (from + i < to) && (i < 16) ; i++) {
-			fprintf(o, "%c", isprint((int)b_orig(b)[from + i]) ? b_orig(b)[from + i] : '.') ;
+			fprintf(o, "%c", isprint((unsigned char)b_orig(b)[from + i]) ? b_orig(b)[from + i] : '.') ;
 			if ((((from + i) & 15) == 15) && ((from + i) != to-1))
 				fprintf(o, "\n");
 		}

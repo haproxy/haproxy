@@ -344,7 +344,7 @@ spoe_str_to_vsn(const char *str, size_t len)
 	vsn = -1;
 
 	/* skip leading spaces */
-	while (p < end && isspace(*p))
+	while (p < end && isspace((unsigned char)*p))
 		p++;
 
 	/* parse Major number, until the '.' */
@@ -378,7 +378,7 @@ spoe_str_to_vsn(const char *str, size_t len)
 		goto out;
 
 	/* skip trailing spaces */
-	while (p < end && isspace(*p))
+	while (p < end && isspace((unsigned char)*p))
 		p++;
 	if (p != end)
 		goto out;
@@ -784,21 +784,21 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 				char *delim;
 
 				/* Skip leading spaces */
-				for (; isspace(*str) && sz; str++, sz--);
+				for (; isspace((unsigned char)*str) && sz; str++, sz--);
 
 				if (sz >= 10 && !strncmp(str, "pipelining", 10)) {
 					str += 10; sz -= 10;
-					if (!sz || isspace(*str) || *str == ',')
+					if (!sz || isspace((unsigned char)*str) || *str == ',')
 						flags |= SPOE_APPCTX_FL_PIPELINING;
 				}
 				else if (sz >= 5 && !strncmp(str, "async", 5)) {
 					str += 5; sz -= 5;
-					if (!sz || isspace(*str) || *str == ',')
+					if (!sz || isspace((unsigned char)*str) || *str == ',')
 						flags |= SPOE_APPCTX_FL_ASYNC;
 				}
 				else if (sz >= 13 && !strncmp(str, "fragmentation", 13)) {
 					str += 13; sz -= 13;
-					if (!sz || isspace(*str) || *str == ',')
+					if (!sz || isspace((unsigned char)*str) || *str == ',')
 						flags |= SPOE_APPCTX_FL_FRAGMENTATION;
 				}
 
@@ -3587,7 +3587,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			tmp = args[2];
 			while (*tmp) {
-				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+				if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z0-9_.] chars.\n",
 						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3621,7 +3621,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			tmp = args[2];
 			while (*tmp) {
-				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+				if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z0-9_.] chars.\n",
 						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3645,7 +3645,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			tmp = args[2];
 			while (*tmp) {
-				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+				if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z0-9_.] chars.\n",
 						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3669,7 +3669,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			tmp = args[2];
 			while (*tmp) {
-				if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+				if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 					ha_alert("parsing [%s:%d]: '%s %s' only supports [a-zA-Z0-9_.] chars.\n",
 						 file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -4185,7 +4185,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		char *tmp = curagent->id;
 
 		while (*tmp) {
-			if (!isalnum(*tmp) && *tmp != '_' && *tmp != '.') {
+			if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 				memprintf(err, "Invalid variable prefix '%s' for SPOE agent '%s' declared at %s:%d. "
 					  "Use 'option var-prefix' to set it. Only [a-zA-Z0-9_.] chars are supported.\n",
 					  curagent->id, curagent->id, curagent->conf.file, curagent->conf.line);

@@ -809,11 +809,11 @@ static int srv_parse_source(char **args, int *cur_arg,
 				char *name, *end;
 
 				name = args[*cur_arg + 1] + 7;
-				while (isspace(*name))
+				while (isspace((unsigned char)*name))
 					name++;
 
 				end = name;
-				while (*end && !isspace(*end) && *end != ',' && *end != ')')
+				while (*end && !isspace((unsigned char)*end) && *end != ',' && *end != ')')
 					end++;
 
 				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
@@ -826,14 +826,14 @@ static int srv_parse_source(char **args, int *cur_arg,
 				newsrv->conn_src.bind_hdr_occ = -1;
 
 				/* now look for an occurrence number */
-				while (isspace(*end))
+				while (isspace((unsigned char)*end))
 					end++;
 				if (*end == ',') {
 					end++;
 					name = end;
 					if (*end == '-')
 						end++;
-					while (isdigit((int)*end))
+					while (isdigit((unsigned char)*end))
 						end++;
 					newsrv->conn_src.bind_hdr_occ = strl2ic(name, end - name);
 				}
@@ -3434,7 +3434,7 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 	}
 
 	/* ignore blank characters at the beginning of the line */
-	while (isspace(*cur))
+	while (isspace((unsigned char)*cur))
 		++cur;
 
 	/* Ignore empty or commented lines */
@@ -3458,10 +3458,10 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 	arg = 1;
 	srv_arg = 0;
 	while (*cur && arg < SRV_STATE_FILE_MAX_FIELDS) {
-		if (isspace(*cur)) {
+		if (isspace((unsigned char)*cur)) {
 			*cur = '\0';
 			++cur;
-			while (isspace(*cur))
+			while (isspace((unsigned char)*cur))
 				++cur;
 			switch (version) {
 				case 1:

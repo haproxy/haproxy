@@ -54,7 +54,7 @@ static struct ist fcgi_param_name(char *dst, const struct ist name)
 	memcpy(dst, ":fcgi-", 6);
 	ofs1 = 6;
 	for (ofs2 = 0; ofs2 < name.len; ofs2++) {
-		if (isalnum((int)name.ptr[ofs2]))
+		if (isalnum((unsigned char)name.ptr[ofs2]))
 			dst[ofs1++] = ist_lc[(unsigned char)name.ptr[ofs2]];
 		else
 			dst[ofs1++] = '_';

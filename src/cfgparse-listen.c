@@ -1009,7 +1009,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 				val = args[cur_arg + 1];
 				while (*val) {
-					if (iscntrl(*val) || *val == ';') {
+					if (iscntrl((unsigned char)*val) || *val == ';') {
 						ha_alert("parsing [%s:%d]: character '%%x%02X' is not permitted in attribute value.\n",
 							 file, linenum, *val);
 						err_code |= ERR_ALERT | ERR_FATAL;
@@ -3649,11 +3649,11 @@ stats_error_parsing:
 					char *name, *end;
 
 					name = args[cur_arg+1] + 7;
-					while (isspace(*name))
+					while (isspace((unsigned char)*name))
 						name++;
 
 					end = name;
-					while (*end && !isspace(*end) && *end != ',' && *end != ')')
+					while (*end && !isspace((unsigned char)*end) && *end != ',' && *end != ')')
 						end++;
 
 					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
@@ -3665,14 +3665,14 @@ stats_error_parsing:
 					curproxy->conn_src.bind_hdr_occ = -1;
 
 					/* now look for an occurrence number */
-					while (isspace(*end))
+					while (isspace((unsigned char)*end))
 						end++;
 					if (*end == ',') {
 						end++;
 						name = end;
 						if (*end == '-')
 							end++;
-						while (isdigit((int)*end))
+						while (isdigit((unsigned char)*end))
 							end++;
 						curproxy->conn_src.bind_hdr_occ = strl2ic(name, end-name);
 					}
