@@ -18,6 +18,7 @@
 #include <lua.h>
 #include <lualib.h>
 
+#include <common/net_helper.h>
 #include <common/time.h>
 #include <common/uri_auth.h>
 
@@ -1520,10 +1521,10 @@ int hlua_match_addr(lua_State *L)
 		int i;
 
 		for (i = 0; i < 16; i += 4) {
-			if ((*(uint32_t *)&addr1->addr.v6.ip.s6_addr[i] &
-			     *(uint32_t *)&addr2->addr.v6.mask.s6_addr[i]) !=
-			    (*(uint32_t *)&addr2->addr.v6.ip.s6_addr[i] &
-			     *(uint32_t *)&addr1->addr.v6.mask.s6_addr[i]))
+			if ((read_u32(&addr1->addr.v6.ip.s6_addr[i]) &
+			     read_u32(&addr2->addr.v6.mask.s6_addr[i])) !=
+			    (read_u32(&addr2->addr.v6.ip.s6_addr[i]) &
+			     read_u32(&addr1->addr.v6.mask.s6_addr[i])))
 				break;
 		}
 		if (i == 16) {
