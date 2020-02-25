@@ -10641,6 +10641,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	unsigned int len = 0;
 	int write = -1;
 	BIO *bio = NULL;
+	int i;
 
 	if (!tmp || !out)
 		goto end;
@@ -10714,10 +10715,23 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chunk_appendf(out, "SHA1 FingerPrint: ");
 		if (X509_digest(ckchs->ckch->cert, EVP_sha1(), (unsigned char *) tmp->area, &len) == 0)
 			goto end;
-
 		tmp->data = len;
 		dump_binary(out, tmp->area, tmp->data);
 		chunk_appendf(out, "\n");
+
+		/* Displays subject of each certificate in the chain */
+		for (i = 0; i < sk_X509_num(ckchs->ckch->chain); i++) {
+			X509 *ca = sk_X509_value(ckchs->ckch->chain, i);
+
+			chunk_appendf(out, "Chain: ");
+			if ((name = X509_get_subject_name(ca)) == NULL)
+				goto end;
+			if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+				goto end;
+			*(tmp->area + tmp->data) = '\0';
+			chunk_appendf(out, "%s\n", tmp->area);
+
+		}
 	}
 
 	if (ci_putchk(si_ic(si), out) == -1) {
