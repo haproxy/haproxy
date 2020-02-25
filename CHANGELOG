@@ -1,6 +1,111 @@
 ChangeLog :
 ===========
 
+2020/02/25 : 2.2-dev3
+    - SCRIPTS: announce-release: place the send command in the mail's header
+    - SCRIPTS: announce-release: allow the user to force to overwrite old files
+    - SCRIPTS: backport: fix the master branch detection
+    - BUG/MINOR: http-act: Set stream error flag before returning an error
+    - BUG/MINOR: http-act: Fix bugs on error path during parsing of return actions
+    - BUG/MEDIUM: ssl/cli: 'commit ssl cert' wrong SSL_CTX init
+    - BUG/MEDIUM: tcp-rules: Fix track-sc* actions for L4/L5 TCP rules
+    - DOC: schematic of the SSL certificates architecture
+    - BUG/MAJOR: mux-h2: don't wake streams after connection was destroyed
+    - BUG/MINOR: unix: better catch situations where the unix socket path length is close to the limit
+    - BUILD: cirrus-ci: switch to "snap" images to unify openssl naming
+    - BUILD: cirrus-ci: workaround "pkg install" bug
+    - BUILD: cirrus-ci: add ERR=1 to freebsd builds
+    - BUG/MINOR: connection: correctly retry I/O on signals
+    - CLEANUP: mini-clist: simplify nested do { while(1) {} } while (0)
+    - BUILD: http_act: cast file sizes when reporting file size error
+    - BUG/MEDIUM: listener: only consider running threads when resuming listeners
+    - BUG/MINOR: listener: enforce all_threads_mask on bind_thread on init
+    - BUG/MINOR: tcp: avoid closing fd when socket failed in tcp_bind_listener
+    - MINOR: build: add aix72-gcc build TARGET and power{8,9} CPUs
+    - BUILD: travis-ci: no more allowed failures for openssl-1.0.2
+    - BUILD: travis-ci: harden builds, add ERR=1 (warning ought to be errors)
+    - BUILD: scripts/build-ssl.sh: use "uname" instead of ${TRAVIS_OS_NAME}
+    - BUG/MINOR: tcp: don't try to set defaultmss when value is negative
+    - SCRIPTS: make announce-release executable again
+    - BUG/MINOR: namespace: avoid closing fd when socket failed in my_socketat
+    - BUG/MEDIUM: muxes: Use the right argument when calling the destroy method.
+    - BUG/MINOR: mux-fcgi: Forbid special characters when matching PATH_INFO param
+    - CLEANUP: ssl: remove unused functions in openssl-compat.h
+    - MINOR: mux-fcgi: Make the capture of the path-info optional in pathinfo regex
+    - MINOR: tools: add is_idchar() to tell if a char may belong to an identifier
+    - MINOR: chunk: implement chunk_strncpy() to copy partial strings
+    - MINOR: sample/acl: use is_idchar() to locate the fetch/conv name
+    - MEDIUM: arg: make make_arg_list() stop after its own arguments
+    - MEDIUM: arg: copy parsed arguments into the trash instead of allocating them
+    - MEDIUM: arg: make make_arg_list() support quotes in arguments
+    - MINOR: sample: make sample_parse_expr() able to return an end pointer
+    - MEDIUM: log-format: make the LF parser aware of sample expressions' end
+    - BUG/MINOR: arg: report an error if an argument is larger than bufsize
+    - SCRIPTS: announce-release: use mutt -H instead of -i to include the draft
+    - BUILD: enable ERR=1 in github cygwin builds
+    - BUG/MINOR: arg: fix again incorrect argument length check
+    - MINOR: sample: regsub now supports backreferences
+    - BUG/MINOR: tools: also accept '+' as a valid character in an identifier
+    - MINOR: http-htx: Add a function to retrieve the headers size of an HTX message
+    - MINOR: filters: Forward data only if the last filter forwards something
+    - BUG/MINOR: filters: Count HTTP headers as filtered data but don't forward them
+    - BUG/MINOR: http-htx: Don't return error if authority is updated without changes
+    - BUG/MINOR: stream: Don't incr frontend cum_req counter when stream is closed
+    - BUG/MINOR: sample: exit regsub() in case of trash allocation error
+    - MINOR: ssl: add "issuers-chain-path" directive.
+    - REGTESTS: use "command -v" instead of "which"
+    - BUG/MINOR: http-ana: Matching on monitor-uri should be case-sensitive
+    - MINOR: http-ana: Match on the path if the monitor-uri starts by a /
+    - BUG/MINOR: ssl: Stop passing dynamic strings as format arguments
+    - BUG/MAJOR: http-ana: Always abort the request when a tarpit is triggered
+    - BUG/MINOR: mux: do not call conn_xprt_stop_recv() on buffer shortage
+    - MINOR: checks: do not call conn_xprt_stop_send() anymore
+    - CLEANUP: epoll: place the struct epoll_event in the stack
+    - MEDIUM: connection: remove the intermediary polling state from the connection
+    - MINOR: raw_sock: directly call fd_stop_send() and not conn_xprt_stop_send()
+    - MINOR: tcp/uxst/sockpair: use fd_want_send() instead of conn_xprt_want_send()
+    - MINOR: connection: remove the last calls to conn_xprt_{want,stop}_*
+    - CLEANUP: connection: remove the definitions of conn_xprt_{stop,want}_{send,recv}
+    - MINOR: connection: introduce a new receive flag: CO_RFL_READ_ONCE
+    - MINOR: mux-h1: pass CO_RFL_READ_ONCE to the lower layers when relevant
+    - MINOR: ist: add an iststop() function
+    - BUG/MINOR: http: http-request replace-path duplicates the query string
+    - CLEANUP: sample: use iststop instead of a for loop
+    - BUG/MEDIUM: shctx: make sure to keep all blocks aligned
+    - MINOR: compiler: move CPU capabilities definition from config.h and complete them
+    - BUG/MEDIUM: ebtree: don't set attribute packed without unaligned access support
+    - CLEANUP: http/h1: rely on HA_UNALIGNED_LE instead of checking for CPU families
+    - BUILD: fix recent build failure on unaligned archs
+    - MINOR: ssl: load the key from a dedicated file
+    - BUG/MINOR: ssl: load .key in a directory only after PEM
+    - MINOR: compiler: drop special cases of likely/unlikely for older compilers
+    - CLEANUP: conn: Do not pass a pointer to likely
+    - CLEANUP: net_helper: Do not negate the result of unlikely
+    - BUILD: remove obsolete support for -mregparm / USE_REGPARM
+    - CLEANUP: cfgparse: Fix type of second calloc() parameter
+    - BUILD: ssl: only pass unsigned chars to isspace()
+    - BUILD: general: always pass unsigned chars to is* functions
+    - BUG/MINOR: sample: fix the json converter's endian-sensitivity
+    - BUG/MEDIUM: ssl: fix several bad pointer aliases in a few sample fetch functions
+    - CLEANUP: fd: use a union in fd_rm_from_fd_list() to shut aliasing warnings
+    - CLEANUP: cache: use read_u32/write_u32 to access the cache entry's hash
+    - CLEANUP: stick-tables: use read_u32() to display a node's key
+    - CLEANUP: sample: use read_u64() in ipmask() to apply an IPv6 mask
+    - MINOR: pattern: fix all remaining strict aliasing issues
+    - CLEANUP: lua: fix aliasing issues in the address matching code
+    - CLEANUP: connection: use read_u32() instead of a cast in the netscaler parser
+    - BUILD: makefile: re-enable strict aliasing
+    - BUG/MINOR: connection: make sure to correctly tag local PROXY connections
+    - MINOR: compiler: add new alignment macros
+    - BUILD: ebtree: improve architecture-specific alignment
+    - MINOR: config: mark global.debug as deprecated
+    - BUILD: travis-ci: enable s390x builds
+    - MINOR: ssl/cli: 'show ssl cert' displays the chain
+    - MINOR: ssl/cli: 'show ssl cert'displays the issuer in the chain
+    - MINOR: ssl/cli: reorder 'show ssl cert' output
+    - CLEANUP: ssl: move issuer_chain tree and definition
+    - DOC: proxy-protocol: clarify IPv6 address representation in the spec
+
 2020/02/07 : 2.2-dev2
     - BUILD: CI: temporarily mark openssl-1.0.2 as allowed failure
     - MEDIUM: cli: Allow multiple filter entries for "show table"
