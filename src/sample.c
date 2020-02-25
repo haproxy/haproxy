@@ -22,6 +22,7 @@
 #include <common/hash.h>
 #include <common/http.h>
 #include <common/initcall.h>
+#include <common/net_helper.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <common/base64.h>
@@ -1750,10 +1751,10 @@ static int sample_conv_ipmask(const struct arg *args, struct sample *smp, void *
 		if (args[1].type != ARGT_IPV6)
 			return 0;
 
-		*(uint32_t*)&smp->data.u.ipv6.s6_addr[0]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[0];
-		*(uint32_t*)&smp->data.u.ipv6.s6_addr[4]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[4];
-		*(uint32_t*)&smp->data.u.ipv6.s6_addr[8]  &= *(uint32_t*)&args[1].data.ipv6.s6_addr[8];
-		*(uint32_t*)&smp->data.u.ipv6.s6_addr[12] &= *(uint32_t*)&args[1].data.ipv6.s6_addr[12];
+		write_u64(&smp->data.u.ipv6.s6_addr[0],
+			  read_u64(&smp->data.u.ipv6.s6_addr[0]) & read_u64(&args[1].data.ipv6.s6_addr[0]));
+		write_u64(&smp->data.u.ipv6.s6_addr[8],
+			  read_u64(&smp->data.u.ipv6.s6_addr[8]) & read_u64(&args[1].data.ipv6.s6_addr[8]));
 		smp->data.type = SMP_T_IPV6;
 	}
 
