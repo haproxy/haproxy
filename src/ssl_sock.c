@@ -4591,7 +4591,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 				/* end of string, end of loop */
 				*line = 0;
 				break;
-			} else if (isspace(*line)) {
+			} else if (isspace((unsigned char)*line)) {
 				newarg = 1;
 				*line = 0;
 			} else if (*line == '[') {
