@@ -57,6 +57,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.mode |= MODE_DEBUG;
+		ha_warning("parsing [%s:%d] : '%s' must never be used and will be removed in 2.3. If you need debug mode, please use '-d' on the command line.\n", file, linenum, args[0]);
+		err_code |= ERR_WARN;
+		goto out;
 	}
 	else if (!strcmp(args[0], "noepoll")) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))

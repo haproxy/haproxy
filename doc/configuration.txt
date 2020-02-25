@@ -2159,7 +2159,7 @@ tune.zlib.windowsize <number>
 3.3. Debugging
 --------------
 
-debug
+debug (deprecated)
   Enables debug mode which dumps to stdout all exchanges, and disables forking
   into background. It is the equivalent of the command-line argument "-d". It
   should never be used in a production configuration since it may prevent full
