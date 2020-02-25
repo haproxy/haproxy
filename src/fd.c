@@ -179,7 +179,11 @@ done:
 void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
 {
 #if defined(HA_HAVE_CAS_DW) || defined(HA_CAS_IS_8B)
-	volatile struct fdlist_entry cur_list, next_list;
+	volatile union {
+		struct fdlist_entry ent;
+		uint64_t u64;
+		uint32_t u32[2];
+	} cur_list, next_list;
 #endif
 	int old;
 	int new = -2;
@@ -188,24 +192,24 @@ void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off)
 	int last;
 lock_self:
 #if (defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW))
-	next_list.next = next_list.prev = -2;
-	cur_list = *(volatile struct fdlist_entry *)(((char *)&fdtab[fd]) + off);
+	next_list.ent.next = next_list.ent.prev = -2;
+	cur_list.ent = *(volatile struct fdlist_entry *)(((char *)&fdtab[fd]) + off);
 	/* First, attempt to lock our own entries */
 	do {
 		/* The FD is not in the FD cache, give up */
-		if (unlikely(cur_list.next <= -3))
+		if (unlikely(cur_list.ent.next <= -3))
 			return;
-		if (unlikely(cur_list.prev == -2 || cur_list.next == -2))
+		if (unlikely(cur_list.ent.prev == -2 || cur_list.ent.next == -2))
 			goto lock_self;
 	} while (
 #ifdef HA_CAS_IS_8B
-	    unlikely(!_HA_ATOMIC_CAS(((void **)(void *)&_GET_NEXT(fd, off)), ((void **)(void *)&cur_list), (*(void **)(void *)&next_list))))
+		 unlikely(!_HA_ATOMIC_CAS(((uint64_t *)&_GET_NEXT(fd, off)), (uint64_t *)&cur_list.u64, next_list.u64))
 #else
-	    unlikely(!_HA_ATOMIC_DWCAS(((void *)&_GET_NEXT(fd, off)), ((void *)&cur_list), ((void *)&next_list))))
+		 unlikely(!_HA_ATOMIC_DWCAS(((long *)&_GET_NEXT(fd, off)), (uint32_t *)&cur_list.u32, &next_list.u32))
 #endif
-	    ;
-	next = cur_list.next;
-	prev = cur_list.prev;
+	    );
+	next = cur_list.ent.next;
+	prev = cur_list.ent.prev;
 
 #else
 lock_self_next:
