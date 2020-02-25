@@ -4822,7 +4822,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 /* This function deletes all the occurrences of an header.
  * It is a wrapper for the 2 following functions.
  */
-__LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+__LJMP static inline int hlua_http_del_hdr(lua_State *L, struct http_msg *msg)
 {
 	size_t len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &len));
@@ -4845,7 +4845,7 @@ __LJMP static int hlua_http_req_del_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_del_hdr(L, htxn, &htxn->s->txn->req);
+	return hlua_http_del_hdr(L, &htxn->s->txn->req);
 }
 
 __LJMP static int hlua_http_res_del_hdr(lua_State *L)
@@ -4858,13 +4858,13 @@ __LJMP static int hlua_http_res_del_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_del_hdr(L, htxn, &htxn->s->txn->rsp);
+	return hlua_http_del_hdr(L, &htxn->s->txn->rsp);
 }
 
 /* This function adds an header. It is a wrapper used by
  * the 2 following functions.
  */
-__LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+__LJMP static inline int hlua_http_add_hdr(lua_State *L, struct http_msg *msg)
 {
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
@@ -4887,7 +4887,7 @@ __LJMP static int hlua_http_req_add_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_add_hdr(L, htxn, &htxn->s->txn->req);
+	return hlua_http_add_hdr(L, &htxn->s->txn->req);
 }
 
 __LJMP static int hlua_http_res_add_hdr(lua_State *L)
@@ -4900,7 +4900,7 @@ __LJMP static int hlua_http_res_add_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_add_hdr(L, htxn, &htxn->s->txn->rsp);
+	return hlua_http_add_hdr(L, &htxn->s->txn->rsp);
 }
 
 static int hlua_http_req_set_hdr(lua_State *L)
@@ -4913,8 +4913,8 @@ static int hlua_http_req_set_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	hlua_http_del_hdr(L, htxn, &htxn->s->txn->req);
-	return hlua_http_add_hdr(L, htxn, &htxn->s->txn->req);
+	hlua_http_del_hdr(L, &htxn->s->txn->req);
+	return hlua_http_add_hdr(L, &htxn->s->txn->req);
 }
 
 static int hlua_http_res_set_hdr(lua_State *L)
@@ -4927,8 +4927,8 @@ static int hlua_http_res_set_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
 		WILL_LJMP(lua_error(L));
 
-	hlua_http_del_hdr(L, htxn, &htxn->s->txn->rsp);
-	return hlua_http_add_hdr(L, htxn, &htxn->s->txn->rsp);
+	hlua_http_del_hdr(L, &htxn->s->txn->rsp);
+	return hlua_http_add_hdr(L, &htxn->s->txn->rsp);
 }
 
 /* This function set the method. */
