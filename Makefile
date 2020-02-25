@@ -176,12 +176,11 @@ REG_TEST_FILES =
 REG_TEST_SCRIPT=./scripts/run-regtests.sh
 
 #### Compiler-specific flags that may be used to disable some negative over-
-# optimization or to silence some warnings. -fno-strict-aliasing is needed with
-# gcc >= 4.4.
+# optimization or to silence some warnings.
 # We rely on signed integer wraparound on overflow, however clang think it
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
-SPEC_CFLAGS := -fno-strict-aliasing -Wdeclaration-after-statement
+SPEC_CFLAGS := -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
