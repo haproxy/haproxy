@@ -2730,9 +2730,6 @@ static int httpchk_expect(struct server *s, int done)
  */
 static int tcpcheck_get_step_id(struct check *check)
 {
-	struct tcpcheck_rule *cur;
-	int i = 0;
-
 	/* not even started anything yet => step 0 = initial connect */
 	if (!check->current_step && !check->last_started_step)
 		return 0;
@@ -2741,12 +2738,7 @@ static int tcpcheck_get_step_id(struct check *check)
 	if (!check->last_started_step)
 		return 1;
 
-	list_for_each_entry(cur, check->tcpcheck_rules, list) {
-		if (cur->list.p == &check->last_started_step->list)
-			break;
-		i++;
-	}
-	return i;
+	return check->last_started_step->index + 1;
 }
 
 /*
@@ -4257,7 +4249,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 {
 	struct list *rules = curpx->tcpcheck_rules;
 	struct tcpcheck_rule *chk = NULL;
-	int cur_arg, ret = 0;
+	int index, cur_arg, ret = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
 		ret = 1;
@@ -4275,6 +4267,12 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 		}
 		LIST_INIT(rules);
 		curpx->tcpcheck_rules = rules;
+	}
+
+	index = 0;
+	if (!LIST_ISEMPTY(rules)) {
+		chk = LIST_PREV(rules, typeof(chk), list);
+		index = chk->index + 1;
 	}
 
 	cur_arg = 1;
@@ -4299,6 +4297,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	ret = (*errmsg != NULL); /* Handle warning */
 
 	/* No error: add the tcp-check rule in the list */
+	chk->index = index;
 	LIST_ADDQ(rules, &chk->list);
 	return ret;
 

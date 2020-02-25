@@ -249,6 +249,7 @@ enum tcpcheck_rule_type {
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
 	enum tcpcheck_rule_type action;         /* type of the rule. */
+	int index;                              /* Index within the list. Starts at 0. */
 	char *comment;				/* comment to be used in the logs and on the stats socket */
 	char *string;                           /* sent string */
 	int string_len;                         /* sent string length */
