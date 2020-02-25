@@ -22,6 +22,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/net_helper.h>
 #include <common/time.h>
 #include <common/standard.h>
 #include <common/hathreads.h>
@@ -475,7 +476,7 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 		cursor += stlen;
 	}
 	else if (st->table->type == SMP_T_SINT) {
-		netinteger = htonl(*((uint32_t *)ts->key.key));
+		netinteger = htonl(read_u32(ts->key.key));
 		memcpy(cursor, &netinteger, sizeof(netinteger));
 		cursor += sizeof(netinteger);
 	}

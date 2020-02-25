@@ -19,6 +19,7 @@
 #include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
+#include <common/net_helper.h>
 #include <common/standard.h>
 #include <common/time.h>
 
@@ -3366,7 +3367,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 		chunk_appendf(msg, " key=%s", addr);
 	}
 	else if (t->type == SMP_T_SINT) {
-		chunk_appendf(msg, " key=%u", *(unsigned int *)entry->key.key);
+		chunk_appendf(msg, " key=%u", read_u32(entry->key.key));
 	}
 	else if (t->type == SMP_T_STR) {
 		chunk_appendf(msg, " key=");
