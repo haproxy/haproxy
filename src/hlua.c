@@ -196,6 +196,8 @@ lua_State *hlua_init_state(int thread_id);
  */
 static lua_State *hlua_states[MAX_THREADS + 1];
 
+#define HLUA_FLT_CTX_FL_PAYLOAD  0x00000001
+
 struct hlua_reg_filter  {
 	char *name;
 	int flt_ref[MAX_THREADS + 1];
@@ -218,6 +220,8 @@ struct hlua_flt_ctx {
 };
 
 DECLARE_STATIC_POOL(pool_head_hlua_flt_ctx, "hlua_flt_ctx", sizeof(struct hlua_flt_ctx));
+
+static int hlua_filter_from_payload(struct filter *filter);
 
 /* This is the chained list of struct hlua_flt referenced
  * for haproxy filters. It is used for a post-initialisation control.
@@ -2998,6 +3002,30 @@ static int hlua_channel_new(lua_State *L, struct channel *channel)
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_channel_ref);
 	lua_setmetatable(L, -2);
 	return 1;
+}
+
+/* Helper function returning a filter attached to a channel at the position <ud>
+ * in the stack, filling the current offset and length of the filter. If no
+ * filter is attached, NULL is returned and <offet> and <len> are not
+ * initialized.
+ */
+static __maybe_unused struct filter *hlua_channel_filter(lua_State *L, int ud, struct channel *chn, size_t *offset, size_t *len)
+{
+	struct filter *filter = NULL;
+
+	if (lua_getfield(L, ud, "__filter") == LUA_TLIGHTUSERDATA) {
+		struct hlua_flt_ctx *flt_ctx;
+
+		filter  = lua_touserdata (L, -1);
+		flt_ctx = filter->ctx;
+		if (hlua_filter_from_payload(filter)) {
+			*offset  = flt_ctx->cur_off[CHN_IDX(chn)];
+			*len     = flt_ctx->cur_len[CHN_IDX(chn)];
+		}
+	}
+
+	lua_pop(L, 1);
+	return filter;
 }
 
 /* Copies <len> bytes of data present in the channel's buffer, starting at the
@@ -8810,6 +8838,13 @@ static void hlua_filter_delete(struct stream *s, struct filter *filter)
 	hlua_ctx_destroy(flt_ctx->hlua[1]);
 	pool_free(pool_head_hlua_flt_ctx, flt_ctx);
 	filter->ctx = NULL;
+}
+
+static int hlua_filter_from_payload(struct filter *filter)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	return (flt_ctx && !!(flt_ctx->flags & HLUA_FLT_CTX_FL_PAYLOAD));
 }
 
 static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
