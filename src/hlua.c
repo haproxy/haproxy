@@ -4726,7 +4726,7 @@ __LJMP static int hlua_http_req_get_headers(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "req_get_headers"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_get_headers(L, &htxn->s->txn->req);
@@ -4739,7 +4739,7 @@ __LJMP static int hlua_http_res_get_headers(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "res_get_headers"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_get_headers(L, &htxn->s->txn->rsp);
@@ -4774,7 +4774,7 @@ __LJMP static int hlua_http_req_rep_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->req, 1));
@@ -4787,7 +4787,7 @@ __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "res_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->rsp, 1));
@@ -4800,7 +4800,7 @@ __LJMP static int hlua_http_req_rep_val(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->req, 0));
@@ -4813,7 +4813,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 	MAY_LJMP(check_args(L, 4, "res_rep_val"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->rsp, 0));
@@ -4842,7 +4842,7 @@ __LJMP static int hlua_http_req_del_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 2, "req_del_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_del_hdr(L, &htxn->s->txn->req);
@@ -4855,7 +4855,7 @@ __LJMP static int hlua_http_res_del_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 2, "res_del_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_del_hdr(L, &htxn->s->txn->rsp);
@@ -4884,7 +4884,7 @@ __LJMP static int hlua_http_req_add_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 3, "req_add_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_add_hdr(L, &htxn->s->txn->req);
@@ -4897,7 +4897,7 @@ __LJMP static int hlua_http_res_add_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 3, "res_add_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	return hlua_http_add_hdr(L, &htxn->s->txn->rsp);
@@ -4910,7 +4910,7 @@ static int hlua_http_req_set_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 3, "req_set_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	hlua_http_del_hdr(L, &htxn->s->txn->req);
@@ -4924,7 +4924,7 @@ static int hlua_http_res_set_hdr(lua_State *L)
 	MAY_LJMP(check_args(L, 3, "res_set_hdr"));
 	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	hlua_http_del_hdr(L, &htxn->s->txn->rsp);
@@ -4938,7 +4938,7 @@ static int hlua_http_req_set_meth(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	lua_pushboolean(L, http_req_replace_stline(0, name, name_len, htxn->p, htxn->s) != -1);
@@ -4952,7 +4952,7 @@ static int hlua_http_req_set_path(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	lua_pushboolean(L, http_req_replace_stline(1, name, name_len, htxn->p, htxn->s) != -1);
@@ -4966,7 +4966,7 @@ static int hlua_http_req_set_query(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	/* Check length. */
@@ -4993,7 +4993,7 @@ static int hlua_http_req_set_uri(lua_State *L)
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
 
-	if (htxn->dir != SMP_OPT_DIR_REQ || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	lua_pushboolean(L, http_req_replace_stline(3, name, name_len, htxn->p, htxn->s) != -1);
@@ -5008,7 +5008,7 @@ static int hlua_http_res_set_status(lua_State *L)
 	const char *str = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 	const struct ist reason = ist2(str, (str ? strlen(str) : 0));
 
-	if (htxn->dir != SMP_OPT_DIR_RES || !(htxn->flags & HLUA_TXN_HTTP_RDY))
+	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
 	http_res_set_status(code, reason, htxn->s);
@@ -5533,7 +5533,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		WILL_LJMP(hlua_done(L));
 
 	s = htxn->s;
-	if (!(htxn->flags & HLUA_TXN_HTTP_RDY)) {
+	if (!IS_HTX_STRM(htxn->s)) {
 		struct channel *req = &s->req;
 		struct channel *res = &s->res;
 
@@ -5607,7 +5607,7 @@ static int hlua_txn_reply_new(lua_State *L)
 	int ret, status;
 
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
-	if (!(htxn->flags & HLUA_TXN_HTTP_RDY)) {
+	if (!IS_HTX_STRM(htxn->s)) {
 		hlua_pusherror(L, "txn object is not an HTTP transaction.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -6270,13 +6270,6 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 	}
 
-	if (stream->be->mode == PR_MODE_HTTP) {
-		if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
-			hflags |= ((stream->txn->req.msg_state < HTTP_MSG_BODY) ? 0 : HLUA_TXN_HTTP_RDY);
-		else
-			hflags |= ((stream->txn->rsp.msg_state < HTTP_MSG_BODY) ? 0 : HLUA_TXN_HTTP_RDY);
-	}
-
 	/* If it is the first run, initialize the data for the call. */
 	if (!HLUA_IS_RUNNING(stream->hlua)) {
 
@@ -6525,10 +6518,10 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	const char *error;
 
 	switch (rule->from) {
-	case ACT_F_TCP_REQ_CNT:                            ; dir = SMP_OPT_DIR_REQ; break;
-	case ACT_F_TCP_RES_CNT:                            ; dir = SMP_OPT_DIR_RES; break;
-	case ACT_F_HTTP_REQ:    hflags = HLUA_TXN_HTTP_RDY ; dir = SMP_OPT_DIR_REQ; break;
-	case ACT_F_HTTP_RES:    hflags = HLUA_TXN_HTTP_RDY ; dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_TCP_REQ_CNT: dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_TCP_RES_CNT: dir = SMP_OPT_DIR_RES; break;
+	case ACT_F_HTTP_REQ:    dir = SMP_OPT_DIR_REQ; break;
+	case ACT_F_HTTP_RES:    dir = SMP_OPT_DIR_RES; break;
 	default:
 		SEND_ERR(px, "Lua: internal error while execute action.\n");
 		goto end;
