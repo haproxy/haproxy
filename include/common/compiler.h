@@ -109,7 +109,7 @@
 #define ALREADY_CHECKED(p) do { asm("" : "=rm"(p) : "0"(p)); } while (0)
 
 /*
- * Gcc >= 3 provides the ability for the programme to give hints to the
+ * Gcc >= 3 provides the ability for the program to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
  * helps the compiler produce the most compact critical paths, which is
  * generally better for the cache and to reduce the number of jumps.
@@ -119,17 +119,9 @@
 #define __builtin_expect(x,y) (x)
 #define likely(x) (x)
 #define unlikely(x) (x)
-#elif __GNUC__ < 4 || __GNUC__ >= 5
-/* gcc 3.x and 5.x do the best job at this */
+#else
 #define likely(x) (__builtin_expect((x) != 0, 1))
 #define unlikely(x) (__builtin_expect((x) != 0, 0))
-#else
-/* GCC 4.x is stupid, it performs the comparison then compares it to 1,
- * so we cheat in a dirty way to prevent it from doing this. This will
- * only work with ints and booleans though.
- */
-#define likely(x) (x)
-#define unlikely(x) (__builtin_expect((unsigned long)(x), 0))
 #endif
 #endif
 
