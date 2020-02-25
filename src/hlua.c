@@ -3132,6 +3132,18 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 	return 1;
 }
 
+/* Returns true if the channel is the response channel. */
+__LJMP static int hlua_channel_is_resp(lua_State *L)
+{
+	struct channel *chn;
+
+	MAY_LJMP(check_args(L, 1, "is_resp"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
+	lua_pushboolean(L, !!(chn->flags & CF_ISRESP));
+	return 1;
+}
+
 /* Just returns the number of bytes available in the output
  * side of the buffer. This function never fails.
  */
@@ -8168,6 +8180,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_in_len",  hlua_channel_get_in_len);
 	hlua_class_function(gL.T, "get_out_len", hlua_channel_get_out_len);
 	hlua_class_function(gL.T, "is_full",     hlua_channel_is_full);
+	hlua_class_function(gL.T, "is_resp",     hlua_channel_is_resp);
 
 	lua_rawset(gL.T, -3);
 
