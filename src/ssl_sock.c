@@ -10680,24 +10680,6 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		BIO_free(bio);
 		chunk_appendf(out, "%s\n", tmp->area);
 
-
-		chunk_appendf(out, "Issuer: ");
-		if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
-			goto end;
-		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
-			goto end;
-		*(tmp->area + tmp->data) = '\0';
-		chunk_appendf(out, "%s\n", tmp->area);
-
-		chunk_appendf(out, "Subject: ");
-		if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
-			goto end;
-		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
-			goto end;
-		*(tmp->area + tmp->data) = '\0';
-		chunk_appendf(out, "%s\n", tmp->area);
-
-
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		chunk_appendf(out, "Subject Alternative Name: ");
 		if (ssl_sock_get_san_oneline(ckchs->ckch->cert, out) == -1)
@@ -10718,6 +10700,22 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		tmp->data = len;
 		dump_binary(out, tmp->area, tmp->data);
 		chunk_appendf(out, "\n");
+
+		chunk_appendf(out, "Subject: ");
+		if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
+			goto end;
+		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+			goto end;
+		*(tmp->area + tmp->data) = '\0';
+		chunk_appendf(out, "%s\n", tmp->area);
+
+		chunk_appendf(out, "Issuer: ");
+		if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
+			goto end;
+		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+			goto end;
+		*(tmp->area + tmp->data) = '\0';
+		chunk_appendf(out, "%s\n", tmp->area);
 
 		/* Displays subject of each certificate in the chain */
 		for (i = 0; i < sk_X509_num(ckchs->ckch->chain); i++) {
