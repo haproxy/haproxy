@@ -10723,7 +10723,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		for (i = 0; i < sk_X509_num(ckchs->ckch->chain); i++) {
 			X509 *ca = sk_X509_value(ckchs->ckch->chain, i);
 
-			chunk_appendf(out, "Chain: ");
+			chunk_appendf(out, "Chain Subject: ");
 			if ((name = X509_get_subject_name(ca)) == NULL)
 				goto end;
 			if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
@@ -10731,6 +10731,13 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 			*(tmp->area + tmp->data) = '\0';
 			chunk_appendf(out, "%s\n", tmp->area);
 
+			chunk_appendf(out, "Chain Issuer: ");
+			if ((name = X509_get_issuer_name(ca)) == NULL)
+				goto end;
+			if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+				goto end;
+			*(tmp->area + tmp->data) = '\0';
+			chunk_appendf(out, "%s\n", tmp->area);
 		}
 	}
 
