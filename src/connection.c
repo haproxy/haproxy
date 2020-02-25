@@ -837,17 +837,17 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 
 	/* Decode a possible NetScaler Client IP request, fail early if
 	 * it does not match */
-	if (ntohl(*(uint32_t *)line) != __objt_listener(conn->target)->bind_conf->ns_cip_magic)
+	if (ntohl(read_u32(line)) != __objt_listener(conn->target)->bind_conf->ns_cip_magic)
 		goto bad_magic;
 
 	/* Legacy CIP protocol */
 	if ((trash.area[8] & 0xD0) == 0x40) {
-		hdr_len = ntohl(*(uint32_t *)(line+4));
+		hdr_len = ntohl(read_u32((line+4)));
 		line += 8;
 	}
 	/* Standard CIP protocol */
 	else if (trash.area[8] == 0x00) {
-		hdr_len = ntohs(*(uint32_t *)(line+10));
+		hdr_len = ntohs(read_u32((line+10)));
 		line += 12;
 	}
 	/* Unknown CIP protocol */
