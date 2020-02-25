@@ -14,6 +14,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/htx.h>
+#include <common/net_helper.h>
 #include <common/uri_auth.h>
 
 #include <types/capture.h>
@@ -5047,7 +5048,7 @@ void http_init_txn(struct stream *s)
 		      : 0);
 	txn->status = -1;
 	txn->errmsg = NULL;
-	*(unsigned int *)txn->cache_hash = 0;
+	write_u32(txn->cache_hash, 0);
 
 	txn->cookie_first_date = 0;
 	txn->cookie_last_date = 0;

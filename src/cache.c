@@ -36,6 +36,7 @@
 #include <common/hash.h>
 #include <common/htx.h>
 #include <common/initcall.h>
+#include <common/net_helper.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
@@ -95,7 +96,7 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 	struct eb32_node *node;
 	struct cache_entry *entry;
 
-	node = eb32_lookup(&cache->entries, (*(unsigned int *)hash));
+	node = eb32_lookup(&cache->entries, read_u32(hash));
 	if (!node)
 		return NULL;
 
@@ -549,7 +550,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
 	struct cache_st *cache_ctx = NULL;
 	struct cache_entry *object, *old;
-	unsigned int key = *(unsigned int *)txn->cache_hash;
+	unsigned int key = read_u32(txn->cache_hash);
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
 	size_t hdrs_len = 0;
@@ -1530,7 +1531,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			}
 
 			entry = container_of(node, struct cache_entry, eb);
-			chunk_printf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, (*(unsigned int *)entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+			chunk_printf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, read_u32(entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
 
 			next_key = node->key + 1;
 			appctx->ctx.cli.i0 = next_key;
