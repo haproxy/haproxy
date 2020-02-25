@@ -167,12 +167,12 @@ struct fdinfo {
 
 struct poller {
 	void   *private;                                     /* any private data for the poller */
-	void REGPRM1   (*clo)(const int fd);                 /* mark <fd> as closed */
-	void REGPRM3   (*poll)(struct poller *p, int exp, int wake);  /* the poller itself */
-	int  REGPRM1   (*init)(struct poller *p);            /* poller initialization */
-	void REGPRM1   (*term)(struct poller *p);            /* termination of this poller */
-	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */
-	int  REGPRM1   (*fork)(struct poller *p);            /* post-fork re-opening */
+	void   (*clo)(const int fd);                 /* mark <fd> as closed */
+	void   (*poll)(struct poller *p, int exp, int wake);  /* the poller itself */
+	int    (*init)(struct poller *p);            /* poller initialization */
+	void   (*term)(struct poller *p);            /* termination of this poller */
+	int    (*test)(struct poller *p);            /* pre-init check of the poller */
+	int    (*fork)(struct poller *p);            /* post-fork re-opening */
 	const char   *name;                                  /* poller name */
 	unsigned int flags;                                  /* HAP_POLL_F_* */
 	int    pref;                                         /* try pollers with higher preference first */

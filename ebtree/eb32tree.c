@@ -22,22 +22,22 @@
 
 #include "eb32tree.h"
 
-REGPRM2 struct eb32_node *eb32_insert(struct eb_root *root, struct eb32_node *new)
+struct eb32_node *eb32_insert(struct eb_root *root, struct eb32_node *new)
 {
 	return __eb32_insert(root, new);
 }
 
-REGPRM2 struct eb32_node *eb32i_insert(struct eb_root *root, struct eb32_node *new)
+struct eb32_node *eb32i_insert(struct eb_root *root, struct eb32_node *new)
 {
 	return __eb32i_insert(root, new);
 }
 
-REGPRM2 struct eb32_node *eb32_lookup(struct eb_root *root, u32 x)
+struct eb32_node *eb32_lookup(struct eb_root *root, u32 x)
 {
 	return __eb32_lookup(root, x);
 }
 
-REGPRM2 struct eb32_node *eb32i_lookup(struct eb_root *root, s32 x)
+struct eb32_node *eb32i_lookup(struct eb_root *root, s32 x)
 {
 	return __eb32i_lookup(root, x);
 }
@@ -46,7 +46,7 @@ REGPRM2 struct eb32_node *eb32i_lookup(struct eb_root *root, s32 x)
  * Find the last occurrence of the highest key in the tree <root>, which is
  * equal to or less than <x>. NULL is returned is no key matches.
  */
-REGPRM2 struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
+struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
@@ -134,7 +134,7 @@ REGPRM2 struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
  * Find the first occurrence of the lowest key in the tree <root>, which is
  * equal to or greater than <x>. NULL is returned is no key matches.
  */
-REGPRM2 struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
+struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;

@@ -32,7 +32,7 @@ static unsigned int *fd_evts[2];
 static THREAD_LOCAL fd_set *tmp_evts[2];
 
 /* Immediately remove the entry upon close() */
-REGPRM1 static void __fd_clo(int fd)
+static void __fd_clo(int fd)
 {
 	hap_fd_clr(fd, fd_evts[DIR_RD]);
 	hap_fd_clr(fd, fd_evts[DIR_WR]);
@@ -89,7 +89,7 @@ static void _update_fd(int fd, int *max_add_fd)
 /*
  * Select() poller
  */
-REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
+static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int fd, i;
@@ -247,7 +247,7 @@ static void deinit_select_per_thread()
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
-REGPRM1 static int _do_init(struct poller *p)
+static int _do_init(struct poller *p)
 {
 	__label__ fail_swevt, fail_srevt, fail_revt;
 	int fd_set_bytes;
@@ -283,7 +283,7 @@ REGPRM1 static int _do_init(struct poller *p)
  * Termination of the select() poller.
  * Memory is released and the poller is marked as unselectable.
  */
-REGPRM1 static void _do_term(struct poller *p)
+static void _do_term(struct poller *p)
 {
 	free(fd_evts[DIR_WR]);
 	free(fd_evts[DIR_RD]);
@@ -295,7 +295,7 @@ REGPRM1 static void _do_term(struct poller *p)
  * Check that the poller works.
  * Returns 1 if OK, otherwise 0.
  */
-REGPRM1 static int _do_test(struct poller *p)
+static int _do_test(struct poller *p)
 {
 	if (global.maxsock > FD_SETSIZE)
 		return 0;

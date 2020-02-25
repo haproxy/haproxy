@@ -27,7 +27,6 @@
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_THREAD           : enable threads support.
 #   USE_PTHREAD_PSHARED  : enable pthread process shared mutex on sslcache.
-#   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_STATIC_PCRE2     : enable static libpcre2.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
@@ -288,7 +287,7 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # the reported build options.
 use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
-           USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED USE_REGPARM       \
+           USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED                   \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_VSYSCALL             \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
@@ -503,10 +502,6 @@ endif
 
 ifneq ($(USE_VSYSCALL),)
 OPTIONS_OBJS   += src/i386-linux-vsys.o
-endif
-
-ifneq ($(USE_REGPARM),)
-OPTIONS_CFLAGS += -DCONFIG_REGPARM=3
 endif
 
 ifneq ($(USE_DL),)

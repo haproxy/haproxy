@@ -89,7 +89,7 @@ static int _update_fd(int fd, int start)
 /*
  * kqueue() poller
  */
-REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
+static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int count, fd, wait_time;
@@ -261,7 +261,7 @@ static void deinit_kqueue_per_thread()
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
-REGPRM1 static int _do_init(struct poller *p)
+static int _do_init(struct poller *p)
 {
 	p->private = NULL;
 
@@ -294,7 +294,7 @@ fail_alloc:
  * Termination of the kqueue() poller.
  * Memory is released and the poller is marked as unselectable.
  */
-REGPRM1 static void _do_term(struct poller *p)
+static void _do_term(struct poller *p)
 {
 	if (kqueue_fd[tid] >= 0) {
 		close(kqueue_fd[tid]);
@@ -313,7 +313,7 @@ REGPRM1 static void _do_term(struct poller *p)
  * Check that the poller works.
  * Returns 1 if OK, otherwise 0.
  */
-REGPRM1 static int _do_test(struct poller *p)
+static int _do_test(struct poller *p)
 {
 	int fd;
 
@@ -329,7 +329,7 @@ REGPRM1 static int _do_test(struct poller *p)
  * otherwise 0. Note that some pollers need to be reopened after a fork()
  * (such as kqueue), and some others may fail to do so in a chroot.
  */
-REGPRM1 static int _do_fork(struct poller *p)
+static int _do_fork(struct poller *p)
 {
 	kqueue_fd[tid] = kqueue();
 	if (kqueue_fd[tid] < 0)

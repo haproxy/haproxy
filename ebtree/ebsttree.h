@@ -29,8 +29,8 @@
 /* The following functions are not inlined by default. They are declared
  * in ebsttree.c, which simply relies on their inline version.
  */
-REGPRM2 struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x);
-REGPRM2 struct ebmb_node *ebst_insert(struct eb_root *root, struct ebmb_node *new);
+struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x);
+struct ebmb_node *ebst_insert(struct eb_root *root, struct ebmb_node *new);
 
 /* Find the first occurrence of a length <len> string <x> in the tree <root>.
  * It's the caller's reponsibility to use this function only on trees which

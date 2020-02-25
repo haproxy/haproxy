@@ -32,8 +32,8 @@
 /* The following functions are not inlined by default. They are declared
  * in ebimtree.c, which simply relies on their inline version.
  */
-REGPRM3 struct ebpt_node *ebim_lookup(struct eb_root *root, const void *x, unsigned int len);
-REGPRM3 struct ebpt_node *ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len);
+struct ebpt_node *ebim_lookup(struct eb_root *root, const void *x, unsigned int len);
+struct ebpt_node *ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len);
 
 /* Find the first occurrence of a key of a least <len> bytes matching <x> in the
  * tree <root>. The caller is responsible for ensuring that <len> will not exceed

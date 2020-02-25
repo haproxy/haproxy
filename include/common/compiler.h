@@ -35,37 +35,6 @@
 #endif
 
 
-/* Support passing function parameters in registers. For this, the
- * CONFIG_REGPARM macro has to be set to the maximal number of registers
- * allowed. Some functions have intentionally received a regparm lower than
- * their parameter count, it is in order to avoid register clobbering where
- * they are called.
- */
-#ifndef REGPRM1
-#if CONFIG_REGPARM >= 1 && __GNUC__ >= 3
-#define REGPRM1	__attribute__((regparm(1)))
-#else
-#define REGPRM1
-#endif
-#endif
-
-#ifndef REGPRM2
-#if CONFIG_REGPARM >= 2 && __GNUC__ >= 3
-#define REGPRM2	__attribute__((regparm(2)))
-#else
-#define REGPRM2 REGPRM1
-#endif
-#endif
-
-#ifndef REGPRM3
-#if CONFIG_REGPARM >= 3 && __GNUC__ >= 3
-#define REGPRM3	__attribute__((regparm(3)))
-#else
-#define REGPRM3 REGPRM2
-#endif
-#endif
-
-
 /* By default, gcc does not inline large chunks of code, but we want it to
  * respect our choices.
  */

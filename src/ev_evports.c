@@ -114,7 +114,7 @@ static void _update_fd(int fd)
  * "src/fd.c" for more information.
  */
 
-REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
+static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int i;
 	int wait_time;
@@ -330,7 +330,7 @@ static void deinit_evports_per_thread()
  * Initialisation of the event ports poller.
  * Returns 0 in case of failure, non-zero in case of success.
  */
-REGPRM1 static int _do_init(struct poller *p)
+static int _do_init(struct poller *p)
 {
 	p->private = NULL;
 
@@ -352,7 +352,7 @@ fail:
  * Termination of the event ports poller.
  * All resources are released and the poller is marked as inoperative.
  */
-REGPRM1 static void _do_term(struct poller *p)
+static void _do_term(struct poller *p)
 {
 	if (evports_fd[tid] != -1) {
 		close(evports_fd[tid]);
@@ -372,7 +372,7 @@ REGPRM1 static void _do_term(struct poller *p)
  * the poller to function correctly.
  * Returns 1 on success, otherwise 0.
  */
-REGPRM1 static int _do_test(struct poller *p)
+static int _do_test(struct poller *p)
 {
 	int fd;
 
@@ -389,7 +389,7 @@ REGPRM1 static int _do_test(struct poller *p)
  * otherwise 0.  If this function fails, "_do_term()" must be called to
  * clean up the poller.
  */
-REGPRM1 static int _do_fork(struct poller *p)
+static int _do_fork(struct poller *p)
 {
 	if (evports_fd[tid] != -1) {
 		close(evports_fd[tid]);

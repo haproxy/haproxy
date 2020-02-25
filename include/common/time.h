@@ -69,25 +69,25 @@ extern THREAD_LOCAL struct timeval after_poll;       /* system date after leavin
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
-REGPRM3 struct timeval *tv_ms_add(struct timeval *tv, const struct timeval *from, int ms);
+struct timeval *tv_ms_add(struct timeval *tv, const struct timeval *from, int ms);
 
 /*
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_ms_cmp2() for that.
  */
-REGPRM2 int tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
+int tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
 
 /*
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * assuming that TV_ETERNITY is greater than everything.
  */
-REGPRM2 int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
+int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
 
 /**** general purpose functions and macros *******************************/
 
 
 /* tv_now: sets <tv> to the current time */
-REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
+static inline struct timeval *tv_now(struct timeval *tv)
 {
 	gettimeofday(tv, NULL);
 	return tv;
@@ -101,7 +101,7 @@ REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
  * value in <interrupted> (a non-zero value means that we have not expired the
  * timeout).
  */
-REGPRM2 void tv_update_date(int max_wait, int interrupted);
+void tv_update_date(int max_wait, int interrupted);
 
 char *timeofday_as_iso_us(int pad);
 
@@ -110,7 +110,7 @@ char *timeofday_as_iso_us(int pad);
  * note that only tv_usec is necessary to detect it since a tv_usec > 999999
  * is normally not possible.
  */
-REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
+static inline struct timeval *tv_eternity(struct timeval *tv)
 {
 	tv->tv_sec  = (typeof(tv->tv_sec))TV_ETERNITY;
 	tv->tv_usec = (typeof(tv->tv_usec))TV_ETERNITY;
@@ -121,7 +121,7 @@ REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
  * sets a struct timeval to 0
  *
  */
-REGPRM1 static inline struct timeval *tv_zero(struct timeval *tv) {
+static inline struct timeval *tv_zero(struct timeval *tv) {
 	tv->tv_sec = tv->tv_usec = 0;
 	return tv;
 }
@@ -144,7 +144,7 @@ REGPRM1 static inline struct timeval *tv_zero(struct timeval *tv) {
 /*
  * Converts a struct timeval to a number of milliseconds.
  */
-REGPRM1 static inline unsigned long __tv_to_ms(const struct timeval *tv)
+static inline unsigned long __tv_to_ms(const struct timeval *tv)
 {
 	unsigned long ret;
 
@@ -156,7 +156,7 @@ REGPRM1 static inline unsigned long __tv_to_ms(const struct timeval *tv)
 /*
  * Converts a struct timeval to a number of milliseconds.
  */
-REGPRM2 static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned long ms)
+static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned long ms)
 {
 	tv->tv_sec = ms / 1000;
 	tv->tv_usec = (ms % 1000) * 1000;
@@ -170,7 +170,7 @@ REGPRM2 static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned
  * which is almost twice as low as a direct usec to ms conversion. This version
  * also has the benefit of returning 1024 for 1000000.
  */
-REGPRM1 static inline unsigned int __usec_to_1024th(unsigned int usec)
+static inline unsigned int __usec_to_1024th(unsigned int usec)
 {
 	return (usec * 1073 + 742516) >> 20;
 }
@@ -180,7 +180,7 @@ REGPRM1 static inline unsigned int __usec_to_1024th(unsigned int usec)
 
 
 /* tv_cmp: compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2. */
-REGPRM2 static inline int __tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
+static inline int __tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
 		return -1;
@@ -196,7 +196,7 @@ REGPRM2 static inline int __tv_cmp(const struct timeval *tv1, const struct timev
 
 /* tv_iseq: compares <tv1> and <tv2> : returns 1 if tv1 == tv2, otherwise 0 */
 #define tv_iseq __tv_iseq
-REGPRM2 static inline int __tv_iseq(const struct timeval *tv1, const struct timeval *tv2)
+static inline int __tv_iseq(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return ((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) &&
 		((unsigned)tv1->tv_usec == (unsigned)tv2->tv_usec);
@@ -204,8 +204,8 @@ REGPRM2 static inline int __tv_iseq(const struct timeval *tv1, const struct time
 
 /* tv_isgt: compares <tv1> and <tv2> : returns 1 if tv1 > tv2, otherwise 0 */
 #define tv_isgt _tv_isgt
-REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline int __tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2);
+static inline int __tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return
 		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
@@ -215,7 +215,7 @@ REGPRM2 static inline int __tv_isgt(const struct timeval *tv1, const struct time
 
 /* tv_isge: compares <tv1> and <tv2> : returns 1 if tv1 >= tv2, otherwise 0 */
 #define tv_isge __tv_isge
-REGPRM2 static inline int __tv_isge(const struct timeval *tv1, const struct timeval *tv2)
+static inline int __tv_isge(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return
 		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
@@ -225,7 +225,7 @@ REGPRM2 static inline int __tv_isge(const struct timeval *tv1, const struct time
 
 /* tv_islt: compares <tv1> and <tv2> : returns 1 if tv1 < tv2, otherwise 0 */
 #define tv_islt __tv_islt
-REGPRM2 static inline int __tv_islt(const struct timeval *tv1, const struct timeval *tv2)
+static inline int __tv_islt(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return
 		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
@@ -235,8 +235,8 @@ REGPRM2 static inline int __tv_islt(const struct timeval *tv1, const struct time
 
 /* tv_isle: compares <tv1> and <tv2> : returns 1 if tv1 <= tv2, otherwise 0 */
 #define tv_isle _tv_isle
-REGPRM2 int _tv_isle(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline int __tv_isle(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_isle(const struct timeval *tv1, const struct timeval *tv2);
+static inline int __tv_isle(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return
 		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
@@ -249,8 +249,8 @@ REGPRM2 static inline int __tv_isle(const struct timeval *tv1, const struct time
  * Must not be used when either argument is eternity. Use tv_ms_cmp2() for that.
  */
 #define tv_ms_cmp _tv_ms_cmp
-REGPRM2 int _tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline int __tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
+static inline int __tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if ((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec) {
 		if ((unsigned)tv2->tv_usec >= (unsigned)tv1->tv_usec + 1000)
@@ -277,8 +277,8 @@ REGPRM2 static inline int __tv_ms_cmp(const struct timeval *tv1, const struct ti
  * assuming that TV_ETERNITY is greater than everything.
  */
 #define tv_ms_cmp2 _tv_ms_cmp2
-REGPRM2 int _tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline int __tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
+static inline int __tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_iseternity(tv1))
 		if (tv_iseternity(tv2))
@@ -297,8 +297,8 @@ REGPRM2 static inline int __tv_ms_cmp2(const struct timeval *tv1, const struct t
  * occurrences of (tv_ms_cmp2(tv,now) <= 0).
  */
 #define tv_ms_le2 _tv_ms_le2
-REGPRM2 int _tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline int __tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2);
+static inline int __tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (likely((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec + 1))
 		return 0;
@@ -329,8 +329,8 @@ REGPRM2 static inline int __tv_ms_le2(const struct timeval *tv1, const struct ti
  * Must not be used when either argument is eternity.
  */
 #define tv_ms_elapsed __tv_ms_elapsed
-REGPRM2 unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline unsigned long __tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2);
+static inline unsigned long __tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2)
 {
 	unsigned long ret;
 
@@ -346,8 +346,8 @@ REGPRM2 static inline unsigned long __tv_ms_elapsed(const struct timeval *tv1, c
  */
 
 #define tv_ms_remain __tv_ms_remain
-REGPRM2 unsigned long _tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline unsigned long __tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2);
+static inline unsigned long __tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_ms_cmp(tv1, tv2) >= 0)
 		return 0; /* event elapsed */
@@ -361,8 +361,8 @@ REGPRM2 static inline unsigned long __tv_ms_remain(const struct timeval *tv1, co
  * Returns TIME_ETERNITY if tv2 is eternity.
  */
 #define tv_ms_remain2 _tv_ms_remain2
-REGPRM2 unsigned long _tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2);
-REGPRM2 static inline unsigned long __tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2);
+static inline unsigned long __tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_iseternity(tv2))
 		return TIME_ETERNITY;
@@ -374,8 +374,8 @@ REGPRM2 static inline unsigned long __tv_ms_remain2(const struct timeval *tv1, c
  * adds <inc> to <from>, set the result to <tv> and returns a pointer <tv>
  */
 #define tv_add _tv_add
-REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
-REGPRM3 static inline struct timeval *__tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
+static inline struct timeval *__tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
 {
 	tv->tv_usec = from->tv_usec + inc->tv_usec;
 	tv->tv_sec  = from->tv_sec  + inc->tv_sec;
@@ -392,8 +392,8 @@ REGPRM3 static inline struct timeval *__tv_add(struct timeval *tv, const struct 
  * return 1, otherwise return 0. It is meant to be used in if conditions.
  */
 #define tv_add_ifset _tv_add_ifset
-REGPRM3 int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
-REGPRM3 static inline int __tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
+static inline int __tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
 {
 	if (tv_iseternity(inc))
 		return 0;
@@ -409,7 +409,7 @@ REGPRM3 static inline int __tv_add_ifset(struct timeval *tv, const struct timeva
 /*
  * adds <inc> to <tv> and returns a pointer <tv>
  */
-REGPRM2 static inline struct timeval *__tv_add2(struct timeval *tv, const struct timeval *inc)
+static inline struct timeval *__tv_add2(struct timeval *tv, const struct timeval *inc)
 {
 	tv->tv_usec += inc->tv_usec;
 	tv->tv_sec  += inc->tv_sec;
@@ -426,8 +426,8 @@ REGPRM2 static inline struct timeval *__tv_add2(struct timeval *tv, const struct
  * 0 is returned. The result is stored into tv.
  */
 #define tv_remain _tv_remain
-REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
-REGPRM3 static inline struct timeval *__tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
+static inline struct timeval *__tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
 {
 	tv->tv_usec = tv2->tv_usec - tv1->tv_usec;
 	tv->tv_sec  = tv2->tv_sec  - tv1->tv_sec;
@@ -453,8 +453,8 @@ REGPRM3 static inline struct timeval *__tv_remain(const struct timeval *tv1, con
  * eternity.
  */
 #define tv_remain2 _tv_remain2
-REGPRM3 struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
-REGPRM3 static inline struct timeval *__tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
+static inline struct timeval *__tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
 {
 	if (tv_iseternity(tv2))
 		return tv_eternity(tv);
@@ -466,8 +466,8 @@ REGPRM3 static inline struct timeval *__tv_remain2(const struct timeval *tv1, co
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
 #define tv_ms_add _tv_ms_add
-REGPRM3 struct timeval *_tv_ms_add(struct timeval *tv, const struct timeval *from, int ms);
-REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const struct timeval *from, int ms)
+struct timeval *_tv_ms_add(struct timeval *tv, const struct timeval *from, int ms);
+static inline struct timeval *__tv_ms_add(struct timeval *tv, const struct timeval *from, int ms)
 {
 	tv->tv_usec = from->tv_usec + (ms % 1000) * 1000;
 	tv->tv_sec  = from->tv_sec  + (ms / 1000);

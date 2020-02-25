@@ -22,12 +22,12 @@
 
 #include "ebpttree.h"
 
-REGPRM2 struct ebpt_node *ebpt_insert(struct eb_root *root, struct ebpt_node *new)
+struct ebpt_node *ebpt_insert(struct eb_root *root, struct ebpt_node *new)
 {
 	return __ebpt_insert(root, new);
 }
 
-REGPRM2 struct ebpt_node *ebpt_lookup(struct eb_root *root, void *x)
+struct ebpt_node *ebpt_lookup(struct eb_root *root, void *x)
 {
 	return __ebpt_lookup(root, x);
 }
@@ -36,7 +36,7 @@ REGPRM2 struct ebpt_node *ebpt_lookup(struct eb_root *root, void *x)
  * Find the last occurrence of the highest key in the tree <root>, which is
  * equal to or less than <x>. NULL is returned is no key matches.
  */
-REGPRM2 struct ebpt_node *ebpt_lookup_le(struct eb_root *root, void *x)
+struct ebpt_node *ebpt_lookup_le(struct eb_root *root, void *x)
 {
 	struct ebpt_node *node;
 	eb_troot_t *troot;
@@ -124,7 +124,7 @@ REGPRM2 struct ebpt_node *ebpt_lookup_le(struct eb_root *root, void *x)
  * Find the first occurrence of the lowest key in the tree <root>, which is
  * equal to or greater than <x>. NULL is returned is no key matches.
  */
-REGPRM2 struct ebpt_node *ebpt_lookup_ge(struct eb_root *root, void *x)
+struct ebpt_node *ebpt_lookup_ge(struct eb_root *root, void *x)
 {
 	struct ebpt_node *node;
 	eb_troot_t *troot;

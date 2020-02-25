@@ -45,7 +45,7 @@ static int epoll_fd[MAX_THREADS]; // per-thread epoll_fd
  * send us events even though this process closed the fd (see man 7 epoll,
  * "Questions and answers", Q 6).
  */
-REGPRM1 static void __fd_clo(int fd)
+static void __fd_clo(int fd)
 {
 	if (unlikely(fdtab[fd].cloned)) {
 		unsigned long m = polled_mask[fd].poll_recv | polled_mask[fd].poll_send;
@@ -134,7 +134,7 @@ static void _update_fd(int fd)
 /*
  * Linux epoll() poller
  */
-REGPRM3 static void _do_poll(struct poller *p, int exp, int wake)
+static void _do_poll(struct poller *p, int exp, int wake)
 {
 	int status;
 	int fd;
@@ -283,7 +283,7 @@ static void deinit_epoll_per_thread()
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
-REGPRM1 static int _do_init(struct poller *p)
+static int _do_init(struct poller *p)
 {
 	p->private = NULL;
 
@@ -305,7 +305,7 @@ REGPRM1 static int _do_init(struct poller *p)
  * Termination of the epoll() poller.
  * Memory is released and the poller is marked as unselectable.
  */
-REGPRM1 static void _do_term(struct poller *p)
+static void _do_term(struct poller *p)
 {
 	if (epoll_fd[tid] >= 0) {
 		close(epoll_fd[tid]);
@@ -320,7 +320,7 @@ REGPRM1 static void _do_term(struct poller *p)
  * Check that the poller works.
  * Returns 1 if OK, otherwise 0.
  */
-REGPRM1 static int _do_test(struct poller *p)
+static int _do_test(struct poller *p)
 {
 	int fd;
 
@@ -337,7 +337,7 @@ REGPRM1 static int _do_test(struct poller *p)
  * epoll_fd. Some side effects were encountered because of this, such
  * as epoll_wait() returning an FD which was previously deleted.
  */
-REGPRM1 static int _do_fork(struct poller *p)
+static int _do_fork(struct poller *p)
 {
 	if (epoll_fd[tid] >= 0)
 		close(epoll_fd[tid]);

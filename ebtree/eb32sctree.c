@@ -26,7 +26,7 @@
 /* This function is used to build a tree of duplicates by adding a new node to
  * a subtree of at least 2 entries.
  */
-REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_node *new, unsigned long scope)
+struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_node *new, unsigned long scope)
 {
 	struct eb32sc_node *eb32;
 	struct eb_node *head = sub;
@@ -104,7 +104,7 @@ REGPRM1 struct eb32sc_node *eb32sc_insert_dup(struct eb_node *sub, struct eb_nod
  * new->key needs be set with the key. The eb32sc_node is returned. This
  * implementation does NOT support unique trees.
  */
-REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_node *new, unsigned long scope)
+struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_node *new, unsigned long scope)
 {
 	struct eb32sc_node *old;
 	unsigned int side;
@@ -236,7 +236,7 @@ REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_no
  * Find the first occurrence of the lowest key in the tree <root>, which is
  * equal to or greater than <x>. NULL is returned is no key matches.
  */
-REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope)
+struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope)
 {
 	struct eb32sc_node *node;
 	eb_troot_t *troot;
@@ -304,7 +304,7 @@ REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsign
  * equal to or greater than <x>, matching scope <scope>. If not found, it loops
  * back to the beginning of the tree. NULL is returned is no key matches.
  */
-REGPRM2 struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 x, unsigned long scope)
+struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 x, unsigned long scope)
 {
 	struct eb32sc_node *eb32;
 	eb_troot_t *troot;

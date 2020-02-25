@@ -35,8 +35,8 @@
 /* The following functions are not inlined by default. They are declared
  * in ebistree.c, which simply relies on their inline version.
  */
-REGPRM2 struct ebpt_node *ebis_lookup(struct eb_root *root, const char *x);
-REGPRM2 struct ebpt_node *ebis_insert(struct eb_root *root, struct ebpt_node *new);
+struct ebpt_node *ebis_lookup(struct eb_root *root, const char *x);
+struct ebpt_node *ebis_insert(struct eb_root *root, struct ebpt_node *new);
 
 /* Find the first occurrence of a length <len> string <x> in the tree <root>.
  * It's the caller's reponsibility to use this function only on trees which

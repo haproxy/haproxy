@@ -56,9 +56,9 @@ struct eb32sc_node {
  * The following functions are not inlined by default. They are declared
  * in eb32sctree.c, which simply relies on their inline version.
  */
-REGPRM2 struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope);
-REGPRM2 struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 x, unsigned long scope);
-REGPRM2 struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_node *new, unsigned long scope);
+struct eb32sc_node *eb32sc_lookup_ge(struct eb_root *root, u32 x, unsigned long scope);
+struct eb32sc_node *eb32sc_lookup_ge_or_first(struct eb_root *root, u32 x, unsigned long scope);
+struct eb32sc_node *eb32sc_insert(struct eb_root *root, struct eb32sc_node *new, unsigned long scope);
 void eb32sc_delete(struct eb32sc_node *node);
 
 /* Walks down left starting at root pointer <start>, and follow the leftmost

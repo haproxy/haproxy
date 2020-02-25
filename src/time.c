@@ -38,7 +38,7 @@ static THREAD_LOCAL char         iso_time_str[28]; /* ISO time representation of
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
-REGPRM3 struct timeval *_tv_ms_add(struct timeval *tv, const struct timeval *from, int ms)
+struct timeval *_tv_ms_add(struct timeval *tv, const struct timeval *from, int ms)
 {
 	tv->tv_usec = from->tv_usec + (ms % 1000) * 1000;
 	tv->tv_sec  = from->tv_sec  + (ms / 1000);
@@ -53,7 +53,7 @@ REGPRM3 struct timeval *_tv_ms_add(struct timeval *tv, const struct timeval *fro
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_ms_cmp2() for that.
  */
-REGPRM2 int _tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_ms_cmp(tv1, tv2);
 }
@@ -62,7 +62,7 @@ REGPRM2 int _tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2)
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * assuming that TV_ETERNITY is greater than everything.
  */
-REGPRM2 int _tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_ms_cmp2(tv1, tv2);
 }
@@ -73,7 +73,7 @@ REGPRM2 int _tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2)
  * TV_ETERNITY, and always assumes that tv2 != TV_ETERNITY. Designed to replace
  * occurrences of (tv_ms_cmp2(tv,now) <= 0).
  */
-REGPRM2 int _tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_ms_le2(tv1, tv2);
 }
@@ -83,7 +83,7 @@ REGPRM2 int _tv_ms_le2(const struct timeval *tv1, const struct timeval *tv2)
  * if tv2 is passed, 0 is returned.
  * Must not be used when either argument is eternity.
  */
-REGPRM2 unsigned long _tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_remain(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_ms_remain(tv1, tv2);
 }
@@ -93,7 +93,7 @@ REGPRM2 unsigned long _tv_ms_remain(const struct timeval *tv1, const struct time
  * if tv2 is passed, 0 is returned.
  * Returns TIME_ETERNITY if tv2 is eternity.
  */
-REGPRM2 unsigned long _tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_remain2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_iseternity(tv2))
 		return TIME_ETERNITY;
@@ -105,7 +105,7 @@ REGPRM2 unsigned long _tv_ms_remain2(const struct timeval *tv1, const struct tim
  * Returns the time in ms elapsed between tv1 and tv2, assuming that tv1<=tv2.
  * Must not be used when either argument is eternity.
  */
-REGPRM2 unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2)
+unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_ms_elapsed(tv1, tv2);
 }
@@ -113,7 +113,7 @@ REGPRM2 unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct tim
 /*
  * adds <inc> to <from>, set the result to <tv> and returns a pointer <tv>
  */
-REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
 {
 	return __tv_add(tv, from, inc);
 }
@@ -122,7 +122,7 @@ REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, 
  * If <inc> is set, then add it to <from> and set the result to <tv>, then
  * return 1, otherwise return 0. It is meant to be used in if conditions.
  */
-REGPRM3 int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
 {
 	return __tv_add_ifset(tv, from, inc);
 }
@@ -131,7 +131,7 @@ REGPRM3 int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const 
  * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
  * 0 is returned. The result is stored into tv.
  */
-REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
 {
 	return __tv_remain(tv1, tv2, tv);
 }
@@ -141,19 +141,19 @@ REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timev
  * 0 is returned. The result is stored into tv. Returns ETERNITY if tv2 is
  * eternity.
  */
-REGPRM3 struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
 {
 	return __tv_remain2(tv1, tv2, tv);
 }
 
 /* tv_isle: compares <tv1> and <tv2> : returns 1 if tv1 <= tv2, otherwise 0 */
-REGPRM2 int _tv_isle(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_isle(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_isle(tv1, tv2);
 }
 
 /* tv_isgt: compares <tv1> and <tv2> : returns 1 if tv1 > tv2, otherwise 0 */
-REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
+int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_isgt(tv1, tv2);
 }
@@ -175,7 +175,7 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  * microsecond adjustment. We cannot use a timeval for this since it's never
  * clearly specified whether a timeval may hold negative values or not.
  */
-REGPRM2 void tv_update_date(int max_wait, int interrupted)
+void tv_update_date(int max_wait, int interrupted)
 {
 	struct timeval adjusted, deadline, tmp_now, tmp_adj;
 	unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
