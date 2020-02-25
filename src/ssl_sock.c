@@ -154,25 +154,17 @@ enum {
 	SSL_SOCK_VERIFY_NONE     = 3,
 };
 
-/* issuer chain store with hash of Subject Key Identifier
-   certificate/issuer matching is verify with X509_check_issued
-*/
-struct issuer_chain {
-	struct eb64_node node;
-	STACK_OF(X509) *chain;
-	char *path;
-};
-
 int sslconns = 0;
 int totalsslconns = 0;
 static struct xprt_ops ssl_sock;
 int nb_engines = 0;
 
+static struct eb_root cert_issuer_tree = EB_ROOT; /* issuers tree from "issuers-chain-path" */
+
 static struct {
 	char *crt_base;             /* base directory path for certificates */
 	char *ca_base;              /* base directory path for CAs and CRLs */
 	char *issuers_chain_path;   /* from "issuers-chain-path" */
-	struct eb_root cert_issuer_tree; /* issuers tree from "issuers-chain-path" */
 
 	int  async;                 /* whether we use ssl async mode */
 
@@ -195,7 +187,6 @@ static struct {
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 } global_ssl = {
-	.cert_issuer_tree = EB_ROOT,
 #ifdef LISTEN_DEFAULT_CIPHERS
 	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
 #endif
@@ -3373,7 +3364,7 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 			struct eb64_node *node;
 			u64 hk;
 			hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
-			for (node = eb64_lookup(&global_ssl.cert_issuer_tree, hk); node; node = eb64_next(node)) {
+			for (node = eb64_lookup(&cert_issuer_tree, hk); node; node = eb64_next(node)) {
 				issuer = container_of(node, typeof(*issuer), node);
 				if (X509_check_issued(sk_X509_value(issuer->chain, 0), cert) == X509_V_OK) {
 					chain = X509_chain_up_ref(issuer->chain);
@@ -9824,7 +9815,7 @@ static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 		goto end;
 	}
 	key = XXH64(ASN1_STRING_get0_data(skid), ASN1_STRING_length(skid), 0);
-	for (node = eb64_lookup(&global_ssl.cert_issuer_tree, key); node; node = eb64_next(node)) {
+	for (node = eb64_lookup(&cert_issuer_tree, key); node; node = eb64_next(node)) {
 		issuer = container_of(node, typeof(*issuer), node);
 		if (!X509_NAME_cmp(name, X509_get_subject_name(sk_X509_value(issuer->chain, 0)))) {
 			memprintf(err, "duplicate issuers-chain %s: %s already in store\n", fp, issuer->path);
@@ -9842,7 +9833,7 @@ static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 	issuer->path = path;
 	issuer->chain = chain;
 	chain = NULL;
-	eb64_insert(&global_ssl.cert_issuer_tree, &issuer->node);
+	eb64_insert(&cert_issuer_tree, &issuer->node);
 	ret = 1;
  end:
 	if (skid)
@@ -9857,7 +9848,7 @@ static void ssl_free_global_issuers(void)
 	struct eb64_node *node, *back;
 	struct issuer_chain *issuer;
 
-	node = eb64_first(&global_ssl.cert_issuer_tree);
+	node = eb64_first(&cert_issuer_tree);
 	while (node) {
 		issuer = container_of(node, typeof(*issuer), node);
 		back = eb64_next(node);

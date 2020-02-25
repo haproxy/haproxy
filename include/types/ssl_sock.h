@@ -24,6 +24,7 @@
 #ifdef USE_OPENSSL
 
 #include <ebmbtree.h>
+#include <eb64tree.h>
 
 #include <common/hathreads.h>
 #include <common/openssl-compat.h>
@@ -150,6 +151,16 @@ struct sni_keytype {
 };
 
 #endif
+
+/* issuer chain store with hash of Subject Key Identifier
+   certificate/issuer matching is verify with X509_check_issued
+*/
+struct issuer_chain {
+	struct eb64_node node;
+	STACK_OF(X509) *chain;
+	char *path;
+};
+
 
 #endif /* USE_OPENSSL */
 #endif /* _TYPES_SSL_SOCK_H */
