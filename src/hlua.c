@@ -350,6 +350,20 @@ __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
 	return luaL_ref(L, LUA_REGISTRYINDEX);
 }
 
+/* Used to check an Lua table type in the stack. It creates and
+ * returns a reference of the table. This function throws an
+ * error if the rgument is not a "table".
+ */
+__LJMP unsigned int hlua_checktable(lua_State *L, int argno)
+{
+	if (!lua_istable(L, argno)) {
+		const char *msg = lua_pushfstring(L, "table expected, got %s", luaL_typename(L, argno));
+		WILL_LJMP(luaL_argerror(L, argno, msg));
+	}
+	lua_pushvalue(L, argno);
+	return luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
 /* Return the string that is of the top of the stack. */
 const char *hlua_get_top_error_string(lua_State *L)
 {
