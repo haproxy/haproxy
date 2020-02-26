@@ -5,6 +5,8 @@ FreeBSD_task:
       image_family: freebsd-12-1-snap
       image_family: freebsd-11-3-snap
   only_if: $CIRRUS_BRANCH =~ 'master|next'
+  env:
+    IGNORE_OSVERSION: yes # supress package installation error on FreeBSD-13
   install_script:
     - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat
   script:
