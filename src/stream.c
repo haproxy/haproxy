@@ -391,7 +391,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
 	LIST_INIT(&s->back_refs);
 
-	LIST_INIT(&s->buffer_wait.list);
+	MT_LIST_INIT(&s->buffer_wait.list);
 	s->buffer_wait.target = s;
 	s->buffer_wait.wakeup_cb = stream_buf_available;
 
@@ -595,12 +595,9 @@ static void stream_free(struct stream *s)
 		put_pipe(s->res.pipe);
 
 	/* We may still be present in the buffer wait queue */
-	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&s->buffer_wait.list);
-		LIST_INIT(&s->buffer_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	}
+	if (MT_LIST_ADDED(&s->buffer_wait.list))
+		MT_LIST_DEL(&s->buffer_wait.list);
+
 	if (s->req.buf.size || s->res.buf.size) {
 		b_free(&s->req.buf);
 		b_free(&s->res.buf);
@@ -727,19 +724,13 @@ static void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (!LIST_ISEMPTY(&s->buffer_wait.list)) {
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&s->buffer_wait.list);
-		LIST_INIT(&s->buffer_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	}
+	if (MT_LIST_ADDED(&s->buffer_wait.list))
+		MT_LIST_DEL(&s->buffer_wait.list);
 
 	if (b_alloc_margin(&s->res.buf, 0))
 		return 1;
 
-	HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	LIST_ADDQ(&buffer_wq, &s->buffer_wait.list);
-	HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+	MT_LIST_ADDQ(&buffer_wq, &s->buffer_wait.list);
 	return 0;
 }
 
@@ -2788,7 +2779,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		chunk_appendf(&trash,
 			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d\n",
 			     strm->flags, strm->si[1].conn_retries, strm->srv_conn, strm->pend_pos,
-			     !LIST_ISEMPTY(&strm->buffer_wait.list));
+			     MT_LIST_ADDED(&strm->buffer_wait.list));
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",

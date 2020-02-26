@@ -75,7 +75,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 		}
 		appctx->t->process = task_run_applet;
 		appctx->t->context = appctx;
-		LIST_INIT(&appctx->buffer_wait.list);
+		MT_LIST_INIT(&appctx->buffer_wait.list);
 		appctx->buffer_wait.target = appctx;
 		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
 		_HA_ATOMIC_ADD(&nb_applets, 1);
@@ -87,12 +87,8 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 static inline void __appctx_free(struct appctx *appctx)
 {
 	task_destroy(appctx->t);
-	if (!LIST_ISEMPTY(&appctx->buffer_wait.list)) {
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_DEL(&appctx->buffer_wait.list);
-		LIST_INIT(&appctx->buffer_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	}
+	if (MT_LIST_ADDED(&appctx->buffer_wait.list))
+		MT_LIST_DEL(&appctx->buffer_wait.list);
 
 	pool_free(pool_head_appctx, appctx);
 	_HA_ATOMIC_SUB(&nb_applets, 1);

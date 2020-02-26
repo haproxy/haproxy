@@ -679,13 +679,11 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_ADDED(&h2c->buf_wait.list)) &&
+	if (likely(!MT_LIST_ADDED(&h2c->buf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		h2c->buf_wait.target = h2c;
 		h2c->buf_wait.wakeup_cb = h2_buf_available;
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_ADDQ(&buffer_wq, &h2c->buf_wait.list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
+		MT_LIST_ADDQ(&buffer_wq, &h2c->buf_wait.list);
 	}
 	return buf;
 }
@@ -856,7 +854,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	LIST_INIT(&h2c->send_list);
 	LIST_INIT(&h2c->fctl_list);
 	LIST_INIT(&h2c->blocked_list);
-	LIST_INIT(&h2c->buf_wait.list);
+	MT_LIST_INIT(&h2c->buf_wait.list);
 
 	conn->ctx = h2c;
 
@@ -940,11 +938,8 @@ static void h2_release(struct h2c *h2c)
 		TRACE_DEVEL("freeing h2c", H2_EV_H2C_END, conn);
 		hpack_dht_free(h2c->ddht);
 
-		if (LIST_ADDED(&h2c->buf_wait.list)) {
-			HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-			LIST_DEL(&h2c->buf_wait.list);
-			HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		}
+		if (MT_LIST_ADDED(&h2c->buf_wait.list))
+			MT_LIST_DEL(&h2c->buf_wait.list);
 
 		h2_release_buf(h2c, &h2c->dbuf);
 		h2_release_mbuf(h2c);

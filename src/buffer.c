@@ -23,7 +23,7 @@
 struct pool_head *pool_head_buffer;
 
 /* list of objects waiting for at least one buffer */
-struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
+struct mt_list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 __decl_aligned_spinlock(buffer_wq_lock);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -98,7 +98,8 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 /* see offer_buffer() for details */
 void __offer_buffer(void *from, unsigned int threshold)
 {
-	struct buffer_wait *wait, *bak;
+	struct buffer_wait *wait;
+	struct mt_list *elt1, elt2;
 	int avail;
 
 	/* For now, we consider that all objects need 1 buffer, so we can stop
@@ -112,16 +113,14 @@ void __offer_buffer(void *from, unsigned int threshold)
 	 */
 	avail = pool_head_buffer->allocated - pool_head_buffer->used - global.tune.reserved_bufs / 2;
 
-	list_for_each_entry_safe(wait, bak, &buffer_wq, list) {
+	mt_list_for_each_entry_safe(wait, &buffer_wq, list, elt1, elt2) {
 		if (avail <= threshold)
 			break;
 
 		if (wait->target == from || !wait->wakeup_cb(wait->target))
 			continue;
 
-		LIST_DEL(&wait->list);
-		LIST_INIT(&wait->list);
-
+		MT_LIST_DEL_SAFE(&wait->list);
 		avail--;
 	}
 }

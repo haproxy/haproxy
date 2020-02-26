@@ -40,11 +40,11 @@
 struct buffer_wait {
 	void *target;              /* The waiting object that should be woken up */
 	int (*wakeup_cb)(void *);  /* The function used to wake up the <target>, passed as argument */
-	struct list list;          /* Next element in the <buffer_wq> list */
+	struct mt_list list;        /* Next element in the <buffer_wq> list */
 };
 
 extern struct pool_head *pool_head_buffer;
-extern struct list buffer_wq;
+extern struct mt_list buffer_wq;
 __decl_hathreads(extern HA_SPINLOCK_T buffer_wq_lock);
 
 int init_buffer();
@@ -203,13 +203,8 @@ void __offer_buffer(void *from, unsigned int threshold);
 
 static inline void offer_buffers(void *from, unsigned int threshold)
 {
-	if (LIST_ISEMPTY(&buffer_wq))
-		return;
-
-	HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	if (!LIST_ISEMPTY(&buffer_wq))
+	if (!MT_LIST_ISEMPTY(&buffer_wq))
 		__offer_buffer(from, threshold);
-	HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
 }
 
 

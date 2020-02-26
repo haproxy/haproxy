@@ -855,11 +855,8 @@ static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *
 	if (b_alloc_margin(&chn->buf, margin) != NULL)
 		return 1;
 
-	if (LIST_ISEMPTY(&wait->list)) {
-		HA_SPIN_LOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-		LIST_ADDQ(&buffer_wq, &wait->list);
-		HA_SPIN_UNLOCK(BUF_WQ_LOCK, &buffer_wq_lock);
-	}
+	if (!MT_LIST_ADDED(&wait->list))
+		MT_LIST_ADDQ(&buffer_wq, &wait->list);
 
 	return 0;
 }
