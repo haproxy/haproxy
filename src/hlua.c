@@ -907,6 +907,7 @@ int hlua_ctx_init(struct hlua *lua, struct task *task, int already_safe)
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
 	lua->gc_count = 0;
+	lua->wake_time = TICK_ETERNITY;
 	LIST_INIT(&lua->com);
 	lua->T = lua_newthread(gL.T);
 	if (!lua->T) {
@@ -1098,8 +1099,9 @@ resume_execution:
 	HLUA_CLR_WAKERESWR(lua);
 	HLUA_CLR_WAKEREQWR(lua);
 
-	/* Update the start time. */
+	/* Update the start time and reset wake_time. */
 	lua->start_time = now_ms;
+	lua->wake_time = TICK_ETERNITY;
 
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
