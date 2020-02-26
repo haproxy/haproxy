@@ -416,10 +416,10 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
 		if ((smp->strm->unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
 			return 0;
 		smp->strm->unique_id[0] = '\0';
+		build_logline(smp->strm, smp->strm->unique_id,
+		              UNIQUEID_LEN, &smp->sess->fe->format_unique_id);
 	}
-	smp->data.u.str.data = build_logline(smp->strm, smp->strm->unique_id,
-	                                    UNIQUEID_LEN, &smp->sess->fe->format_unique_id);
-
+	smp->data.u.str.data = strlen(smp->strm->unique_id);
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str.area = smp->strm->unique_id;
 	smp->flags = SMP_F_CONST;
