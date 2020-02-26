@@ -239,6 +239,9 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		 * use the trash to concatenate them since all of them MUST fit
 		 * in a bufsize since it's where they come from.
 		 */
+		if (unlikely(!phdr[H2_PHDR_IDX_PATH].len))
+			goto fail;   // 7540#8.1.2.3: :path must not be empty
+
 		uri = ist2bin(trash.area, phdr[H2_PHDR_IDX_SCHM]);
 		istcat(&uri, ist("://"), trash.size);
 		istcat(&uri, phdr[H2_PHDR_IDX_AUTH], trash.size);
