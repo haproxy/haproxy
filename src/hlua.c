@@ -5915,7 +5915,7 @@ __LJMP static struct http_msg *hlua_checkhttpmsg(lua_State *L, int ud)
 
 /* Creates and pushes on the stack a HTTP object according with a current TXN.
  */
-static __maybe_unused int hlua_http_msg_new(lua_State *L, struct http_msg *msg)
+static int hlua_http_msg_new(lua_State *L, struct http_msg *msg)
 {
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -7085,6 +7085,32 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 	else
 		lua_pushnil(L);
 	lua_rawset(L, -3);
+
+	if ((htxn->flags & HLUA_TXN_CTX_MASK) == HLUA_TXN_FLT_CTX) {
+		/* HTTPMessage object are created when a lua TXN is created from
+		 * a filter context only
+		 */
+
+		/* Creates the HTTP-Request object is the current proxy allows http. */
+		lua_pushstring(L, "http_req");
+		if (p->mode == PR_MODE_HTTP) {
+			if (!hlua_http_msg_new(L, &s->txn->req))
+				return 0;
+		}
+		else
+			lua_pushnil(L);
+		lua_rawset(L, -3);
+
+		/* Creates the HTTP-Response object is the current proxy allows http. */
+		lua_pushstring(L, "http_res");
+		if (p->mode == PR_MODE_HTTP) {
+			if (!hlua_http_msg_new(L, &s->txn->rsp))
+				return 0;
+		}
+		else
+			lua_pushnil(L);
+		lua_rawset(L, -3);
+	}
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
