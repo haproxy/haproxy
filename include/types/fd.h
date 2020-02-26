@@ -57,12 +57,12 @@ enum {
 #define FD_EV_ACTIVE_R_BIT 0
 #define FD_EV_READY_R_BIT  1
 #define FD_EV_SHUT_R_BIT   2
-#define FD_EV_ERR_R_BIT    3
+/* unused: 3 */
 
 #define FD_EV_ACTIVE_W_BIT 4
 #define FD_EV_READY_W_BIT  5
 #define FD_EV_SHUT_W_BIT   6
-#define FD_EV_ERR_W_BIT    7
+#define FD_EV_ERR_RW_BIT   7
 
 /* and flag values */
 #define FD_EV_ACTIVE_R  (1U << FD_EV_ACTIVE_R_BIT)
@@ -78,10 +78,10 @@ enum {
 #define FD_EV_SHUT_W    (1U << FD_EV_SHUT_W_BIT)
 #define FD_EV_SHUT_RW   (FD_EV_SHUT_R | FD_EV_SHUT_W)
 
-/* note that when FD_EV_ERR is set, SHUT is also set */
-#define FD_EV_ERR_R     (1U << FD_EV_ERR_R_BIT)
-#define FD_EV_ERR_W     (1U << FD_EV_ERR_W_BIT)
-#define FD_EV_ERR_RW    (FD_EV_ERR_R | FD_EV_ERR_W)
+/* note that when FD_EV_ERR is set, SHUT is also set. Also, ERR is for both
+ * directions at once (write error, socket dead, etc).
+ */
+#define FD_EV_ERR_RW    (1U << FD_EV_ERR_RW_BIT)
 
 
 /* This is the value used to mark a file descriptor as dead. This value is

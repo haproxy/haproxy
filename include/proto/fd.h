@@ -314,8 +314,7 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |
 	      ((evts & FD_EV_READY_W) ? FD_POLL_OUT : 0) |
 	      ((evts & FD_EV_SHUT_R)  ? FD_POLL_HUP : 0) |
-	      ((evts & FD_EV_ERR_R)   ? FD_POLL_ERR : 0) |
-	      ((evts & FD_EV_ERR_W)   ? FD_POLL_ERR : 0);
+	      ((evts & FD_EV_ERR_RW)  ? FD_POLL_ERR : 0);
 
 	/* SHUTW reported while FD was active for writes is an error */
 	if ((fdtab[fd].ev & FD_EV_ACTIVE_W) && (evts & FD_EV_SHUT_W))
@@ -327,11 +326,11 @@ static inline void fd_update_events(int fd, unsigned char evts)
 		/* both sides stopped */
 		must_stop = FD_POLL_IN | FD_POLL_OUT;
 	}
-	else if (unlikely(!fd_recv_active(fd) && (evts & (FD_EV_READY_R | FD_EV_SHUT_R | FD_EV_ERR_R)))) {
+	else if (unlikely(!fd_recv_active(fd) && (evts & (FD_EV_READY_R | FD_EV_SHUT_R | FD_EV_ERR_RW)))) {
 		/* only send remains */
 		must_stop = FD_POLL_IN;
 	}
-	else if (unlikely(!fd_send_active(fd) && (evts & (FD_EV_READY_W | FD_EV_SHUT_W | FD_EV_ERR_W)))) {
+	else if (unlikely(!fd_send_active(fd) && (evts & (FD_EV_READY_W | FD_EV_SHUT_W | FD_EV_ERR_RW)))) {
 		/* only recv remains */
 		must_stop = FD_POLL_OUT;
 	}
