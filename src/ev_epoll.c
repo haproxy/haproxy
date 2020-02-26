@@ -61,7 +61,7 @@ static void __fd_clo(int fd)
 static void _update_fd(int fd)
 {
 	int en, opcode;
-	struct epoll_event ev;
+	struct epoll_event ev = { };
 
 	en = fdtab[fd].state;
 
@@ -120,7 +120,6 @@ static void _update_fd(int fd)
 	}
 
 	/* construct the epoll events based on new state */
-	ev.events = 0;
 	if (en & FD_EV_ACTIVE_R)
 		ev.events |= EPOLLIN | EPOLLRDHUP;
 
