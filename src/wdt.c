@@ -129,7 +129,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 
 int init_wdt_per_thread()
 {
-	struct sigevent sev;
+	struct sigevent sev = { };
 	sigset_t set;
 
 	/* unblock the WDTSIG signal we intend to use */
