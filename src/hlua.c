@@ -6485,10 +6485,9 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	return 0;
 }
 
-/* This function is a lua binding to set the wake_time from an action. It is
- * only used if the action return ACT_RET_YIELD.
+/* This function is a lua binding to set the wake_time.
  */
-__LJMP static int hlua_action_wake_time(lua_State *L)
+__LJMP static int hlua_set_wake_time(lua_State *L)
 {
 	struct hlua *hlua = hlua_gethlua(L);
 	unsigned int delay;
@@ -8096,7 +8095,7 @@ void hlua_init(void)
 	hlua_class_const_int(gL.T, "ABORT",    ACT_RET_ABRT);
 	hlua_class_const_int(gL.T, "INVALID",  ACT_RET_INV);
 
-	hlua_class_function(gL.T, "wake_time", hlua_action_wake_time);
+	hlua_class_function(gL.T, "wake_time", hlua_set_wake_time);
 
 	lua_setglobal(gL.T, "act");
 
