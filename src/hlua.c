@@ -6253,13 +6253,12 @@ __LJMP static int hlua_http_msg_is_eom(lua_State *L)
 __LJMP static int hlua_http_msg_get_in_len(lua_State *L)
 {
 	struct http_msg *msg;
-	struct htx *htx;
+	size_t output, input;
 
 	MAY_LJMP(check_args(L, 1, "input"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
-
-	htx = htxbuf(&msg->chn->buf);
-	lua_pushinteger(L, htx->data - co_data(msg->chn));
+	hlua_http_msg_filter(L, 1, msg, &output, &input);
+	lua_pushinteger(L, input);
 	return 1;
 }
 
@@ -6269,11 +6268,12 @@ __LJMP static int hlua_http_msg_get_in_len(lua_State *L)
 __LJMP static int hlua_http_msg_get_out_len(lua_State *L)
 {
 	struct http_msg *msg;
+	size_t output, input;
 
 	MAY_LJMP(check_args(L, 1, "output"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
-
-	lua_pushinteger(L, co_data(msg->chn));
+	hlua_http_msg_filter(L, 1, msg, &output, &input);
+	lua_pushinteger(L, output);
 	return 1;
 }
 
@@ -10154,7 +10154,16 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 			flt_hlua->nargs++;
 		}
 		else if (flags & HLUA_FLT_CB_ARG_HTTP_MSG) {
-			/* XXX: Not implemented yey */
+			if (dir == SMP_OPT_DIR_REQ)
+				lua_getfield(flt_hlua->T, -1, "http_req");
+			else
+				lua_getfield(flt_hlua->T, -1, "http_res");
+			if (lua_type(flt_hlua->T, -1) == LUA_TTABLE) {
+				lua_pushstring(flt_hlua->T, "__filter");
+				lua_pushlightuserdata(flt_hlua->T, filter);
+				lua_settable(flt_hlua->T, -3);
+			}
+			flt_hlua->nargs++;
 		}
 
 		/* Check stack size. */
@@ -10257,6 +10266,52 @@ static int  hlua_filter_end_analyze(struct stream *s, struct filter *filter, str
 				    (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_RETVAL | HLUA_FLT_CB_ARG_CHN));
 }
 
+static int  hlua_filter_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	flt_ctx->flags &= ~HLUA_FLT_CTX_FL_PAYLOAD;
+	return hlua_filter_callback(s, filter, "http_headers",
+				    (!(msg->chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES),
+				    (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_RETVAL | HLUA_FLT_CB_ARG_HTTP_MSG));
+}
+
+static int  hlua_filter_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
+				     unsigned int offset, unsigned int len)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+	struct hlua *flt_hlua;
+	int dir = (!(msg->chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
+	int idx = (dir == SMP_OPT_DIR_REQ ? 0 : 1);
+	int ret;
+
+	flt_hlua = flt_ctx->hlua[idx];
+	flt_ctx->cur_off[idx] = offset;
+	flt_ctx->cur_len[idx] = len;
+	flt_ctx->flags |= HLUA_FLT_CTX_FL_PAYLOAD;
+	ret = hlua_filter_callback(s, filter, "http_payload", dir, (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_ARG_HTTP_MSG));
+	if (ret != -1) {
+		ret = flt_ctx->cur_len[idx];
+		if (lua_gettop(flt_hlua->T) > 0) {
+			ret = lua_tointeger(flt_hlua->T, -1);
+			if (ret > flt_ctx->cur_len[idx])
+				ret = flt_ctx->cur_len[idx];
+			lua_settop(flt_hlua->T, 0); /* Empty the stack. */
+		}
+	}
+	return ret;
+}
+
+static int  hlua_filter_http_end(struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	flt_ctx->flags &= ~HLUA_FLT_CTX_FL_PAYLOAD;
+	return hlua_filter_callback(s, filter, "http_end",
+				    (!(msg->chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES),
+				    (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_RETVAL | HLUA_FLT_CB_ARG_HTTP_MSG));
+}
+
 static int  hlua_filter_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 				    unsigned int offset, unsigned int len)
 {
@@ -10320,6 +10375,15 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	lua_pop(L, 1);
 	if (lua_getfield(L, -1, "end_analyze") == LUA_TFUNCTION)
 		hlua_flt_ops->channel_end_analyze = hlua_filter_end_analyze;
+	lua_pop(L, 1);
+	if (lua_getfield(L, -1, "http_headers") == LUA_TFUNCTION)
+		hlua_flt_ops->http_headers = hlua_filter_http_headers;
+	lua_pop(L, 1);
+	if (lua_getfield(L, -1, "http_payload") == LUA_TFUNCTION)
+		hlua_flt_ops->http_payload = hlua_filter_http_payload;
+	lua_pop(L, 1);
+	if (lua_getfield(L, -1, "http_end") == LUA_TFUNCTION)
+		hlua_flt_ops->http_end = hlua_filter_http_end;
 	lua_pop(L, 1);
 	if (lua_getfield(L, -1, "tcp_payload") == LUA_TFUNCTION)
 		hlua_flt_ops->tcp_payload = hlua_filter_tcp_payload;
