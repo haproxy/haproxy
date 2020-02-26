@@ -157,23 +157,22 @@ static unsigned int
 trace_get_htx_datalen(struct htx *htx, unsigned int offset, unsigned int len)
 {
 	struct htx_blk *blk;
-	uint32_t sz, data = 0;
+	struct htx_ret htxret = htx_find_offset(htx, offset);
+	uint32_t data = 0;
 
-	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
-		if (htx_get_blk_type(blk) != HTX_BLK_DATA)
+	blk = htxret.blk;
+	if (blk && htxret.ret && htx_get_blk_type(blk) == HTX_BLK_DATA) {
+		data += htxret.ret;
+		blk = htx_get_next_blk(htx, blk);
+	}
+	while (blk) {
+		if (htx_get_blk_type(blk) == HTX_BLK_UNUSED)
+			goto next;
+		else if (htx_get_blk_type(blk) != HTX_BLK_DATA)
 			break;
-
-		sz = htx_get_blksz(blk);
-		if (offset >= sz) {
-			offset -= sz;
-			continue;
-		}
-		data  += sz - offset;
-		offset = 0;
-		if (data > len) {
-			data = len;
-			break;
-		}
+		data += htx_get_blksz(blk);
+	  next:
+		blk = htx_get_next_blk(htx, blk);
 	}
 	return data;
 }
