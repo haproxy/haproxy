@@ -3121,6 +3121,9 @@ static int tcpcheck_main(struct check *check)
 				}
 			}
 
+			/* Having received new data, reset the expect chain to its head. */
+			check->current_step = check->current_step->expect_head;
+
 			/* mark the step as started */
 			check->last_started_step = check->current_step;
 
@@ -3158,7 +3161,6 @@ static int tcpcheck_main(struct check *check)
 		tcpcheck_expect:
 			if (!done && (check->current_step->string != NULL) && (b_data(&check->bi) < check->current_step->string_len) )
 				continue; /* try to read more */
-
 			if (check->current_step->string != NULL)
 				ret = my_memmem(contentptr, b_data(&check->bi), check->current_step->string, check->current_step->string_len) != NULL;
 			else if (check->current_step->expect_regex != NULL)
@@ -3462,7 +3464,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 
 static int add_tcpcheck_expect_str(struct list *list, const char *str)
 {
-	struct tcpcheck_rule *tcpcheck;
+	struct tcpcheck_rule *tcpcheck, *prev_check;
 
 	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
@@ -3476,6 +3478,19 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 		return 0;
 	}
 
+	/* All tcp-check expect points back to the first inverse expect rule
+	 * in a chain of one or more expect rule, potentially itself.
+	 */
+	tcpcheck->expect_head = tcpcheck;
+	list_for_each_entry_rev(prev_check, list, list) {
+		if (prev_check->action == TCPCHK_ACT_EXPECT) {
+			if (prev_check->inverse)
+				tcpcheck->expect_head = prev_check;
+			continue;
+		}
+		if (prev_check->action != TCPCHK_ACT_COMMENT)
+			break;
+	}
 	LIST_ADDQ(list, &tcpcheck->list);
 	return 1;
 }

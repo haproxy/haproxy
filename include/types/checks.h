@@ -236,6 +236,7 @@ struct tcpcheck_rule {
 	int inverse;                            /* 0 = regular match, 1 = inverse match */
 	unsigned short port;                    /* port to connect to */
 	unsigned short conn_opts;               /* options when setting up a new connection */
+	struct tcpcheck_rule *expect_head;      /* first expect of a chain. */
 };
 
 #endif /* _TYPES_CHECKS_H */

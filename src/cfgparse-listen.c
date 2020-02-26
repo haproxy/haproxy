@@ -3191,6 +3191,7 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "expect") == 0) {
+			struct tcpcheck_rule *tcpcheck, *prev_check;
 			const char *ptr_arg;
 			int cur_arg;
 			int inverse = 0;
@@ -3216,7 +3217,6 @@ stats_error_parsing:
 			 * exclamation mark, and cur_arg is the argument which holds this word.
 			 */
 			if (strcmp(ptr_arg, "binary") == 0) {
-				struct tcpcheck_rule *tcpcheck;
 				char *err = NULL;
 
 				if (!*(args[cur_arg + 1])) {
@@ -3249,12 +3249,8 @@ stats_error_parsing:
 					}
 					tcpcheck->comment = strdup(args[cur_arg + 1]);
 				}
-
-				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 			else if (strcmp(ptr_arg, "string") == 0) {
-				struct tcpcheck_rule *tcpcheck;
-
 				if (!*(args[cur_arg + 1])) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' expects <string> as an argument.\n",
 						 file, linenum, args[0], args[1], ptr_arg);
@@ -3281,12 +3277,8 @@ stats_error_parsing:
 					}
 					tcpcheck->comment = strdup(args[cur_arg + 1]);
 				}
-
-				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 			else if (strcmp(ptr_arg, "rstring") == 0) {
-				struct tcpcheck_rule *tcpcheck;
-
 				if (!*(args[cur_arg + 1])) {
 					ha_alert("parsing [%s:%d] : '%s %s %s' expects <regex> as an argument.\n",
 						 file, linenum, args[0], args[1], ptr_arg);
@@ -3320,8 +3312,6 @@ stats_error_parsing:
 					}
 					tcpcheck->comment = strdup(args[cur_arg + 1]);
 				}
-
-				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s' only supports [!] 'binary', 'string', 'rstring', found '%s'.\n",
@@ -3329,6 +3319,21 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			/* All tcp-check expect points back to the first inverse expect rule
+			 * in a chain of one or more expect rule, potentially itself.
+			 */
+			tcpcheck->expect_head = tcpcheck;
+			list_for_each_entry_rev(prev_check, &curproxy->tcpcheck_rules, list) {
+				if (prev_check->action == TCPCHK_ACT_EXPECT) {
+					if (prev_check->inverse)
+						tcpcheck->expect_head = prev_check;
+					continue;
+				}
+				if (prev_check->action != TCPCHK_ACT_COMMENT)
+					break;
+			}
+			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 		}
 		else {
 			ha_alert("parsing [%s:%d] : '%s' only supports 'comment', 'connect', 'send' or 'expect'.\n", file, linenum, args[0]);
