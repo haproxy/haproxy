@@ -196,6 +196,11 @@ lua_State *hlua_init_state(int thread_id);
  */
 static lua_State *hlua_states[MAX_THREADS + 1];
 
+#define HLUA_FLT_CB_FINAL         0x00000001
+#define HLUA_FLT_CB_RETVAL        0x00000002
+#define HLUA_FLT_CB_ARG_CHN       0x00000004
+#define HLUA_FLT_CB_ARG_HTTP_MSG  0x00000008
+
 #define HLUA_FLT_CTX_FL_PAYLOAD  0x00000001
 
 struct hlua_reg_filter  {
@@ -9052,6 +9057,197 @@ static int hlua_filter_from_payload(struct filter *filter)
 	return (flt_ctx && !!(flt_ctx->flags & HLUA_FLT_CTX_FL_PAYLOAD));
 }
 
+static int hlua_filter_callback(struct stream *s, struct filter *filter, const char *fun,
+				int dir, unsigned int flags)
+{
+	struct hlua *flt_hlua;
+	struct hlua_flt_config *conf = FLT_CONF(filter);
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+	unsigned int hflags = HLUA_TXN_FLT_CTX;
+	int ret = 1;
+
+	flt_hlua = flt_ctx->hlua[(dir == SMP_OPT_DIR_REQ ? 0 : 1)];
+	if (!flt_hlua)
+		goto end;
+
+	if (!HLUA_IS_RUNNING(flt_hlua)) {
+		int extra_idx = lua_gettop(flt_hlua->T);
+
+		/* The following Lua calls can fail. */
+		if (!SET_SAFE_LJMP(flt_hlua)) {
+			const char *error;
+
+			if (lua_type(flt_hlua->T, -1) == LUA_TSTRING)
+				error = lua_tostring(flt_hlua->T, -1);
+			else
+				error = "critical error";
+			SEND_ERR(s->be, "Lua filter '%s': %s.\n", conf->reg->name, error);
+			goto end;
+		}
+
+		/* Check stack size. */
+		if (!lua_checkstack(flt_hlua->T, 3)) {
+			SEND_ERR(s->be, "Lua filter '%s': full stack.\n", conf->reg->name);
+			RESET_SAFE_LJMP(flt_hlua);
+			goto end;
+		}
+
+		lua_rawgeti(flt_hlua->T, LUA_REGISTRYINDEX, flt_ctx->ref);
+		if (lua_getfield(flt_hlua->T, -1, fun) != LUA_TFUNCTION) {
+			RESET_SAFE_LJMP(flt_hlua);
+			goto end;
+		}
+		lua_insert(flt_hlua->T, -2);
+
+		if (!hlua_txn_new(flt_hlua->T, s, s->be, dir, hflags)) {
+			SEND_ERR(s->be, "Lua filter '%s': full stack.\n", conf->reg->name);
+			RESET_SAFE_LJMP(flt_hlua);
+			goto end;
+		}
+		flt_hlua->nargs = 2;
+
+		if (flags & HLUA_FLT_CB_ARG_CHN) {
+			if (dir == SMP_OPT_DIR_REQ)
+				lua_getfield(flt_hlua->T, -1, "req");
+			else
+				lua_getfield(flt_hlua->T, -1, "res");
+			if (lua_type(flt_hlua->T, -1) == LUA_TTABLE) {
+				lua_pushstring(flt_hlua->T, "__filter");
+				lua_pushlightuserdata(flt_hlua->T, filter);
+				lua_settable(flt_hlua->T, -3);
+			}
+			flt_hlua->nargs++;
+		}
+		else if (flags & HLUA_FLT_CB_ARG_HTTP_MSG) {
+			/* XXX: Not implemented yey */
+		}
+
+		/* Check stack size. */
+		if (!lua_checkstack(flt_hlua->T, 1)) {
+			SEND_ERR(s->be, "Lua filter '%s': full stack.\n", conf->reg->name);
+			RESET_SAFE_LJMP(flt_hlua);
+			goto end;
+		}
+
+		while (extra_idx--) {
+			lua_pushvalue(flt_hlua->T, 1);
+			lua_remove(flt_hlua->T, 1);
+			flt_hlua->nargs++;
+		}
+
+		/* We must initialize the execution timeouts. */
+		flt_hlua->max_time = hlua_timeout_session;
+
+		/* At this point the execution is safe. */
+		RESET_SAFE_LJMP(flt_hlua);
+	}
+
+	switch (hlua_ctx_resume(flt_hlua, !(flags & HLUA_FLT_CB_FINAL))) {
+	case HLUA_E_OK:
+		/* Catch the return value if it required */
+		if ((flags & HLUA_FLT_CB_RETVAL) && lua_gettop(flt_hlua->T) > 0) {
+			ret = lua_tointeger(flt_hlua->T, -1);
+			lua_settop(flt_hlua->T, 0); /* Empty the stack. */
+		}
+
+		/* Set timeout in the required channel. */
+		if (flt_hlua->wake_time != TICK_ETERNITY) {
+			if (dir == SMP_OPT_DIR_REQ)
+				s->req.analyse_exp = flt_hlua->wake_time;
+			else
+				s->res.analyse_exp = flt_hlua->wake_time;
+		}
+		break;
+	case HLUA_E_AGAIN:
+		/* Set timeout in the required channel. */
+		if (flt_hlua->wake_time != TICK_ETERNITY) {
+			if (dir == SMP_OPT_DIR_REQ)
+				s->req.analyse_exp = flt_hlua->wake_time;
+			else
+				s->res.analyse_exp = flt_hlua->wake_time;
+		}
+		/* Some actions can be wake up when a "write" event
+		 * is detected on a response channel. This is useful
+		 * only for actions targeted on the requests.
+		 */
+		if (HLUA_IS_WAKERESWR(flt_hlua))
+			s->res.flags |= CF_WAKE_WRITE;
+		if (HLUA_IS_WAKEREQWR(flt_hlua))
+			s->req.flags |= CF_WAKE_WRITE;
+		ret = 0;
+		goto end;
+	case HLUA_E_ERRMSG:
+		SEND_ERR(s->be, "Lua filter '%s' : %s.\n", conf->reg->name, lua_tostring(flt_hlua->T, -1));
+		ret = -1;
+		goto end;
+	case HLUA_E_ETMOUT:
+		SEND_ERR(s->be, "Lua filter '%s' : '%s' callback execution timeout.\n", conf->reg->name, fun);
+		goto end;
+	case HLUA_E_NOMEM:
+		SEND_ERR(s->be, "Lua filter '%s' : out of memory error.\n", conf->reg->name);
+		goto end;
+	case HLUA_E_YIELD:
+		SEND_ERR(s->be, "Lua filter '%s': yield functions like core.tcp() or core.sleep()"
+			 " are not allowed from '%s' callback.\n", conf->reg->name, fun);
+		goto end;
+	case HLUA_E_ERR:
+		SEND_ERR(s->be, "Lua filter '%s': '%s' returns an unknown error.\n", conf->reg->name, fun);
+		goto end;
+	default:
+		goto end;
+	}
+
+
+  end:
+	return ret;
+}
+
+static int  hlua_filter_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	flt_ctx->flags = 0;
+	return hlua_filter_callback(s, filter, "start_analyze",
+				    (!(chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES),
+				    (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_RETVAL | HLUA_FLT_CB_ARG_CHN));
+}
+
+static int  hlua_filter_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	flt_ctx->flags &= ~HLUA_FLT_CTX_FL_PAYLOAD;
+	return hlua_filter_callback(s, filter, "end_analyze",
+				    (!(chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES),
+				    (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_RETVAL | HLUA_FLT_CB_ARG_CHN));
+}
+
+static int  hlua_filter_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
+				    unsigned int offset, unsigned int len)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+	struct hlua *flt_hlua;
+	int dir = (!(chn->flags & CF_ISRESP) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
+	int idx = (dir == SMP_OPT_DIR_REQ ? 0 : 1);
+	int ret;
+
+	flt_hlua = flt_ctx->hlua[idx];
+	flt_ctx->cur_off[idx] = offset;
+	flt_ctx->cur_len[idx] = len;
+	flt_ctx->flags |= HLUA_FLT_CTX_FL_PAYLOAD;
+	ret = hlua_filter_callback(s, filter, "tcp_payload", dir, (HLUA_FLT_CB_FINAL | HLUA_FLT_CB_ARG_CHN));
+	if (ret != -1) {
+		ret = flt_ctx->cur_len[idx];
+		if (lua_gettop(flt_hlua->T) > 0) {
+			ret = lua_tointeger(flt_hlua->T, -1);
+			if (ret > flt_ctx->cur_len[idx])
+				ret = flt_ctx->cur_len[idx];
+			lua_settop(flt_hlua->T, 0); /* Empty the stack. */
+		}
+	}
+	return ret;
+}
+
 static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 				 struct flt_conf *fconf, char **err, void *private)
 {
@@ -9084,9 +9280,15 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	/* Push the filter class on the stack and resolve all callbacks */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, reg_flt->flt_ref[state_id]);
 
-	/*
-	 * XXX: no callback supported for now
-	 */
+	if (lua_getfield(L, -1, "start_analyze") == LUA_TFUNCTION)
+		hlua_flt_ops->channel_start_analyze = hlua_filter_start_analyze;
+	lua_pop(L, 1);
+	if (lua_getfield(L, -1, "end_analyze") == LUA_TFUNCTION)
+		hlua_flt_ops->channel_end_analyze = hlua_filter_end_analyze;
+	lua_pop(L, 1);
+	if (lua_getfield(L, -1, "tcp_payload") == LUA_TFUNCTION)
+		hlua_flt_ops->tcp_payload = hlua_filter_tcp_payload;
+	lua_pop(L, 1);
 
 	/* Get id and flags of the filter class */
 	if (lua_getfield(L, -1, "id") == LUA_TSTRING)
@@ -9125,6 +9327,42 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	free(conf);
 	lua_settop(L, 0);
 	return -1;
+}
+
+__LJMP static int hlua_register_data_filter(lua_State *L)
+{
+	struct filter *filter;
+	struct channel *chn;
+
+	MAY_LJMP(check_args(L, 2, "register_data_filter"));
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
+	chn = MAY_LJMP(hlua_checkchannel(L, 2));
+
+	lua_getfield(L, 1, "__filter");
+	MAY_LJMP(luaL_checktype(L, -1, LUA_TLIGHTUSERDATA));
+	filter = lua_touserdata (L, -1);
+	lua_pop(L, 1);
+
+	register_data_filter(chn_strm(chn), chn, filter);
+	return 1;
+}
+
+__LJMP static int hlua_unregister_data_filter(lua_State *L)
+{
+	struct filter *filter;
+	struct channel *chn;
+
+	MAY_LJMP(check_args(L, 2, "unregister_data_filter"));
+	MAY_LJMP(luaL_checktype(L, 1, LUA_TTABLE));
+	chn = MAY_LJMP(hlua_checkchannel(L, 2));
+
+	lua_getfield(L, 1, "__filter");
+	MAY_LJMP(luaL_checktype(L, -1, LUA_TLIGHTUSERDATA));
+	filter = lua_touserdata (L, -1);
+	lua_pop(L, 1);
+
+	unregister_data_filter(chn_strm(chn), chn, filter);
+	return 1;
 }
 
 /* This function is an LUA binding used for registering a filter. It expects a
@@ -9895,6 +10133,10 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_const_int(L, "ERROR",    -1);
 
 	hlua_class_const_int(L, "FLT_CFG_FL_HTX", FLT_CFG_FL_HTX);
+
+	hlua_class_function(L, "wake_time", hlua_set_wake_time);
+	hlua_class_function(L, "register_data_filter", hlua_register_data_filter);
+	hlua_class_function(L, "unregister_data_filter", hlua_unregister_data_filter);
 
 	lua_setglobal(L, "filter");
 
