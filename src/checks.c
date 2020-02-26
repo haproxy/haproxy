@@ -3113,6 +3113,8 @@ static int tcpcheck_main(struct check *check)
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			struct tcpcheck_expect *expect = &check->current_step->expect;
+			char *diag;
+			int match;
 
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
@@ -3178,7 +3180,7 @@ static int tcpcheck_main(struct check *check)
 				goto out_end_tcpcheck;
 			}
 
-		tcpcheck_expect:
+		next_tcpcheck_expect:
 			/* The current expect might need more data than the previous one, check again
 			 * that the minimum amount data required to match is respected.
 			 */
@@ -3190,13 +3192,16 @@ static int tcpcheck_main(struct check *check)
 					continue; /* try to read more */
 			}
 
+			/* Make GCC happy ; initialize match to a failure state. */
+			match = expect->inverse;
+
 			switch (expect->type) {
 			case TCPCHK_EXPECT_STRING:
 			case TCPCHK_EXPECT_BINARY:
-				ret = my_memmem(contentptr, b_data(&check->bi), expect->string, expect->length) != NULL;
+				match = my_memmem(contentptr, b_data(&check->bi), expect->string, expect->length) != NULL;
 				break;
 			case TCPCHK_EXPECT_REGEX:
-				ret = regex_exec(expect->regex, contentptr);
+				match = regex_exec(expect->regex, contentptr);
 				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
@@ -3207,108 +3212,60 @@ static int tcpcheck_main(struct check *check)
 			/* Wait for more data on mismatch only if no minimum is defined (-1),
 			 * otherwise the absence of match is already conclusive.
 			 */
-			if (!ret && !done && (expect->min_recv == -1))
+			if (!match && !done && (expect->min_recv == -1))
 				continue; /* try to read more */
 
-			/* matched */
+			if (match ^ expect->inverse) {
+				/* Result as expected, next rule. */
+				check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
+
+				/* bypass all comment rules */
+				while (&check->current_step->list != head &&
+				       check->current_step->action == TCPCHK_ACT_COMMENT)
+					check->current_step = LIST_NEXT(&check->current_step->list,
+									struct tcpcheck_rule *, list);
+				if (&check->current_step->list == head)
+					break;
+
+				if (check->current_step->action == TCPCHK_ACT_EXPECT) {
+					expect = &check->current_step->expect;
+					goto next_tcpcheck_expect;
+				}
+
+				continue;
+			}
+
+			/* From this point on, we matched something we did not want, this is an error state. */
+
 			step = tcpcheck_get_step_id(check);
-			if (ret) {
-				/* matched but we did not want to => ERROR */
-				if (expect->inverse) {
-					switch (expect->type) {
-					case TCPCHK_EXPECT_STRING:
-						chunk_printf(&trash, "TCPCHK matched unwanted content '%s' at step %d",
-						             expect->string, step);
-						break;
-					case TCPCHK_EXPECT_BINARY:
-						chunk_printf(&trash, "TCPCHK matched unwanted content (binary) at step %d",
-						             step);
-						break;
-					case TCPCHK_EXPECT_REGEX:
-						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d",
-							     step);
-						break;
-					case TCPCHK_EXPECT_UNDEF:
-						/* Should never happen. */
-						retcode = -1;
-						goto out;
-					}
+			diag = match ? "matched unwanted content" : "did not match content";
 
-					comment = tcpcheck_get_step_comment(check, step);
-					if (comment)
-						chunk_appendf(&trash, " comment: '%s'", comment);
-					set_server_check_status(check, HCHK_STATUS_L7RSP,
-								trash.area);
-					goto out_end_tcpcheck;
-				}
-				/* matched and was supposed to => OK, next step */
-				else {
-					/* allow next rule */
-					check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-					/* bypass all comment rules */
-					while (&check->current_step->list != head &&
-					       check->current_step->action == TCPCHK_ACT_COMMENT)
-						check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
-
-					if (&check->current_step->list == head)
-						break;
-
-					if (check->current_step->action == TCPCHK_ACT_EXPECT) {
-						expect = &check->current_step->expect;
-						goto tcpcheck_expect;
-					}
-				}
+			switch (expect->type) {
+			case TCPCHK_EXPECT_STRING:
+				chunk_printf(&trash, "TCPCHK %s '%s' at step %d",
+				             diag, expect->string, step);
+				break;
+			case TCPCHK_EXPECT_BINARY:
+				chunk_printf(&trash, "TCPCHK %s (binary) at step %d",
+				             diag, step);
+				break;
+			case TCPCHK_EXPECT_REGEX:
+				chunk_printf(&trash, "TCPCHK %s (regex) at step %d",
+				             diag, step);
+				break;
+			case TCPCHK_EXPECT_UNDEF:
+				/* Should never happen. */
+				retcode = -1;
+				goto out;
 			}
-			else {
-			/* not matched */
-				/* not matched and was not supposed to => OK, next step */
-				if (expect->inverse) {
-					/* allow next rule */
-					check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
 
-					/* bypass all comment rules */
-					while (&check->current_step->list != head &&
-					       check->current_step->action == TCPCHK_ACT_COMMENT)
-						check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
+			comment = tcpcheck_get_step_comment(check, step);
+			if (comment)
+				chunk_appendf(&trash, " comment: '%s'", comment);
+			set_server_check_status(check, HCHK_STATUS_L7RSP,
+						trash.area);
 
-					if (&check->current_step->list == head)
-						break;
-
-					if (check->current_step->action == TCPCHK_ACT_EXPECT) {
-						expect = &check->current_step->expect;
-						goto tcpcheck_expect;
-					}
-				}
-				/* not matched but was supposed to => ERROR */
-				else {
-					switch (expect->type) {
-					case TCPCHK_EXPECT_STRING:
-						chunk_printf(&trash, "TCPCHK did not match content '%s' at step %d",
-						             check->current_step->string, step);
-						break;
-					case TCPCHK_EXPECT_BINARY:
-						chunk_printf(&trash, "TCPCHK did not match content (binary) at step %d",
-						             step);
-						break;
-					case TCPCHK_EXPECT_REGEX:
-						chunk_printf(&trash, "TCPCHK did not match content (regex) at step %d",
-						             step);
-						break;
-					case TCPCHK_EXPECT_UNDEF:
-						/* Should never happen. */
-						retcode = -1;
-						goto out;
-					}
-
-					comment = tcpcheck_get_step_comment(check, step);
-					if (comment)
-						chunk_appendf(&trash, " comment: '%s'", comment);
-					set_server_check_status(check, HCHK_STATUS_L7RSP,
-								trash.area);
-					goto out_end_tcpcheck;
-				}
-			}
+			goto out_end_tcpcheck;
 		} /* end expect */
 	} /* end loop over double chained step list */
 
