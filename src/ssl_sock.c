@@ -3629,6 +3629,11 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		if (issuer)
 			find_chain = issuer->chain;
 	}
+
+	/* If we didn't find a chain we *MUST* use an empty X509 structure */
+	if (find_chain == NULL)
+		find_chain = sk_X509_new_null();
+
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
 #ifdef SSL_CTX_set1_chain
         if (!SSL_CTX_set1_chain(ctx, find_chain)) {
