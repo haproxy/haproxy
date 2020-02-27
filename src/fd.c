@@ -300,10 +300,11 @@ done:
  */
 static void fd_dodelete(int fd, int do_close)
 {
-	unsigned long locked = atleast2(fdtab[fd].thread_mask);
+	int locked = fdtab[fd].running_mask != tid_bit;
 
 	if (locked)
-		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		fd_set_running_excl(fd);
+
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
 		setsockopt(fd, SOL_SOCKET, SO_LINGER,
@@ -324,7 +325,7 @@ static void fd_dodelete(int fd, int do_close)
 		_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	}
 	if (locked)
-		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		fd_clr_running(fd);
 }
 
 /* Deletes an FD from the fdsets.
@@ -602,7 +603,6 @@ int init_pollers()
 	update_list.first = update_list.last = -1;
 
 	for (p = 0; p < global.maxsock; p++) {
-		HA_SPIN_INIT(&fdtab[p].lock);
 		/* Mark the fd as out of the fd cache */
 		fdtab[p].update.next = -3;
 	}
@@ -638,9 +638,6 @@ void deinit_pollers() {
 
 	struct poller *bp;
 	int p;
-
-	for (p = 0; p < global.maxsock; p++)
-		HA_SPIN_DESTROY(&fdtab[p].lock);
 
 	for (p = 0; p < nbpollers; p++) {
 		bp = &pollers[p];

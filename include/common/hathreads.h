@@ -529,7 +529,6 @@ static inline unsigned long thread_isolated()
 
 /* WARNING!!! if you update this enum, please also keep lock_label() up to date below */
 enum lock_label {
-	FD_LOCK,
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
 	POOL_LOCK,
@@ -647,7 +646,6 @@ struct ha_rwlock {
 static inline const char *lock_label(enum lock_label label)
 {
 	switch (label) {
-	case FD_LOCK:              return "FD";
 	case TASK_RQ_LOCK:         return "TASK_RQ";
 	case TASK_WQ_LOCK:         return "TASK_WQ";
 	case POOL_LOCK:            return "POOL";

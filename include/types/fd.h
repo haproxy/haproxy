@@ -118,8 +118,8 @@ struct fdlist {
 
 /* info about one given fd */
 struct fdtab {
-	__decl_hathreads(HA_SPINLOCK_T lock);
-	unsigned long thread_mask;           /* mask of thread IDs authorized to process the task */
+	unsigned long running_mask;          /* mask of thread IDs currntly using the fd */
+	unsigned long thread_mask;           /* mask of thread IDs authorized to process the fd */
 	unsigned long update_mask;           /* mask of thread IDs having an update for fd */
 	struct fdlist_entry update;          /* Entry in the global update list */
 	void (*iocb)(int fd);                /* I/O handler */

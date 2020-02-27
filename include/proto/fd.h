@@ -299,6 +299,23 @@ static inline void fd_want_send(int fd)
 	updt_fd_polling(fd);
 }
 
+static inline void fd_set_running(int fd)
+{
+	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+}
+
+static inline void fd_set_running_excl(int fd)
+{
+	unsigned long old_mask = 0;
+	while (!_HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old_mask, tid_bit));
+}
+
+
+static inline void fd_clr_running(int fd)
+{
+	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+}
+
 /* Update events seen for FD <fd> and its state if needed. This should be
  * called by the poller, passing FD_EV_*_{R,W,RW} in <evts>. FD_EV_ERR_*
  * doesn't need to also pass FD_EV_SHUT_*, it's implied. ERR and SHUT are
@@ -353,8 +370,11 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
 		fd_may_send(fd);
 
-	if (fdtab[fd].iocb && fd_active(fd))
+	if (fdtab[fd].iocb && fd_active(fd)) {
+		fd_set_running(fd);
 		fdtab[fd].iocb(fd);
+		fd_clr_running(fd);
+	}
 
 	/* we had to stop this FD and it still must be stopped after the I/O
 	 * cb's changes, so let's program an update for this.
@@ -372,10 +392,10 @@ static inline void fd_update_events(int fd, unsigned char evts)
 /* Prepares <fd> for being polled */
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
-	unsigned long locked = atleast2(thread_mask);
+	int locked = fdtab[fd].running_mask != tid_bit;
 
 	if (locked)
-		HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+		fd_set_running_excl(fd);
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].ev = 0;
@@ -386,7 +406,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	 * still knows this FD from a possible previous round.
 	 */
 	if (locked)
-		HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+		fd_clr_running(fd);
 	/* the two directions are ready until proven otherwise */
 	fd_may_both(fd);
 	_HA_ATOMIC_ADD(&ha_used_fds, 1);
