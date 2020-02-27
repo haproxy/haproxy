@@ -1898,7 +1898,11 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	pattern_finalize_config();
+	err_code |= pattern_finalize_config();
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		ha_alert("Failed to finalize pattern config.\n");
+		exit(1);
+	}
 
 	/* recompute the amount of per-process memory depending on nbproc and
 	 * the shared SSL cache size (allowed to exist in all processes).

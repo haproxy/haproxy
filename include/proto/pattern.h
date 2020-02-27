@@ -37,7 +37,7 @@ extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
 extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
 extern int pat_match_types[PAT_MATCH_NUM];
 
-void pattern_finalize_config(void);
+int pattern_finalize_config(void);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
 static inline int pat_find_match_name(const char *name)

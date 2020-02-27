@@ -2642,53 +2642,80 @@ int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref)
 	return 1;
 }
 
-/* This function finalize the configuration parsing. Its set all the
+/* This function compares two pat_ref** on unique_id */
+static int cmp_pat_ref(const void *_a, const void *_b)
+{
+	struct pat_ref * const *a = _a;
+	struct pat_ref * const *b = _b;
+
+	if ((*a)->unique_id < (*b)->unique_id)
+		return -1;
+	else if ((*a)->unique_id > (*b)->unique_id)
+		return 1;
+	return 0;
+}
+
+/* This function finalize the configuration parsing. It sets all the
  * automatic ids
  */
-void pattern_finalize_config(void)
+int pattern_finalize_config(void)
 {
-	int i = 0;
-	struct pat_ref *ref, *ref2, *ref3;
+	int len = 0;
+	int unassigned_pos = 0;
+	int next_unique_id = 0;
+	int i, j;
+	struct pat_ref *ref, **arr;
 	struct list pr = LIST_HEAD_INIT(pr);
 
 	pat_lru_seed = random();
 
+	/* Count pat_refs with user defined unique_id and totalt count */
 	list_for_each_entry(ref, &pattern_reference, list) {
-		if (ref->unique_id == -1) {
-			/* Look for the first free id. */
-			while (1) {
-				list_for_each_entry(ref2, &pattern_reference, list) {
-					if (ref2->unique_id == i) {
-						i++;
-						break;
-					}
-				}
-				if (&ref2->list == &pattern_reference)
-					break;
-			}
-
-			/* Uses the unique id and increment it for the next entry. */
-			ref->unique_id = i;
-			i++;
-		}
+		len++;
+		if (ref->unique_id != -1)
+			unassigned_pos++;
 	}
 
-	/* This sort the reference list by id. */
-	list_for_each_entry_safe(ref, ref2, &pattern_reference, list) {
-		LIST_DEL(&ref->list);
-		list_for_each_entry(ref3, &pr, list) {
-			if (ref->unique_id < ref3->unique_id) {
-				LIST_ADDQ(&ref3->list, &ref->list);
-				break;
-			}
-		}
-		if (&ref3->list == &pr)
-			LIST_ADDQ(&pr, &ref->list);
+	arr = calloc(len, sizeof(*arr));
+	if (arr == NULL) {
+		ha_alert("Out of memory error.\n");
+		return ERR_ALERT | ERR_FATAL;
 	}
+
+	i = 0;
+	j = unassigned_pos;
+	list_for_each_entry(ref, &pattern_reference, list) {
+		if (ref->unique_id != -1)
+			arr[i++] = ref;
+		else
+			arr[j++] = ref;
+	}
+
+	/* Sort first segment of array with user-defined unique ids for
+	 * fast lookup when generating unique ids
+	 */
+	qsort(arr, unassigned_pos, sizeof(*arr), cmp_pat_ref);
+
+	/* Assign unique ids to the rest of the elements */
+	for (i = unassigned_pos; i < len; i++) {
+		do {
+			arr[i]->unique_id = next_unique_id++;
+		} while (bsearch(&arr[i], arr, unassigned_pos, sizeof(*arr), cmp_pat_ref));
+	}
+
+	/* Sort complete array */
+	qsort(arr, len, sizeof(*arr), cmp_pat_ref);
+
+	/* Convert back to linked list */
+	for (i = 0; i < len; i++)
+		LIST_ADDQ(&pr, &arr[i]->list);
 
 	/* swap root */
 	LIST_ADD(&pr, &pattern_reference);
 	LIST_DEL(&pr);
+
+	free(arr);
+	return 0;
 }
 
 static int pattern_per_thread_lru_alloc()
