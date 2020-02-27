@@ -1450,6 +1450,12 @@ int dns_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 			if (i == offset)
 				return -1;
 
+			/* ignore trailing dot */
+			if (i + 2 == str_len) {
+				i++;
+				break;
+			}
+
 			dn[offset] = (i - offset);
 			offset = i+1;
 			continue;
