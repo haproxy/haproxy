@@ -388,8 +388,8 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RATE_LIM]       = 0,
 	[ST_F_RATE_MAX]       = ST_F_LASTSESS,
 	[ST_F_CHECK_STATUS]   = ST_F_CHECK_CODE,
-	[ST_F_CHECK_CODE]     = ST_F_CHKFAIL,
-	[ST_F_CHECK_DURATION] = 0,
+	[ST_F_CHECK_CODE]     = ST_F_CHECK_DURATION,
+	[ST_F_CHECK_DURATION] = ST_F_CHKFAIL,
 	[ST_F_HRSP_1XX]       = ST_F_HRSP_2XX,
 	[ST_F_HRSP_2XX]       = ST_F_HRSP_3XX,
 	[ST_F_HRSP_3XX]       = ST_F_HRSP_4XX,
@@ -552,7 +552,7 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RATE_MAX]       = IST("max_session_rate"),
 	[ST_F_CHECK_STATUS]   = IST("check_status"),
 	[ST_F_CHECK_CODE]     = IST("check_code"),
-	[ST_F_CHECK_DURATION] = IST("check_duration_milliseconds"),
+	[ST_F_CHECK_DURATION] = IST("check_duration_seconds"),
 	[ST_F_HRSP_1XX]       = IST("http_responses_total"),
 	[ST_F_HRSP_2XX]       = IST("http_responses_total"),
 	[ST_F_HRSP_3XX]       = IST("http_responses_total"),
@@ -715,7 +715,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RATE_MAX]       = IST("Maximum observed number of sessions per second."),
 	[ST_F_CHECK_STATUS]   = IST("Status of last health check (HCHK_STATUS_* values)."),
 	[ST_F_CHECK_CODE]     = IST("layer5-7 code, if available of the last health check."),
-	[ST_F_CHECK_DURATION] = IST("Time in ms took to finish last health check."),
+	[ST_F_CHECK_DURATION] = IST("Total duration of the latest server health check, in seconds."),
 	[ST_F_HRSP_1XX]       = IST("Total number of HTTP responses."),
 	[ST_F_HRSP_2XX]       = IST("Total number of HTTP responses."),
 	[ST_F_HRSP_3XX]       = IST("Total number of HTTP responses."),
@@ -2036,6 +2036,12 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
 							goto next_sv;
 						metric = mkf_u32(FN_OUTPUT, (sv->check.status < HCHK_STATUS_L57DATA) ? 0 : sv->check.code);
+						break;
+					case ST_F_CHECK_DURATION:
+						if (sv->check.status < HCHK_STATUS_CHECKED)
+						    goto next_sv;
+						secs = (double)sv->check.duration / 1000.0;
+						metric = mkf_flt(FN_DURATION, secs);
 						break;
 					case ST_F_CHKFAIL:
 						metric = mkf_u64(FN_COUNTER, sv->counters.failed_checks);

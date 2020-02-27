@@ -272,6 +272,7 @@ Exported metrics
 | haproxy_server_weight                              | Service weight.                                                           |
 | haproxy_server_check_status                        | Status of last health check, if enabled. (see below for the mapping)      |
 | haproxy_server_check_code                          | layer5-7 code, if available of the last health check.                     |
+| haproxy_server_check_duration_seconds              | Total duration of the latest server health check, in seconds.             |
 | haproxy_server_check_failures_total                | Total number of failed check (Only when the server is up).                |
 | haproxy_server_check_up_down_total                 | Total number of UP->DOWN transitions.                                     |
 | haproxy_server_downtime_seconds_total              | Total downtime (in seconds) for the service.                              |
