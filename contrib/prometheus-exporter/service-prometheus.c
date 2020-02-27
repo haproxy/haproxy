@@ -2037,6 +2037,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							goto next_sv;
 						metric = mkf_u32(FN_OUTPUT, (sv->check.status < HCHK_STATUS_L57DATA) ? 0 : sv->check.code);
 						break;
+					case ST_F_CHECK_DURATION:
+						metric = mkf_u32(FN_DURATION, sv->check.duration);
+						break;
 					case ST_F_CHKFAIL:
 						metric = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
 						break;
