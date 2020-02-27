@@ -364,6 +364,7 @@ void updt_fd_polling(const int fd)
 	}
 }
 
+__decl_spinlock(log_lock);
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
  * optionally followed by a newline if <nl> is non-null, to file descriptor
  * <fd>. The message is sent atomically using writev(). It may be truncated to
@@ -421,9 +422,9 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 			fcntl(fd, F_SETFL, O_NONBLOCK);
 	}
 
-	HA_SPIN_LOCK(FD_LOCK, &fdtab[fd].lock);
+	HA_SPIN_LOCK(OTHER_LOCK, &log_lock);
 	sent = writev(fd, iovec, vec);
-	HA_SPIN_UNLOCK(FD_LOCK, &fdtab[fd].lock);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &log_lock);
 
 	/* sent > 0 if the message was delivered */
 	return sent;
