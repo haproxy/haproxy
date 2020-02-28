@@ -3634,12 +3634,15 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			find_chain = issuer->chain;
 	}
 
-	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
+	/* Load all certs from chain, except Root, in the ssl_ctx */
 	if (find_chain) {
 		int i;
 		X509 *ca;
 		for (i = 0; i < sk_X509_num(find_chain); i++) {
 			ca = sk_X509_value(find_chain, i);
+			/* skip self issued (Root CA) */
+			if (!X509_NAME_cmp(X509_get_subject_name(ca), X509_get_issuer_name(ca)))
+				continue;
 			/*
 			   SSL_CTX_add1_chain_cert could be used with openssl >= 1.0.2
 			   Used SSL_CTX_add_extra_chain_cert for compat (aka SSL_CTX_add0_chain_cert)
