@@ -409,19 +409,18 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 
 static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	int length;
+
 	if (LIST_ISEMPTY(&smp->sess->fe->format_unique_id))
 		return 0;
 
-	if (!smp->strm->unique_id) {
-		if ((smp->strm->unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
-			return 0;
-		smp->strm->unique_id[0] = '\0';
-		build_logline(smp->strm, smp->strm->unique_id,
-		              UNIQUEID_LEN, &smp->sess->fe->format_unique_id);
-	}
-	smp->data.u.str.data = strlen(smp->strm->unique_id);
-	smp->data.type = SMP_T_STR;
+	length = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
+	if (length < 0)
+		return 0;
+
 	smp->data.u.str.area = smp->strm->unique_id;
+	smp->data.u.str.data = length;
+	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
 }

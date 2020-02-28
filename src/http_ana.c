@@ -787,24 +787,29 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->be->cookie_name || sess->fe->capture_name)
 		http_manage_client_side_cookies(s, req);
 
-	/* add unique-id if "header-unique-id" is specified */
+	/* 8: Generate unique ID if a "unique-id-format" is defined.
+	 *
+	 * A unique ID is generated even when it is not sent to ensure that the ID can make use of
+	 * fetches only available in the HTTP request processing stage.
+	 */
+	if (!LIST_ISEMPTY(&sess->fe->format_unique_id)) {
+		int length;
 
-	if (!LIST_ISEMPTY(&sess->fe->format_unique_id) && !s->unique_id) {
-		if ((s->unique_id = pool_alloc(pool_head_uniqueid)) == NULL) {
+		if ((length = stream_generate_unique_id(s, &sess->fe->format_unique_id)) < 0) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
 			goto return_int_err;
 		}
-		s->unique_id[0] = '\0';
-		build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
-	}
 
-	if (sess->fe->header_unique_id && s->unique_id) {
-		struct ist n = ist2(sess->fe->header_unique_id, strlen(sess->fe->header_unique_id));
-		struct ist v = ist2(s->unique_id, strlen(s->unique_id));
+		/* send unique ID if a "unique-id-header" is defined */
+		if (sess->fe->header_unique_id) {
+			struct ist n, v;
+			n = ist2(sess->fe->header_unique_id, strlen(sess->fe->header_unique_id));
+			v = ist2(s->unique_id, length);
 
-		if (unlikely(!http_add_header(htx, n, v)))
-			goto return_int_err;
+			if (unlikely(!http_add_header(htx, n, v)))
+				goto return_int_err;
+		}
 	}
 
 	/*
