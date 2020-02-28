@@ -1,0 +1,47 @@
+varnishtest "unique-id test"
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend stable
+        bind "fd@${fe1}"
+        unique-id-format TEST-%[uuid]
+        http-response set-header A %[unique-id]
+        http-response set-header B %[unique-id]
+        default_backend be
+
+    frontend request_data
+        bind "fd@${fe2}"
+        unique-id-format TEST-%[req.hdr(in)]
+        http-response set-header out %[unique-id]
+        default_backend be
+
+    backend be
+        server srv1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.a == resp.http.b
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+    txreq -url "/" \
+          -hdr "in: 12345678"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.out == "TEST-12345678"
+} -run
