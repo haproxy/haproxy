@@ -215,7 +215,7 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 
   end:
 	sl = http_get_stline(htx);
-	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteq(n, ist("host"))) {
+	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(n, ist("host"))) {
 		if (!http_update_authority(htx, sl, v))
 			goto fail;
 	}
@@ -491,7 +491,7 @@ int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx,
 		goto fail;
 
 	sl = http_get_stline(htx);
-	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteq(name, ist("host"))) {
+	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(name, ist("host"))) {
 		if (!http_update_authority(htx, sl, value))
 			goto fail;
 		ctx->blk = NULL;
