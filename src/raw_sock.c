@@ -118,6 +118,8 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 					conn->flags |= CO_FL_WAIT_ROOM;
 					break;
 				}
+				/* socket buffer exhausted */
+				fd_cant_recv(conn->handle.fd);
 				break;
 			}
 			else if (errno == ENOSYS || errno == EINVAL || errno == EBADF) {
@@ -196,6 +198,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
+				fd_cant_send(conn->handle.fd);
 				break;
 			}
 			else if (errno == EINTR)
@@ -274,6 +277,9 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			b_add(buf, ret);
 			done += ret;
 			if (ret < try) {
+				/* socket buffer exhausted */
+				fd_cant_recv(conn->handle.fd);
+
 				/* unfortunately, on level-triggered events, POLL_HUP
 				 * is generally delivered AFTER the system buffer is
 				 * empty, unless the poller supports POLL_RDHUP. If
@@ -300,6 +306,8 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			goto read0;
 		}
 		else if (errno == EAGAIN || errno == ENOTCONN) {
+			/* socket buffer exhausted */
+			fd_cant_recv(conn->handle.fd);
 			break;
 		}
 		else if (errno != EINTR) {
@@ -382,13 +390,16 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			done += ret;
 
 			/* if the system buffer is full, don't insist */
-			if (ret < try)
+			if (ret < try) {
+				fd_cant_send(conn->handle.fd);
 				break;
+			}
 			if (!count)
 				fd_stop_send(conn->handle.fd);
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN || errno == EINPROGRESS) {
 			/* nothing written, we need to poll for write first */
+			fd_cant_send(conn->handle.fd);
 			break;
 		}
 		else if (errno != EINTR) {
