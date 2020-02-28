@@ -395,6 +395,9 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	return -1;
 
  empty_err:
+	if (pos >= min_arg)
+		goto end_parse;
+
 	memprintf(err_msg, "expected type '%s' at position %d, but got nothing",
 	          arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
