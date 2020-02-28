@@ -2398,7 +2398,7 @@ static void h1_detach(struct conn_stream *cs)
 					TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 					goto end;
 				}
-				tasklet_wakeup(h1c->wait_event.tasklet);
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
 				goto end;
 			}
@@ -2414,7 +2414,7 @@ static void h1_detach(struct conn_stream *cs)
 				/* The connection was added to the server list,
 				 * wake the task so we can subscribe to events
 				 */
-				tasklet_wakeup(h1c->wait_event.tasklet);
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 				TRACE_DEVEL("reusable idle connection", H1_EV_STRM_END, h1c->conn);
 				goto end;
 			}
@@ -2446,7 +2446,7 @@ static void h1_detach(struct conn_stream *cs)
 		h1_release(h1c);
 	}
 	else {
-		tasklet_wakeup(h1c->wait_event.tasklet);
+		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		if (h1c->task) {
 			h1c->task->expire = TICK_ETERNITY;
 			if (b_data(&h1c->obuf)) {
