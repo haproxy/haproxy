@@ -5093,7 +5093,6 @@ void http_end_txn(struct stream *s)
 
 
 DECLARE_POOL(pool_head_http_txn, "http_txn", sizeof(struct http_txn));
-DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
 
 __attribute__((constructor))
 static void __http_protocol_init(void)

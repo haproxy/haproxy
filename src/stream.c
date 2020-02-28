@@ -66,6 +66,7 @@
 #include <proto/vars.h>
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
+DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
 
 struct list streams = LIST_HEAD_INIT(streams);
 __decl_spinlock(streams_lock);
@@ -2659,6 +2660,29 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 	ha_alert("%s", msg);
 	send_log(NULL, LOG_EMERG, "%s", msg);
 	abort();
+}
+
+/* Generates a unique ID based on the given <format>, stores it in the given <strm> and
+ * returns the length of the ID. -1 is returned on memory allocation failure.
+ *
+ * If an ID is already stored within the stream nothing happens and length of the stored
+ * ID is returned.
+ */
+int stream_generate_unique_id(struct stream *strm, struct list *format)
+{
+	if (strm->unique_id != NULL) {
+		return strlen(strm->unique_id);
+	}
+	else {
+		char *unique_id;
+		if ((unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
+			return -1;
+
+		strm->unique_id = unique_id;
+		strm->unique_id[0] = 0;
+
+		return build_logline(strm, strm->unique_id, UNIQUEID_LEN, format);
+	}
 }
 
 /************************************************************************/
