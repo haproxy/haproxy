@@ -873,7 +873,7 @@ h1-case-adjust <from> <to>
   <from>, to change it to <to> before sending it to HTTP/1 clients or
   servers. <from> must be in lower case, and <from> and <to> must not differ
   except for their case. It may be repeated if several header names need to be
-  ajusted. Duplicate entries are not allowed. If a lot of header names have to
+  adjusted. Duplicate entries are not allowed. If a lot of header names have to
   be adjusted, it might be more convenient to use "h1-case-adjust-file".
   Please note that no transformation will be applied unless "option
   h1-case-adjust-bogus-client" or "option h1-case-adjust-bogus-server" is
@@ -1342,7 +1342,7 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   try to gather the files with the same basename in a multi-certificate bundle.
   The bundles were introduced with OpenSSL 1.0.2 and were the only way back
   then to load an ECDSA certificate and a RSA one, with the same SNI. Since
-  OpenSSL 1.1.1 it is not recommended anymore, you can specifiy both the ECDSA
+  OpenSSL 1.1.1 it is not recommended anymore, you can specify both the ECDSA
   and the RSA file on the bind line.
 
   "sctl": Try to load "<basename>.sctl" for each crt keyword.
@@ -4339,7 +4339,7 @@ http-after-response strict-mode { on | off }
   performing a rewrite on the responses. When the strict mode is enabled, any
   rewrite failure triggers an internal error. Otherwise, such errors are
   silently ignored. The purpose of the strict rewriting mode is to make some
-  rewrites optionnal while others must be performed to continue the response
+  rewrites optional while others must be performed to continue the response
   processing.
 
   By default, the strict rewriting mode is enabled. Its value is also reset
@@ -4754,7 +4754,7 @@ http-request reject [ { if | unless } <condition> ]
 http-request replace-header <name> <match-regex> <replace-fmt>
                             [ { if | unless } <condition> ]
 
-  This matches the value of all occurences of header field <name> against
+  This matches the value of all occurrences of header field <name> against
   <match-regex>. Matching is performed case-sensitively. Matching values are
   completely replaced by <replace-fmt>. Format characters are allowed in
   <replace-fmt> and work like <fmt> arguments in "http-request add-header".
@@ -4864,12 +4864,12 @@ http-request return [status <code>] [content-type <type>]
 	  [ hdr <name> <fmt> ]*
           [ { if | unless } <condition> ]
 
-  This stops the evaluation of the rules and immediatly returns a response. The
+  This stops the evaluation of the rules and immediately returns a response. The
   default status code used for the response is 200. It can be optionally
   specified as an arguments to "status". The response content-type may also be
   specified as an argument to "content-type". Finally the response itselft may
   be defined. If can be a full HTTP response specifying the errorfile to use,
-  or the response payload specifing the file or the string to use. These rules
+  or the response payload specifying the file or the string to use. These rules
   are followed to create the response :
 
   * If neither the errorfile nor the payload to use is defined, a dummy
@@ -5223,7 +5223,7 @@ http-request strict-mode { on | off }
   performing a rewrite on the requests. When the strict mode is enabled, any
   rewrite failure triggers an internal error. Otherwise, such errors are
   silently ignored. The purpose of the strict rewriting mode is to make some
-  rewrites optionnal while others must be performed to continue the request
+  rewrites optional while others must be performed to continue the request
   processing.
 
   By default, the strict rewriting mode is enabled. Its value is also reset
@@ -5494,12 +5494,12 @@ http-response return [status <code>] [content-type <type>]
 	  [ hdr <name> <value> ]*
           [ { if | unless } <condition> ]
 
-  This stops the evaluation of the rules and immediatly returns a response. The
+  This stops the evaluation of the rules and immediately returns a response. The
   default status code used for the response is 200. It can be optionally
   specified as an arguments to "status". The response content-type may also be
   specified as an argument to "content-type". Finally the response itselft may
   be defined. If can be a full HTTP response specifying the errorfile to use,
-  or the response payload specifing the file or the string to use. These rules
+  or the response payload specifying the file or the string to use. These rules
   are followed to create the response :
 
   * If neither the errorfile nor the payload to use is defined, a dummy
@@ -5712,7 +5712,7 @@ http-response strict-mode { on | off }
   performing a rewrite on the responses. When the strict mode is enabled, any
   rewrite failure triggers an internal error. Otherwise, such errors are
   silently ignored. The purpose of the strict rewriting mode is to make some
-  rewrites optionnal while others must be performed to continue the response
+  rewrites optional while others must be performed to continue the response
   processing.
 
   By default, the strict rewriting mode is enabled. Its value is also reset
@@ -16955,7 +16955,7 @@ internal.htx_blk.size(<idx>) : integer
   of the special value :
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.htx_blk.type(<idx>) : string
   Returns the type of the block at the position <idx> in the HTX message
@@ -16964,7 +16964,7 @@ internal.htx_blk.type(<idx>) : string
   integer or one of the special value :
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.htx_blk.data(<idx>) : binary
   Returns the value of the DATA block at the position <idx> in the HTX message
@@ -16974,7 +16974,7 @@ internal.htx_blk.data(<idx>) : binary
 
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.htx_blk.hdrname(<idx>) : string
   Returns the header name of the HEADER block at the position <idx> in the HTX
@@ -16984,7 +16984,7 @@ internal.htx_blk.hdrname(<idx>) : string
 
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.htx_blk.hdrval(<idx>) : string
   Returns the header value of the HEADER block at the position <idx> in the HTX
@@ -16994,7 +16994,7 @@ internal.htx_blk.hdrval(<idx>) : string
 
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.htx_blk.start_line(<idx>) : string
   Returns the value of the REQ_SL or RES_SL block at the position <idx> in the
@@ -17004,7 +17004,7 @@ internal.htx_blk.start_line(<idx>) : string
 
     * head  : The oldest inserted block
     * tail  : The newest inserted block
-    * fisrt : The first block where to (re)start the analysis
+    * first : The first block where to (re)start the analysis
 
 internal.strm.is_htx : boolean
   Returns true if the current stream is an HTX stream. It means the data in the
@@ -18785,7 +18785,7 @@ path-info <regex>
   filled.
 
   For security reason, when this regular expression is defined, the newline and
-  the null characters are forbiden from the path, once URL-decoded. The reason
+  the null characters are forbidden from the path, once URL-decoded. The reason
   to such limitation is because otherwise the matching always fails (due to a
   limitation one the way regular expression are executed in HAProxy). So if one
   of these two characters is found in the URL-decoded path, an error is
@@ -18915,7 +18915,7 @@ use-fcgi-app <name>
 
 A Responder FastCGI application has the same purpose as a CGI/1.1 program. In
 the CGI/1.1 specification (RFC3875), several variables must be passed to the
-scipt. So HAProxy set them and some others commonly used by FastCGI
+script. So HAProxy set them and some others commonly used by FastCGI
 applications. All these variables may be overwritten, with caution though.
 
   +-------------------+-----------------------------------------------------+
