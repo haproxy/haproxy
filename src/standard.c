@@ -2952,10 +2952,9 @@ char *date2str_log(char *dst, const struct tm *tm, const struct timeval *date, s
 		return NULL;
 	*dst++ = '.';
 
-	utoa_pad((unsigned int)(date->tv_usec/1000), dst, 4); // millisecondes
+	dst = utoa_pad((unsigned int)(date->tv_usec/1000)%1000, dst, 4); // milliseconds
 	if (!dst)
 		return NULL;
-	dst += 3;  // only the 3 first digits
 	*dst = '\0';
 
 	return dst;
