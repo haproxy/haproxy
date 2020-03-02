@@ -1880,6 +1880,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	s->si[1].flags |= SI_FL_NOLINGER;
 	rep->analysers &= AN_RES_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END;
 	rep->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
@@ -2184,7 +2185,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_H;
 
-	rep->analysers &= ~an_bit;
+	rep->analysers &= AN_RES_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END;
 	rep->analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
