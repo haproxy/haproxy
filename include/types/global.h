@@ -276,6 +276,7 @@ int delete_oldpid(int pid);
 
 int main(int argc, char **argv);
 void deinit(void);
+void run_poll_loop(void);
 void hap_register_build_opts(const char *str, int must_free);
 void hap_register_post_check(int (*fct)());
 void hap_register_post_proxy_check(int (*fct)(struct proxy *));
