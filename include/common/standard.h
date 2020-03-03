@@ -1485,6 +1485,7 @@ int dump_text_line(struct buffer *out, const char *buf, int bsize, int len,
 void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, int n);
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
+void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr);
 
 /* same as realloc() except that ptr is also freed upon failure */
 static inline void *my_realloc2(void *ptr, size_t size)
