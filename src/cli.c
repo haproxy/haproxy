@@ -66,10 +66,8 @@
 #include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/server.h>
-#include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-#include <proto/proto_udp.h>
 
 #define PAYLOAD_PATTERN "<<"
 
@@ -1017,7 +1015,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%02x(R:%c%c W:%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(%s)",
+			     "  %5d : st=0x%02x(R:%c%c W:%c%c) ev=0x%02x(%c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_EV_READY_R)  ? 'R' : 'r',
@@ -1034,22 +1032,11 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     fdt.cloned ? 'C' : 'c',
 			     fdt.thread_mask, fdt.update_mask,
 			     fdt.owner,
-			     fdt.iocb,
-			     (fdt.iocb == conn_fd_handler)  ? "conn_fd_handler" :
-			     (fdt.iocb == dgram_fd_handler) ? "dgram_fd_handler" :
-			     (fdt.iocb == listener_accept)  ? "listener_accept" :
-			     (fdt.iocb == poller_pipe_io_handler) ? "poller_pipe_io_handler" :
-			     (fdt.iocb == mworker_accept_wrapper) ? "mworker_accept_wrapper" :
-#ifdef USE_OPENSSL
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
-			     (fdt.iocb == ssl_async_fd_free) ? "ssl_async_fd_free" :
-			     (fdt.iocb == ssl_async_fd_handler) ? "ssl_async_fd_handler" :
-#endif
-#endif
-			     "unknown");
+			     fdt.iocb);
+		resolve_sym_name(&trash, NULL, fdt.iocb);
 
 		if (fdt.iocb == conn_fd_handler) {
-			chunk_appendf(&trash, " back=%d cflg=0x%08x", is_back, conn_flags);
+			chunk_appendf(&trash, ") back=%d cflg=0x%08x", is_back, conn_flags);
 			if (px)
 				chunk_appendf(&trash, " px=%s", px->id);
 			else if (sv)
@@ -1066,12 +1053,12 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 				chunk_appendf(&trash, " nomux");
 		}
 		else if (fdt.iocb == listener_accept) {
-			chunk_appendf(&trash, " l.st=%s fe=%s",
+			chunk_appendf(&trash, ") l.st=%s fe=%s",
 			              listener_state_str(li),
 			              li->bind_conf->frontend->id);
 		}
 
-		chunk_appendf(&trash, "\n");
+		chunk_appendf(&trash, ")\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
