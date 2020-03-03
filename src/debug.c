@@ -101,7 +101,6 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	const struct stream *s = NULL;
 	const struct appctx __maybe_unused *appctx = NULL;
 	struct hlua __maybe_unused *hlua = NULL;
-	extern int main(int, char **);
 
 	if (!task) {
 		chunk_appendf(buf, "0\n");
