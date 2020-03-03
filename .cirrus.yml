@@ -1,14 +1,10 @@
 FreeBSD_task:
   freebsd_instance:
     matrix:
-      image_family: freebsd-13-0-snap
-      image_family: freebsd-12-1-snap
-      image_family: freebsd-11-3-snap
+      image_family: freebsd-12-1
   only_if: $CIRRUS_BRANCH =~ 'master|next'
-  env:
-    IGNORE_OSVERSION: yes # supress package installation error on FreeBSD-13
   install_script:
-    - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat
+    - pkg update -f && pkg upgrade -y && pkg install -y openssl111 git gmake lua53 socat
   script:
     - git clone https://github.com/VTest/VTest.git ../vtest
     - make -C ../vtest
