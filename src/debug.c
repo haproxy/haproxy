@@ -10,6 +10,12 @@
  *
  */
 
+
+#ifdef USE_BACKTRACE
+#define _GNU_SOURCE
+#include <execinfo.h>
+#endif
+
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
@@ -87,6 +93,69 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, sched->current, "             ");
+
+#ifdef USE_BACKTRACE
+	if (stuck) {
+		/* We only emit the backtrace for stuck threads in order not to
+		 * waste precious output buffer space with non-interesting data.
+		 */
+		struct buffer bak;
+		void *callers[100];
+		int j, nptrs;
+		void *addr;
+		int dump = 0;
+
+		nptrs = backtrace(callers, sizeof(callers)/sizeof(*callers));
+
+		/* The call backtrace_symbols_fd(callers, nptrs, STDOUT_FILENO)
+		   would produce similar output to the following: */
+
+		if (nptrs)
+			chunk_appendf(buf, "             call trace:\n");
+
+#ifndef USE_DL
+		/* if we can't rely on dladdr1() we won't figure what level is
+		 * in ha_panic() or ha_thread_dump_all_to_trash(), so we want
+		 * to immediately start the dump.
+		 */
+		dump = 2;
+#endif
+		for (j = 0; j < nptrs; j++) {
+			bak = *buf;
+			dump_addr_and_bytes(buf, "             | ", callers[j], 8);
+			addr = resolve_sym_name(buf, ": ", callers[j]);
+			if (dump == 0) {
+				/* dump not started, will start *after*
+				 * ha_thread_dump_all_to_trash and ha_panic
+				 */
+				if (addr == ha_thread_dump_all_to_trash || addr == ha_panic)
+					dump = 1;
+				*buf = bak;
+				continue;
+			}
+
+			if (dump == 1) {
+				/* starting */
+				if (addr == ha_thread_dump_all_to_trash || addr == ha_panic) {
+					*buf = bak;
+					continue;
+				}
+				dump = 2;
+			}
+
+			if (dump == 2) {
+				/* dumping */
+				if (addr == run_poll_loop || addr == main || addr == run_tasks_from_list) {
+					dump = 3;
+					*buf = bak;
+					break;
+				}
+			}
+			/* OK, line dumped */
+			chunk_appendf(buf, "\n");
+		}
+	}
+#endif
 }
 
 
