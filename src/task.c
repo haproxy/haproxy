@@ -319,7 +319,7 @@ int next_timer_expiry()
  * the number of entries effectively processed (tasks and tasklets merged).
  * The count of tasks in the list for the current thread is adjusted.
  */
-static int run_tasks_from_list(struct list *list, int max)
+int run_tasks_from_list(struct list *list, int max)
 {
 	struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 	struct task *t;
