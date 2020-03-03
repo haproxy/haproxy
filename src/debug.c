@@ -645,6 +645,12 @@ void ha_thread_dump_all_to_trash()
 /* handles DEBUGSIG to dump the state of the thread it's working on */
 void debug_handler(int sig, siginfo_t *si, void *arg)
 {
+	/* first, let's check it's really for us and that we didn't just get
+	 * a spurious DEBUGSIG.
+	 */
+	if (!(threads_to_dump & tid_bit))
+		return;
+
 	/* There are 4 phases in the dump process:
 	 *   1- wait for our turn, i.e. when all lower bits are gone.
 	 *   2- perform the action if our bit is set
