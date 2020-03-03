@@ -101,6 +101,7 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	const struct stream *s = NULL;
 	const struct appctx __maybe_unused *appctx = NULL;
 	struct hlua __maybe_unused *hlua = NULL;
+	extern int main(int, char **);
 
 	if (!task) {
 		chunk_appendf(buf, "0\n");
@@ -121,9 +122,11 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		              task->call_date ? " ns ago" : "");
 
 	chunk_appendf(buf, "%s"
-	              "  fct=%p (%s) ctx=%p",
+	              "  fct=%p=main%s%ld (%s) ctx=%p",
 	              pfx,
 	              task->process,
+		      ((void *)task->process - (void *)main) < 0 ? "" : "+",
+		      (long)((void *)task->process - (void *)main),
 	              task->process == process_stream ? "process_stream" :
 	              task->process == task_run_applet ? "task_run_applet" :
 	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
