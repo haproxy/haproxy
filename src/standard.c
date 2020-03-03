@@ -4191,6 +4191,31 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int
 	}
 }
 
+/* dumps <pfx> followed by <n> bytes from <addr> in hex form into buffer <buf>
+ * enclosed in brackets after the address itself, formatted on 14 chars
+ * including the "0x" prefix. This is meant to be used as a prefix for code
+ * areas. For example:
+ *    "0x7f10b6557690 [48 c7 c0 0f 00 00 00 0f]"
+ * It relies on may_access() to know if the bytes are dumpable, otherwise "--"
+ * is emitted. A NULL <pfx> will be considered empty.
+ */
+void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, int n)
+{
+	int ok = 0;
+	int i;
+
+	chunk_appendf(buf, "%s%#14lx [", pfx ? pfx : "", (long)addr);
+
+	for (i = 0; i < n; i++) {
+		if (i == 0 || (((long)(addr + i) ^ (long)(addr)) & 4096))
+			ok = may_access(addr + i);
+		if (ok)
+			chunk_appendf(buf, "%02x%s", ((uint8_t*)addr)[i], (i<n-1) ? " " : "]");
+		else
+			chunk_appendf(buf, "--%s", (i<n-1) ? " " : "]");
+	}
+}
+
 /* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
  * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
  * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are

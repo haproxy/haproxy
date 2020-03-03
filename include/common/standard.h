@@ -1482,6 +1482,7 @@ int dump_text(struct buffer *out, const char *buf, int bsize);
 int dump_binary(struct buffer *out, const char *buf, int bsize);
 int dump_text_line(struct buffer *out, const char *buf, int bsize, int len,
                    int *line, int ptr);
+void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, int n);
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
 
