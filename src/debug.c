@@ -120,20 +120,9 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		              task->call_date ? (unsigned long long)(now_mono_time() - task->call_date) : 0,
 		              task->call_date ? " ns ago" : "");
 
-	chunk_appendf(buf, "%s"
-	              "  fct=%p=main%s%ld (%s) ctx=%p",
-	              pfx,
-	              task->process,
-		      ((void *)task->process - (void *)main) < 0 ? "" : "+",
-		      (long)((void *)task->process - (void *)main),
-	              task->process == process_stream ? "process_stream" :
-	              task->process == task_run_applet ? "task_run_applet" :
-	              task->process == si_cs_io_cb ? "si_cs_io_cb" :
-#ifdef USE_LUA
-		      task->process == hlua_process_task ? "hlua_process_task" :
-#endif
-		      "?",
-	              task->context);
+	chunk_appendf(buf, "%s  fct=%p(", pfx, task->process);
+	resolve_sym_name(buf, NULL, task->process);
+	chunk_appendf(buf,") ctx=%p", task->context);
 
 	if (task->process == task_run_applet && (appctx = task->context))
 		chunk_appendf(buf, "(%s)\n", appctx->applet->name);
