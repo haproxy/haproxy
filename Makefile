@@ -848,9 +848,14 @@ help:
 	$(Q)echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
 	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt))); echo "  $$*" | (fmt || cat) 2>/dev/null
 
-# Used only to force a rebuild if some build options change
+# Used only to force a rebuild if some build options change, but we don't do
+# it for certain targets which take no build options
+ifneq (reg-tests, $(firstword $(MAKECMDGOALS)))
 build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 .build_opts: $(build_opts)
+else
+.build_opts:
+endif
 
 haproxy: $(OPTIONS_OBJS) $(OBJS) $(EBTREE_OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
