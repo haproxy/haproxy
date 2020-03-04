@@ -108,14 +108,15 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		if (nptrs)
 			chunk_appendf(buf, "             call trace(%d):\n", nptrs);
 
-#ifndef USE_DL
-		/* if we can't rely on dladdr1() we won't figure what level is
-		 * in ha_panic() or ha_thread_dump_all_to_trash(), so we want
-		 * to immediately start the dump.
-		 */
-		dump = 2;
-#endif
-		for (j = 0; j < nptrs; j++) {
+		for (j = 0; j < nptrs || dump < 2; j++) {
+			if (j == nptrs && !dump) {
+				/* we failed to spot the starting point of the
+				 * dump, let's start over dumping everything we
+				 * have.
+				 */
+				dump = 2;
+				j = 0;
+			}
 			bak = *buf;
 			dump_addr_and_bytes(buf, "             | ", callers[j], 8);
 			addr = resolve_sym_name(buf, ": ", callers[j]);
