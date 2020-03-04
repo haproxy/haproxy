@@ -218,6 +218,10 @@ typedef struct { } empty_t;
  * probably due to an alternate stack for the signal handler which does not
  * create a new frame hence doesn't store the caller's return address.
  */
+#elif defined(__clang__) && defined(__x86_64__)
+/* this is on FreeBSD, clang 4.0 to 8.0 produce don't go further than the
+ * sighandler.
+ */
 #else
 #define HA_HAVE_WORKING_BACKTRACE
 #endif
