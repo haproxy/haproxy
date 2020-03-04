@@ -106,6 +106,7 @@ void conn_fd_handler(int fd)
 				conn->subs = NULL;
 		} else
 			io_available = 1;
+		fd_stop_send(fd);
 	}
 
 	/* The data transfer starts here and stops on error and handshakes. Note
