@@ -508,12 +508,12 @@ ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
 
-ifneq ($(USE_THREAD),)
-OPTIONS_LDFLAGS += -lpthread
-endif
-
 ifneq ($(USE_RT),)
 OPTIONS_LDFLAGS += -lrt
+endif
+
+ifneq ($(USE_THREAD),)
+OPTIONS_LDFLAGS += -lpthread
 endif
 
 ifneq ($(USE_BACKTRACE),)
