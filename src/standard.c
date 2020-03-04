@@ -10,7 +10,7 @@
  *
  */
 
-#if defined(USE_DL)
+#ifdef __ELF__
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <link.h>
@@ -4335,7 +4335,7 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 	}
 }
 
-#ifdef USE_DL
+#ifdef __ELF__
 /* calls dladdr() or dladdr1() on <addr> and <dli>. If dladdr1 is available,
  * also returns the symbol size in <size>, otherwise returns 0 there.
  */
@@ -4369,7 +4369,7 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
  * The file name (lib or executable) is limited to what lies between the last
  * '/' and the first following '.'. An optional prefix <pfx> is prepended before
  * the output if not null. The file is not dumped when it's the same as the one
- * that contains the "main" symbol, or when USE_DL is not set.
+ * that contains the "main" symbol, or when __ELF__ is not set.
  *
  * The symbol's base address is returned, or NULL when unresolved, in order to
  * allow the caller to match it against known ones.
@@ -4397,7 +4397,7 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 #endif
 	};
 
-#ifdef USE_DL
+#ifdef __ELF__
 	Dl_info dli, dli_main;
 	size_t size;
 	const char *fname, *p;
@@ -4414,7 +4414,7 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 		}
 	}
 
-#ifdef USE_DL
+#ifdef __ELF__
 	/* Now let's try to be smarter */
 	if (!dladdr_and_size(addr, &dli, &size))
 		goto unknown;
@@ -4454,7 +4454,7 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 		chunk_appendf(buf, "+%#lx", (long)(addr - dli.dli_fbase));
 		return NULL;
 	}
-#endif /* USE_DL */
+#endif /* __ELF__ */
  unknown:
 	/* unresolved symbol from the main file, report relative offset to main */
 	if ((void*)addr < (void*)main)
