@@ -25,7 +25,7 @@
  * It relies on timer_create() and timer_settime() which are only available in
  * this case.
  */
-#if defined(USE_THREAD) && defined(USE_RT) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
+#if defined(USE_RT) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
 
 /* We'll deliver SIGALRM when we've run out of CPU as it's not intercepted by
  * gdb by default.
@@ -117,9 +117,11 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	 * with the other thread interrupted exactly where it was running and
 	 * the current one not involved in this.
 	 */
+#ifdef USE_THREAD
 	if (thr != tid)
 		pthread_kill(ha_thread_info[thr].pthread, sig);
 	else
+#endif
 		ha_panic();
 	return;
 
