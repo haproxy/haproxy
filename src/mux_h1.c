@@ -695,7 +695,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		task_queue(t);
 
 	/* Try to read, if nothing is available yet we'll just subscribe */
-	tasklet_wakeup(h1c->wait_event.tasklet);
+	h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
 	/* mux->wake will be called soon to complete the operation */
 	TRACE_LEAVE(H1_EV_H1C_NEW, conn, h1c->h1s);
@@ -1476,7 +1476,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	if ((h1c->flags & H1C_F_IN_FULL) && buf_room_for_htx_data(&h1c->ibuf)) {
 		h1c->flags &= ~H1C_F_IN_FULL;
 		TRACE_STATE("h1c ibuf not full anymore", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE);
-		tasklet_wakeup(h1c->wait_event.tasklet);
+		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
 
 	h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
@@ -1891,7 +1891,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 				else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
 					h1s->h1c->flags &= ~H1C_F_IN_BUSY;
-					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 					TRACE_STATE("h1c no more busy", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 
@@ -2641,7 +2641,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			TRACE_STATE("disable splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
 		}
 		if (h1m->state != H1_MSG_DONE && !(h1c->wait_event.events & SUB_RETRY_RECV))
-			tasklet_wakeup(h1c->wait_event.tasklet);
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
 	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s,, (size_t[]){ret});
 	return ret;
