@@ -4335,6 +4335,27 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 	}
 }
 
+#ifdef USE_DL
+/* calls dladdr() or dladdr1() on <addr> and <dli>. If dladdr1 is available,
+ * also returns the symbol size in <size>, otherwise returns 0 there.
+ */
+static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
+{
+	int ret;
+#ifdef __USE_GNU // most detailed one
+	const ElfW(Sym) *sym;
+
+	ret = dladdr1(addr, dli, (void **)&sym, RTLD_DL_SYMENT);
+	if (ret)
+		*size = sym ? sym->st_size : 0;
+#else
+	ret = dladdr(addr, dli);
+	*size = 0;
+#endif
+	return ret;
+}
+#endif
+
 /* Tries to append to buffer <buf> some indications about the symbol at address
  * <addr> using the following form:
  *   lib:+0xoffset              (unresolvable address from lib's base)
@@ -4378,7 +4399,7 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 
 #ifdef USE_DL
 	Dl_info dli, dli_main;
-	const ElfW(Sym) *sym;
+	size_t size;
 	const char *fname, *p;
 #endif
 	int i;
@@ -4395,14 +4416,8 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 
 #ifdef USE_DL
 	/* Now let's try to be smarter */
-#ifdef __USE_GNU // most detailed one
-	if (!dladdr1(addr, &dli, (void **)&sym, RTLD_DL_SYMENT))
+	if (!dladdr_and_size(addr, &dli, &size))
 		goto unknown;
-#else
-	if (!dladdr(addr, &dli))
-		goto unknown;
-	sym = NULL;
-#endif
 
 	/* 1. prefix the library name if it's not the same object as the one
 	 * that contains the main function. The name is picked between last '/'
@@ -4429,8 +4444,8 @@ void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 		chunk_appendf(buf, "%s", dli.dli_sname);
 		if (addr != dli.dli_saddr) {
 			chunk_appendf(buf, "+%#lx", (long)(addr - dli.dli_saddr));
-			if (sym)
-				chunk_appendf(buf, "/%#lx", (long)sym->st_size);
+			if (size)
+				chunk_appendf(buf, "/%#lx", (long)size);
 		}
 		return dli.dli_saddr;
 	}
