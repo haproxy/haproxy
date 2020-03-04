@@ -332,7 +332,6 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		return SF_ERR_RESOURCE;
 	}
 
-	fd_want_send(fd);  /* for connect status, proxy protocol or SSL */
 	return SF_ERR_NONE;  /* connection is OK */
 }
 

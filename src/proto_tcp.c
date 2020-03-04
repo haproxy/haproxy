@@ -576,8 +576,10 @@ int tcp_connect_server(struct connection *conn, int flags)
 	conn_ctrl_init(conn);       /* registers the FD */
 	fdtab[fd].linger_risk = 1;  /* close hard if needed */
 
-	if (conn->flags & CO_FL_WAIT_L4_CONN)
-		fd_cant_recv(fd); // we'll change this once the connection is validated
+	if (conn->flags & CO_FL_WAIT_L4_CONN) {
+		fd_want_send(fd);
+		fd_cant_send(fd);
+	}
 
 	if (conn_xprt_init(conn) < 0) {
 		conn_full_close(conn);
@@ -585,7 +587,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 		return SF_ERR_RESOURCE;
 	}
 
-	fd_want_send(fd);  /* for connect status, proxy protocol or SSL */
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
