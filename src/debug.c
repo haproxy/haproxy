@@ -111,7 +111,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		   would produce similar output to the following: */
 
 		if (nptrs)
-			chunk_appendf(buf, "             call trace:\n");
+			chunk_appendf(buf, "             call trace(%d):\n", nptrs);
 
 #ifndef USE_DL
 		/* if we can't rely on dladdr1() we won't figure what level is
