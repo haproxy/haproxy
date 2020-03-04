@@ -764,6 +764,14 @@ static int init_debug()
 {
 	struct sigaction sa;
 
+#ifdef USE_BACKTRACE
+	/* calling backtrace() will access libgcc at runtime. We don't want to
+	 * do it after the chroot, so let's perform a first call to have it
+	 * ready in memory for later use.
+	 */
+	void *callers[1];
+	backtrace(callers, sizeof(callers)/sizeof(*callers));
+#endif
 	sa.sa_handler = NULL;
 	sa.sa_sigaction = debug_handler;
 	sigemptyset(&sa.sa_mask);
