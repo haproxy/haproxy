@@ -73,7 +73,7 @@ void conn_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
 	unsigned int flags;
-	int io_available = 0;
+	int need_wake = 0;
 
 	if (unlikely(!conn)) {
 		activity[tid].conn_dead++;
@@ -91,6 +91,7 @@ void conn_fd_handler(int fd)
 		 */
 		if (!conn_fd_check(conn))
 			goto leave;
+		need_wake = 1;
 	}
 
 	if (fd_send_ready(fd) && fd_send_active(fd)) {
@@ -100,12 +101,12 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		if (conn->subs && conn->subs->events & SUB_RETRY_SEND) {
+			need_wake = 0; // wake will be called after this I/O
 			tasklet_wakeup(conn->subs->tasklet);
 			conn->subs->events &= ~SUB_RETRY_SEND;
 			if (!conn->subs->events)
 				conn->subs = NULL;
-		} else
-			io_available = 1;
+		}
 		fd_stop_send(fd);
 	}
 
@@ -120,12 +121,12 @@ void conn_fd_handler(int fd)
 		 */
 		flags = 0;
 		if (conn->subs && conn->subs->events & SUB_RETRY_RECV) {
+			need_wake = 0; // wake will be called after this I/O
 			tasklet_wakeup(conn->subs->tasklet);
 			conn->subs->events &= ~SUB_RETRY_RECV;
 			if (!conn->subs->events)
 				conn->subs = NULL;
-		} else
-			io_available = 1;
+		}
 	}
 
  leave:
@@ -152,7 +153,7 @@ void conn_fd_handler(int fd)
 	 * Note that the wake callback is allowed to release the connection and
 	 * the fd (and return < 0 in this case).
 	 */
-	if ((io_available || ((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
+	if ((need_wake || ((conn->flags ^ flags) & CO_FL_NOTIFY_DONE) ||
 	     ((flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
 	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
