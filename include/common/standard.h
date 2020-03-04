@@ -22,6 +22,11 @@
 #ifndef _COMMON_STANDARD_H
 #define _COMMON_STANDARD_H
 
+#ifdef USE_BACKTRACE
+#define _GNU_SOURCE
+#include <execinfo.h>
+#endif
+
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
@@ -1486,6 +1491,31 @@ void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, 
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
 void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr);
+
+#if defined(USE_BACKTRACE)
+/* Note that this may result in opening libgcc() on first call, so it may need
+ * to have been called once before chrooting.
+ */
+static forceinline int my_backtrace(void **buffer, int max)
+{
+#ifdef HA_HAVE_WORKING_BACKTRACE
+	return backtrace(buffer, max);
+#else
+	const struct frame {
+		const struct frame *next;
+		void *ra;
+	} *frame;
+	int count;
+
+	frame = __builtin_frame_address(0);
+	for (count = 0; count < max && may_access(frame) && may_access(frame->ra);) {
+		buffer[count++] = frame->ra;
+		frame = frame->next;
+	}
+	return count;
+#endif
+}
+#endif
 
 /* same as realloc() except that ptr is also freed upon failure */
 static inline void *my_realloc2(void *ptr, size_t size)

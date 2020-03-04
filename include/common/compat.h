@@ -207,6 +207,22 @@ typedef struct { } empty_t;
 #define HA_HAVE_CRYPT_R
 #endif
 
+/* some backtrace() implementations are broken or incomplete, in this case we
+ * can replace them. We must not do it all the time as some are more accurate
+ * than ours.
+ */
+#ifdef USE_BACKTRACE
+#if defined(__aarch64__)
+/* on aarch64 at least from gcc-4.7.4 to 7.4.1 we only get a single entry, which
+ * is pointless. Ours works though it misses the faulty function itself,
+ * probably due to an alternate stack for the signal handler which does not
+ * create a new frame hence doesn't store the caller's return address.
+ */
+#else
+#define HA_HAVE_WORKING_BACKTRACE
+#endif
+#endif
+
 #endif /* _COMMON_COMPAT_H */
 
 /*

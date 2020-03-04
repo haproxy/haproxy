@@ -11,11 +11,6 @@
  */
 
 
-#ifdef USE_BACKTRACE
-#define _GNU_SOURCE
-#include <execinfo.h>
-#endif
-
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
@@ -105,7 +100,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		void *addr;
 		int dump = 0;
 
-		nptrs = backtrace(callers, sizeof(callers)/sizeof(*callers));
+		nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
 
 		/* The call backtrace_symbols_fd(callers, nptrs, STDOUT_FILENO)
 		   would produce similar output to the following: */
@@ -770,7 +765,7 @@ static int init_debug()
 	 * ready in memory for later use.
 	 */
 	void *callers[1];
-	backtrace(callers, sizeof(callers)/sizeof(*callers));
+	my_backtrace(callers, sizeof(callers)/sizeof(*callers));
 #endif
 	sa.sa_handler = NULL;
 	sa.sa_sigaction = debug_handler;
