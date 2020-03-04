@@ -2085,6 +2085,10 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			if (si_b->state == SI_ST_REQ)
 				back_handle_st_req(s);
 
+			/* get a chance to complete an immediate connection setup */
+			if (si_b->state == SI_ST_RDY)
+				goto resync_stream_interface;
+
 			/* applets directly go to the ESTABLISHED state. Similarly,
 			 * servers experience the same fate when their connection
 			 * is reused.

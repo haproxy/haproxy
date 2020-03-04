@@ -1525,6 +1525,40 @@ int connect_server(struct stream *s)
 
 	}
 
+	/* Now handle synchronously connected sockets. We know the stream-int
+	 * is at least in state SI_ST_CON. These ones typically are UNIX
+	 * sockets, socket pairs, and occasionally TCP connections on the
+	 * loopback on a heavily loaded system.
+	 */
+	if ((srv_conn->flags & CO_FL_ERROR || srv_cs->flags & CS_FL_ERROR))
+		s->si[1].flags |= SI_FL_ERR;
+
+	/* If we had early data, and the handshake ended, then
+	 * we can remove the flag, and attempt to wake the task up,
+	 * in the event there's an analyser waiting for the end of
+	 * the handshake.
+	 */
+	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
+		srv_cs->flags &= ~CS_FL_WAIT_FOR_HS;
+
+	if (!si_state_in(s->si[1].state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
+	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
+		s->si[1].exp = TICK_ETERNITY;
+		si_oc(&s->si[1])->flags |= CF_WRITE_NULL;
+		if (s->si[1].state == SI_ST_CON)
+			s->si[1].state = SI_ST_RDY;
+	}
+
+	/* Report EOI on the channel if it was reached from the mux point of
+	 * view.
+	 *
+	 * Note: This test is only required because si_cs_process is also the SI
+	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
+	 *       care of it.
+	 */
+	if ((srv_cs->flags & CS_FL_EOI) && !(si_ic(&s->si[1])->flags & CF_EOI))
+		si_ic(&s->si[1])->flags |= (CF_EOI|CF_READ_PARTIAL);
+
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
