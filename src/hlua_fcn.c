@@ -617,7 +617,7 @@ int hlua_stktable_lookup(lua_State *L)
 	t = hlua_check_stktable(L, 1);
 	smp.data.type = SMP_T_STR;
 	smp.flags = SMP_F_CONST;
-	smp.data.u.str.area = (char *)luaL_checkstring(L, 2);
+	smp.data.u.str.area = (char *)lua_tolstring(L, 2, &smp.data.u.str.data);
 
 	skey = smp_to_stkey(&smp, t);
 	if (!skey) {
