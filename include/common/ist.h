@@ -32,6 +32,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef IST_FREESTANDING
+#include <stdlib.h>
+#endif
+
 #include <common/config.h>
 
 /* ASCII to lower case conversion table */
@@ -729,4 +733,29 @@ static inline struct ist iststop(const struct ist ist, char chr)
 		;
 	return ist2(ist.ptr, len - 1);
 }
+
+#ifndef IST_FREESTANDING
+/* This function allocates <size> bytes and returns an `ist` pointing to
+ * the allocated area with size `0`.
+ *
+ * If this function fails to allocate memory the return value is equivalent
+ * to IST_NULL.
+ */
+static inline struct ist istalloc(const size_t size)
+{
+	return ist2(malloc(size), 0);
+}
+
+/* This function performs the equivalent of free() on the given <ist>.
+ *
+ * After this function returns the value of the given <ist> will be
+ * modified to be equivalent to IST_NULL.
+ */
+static inline void istfree(struct ist *ist)
+{
+	free(ist->ptr);
+	*ist = IST_NULL;
+}
+#endif
+
 #endif
