@@ -2503,7 +2503,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			sl = http_get_stline(htx);
 			path = http_get_path(htx_sl_req_uri(sl));
 			/* build message using path */
-			if (path.ptr) {
+			if (isttest(path)) {
 				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
 					int qs = 0;
 					while (qs < path.len) {
@@ -2551,7 +2551,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			sl = http_get_stline(htx);
 			path = http_get_path(htx_sl_req_uri(sl));
 			/* build message using path */
-			if (path.ptr) {
+			if (isttest(path)) {
 				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
 					int qs = 0;
 					while (qs < path.len) {
@@ -4252,7 +4252,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	htx = htxbuf(&req->buf);
 	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
-	if (!path.ptr)
+	if (!isttest(path))
 		return;
 
 	if (!chunk_memcat(&trash, path.ptr, path.len))

@@ -838,9 +838,9 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		}
 		if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 			goto out;
-		free(curapp->docroot.ptr);
+		istfree(&curapp->docroot);
 		curapp->docroot = ist2(strdup(args[1]), strlen(args[1]));
-		if (!curapp->docroot.ptr) {
+		if (!isttest(curapp->docroot)) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
@@ -871,9 +871,9 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		}
 		if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 			goto out;
-		free(curapp->index.ptr);
+		istfree(&curapp->index);
 		curapp->index = ist2(strdup(args[1]), strlen(args[1]));
-		if (!curapp->index.ptr) {
+		if (!isttest(curapp->index)) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
@@ -1070,8 +1070,8 @@ void fcgi_apps_deinit()
 		struct fcgi_rule_conf *rule, *back;
 
 		free(curapp->name);
-		free(curapp->docroot.ptr);
-		free(curapp->index.ptr);
+		istfree(&curapp->docroot);
+		istfree(&curapp->index);
 		regex_free(curapp->pathinfo_re);
 		free(curapp->conf.file);
 

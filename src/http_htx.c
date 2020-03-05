@@ -111,7 +111,7 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	if (blk) {
 		char *p;
 
-		if (!ctx->value.ptr)
+		if (!isttest(ctx->value))
 			goto rescan_hdr;
 		if (full)
 			goto next_blk;
@@ -309,7 +309,7 @@ int http_replace_req_path(struct htx *htx, const struct ist path)
 
 	uri = htx_sl_req_uri(sl);
 	p = http_get_path(uri);
-	if (!p.ptr)
+	if (!isttest(p))
 		p = uri;
 	while (plen < p.len && *(p.ptr + plen) != '?')
 		plen++;

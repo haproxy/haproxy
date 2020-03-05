@@ -987,7 +987,7 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 
 	sl = http_get_stline(htx);
 	path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
-	if (!path.ptr)
+	if (!isttest(path))
 		return 0;
 
 	/* OK, we got the '/' ! */
@@ -1028,7 +1028,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
-	if (path.ptr) {
+	if (isttest(path)) {
 		size_t len;
 
 		for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
@@ -1074,7 +1074,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
-	if (path.ptr) {
+	if (isttest(path)) {
 		size_t len;
 
 		for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
@@ -1422,7 +1422,7 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
 	path.len = ptr - path.ptr;
 
 	path = http_get_path(path);
-	if (!path.ptr)
+	if (!isttest(path))
 		return 0;
 
 	smp->data.u.str.area = path.ptr;

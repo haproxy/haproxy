@@ -3889,7 +3889,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	lua_settable(L, -3);
 
 	path = http_get_path(htx_sl_req_uri(sl));
-	if (path.ptr) {
+	if (isttest(path)) {
 		char *p, *q, *end;
 
 		p = path.ptr;

@@ -56,8 +56,7 @@ static void release_http_action(struct act_rule *rule)
 {
 	struct logformat_node *lf, *lfb;
 
-	if (rule->arg.http.str.ptr)
-		free(rule->arg.http.str.ptr);
+	istfree(&rule->arg.http.str);
 	if (rule->arg.http.re)
 		regex_free(rule->arg.http.re);
 	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
@@ -1257,7 +1256,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 
 	cur_arg++;
 	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
-		free(rule->arg.http.str.ptr);
+		istfree(&rule->arg.http.str);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -1351,7 +1350,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 
 	cur_arg++;
 	if (!(rule->arg.http.re = regex_comp(args[cur_arg], 1, 1, err))) {
-		free(rule->arg.http.str.ptr);
+		istfree(&rule->arg.http.str);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -1366,7 +1365,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 
 	cur_arg++;
 	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
-		free(rule->arg.http.str.ptr);
+		istfree(&rule->arg.http.str);
 		regex_free(rule->arg.http.re);
 		return ACT_RET_PRS_ERR;
 	}
@@ -1829,7 +1828,7 @@ static void release_http_return(struct act_rule *rule)
 				free(lf->arg);
 				free(lf);
 			}
-			free(hdr->name.ptr);
+			istfree(&hdr->name);
 			free(hdr);
 		}
 		free(rule->arg.http_return.hdrs);
@@ -2295,7 +2294,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 					free(lf->arg);
 					free(lf);
 				}
-				free(hdr->name.ptr);
+				istfree(&hdr->name);
 				free(hdr);
 			}
 		}
@@ -2366,7 +2365,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 					free(lf->arg);
 					free(lf);
 				}
-				free(hdr->name.ptr);
+				istfree(&hdr->name);
 				free(hdr);
 			}
 		}
@@ -2444,7 +2443,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				free(lf->arg);
 				free(lf);
 			}
-			free(hdr->name.ptr);
+			istfree(&hdr->name);
 			free(hdr);
 		}
 		free(hdrs);

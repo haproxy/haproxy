@@ -2853,7 +2853,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 	entry->name.len = strlen(to);
 	if (!entry->node.key || !entry->name.ptr) {
 		free(entry->node.key);
-		free(entry->name.ptr);
+		istfree(&entry->name);
 		free(entry);
 		memprintf(err, "out of memory");
 		return -1;
@@ -2873,7 +2873,7 @@ static void h1_hdeaders_case_adjust_deinit()
 		ebpt_delete(node);
 		entry = container_of(node, struct h1_hdr_entry, node);
 		free(entry->node.key);
-		free(entry->name.ptr);
+		istfree(&entry->name);
 		free(entry);
 		node = next;
 	}
