@@ -3712,7 +3712,6 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_ev
 	struct fcgi_conn *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(fstrm->subs && fstrm->subs->events & event_type);
 	BUG_ON(fstrm->subs && fstrm->subs != es);
 
 	es->events |= event_type;

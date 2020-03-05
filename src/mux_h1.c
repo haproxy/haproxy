@@ -2587,7 +2587,6 @@ static int h1_subscribe(struct conn_stream *cs, int event_type, struct wait_even
 		return -1;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(h1s->subs && h1s->subs->events & event_type);
 	BUG_ON(h1s->subs && h1s->subs != es);
 
 	es->events |= event_type;

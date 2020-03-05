@@ -6473,7 +6473,6 @@ static int ssl_subscribe(struct connection *conn, void *xprt_ctx, int event_type
 		return -1;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
-	BUG_ON(ctx->subs && ctx->subs->events & event_type);
 	BUG_ON(ctx->subs && ctx->subs != es);
 
 	ctx->subs = es;
