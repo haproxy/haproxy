@@ -8520,7 +8520,7 @@ server-state-file-name [<file>]
     global
       server-state-file-base /etc/haproxy/states
 
-   backend bk
+    backend bk
       load-server-state-from-file
 
   See also: "server-state-file-base", "load-server-state-from-file", and
@@ -16614,19 +16614,19 @@ http_auth_group(<userlist>) : string
     groups.
 
 http_auth_pass : string
-   Returns the user's password found in the authentication data received from
-   the client, as supplied in the Authorization header. Not checks are
-   performed by this sample fetch. Only Basic authentication is supported.
+  Returns the user's password found in the authentication data received from
+  the client, as supplied in the Authorization header. Not checks are
+  performed by this sample fetch. Only Basic authentication is supported.
 
 http_auth_type : string
-   Returns the authentication method found in the authentication data received from
-   the client, as supplied in the Authorization header. Not checks are
-   performed by this sample fetch. Only Basic authentication is supported.
+  Returns the authentication method found in the authentication data received from
+  the client, as supplied in the Authorization header. Not checks are
+  performed by this sample fetch. Only Basic authentication is supported.
 
 http_auth_user : string
-   Returns the user name found in the authentication data received from the
-   client, as supplied in the Authorization header. Not checks are performed by
-   this sample fetch. Only Basic authentication is supported.
+  Returns the user name found in the authentication data received from the
+  client, as supplied in the Authorization header. Not checks are performed by
+  this sample fetch. Only Basic authentication is supported.
 
 http_first_req : boolean
   Returns true when the request being processed is the first one of the
