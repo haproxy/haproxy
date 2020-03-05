@@ -1,0 +1,138 @@
+varnishtest "Check that the TLVs are properly validated"
+
+feature ignore_unknown_macro
+
+# We need one HAProxy for each test, because apparently the connection by
+# the client is reused, leading to connection resets.
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend a
+        bind "fd@${fe1}" accept-proxy
+        http-after-response set-header echo %[fc_pp_authority,hex]
+        http-request return status 200
+} -start
+
+# Validate that a correct header passes
+client c1 -connect ${h1_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + length of the TLV (8)
+    sendhex "00 14"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+    # PP2_TYPE_AUTHORITY + length of the value + "12345"
+    sendhex "02 00 05 31 32 33 34 35"
+
+    txreq -url "/"
+    rxresp
+    expect resp.http.echo == "3132333435"
+} -run
+
+haproxy h2 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend a
+        bind "fd@${fe1}" accept-proxy
+        http-after-response set-header echo %[fc_pp_authority,hex]
+        http-request return status 200
+} -start
+
+# Validate that a TLV after the end of the PROXYv2 header is ignored
+client c2 -connect ${h2_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + length of the TLV (8)
+    sendhex "00 14"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+    # PP2_TYPE_AUTHORITY + length of the value + "12345"
+    sendhex "02 00 05 31 32 33 34 35"
+    # after the end of the PROXYv2 header: PP2_TYPE_AUTHORITY + length of the value + "54321"
+    sendhex "02 00 05 35 34 33 32 31"
+
+    txreq -url "/"
+    rxresp
+    expect resp.http.echo == "3132333435"
+} -run
+
+haproxy h3 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend a
+        bind "fd@${fe1}" accept-proxy
+        http-after-response set-header echo %[fc_pp_authority,hex]
+        http-request return status 200
+} -start
+
+# Validate that a TLV length exceeding the PROXYv2 length fails
+client c3 -connect ${h3_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + too small length of the TLV (8)
+    sendhex "00 14"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+    # PP2_TYPE_AUTHORITY + length of the value + "1234512345"
+    sendhex "02 00 0A 31 32 33 34 35 31 32 33 34 35"
+
+    txreq -url "/"
+    expect_close
+} -run
+
+haproxy h4 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend a
+        bind "fd@${fe1}" accept-proxy
+        http-after-response set-header echo %[fc_pp_authority,hex]
+        http-request return status 200
+} -start
+
+# Validate that TLVs not ending with the PROXYv2 header fail
+client c4 -connect ${h4_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + too big length of the TLV (8)
+    sendhex "00 14"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+    # PP2_TYPE_AUTHORITY + length of the value + "1234"
+    sendhex "02 00 04 31 32 33 34"
+
+    txreq -url "/"
+    expect_close
+} -run
