@@ -533,7 +533,7 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 		blk = htx_remove_blk(htx, blk);
 		if (blk || htx_is_empty(htx)) {
 			ctx->blk = blk;
-			ctx->value = ist2(NULL, 0);
+			ctx->value = IST_NULL;
 			ctx->lws_before = ctx->lws_after = 0;
 		}
 		else {

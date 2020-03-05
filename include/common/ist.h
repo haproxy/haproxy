@@ -133,6 +133,9 @@ struct ist {
 /* makes a constant ist from a constant string, for use in array declarations */
 #define IST(str) { .ptr = str "", .len = (sizeof str "") - 1 }
 
+/* IST_NULL is equivalent to an `ist` with `.ptr = NULL` and `.len = 0` */
+#define IST_NULL ((const struct ist){ .ptr = 0, .len = 0 })
+
 /* makes an ist from a regular zero terminated string. Null has length 0.
  * Constants are detected and replaced with constant initializers. Other values
  * are measured by hand without strlen() as it's much cheaper and inlinable on
@@ -705,7 +708,7 @@ static inline struct ist istist(const struct ist ist, const struct ist pat)
 		}
 		return ist2(ret.ptr - 1, ret.len + 1);
 	}
-	return ist2(NULL, 0);
+	return IST_NULL;
 }
 
 /*

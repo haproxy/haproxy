@@ -551,7 +551,7 @@ struct ist http_get_authority(const struct ist uri, int no_userinfo)
 	return ist2(start, end - start);
 
   not_found:
-	return ist2(NULL, 0);
+	return IST_NULL;
 }
 
 /* Parse the URI from the given transaction (which is assumed to be in request
@@ -601,7 +601,7 @@ struct ist http_get_path(const struct ist uri)
 	return ist2(ptr, end - ptr);
 
  not_found:
-	return ist2(NULL, 0);
+	return IST_NULL;
 }
 
 /*

@@ -406,7 +406,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 				value = ist2(vtrash, vlen);
 			}
 
-			name = ist2(NULL, 0);
+			name = IST_NULL;
 			if (!must_index)
 				name.len = hpack_idx_to_phdr(idx);
 
@@ -458,7 +458,7 @@ int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
 	}
 
 	/* put an end marker */
-	list[ret].n = list[ret].v = ist2(NULL, 0);
+	list[ret].n = list[ret].v = IST_NULL;
 	ret++;
 
  leave:
