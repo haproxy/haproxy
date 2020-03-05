@@ -3960,8 +3960,8 @@ static int ckch_inst_sni_ctx_to_sni_filters(const struct ckch_inst *ckchi, char 
 		memcpy(tmp_filter[i] + sc0->neg + sc0->wild, (char *)sc0->name.key, len + 1);
 		i++;
 	}
-end:
 	*sni_filter = tmp_filter;
+end:
 	*fcount = tmp_fcount;
 
 	return errcode;
