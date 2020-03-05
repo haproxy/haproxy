@@ -457,7 +457,7 @@ int conn_sock_drain(struct connection *conn)
 /*
  * Get data length from tlv
  */
-static int get_tlv_length(const struct tlv *src)
+static inline size_t get_tlv_length(const struct tlv *src)
 {
 	return (src->length_hi << 8) | src->length_lo;
 }
@@ -491,7 +491,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	struct proxy_hdr_v2 *hdr_v2;
 	const char v2sig[] = PP2_SIGNATURE;
 	size_t total_v2_len;
-	int tlv_offset = 0;
+	size_t tlv_offset = 0;
 	int ret;
 
 	if (!conn_ctrl_ready(conn))
@@ -706,7 +706,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		/* TLV parsing */
 		while (tlv_offset < total_v2_len) {
 			struct tlv *tlv_packet;
-			int tlv_len;
+			size_t tlv_len;
 
 			/* Verify that we have at least TLV_HEADER_SIZE bytes left */
 			if (tlv_offset + TLV_HEADER_SIZE > total_v2_len)
