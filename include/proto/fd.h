@@ -60,6 +60,16 @@ void fd_delete(int fd);
  */
 void fd_remove(int fd);
 
+/*
+ * Take over a FD belonging to another thread.
+ * Returns 0 on success, and -1 on failure.
+ */
+int fd_takeover(int fd, void *expected_owner);
+
+#ifndef HA_HAVE_CAS_DW
+__decl_hathreads(HA_RWLOCK_T fd_mig_lock);
+#endif
+
 ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg, int nl);
 
 /* close all FDs starting from <start> */
@@ -299,9 +309,35 @@ static inline void fd_want_send(int fd)
 	updt_fd_polling(fd);
 }
 
-static inline void fd_set_running(int fd)
+/* Set the fd as currently running on the current thread.
+ * Retuns 0 if all goes well, or -1 if we no longer own the fd, and should
+ * do nothing with it.
+ */
+static inline int fd_set_running(int fd)
 {
+#ifndef HA_HAVE_CAS_DW
+	HA_RWLOCK_RDLOCK(OTHER_LOCK, &fd_mig_lock);
+	if (!(fdtab[fd].thread_mask & tid_bit)) {
+		HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &fd_mig_lock);
+		return -1;
+	}
 	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &fd_mig_lock);
+	return 0;
+#else
+	unsigned long old_masks[2];
+	unsigned long new_masks[2];
+	old_masks[0] = fdtab[fd].running_mask;
+	old_masks[1] = fdtab[fd].thread_mask;
+	do {
+		if (!(old_masks[1] & tid_bit))
+			return -1;
+		new_masks[0] = fdtab[fd].running_mask | tid_bit;
+		new_masks[1] = old_masks[1];
+
+	} while (!(HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks, &new_masks)));
+	return 0;
+#endif
 }
 
 static inline void fd_set_running_excl(int fd)
@@ -371,7 +407,8 @@ static inline void fd_update_events(int fd, unsigned char evts)
 		fd_may_send(fd);
 
 	if (fdtab[fd].iocb && fd_active(fd)) {
-		fd_set_running(fd);
+		if (fd_set_running(fd) == -1)
+			return;
 		fdtab[fd].iocb(fd);
 		fd_clr_running(fd);
 	}

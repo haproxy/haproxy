@@ -302,6 +302,13 @@ static void fd_dodelete(int fd, int do_close)
 {
 	int locked = fdtab[fd].running_mask != tid_bit;
 
+	/* We're just trying to protect against a concurrent fd_insert()
+	 * here, not against fd_takeother(), because either we're called
+	 * directly from the iocb(), and we're already locked, or we're
+	 * called from the mux tasklet, but then the mux is responsible for
+	 * making sure the tasklet does nothing, and the connection is never
+	 * destroyed.
+	 */
 	if (locked)
 		fd_set_running_excl(fd);
 
@@ -326,6 +333,66 @@ static void fd_dodelete(int fd, int do_close)
 	}
 	if (locked)
 		fd_clr_running(fd);
+}
+
+#ifndef HA_HAVE_CAS_DW
+__decl_hathreads(__delc_rwlock(fd_mig_lock));
+#endif
+
+/*
+ * Take over a FD belonging to another thread.
+ * unexpected_conn is the expected owner of the fd.
+ * Returns 0 on success, and -1 on failure.
+ */
+int fd_takeover(int fd, void *expected_owner)
+{
+#ifndef HA_HAVE_CAS_DW
+	int ret;
+
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
+	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	if (fdtab[fd].running_mask != tid_bit || fdtab[fd].owner != expected_owner) {
+		ret = -1;
+		_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+		goto end;
+	}
+	fdtab[fd].thread_mask = tid_bit;
+	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	ret = 0;
+end:
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &fd_mig_lock);
+	/* Make sure the FD doesn't have the active bit. It is possible that
+	 * the fd is polled by the thread that used to own it, the new thread
+	 * is supposed to call subscribe() later, to activate polling.
+	 */
+	fd_stop_recv(fd);
+	return ret;
+#else
+	unsigned long old_masks[2];
+	unsigned long new_masks[2];
+
+	old_masks[0] = tid_bit;
+	old_masks[1] = fdtab[fd].thread_mask;
+	new_masks[0] = new_masks[1] = tid_bit;
+	/* protect ourself against a delete then an insert for the same fd,
+	 * if it happens, then the owner will no longer be the expected
+	 * connection.
+	 */
+	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	if (fdtab[fd].owner != expected_owner) {
+		_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+		return -1;
+	}
+	do {
+		if (old_masks[0] != tid_bit || !old_masks[1]) {
+			_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+			return -1;
+		}
+	} while (!(_HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks,
+		   &new_masks)));
+	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	return 0;
+#endif /* HW_HAVE_CAS_DW */
 }
 
 /* Deletes an FD from the fdsets.
