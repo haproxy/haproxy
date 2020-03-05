@@ -756,6 +756,27 @@ static inline void istfree(struct ist *ist)
 	free(ist->ptr);
 	*ist = IST_NULL;
 }
+
+/* This function performs the equivalent of strdup() on the given <src>.
+ *
+ * If this function fails to allocate memory the return value is equivalent
+ * to IST_NULL.
+ */
+static inline struct ist istdup(const struct ist src)
+{
+	const size_t src_size = src.len;
+
+	/* Allocate at least 1 byte to allow duplicating an empty string with
+	 * malloc implementations that return NULL for a 0-size allocation.
+	 */
+	struct ist dst = istalloc(MAX(src_size, 1));
+
+	if (isttest(dst)) {
+		istcpy(&dst, src, src_size);
+	}
+
+	return dst;
+}
 #endif
 
 #endif
