@@ -793,9 +793,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * fetches only available in the HTTP request processing stage.
 	 */
 	if (!LIST_ISEMPTY(&sess->fe->format_unique_id)) {
-		int length;
+		struct ist unique_id = stream_generate_unique_id(s, &sess->fe->format_unique_id);
 
-		if ((length = stream_generate_unique_id(s, &sess->fe->format_unique_id)) < 0) {
+		if (!isttest(unique_id)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
 			goto return_int_err;
@@ -803,7 +803,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* send unique ID if a "unique-id-header" is defined */
 		if (isttest(sess->fe->header_unique_id) &&
-		    !http_add_header(htx, sess->fe->header_unique_id, ist2(s->unique_id, length)))
+		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, s->unique_id)))
 				goto return_int_err;
 	}
 
@@ -5078,9 +5078,9 @@ void http_end_txn(struct stream *s)
 	pool_free(pool_head_requri, txn->uri);
 	pool_free(pool_head_capture, txn->cli_cookie);
 	pool_free(pool_head_capture, txn->srv_cookie);
-	pool_free(pool_head_uniqueid, s->unique_id);
+	pool_free(pool_head_uniqueid, s->unique_id.ptr);
 
-	s->unique_id = NULL;
+	s->unique_id = IST_NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;

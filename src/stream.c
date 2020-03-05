@@ -170,8 +170,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 	/* General info about the stream (htx/tcp, id...) */
 	chunk_appendf(&trace_buf, " : [%u,%s]",
 		      s->uniq_id, ((s->flags & SF_HTX) ? "HTX" : "TCP"));
-	if (s->unique_id)
-		chunk_appendf(&trace_buf, " id=%s", s->unique_id);
+	if (isttest(s->unique_id)) {
+		chunk_appendf(&trace_buf, " id=");
+		b_putist(&trace_buf, s->unique_id);
+	}
 
 	/* Front and back stream-int state */
 	chunk_appendf(&trace_buf, " SI=(%s,%s)",
@@ -399,7 +401,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->call_rate.curr_sec = s->call_rate.curr_ctr = s->call_rate.prev_ctr = 0;
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
-	s->unique_id = NULL;
+	s->unique_id = IST_NULL;
 
 	if ((t = task_new(tid_bit)) == NULL)
 		goto out_fail_alloc;
@@ -605,8 +607,8 @@ static void stream_free(struct stream *s)
 		offer_buffers(NULL, tasks_run_queue);
 	}
 
-	pool_free(pool_head_uniqueid, s->unique_id);
-	s->unique_id = NULL;
+	pool_free(pool_head_uniqueid, s->unique_id.ptr);
+	s->unique_id = IST_NULL;
 
 	hlua_ctx_destroy(s->hlua);
 	s->hlua = NULL;
@@ -2663,25 +2665,28 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 }
 
 /* Generates a unique ID based on the given <format>, stores it in the given <strm> and
- * returns the length of the ID. -1 is returned on memory allocation failure.
+ * returns the unique ID.
+
+ * If this function fails to allocate memory IST_NULL is returned.
  *
- * If an ID is already stored within the stream nothing happens and length of the stored
- * ID is returned.
+ * If an ID is already stored within the stream nothing happens existing unique ID is
+ * returned.
  */
-int stream_generate_unique_id(struct stream *strm, struct list *format)
+struct ist stream_generate_unique_id(struct stream *strm, struct list *format)
 {
-	if (strm->unique_id != NULL) {
-		return strlen(strm->unique_id);
+	if (isttest(strm->unique_id)) {
+		return strm->unique_id;
 	}
 	else {
 		char *unique_id;
+		int length;
 		if ((unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
-			return -1;
+			return IST_NULL;
 
-		strm->unique_id = unique_id;
-		strm->unique_id[0] = 0;
+		length = build_logline(strm, unique_id, UNIQUEID_LEN, format);
+		strm->unique_id = ist2(unique_id, length);
 
-		return build_logline(strm, strm->unique_id, UNIQUEID_LEN, format);
+		return strm->unique_id;
 	}
 }
 

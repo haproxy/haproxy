@@ -409,17 +409,17 @@ static int smp_fetch_stcode(const struct arg *args, struct sample *smp, const ch
 
 static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int length;
+	struct ist unique_id;
 
 	if (LIST_ISEMPTY(&smp->sess->fe->format_unique_id))
 		return 0;
 
-	length = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
-	if (length < 0)
+	unique_id = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
+	if (!isttest(unique_id))
 		return 0;
 
-	smp->data.u.str.area = smp->strm->unique_id;
-	smp->data.u.str.data = length;
+	smp->data.u.str.area = smp->strm->unique_id.ptr;
+	smp->data.u.str.data = smp->strm->unique_id.len;
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;

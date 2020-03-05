@@ -66,7 +66,7 @@ void stream_shutdown(struct stream *stream, int why);
 void stream_dump(struct buffer *buf, const struct stream *s, const char *pfx, char eol);
 void stream_dump_and_crash(enum obj_type *obj, int rate);
 
-int stream_generate_unique_id(struct stream *strm, struct list *format);
+struct ist stream_generate_unique_id(struct stream *strm, struct list *format);
 
 void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *sess, struct server *newsrv);

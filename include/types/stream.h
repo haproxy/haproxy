@@ -177,7 +177,7 @@ struct stream {
 	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
 	int pcli_flags;                         /* flags for CLI proxy */
 
-	char *unique_id;                        /* custom unique ID */
+	struct ist unique_id;                   /* custom unique ID */
 
 	/* These two pointers are used to resume the execution of the rule lists. */
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
