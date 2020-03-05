@@ -497,6 +497,29 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	return 1;
 }
 
+/* parse a "debug dev write" command. It always returns 1. */
+static int debug_parse_cli_write(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	unsigned long len;
+
+	if (!*args[3])
+		return cli_err(appctx, "Missing output size.\n");
+
+	len = strtoul(args[3], NULL, 0);
+	if (len >= trash.size)
+		return cli_err(appctx, "Output too large, must be <tune.bufsize.\n");
+
+	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+
+	chunk_reset(&trash);
+	trash.data = len;
+	memset(trash.area, '.', trash.data);
+	trash.area[trash.data] = 0;
+	for (len = 64; len < trash.data; len += 64)
+		trash.area[len] = '\n';
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
 /* parse a "debug dev stream" command */
 /*
  *  debug dev stream [strm=<ptr>] [strm.f[{+-=}<flags>]] [txn.f[{+-=}<flags>]] \
@@ -795,6 +818,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "write", NULL }, "debug dev write [size]      : write that many bytes",           debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "show", "threads", NULL, NULL }, "show threads   : show some threads debugging information",  NULL, cli_io_handler_show_threads, NULL },
 	{{},}
 }};
