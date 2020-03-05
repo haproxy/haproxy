@@ -405,7 +405,7 @@ struct proxy {
 	struct list logformat; 			/* log_format linked list */
 	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
 	struct buffer log_tag;                   /* override default syslog tag */
-	char *header_unique_id; 		/* unique-id header */
+	struct ist header_unique_id; 		/* unique-id header */
 	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */

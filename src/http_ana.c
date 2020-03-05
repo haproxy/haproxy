@@ -802,14 +802,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		/* send unique ID if a "unique-id-header" is defined */
-		if (sess->fe->header_unique_id) {
-			struct ist n, v;
-			n = ist2(sess->fe->header_unique_id, strlen(sess->fe->header_unique_id));
-			v = ist2(s->unique_id, length);
-
-			if (unlikely(!http_add_header(htx, n, v)))
+		if (isttest(sess->fe->header_unique_id) &&
+		    !http_add_header(htx, sess->fe->header_unique_id, ist2(s->unique_id, length)))
 				goto return_int_err;
-		}
 	}
 
 	/*

@@ -429,8 +429,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* copy default header unique id */
-		if (defproxy.header_unique_id)
-			curproxy->header_unique_id = strdup(defproxy.header_unique_id);
+		if (isttest(defproxy.header_unique_id)) {
+			const struct ist copy = istdup(defproxy.header_unique_id);
+			if (!isttest(copy)) {
+				ha_alert("parsing [%s:%d] : failed to allocate memory for unique-id-header\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			curproxy->header_unique_id = copy;
+		}
 
 		/* default compression options */
 		if (defproxy.comp != NULL) {
@@ -3484,13 +3491,21 @@ stats_error_parsing:
 	}
 
 	else if (strcmp(args[0], "unique-id-header") == 0) {
+		char *copy;
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		free(curproxy->header_unique_id);
-		curproxy->header_unique_id = strdup(args[1]);
+		copy = strdup(args[1]);
+		if (copy == NULL) {
+			ha_alert("parsing [%s:%d] : failed to allocate memory for unique-id-header\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		istfree(&curproxy->header_unique_id);
+		curproxy->header_unique_id = ist(copy);
 	}
 
 	else if (strcmp(args[0], "log-format") == 0) {
