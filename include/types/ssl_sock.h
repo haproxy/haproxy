@@ -42,6 +42,7 @@ struct sni_ctx {
 	struct pkey_info kinfo;   /* pkey info */
 	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
 	struct list by_ckch_inst; /* chained in ckch_inst's list of sni_ctx */
+	struct ckch_inst *ckch_inst; /* instance used to create this sni_ctx */
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
@@ -126,6 +127,7 @@ struct ckch_store {
 struct ckch_inst {
 	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
 	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
+	struct ckch_store *ckch_store; /* pointer to the store used to generate this inst */
 	int is_default;      /* This instance is used as the default ctx for this bind_conf */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
