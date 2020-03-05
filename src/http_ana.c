@@ -2787,7 +2787,7 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
 	trash.data = res - trash.area;
 
 	/* Do we have a custom reason format string? */
-	if (reason.ptr == NULL) {
+	if (!isttest(reason)) {
 		const char *str = http_get_reason(status);
 		reason = ist2(str, strlen(str));
 	}

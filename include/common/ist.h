@@ -186,6 +186,12 @@ static inline struct ist ist2(const void *ptr, size_t len)
 	return (struct ist){ .ptr = (char *)ptr, .len = len };
 }
 
+/* returns the result of `ist.ptr != NULL` */
+static inline int isttest(const struct ist ist)
+{
+	return ist.ptr != NULL;
+}
+
 /* This function MODIFIES the string to add a zero AFTER the end, and returns
  * the start pointer. The purpose is to use it on strings extracted by parsers
  * from larger strings cut with delimiters that are not important and can be
