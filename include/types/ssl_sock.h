@@ -23,6 +23,7 @@
 #define _TYPES_SSL_SOCK_H
 #ifdef USE_OPENSSL
 
+#include <ebpttree.h>
 #include <ebmbtree.h>
 #include <eb64tree.h>
 
@@ -134,6 +135,25 @@ struct ckch_inst {
 	/* space for more flag there */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
+	struct list by_crtlist_entry; /* chained in crtlist_entry list of inst */
+};
+
+/* This structure is basically a crt-list or a directory */
+struct crtlist {
+	struct eb_root entries;
+	struct list ord_entries; /* list to keep the line order of the crt-list file */
+	struct ebmb_node node; /* key is the filename or directory */
+};
+
+/* a file in a directory or a line in a crt-list */
+struct crtlist_entry {
+	struct ssl_bind_conf *ssl_conf; /* SSL conf in crt-list */
+	unsigned int linenum;
+	unsigned int fcount; /* filters count */
+	char **filters;
+	struct list ckch_inst; /* list of instances of this entry */
+	struct list by_crtlist; /* ordered entries */
+	struct ebpt_node node; /* key is a ptr to a ckch_store */
 };
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL

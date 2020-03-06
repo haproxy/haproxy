@@ -57,6 +57,7 @@
 #include <common/cfgparse.h>
 #include <common/base64.h>
 
+#include <ebpttree.h>
 #include <ebsttree.h>
 
 #include <types/applet.h>
@@ -3015,6 +3016,8 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
  */
 struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 
+/* tree of crtlist (crt-list/directory) */
+static struct eb_root crtlists_tree = EB_ROOT_UNIQUE;
 
 /* Loads Diffie-Hellman parameter from a ckchs to an SSL_CTX.
  *  If there is no DH parameter available in the ckchs, the global
@@ -4574,31 +4577,102 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 		conf->ecdhe = NULL;
 	}
 }
-
-/* Returns a set of ERR_* flags possibly with an error in <err>. */
-int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+/* free sni filters */
+static void crtlist_free_filters(char **args)
 {
+	int i;
+
+	if (!args)
+		return;
+
+	for (i = 0; args[i]; i++)
+		free(args[i]);
+
+	free(args);
+}
+
+/* Alloc and duplicate a char ** array */
+static char **crtlist_dup_filters(char **args, int fcount)
+{
+	char **dst;
+	int i;
+
+	dst = calloc(fcount, sizeof(*dst) + 1);
+	if (!dst)
+		return NULL;
+
+	for (i = 0; i < fcount; i++) {
+		dst[i] = strdup(args[i]);
+		if (!dst[i])
+			goto error;
+	}
+	return dst;
+
+error:
+	crtlist_free_filters(dst);
+	return NULL;
+}
+
+
+/* Free a crtlist, from the crt_entry to the content of the ssl_conf */
+static void crtlist_free(struct crtlist *crtlist)
+{
+	struct crtlist_entry *entry, *s_entry;
+
+	if (crtlist == NULL)
+		return;
+
+	list_for_each_entry_safe(entry, s_entry, &crtlist->ord_entries, by_crtlist) {
+		ebpt_delete(&entry->node);
+		LIST_DEL(&entry->by_crtlist);
+		crtlist_free_filters(entry->filters);
+		ssl_sock_free_ssl_conf(entry->ssl_conf);
+		free(entry->ssl_conf);
+		free(entry);
+	}
+	ebmb_delete(&crtlist->node);
+	free(crtlist);
+}
+
+/* This function parse a crt-list file and store it in a struct crtlist, each line is a crtlist_entry structure
+ * Fill the <crtlist> argument with a pointer to a new crtlist struct
+ *
+ * This function tries to open and store certificate files.
+ */
+static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, struct crtlist **crtlist, char **err)
+{
+	struct crtlist *newlist;
 	char thisline[CRT_LINESIZE];
 	char path[MAXPATHLEN+1];
 	FILE *f;
 	struct stat buf;
 	int linenum = 0;
 	int cfgerr = 0;
-	struct ckch_store *ckchs;
 
 	if ((f = fopen(file, "r")) == NULL) {
 		memprintf(err, "cannot open file '%s' : %s", file, strerror(errno));
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	newlist = malloc(sizeof(*newlist) + strlen(file) + 1);
+	if (newlist == NULL) {
+		memprintf(err, "Not enough memory!");
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+	memcpy(newlist->node.key, file, strlen(file) + 1);
+	newlist->entries = EB_ROOT;
+	LIST_INIT(&newlist->ord_entries);
+
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
+		struct crtlist_entry *entry;
 		int arg, newarg, cur_arg, i, ssl_b = 0, ssl_e = 0;
 		char *end;
 		char *args[MAX_CRT_ARGS + 1];
 		char *line = thisline;
 		char *crt_path;
 		struct ssl_bind_conf *ssl_conf = NULL;
-		struct ckch_inst *ckch_inst = NULL;
+		struct ckch_store *ckchs;
 
 		linenum++;
 		end = line + strlen(line);
@@ -4611,7 +4685,6 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			break;
 		}
-
 		arg = 0;
 		newarg = 1;
 		while (*line) {
@@ -4706,31 +4779,120 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			}
 		}
 
-		if (cfgerr) {
-			ssl_sock_free_ssl_conf(ssl_conf);
-			free(ssl_conf);
-			ssl_conf = NULL;
-			break;
-		}
-
-		if ((ckchs = ckchs_lookup(crt_path)) == NULL) {
+		/* Look for a ckch_store or create one */
+		ckchs = ckchs_lookup(crt_path);
+		if (ckchs == NULL) {
 			if (stat(crt_path, &buf) == 0)
 				ckchs = ckchs_load_cert_file(crt_path, 0,  err);
 			else
 				ckchs = ckchs_load_cert_file(crt_path, 1,  err);
 		}
-
-		if (!ckchs)
+		if (ckchs == NULL) {
 			cfgerr |= ERR_ALERT | ERR_FATAL;
-		else
-			cfgerr |= ssl_sock_load_ckchs(crt_path, ckchs, bind_conf, ssl_conf, &args[cur_arg], arg - cur_arg - 1, &ckch_inst, err);
+			goto error;
+		}
 
-		if (cfgerr) {
-			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
-			break;
+		entry = malloc(sizeof(*entry));
+		if (entry == NULL) {
+			memprintf(err, "Not enough memory!");
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+		}
+
+		if (cfgerr & ERR_CODE) {
+			free(entry);
+			entry = NULL;
+			ssl_sock_free_ssl_conf(ssl_conf);
+			free(ssl_conf);
+			ssl_conf = NULL;
+			goto error;
+		}
+		entry->node.key = ckchs;
+		entry->ssl_conf = ssl_conf;
+		/* filters */
+		entry->filters = crtlist_dup_filters(&args[cur_arg], arg - cur_arg - 1);
+		entry->fcount = arg - cur_arg - 1;
+		ebpt_insert(&newlist->entries, &entry->node);
+		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
+	}
+	if (cfgerr & ERR_CODE)
+		goto error;
+
+	fclose(f);
+	*crtlist = newlist;
+
+	return cfgerr;
+error:
+	fclose(f);
+	crtlist_free(newlist);
+	return cfgerr;
+}
+
+/*  Load a crt-list file, this is done in 2 parts:
+ *  - store the content of the file in a crtlist structure with crtlist_entry structures
+ *  - generate the instances by iterating on entries in the crtlist struct
+ *
+ *  Nothing is locked there, this function is used in the configuration parser.
+ *
+ *  Returns a set of ERR_* flags possibly with an error in <err>.
+ */
+int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+{
+	struct crtlist *crtlist = NULL;
+	struct ebmb_node *eb;
+	struct crtlist_entry *entry;
+	struct list instances; /* temporary list head */
+	int cfgerr = 0;
+
+	LIST_INIT(&instances);
+	/* look for an existing crtlist or create one */
+	eb = ebst_lookup(&crtlists_tree, file);
+	if (eb) {
+		crtlist = ebmb_entry(eb, struct crtlist, node);
+	} else {
+		cfgerr |= crtlist_parse_file(file, bind_conf, curproxy, &crtlist, err);
+		if (!(cfgerr & ERR_CODE))
+			ebst_insert(&crtlists_tree, &crtlist->node);
+	}
+
+	if (cfgerr & ERR_CODE) {
+		cfgerr |= ERR_FATAL | ERR_ALERT;
+		goto error;
+	}
+
+	/* generates ckch instance from the crtlist_entry */
+	list_for_each_entry(entry, &crtlist->ord_entries, by_crtlist) {
+		struct ckch_store *store;
+		struct ckch_inst *ckch_inst = NULL;
+
+		store = entry->node.key;
+		cfgerr |= ssl_sock_load_ckchs(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &ckch_inst, err);
+		if (cfgerr & ERR_CODE) {
+			memprintf(err, "error processing line %d in file '%s' : %s", entry->linenum, file, *err);
+			goto error;
+		}
+		LIST_ADDQ(&instances, &ckch_inst->by_crtlist_entry);
+	}
+	/* add the instances to the actual instance list in the crtlist_entry */
+	LIST_SPLICE(&entry->ckch_inst, &instances);
+
+	return cfgerr;
+error:
+	{
+		struct ckch_inst *inst, *s_inst;
+
+		list_for_each_entry_safe(inst, s_inst, &instances, by_crtlist_entry) {
+			struct sni_ctx *sni, *s_sni;
+
+			/* free the sni_ctx */
+			list_for_each_entry_safe(sni, s_sni, &inst->sni_ctx, by_ckch_inst) {
+				ebmb_delete(&sni->name);
+				LIST_DEL(&sni->by_ckch_inst);
+				free(sni);
+			}
+			LIST_DEL(&inst->by_crtlist_entry);
+			free(inst);
 		}
 	}
-	fclose(f);
 	return cfgerr;
 }
 
