@@ -3110,7 +3110,7 @@ resume_execution:
 				break;
 
 			case ACT_HTTP_REDIR:
-				rule_ret = HTTP_RULE_RES_DONE;
+				rule_ret = HTTP_RULE_RES_ABRT;
 				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
 					rule_ret = HTTP_RULE_RES_ERROR;
 				goto end;
