@@ -87,44 +87,39 @@ comp_flt_deinit_per_thread(struct proxy *px, struct flt_conf *fconf)
 }
 
 static int
-comp_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+comp_strm_init(struct stream *s, struct filter *filter)
 {
+	struct comp_state *st;
 
-	if (filter->ctx == NULL) {
-		struct comp_state *st;
+	st = pool_alloc_dirty(pool_head_comp_state);
+	if (st == NULL)
+		return -1;
 
-		st = pool_alloc_dirty(pool_head_comp_state);
-		if (st == NULL)
-			return -1;
+	st->comp_algo = NULL;
+	st->comp_ctx  = NULL;
+	filter->ctx   = st;
 
-		st->comp_algo = NULL;
-		st->comp_ctx  = NULL;
-		filter->ctx   = st;
-
-		/* Register post-analyzer on AN_RES_WAIT_HTTP because we need to
-		 * analyze response headers before http-response rules execution
-		 * to be sure we can use res.comp and res.comp_algo sample
-		 * fetches */
-		filter->post_analyzers |= AN_RES_WAIT_HTTP;
-	}
+	/* Register post-analyzer on AN_RES_WAIT_HTTP because we need to
+	 * analyze response headers before http-response rules execution
+	 * to be sure we can use res.comp and res.comp_algo sample
+	 * fetches */
+	filter->post_analyzers |= AN_RES_WAIT_HTTP;
 	return 1;
 }
 
-static int
-comp_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+static void
+comp_strm_deinit(struct stream *s, struct filter *filter)
 {
 	struct comp_state *st = filter->ctx;
 
 	if (!st)
-		goto end;
+		return;
 
 	/* release any possible compression context */
 	if (st->comp_algo)
 		st->comp_algo->end(&st->comp_ctx);
 	pool_free(pool_head_comp_state, st);
 	filter->ctx = NULL;
- end:
-	return 1;
 }
 
 static int
@@ -617,8 +612,9 @@ struct flt_ops comp_ops = {
 	.init_per_thread   = comp_flt_init_per_thread,
 	.deinit_per_thread = comp_flt_deinit_per_thread,
 
-	.channel_start_analyze = comp_start_analyze,
-	.channel_end_analyze   = comp_end_analyze,
+	.attach = comp_strm_init,
+	.detach = comp_strm_deinit,
+
 	.channel_post_analyze  = comp_http_post_analyze,
 
 	.http_headers          = comp_http_headers,
