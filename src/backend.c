@@ -541,7 +541,7 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 	do {
 		prev = curr;
 		/* ensure all 32 bits are covered as long as RAND_MAX >= 65535 */
-		hash = ((uint64_t)random() * ((uint64_t)RAND_MAX + 1)) ^ random();
+		hash = ((uint64_t)ha_random() * ((uint64_t)RAND_MAX + 1)) ^ ha_random();
 		curr = chash_get_server_hash(px, hash, avoid);
 		if (!curr)
 			break;

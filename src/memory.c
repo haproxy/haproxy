@@ -628,7 +628,7 @@ int mem_should_fail(const struct pool_head *pool)
 	int n;
 
 	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
-		int randnb = random() % 100;
+		int randnb = ha_random() % 100;
 
 		if (mem_fail_rate > randnb)
 			ret = 1;

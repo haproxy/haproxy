@@ -468,7 +468,7 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 		unsigned int data = trace_get_htx_datalen(htxbuf(&msg->chn->buf), offset, len);
 
 		if (data) {
-			ret = random() % (ret+1);
+			ret = ha_random() % (ret+1);
 			if (!ret || ret >= data)
 				ret = len;
 		}
@@ -536,7 +536,7 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 			unsigned int data = trace_get_htx_datalen(htxbuf(&chn->buf), offset, len);
 
 			if (data) {
-				ret = random() % (ret+1);
+				ret = ha_random() % (ret+1);
 				if (!ret || ret >= data)
 					ret = len;
 			}
@@ -554,7 +554,7 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 	else {
 
 		if (ret && conf->rand_forwarding)
-			ret = random() % (ret+1);
+			ret = ha_random() % (ret+1);
 
 		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
 			       "offset=%u - len=%u - forward=%d",

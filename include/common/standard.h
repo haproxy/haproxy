@@ -43,6 +43,7 @@
 #include <common/namespace.h>
 #include <eb32tree.h>
 #include <eb32sctree.h>
+#include <types/global.h>
 #include <types/protocol.h>
 
 /* size used for max length of decimal representation of long long int. */
@@ -1529,6 +1530,18 @@ static inline void *my_realloc2(void *ptr, size_t size)
 }
 
 int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
+
+/* returns a positive random from a process-specific and thread-specific
+ * sequence initialized by ha_random_init_per_thread(). It's just a wrapper on
+ * top of random_r() so it lives with the same limitations (i.e. 31 bits only).
+ */
+static inline int32_t ha_random()
+{
+	int32_t r;
+
+	random_r(&ha_rand_data, &r); // no error since our buffer is OK.
+	return r;
+}
 
 /* HAP_STRING() makes a string from a literal while HAP_XSTRING() first
  * evaluates the argument and is suited to pass macros.

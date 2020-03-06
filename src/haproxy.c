@@ -238,6 +238,8 @@ unsigned int rlim_fd_max_at_boot = 0;
 
 /* per-boot randomness */
 unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */
+THREAD_LOCAL char ha_rand_state[32];          /* opaque 256 bits of random state */
+THREAD_LOCAL struct random_data ha_rand_data; /* opaque internal random_r() date */
 
 struct mworker_proc *proc_self = NULL;
 
@@ -1363,6 +1365,59 @@ static char **copy_argv(int argc, char **argv)
 }
 
 
+/* Initializes the per-thread, per-process random seed for use with random_r().
+ *
+ * We cannot pass a global state from one thread to another one because we
+ * must still call initstate_r() on it to reset the per-thread pointer, and
+ * this will reinitialize our state. What we do instead is that we use the
+ * *same* seed for all threads so that they start with the exact same internal
+ * state, and will loop over random() a different (and large) number of times
+ * to make sure their internal state is totally different. This results in 4
+ * billion possible *boot* sequences, and each thread may start with a much
+ * greater number of sequences as well (we typically add up to 20 bits, giving
+ * 4 trillon possible initial sequences).
+ */
+static void ha_random_init_per_thread()
+{
+	unsigned int seed;
+	unsigned int loops;
+	uint64_t u64;
+
+	/* recreate a distinct initial state for each process/thread */
+	seed = read_u32(boot_seed);
+
+	/* start with a strictly different seed per thread/process */
+	seed += (relative_pid * MAX_THREADS)+ tid;
+
+	memset(&ha_rand_data, 0, sizeof(ha_rand_data));
+	initstate_r(seed, ha_rand_state, sizeof(ha_rand_state), &ha_rand_data);
+
+	/* make sure all pids and tids have a different count, we'll
+	 * loop up to ~1 million times on each thread, with a fairly
+	 * different number for each. This should only take a few ms
+	 * per thread and will provide ~20 extra bits of randomness
+	 * to each thread/process, resulting in ~52 bits per thread per
+	 * boot.
+	 */
+	loops = read_u32(boot_seed);
+
+	u64 = read_u64(boot_seed + 4);
+	u64 = (u64 << relative_pid) | (u64 >> (63-relative_pid));
+	loops ^= u64 ^ (u64 >> 32);
+
+	u64 = read_u64(boot_seed + 12);
+	u64 = (u64 << tid) | (u64 >> (63-tid));
+	loops ^= u64 ^ (u64 >> 32);
+	loops %= 1048573;
+
+	/* burn some randoms to mix the internal state */
+	while (loops--) {
+		int32_t drop;
+
+		(void)random_r(&ha_rand_data, &drop);
+	}
+}
+
 /* Performs basic random seed initialization. The main issue with this is that
  * srandom_r() only takes 32 bits and purposely provides a reproducible sequence,
  * which means that there will only be 4 billion possible random sequences once
@@ -1374,6 +1429,10 @@ static char **copy_argv(int argc, char **argv)
  * We initialize the current process with the first 32 bits before starting the
  * polling loop, where all this will be changed to have process specific and
  * thread specific sequences.
+ *
+ * Before starting threads, it's still possible to call random() as srandom()
+ * is initialized from this, but after threads and/or processes are started,
+ * only ha_random() is expected to be used to guarantee distinct sequences.
  */
 static void ha_random_boot(char *const *argv)
 {
@@ -1444,6 +1503,7 @@ static void ha_random_boot(char *const *argv)
 	blk_SHA1_Final(boot_seed, &ctx);
 
 	srandom(read_u32(boot_seed));
+	ha_random_init_per_thread();
 }
 
 /* considers splicing proxies' maxconn, computes the ideal global.maxpipes
@@ -2780,6 +2840,9 @@ static void *run_thread_poll_loop(void *data)
 	ti->clock_id = CLOCK_THREAD_CPUTIME_ID;
 #endif
 #endif
+	/* assign per-process, per-thread randomness */
+	ha_random_init_per_thread();
+
 	/* Now, initialize one thread init at a time. This is better since
 	 * some init code is a bit tricky and may release global resources
 	 * after reallocating them locally. This will also ensure there is

@@ -240,6 +240,8 @@ extern unsigned int rlim_fd_cur_at_boot;
 extern unsigned int rlim_fd_max_at_boot;
 extern int atexit_flag;
 extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
+extern THREAD_LOCAL char ha_rand_state[32];          /* opaque 256 bits of random state */
+extern THREAD_LOCAL struct random_data ha_rand_data; /* opaque internal random_r() date */
 
 /* bit values to go with "warned" above */
 /* unassigned : 0x00000001 (previously: WARN_BLOCK_DEPRECATED) */

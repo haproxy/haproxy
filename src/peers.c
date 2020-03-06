@@ -2232,7 +2232,7 @@ switchstate:
 					 * retrying otherwise the other end will do the same and we can loop
 					 * for a while.
 					 */
-					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
+					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 					peer_session_forceshutdown(curpeer);
 				}
 				if (maj_ver != (unsigned int)-1 && min_ver != (unsigned int)-1) {
@@ -2685,7 +2685,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 								}
 								else  {
-									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
+									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 									peer_session_forceshutdown(ps);
 									ps->no_hbt++;
 								}
@@ -2741,7 +2741,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 				 * retrying otherwise the other end will do the same and we can loop
 				 * for a while.
 				 */
-				ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + random() % 2000));
+				ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 				if (ps->appctx) {
 					peer_session_forceshutdown(ps);
 				}
