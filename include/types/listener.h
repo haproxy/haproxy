@@ -33,7 +33,6 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
-#include <common/standard.h>
 
 #include <types/obj_type.h>
 #include <eb32tree.h>
