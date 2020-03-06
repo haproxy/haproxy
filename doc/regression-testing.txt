@@ -131,7 +131,7 @@ instance.
     #   BUG/MINOR: spoe: Initialize variables used during conf parsing before any check
 
     #   Some initializations must be done at the beginning of parse_spoe_flt to avoid
-    #   segmentaion fault when first errors are caught, when the "filter spoe" line is
+    #   segmentation fault when first errors are caught, when the "filter spoe" line is
     #   parsed.
 
     haproxy h1 -conf-BAD {} {

@@ -234,7 +234,7 @@ do not think about them anymore after a few patches.
    indented code, which only proves that the person has no consideration for
    quality and/or has done it in a hurry (probably worse). Please note that most
    bugs were found in low-quality code. Reviewers know this and tend to be much
-   more reluctant to accept poorly formated code because by experience they
+   more reluctant to accept poorly formatted code because by experience they
    won't trust their author's ability to write correct code. It is also worth
    noting that poor quality code is painful to read and may result in nobody
    willing to waste their time even reviewing your work.
@@ -990,7 +990,7 @@ How to be sure to irritate everyone
 Among the best ways to quickly lose everyone's respect, there is this small
 selection, which should help you improve the way you work with others, if
 you notice you're already practising some of them:
-  - repeatedly send improperly formated commit messages, with no type or
+  - repeatedly send improperly formatted commit messages, with no type or
     severity, or with no commit message body. These ones require manual
     edition, maintainers will quickly learn to recognize your name.
 

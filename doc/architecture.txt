@@ -257,7 +257,7 @@ Description :
  - if a request does not contain a cookie, it will be forwarded to a valid
    server
  - in return, if a JESSIONID cookie is seen, the server name will be prefixed
-   into it, followed by a delimitor ('~')
+   into it, followed by a delimiter ('~')
  - when the client comes again with the cookie "JSESSIONID=A~xxx", LB1 will
    know that it must be forwarded to server A. The server name will then be
    extracted from cookie before it is sent to the server.
@@ -1265,7 +1265,7 @@ S2L2. So only initial users will load the inter-site link, not the new ones.
 ===================
 
 Sometimes it may reveal useful to access servers from a pool of IP addresses
-instead of only one or two. Some equipments (NAT firewalls, load-balancers)
+instead of only one or two. Some equipment (NAT firewalls, load-balancers)
 are sensible to source address, and often need many sources to distribute the
 load evenly amongst their internal hash buckets.
 

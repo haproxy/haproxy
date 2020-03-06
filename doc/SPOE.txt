@@ -115,7 +115,7 @@ If you specify an engine name on the SPOE filter line, then you need to define
 scope in the SPOE configuration with the same name. You can have several SPOE
 scope in the same file. In each scope, you must define one and only one
 "spoe-agent" section to configure the SPOA linked to your SPOE and several
-"spoe-message" and "spoe-group" sections to describe, respecively, messages and
+"spoe-message" and "spoe-group" sections to describe, respectively, messages and
 group of messages sent to servers mananged by your SPOA.
 
 A SPOE scope starts with this kind of line :

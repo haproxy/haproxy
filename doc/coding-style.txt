@@ -111,7 +111,7 @@ with "#", we get this :
   | [-Tabs-][-Tabs-]ctx->del = len;
   | [-Tabs-]}
 
-It is worth noting that some editors tend to confuse indentations and aligment.
+It is worth noting that some editors tend to confuse indentations and alignment.
 Emacs is notoriously known for this brokenness, and is responsible for almost
 all of the alignment mess. The reason is that Emacs only counts spaces, tries
 to fill as many as possible with tabs and completes with spaces. Once you know
@@ -1218,7 +1218,7 @@ Wrong use of comments :
 
 Right use of comments :
 
-  | /* This function returns the positoin of the highest bit set in the lowest
+  | /* This function returns the position of the highest bit set in the lowest
   |  * byte of <x>, between 0 and 7. It only works if <x> is non-null. It uses
   |  * a 32-bit value as a lookup table to return one of 4 values for the
   |  * highest 16 possible 4-bit values.

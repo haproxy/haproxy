@@ -1476,7 +1476,7 @@ commit ssl cert <filename>
   the previous ones. Replace in memory the previous SSL certificates
   everywhere the <filename> was used in the configuration.
   Upon failure it doesn't remove or insert anything. Once the temporary
-  transaction is commited, it is destroyed.
+  transaction is committed, it is destroyed.
 
   See also "ssl set cert" and "abort ssl cert".
 
@@ -1527,7 +1527,7 @@ disable agent <backend>/<server>
   level "admin".
 
 disable dynamic-cookie backend <backend>
-  Disable the generation of dynamic cookies fot the backend <backend>
+  Disable the generation of dynamic cookies for the backend <backend>
 
 disable frontend <frontend>
   Mark the frontend as temporarily stopped. This corresponds to the mode which
@@ -2509,8 +2509,8 @@ show stat [{<iid>|<proxy>} <type> <sid>] [typed|json] [desc]
     python -m json.tool
 
 show ssl cert [<filename>]
-  Display the list of certicates used on frontends. If a filename is prefixed
-  by an asterisk, it is a transaction which is not commited yet.  If a
+  Display the list of certificates used on frontends. If a filename is prefixed
+  by an asterisk, it is a transaction which is not committed yet.  If a
   filename is specified, it will show details about the certificate. This
   command can be useful to check if a certificate was well updated. You can
   also display details on a transaction by prefixing the filename by an
