@@ -1276,7 +1276,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
 
-	return ACT_RET_STOP;
+	return ACT_RET_ABRT;
 }
 
 /* parse "set-{src,dst}[-port]" action */
