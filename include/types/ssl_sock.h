@@ -27,6 +27,7 @@
 #include <eb64tree.h>
 
 #include <common/hathreads.h>
+#include <common/mini-clist.h>
 #include <common/openssl-compat.h>
 
 struct pkey_info {
