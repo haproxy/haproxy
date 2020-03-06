@@ -191,7 +191,7 @@ Thus the release cycle from 1.8 to 2.2 should look like this:
          `---+---+---+-----+-------+-----------+---------------+------> 1.8 LTS
 
 In short the non-LTS odd releases can be seen as technological previews of the
-next feature release, and will be terminated much ealier. The plan is to barely
+next feature release, and will be terminated much earlier. The plan is to barely
 let them overlap with the next non-LTS release, allowing advanced users to
 always have the choice between the last two major releases.
 

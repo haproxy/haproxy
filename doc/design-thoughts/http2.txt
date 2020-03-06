@@ -97,7 +97,7 @@
   before the connection timeout so that an unused connection is verified before
   being killed. Abnormal requests must be dealt with using RST_STREAM.
 
-- ALPN : ALPN must be observed onthe client side, and transmitted to the server
+- ALPN : ALPN must be observed on the client side, and transmitted to the server
   side.
 
 - proxy protocol : proxy protocol makes little to no sense in a multiplexed
@@ -134,7 +134,7 @@
   to H2 behind. This can cause some trouble when passing H2 requests to H1
   proxies, because there's no way to know if the request should contain scheme
   and authority in H1 or not based on the H2 request. Thus a "proxy" option
-  will have to be explicitly mentionned on HTTP/1 server lines. One of the
+  will have to be explicitly mentioned on HTTP/1 server lines. One of the
   problem that it creates is that it's not longer possible to pass H/1 requests
   to H/1 proxies without an explicit configuration. Maybe a table of the
   various combinations is needed.

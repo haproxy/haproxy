@@ -84,7 +84,7 @@ filters are also chained, frontend ones called first. Even if the filters
 processing is serialized, each filter will bahave as it was alone (unless it was
 developed to be aware of other filters). For all that, some constraints are
 imposed to filters, especially when data exchanged between the client and the
-server are processed. We will dicuss again these contraints when we will tackle
+server are processed. We will dicuss again these constraints when we will tackle
 the subject of writing a filter.
 
 
@@ -93,7 +93,7 @@ the subject of writing a filter.
 ---------------------
 
 To use a filter, you must use the parameter 'filter' followed by the filter name
-and, optionnaly, its configuration in the desired listen, frontend or backend
+and, optionally, its configuration in the desired listen, frontend or backend
 section. For example:
 
     listen test
@@ -123,7 +123,7 @@ Multiple filter lines can be used in a proxy section to chain filters. Filters
 will be called in the declaration order.
 
 Some filters can support implicit declarartions in certain circumstances
-(without the filter line). This is not recommanded for new features but are
+(without the filter line). This is not recommended for new features but are
 useful for existing ones moved in a filter, for backward compatibility
 reasons. Implicit declarartions are supported when there is only one filter used
 on a proxy. When several filters are used, explicit declarartions are mandatory.
@@ -131,7 +131,7 @@ The HTTP compression filter is one of these filters. Alone, using 'compression'
 keywords is enough to use it. But when at least a second filter is used, a
 filter line must be added.
 
-    # filter line is optionnal
+    # filter line is optional
     listen t1
         bind *:80
         compression algo gzip
@@ -306,7 +306,7 @@ Filter instances attached to a stream are stored in the field
      *
      * 2D-Array fields are used to store info per channel. The first index
      * stands for the request channel, and the second one for the response
-     * channel.  Especially, <next> and <fwd> are offets representing amount of
+     * channel.  Especially, <next> and <fwd> are offsets representing amount of
      * data that the filter are, respectively, parsed and forwarded on a
      * channel. Filters can access these values using FLT_NXT and FLT_FWD
      * macros.
@@ -445,7 +445,7 @@ In the previous example, we expect to read a filter line as follows:
     filter my_filter name MY_NAME ...
 
 
-Optionnaly, by implementing the 'flt_ops.check' callback, you add a step to
+Optionally, by implementing the 'flt_ops.check' callback, you add a step to
 check the internal configuration of your filter after the parsing phase, when
 the HAProxy configuration is fully defined. For example:
 
@@ -492,7 +492,7 @@ Here is an example:
         return 0;
     }
 
-    /* Free ressources allocated by the trace filter. */
+    /* Free resources allocated by the trace filter. */
     static void
     my_filter_deinit(struct proxy *px, struct flt_conf *fconf)
     {
@@ -591,7 +591,7 @@ For example:
     }
 
 
-WARNING: Handling the streams creation and destuction is only possible for
+WARNING: Handling the streams creation and destruction is only possible for
          filters defined on proxies with the frontend capability.
 
 In addition, it is possible to handle creation and destruction of filter

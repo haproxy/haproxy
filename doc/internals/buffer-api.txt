@@ -630,7 +630,7 @@ but fail.
                    <------------------> <---------->
                             o                i
 
-There is this correspondance between old and new fields (some will involve a
+There is this correspondence between old and new fields (some will involve a
 knowledge of a channel when the output byte count is required) :
 
      Old    | New

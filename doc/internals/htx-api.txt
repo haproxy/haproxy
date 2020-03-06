@@ -9,7 +9,7 @@
 1. Background
 
 Historically, HAProxy stored HTTP messages in a raw fashion in buffers, keeping
-parsing information separatly in a "struct http_msg" owned by the stream. It was
+parsing information separately in a "struct http_msg" owned by the stream. It was
 optimized to the data transfer, but not so much for rewrites. It was also HTTP/1
 centered. While it was the only HTTP version supported, it was not a
 problem. But with the rise of HTTP/2, it starts to be hard to still use this
@@ -26,7 +26,7 @@ So, to address all these problems, we decided to replace the old raw
 representation by a version-agnostic and self-structured internal HTTP
 representation, the HTX. As an additional benefit, with this new representation,
 the message parsing and its processing are now separated, making all the HTTP
-analysis simplier and cleaner. The parsing of HTTP messages is now handled by
+analysis simpler and cleaner. The parsing of HTTP messages is now handled by
 the multiplexers (h1 or h2).
 
 
@@ -37,7 +37,7 @@ followed by a contiguous array with some parts of the message. These parts are
 called blocks. A block is composed of metadata (htx_blk) and an associated
 payload. Blocks' metadata are stored starting from the end of the array while
 their payload are stored at the beginning. Blocks' metadata are often simply
-called blocks. it is a misuse of language that's simplify explainations.
+called blocks. it is a misuse of language that's simplify explanations.
 
 Internally, this structure is "hidden" in a buffer. This way, there are few
 changes into intermediate layers (stream-interface and channels). They still
@@ -78,7 +78,7 @@ relatively to the beginning of the blocks array.
  at the position N       at the position 1      at the position 0
 
 
-In the HTX struture, 3 "special" positions are stored:
+In the HTX structure, 3 "special" positions are stored:
 
     - tail  : Position of the newest inserted block
     - head  : Position of the oldest inserted block
@@ -209,7 +209,7 @@ An HTX message is typically composed of following blocks, in this order :
 Only one HTTP request at a time can be stored in an HTX message. For HTTP
 response, it is more complicated. Only one "final" response can be stored in an
 HTX message. It is a response with status-code 101 or greater or equal to
-200. But it may be preceeded by several 1xx informational responses. Such
+200. But it may be preceded by several 1xx informational responses. Such
 responses are part of the same HTX message, so there is no end-of-message marker
 for them.
 

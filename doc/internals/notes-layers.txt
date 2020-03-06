@@ -110,7 +110,7 @@ It becomes visible that the mux will not always be welcome to decode incoming
 data because it will sometimes imply extra memory copies and/or usage for no
 benefit.
 
-Ideally, when when a stream is instanciated based on incoming data, these
+Ideally, when when a stream is instantiated based on incoming data, these
 incoming data should be passed and the upper layers called, but it should then
 be up these upper layers to peek more data in certain circumstances. Typically
 if the pending connection data are larger than what is expected to be passed
@@ -179,7 +179,7 @@ not implementing everything yet.
 Short term proposal : a channel has access to a buffer and a pipe. A non-empty
 buffer is either in structured message format OR raw stream format. Only the
 channel knows. However a structured buffer MAY contain raw data in a properly
-formated way (using the envelope defined by the structured message format).
+formatted way (using the envelope defined by the structured message format).
 
 By default, when a demux writes to a CS rxbuf, it will try to use the lowest
 possible level for what is being done (i.e. splice if possible, otherwise raw
@@ -269,7 +269,7 @@ Short term implementation :
 
   5) use the flags to enforce receipt of data only when necessary
 
-We should be able to end up with sequencial receipt in H2 modelling what is
+We should be able to end up with sequential receipt in H2 modelling what is
 needed for other protocols without interfering with the native H1 devs.
 
 

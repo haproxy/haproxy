@@ -311,7 +311,7 @@ Core class
 
   **context**: body, init, task, action, sample-fetch, converter
 
-  Returns HAProxy core informations. We can found information like the uptime,
+  Returns HAProxy core information. We can found information like the uptime,
   the pid, memory pool usage, tasks number, ...
 
   These information are also returned by the management socket via the command
@@ -792,7 +792,7 @@ Core class
   :returns: boolean, true if the network of the addresses match, else returns
     false.
 
-  Match two networks. For example "127.0.0.1/32" matchs "127.0.0.0/8". The order
+  Match two networks. For example "127.0.0.1/32" matches "127.0.0.0/8". The order
   of network is not important.
 
 .. js:function:: core.tokenize(str, separators [, noblank])
@@ -1137,7 +1137,7 @@ Concat class
 
   For each concatenation, Lua:
   * allocate memory for the result,
-  * catenate the two string copying the strings in the new memory bloc,
+  * catenate the two string copying the strings in the new memory block,
   * free the old memory block containing the string which is no longer used.
   This process does many memory move, allocation and free. In addition, the
   memory is not really freed, it is just mark mark as unused and wait for the
@@ -1176,7 +1176,7 @@ Concat class
   This function adds a string to the current concatenated string.
 
   :param class_concat concat: A :ref:`concat_class` which contains the currently
-    builded string.
+    built string.
   :param string string: A new string to concatenate to the current built
     string.
 
@@ -1185,7 +1185,7 @@ Concat class
   This function returns the concatenated string.
 
   :param class_concat concat: A :ref:`concat_class` which contains the currently
-    builded string.
+    built string.
   :returns: the concatenated string
 
 .. _fetches_class:
@@ -1214,7 +1214,7 @@ Fetches class
     connections established,
   * client information like ip source or destination,
   * deal with stick tables,
-  * Established SSL informations,
+  * Established SSL information,
   * HTTP information like headers or method.
 
 .. code-block:: lua
@@ -1278,7 +1278,7 @@ Channel class
   This function returns a string that contain the entire buffer. The data is
   not remove from the buffer and can be reprocessed later.
 
-  If the buffer cant receive more data, a 'nil' value is returned.
+  If the buffer can't receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
   :returns: a string containing all the available data or nil.
@@ -1288,7 +1288,7 @@ Channel class
   This function returns a string that contain the entire buffer. The data is
   consumed from the buffer.
 
-  If the buffer cant receive more data, a 'nil' value is returned.
+  If the buffer can't receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
   :returns: a string containing all the available data or nil.
@@ -1299,7 +1299,7 @@ Channel class
   data is consumed. If the data returned doesn't contains a final '\n' its
   assumed than its the last available data in the buffer.
 
-  If the buffer cant receive more data, a 'nil' value is returned.
+  If the buffer can't receive more data, a 'nil' value is returned.
 
   :param class_channel channel: The manipulated Channel.
   :returns: a string containing the available line or nil.
@@ -2230,7 +2230,7 @@ Map class
 .. js:attribute:: Map._int
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.int` is also available for compatibility.
@@ -2238,7 +2238,7 @@ Map class
 .. js:attribute:: Map._ip
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.ip` is also available for compatibility.
@@ -2246,7 +2246,7 @@ Map class
 .. js:attribute:: Map._str
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.str` is also available for compatibility.
@@ -2254,7 +2254,7 @@ Map class
 .. js:attribute:: Map._beg
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.beg` is also available for compatibility.
@@ -2262,7 +2262,7 @@ Map class
 .. js:attribute:: Map._sub
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.sub` is also available for compatibility.
@@ -2270,7 +2270,7 @@ Map class
 .. js:attribute:: Map._dir
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.dir` is also available for compatibility.
@@ -2278,7 +2278,7 @@ Map class
 .. js:attribute:: Map._dom
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.dom` is also available for compatibility.
@@ -2286,13 +2286,13 @@ Map class
 .. js:attribute:: Map._end
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
 .. js:attribute:: Map._reg
 
   See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
-  samples" ans subchapter "ACL basics" to understand this pattern matching
+  samples" and subchapter "ACL basics" to understand this pattern matching
   method.
 
   Note that :js:attr:`Map.reg` is also available for compatibility.
@@ -2370,7 +2370,7 @@ AppletHTTP class
 
   This attribute contains a Fetches class object. Note that the
   applet execution place cannot access to a valid HAProxy core HTTP
-  transaction, so some sample fetches related to the HTTP dependant
+  transaction, so some sample fetches related to the HTTP dependent
   values (hdr, path, ...) are not available.
 
 .. js:attribute:: AppletHTTP.sf
@@ -2380,7 +2380,7 @@ AppletHTTP class
   This attribute contains a Fetches class object. The functions of
   this object returns always a string. Note that the applet
   execution place cannot access to a valid HAProxy core HTTP
-  transaction, so some sample fetches related to the HTTP dependant
+  transaction, so some sample fetches related to the HTTP dependent
   values (hdr, path, ...) are not available.
 
 .. js:attribute:: AppletHTTP.method
@@ -2451,7 +2451,7 @@ AppletHTTP class
   This function add an header in the response. Duplicated headers are not
   collapsed. The special header *content-length* is used to determinate the
   response length. If it not exists, a *transfer-encoding: chunked* is set, and
-  all the write from the funcion *AppletHTTP:send()* become a chunk.
+  all the write from the function *AppletHTTP:send()* become a chunk.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param string name: the header name
@@ -2821,7 +2821,7 @@ A lot of useful lua libraries can be found here:
 
 * `https://lua-toolbox.com/ <https://lua-toolbox.com/>`_
 
-Redis acces:
+Redis client library:
 
 * `https://github.com/nrk/redis-lua <https://github.com/nrk/redis-lua>`_
 

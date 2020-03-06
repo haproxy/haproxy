@@ -9,7 +9,7 @@ Listener
 
 A listener is the entity which is part of a frontend and which accepts
 connections. There are as many listeners as there are ip:port couples.
-There is at least one listener instanciated for each "bind" entry, and
+There is at least one listener instantiated for each "bind" entry, and
 port ranges will lead to as many listeners as there are ports in the
 range. A listener just has a listening file descriptor ready to accept
 incoming connections and to dispatch them to upper layers.
@@ -18,8 +18,8 @@ incoming connections and to dispatch them to upper layers.
 Initiator
 ---------
 
-An initiator is instanciated for each incoming connection on a listener. It may
-also be instanciated by a task pretending to be a client. An initiator calls
+An initiator is instantiated for each incoming connection on a listener. It may
+also be instantiated by a task pretending to be a client. An initiator calls
 the next stage's accept() callback to present it with the parameters of the
 incoming connection.
 
@@ -39,7 +39,7 @@ side and other ones on the connector side. If additional buffers are needed for
 such transforms, those buffers cannot replace the session's buffers, but they
 may complete them.
 
-A session only needs to be instanciated when forwarding of data is required
+A session only needs to be instantiated when forwarding of data is required
 between two sides. Accepting and filtering on layer 4 information only does not
 require a session.
 
@@ -76,7 +76,7 @@ side of diagrams.
 Connection
 ----------
 
-A connection is the entity instanciated by a connector. It may be composed of
+A connection is the entity instantiated by a connector. It may be composed of
 multiple stages linked together. Generally it is the part of the stream
 interface holding a file descriptor, but it can also be a processing block or a
 transformation block terminated by a connection. A connection presents a
@@ -86,11 +86,11 @@ server-side interface.
 2) Sequencing
 -------------
 
-Upon startup, listeners are instanciated by the configuration. When an incoming
+Upon startup, listeners are instantiated by the configuration. When an incoming
 connection reaches a listening file descriptor, its read() callback calls the
-corresponding listener's accept() function which instanciates an initiator and
+corresponding listener's accept() function which instantiates an initiator and
 in turn recursively calls upper layers' accept() callbacks until
-accept_session() is called. accept_session() instanciates a new session which
+accept_session() is called. accept_session() instantiates a new session which
 starts protocol analysis via process_session(). When all protocol analysis is
 done, process_session() calls the connect() callback of the connector in order
 to get a connection.

@@ -26,7 +26,7 @@ Why a scripting language in HAProxy
 
 HAProxy 1.5 makes at possible to do many things using samples, but some people
 want to more combining results of samples fetches, programming conditions and
-loops which is not possible. Sometimes people implement these functionnalities
+loops which is not possible. Sometimes people implement these functionalities
 in patches which have no meaning outside their network. These people must
 maintain these patches, or worse we must integrate them in the HAProxy
 mainstream.
@@ -285,7 +285,7 @@ Some examples follows. This first one, is a simple addition:
    lua_arith(L, LUA_OPADD)
 
 It's easy, we push 1 on the stack, after, we push 2, and finally, we perform an
-addition. The two top entries of the stack are added, poped, and the result is
+addition. The two top entries of the stack are added, popped, and the result is
 pushed. It is a classic way with a stack.
 
 Now an example for constructing array and objects. It's a little bit more
