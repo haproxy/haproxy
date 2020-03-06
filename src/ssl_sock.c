@@ -4429,10 +4429,15 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	return errcode;
 }
 
-/* Read a directory and open its certificates
- * Returns a set of ERR_* flags possibly with an error in <err>. */
-static int ssl_sock_load_cert_dir(char *path, struct bind_conf *bind_conf, char **err)
+
+/* This function reads a directory and stores it in a struct crtlist, each file is a crtlist_entry structure
+ * Fill the <crtlist> argument with a pointer to a new crtlist struct
+ *
+ * This function tries to open and store certificate files.
+ */
+static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlist **crtlist, char **err)
 {
+	struct crtlist *dir;
 	struct dirent **de_list;
 	int i, n;
 	struct stat buf;
@@ -4449,6 +4454,14 @@ static int ssl_sock_load_cert_dir(char *path, struct bind_conf *bind_conf, char 
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
 		*end = 0;
 
+	dir = malloc(sizeof(*dir) + strlen(path) + 1);
+	if (dir == NULL) {
+		memprintf(err, "not enough memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+	memcpy(dir->node.key, path, strlen(path) + 1);
+	dir->entries = EB_ROOT_UNIQUE; /* it's a directory, files are unique */
+
 	n = scandir(path, &de_list, 0, alphasort);
 	if (n < 0) {
 		memprintf(err, "%sunable to scan directory '%s' : %s.\n",
@@ -4457,12 +4470,19 @@ static int ssl_sock_load_cert_dir(char *path, struct bind_conf *bind_conf, char 
 	}
 	else {
 		for (i = 0; i < n; i++) {
+			struct crtlist_entry *entry;
 			struct dirent *de = de_list[i];
-			struct ckch_inst *ckch_inst = NULL;
 
 			end = strrchr(de->d_name, '.');
 			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
 				goto ignore_entry;
+
+			entry = malloc(sizeof(*entry));
+			if (entry == NULL) {
+				memprintf(err, "not enough memory '%s'", fp);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto ignore_entry;
+			}
 
 			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
 			if (stat(fp, &buf) != 0) {
@@ -4503,31 +4523,64 @@ static int ssl_sock_load_cert_dir(char *path, struct bind_conf *bind_conf, char 
 					}
 
 					snprintf(fp, sizeof(fp), "%s/%.*s", path, dp_len, de->d_name);
-					if ((ckchs = ckchs_lookup(fp)) == NULL)
-						ckchs =  ckchs_load_cert_file(fp, 1,  err);
-					if (!ckchs)
+					ckchs = ckchs_lookup(fp);
+					if (ckchs == NULL)
+						ckchs = ckchs_load_cert_file(fp, 1,  err);
+					if (ckchs == NULL) {
+						free(de);
+						free(entry);
 						cfgerr |= ERR_ALERT | ERR_FATAL;
-					else
-						cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+						goto end;
+					}
+
+					entry->node.key = ckchs;
+					entry->ssl_conf = NULL; /* directories don't use ssl_conf */
+					ebpt_insert(&dir->entries, &entry->node);
+
 					/* Successfully processed the bundle */
 					goto ignore_entry;
 				}
 			}
 
 #endif
-			if ((ckchs = ckchs_lookup(fp)) == NULL)
-				ckchs =  ckchs_load_cert_file(fp, 0,  err);
-			if (!ckchs)
+			ckchs = ckchs_lookup(fp);
+			if (ckchs == NULL)
+				ckchs = ckchs_load_cert_file(fp, 0,  err);
+			if (ckchs == NULL) {
+				free(de);
+				free(entry);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
-			else
-				cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+				goto end;
+			}
+			entry->node.key = ckchs;
+			entry->ssl_conf = NULL; /* directories don't use ssl_conf */
+			ebpt_insert(&dir->entries, &entry->node);
 
 ignore_entry:
 			free(de);
 		}
+end:
 		free(de_list);
 	}
+
+	if (cfgerr & ERR_CODE) {
+		/* free the dir and entries on error */
+		struct ebpt_node *node;
+
+		node = ebpt_first(&dir->entries);
+		while (node) {
+			struct crtlist_entry *entry;
+
+			entry = ebpt_entry(node, typeof(*entry), node);
+			node = ebpt_next(node);
+			ebpt_delete(&entry->node);
+			free(entry);
+		}
+		free(dir);
+	}
+
 	return cfgerr;
+
 }
 
 
@@ -4835,7 +4888,7 @@ error:
  *
  *  Returns a set of ERR_* flags possibly with an error in <err>.
  */
-int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
 	struct crtlist *crtlist = NULL;
 	struct ebmb_node *eb;
@@ -4849,7 +4902,12 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 	if (eb) {
 		crtlist = ebmb_entry(eb, struct crtlist, node);
 	} else {
-		cfgerr |= crtlist_parse_file(file, bind_conf, curproxy, &crtlist, err);
+		/* load a crt-list OR a directory */
+		if (dir)
+			cfgerr |= crtlist_load_cert_dir(file, bind_conf, &crtlist, err);
+		else
+			cfgerr |= crtlist_parse_file(file, bind_conf, curproxy, &crtlist, err);
+
 		if (!(cfgerr & ERR_CODE))
 			ebst_insert(&crtlists_tree, &crtlist->node);
 	}
@@ -4917,7 +4975,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 
 			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
 		} else {
-			return ssl_sock_load_cert_dir(path, bind_conf, err);
+			return ssl_sock_load_cert_list_file(path, 1, bind_conf, bind_conf->frontend, err);
 		}
 	} else {
 		/* stat failed, could be a bundle */
@@ -9021,7 +9079,7 @@ static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	err_code = ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err);
+	err_code = ssl_sock_load_cert_list_file(args[cur_arg + 1], 0, conf, px, err);
 	if (err_code)
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 
