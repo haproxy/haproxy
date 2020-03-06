@@ -77,6 +77,8 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#include <import/sha1.h>
+
 #include <common/base64.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
@@ -88,6 +90,7 @@
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/namespace.h>
+#include <common/net_helper.h>
 #include <common/openssl-compat.h>
 #include <common/regex.h>
 #include <common/standard.h>
@@ -232,6 +235,9 @@ struct list proc_list = LIST_HEAD_INIT(proc_list);
 int master = 0; /* 1 if in master, 0 if in child */
 unsigned int rlim_fd_cur_at_boot = 0;
 unsigned int rlim_fd_max_at_boot = 0;
+
+/* per-boot randomness */
+unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */
 
 struct mworker_proc *proc_self = NULL;
 
@@ -1356,6 +1362,90 @@ static char **copy_argv(int argc, char **argv)
 	return newargv;
 }
 
+
+/* Performs basic random seed initialization. The main issue with this is that
+ * srandom_r() only takes 32 bits and purposely provides a reproducible sequence,
+ * which means that there will only be 4 billion possible random sequences once
+ * srandom() is called, regardless of the internal state. Not calling it is
+ * even worse as we'll always produce the same randoms sequences. What we do
+ * here is to create an initial sequence from various entropy sources, hash it
+ * using SHA1 and keep the resulting 160 bits available globally.
+ *
+ * We initialize the current process with the first 32 bits before starting the
+ * polling loop, where all this will be changed to have process specific and
+ * thread specific sequences.
+ */
+static void ha_random_boot(char *const *argv)
+{
+	unsigned char message[256];
+	unsigned char *m = message;
+	struct timeval tv;
+	blk_SHA_CTX ctx;
+	unsigned long l;
+	int fd;
+	int i;
+
+	/* start with current time as pseudo-random seed */
+	gettimeofday(&tv, NULL);
+	write_u32(m, tv.tv_sec);  m += 4;
+	write_u32(m, tv.tv_usec); m += 4;
+
+	/* PID and PPID add some OS-based randomness */
+	write_u16(m, getpid());   m += 2;
+	write_u16(m, getppid());  m += 2;
+
+	/* take up to 160 bits bytes from /dev/urandom if available (non-blocking) */
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd >= 0) {
+		i = read(fd, m, 20);
+		if (i > 0)
+			m += i;
+		close(fd);
+	}
+
+	/* take up to 160 bits bytes from openssl (non-blocking) */
+#ifdef USE_OPENSSL
+	if (RAND_bytes(m, 20) == 1)
+		m += 20;
+#endif
+
+	/* take 160 bits from existing random in case it was already initialized */
+	for (i = 0; i < 5; i++) {
+		write_u32(m, random());
+		m += 4;
+	}
+
+	/* stack address (benefit form operating system's ASLR) */
+	l = (unsigned long)&m;
+	memcpy(m, &l, sizeof(l)); m += sizeof(l);
+
+	/* argv address (benefit form operating system's ASLR) */
+	l = (unsigned long)&argv;
+	memcpy(m, &l, sizeof(l)); m += sizeof(l);
+
+	/* use tv_usec again after all the operations above */
+	gettimeofday(&tv, NULL);
+	write_u32(m, tv.tv_usec); m += 4;
+
+	/*
+	 * At this point, ~84-92 bytes have been used
+	 */
+
+	/* finish with the hostname */
+	strncpy((char *)m, hostname, message + sizeof(message) - m);
+	m += strlen(hostname);
+
+	/* total message length */
+	l = m - message;
+
+	memset(&ctx, 0, sizeof(ctx));
+	blk_SHA1_Init(&ctx);
+	blk_SHA1_Update(&ctx, message, l);
+	blk_SHA1_Final(boot_seed, &ctx);
+
+	srandom(read_u32(boot_seed));
+}
+
 /* considers splicing proxies' maxconn, computes the ideal global.maxpipes
  * setting, and returns it. It may return -1 meaning "unlimited" if some
  * unlimited proxies have been found and the global.maxconn value is not yet
@@ -1516,7 +1606,7 @@ static void init(int argc, char **argv)
 	tv_update_date(-1,-1);
 	start_date = now;
 
-	srandom(now_ms - getpid());
+	ha_random_boot(argv);
 
 	if (init_acl() != 0)
 		exit(1);
