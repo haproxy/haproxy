@@ -369,8 +369,8 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
 	si_must_kill_conn(chn_prod(&s->req));
 	channel_abort(&s->req);
 	channel_abort(&s->res);
-	s->req.analysers &= AN_RES_FLT_END;
-	s->res.analysers &= AN_REQ_FLT_END;
+	s->req.analysers &= AN_REQ_FLT_END;
+	s->res.analysers &= AN_RES_FLT_END;
 
 	_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
