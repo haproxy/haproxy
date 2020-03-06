@@ -1264,9 +1264,8 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	if (strm) {
 		channel_abort(&strm->req);
 		channel_abort(&strm->res);
-		strm->req.analysers = 0;
-		strm->res.analysers = 0;
-		_HA_ATOMIC_ADD(&strm->be->be_counters.denied_req, 1);
+		strm->req.analysers &= AN_REQ_FLT_END;
+		strm->res.analysers &= AN_RES_FLT_END;
 		if (!(strm->flags & SF_ERR_MASK))
 			strm->flags |= SF_ERR_PRXCOND;
 		if (!(strm->flags & SF_FINST_MASK))
