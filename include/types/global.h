@@ -27,8 +27,8 @@
 #include <common/config.h>
 #include <common/initcall.h>
 #include <common/hathreads.h>
-#include <common/standard.h>
 
+#include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/proxy.h>
 #include <types/task.h>
