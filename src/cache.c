@@ -200,55 +200,41 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 }
 
 static int
-cache_store_chn_start_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+cache_store_strm_init(struct stream *s, struct filter *filter)
 {
-	if (!(chn->flags & CF_ISRESP))
-		return 1;
+	struct cache_st *st;
 
-	if (filter->ctx == NULL) {
-		struct cache_st *st;
+	st = pool_alloc_dirty(pool_head_cache_st);
+	if (st == NULL)
+		return -1;
 
-		st = pool_alloc_dirty(pool_head_cache_st);
-		if (st == NULL)
-			return -1;
+	st->first_block = NULL;
+	filter->ctx     = st;
 
-		st->first_block = NULL;
-		filter->ctx     = st;
-
-		/* Register post-analyzer on AN_RES_WAIT_HTTP */
-		filter->post_analyzers |= AN_RES_WAIT_HTTP;
-	}
-
+	/* Register post-analyzer on AN_RES_WAIT_HTTP */
+	filter->post_analyzers |= AN_RES_WAIT_HTTP;
 	return 1;
 }
 
-static int
-cache_store_chn_end_analyze(struct stream *s, struct filter *filter, struct channel *chn)
+static void
+cache_store_strm_deinit(struct stream *s, struct filter *filter)
 {
 	struct cache_st *st = filter->ctx;
 	struct cache_flt_conf *cconf = FLT_CONF(filter);
 	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 
-	if (!(chn->flags & CF_ISRESP))
-		return 1;
-
 	/* Everything should be released in the http_end filter, but we need to do it
 	 * there too, in case of errors */
-
 	if (st && st->first_block) {
-
 		shctx_lock(shctx);
 		shctx_row_dec_hot(shctx, st->first_block);
 		shctx_unlock(shctx);
-
 	}
 	if (st) {
 		pool_free(pool_head_cache_st, st);
 		filter->ctx = NULL;
 	}
-
-	return 1;
 }
 
 static int
@@ -1401,9 +1387,11 @@ struct flt_ops cache_ops = {
 	.check  = cache_store_check,
 	.deinit = cache_store_deinit,
 
+	/* Handle stream init/deinit */
+	.attach = cache_store_strm_init,
+	.detach = cache_store_strm_deinit,
+
 	/* Handle channels activity */
-	.channel_start_analyze = cache_store_chn_start_analyze,
-	.channel_end_analyze = cache_store_chn_end_analyze,
 	.channel_post_analyze = cache_store_post_analyze,
 
 	/* Filter HTTP requests and responses */
