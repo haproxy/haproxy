@@ -477,7 +477,8 @@ static inline void conn_free(struct connection *conn)
 	if (conn->idle_time > 0) {
 		struct server *srv = __objt_server(conn->target);
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
-		srv->curr_idle_thr[tid]--;
+		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
+		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
 	}
 
 	conn_force_unsubscribe(conn);
