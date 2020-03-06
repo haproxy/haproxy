@@ -22,7 +22,7 @@
 #ifndef _TYPES_RING_H
 #define _TYPES_RING_H
 
-#include <common/buffer.h>
+#include <common/buf.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/ist.h>

@@ -18,7 +18,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/buffer.h>
+#include <common/buf.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>
