@@ -3507,9 +3507,9 @@ static void fcgi_detach(struct conn_stream *cs)
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-		} else if (LIST_ISEMPTY(&fconn->conn->list) &&
+		} else if (MT_LIST_ISEMPTY(&fconn->conn->list) &&
 			   fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target)) {
-				LIST_ADD(&__objt_server(fconn->conn->target)->available_conns[tid], &fconn->conn->list);
+				LIST_ADD(&__objt_server(fconn->conn->target)->available_conns[tid], mt_list_to_list(&fconn->conn->list));
 			}
 
 	}

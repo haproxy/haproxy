@@ -3906,9 +3906,9 @@ static void h2_detach(struct conn_stream *cs)
 					return;
 
 				}
-			} else if (LIST_ISEMPTY(&h2c->conn->list) &&
+			} else if (MT_LIST_ISEMPTY(&h2c->conn->list) &&
 			           h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target)) {
-				LIST_ADD(&__objt_server(h2c->conn->target)->available_conns[tid], &h2c->conn->list);
+				LIST_ADD(&__objt_server(h2c->conn->target)->available_conns[tid], mt_list_to_list(&h2c->conn->list));
 			}
 		}
 	}

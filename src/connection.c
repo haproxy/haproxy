@@ -55,7 +55,7 @@ int conn_create_mux(struct connection *conn)
 		srv = objt_server(conn->target);
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 		    conn->mux->avail_streams(conn) > 0)
-			LIST_ADD(&srv->available_conns[tid], &conn->list);
+			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
 		return 0;
 fail:
 		/* let the upper layer know the connection failed */

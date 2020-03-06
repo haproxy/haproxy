@@ -318,7 +318,7 @@ static inline void conn_init(struct connection *conn)
 	conn->target = NULL;
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
-	LIST_INIT(&conn->list);
+	MT_LIST_INIT(&conn->list);
 	LIST_INIT(&conn->session_list);
 	conn->subs = NULL;
 	conn->idle_time = 0;

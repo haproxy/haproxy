@@ -261,7 +261,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			return 0;
 		}
-		LIST_DEL_INIT(&conn->list);
+		MT_LIST_DEL(&conn->list);
 		MT_LIST_ADDQ(is_safe ? &srv->safe_conns[tid] : &srv->idle_conns[tid],
 		             (struct mt_list *)&conn->list);
 		srv->curr_idle_thr[tid]++;

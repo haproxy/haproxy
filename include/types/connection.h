@@ -458,7 +458,7 @@ struct connection {
 
 	/* second cache line */
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
-	struct list list;             /* attach point to various connection lists (idle, ...) */
+	struct mt_list list;          /* attach point to various connection lists (idle, ...) */
 	struct list session_list;     /* List of attached connections to a session */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;

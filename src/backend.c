@@ -1251,7 +1251,7 @@ int connect_server(struct stream *s)
 			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			__ha_barrier_atomic_store();
 			srv->curr_idle_thr[tid]--;
-			LIST_ADDQ(&srv->available_conns[tid], &srv_conn->list);
+			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
 		}
 		else {
 			if (srv_conn->flags & CO_FL_SESS_IDLE) {
@@ -1269,8 +1269,7 @@ int connect_server(struct stream *s)
 
 			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
-				LIST_DEL(&srv_conn->list);
-				LIST_INIT(&srv_conn->list);
+				MT_LIST_DEL(&srv_conn->list);
 			}
 
 			if (avail >= 1) {
@@ -1404,7 +1403,7 @@ int connect_server(struct stream *s)
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    srv_conn->mux->avail_streams(srv_conn) > 0)
-			LIST_ADD(&srv->available_conns[tid], &srv_conn->list);
+			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
 	}
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.
