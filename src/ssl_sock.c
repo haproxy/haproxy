@@ -4427,9 +4427,9 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	return errcode;
 }
 
-
-/* Returns a set of ERR_* flags possibly with an error in <err>. */
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
+/* Read a directory and open its certificates
+ * Returns a set of ERR_* flags possibly with an error in <err>. */
+static int ssl_sock_load_cert_dir(char *path, struct bind_conf *bind_conf, char **err)
 {
 	struct dirent **de_list;
 	int i, n;
@@ -4442,11 +4442,103 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	int is_bundle;
 	int j;
 #endif
+
+	/* strip trailing slashes, including first one */
+	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
+		*end = 0;
+
+	n = scandir(path, &de_list, 0, alphasort);
+	if (n < 0) {
+		memprintf(err, "%sunable to scan directory '%s' : %s.\n",
+			  err && *err ? *err : "", path, strerror(errno));
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+	}
+	else {
+		for (i = 0; i < n; i++) {
+			struct dirent *de = de_list[i];
+
+			end = strrchr(de->d_name, '.');
+			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
+				goto ignore_entry;
+
+			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
+			if (stat(fp, &buf) != 0) {
+				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+					  err && *err ? *err : "", fp, strerror(errno));
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto ignore_entry;
+			}
+			if (!S_ISREG(buf.st_mode))
+				goto ignore_entry;
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+			is_bundle = 0;
+			/* Check if current entry in directory is part of a multi-cert bundle */
+
+			if ((global_ssl.extra_files & SSL_GF_BUNDLE) && end) {
+				for (j = 0; j < SSL_SOCK_NUM_KEYTYPES; j++) {
+					if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
+						is_bundle = 1;
+						break;
+					}
+				}
+
+				if (is_bundle) {
+					int dp_len;
+
+					dp_len = end - de->d_name;
+
+					/* increment i and free de until we get to a non-bundle cert
+					 * Note here that we look at de_list[i + 1] before freeing de
+					 * this is important since ignore_entry will free de. This also
+					 * guarantees that de->d_name continues to hold the same prefix.
+					 */
+					while (i + 1 < n && !strncmp(de_list[i + 1]->d_name, de->d_name, dp_len)) {
+						free(de);
+						i++;
+						de = de_list[i];
+					}
+
+					snprintf(fp, sizeof(fp), "%s/%.*s", path, dp_len, de->d_name);
+					if ((ckchs = ckchs_lookup(fp)) == NULL)
+						ckchs =  ckchs_load_cert_file(fp, 1,  err);
+					if (!ckchs)
+						cfgerr |= ERR_ALERT | ERR_FATAL;
+					else
+						cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+					/* Successfully processed the bundle */
+					goto ignore_entry;
+				}
+			}
+
+#endif
+			if ((ckchs = ckchs_lookup(fp)) == NULL)
+				ckchs =  ckchs_load_cert_file(fp, 0,  err);
+			if (!ckchs)
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+			else
+				cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+
+ignore_entry:
+			free(de);
+		}
+		free(de_list);
+	}
+	return cfgerr;
+}
+
+/* Returns a set of ERR_* flags possibly with an error in <err>. */
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
+{
+	struct stat buf;
+	char fp[MAXPATHLEN+1];
+	int cfgerr = 0;
+	struct ckch_store *ckchs;
+
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
 		return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
 	}
-
 	if (stat(path, &buf) == 0) {
 		if (S_ISDIR(buf.st_mode) == 0) {
 			ckchs =  ckchs_load_cert_file(path, 0,  err);
@@ -4454,94 +4546,11 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				return ERR_ALERT | ERR_FATAL;
 
 			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+		} else {
+			return ssl_sock_load_cert_dir(path, bind_conf, err);
 		}
-
-		/* strip trailing slashes, including first one */
-		for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
-			*end = 0;
-
-		n = scandir(path, &de_list, 0, alphasort);
-		if (n < 0) {
-			memprintf(err, "%sunable to scan directory '%s' : %s.\n",
-			          err && *err ? *err : "", path, strerror(errno));
-			cfgerr |= ERR_ALERT | ERR_FATAL;
-		}
-		else {
-			for (i = 0; i < n; i++) {
-				struct dirent *de = de_list[i];
-
-				end = strrchr(de->d_name, '.');
-				if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
-					goto ignore_entry;
-
-				snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
-				if (stat(fp, &buf) != 0) {
-					memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
-					          err && *err ? *err : "", fp, strerror(errno));
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					goto ignore_entry;
-				}
-				if (!S_ISREG(buf.st_mode))
-					goto ignore_entry;
-
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-				is_bundle = 0;
-				/* Check if current entry in directory is part of a multi-cert bundle */
-
-				if ((global_ssl.extra_files & SSL_GF_BUNDLE) && end) {
-					for (j = 0; j < SSL_SOCK_NUM_KEYTYPES; j++) {
-						if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
-							is_bundle = 1;
-							break;
-						}
-					}
-
-					if (is_bundle) {
-						int dp_len;
-
-						dp_len = end - de->d_name;
-
-						/* increment i and free de until we get to a non-bundle cert
-						 * Note here that we look at de_list[i + 1] before freeing de
-						 * this is important since ignore_entry will free de. This also
-						 * guarantees that de->d_name continues to hold the same prefix.
-						 */
-						while (i + 1 < n && !strncmp(de_list[i + 1]->d_name, de->d_name, dp_len)) {
-							free(de);
-							i++;
-							de = de_list[i];
-						}
-
-						snprintf(fp, sizeof(fp), "%s/%.*s", path, dp_len, de->d_name);
-						if ((ckchs = ckchs_lookup(fp)) == NULL)
-							ckchs =  ckchs_load_cert_file(fp, 1,  err);
-						if (!ckchs)
-							cfgerr |= ERR_ALERT | ERR_FATAL;
-						else
-							cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-						/* Successfully processed the bundle */
-						goto ignore_entry;
-					}
-				}
-
-#endif
-				if ((ckchs = ckchs_lookup(fp)) == NULL)
-					ckchs =  ckchs_load_cert_file(fp, 0,  err);
-				if (!ckchs)
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-				else
-					cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-
-ignore_entry:
-				free(de);
-			}
-			free(de_list);
-		}
-		return cfgerr;
-
 	} else {
-		/* stat failed */
-
+		/* stat failed, could be a bundle */
 		if (global_ssl.extra_files & SSL_GF_BUNDLE) {
 			/* try to load a bundle if it is permitted */
 			ckchs =  ckchs_load_cert_file(path, 1,  err);
