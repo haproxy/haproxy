@@ -23,6 +23,7 @@
 #define _PROTO_FREQ_CTR_H
 
 #include <common/config.h>
+#include <common/standard.h>
 #include <common/time.h>
 #include <common/hathreads.h>
 #include <types/freq_ctr.h>
