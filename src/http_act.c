@@ -361,7 +361,7 @@ static enum act_parse_ret parse_http_set_status(const char **args, int *orig_arg
  * alternative to the silent-drop action to defend against DoS attacks, and may
  * also be used with HTTP/2 to close a connection instead of just a stream.
  * The txn status is unchanged, indicating no response was sent. The termination
- * flags will indicate "PR". It always returns ACT_RET_DONE.
+ * flags will indicate "PR". It always returns ACT_RET_ABRT.
  */
 static enum act_return http_action_reject(struct act_rule *rule, struct proxy *px,
                                           struct session *sess, struct stream *s, int flags)
@@ -382,7 +382,7 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	return ACT_RET_DONE;
+	return ACT_RET_ABRT;
 }
 
 /* parse the "reject" action:
@@ -1863,7 +1863,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	struct buffer *body = NULL;
 	const char *status, *reason, *clen, *ctype;
 	unsigned int slflags;
-	enum act_return ret = ACT_RET_DONE;
+	enum act_return ret = ACT_RET_ABRT;
 
 	s->txn->status = rule->arg.http_return.status;
 	channel_htx_truncate(res, htx);
