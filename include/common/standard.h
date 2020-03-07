@@ -66,6 +66,26 @@
  * power of 2, and 0 otherwise */
 #define POWEROF2(x) (((x) & ((x)-1)) == 0)
 
+/* rotate left a 64-bit integer by <bits:[0-5]> bits */
+static inline uint64_t rotl64(uint64_t v, uint8_t bits)
+{
+#if !defined(__ARM_ARCH_8A) && !defined(__x86_64__)
+	bits &= 63;
+#endif
+	v = (v << bits) | (v >> (-bits & 63));
+	return v;
+}
+
+/* rotate right a 64-bit integer by <bits:[0-5]> bits */
+static inline uint64_t rotr64(uint64_t v, uint8_t bits)
+{
+#if !defined(__ARM_ARCH_8A) && !defined(__x86_64__)
+	bits &= 63;
+#endif
+	v = (v >> bits) | (v << (-bits & 63));
+	return v;
+}
+
 /* DEFNULL() returns either the argument as-is, or NULL if absent. This is for
  * use in macros arguments.
  */
