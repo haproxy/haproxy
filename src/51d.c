@@ -700,7 +700,7 @@ static int init_51degrees(void)
 	free(_51d_property_list);
 
 #ifdef FIFTYONEDEGREES_H_PATTERN_INCLUDED
-	_51d_lru_seed = random();
+	_51d_lru_seed = ha_random();
 	if (global_51degrees.cache_size) {
 		_51d_lru_tree = lru64_new(global_51degrees.cache_size);
 	}

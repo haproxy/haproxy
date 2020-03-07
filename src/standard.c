@@ -4528,6 +4528,118 @@ int varint_bytes(uint64_t v)
 	return len;
 }
 
+
+/* Random number generator state, see below */
+static uint64_t ha_random_state[2];
+
+/* This is a thread-safe implementation of xoroshiro128** described below:
+ *     http://prng.di.unimi.it/
+ * It features a 2^128 long sequence, returns 64 high-quality bits on each call,
+ * supports fast jumps and passes all common quality tests. It is thread-safe,
+ * uses a double-cas on 64-bit architectures supporting it, and falls back to a
+ * local lock on other ones.
+ */
+uint64_t ha_random64()
+{
+	uint64_t result;
+	uint64_t old[2];
+	uint64_t new[2];
+
+#if defined(USE_THREAD) && (!defined(HA_CAS_IS_8B) || !defined(HA_HAVE_CAS_DW))
+	static HA_SPINLOCK_T rand_lock;
+
+	HA_SPIN_LOCK(OTHER_LOCK, &rand_lock);
+#endif
+
+	old[0] = ha_random_state[0];
+	old[1] = ha_random_state[1];
+
+#if defined(USE_THREAD) && defined(HA_CAS_IS_8B) && defined(HA_HAVE_CAS_DW)
+	do {
+#endif
+		result = rotl64(old[0] * 5, 7) * 9;
+		new[1] = old[0] ^ old[1];
+		new[0] = rotl64(old[0], 24) ^ new[1] ^ (new[1] << 16); // a, b
+		new[1] = rotl64(new[1], 37); // c
+
+#if defined(USE_THREAD) && defined(HA_CAS_IS_8B) && defined(HA_HAVE_CAS_DW)
+	} while (unlikely(!_HA_ATOMIC_DWCAS(ha_random_state, old, new)));
+#else
+	ha_random_state[0] = new[0];
+	ha_random_state[1] = new[1];
+#if defined(USE_THREAD)
+	HA_SPIN_UNLOCK(OTHER_LOCK, &rand_lock);
+#endif
+#endif
+	return result;
+}
+
+/* seeds the random state using up to <len> bytes from <seed>, starting with
+ * the first non-zero byte.
+ */
+void ha_random_seed(const unsigned char *seed, size_t len)
+{
+	size_t pos;
+
+	/* the seed must not be all zeroes, so we pre-fill it with alternating
+	 * bits and overwrite part of them with the block starting at the first
+	 * non-zero byte from the seed.
+	 */
+	memset(ha_random_state, 0x55, sizeof(ha_random_state));
+
+	for (pos = 0; pos < len; pos++)
+		if (seed[pos] != 0)
+			break;
+
+	if (pos == len)
+		return;
+
+	seed += pos;
+	len -= pos;
+
+	if (len > sizeof(ha_random_state))
+		len = sizeof(ha_random_state);
+
+	memcpy(ha_random_state, seed, len);
+}
+
+/* This causes a jump to (dist * 2^96) places in the pseudo-random sequence,
+ * and is equivalent to calling ha_random64() as many times. It is used to
+ * provide non-overlapping sequences of 2^96 numbers (~7*10^28) to up to 2^32
+ * different generators (i.e. different processes after a fork). The <dist>
+ * argument is the distance to jump to and is used in a loop so it rather not
+ * be too large if the processing time is a concern.
+ *
+ * BEWARE: this function is NOT thread-safe and must not be called during
+ * concurrent accesses to ha_random64().
+ */
+void ha_random_jump96(uint32_t dist)
+{
+	while (dist--) {
+		uint64_t s0 = 0;
+		uint64_t s1 = 0;
+		int b;
+
+		for (b = 0; b < 64; b++) {
+			if ((0xd2a98b26625eee7bULL >> b) & 1) {
+				s0 ^= ha_random_state[0];
+				s1 ^= ha_random_state[1];
+			}
+			ha_random64();
+		}
+
+		for (b = 0; b < 64; b++) {
+			if ((0xdddf9b1090aa7ac1ULL >> b) & 1) {
+				s0 ^= ha_random_state[0];
+				s1 ^= ha_random_state[1];
+			}
+			ha_random64();
+		}
+		ha_random_state[0] = s0;
+		ha_random_state[1] = s1;
+	}
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

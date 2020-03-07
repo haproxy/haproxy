@@ -1374,6 +1374,10 @@ static char **copy_argv(int argc, char **argv)
  * We initialize the current process with the first 32 bits before starting the
  * polling loop, where all this will be changed to have process specific and
  * thread specific sequences.
+ *
+ * Before starting threads, it's still possible to call random() as srandom()
+ * is initialized from this, but after threads and/or processes are started,
+ * only ha_random() is expected to be used to guarantee distinct sequences.
  */
 static void ha_random_boot(char *const *argv)
 {
@@ -1444,6 +1448,7 @@ static void ha_random_boot(char *const *argv)
 	blk_SHA1_Final(boot_seed, &ctx);
 
 	srandom(read_u32(boot_seed));
+	ha_random_seed(boot_seed, sizeof(boot_seed));
 }
 
 /* considers splicing proxies' maxconn, computes the ideal global.maxpipes
@@ -3248,8 +3253,10 @@ int main(int argc, char **argv)
 					protocol_unbind_all();
 					exit(1); /* there has been an error */
 				}
-				else if (ret == 0) /* child breaks here */
+				else if (ret == 0) { /* child breaks here */
+					ha_random_jump96(relative_pid);
 					break;
+				}
 				if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 					char pidstr[100];
 					snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
