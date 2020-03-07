@@ -3124,7 +3124,7 @@ smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.u.sint = ha_random();
+	smp->data.u.sint = random();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args && args[0].type == ARGT_SINT)
@@ -3336,7 +3336,7 @@ static int smp_fetch_uuid(const struct arg *args, struct sample *smp, const char
 
 		while (byte < 4) {
 			while (bits < 32) {
-				last |= (uint64_t)ha_random() << bits;
+				last |= (uint64_t)random() << bits;
 				bits += rand_max_bits;
 			}
 			rnd[byte++] = last;

@@ -2667,7 +2667,7 @@ int pattern_finalize_config(void)
 	struct pat_ref *ref, **arr;
 	struct list pr = LIST_HEAD_INIT(pr);
 
-	pat_lru_seed = ha_random();
+	pat_lru_seed = random();
 
 	/* Count pat_refs with user defined unique_id and totalt count */
 	list_for_each_entry(ref, &pattern_reference, list) {

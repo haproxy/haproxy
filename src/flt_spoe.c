@@ -269,7 +269,7 @@ generate_pseudo_uuid()
 
 	while (byte < 4) {
 		while (bits < 32) {
-			last |= (uint64_t)ha_random() << bits;
+			last |= (uint64_t)random() << bits;
 			bits += rand_max_bits;
 		}
 		rnd[byte++] = last;
@@ -3108,6 +3108,10 @@ spoe_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 {
 	struct spoe_config *conf = fconf->conf;
 	struct spoe_agent *agent = conf->agent;
+
+	/* Use a != seed per process */
+	if (relative_pid > 1 && tid == 0)
+		srandom(now_ms * pid);
 
 	agent->rt[tid].engine_id = generate_pseudo_uuid();
 	if (agent->rt[tid].engine_id == NULL)
