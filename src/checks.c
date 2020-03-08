@@ -2183,7 +2183,7 @@ static struct task *process_chk_proc(struct task *t, void *context, unsigned sho
 		rv = 0;
 		if (global.spread_checks > 0) {
 			rv = srv_getinter(check) * global.spread_checks / 100;
-			rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+			rv -= (int) (2 * rv * (ha_random32() / 4294967295.0));
 		}
 		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 	}
@@ -2391,7 +2391,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			rv = 0;
 			if (global.spread_checks > 0) {
 				rv = srv_getinter(check) * global.spread_checks / 100;
-				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+				rv -= (int) (2 * rv * (ha_random32() / 4294967295.0));
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 		}
