@@ -902,7 +902,6 @@ static inline unsigned int my_ffsl(unsigned long a)
 		cnt += 2;
 	}
 	if (!(a & 0x1)) {
-		a >>= 1;
 		cnt += 1;
 	}
 #endif /* x86_64 */
@@ -946,7 +945,6 @@ static inline unsigned int my_flsl(unsigned long a)
 		cnt += 2;
 	}
 	if (a & 0x2) {
-		a >>= 1;
 		cnt += 1;
 	}
 #endif /* x86_64 */
