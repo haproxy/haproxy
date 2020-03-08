@@ -3124,11 +3124,11 @@ smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	smp->data.u.sint = ha_random();
+	smp->data.u.sint = ha_random32();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args && args[0].type == ARGT_SINT)
-		smp->data.u.sint = (smp->data.u.sint * args[0].data.sint) / ((u64)RAND_MAX+1);
+		smp->data.u.sint = ((u64)smp->data.u.sint * (u64)args[0].data.sint) >> 32;
 
 	smp->data.type = SMP_T_SINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
