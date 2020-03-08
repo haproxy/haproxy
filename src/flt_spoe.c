@@ -257,33 +257,8 @@ static const char *spoe_appctx_state_str[SPOE_APPCTX_ST_END+1] = {
 static char *
 generate_pseudo_uuid()
 {
-	char *uuid;
-	uint32_t rnd[4] = { 0, 0, 0, 0 };
-	uint64_t last = 0;
-	int byte = 0;
-	uint8_t bits = 0;
-	unsigned int rand_max_bits = my_flsl(RAND_MAX);
-
-	if ((uuid = calloc(1, 37)) == NULL)
-		return NULL;
-
-	while (byte < 4) {
-		while (bits < 32) {
-			last |= (uint64_t)ha_random() << bits;
-			bits += rand_max_bits;
-		}
-		rnd[byte++] = last;
-		last >>= 32u;
-		bits  -= 32;
-	}
-	snprintf(uuid, 37, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
-			     rnd[0],
-			     rnd[1] & 0xFFFF,
-			     ((rnd[1] >> 16u) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
-			     (rnd[2] & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
-			     (long long)((rnd[2] >> 14u) | ((uint64_t) rnd[3] << 18u)) & 0xFFFFFFFFFFFFull
-			);
-	return uuid;
+	ha_generate_uuid(&trash);
+	return trash.area;
 }
 
 

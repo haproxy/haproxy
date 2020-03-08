@@ -4640,6 +4640,31 @@ void ha_random_jump96(uint32_t dist)
 	}
 }
 
+/* Generates an RFC4122 UUID into chunk <output> which must be at least 37
+ * bytes large.
+ */
+void ha_generate_uuid(struct buffer *output)
+{
+	uint32_t rnd[4];
+	uint64_t last;
+
+	last = ha_random64();
+	rnd[0] = last;
+	rnd[1] = last >> 32;
+
+	last = ha_random64();
+	rnd[2] = last;
+	rnd[3] = last >> 32;
+
+	chunk_printf(output, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
+	             rnd[0],
+	             rnd[1] & 0xFFFF,
+	             ((rnd[1] >> 16u) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
+	             (rnd[2] & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
+	             (long long)((rnd[2] >> 14u) | ((uint64_t) rnd[3] << 18u)) & 0xFFFFFFFFFFFFull);
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8
