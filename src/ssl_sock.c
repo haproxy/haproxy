@@ -10848,6 +10848,267 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 }
 #endif
 
+/*
+ * Take an ssl_bind_conf structure and append the configuration line used to
+ * create it in the buffer
+ */
+static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf *conf)
+{
+	int space = 0;
+
+	if (conf == NULL)
+		return;
+
+	chunk_appendf(buf, " [");
+#ifdef OPENSSL_NPN_NEGOTIATED
+	if (conf->npn_str) {
+		int len = conf->npn_len;
+		char *ptr = conf->npn_str;
+		int comma = 0;
+
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "npn ");
+		while (len) {
+			unsigned short size;
+
+			size = *ptr;
+			ptr++;
+			if (comma)
+				chunk_memcat(buf, ",", 1);
+			chunk_memcat(buf, ptr, size);
+			ptr += size;
+			len -= size + 1;
+			comma = 1;
+		}
+		chunk_memcat(buf, "", 1); /* finish with a \0 */
+		space++;
+	}
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (conf->alpn_str) {
+		int len = conf->alpn_len;
+		char *ptr = conf->alpn_str;
+		int comma = 0;
+
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "alpn ");
+		while (len) {
+			unsigned short size;
+
+			size = *ptr;
+			ptr++;
+			if (comma)
+				chunk_memcat(buf, ",", 1);
+			chunk_memcat(buf, ptr, size);
+			ptr += size;
+			len -= size + 1;
+			comma = 1;
+		}
+		chunk_memcat(buf, "", 1); /* finish with a \0 */
+		space++;
+	}
+#endif
+	/* verify */
+	{
+		if (conf->verify == SSL_SOCK_VERIFY_NONE) {
+			if (space) chunk_appendf(buf, " ");
+			chunk_appendf(buf, "verify none");
+			space++;
+		} else if (conf->verify == SSL_SOCK_VERIFY_OPTIONAL) {
+			if (space) chunk_appendf(buf, " ");
+			chunk_appendf(buf, "verify optional");
+			space++;
+		} else if (conf->verify == SSL_SOCK_VERIFY_REQUIRED) {
+			if (space) chunk_appendf(buf, " ");
+			chunk_appendf(buf, "verify required");
+			space++;
+		}
+	}
+
+	if (conf->no_ca_names) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "no-ca-names");
+		space++;
+	}
+
+	if (conf->early_data) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "allow-0rtt");
+		space++;
+	}
+	if (conf->ca_file) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ca-file %s", conf->ca_file);
+		space++;
+	}
+	if (conf->crl_file) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "crl-file %s", conf->crl_file);
+		space++;
+	}
+	if (conf->ciphers) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ciphers %s", conf->ciphers);
+		space++;
+	}
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+	if (conf->ciphersuites) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ciphersuites %s", conf->ciphersuites);
+		space++;
+	}
+#endif
+	if (conf->curves) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "curves %s", conf->curves);
+		space++;
+	}
+	if (conf->ecdhe) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ecdhe %s", conf->ecdhe);
+		space++;
+	}
+
+	/* the crt-lists only support ssl-min-ver and ssl-max-ver */
+	/* XXX: this part need to be revamp so we don't dump the default settings */
+	if (conf->ssl_methods.min) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ssl-min-ver %s", methodVersions[conf->ssl_methods.min].name);
+		space++;
+	}
+
+	if (conf->ssl_methods.max) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ssl-max-ver %s", methodVersions[conf->ssl_methods.max].name);
+		space++;
+	}
+
+	chunk_appendf(buf, "] ");
+
+	return;
+}
+
+/* dump a list of filters */
+static void dump_crtlist_filters(struct buffer *buf, struct crtlist_entry *entry)
+{
+	int space = 0;
+	int i;
+
+	if (!entry->fcount)
+		return;
+
+	for (i = 0; i < entry->fcount; i++) {
+		if (space)
+			chunk_appendf(buf, " ");
+		chunk_appendf(buf, "%s", entry->filters[i]);
+		space = 1;
+	}
+	return;
+}
+
+/* CLI IO handler for '(show|dump) ssl crt-list' */
+static int cli_io_handler_dump_crtlist(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct stream_interface *si = appctx->owner;
+	struct ebmb_node *lnode;
+
+	if (trash == NULL)
+		return 1;
+
+	/* dump the list of crt-lists */
+	lnode = appctx->ctx.cli.p1;
+	if (lnode == NULL)
+		lnode = ebmb_first(&crtlists_tree);
+	while (lnode) {
+		chunk_appendf(trash, "%s\n", lnode->key);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+		lnode = ebmb_next(lnode);
+	}
+	return 1;
+yield:
+	appctx->ctx.cli.p1 = lnode;
+	return 0;
+}
+
+/* CLI IO handler for '(show|dump) ssl crt-list <filename>' */
+static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct crtlist *crtlist;
+	struct stream_interface *si = appctx->owner;
+	struct crtlist_entry *entry;
+
+	if (trash == NULL)
+		return 1;
+
+	crtlist = ebmb_entry(appctx->ctx.cli.p0, struct crtlist, node);
+
+	entry = appctx->ctx.cli.p1;
+	if (entry == NULL) {
+		entry = LIST_ELEM((crtlist->ord_entries).n, typeof(entry), by_crtlist);
+		chunk_appendf(trash, "# %s\n", crtlist->node.key);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+
+	list_for_each_entry_from(entry, &crtlist->ord_entries, by_crtlist) {
+		struct ckch_store *store;
+		const char *filename;
+
+		store = entry->node.key;
+		filename = store->path;
+		if (appctx->ctx.cli.i0 == 's') /* show */
+			chunk_appendf(trash, "%p ", entry);
+		chunk_appendf(trash, "%s", filename);
+		dump_crtlist_sslconf(trash, entry->ssl_conf);
+		dump_crtlist_filters(trash, entry);
+		chunk_appendf(trash, "\n");
+
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+	return 1;
+yield:
+	appctx->ctx.cli.p1 = entry;
+	return 0;
+}
+
+/* CLI argument parser for '(show|dump) ssl crt-list' */
+static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ebmb_node *lnode;
+	int mode;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	appctx->ctx.cli.p0 = NULL;
+	appctx->ctx.cli.p1 = NULL;
+	mode = (int)args[0][0]; /* 'd' or 's' */
+
+	if (mode == 'd' && !*args[3])
+		return cli_err(appctx, "'dump ssl crt-list' expects a filename or a directory\n");
+
+	if (*args[3]) {
+		lnode = ebst_lookup(&crtlists_tree, args[3]);
+		if (lnode == NULL)
+			return cli_err(appctx, "didn't find the specified filename\n");
+
+		appctx->ctx.cli.p0 = lnode;
+		appctx->io_handler = cli_io_handler_dump_crtlist_entries;
+	}
+	appctx->ctx.cli.i0 = mode;
+
+	return 0;
+}
 
 /* Type of SSL payloads that can be updated over the CLI */
 
@@ -11897,6 +12158,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+	{ { "dump", "ssl", "crt-list", NULL }, "dump ssl crt-list <filename> : dump the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
+	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
