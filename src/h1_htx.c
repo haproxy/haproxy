@@ -57,7 +57,7 @@ static int h1_process_req_vsn(struct h1m *h1m, union h1_sl *sl)
 		if (sl->rq.v.len != 8)
 			return 0;
 
-		if (*(sl->rq.v.ptr + 4) != '/' ||
+		if (!istnmatch(sl->rq.v, ist("HTTP/"), 5) ||
 		    !isdigit((unsigned char)*(sl->rq.v.ptr + 5)) ||
 		    *(sl->rq.v.ptr + 6) != '.' ||
 		    !isdigit((unsigned char)*(sl->rq.v.ptr + 7)))
