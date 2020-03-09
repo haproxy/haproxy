@@ -1,6 +1,132 @@
 ChangeLog :
 ===========
 
+2020/03/09 : 2.2-dev4
+    - MEDIUM: buffer: remove the buffer_wq lock
+    - MINOR: ssl: move find certificate chain code to its own function
+    - MINOR: ssl: resolve issuers chain later
+    - MINOR: ssl: resolve ocsp_issuer later
+    - MINOR: ssl/cli: "show ssl cert" command should print the "Chain Filename:"
+    - BUG/MINOR: h2: reject again empty :path pseudo-headers
+    - MINOR: wdt: always clear sigev_value to make valgrind happy
+    - MINOR: epoll: always initialize all of epoll_event to please valgrind
+    - BUG/MINOR: sample: Make sure to return stable IDs in the unique-id fetch
+    - BUG/MEDIUM: ssl: chain must be initialized with sk_X509_new_null()
+    - BUILD: cirrus-ci: suppress OS version check when installing packages
+    - BUG/MINOR: http_ana: make sure redirect flags don't have overlapping bits
+    - CLEANUP: fd: remove the FD_EV_STATUS aggregate
+    - CLEANUP: fd: remove some unneeded definitions of FD_EV_* flags
+    - MINOR: fd: merge the read and write error bits into RW error
+    - BUG/MINOR: dns: ignore trailing dot
+    - MINOR: contrib/prometheus-exporter: Add the last heathcheck duration metric
+    - BUG/MINOR: http-htx: Do case-insensive comparisons on Host header name
+    - MINOR: mux-h1: Remove useless case-insensitive comparisons
+    - MINOR: rawsock: always mark the FD not ready when we're certain it happens
+    - MEDIUM: connection: make the subscribe() call able to wakeup if ready
+    - MEDIUM: connection: don't stop receiving events in the FD handler
+    - MEDIUM: mux-h1: do not blindly wake up the tasklet at end of request anymore
+    - BUG/MINOR: arg: don't reject missing optional args
+    - MINOR: tools: make sure to correctly check the returned 'ms' in date2std_log
+    - MINOR: debug: report the task handler's pointer relative to main
+    - BUG/MEDIUM: debug: make the debug_handler check for the thread in threads_to_dump
+    - MINOR: haproxy: export main to ease access from debugger
+    - MINOR: haproxy: export run_poll_loop
+    - MINOR: task: export run_tasks_from_list
+    - BUILD: tools: remove obsolete and conflicting trace() from standard.c
+    - MINOR: tools: add new function dump_addr_and_bytes()
+    - MINOR: tools: add resolve_sym_name() to resolve function pointers
+    - MINOR: debug: use resolve_sym_name() to dump task handlers
+    - MINOR: cli: make "show fd" rely on resolve_sym_name()
+    - MEDIUM: debug: add support for dumping backtraces of stuck threads
+    - MINOR: debug: call backtrace() once upon startup
+    - MINOR: ssl: add "ca-verify-file" directive
+    - BUG/MINOR: wdt: do not return an error when the watchdog couldn't be enabled
+    - BUILD: Makefile: include librt before libpthread
+    - MEDIUM: wdt: fall back to CLOCK_REALTIME if CLOCK_THREAD_CPUTIME is not available
+    - MINOR: wdt: do not depend on USE_THREAD
+    - MINOR: debug: report the number of entries in the backtrace
+    - MINOR: debug: improve backtrace() on aarch64 and possibly other systems
+    - MINOR: debug: use our own backtrace function on clang+x86_64
+    - MINOR: debug: dump the whole trace if we can't spot the starting point
+    - BUILD: tools: unbreak resolve_sym_name() on non-GNU platforms
+    - BUILD: tools: rely on __ELF__ not USE_DL to enable use of dladdr()
+    - CLEANUP: contrib/spoa_example: Fix several typos
+    - BUILD: makefile: do not modify the build options during make reg-tests
+    - BUG/MEDIUM: connection: stop polling for sending when the event is ready
+    - MEDIUM: stream-int: make sure to try to immediately validate the connection
+    - MINOR: tcp/uxst/sockpair: only ask for I/O when really waiting for a connect()
+    - MEDIUM: connection: only call ->wake() for connect() without I/O
+    - OPTIM: connection: disable receiving on disabled events when the run queue is too high
+    - OPTIM: mux-h1: subscribe rather than waking up at a few other places
+    - REGTEST: Add unique-id reg-test
+    - MINOR: stream: Add stream_generate_unique_id function
+    - MINOR: stream: Use stream_generate_unique_id
+    - BUG/MINOR: connection/debug: do not enforce !event_type on subscribe() anymore
+    - MINOR: ssl/cli: support crt-list filters
+    - MINOR: ssl: reach a ckch_store from a sni_ctx
+    - DOC: fix incorrect indentation of http_auth_*
+    - BUG/MINOR: ssl-sock: do not return an uninitialized pointer in ckch_inst_sni_ctx_to_sni_filters
+    - MINOR: debug: add CLI command "debug dev write" to write an arbitrary size
+    - MINOR: ist: Add `IST_NULL` macro
+    - MINOR: ist: Add `int isttest(const struct ist)`
+    - MINOR: ist: Add `struct ist istalloc(size_t)` and `void istfree(struct ist*)`
+    - CLEANUP: Use `isttest()` and `istfree()`
+    - MINOR: ist: Add `struct ist istdup(const struct ist)`
+    - MINOR: proxy: Make `header_unique_id` a `struct ist`
+    - MEDIUM: stream: Make the `unique_id` member of `struct stream` a `struct ist`
+    - OPTIM: startup: fast unique_id allocation for acl.
+    - DOC: configuration.txt: fix various typos
+    - DOC: assorted typo fixes in the documentation and Makefile
+    - BUG/MINOR: init: make the automatic maxconn consider the max of soft/hard limits
+    - BUG/MAJOR: proxy_protocol: Properly validate TLV lengths
+    - CLEANUP: proxy_protocol: Use `size_t` when parsing TLVs
+    - MINOR: buf: Add function to insert a string at an absolute offset in a buffer
+    - MINOR: htx: Add a function to return a block at a specific offset
+    - MINOR: htx: Use htx_find_offset() to truncate an HTX message
+    - MINOR: flt_trace: Use htx_find_offset() to get the available payload length
+    - BUG/MINOR: filters: Use filter offset to decude the amount of forwarded data
+    - BUG/MINOR: filters: Forward everything if no data filters are called
+    - BUG/MEDIUM: cache/filters: Fix loop on HTX blocks caching the response payload
+    - BUG/MEDIUM: compression/filters: Fix loop on HTX blocks compressing the payload
+    - BUG/MINOR: http-ana: Reset request analysers on a response side error
+    - BUG/MINOR: lua: Abort when txn:done() is called from a Lua action
+    - BUG/MINOR: lua: Ignore the reserve to know if a channel is full or not
+    - MINOR: lua: Add function to know if a channel is a response one
+    - MINOR: lua: Stop using the lua txn in hlua_http_get_headers()
+    - MINOR: lua: Stop using the lua txn in hlua_http_rep_hdr()
+    - MINOR: lua: Stop using lua txn in hlua_http_del_hdr() and hlua_http_add_hdr()
+    - MINOR: lua: Remove the flag HLUA_TXN_HTTP_RDY
+    - MINOR: lua: Rename hlua_action_wake_time() to hlua_set_wake_time()
+    - BUG/MINOR: lua: Init the lua wake_time value before calling a lua function
+    - BUG/MINOR: http-rules: Return ACT_RET_ABRT to abort a transaction
+    - BUG/MINOR: http-rules: Preserve FLT_END analyzers on reject action
+    - BUG/MINOR: http-rules: Fix a typo in the reject action function
+    - MINOR: cache/filters: Initialize the cache filter when stream is created
+    - MINOR: compression/filters: Initialize the comp filter when stream is created
+    - BUG/MINOR: rules: Preserve FLT_END analyzers on silent-drop action
+    - BUG/MINOR: rules: Return ACT_RET_ABRT when a silent-drop action is executed
+    - BUG/MINOR: rules: Increment be_counters if backend is assigned for a silent-drop
+    - BUG/MINOR: http-rules: Abort transaction when a redirect is applied on response
+    - BUILD: buffer: types/{ring.h,checks.h} should include buf.h, not buffer.h
+    - BUILD: ssl: include mini-clist.h
+    - BUILD: global: must not include common/standard.h but only types/freq_ctr.h
+    - BUILD: freq_ctr: proto/freq_ctr needs to include common/standard.h
+    - BUILD: listener: types/listener.h must not include standard.h
+    - BUG/MEDIUM: random: initialize the random pool a bit better
+    - BUG/MEDIUM: random: implement per-thread and per-process random sequences
+    - Revert "BUG/MEDIUM: random: implement per-thread and per-process random sequences"
+    - BUILD: cirrus-ci: get rid of unstable freebsd images
+    - MINOR: tools: add 64-bit rotate operators
+    - BUG/MEDIUM: random: implement a thread-safe and process-safe PRNG
+    - MINOR: backend: use a single call to ha_random32() for the random LB algo
+    - BUG/MINOR: checks/threads: use ha_random() and not rand()
+    - MINOR: sample: make all bits random on the rand() sample fetch
+    - MINOR: tools: add a generic function to generate UUIDs
+    - DOC: fix typo about no-tls-tickets
+    - DOC: improve description of no-tls-tickets
+    - DOC: assorted typo fixes in the documentation
+    - CLEANUP: remove unused code in 'my_ffsl/my_flsl' functions
+
 2020/02/25 : 2.2-dev3
     - SCRIPTS: announce-release: place the send command in the mail's header
     - SCRIPTS: announce-release: allow the user to force to overwrite old files
