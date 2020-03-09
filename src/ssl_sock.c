@@ -4188,6 +4188,7 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 	ckch_inst->bind_conf = bind_conf;
 	ckch_inst->ssl_conf = ssl_conf;
 	ckch_inst->ckch_store = ckchs;
+	ckch_inst->filters = !!fcount;
 end:
 
 	if (names)
@@ -4377,6 +4378,7 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 	ckch_inst->bind_conf = bind_conf;
 	ckch_inst->ssl_conf = ssl_conf;
 	ckch_inst->ckch_store = ckchs;
+	ckch_inst->filters = !!fcount;
 
 	*ckchi = ckch_inst;
 	return errcode;
@@ -11006,10 +11008,11 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						appctx->ctx.ssl.next_ckchi = ckchi;
 						goto yield;
 					}
-
-					errcode |= ckch_inst_sni_ctx_to_sni_filters(ckchi, &sni_filter, &fcount, &err);
-					if (errcode & ERR_CODE)
-						goto error;
+					if (ckchi->filters) {
+						errcode |= ckch_inst_sni_ctx_to_sni_filters(ckchi, &sni_filter, &fcount, &err);
+						if (errcode & ERR_CODE)
+							goto error;
+					}
 
 					if (new_ckchs->multi)
 						errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);

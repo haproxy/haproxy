@@ -129,6 +129,7 @@ struct ckch_inst {
 	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
 	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
 	struct ckch_store *ckch_store; /* pointer to the store used to generate this inst */
+	unsigned int filters:1; /* using sni filters ? */
 	unsigned int is_default:1;      /* This instance is used as the default ctx for this bind_conf */
 	/* space for more flag there */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
