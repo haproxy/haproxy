@@ -1555,6 +1555,39 @@ static int compute_ideal_maxconn()
 	return MAX(maxconn, DEFAULT_MAXCONN);
 }
 
+/* computes the estimated maxsock value for the given maxconn based on the
+ * possibly set global.maxpipes and existing partial global.maxsock. It may
+ * temporarily change global.maxconn for the time needed to propagate the
+ * computations, and will reset it.
+ */
+static int compute_ideal_maxsock(int maxconn)
+{
+	int maxpipes = global.maxpipes;
+	int maxsock  = global.maxsock;
+
+
+	if (!maxpipes) {
+		int old_maxconn = global.maxconn;
+
+		global.maxconn = maxconn;
+		maxpipes = compute_ideal_maxpipes();
+		global.maxconn = old_maxconn;
+	}
+
+	maxsock += maxconn * 2;         /* each connection needs two sockets */
+	maxsock += maxpipes * 2;        /* each pipe needs two FDs */
+	maxsock += global.nbthread;     /* one epoll_fd/kqueue_fd per thread */
+	maxsock += 2 * global.nbthread; /* one wake-up pipe (2 fd) per thread */
+
+	/* compute fd used by async engines */
+	if (global.ssl_used_async_engines) {
+		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+
+		maxsock += maxconn * sides * global.ssl_used_async_engines;
+	}
+	return maxsock;
+}
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -2233,20 +2266,8 @@ static void init(int argc, char **argv)
 		}
 	}
 
-	if (!global.maxpipes)
-		global.maxpipes = compute_ideal_maxpipes();
-
-	global.hardmaxconn = global.maxconn;  /* keep this max value */
-	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
-	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
-	global.maxsock += global.nbthread;     /* one epoll_fd/kqueue_fd per thread */
-	global.maxsock += 2 * global.nbthread; /* one wake-up pipe (2 fd) per thread */
-
-	/* compute fd used by async engines */
-	if (global.ssl_used_async_engines) {
-		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
-		global.maxsock += global.maxconn * sides * global.ssl_used_async_engines;
-	}
+	global.maxsock = compute_ideal_maxsock(global.maxconn);
+	global.hardmaxconn = global.maxconn;
 
 	/* update connection pool thresholds */
 	global.tune.pool_low_count  = ((long long)global.maxsock * global.tune.pool_low_ratio  + 99) / 100;
