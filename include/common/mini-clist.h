@@ -620,7 +620,7 @@ struct cond_wordlist {
 		struct mt_list *el = (_el);                                \
 		(el)->prev = (el);                                         \
 		(el)->next = (el);                                         \
-		(el) = NULL;                                               \
+		(_el) = NULL;                                              \
 	} while (0)
 
 /* Simpler FOREACH_ITEM_SAFE macro inspired from Linux sources.
