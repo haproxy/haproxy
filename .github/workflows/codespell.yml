@@ -1,0 +1,17 @@
+name: codespell
+
+on:
+  schedule:
+    - cron: "0 0 * * 2"
+
+jobs:
+  codespell:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: install prerequisites
+      run: sudo pip install codespell
+    - name: check
+      run: codespell -c -q 2 --ignore-words-list ist,hist,wan,ca,cas --skip CHANGELOG
