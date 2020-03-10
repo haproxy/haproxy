@@ -177,7 +177,7 @@ REG_TEST_SCRIPT=./scripts/run-regtests.sh
 # We rely on signed integer wraparound on overflow, however clang think it
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
-SPEC_CFLAGS := -Wdeclaration-after-statement
+SPEC_CFLAGS := -Wall -Wextra -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
@@ -196,6 +196,10 @@ SPEC_CFLAGS += $(call cc-opt,-Wshift-negative-value)
 SPEC_CFLAGS += $(call cc-opt,-Wshift-overflow=2)
 SPEC_CFLAGS += $(call cc-opt,-Wduplicated-cond)
 SPEC_CFLAGS += $(call cc-opt,-Wnull-dereference)
+
+ifneq ($(ERR),)
+SPEC_CFLAGS += -Werror
+endif
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
@@ -701,11 +705,7 @@ EBTREE_DIR := ebtree
 
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
-COPTS  = -Iinclude -I$(EBTREE_DIR) -Wall -Wextra
-
-ifneq ($(ERR),)
-COPTS += -Werror
-endif
+COPTS  = -Iinclude -I$(EBTREE_DIR)
 
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
