@@ -120,7 +120,7 @@ void __offer_buffer(void *from, unsigned int threshold)
 		if (wait->target == from || !wait->wakeup_cb(wait->target))
 			continue;
 
-		MT_LIST_DEL_SAFE(&wait->list);
+		MT_LIST_DEL_SAFE(elt1);
 		avail--;
 	}
 }
