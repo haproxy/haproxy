@@ -1173,6 +1173,7 @@ int connect_server(struct stream *s)
 		if (srv_conn) {
 			reuse_orphan = 1;
 			reuse = 1;
+			srv_conn->flags &= ~CO_FL_LIST_MASK;
 		}
 	}
 

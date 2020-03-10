@@ -140,6 +140,10 @@ enum {
 	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
 	/* Do not change these values without updating conn_*_poll_changes() ! */
+	CO_FL_SAFE_LIST     = 0x00000001,  /* 0 = not in any list, 1 = in safe_list  */
+	CO_FL_IDLE_LIST     = 0x00000002,  /* 2 = in idle_list, 3 = invalid */
+	CO_FL_LIST_MASK     = 0x00000003,  /* Is the connection in any server-managed list ? */
+
 	/* unused : 0x00000001 */
 	/* unused : 0x00000002 */
 	/* unused : 0x00000004, 0x00000008 */

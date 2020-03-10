@@ -262,6 +262,8 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			return 0;
 		}
 		MT_LIST_DEL(&conn->list);
+		conn->flags = (conn->flags &~ CO_FL_LIST_MASK) |
+		              (is_safe ? CO_FL_SAFE_LIST : CO_FL_IDLE_LIST);
 		MT_LIST_ADDQ(is_safe ? &srv->safe_conns[tid] : &srv->idle_conns[tid],
 		             (struct mt_list *)&conn->list);
 		srv->curr_idle_thr[tid]++;
