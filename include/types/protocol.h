@@ -50,7 +50,7 @@ struct connection;
 
 
 
-/* max length of a protcol name, including trailing zero */
+/* max length of a protocol name, including trailing zero */
 #define PROTO_NAME_LEN 16
 
 /* This structure contains all information needed to easily handle a protocol.

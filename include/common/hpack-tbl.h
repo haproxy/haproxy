@@ -52,7 +52,7 @@
  * possible to maximize the delay before a collision of DTEs and data. In order
  * to always insert from the right, we need to keep a reference to the latest
  * inserted element and look before it. The last inserted cell's address defines
- * the lowest konwn address still in use, unless the area wraps in which case
+ * the lowest known address still in use, unless the area wraps in which case
  * the available space lies between the end of the tail and the beginning of the
  * head.
  *

@@ -1,4 +1,4 @@
-varnishtest "Test the custom erorrs for HTTP deny rules"
+varnishtest "Test the custom errors for HTTP deny rules"
 #REQUIRE_VERSION=2.2
 
 # This config tests the custom errors for HTTP deny rules.

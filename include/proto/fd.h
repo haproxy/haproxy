@@ -106,7 +106,7 @@ void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off);
 void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
 void updt_fd_polling(const int fd);
 
-/* Called from the poller to acknoledge we read an entry from the global
+/* Called from the poller to acknowledge we read an entry from the global
  * update list, to remove our bit from the update_mask, and remove it from
  * the list if we were the last one.
  */

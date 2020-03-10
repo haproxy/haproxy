@@ -46,7 +46,7 @@ static inline struct xref *xref_get_peer_and_lock(struct xref *xref)
 		if (local == XREF_BUSY)
 			continue;
 
-		/* We are locked, the peer cant disapear, try to acquire
+		/* We are locked, the peer can't disappear, try to acquire
 		 * the pper's lock. Note that remote can't be NULL.
 		 */
 		remote = _HA_ATOMIC_XCHG(&local->peer, XREF_BUSY);

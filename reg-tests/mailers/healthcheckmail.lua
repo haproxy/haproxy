@@ -93,7 +93,7 @@ core.register_service("mailservice", "tcp", function(applet)
 			end
 		end
 	end
-	core.Info("#### Body recieved OK")
+	core.Info("#### Body received OK")
 	applet:send("250 OK\r\n")
 
 	if RecieveAndCheck(applet, "QUIT") == false then

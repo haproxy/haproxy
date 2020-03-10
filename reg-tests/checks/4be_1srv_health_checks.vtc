@@ -19,7 +19,7 @@ feature ignore_unknown_macro
 # disabling the servers. Same thing, when we check that the servers are down
 # before enabling the servers.
 
-# Cyclic barrier to synchonize the CLI with the syslog servers
+# Cyclic barrier to synchronize the CLI with the syslog servers
 barrier b1 cond 5 -cyclic
 
 # These servers are there only for the health-check test.

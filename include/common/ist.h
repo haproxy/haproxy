@@ -722,7 +722,7 @@ static inline struct ist istist(const struct ist ist, const struct ist pat)
 }
 
 /*
- * looks for the first occurence of <chr> in string <ist> and returns a shorter
+ * looks for the first occurrence of <chr> in string <ist> and returns a shorter
  * ist if char is found.
  */
 static inline struct ist iststop(const struct ist ist, char chr)

@@ -172,13 +172,13 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, const str
 
 /*
  * Write a IP address to the log string
- * +X option write in hexadecimal notation, most signifant byte on the left
+ * +X option write in hexadecimal notation, most significant byte on the left
  */
 char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
 
 /*
  * Write a port to the log
- * +X option write in hexadecimal notation, most signifant byte on the left
+ * +X option write in hexadecimal notation, most significant byte on the left
  */
 char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
 

@@ -111,7 +111,7 @@
 #define MAX_SESS_STKCTR 3
 #endif
 
-// max # of extra stick-table data types that can be registred at runtime
+// max # of extra stick-table data types that can be registered at runtime
 #ifndef STKTABLE_EXTRA_DATA_TYPES
 #define STKTABLE_EXTRA_DATA_TYPES 0
 #endif
@@ -153,14 +153,14 @@
 #define RUNQUEUE_DEPTH 200
 #endif
 
-// cookie delimitor in "prefix" mode. This character is inserted between the
+// cookie delimiter in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC6265,
 // and should not be too common in server names.
 #ifndef COOKIE_DELIM
 #define COOKIE_DELIM    '~'
 #endif
 
-// this delimitor is used between a server's name and a last visit date in
+// this delimiter is used between a server's name and a last visit date in
 // cookies exchanged with the client.
 #ifndef COOKIE_DELIM_DATE
 #define COOKIE_DELIM_DATE       '|'

@@ -335,7 +335,7 @@ static inline void tasklet_init(struct tasklet *t)
 }
 
 /* Allocate and initialize a new tasklet, local to the thread by default. The
- * caller may assing its tid if it wants to own the tasklet.
+ * caller may assign its tid if it wants to own the tasklet.
  */
 static inline struct tasklet *tasklet_new(void)
 {
@@ -388,7 +388,7 @@ static inline void task_destroy(struct task *t)
 		return;
 
 	task_unlink_wq(t);
-	/* We don't have to explicitely remove from the run queue.
+	/* We don't have to explicitly remove from the run queue.
 	 * If we are in the runqueue, the test below will set t->process
 	 * to NULL, and the task will be free'd when it'll be its turn
 	 * to run.
@@ -494,7 +494,7 @@ static inline void task_schedule(struct task *task, int when)
  * execution context. It contains a pointer to the associated task.
  * "link" is a list head attached to an other task that must be wake
  * the lua task if an event occurs. This is useful with external
- * events like TCP I/O or sleep functions. This funcion allocate
+ * events like TCP I/O or sleep functions. This function allocate
  * memory for the signal.
  */
 static inline struct notification *notification_new(struct list *purge, struct list *event, struct task *wakeup)
@@ -535,7 +535,7 @@ static inline void notification_purge(struct list *purge)
 }
 
 /* In some cases, the disconnected notifications must be cleared.
- * This function just release memory blocs. The purge list is not
+ * This function just release memory blocks. The purge list is not
  * locked because it is owned by only one process. Before browsing
  * this list, the caller must ensure to be the only one browser.
  * The "com" is not locked because when com->task is NULL, the
@@ -627,7 +627,7 @@ void wake_expired_tasks();
 
 /* Checks the next timer for the current thread by looking into its own timer
  * list and the global one. It may return TICK_ETERNITY if no timer is present.
- * Note that the next timer might very well be slighly in the past.
+ * Note that the next timer might very well be slightly in the past.
  */
 int next_timer_expiry();
 

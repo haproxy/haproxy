@@ -84,9 +84,9 @@ extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
  * "cs" is the case sensitive flag. If cs is true, case sensitive is enabled.
  * "cap" is capture flag. If cap if true the regex can capture into
  *       parenthesis strings.
- * "err" is the standar error message pointer.
+ * "err" is the standard error message pointer.
  *
- * The function return 1 is succes case, else return 0 and err is filled.
+ * The function return 1 is success case, else return 0 and err is filled.
  */
 struct my_regex *regex_comp(const char *str, int cs, int cap, char **err);
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches);

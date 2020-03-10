@@ -37,7 +37,7 @@
  * metadata (htx_blk) and the associated payload. Blocks' metadata are stored
  * starting from the end of the array while their payload are stored at the
  * beginning. Blocks' metadata are often simply called blocks. it is a misuse of
- * language that's simplify explainations.
+ * language that's simplify explanations.
  *
  *
  *  +-----+---------------+------------------------------+--------------+
@@ -196,7 +196,7 @@ struct htx_sl {
 			      * during parsing, from this start-line to the
 			      * corresponding EOH. -1 if unknown */
 
-	unsigned int len[3]; /* length of differnt parts of the start-line */
+	unsigned int len[3]; /* length of different parts of the start-line */
 	char         l[0];
 };
 
@@ -258,7 +258,7 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
 int htx_append_msg(struct htx *dst, const struct htx *src);
 
-/* Functions and macros to get parts of the start-line or legnth of these
+/* Functions and macros to get parts of the start-line or length of these
  * parts. Request and response start-lines are both composed of 3 parts.
  */
 #define HTX_SL_LEN(sl) ((sl)->len[0] + (sl)->len[1] + (sl)->len[2])
@@ -588,7 +588,7 @@ static inline struct ist htx_get_blk_name(const struct htx *htx, const struct ht
 
 
 /* Returns the value of the block <blk>, depending on its type. If there is no
- * value (for end-of blocks), an empty one is retruned.
+ * value (for end-of blocks), an empty one is returned.
  */
 static inline struct ist htx_get_blk_value(const struct htx *htx, const struct htx_blk *blk)
 {
@@ -617,9 +617,9 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 
 /* Removes <n> bytes from the beginning of DATA block <blk>. The block's start
  * address and its length are adjusted, and the htx's total data count is
- * updated. This is used to mark that part of some data were transfered
+ * updated. This is used to mark that part of some data were transferred
  * from a DATA block without removing this DATA block. No sanity check is
- * performed, the caller is reponsible for doing this exclusively on DATA
+ * performed, the caller is responsible for doing this exclusively on DATA
  * blocks, and never removing more than the block's size.
  */
 static inline void htx_cut_data_blk(struct htx *htx, struct htx_blk *blk, uint32_t n)

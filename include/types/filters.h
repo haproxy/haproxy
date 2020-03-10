@@ -65,7 +65,7 @@ struct flt_kw_list {
  * - init_per_thread      : Initializes the filter for a proxy for a specific
  *                          thread. Returns a negative value if an error
  *                          occurs.
- * - deinit_per_thread    : Cleans up what the init_per_thread funcion has
+ * - deinit_per_thread    : Cleans up what the init_per_thread function has
  *                          done.
  *
  *
@@ -128,7 +128,7 @@ struct flt_kw_list {
  *                          Returns a negative value if an error occurs, 0 if
  *                          it needs to wait for some reason, any other value
  *                          otherwise.
- *  - http_reset          : Called when the HTTP message is reseted. It happens
+ *  - http_reset          : Called when the HTTP message is reset. It happens
  *                          either when a 100-continue response is received.
  *                          that can be detected if s->txn->status is 10X, or
  *                          if we're attempting a L7 retry.
@@ -217,7 +217,7 @@ struct flt_conf {
  *
  * 2D-Array fields are used to store info per channel. The first index stands
  * for the request channel, and the second one for the response channel.
- * Especially, <next> and <fwd> are offets representing amount of data that the
+ * Especially, <next> and <fwd> are offsets representing amount of data that the
  * filter are, respectively, parsed and forwarded on a channel. Filters can
  * access these values using FLT_NXT and FLT_FWD macros.
  */

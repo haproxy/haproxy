@@ -196,7 +196,7 @@ static inline const char *h1m_state_str(enum h1m_state msg_state)
  * returns the number of bytes parsed on success, so the caller can set msg_state
  * to HTTP_MSG_CHUNK_SIZE. If not enough data are available, the function does not
  * change anything and returns zero. Otherwise it returns a negative value
- * indicating the error positionn relative to <stop>. Note: this function is
+ * indicating the error position relative to <stop>. Note: this function is
  * designed to parse wrapped CRLF at the end of the buffer.
  */
 static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int stop)

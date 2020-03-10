@@ -447,7 +447,7 @@ int cidr2dotted(int cidr, struct in_addr *mask);
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
- * is optionnal and either in the dotted or CIDR notation.
+ * is optional and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
 int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask);
@@ -480,7 +480,7 @@ static inline struct sockaddr_storage *str2ip(const char *str, struct sockaddr_s
 /*
  * converts <str> to two struct in6_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
- * is an optionnal number of bits (128 being the default).
+ * is an optional number of bits (128 being the default).
  * Returns 1 if OK, 0 if error.
  */
 int str62net(const char *str, struct in6_addr *addr, unsigned char *mask);
@@ -756,7 +756,7 @@ static inline char *alltrim(char *s, char c) {
 
 /* This function converts the time_t value <now> into a broken out struct tm
  * which must be allocated by the caller. It is highly recommended to use this
- * function intead of localtime() because that one requires a time_t* which
+ * function instead of localtime() because that one requires a time_t* which
  * is not always compatible with tv_sec depending on OS/hardware combinations.
  */
 static inline void get_localtime(const time_t now, struct tm *tm)
@@ -766,7 +766,7 @@ static inline void get_localtime(const time_t now, struct tm *tm)
 
 /* This function converts the time_t value <now> into a broken out struct tm
  * which must be allocated by the caller. It is highly recommended to use this
- * function intead of gmtime() because that one requires a time_t* which
+ * function instead of gmtime() because that one requires a time_t* which
  * is not always compatible with tv_sec depending on OS/hardware combinations.
  */
 static inline void get_gmtime(const time_t now, struct tm *tm)
@@ -779,7 +779,7 @@ static inline void get_gmtime(const time_t now, struct tm *tm)
  * serves as a temporary origin. It's worth remembering that it's the first
  * year of each period that is leap and not the last one, so for instance year
  * 1 sees 366 days since year 0 was leap. For this reason we have to apply
- * modular arithmetics which is why we offset the year by 399 before
+ * modular arithmetic which is why we offset the year by 399 before
  * subtracting the excess at the end. No overflow here before ~11.7 million
  * years.
  */
@@ -987,7 +987,7 @@ static inline int ha_bit_test(unsigned long bit, const long *map)
 
 /*
  * Parse binary string written in hexadecimal (source) and store the decoded
- * result into binstr and set binstrlen to the lengh of binstr. Memory for
+ * result into binstr and set binstrlen to the length of binstr. Memory for
  * binstr is allocated by the function. In case of error, returns 0 with an
  * error message in err.
  */
@@ -1251,7 +1251,7 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size);
 char *localdate2str_log(char *dst, time_t t, struct tm *tm, size_t size);
 
 /* These 3 functions parses date string and fills the
- * corresponding broken-down time in <tm>. In succes case,
+ * corresponding broken-down time in <tm>. In success case,
  * it returns 1, otherwise, it returns 0.
  */
 int parse_http_date(const char *date, int len, struct tm *tm);
@@ -1309,7 +1309,7 @@ int append_prefixed_str(struct buffer *out, const char *in, const char *pfx, cha
 /* removes environment variable <name> from the environment as found in
  * environ. This is only provided as an alternative for systems without
  * unsetenv() (old Solaris and AIX versions). THIS IS NOT THREAD SAFE.
- * The principle is to scan environ for each occurence of variable name
+ * The principle is to scan environ for each occurrence of variable name
  * <name> and to replace the matching pointers with the last pointer of
  * the array (since variables are not ordered).
  * It always returns 0 (success).

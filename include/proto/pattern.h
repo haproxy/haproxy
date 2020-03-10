@@ -51,7 +51,7 @@ static inline int pat_find_match_name(const char *name)
 }
 
 /* This function executes a pattern match on a sample. It applies pattern <expr>
- * to sample <smp>. The function returns NULL if the sample dont match. It returns
+ * to sample <smp>. The function returns NULL if the sample don't match. It returns
  * non-null if the sample match. If <fill> is true and the sample match, the
  * function returns the matched pattern. In many cases, this pattern can be a
  * static buffer.

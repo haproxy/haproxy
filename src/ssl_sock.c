@@ -452,7 +452,7 @@ static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
 	return 0;
 }
 
-/* SSL_CTX_load_verify_locations substitute, internaly call X509_STORE_load_locations */
+/* SSL_CTX_load_verify_locations substitute, internally call X509_STORE_load_locations */
 static int ssl_set_verify_locations_file(SSL_CTX *ctx, char *path)
 {
 	X509_STORE *store_ctx = SSL_CTX_get_cert_store(ctx);
@@ -1227,7 +1227,7 @@ struct tls_keys_ref *tlskeys_ref_lookupid(int unique_id)
         return NULL;
 }
 
-/* Update the key into ref: if keysize doesnt
+/* Update the key into ref: if keysize doesn't
  * match existing ones, this function returns -1
  * else it returns 0 on success.
  */
@@ -1703,7 +1703,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 	if ((where & SSL_CB_ACCEPT_LOOP) == SSL_CB_ACCEPT_LOOP) {
 		if (!(ctx->xprt_st & SSL_SOCK_ST_FL_16K_WBFSIZE)) {
 			/* Long certificate chains optimz
-			   If write and read bios are differents, we
+			   If write and read bios are different, we
 			   consider that the buffering was activated,
                            so we rise the output buffer size from 4k
 			   to 16k */
@@ -1813,7 +1813,7 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 		return;
 
 	/* First byte of the handshake message id the type of
-	 * message. The konwn types are:
+	 * message. The known types are:
 	 *  - hello_request(0)
 	 *  - client_hello(1)
 	 *  - server_hello(2)
@@ -1941,7 +1941,7 @@ static int ssl_sock_srv_select_protos(SSL *s, unsigned char **out, unsigned char
 
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 /* This callback is used so that the server advertises the list of
- * negociable protocols for NPN.
+ * negotiable protocols for NPN.
  */
 static int ssl_sock_advertise_npn_protos(SSL *s, const unsigned char **data,
                                          unsigned int *len, void *arg)
@@ -1956,7 +1956,7 @@ static int ssl_sock_advertise_npn_protos(SSL *s, const unsigned char **data,
 
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 /* This callback is used so that the server advertises the list of
- * negociable protocols for ALPN.
+ * negotiable protocols for ALPN.
  */
 static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
                                           unsigned char *outlen,
@@ -2440,7 +2440,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		goto abort;
 	}
 
-	/* extract/check clientHello informations */
+	/* extract/check clientHello information */
 #ifdef OPENSSL_IS_BORINGSSL
 	if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
 #else
@@ -3017,7 +3017,7 @@ struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 
 
 /* Loads Diffie-Hellman parameter from a ckchs to an SSL_CTX.
- *  If there is no DH paramater availaible in the ckchs, the global
+ *  If there is no DH parameter available in the ckchs, the global
  *  DH parameter is loaded into the SSL_CTX and if there is no
  *  DH parameter available in ckchs nor in global, the default
  *  DH parameters are applied on the SSL_CTX.
@@ -5008,7 +5008,7 @@ int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	const unsigned char *sid_data;
 
 	/* Session id is already stored in to key and session id is known
-	 * so we dont store it to keep size.
+	 * so we don't store it to keep size.
 	 * note: SSL_SESSION_set1_id is using
 	 * a memcpy so we need to use a different pointer
 	 * than sid_data or sid_ctx_data to avoid valgrind
@@ -6502,7 +6502,7 @@ reneg_ok:
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
 	/* ASYNC engine API doesn't support moving read/write
 	 * buffers. So we disable ASYNC mode right after
-	 * the handshake to avoid buffer oveflows.
+	 * the handshake to avoid buffer overflow.
 	 */
 	if (global_ssl.async)
 		SSL_clear_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -7079,7 +7079,7 @@ static int cert_get_pkey_algo(X509 *crt, struct buffer *out)
 	return 1;
 }
 
-/* used for ppv2 pkey alog (can be used for logging) */
+/* used for ppv2 pkey algo (can be used for logging) */
 int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out)
 {
 	struct ssl_sock_ctx *ctx;
@@ -11041,7 +11041,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* we need to initialize the SSL_CTX generated */
 					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
 					list_for_each_entry_safe(sc0, sc0s, &new_inst->sni_ctx, by_ckch_inst) {
-						if (!sc0->order) { /* we initiliazed only the first SSL_CTX because it's the same in the other sni_ctx's */
+						if (!sc0->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
 							errcode |= ssl_sock_prepare_ctx(ckchi->bind_conf, ckchi->ssl_conf, sc0->ctx, &err);
 							if (errcode & ERR_CODE)
 								goto error;
@@ -11220,7 +11220,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		return cli_err(appctx, "Can't allocate memory\n");
 
 	if (!*args[3] || !payload)
-		return cli_err(appctx, "'set ssl cert expects a filename and a certificat as a payload\n");
+		return cli_err(appctx, "'set ssl cert expects a filename and a certificate as a payload\n");
 
 	/* The operations on the CKCH architecture are locked so we can
 	 * manipulate ckch_store and ckch_inst */
@@ -11550,7 +11550,7 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
-/* Arguements: AES size in bits, nonce, key, tag. The last three arguments are base64 encoded */
+/* Arguments: AES size in bits, nonce, key, tag. The last three arguments are base64 encoded */
 static int sample_conv_aes_gcm_dec(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct sample nonce, key, aead_tag;
@@ -11788,7 +11788,7 @@ static struct ssl_bind_kw ssl_bind_kws[] = {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	{ "ciphersuites",          ssl_bind_parse_ciphersuites,     1 }, /* set TLS 1.3 cipher suite */
 #endif
-	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificat revocation list file use on client cert verify */
+	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificate revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "no-ca-names",           ssl_bind_parse_no_ca_names,      0 }, /* do not send ca names to clients (ca_file related) */
@@ -11813,9 +11813,9 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	{ "ciphersuites",          bind_parse_ciphersuites,       1 }, /* set TLS 1.3 cipher suite */
 #endif
-	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificat revocation list file use on client cert verify */
+	{ "crl-file",              bind_parse_crl_file,           1 }, /* set certificate revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,                1 }, /* load SSL certificates from this location */
-	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ingore on verify depth == 0 */
+	{ "crt-ignore-err",        bind_parse_ignore_err,         1 }, /* set error IDs to ignore on verify depth == 0 */
 	{ "crt-list",              bind_parse_crt_list,           1 }, /* load a list of crt from this location */
 	{ "curves",                bind_parse_curves,             1 }, /* set SSL curve suite */
 	{ "ecdhe",                 bind_parse_ecdhe,              1 }, /* defines named curve for elliptic curve Diffie-Hellman */

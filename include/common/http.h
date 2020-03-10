@@ -27,7 +27,7 @@
 #include <common/ist.h>
 
 /*
- * some macros mainly used when parsing header fileds.
+ * some macros mainly used when parsing header fields.
  * from RFC7230:
  *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
  *   SEP                 = one of the 17 defined separators or SP or HT

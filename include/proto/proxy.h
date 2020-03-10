@@ -147,7 +147,7 @@ static inline void proxy_inc_fe_req_ctr(struct proxy *fe)
 			     update_freq_ctr(&fe->fe_req_per_sec, 1));
 }
 
-/* Returns non-zero if the proxy is configured to retry a request if we got that status, 0 overwise */
+/* Returns non-zero if the proxy is configured to retry a request if we got that status, 0 otherwise */
 static inline int l7_status_match(struct proxy *p, int status)
 {
 	/* Just return 0 if no retry was configured for any status */

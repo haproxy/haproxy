@@ -34,7 +34,7 @@ int sink_announce_dropped(struct sink *sink);
 
 
 /* tries to send <nmsg> message parts (up to 8, ignored above) from message
- * array <msg> to sink <sink>. Formating according to the sink's preference is
+ * array <msg> to sink <sink>. Formatting according to the sink's preference is
  * done here. Lost messages are accounted for in the sink's counter. If there
  * were lost messages, an attempt is first made to indicate it.
  */
