@@ -43,7 +43,6 @@
 
 
 #if defined(USE_LINUX_SPLICE)
-#include <common/splice.h>
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
  * because of timestamps. Use this as a hint for not looping on splice().

@@ -16,7 +16,6 @@
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_EVPORTS          : enable event ports on SunOS systems. Automatic.
-#   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
 #   USE_PCRE_JIT         : enable JIT for faster regex on libpcre >= 8.32
@@ -282,7 +281,7 @@ LDFLAGS = $(ARCH_FLAGS) -g
 #### list of all "USE_*" options. These ones must be updated if new options are
 # added, so that the relevant options are properly added to the CFLAGS and to
 # the reported build options.
-use_opts = USE_EPOLL USE_KQUEUE USE_MY_SPLICE USE_NETFILTER                   \
+use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
            USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED USE_BACKTRACE     \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \

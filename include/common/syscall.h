@@ -80,25 +80,6 @@
 
 /* Define some syscall numbers that are sometimes needed */
 
-/* splice is even more recent than epoll. It appeared around 2.6.18 but was
- * not in libc for a while.
- */
-#ifndef __NR_splice
-#if defined(__powerpc__) || defined(__powerpc64__)
-#define __NR_splice             283
-#elif defined(__sparc__) || defined(__sparc64__)
-#define __NR_splice             232
-#elif defined(__x86_64__)
-#define __NR_splice             275
-#elif defined(__alpha__)
-#define __NR_splice             468
-#elif defined (__i386__)
-#define __NR_splice             313
-#elif defined(__s390__) || defined(__s390x__)
-#define __NR_splace		306
-#endif /* $arch */
-#endif /* __NR_splice */
-
 #endif /* __linux__ */
 #endif /* _COMMON_SYSCALL_H */
 
