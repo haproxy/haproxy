@@ -1588,6 +1588,37 @@ static int compute_ideal_maxsock(int maxconn)
 	return maxsock;
 }
 
+/* Tests if it is possible to set the current process' RLIMIT_NOFILE to
+ * <maxsock>, then sets it back to the previous value. Returns non-zero if the
+ * value is accepted, non-zero otherwise. This is used to determine if an
+ * automatic limit may be applied or not. When it is not, the caller knows that
+ * the highest we can do is the rlim_max at boot. In case of error, we return
+ * that the setting is possible, so that we defer the error processing to the
+ * final stage in charge of enforcing this.
+ */
+static int check_if_maxsock_permitted(int maxsock)
+{
+	struct rlimit orig_limit, test_limit;
+	int ret;
+
+	if (getrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
+		return 1;
+
+	/* don't go further if we can't even set to what we have */
+	if (setrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
+		return 1;
+
+	test_limit.rlim_max = MAX(maxsock, orig_limit.rlim_max);
+	test_limit.rlim_cur = test_limit.rlim_max;
+	ret = setrlimit(RLIMIT_NOFILE, &test_limit);
+
+	if (setrlimit(RLIMIT_NOFILE, &orig_limit) != 0)
+		return 1;
+
+	return ret == 0;
+}
+
+
 /*
  * This function initializes all the necessary variables. It only returns
  * if everything is OK. If something fails, it exits.
@@ -2164,23 +2195,37 @@ static void init(int argc, char **argv)
 		 */
 		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 		int64_t mem = global.rlimit_memmax * 1048576ULL;
+		int retried = 0;
 
 		mem -= global.tune.sslcachesize * 200; // about 200 bytes per SSL cache entry
 		mem -= global.maxzlibmem;
 		mem = mem * MEM_USABLE_RATIO;
 
-		global.maxconn = mem /
-			((STREAM_MAX_COST + 2 * global.tune.bufsize) +    // stream + 2 buffers per stream
-			 sides * global.ssl_session_max_cost + // SSL buffers, one per side
-			 global.ssl_handshake_max_cost);       // 1 handshake per connection max
+		/* Principle: we test once to set maxconn according to the free
+		 * memory. If it results in values the system rejects, we try a
+		 * second time by respecting rlim_fd_max. If it fails again, we
+		 * go back to the initial value and will let the final code
+		 * dealing with rlimit report the error. That's up to 3 attempts.
+		 */
+		do {
+			global.maxconn = mem /
+				((STREAM_MAX_COST + 2 * global.tune.bufsize) +    // stream + 2 buffers per stream
+				 sides * global.ssl_session_max_cost +            // SSL buffers, one per side
+				 global.ssl_handshake_max_cost);                  // 1 handshake per connection max
 
-		global.maxconn = MIN(global.maxconn, ideal_maxconn);
-		global.maxconn = round_2dig(global.maxconn);
+			if (retried == 1)
+				global.maxconn = MIN(global.maxconn, ideal_maxconn);
+			global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
-		if (global.maxconn > SYSTEM_MAXCONN)
-			global.maxconn = SYSTEM_MAXCONN;
+			if (global.maxconn > SYSTEM_MAXCONN)
+				global.maxconn = SYSTEM_MAXCONN;
 #endif /* SYSTEM_MAXCONN */
-		global.maxsslconn = sides * global.maxconn;
+			global.maxsslconn = sides * global.maxconn;
+
+			if (check_if_maxsock_permitted(compute_ideal_maxsock(global.maxconn)))
+				break;
+		} while (retried++ < 2);
+
 		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
 			fprintf(stderr, "Note: setting global.maxconn to %d and global.maxsslconn to %d.\n",
 			        global.maxconn, global.maxsslconn);
@@ -2227,6 +2272,7 @@ static void init(int argc, char **argv)
 		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 		int64_t mem = global.rlimit_memmax * 1048576ULL;
 		int64_t clearmem;
+		int retried = 0;
 
 		if (global.ssl_used_frontend || global.ssl_used_backend)
 			mem -= global.tune.sslcachesize * 200; // about 200 bytes per SSL cache entry
@@ -2238,23 +2284,35 @@ static void init(int argc, char **argv)
 		if (sides)
 			clearmem -= (global.ssl_session_max_cost + global.ssl_handshake_max_cost) * (int64_t)global.maxsslconn;
 
-		global.maxconn = clearmem / (STREAM_MAX_COST + 2 * global.tune.bufsize);
-		global.maxconn = MIN(global.maxconn, ideal_maxconn);
-		global.maxconn = round_2dig(global.maxconn);
+		/* Principle: we test once to set maxconn according to the free
+		 * memory. If it results in values the system rejects, we try a
+		 * second time by respecting rlim_fd_max. If it fails again, we
+		 * go back to the initial value and will let the final code
+		 * dealing with rlimit report the error. That's up to 3 attempts.
+		 */
+		do {
+			global.maxconn = clearmem / (STREAM_MAX_COST + 2 * global.tune.bufsize);
+			if (retried == 1)
+				global.maxconn = MIN(global.maxconn, ideal_maxconn);
+			global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
-		if (global.maxconn > SYSTEM_MAXCONN)
-			global.maxconn = SYSTEM_MAXCONN;
+			if (global.maxconn > SYSTEM_MAXCONN)
+				global.maxconn = SYSTEM_MAXCONN;
 #endif /* SYSTEM_MAXCONN */
 
-		if (clearmem <= 0 || !global.maxconn) {
-			ha_alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
-				 "high for the global.memmax value (%d MB). The absolute maximum possible value "
-				 "is %d, but %d was found.\n",
-				 global.rlimit_memmax,
+			if (clearmem <= 0 || !global.maxconn) {
+				ha_alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
+					 "high for the global.memmax value (%d MB). The absolute maximum possible value "
+					 "is %d, but %d was found.\n",
+					 global.rlimit_memmax,
 				 (int)(mem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost)),
-				 global.maxsslconn);
-			exit(1);
-		}
+					 global.maxsslconn);
+				exit(1);
+			}
+
+			if (check_if_maxsock_permitted(compute_ideal_maxsock(global.maxconn)))
+				break;
+		} while (retried++ < 2);
 
 		if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
 			if (sides && global.maxsslconn > sides * global.maxconn) {
