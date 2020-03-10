@@ -49,11 +49,6 @@
 
 #if defined(USE_MY_SPLICE)
 
-#if defined(USE_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
-/* The syscall is redefined somewhere else */
-extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t len, unsigned long flags);
-#else
-
 /* We'll define a syscall, so for this we need __NR_splice. It should have
  * been provided by syscall.h.
  */
@@ -63,7 +58,6 @@ extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t l
 #endif /* __NR_splice */
 
 static inline _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags);
-#endif /* VSYSCALL */
 
 #else
 /* use the system's definition */

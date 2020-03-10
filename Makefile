@@ -34,7 +34,6 @@
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing. Automatic.
 #   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
-#   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
 #   USE_LUA              : enable Lua support.
@@ -289,7 +288,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
            USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED USE_BACKTRACE     \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
-           USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_VSYSCALL             \
+           USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H                          \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
@@ -498,10 +497,6 @@ endif
 
 ifneq ($(USE_EVPORTS),)
 OPTIONS_OBJS   += src/ev_evports.o
-endif
-
-ifneq ($(USE_VSYSCALL),)
-OPTIONS_OBJS   += src/i386-linux-vsys.o
 endif
 
 ifneq ($(USE_DL),)

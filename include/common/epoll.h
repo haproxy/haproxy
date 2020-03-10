@@ -70,13 +70,6 @@ struct epoll_event {
 	} data;
 };
 
-#if defined(USE_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
-/* Those are our self-defined functions */
-extern int epoll_create(int size);
-extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
-extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
-#else
-
 /* We'll define a syscall, so for this we need __NR_splice. It should have
  * been provided by syscall.h.
  */
@@ -90,7 +83,6 @@ extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int 
 static inline _syscall1 (int, epoll_create, int, size);
 static inline _syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
 static inline _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
-#endif /* VSYSCALL */
 
 #endif /* USE_MY_EPOLL */
 
