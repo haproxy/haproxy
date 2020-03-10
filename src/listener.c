@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <common/accept4.h>
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>

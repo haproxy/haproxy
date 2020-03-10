@@ -39,7 +39,6 @@
 #   USE_LUA              : enable Lua support.
 #   USE_FUTEX            : enable use of futex on kernel 2.6. Automatic.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
-#   USE_MY_ACCEPT4       : use own implementation of accept4() if glibc < 2.10.
 #   USE_PRCTL            : enable use of prctl(). Automatic.
 #   USE_ZLIB             : enable zlib library support.
 #   USE_SLZ              : enable slz library instead of zlib (pick at most one).
@@ -290,7 +289,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_MY_EPOLL USE_MY_SPLICE USE_NETFILTER      \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H                          \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
-           USE_MY_ACCEPT4 USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS    \
+           USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS                   \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
            USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS
 
