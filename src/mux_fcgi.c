@@ -2908,17 +2908,55 @@ schedule:
 /* this is the tasklet referenced in fconn->wait_event.tasklet */
 static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 {
-	struct fcgi_conn *fconn = ctx;
+	struct connection *conn;
+	struct fcgi_conn *fconn;
+	struct tasklet *tl = (struct tasklet *)t;
+	int conn_in_list;
 	int ret = 0;
 
-	TRACE_POINT(FCGI_EV_FCONN_WAKE, fconn->conn);
+
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+	if (tl->context == NULL) {
+		/* The connection has been taken over by another thread,
+		 * we're no longer responsible for it, so just free the
+		 * tasklet, and do nothing.
+		 */
+		HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
+		tasklet_free(tl);
+		return NULL;
+
+	}
+	fconn = ctx;
+	conn = fconn->conn;
+
+	TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
+
+	conn_in_list = conn->flags & CO_FL_LIST_MASK;
+	if (conn_in_list)
+		MT_LIST_DEL(&conn->list);
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	if (!(fconn->wait_event.events & SUB_RETRY_SEND))
 		ret = fcgi_send(fconn);
 	if (!(fconn->wait_event.events & SUB_RETRY_RECV))
 		ret |= fcgi_recv(fconn);
 	if (ret || b_data(&fconn->dbuf))
-		fcgi_process(fconn);
+		ret = fcgi_process(fconn);
+
+	/* If we were in an idle list, we want to add it back into it,
+	 * unless fcgi_process() returned -1, which mean it has destroyed
+	 * the connection (testing !ret is enough, if fcgi_process() wasn't
+	 * called then ret will be 0 anyway.
+	 */
+	if (!ret && conn_in_list) {
+		struct server *srv = objt_server(conn->target);
+
+		if (conn_in_list == CO_FL_SAFE_LIST)
+			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+		else
+			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+	}
 	return NULL;
 }
 
@@ -3047,6 +3085,22 @@ static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned sh
 		TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
 		return t;
 	}
+
+	/* We're about to destroy the connection, so make sure nobody attempts
+	 * to steal it from us.
+	 */
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+
+	if (fconn && fconn->conn->flags & CO_FL_LIST_MASK)
+		MT_LIST_DEL(&fconn->conn->list);
+
+	/* Somebody already stole the connection from us, so we should not
+	 * free it, we just have to free the task.
+	 */
+	if (!t->context)
+		fconn = NULL;
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	task_destroy(t);
 
@@ -4011,6 +4065,50 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
 	}
 }
 
+/* Migrate the the connection to the current thread.
+ * Return 0 if successful, non-zero otherwise.
+ * Expected to be called with the old thread lock held.
+ */
+static int fcgi_takeover(struct connection *conn)
+{
+	struct fcgi_conn *fcgi = conn->ctx;
+
+	if (fd_takeover(conn->handle.fd, conn) != 0)
+		return -1;
+	if (fcgi->wait_event.events)
+		fcgi->conn->xprt->unsubscribe(fcgi->conn, fcgi->conn->xprt_ctx,
+		    fcgi->wait_event.events, &fcgi->wait_event);
+	/* To let the tasklet know it should free itself, and do nothing else,
+	 * set its context to NULL;
+	 */
+	fcgi->wait_event.tasklet->context = NULL;
+	tasklet_wakeup(fcgi->wait_event.tasklet);
+	if (fcgi->task) {
+		fcgi->task->context = NULL;
+		/* Wake the task, to let it free itself */
+		task_wakeup(fcgi->task, TASK_WOKEN_OTHER);
+
+		fcgi->task = task_new(tid_bit);
+		if (!fcgi->task) {
+			fcgi_release(fcgi);
+			return -1;
+		}
+		fcgi->task->process = fcgi_timeout_task;
+		fcgi->task->context = fcgi;
+	}
+	fcgi->wait_event.tasklet = tasklet_new();
+	if (!fcgi->wait_event.tasklet) {
+		fcgi_release(fcgi);
+		return -1;
+	}
+	fcgi->wait_event.tasklet->process = fcgi_io_cb;
+	fcgi->wait_event.tasklet->context = fcgi;
+	fcgi->conn->xprt->subscribe(fcgi->conn, fcgi->conn->xprt_ctx,
+		                    SUB_RETRY_RECV, &fcgi->wait_event);
+
+	return 0;
+}
+
 /****************************************/
 /* MUX initialization and instanciation */
 /****************************************/
@@ -4033,6 +4131,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.shutw         = fcgi_shutw,
 	.ctl           = fcgi_ctl,
 	.show_fd       = fcgi_show_fd,
+	.takeover      = fcgi_takeover,
 	.flags         = MX_FL_HTX,
 	.name          = "FCGI",
 };
