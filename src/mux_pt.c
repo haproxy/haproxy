@@ -241,11 +241,6 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		    (mode == CS_SHR_DRAIN));
 	if (cs->flags & CS_FL_SHW)
 		conn_full_close(cs->conn);
-	/* Maybe we've been put in the list of available idle connections,
-	 * get ouf of here
-	 */
-	LIST_DEL(&cs->conn->list);
-	LIST_INIT(&cs->conn->list);
 }
 
 static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
@@ -259,11 +254,6 @@ static void mux_pt_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		conn_sock_shutw(cs->conn, (mode == CS_SHW_NORMAL));
 	else
 		conn_full_close(cs->conn);
-	/* Maybe we've been put in the list of available idle connections,
-	 * get ouf of here
-	 */
-	LIST_DEL(&cs->conn->list);
-	LIST_INIT(&cs->conn->list);
 }
 
 /*
