@@ -4342,7 +4342,7 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 {
 	int ret;
-#ifdef __USE_GNU // most detailed one
+#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)) // most detailed one
 	const ElfW(Sym) *sym;
 
 	ret = dladdr1(addr, dli, (void **)&sym, RTLD_DL_SYMENT);
