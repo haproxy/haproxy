@@ -80,37 +80,6 @@
 
 /* Define some syscall numbers that are sometimes needed */
 
-/* Epoll was provided as a patch for 2.4 for a long time and was not always
- * exported as a known sysctl number by libc.
- */
-#if !defined(__NR_epoll_ctl)
-#if defined(__powerpc__) || defined(__powerpc64__)
-#define __NR_epoll_create 236
-#define __NR_epoll_ctl    237
-#define __NR_epoll_wait   238
-#elif defined(__sparc__) || defined(__sparc64__)
-#define __NR_epoll_create 193
-#define __NR_epoll_ctl    194
-#define __NR_epoll_wait   195
-#elif defined(__x86_64__)
-#define __NR_epoll_create 213
-#define __NR_epoll_ctl    214
-#define __NR_epoll_wait   215
-#elif defined(__alpha__)
-#define __NR_epoll_create 407
-#define __NR_epoll_ctl    408
-#define __NR_epoll_wait   409
-#elif defined (__i386__)
-#define __NR_epoll_create 254
-#define __NR_epoll_ctl    255
-#define __NR_epoll_wait   256
-#elif defined (__s390__) || defined(__s390x__)
-#define __NR_epoll_create 249
-#define __NR_epoll_ctl    250
-#define __NR_epoll_wait   251
-#endif /* $arch */
-#endif /* __NR_epoll_ctl */
-
 /* splice is even more recent than epoll. It appeared around 2.6.18 but was
  * not in libc for a while.
  */

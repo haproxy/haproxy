@@ -10,13 +10,13 @@
  */
 
 #include <unistd.h>
+#include <sys/epoll.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
-#include <common/epoll.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
 #include <common/ticks.h>
