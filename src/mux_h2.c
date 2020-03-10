@@ -3517,17 +3517,58 @@ schedule:
 /* this is the tasklet referenced in h2c->wait_event.tasklet */
 static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 {
-	struct h2c *h2c = ctx;
+	struct connection *conn;
+	struct tasklet *tl = (struct tasklet *)t;
+	int conn_in_list;
+	struct h2c *h2c;
 	int ret = 0;
 
-	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+	if (t->context == NULL) {
+		/* The connection has been taken over by another thread,
+		 * we're no longer responsible for it, so just free the
+		 * tasklet, and do nothing.
+		 */
+		HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
+		tasklet_free(tl);
+		return NULL;
+	}
+	h2c = ctx;
+	conn = h2c->conn;
+
+	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
+
+	conn_in_list = conn->flags & CO_FL_LIST_MASK;
+
+	/* Remove the connection from the list, to be sure nobody attempts
+	 * to use it while we handle the I/O events
+	 */
+	if (conn_in_list)
+		MT_LIST_DEL(&conn->list);
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		ret = h2_send(h2c);
 	if (!(h2c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h2_recv(h2c);
 	if (ret || b_data(&h2c->dbuf))
-		h2_process(h2c);
+		ret = h2_process(h2c);
+
+	/* If we were in an idle list, we want to add it back into it,
+	 * unless h2_process() returned -1, which mean it has destroyed
+	 * the connection (testing !ret is enough, if h2_process() wasn't
+	 * called then ret will be 0 anyway.
+	 */
+	if (!ret && conn_in_list) {
+		struct server *srv = objt_server(conn->target);
+
+		if (conn_in_list == CO_FL_SAFE_LIST)
+			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+		else
+			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+	}
 
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return NULL;
@@ -3675,6 +3716,22 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		t->expire = TICK_ETERNITY;
 		return t;
 	}
+
+	/* We're about to destroy the connection, so make sure nobody attempts
+	 * to steal it from us.
+	 */
+	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+
+	if (h2c && h2c->conn->flags & CO_FL_LIST_MASK)
+		MT_LIST_DEL(&h2c->conn->list);
+
+	/* Somebody already stole the connection from us, so we should not
+	 * free it, we just have to free the task.
+	 */
+	if (!t->context)
+		h2c = NULL;
+
+	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 
 	task_destroy(t);
 
@@ -5979,6 +6036,50 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 	}
 }
 
+/* Migrate the the connection to the current thread.
+ * Return 0 if successful, non-zero otherwise.
+ * Expected to be called with the old thread lock held.
+ */
+static int h2_takeover(struct connection *conn)
+{
+	struct h2c *h2c = conn->ctx;
+
+	if (fd_takeover(conn->handle.fd, conn) != 0)
+		return -1;
+	if (h2c->wait_event.events)
+		h2c->conn->xprt->unsubscribe(h2c->conn, h2c->conn->xprt_ctx,
+		    h2c->wait_event.events, &h2c->wait_event);
+	/* To let the tasklet know it should free itself, and do nothing else,
+	 * set its context to NULL.
+	 */
+	h2c->wait_event.tasklet->context = NULL;
+	tasklet_wakeup(h2c->wait_event.tasklet);
+	if (h2c->task) {
+		h2c->task->context = NULL;
+		/* Wake the task, to let it free itself */
+		task_wakeup(h2c->task, TASK_WOKEN_OTHER);
+
+		h2c->task = task_new(tid_bit);
+		if (!h2c->task) {
+			h2_release(h2c);
+			return -1;
+		}
+		h2c->task->process = h2_timeout_task;
+		h2c->task->context = h2c;
+	}
+	h2c->wait_event.tasklet = tasklet_new();
+	if (!h2c->wait_event.tasklet) {
+		h2_release(h2c);
+		return -1;
+	}
+	h2c->wait_event.tasklet->process = h2_io_cb;
+	h2c->wait_event.tasklet->context = h2c;
+	h2c->conn->xprt->subscribe(h2c->conn, h2c->conn->xprt_ctx,
+		                   SUB_RETRY_RECV, &h2c->wait_event);
+
+	return 0;
+}
+
 /*******************************************************/
 /* functions below are dedicated to the config parsers */
 /*******************************************************/
@@ -6070,6 +6171,7 @@ static const struct mux_ops h2_ops = {
 	.shutw = h2_shutw,
 	.ctl = h2_ctl,
 	.show_fd = h2_show_fd,
+	.takeover = h2_takeover,
 	.flags = MX_FL_CLEAN_ABRT|MX_FL_HTX,
 	.name = "H2",
 };
