@@ -608,6 +608,7 @@ struct cond_wordlist {
 #define _MT_LIST_RELINK_DELETED(elt2)                                      \
     do {                                                                   \
 	    struct mt_list *n = elt2.next, *p = elt2.prev;                 \
+	    ALREADY_CHECKED(p);                                            \
 	    n->prev = p;                                                   \
 	    p->next = n;                                                   \
     } while (0);
