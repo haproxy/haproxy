@@ -25,7 +25,6 @@
 #include <stdlib.h>
 
 #include <common/config.h>
-#include <types/server.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
 #include <proto/applet.h>
