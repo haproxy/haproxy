@@ -4530,7 +4530,7 @@ int varint_bytes(uint64_t v)
 
 
 /* Random number generator state, see below */
-static uint64_t ha_random_state[2];
+static uint64_t ha_random_state[2] ALIGNED(2*sizeof(uint64_t));
 
 /* This is a thread-safe implementation of xoroshiro128** described below:
  *     http://prng.di.unimi.it/
@@ -4542,8 +4542,8 @@ static uint64_t ha_random_state[2];
 uint64_t ha_random64()
 {
 	uint64_t result;
-	uint64_t old[2];
-	uint64_t new[2];
+	uint64_t old[2] ALIGNED(2*sizeof(uint64_t));
+	uint64_t new[2] ALIGNED(2*sizeof(uint64_t));
 
 #if defined(USE_THREAD) && (!defined(HA_CAS_IS_8B) || !defined(HA_HAVE_CAS_DW))
 	static HA_SPINLOCK_T rand_lock;
