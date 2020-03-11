@@ -662,4 +662,28 @@ struct cond_wordlist {
 			}                                                     \
 	    }),                                                               \
 	     &item->member != (list_head);)
+
+static __inline struct list *mt_list_to_list(struct mt_list *list)
+{
+	union {
+		struct mt_list *mt_list;
+		struct list *list;
+	} mylist;
+
+	mylist.mt_list = list;
+	return mylist.list;
+}
+
+static __inline struct mt_list *list_to_mt_list(struct list *list)
+{
+		union {
+		struct mt_list *mt_list;
+		struct list *list;
+	} mylist;
+
+	mylist.list = list;
+	return mylist.mt_list;
+
+}
+
 #endif /* _COMMON_MINI_CLIST_H */
