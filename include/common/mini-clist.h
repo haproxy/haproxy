@@ -676,7 +676,7 @@ static __inline struct list *mt_list_to_list(struct mt_list *list)
 
 static __inline struct mt_list *list_to_mt_list(struct list *list)
 {
-		union {
+	union {
 		struct mt_list *mt_list;
 		struct list *list;
 	} mylist;
