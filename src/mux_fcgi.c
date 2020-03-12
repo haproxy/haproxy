@@ -3136,9 +3136,18 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 {
 	struct session *sess = fstrm->sess;
 	struct proxy *proxy = fconn->proxy;
-	struct proxy *other_end = sess->fe;
+	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
+	if (fstrm->cs && fstrm->cs->data) {
+		if (sess == NULL)
+			sess = si_strm(fstrm->cs->data)->sess;
+		if (!(h1m->flags & H1_MF_RESP))
+			other_end = si_strm(fstrm->cs->data)->be;
+		else
+			other_end = sess->fe;
+	} else
+		other_end = NULL;
 	/* http-specific part now */
 	ctx.h1.state   = h1m->state;
 	ctx.h1.c_flags = fconn->flags;

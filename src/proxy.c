@@ -1560,7 +1560,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	es->when    = date; // user-visible date
 	es->srv     = objt_server(target);
 	es->oe      = other_end;
-	if (objt_conn(sess->origin) && conn_get_src(__objt_conn(sess->origin)))
+	if (sess && objt_conn(sess->origin) && conn_get_src(__objt_conn(sess->origin)))
 		es->src  = *__objt_conn(sess->origin)->src;
 	else
 		memset(&es->src, 0, sizeof(es->src));
@@ -2234,7 +2234,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 		if (appctx->ctx.errors.iid >= 0 &&
 		    appctx->ctx.errors.px->uuid != appctx->ctx.errors.iid &&
-		    es->oe->uuid != appctx->ctx.errors.iid)
+		    (!es->oe || es->oe->uuid != appctx->ctx.errors.iid))
 			goto next;
 
 		if (appctx->ctx.errors.ptr < 0) {
@@ -2264,15 +2264,15 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 					     " frontend %s (#%d): invalid request\n"
 					     "  backend %s (#%d)",
 					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
-					     (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
-					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1);
+					     (es->oe && es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
+					     (es->oe && es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1);
 				break;
 			case 1:
 				chunk_appendf(&trash,
 					     " backend %s (#%d): invalid response\n"
 					     "  frontend %s (#%d)",
 					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
-					     es->oe->id, es->oe->uuid);
+					     es->oe ? es->oe->id : "<NONE>" , es->oe ? es->oe->uuid : -1);
 				break;
 			}
 

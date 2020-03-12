@@ -1054,11 +1054,18 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 {
 	struct session *sess = h1c->conn->owner;
 	struct proxy *proxy = h1c->px;
-	struct proxy *other_end = sess->fe;
+	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if (h1s->cs->data && !(h1m->flags & H1_MF_RESP))
-		other_end = si_strm(h1s->cs->data)->be;
+	if (h1s->cs && h1s->cs->data) {
+		if (sess == NULL)
+			sess = si_strm(h1s->cs->data)->sess;
+		if (!(h1m->flags & H1_MF_RESP))
+			other_end = si_strm(h1s->cs->data)->be;
+		else
+			other_end = sess->fe;
+	} else
+		other_end = NULL;
 
 	/* http-specific part now */
 	ctx.h1.state   = h1m->state;
