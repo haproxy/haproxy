@@ -429,15 +429,14 @@ void pool_gc(struct pool_head *pool_ctx)
 		return;
 
 	list_for_each_entry(entry, &pools, list) {
-		void *temp, *next;
+		void *temp;
 		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
 		if (entry != pool_ctx)
 			HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
-		next = entry->free_list;
-		while (next &&
+		while (entry->free_list &&
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
-			temp = next;
-			next = *POOL_LINK(entry, temp);
+			temp = entry->free_list;
+			entry->free_list = *POOL_LINK(entry, temp);
 			entry->allocated--;
 			if (entry != pool_ctx)
 				HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
@@ -445,7 +444,6 @@ void pool_gc(struct pool_head *pool_ctx)
 			if (entry != pool_ctx)
 				HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 		}
-		entry->free_list = next;
 		if (entry != pool_ctx)
 			HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
 	}
