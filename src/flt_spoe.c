@@ -258,7 +258,7 @@ static char *
 generate_pseudo_uuid()
 {
 	ha_generate_uuid(&trash);
-	return trash.area;
+	return my_strndup(trash.area, trash.data);
 }
 
 
