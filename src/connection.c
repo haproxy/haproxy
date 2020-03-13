@@ -802,7 +802,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * fail.
 	 */
 	while (1) {
-		int len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
+		ssize_t len2 = recv(conn->handle.fd, trash.area, trash.data, 0);
+
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.data)
@@ -1437,6 +1438,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 	if (srv->pp_opts & SRV_PP_V2_CRC32C) {
 		uint32_t zero_crc32c = 0;
+
 		if ((buf_len - ret) < sizeof(struct tlv))
 			return 0;
 		tlv_crc32c_p = (void *)((struct tlv *)&buf[ret])->value;
@@ -1486,6 +1488,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	if (srv->pp_opts & SRV_PP_V2_SSL) {
 		struct tlv_ssl *tlv;
 		int ssl_tlv_len = 0;
+
 		if ((buf_len - ret) < sizeof(struct tlv_ssl))
 			return 0;
 		tlv = (struct tlv_ssl *)&buf[ret];
