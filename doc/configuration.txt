@@ -12657,13 +12657,23 @@ send-proxy-v2
   this section and send-proxy" option of the "bind" keyword.
 
 proxy-v2-options <option>[,<option>]*
-  The "proxy-v2-options" parameter add option to send in PROXY protocol version
-  2 when "send-proxy-v2" is used. Options available are "ssl" (see also
-  send-proxy-v2-ssl), "cert-cn" (see also "send-proxy-v2-ssl-cn"), "ssl-cipher":
-  name of the used cipher, "cert-sig": signature algorithm of the used
-  certificate, "cert-key": key algorithm of the used certificate), "authority":
-  host name value passed by the client (only sni from a tls connection is
-  supported), "crc32c": checksum of the proxy protocol v2 header.
+  The "proxy-v2-options" parameter add options to send in PROXY protocol
+  version 2 when "send-proxy-v2" is used. Options available are:
+
+  - ssl       : See also "send-proxy-v2-ssl".
+  - cert-cn   : See also "send-proxy-v2-ssl-cn".
+  - ssl-cipher: Name of the used cipher.
+  - cert-sig  : Signature algorithm of the used certificate.
+  - cert-key  : Key algorithm of the used certificate
+  - authority : Host name value passed by the client (only SNI from a TLS
+                connection is supported).
+  - crc32c    : Checksum of the PROXYv2 header.
+  - unique-id : Send a unique ID generated using the frontend's
+                "unique-id-format" within the PROXYv2 header.
+                This unique-id is primarily meant for "mode tcp". It can
+                lead to unexpected results in "mode http", because the
+                generated unique ID is also used for the first HTTP request
+                within a Keep-Alive connection.
 
 send-proxy-v2-ssl
   The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version

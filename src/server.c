@@ -656,6 +656,8 @@ static int srv_parse_proxy_v2_options(char **args, int *cur_arg,
 			newsrv->pp_opts |= SRV_PP_V2_AUTHORITY;
 		} else if (!strcmp(p, "crc32c")) {
 			newsrv->pp_opts |= SRV_PP_V2_CRC32C;
+		} else if (!strcmp(p, "unique-id")) {
+			newsrv->pp_opts |= SRV_PP_V2_UNIQUE_ID;
 		} else
 			goto fail;
 	}

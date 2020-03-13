@@ -154,6 +154,7 @@ enum srv_initaddr {
 #define SRV_PP_V2_SSL_CIPHER    0x0040   /* proxy protocol version 2 with cipher used */
 #define SRV_PP_V2_AUTHORITY     0x0080   /* proxy protocol version 2 with authority */
 #define SRV_PP_V2_CRC32C        0x0100   /* proxy protocol version 2 with crc32c */
+#define SRV_PP_V2_UNIQUE_ID     0x0200   /* proxy protocol version 2 with unique ID */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */

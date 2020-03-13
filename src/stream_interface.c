@@ -354,9 +354,12 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		if (cs && cs->data_cb == &si_conn_cb) {
 			struct stream_interface *si = cs->data;
 			struct conn_stream *remote_cs = objt_cs(si_opposite(si)->end);
+			struct stream *strm = si_strm(si);
+
 			ret = make_proxy_line(trash.area, trash.size,
 					      objt_server(conn->target),
-					      remote_cs ? remote_cs->conn : NULL);
+					      remote_cs ? remote_cs->conn : NULL,
+					      strm);
 			/* We may not have a conn_stream yet, if we don't
 			 * know which mux to use, because it will be decided
 			 * during the SSL handshake. In this case, there should
@@ -371,7 +374,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 
 			ret = make_proxy_line(trash.area, trash.size,
 			                      objt_server(conn->target),
-					      objt_conn(sess->origin));
+					      objt_conn(sess->origin),
+					      NULL);
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
@@ -381,7 +385,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 				goto out_wait;
 
 			ret = make_proxy_line(trash.area, trash.size,
-					      objt_server(conn->target), conn);
+					      objt_server(conn->target), conn,
+					      NULL);
 		}
 
 		if (!ret)

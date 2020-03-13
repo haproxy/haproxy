@@ -1241,12 +1241,12 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 }
 
 /* Note: <remote> is explicitly allowed to be NULL */
-int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote)
+int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
 {
 	int ret = 0;
 
 	if (srv && (srv->pp_opts & SRV_PP_V2)) {
-		ret = make_proxy_line_v2(buf, buf_len, srv, remote);
+		ret = make_proxy_line_v2(buf, buf_len, srv, remote, strm);
 	}
 	else {
 		if (remote && conn_get_src(remote) && conn_get_dst(remote))
@@ -1353,7 +1353,7 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const 
 }
 
 /* Note: <remote> is explicitly allowed to be NULL */
-int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote)
+int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
 {
 	const char pp2_signature[] = PP2_SIGNATURE;
 	void *tlv_crc32c_p = NULL;
@@ -1465,6 +1465,20 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			if ((buf_len - ret) < sizeof(struct tlv))
 				return 0;
 			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_AUTHORITY, value_len, value);
+		}
+	}
+
+	if (srv->pp_opts & SRV_PP_V2_UNIQUE_ID) {
+		struct session* sess = strm_sess(strm);
+		struct ist unique_id = stream_generate_unique_id(strm, &sess->fe->format_unique_id);
+
+		value = unique_id.ptr;
+		value_len = unique_id.len;
+
+		if (value_len >= 0) {
+			if ((buf_len - ret) < sizeof(struct tlv))
+				return 0;
+			ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_UNIQUE_ID, value_len, value);
 		}
 	}
 
