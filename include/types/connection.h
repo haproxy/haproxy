@@ -558,6 +558,7 @@ struct proxy_hdr_v2 {
 #define PP2_TYPE_AUTHORITY      0x02
 #define PP2_TYPE_CRC32C         0x03
 #define PP2_TYPE_NOOP           0x04
+#define PP2_TYPE_UNIQUE_ID      0x05
 #define PP2_TYPE_SSL            0x20
 #define PP2_SUBTYPE_SSL_VERSION 0x21
 #define PP2_SUBTYPE_SSL_CN      0x22
