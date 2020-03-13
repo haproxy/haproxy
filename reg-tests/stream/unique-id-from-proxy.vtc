@@ -1,0 +1,38 @@
+varnishtest "Check that we are able to read a unique-id from PROXYv2"
+
+#REQUIRE_VERSION=2.2
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend echo
+        bind "fd@${fe1}" accept-proxy
+        http-after-response set-header echo %[fc_pp_unique_id,hex]
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    # PROXY v2 signature
+    sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
+    # version + PROXY
+    sendhex "21"
+    # TCP4
+    sendhex "11"
+    # length of the address (12) + length of the TLV (8)
+    sendhex "00 14"
+    # 127.0.0.1 42 127.0.0.1 1337
+    sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
+    # PP2_TYPE_UNIQUE_ID + length of the value + "12345"
+    sendhex "05 00 05 31 32 33 34 35"
+
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.echo == "3132333435"
+} -run

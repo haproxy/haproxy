@@ -325,6 +325,7 @@ static inline void conn_init(struct connection *conn)
 	conn->src = NULL;
 	conn->dst = NULL;
 	conn->proxy_authority = NULL;
+	conn->proxy_unique_id = IST_NULL;
 }
 
 /* sets <owner> as the connection's owner */
@@ -457,6 +458,10 @@ static inline void conn_free(struct connection *conn)
 	if (conn->proxy_authority != NULL) {
 		pool_free(pool_head_authority, conn->proxy_authority);
 		conn->proxy_authority = NULL;
+	}
+	if (isttest(conn->proxy_unique_id)) {
+		pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
+		conn->proxy_unique_id = IST_NULL;
 	}
 
 	/* By convention we always place a NULL where the ctx points to if the

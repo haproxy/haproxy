@@ -755,6 +755,22 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				conn->proxy_authority_len = tlv_len;
 				break;
 			}
+			case PP2_TYPE_UNIQUE_ID: {
+				const struct ist tlv = ist2((const char *)tlv_packet->value, tlv_len);
+
+				if (tlv.len > UNIQUEID_LEN)
+					goto bad_header;
+				conn->proxy_unique_id.ptr = pool_alloc(pool_head_uniqueid);
+				if (!isttest(conn->proxy_unique_id))
+					goto fail;
+				if (istcpy(&conn->proxy_unique_id, tlv, UNIQUEID_LEN) < 0) {
+					/* This is technically unreachable, because we verified above
+					 * that the TLV value fits.
+					 */
+					goto fail;
+				}
+				break;
+			}
 			default:
 				break;
 			}
@@ -1586,6 +1602,31 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 	return 1;
 }
 
+/* fetch the unique ID TLV from a PROXY protocol header */
+int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!isttest(conn->proxy_unique_id))
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = conn->proxy_unique_id.ptr;
+	smp->data.u.str.data = conn->proxy_unique_id.len;
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -1596,6 +1637,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 

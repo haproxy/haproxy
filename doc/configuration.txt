@@ -15131,6 +15131,10 @@ fc_pp_authority : string
   Returns the authority TLV sent by the client in the PROXY protocol header,
   if any.
 
+fc_pp_unique_id : string
+  Returns the unique ID TLV sent by the client in the PROXY protocol header,
+  if any.
+
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol
   header.
