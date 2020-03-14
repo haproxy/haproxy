@@ -77,6 +77,11 @@
  */
 #define ALREADY_CHECKED(p) do { asm("" : "=rm"(p) : "0"(p)); } while (0)
 
+/* same as above but to be used to pass the input value to the output but
+ * without letting the compiler know about its initial properties.
+ */
+#define DISGUISE(v) ({ typeof(v) __v = (v); ALREADY_CHECKED(__v); __v; })
+
 /*
  * Gcc >= 3 provides the ability for the program to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
