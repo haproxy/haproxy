@@ -59,7 +59,7 @@
 	do {                                                                   \
 		if (unlikely(cond)) {					       \
 			const char msg[] = "\nFATAL: bug condition \"" #cond "\" matched at " file ":" #line "\n"; \
-			(void)write(2, msg, strlen(msg));                      \
+			DISGUISE(write(2, msg, strlen(msg)));                  \
 			CRASH_NOW();                                           \
 		}                                                              \
 	} while (0)
