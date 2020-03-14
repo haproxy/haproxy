@@ -760,7 +760,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 				if (tlv.len > UNIQUEID_LEN)
 					goto bad_header;
-				conn->proxy_unique_id.ptr = pool_alloc(pool_head_uniqueid);
+				conn->proxy_unique_id = ist2(pool_alloc(pool_head_uniqueid), 0);
 				if (!isttest(conn->proxy_unique_id))
 					goto fail;
 				if (istcpy(&conn->proxy_unique_id, tlv, UNIQUEID_LEN) < 0) {
