@@ -335,7 +335,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			*(volatile int *)0 = 0;
+			*DISGUISE((volatile int *)0) = 0;
 #endif
 		if (mem_poison_byte >= 0)
 			memset(ptr, mem_poison_byte, pool->size);
@@ -457,7 +457,7 @@ static inline void pool_free_area(void *area, size_t size)
 	size_t pad = (4096 - size) & 0xFF0;
 
 	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
-		*(volatile int *)0 = 0;
+		*DISGUISE((volatile int *)0) = 0;
 
 	thread_harmless_now();
 	munmap(area - pad, (size + 4095) & -4096);
@@ -498,7 +498,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			*(volatile int *)0 = 0;
+			*DISGUISE((volatile int *)0) = 0;
 #endif
 
 #ifndef DEBUG_UAF /* normal pool behaviour */
