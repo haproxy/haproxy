@@ -436,7 +436,7 @@ static inline void wake_thread(int tid)
 {
 	char c = 'c';
 
-	shut_your_big_mouth_gcc(write(poller_wr_pipe[tid], &c, 1));
+	DISGUISE(write(poller_wr_pipe[tid], &c, 1));
 }
 
 

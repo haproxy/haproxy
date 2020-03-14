@@ -225,11 +225,6 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 char hostname[MAX_HOSTNAME_LEN];
 char localpeer[MAX_HOSTNAME_LEN];
 
-/* used from everywhere just to drain results we don't want to read and which
- * recent versions of gcc increasingly and annoyingly complain about.
- */
-int shut_your_big_mouth_gcc_int = 0;
-
 static char **next_argv = NULL;
 
 struct list proc_list = LIST_HEAD_INIT(proc_list);
@@ -3323,7 +3318,7 @@ int main(int argc, char **argv)
 			char pidstr[100];
 			snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
 			if (pidfd >= 0)
-				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
+				DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
 		}
 
 		/* the father launches the required number of processes */
@@ -3344,7 +3339,7 @@ int main(int argc, char **argv)
 				if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 					char pidstr[100];
 					snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
-					shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
+					DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
 				}
 				if (global.mode & MODE_MWORKER) {
 					struct mworker_proc *child;

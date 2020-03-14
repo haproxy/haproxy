@@ -2300,7 +2300,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				      s->uniq_id, s->be->id,
 			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-			shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+			DISGUISE(write(1, trash.area, trash.data));
 		}
 
 		if (si_f->state == SI_ST_CLO &&
@@ -2309,7 +2309,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 				      s->uniq_id, s->be->id,
 			              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 			              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-			shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
 
@@ -2376,7 +2376,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 			      s->uniq_id, s->be->id,
 		              objt_cs(si_f->end) ? (unsigned short)objt_cs(si_f->end)->conn->handle.fd : -1,
 		              objt_cs(si_b->end) ? (unsigned short)objt_cs(si_b->end)->conn->handle.fd : -1);
-		shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+		DISGUISE(write(1, trash.area, trash.data));
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);

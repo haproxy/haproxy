@@ -4973,7 +4973,7 @@ static void http_debug_stline(const char *dir, struct stream *s, const struct ht
         chunk_memcat(&trash, HTX_SL_P3_PTR(sl), max);
         trash.area[trash.data++] = '\n';
 
-        shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+        DISGUISE(write(1, trash.area, trash.data));
 }
 
 /*
@@ -5000,7 +5000,7 @@ static void http_debug_hdr(const char *dir, struct stream *s, const struct ist n
         chunk_memcat(&trash, v.ptr, max);
         trash.area[trash.data++] = '\n';
 
-        shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+        DISGUISE(write(1, trash.area, trash.data));
 }
 
 /* Allocate a new HTTP transaction for stream <s> unless there is one already.

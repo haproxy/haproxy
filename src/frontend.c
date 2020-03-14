@@ -134,7 +134,7 @@ int frontend_accept(struct stream *s)
 			break;
 		}
 
-		shut_your_big_mouth_gcc(write(1, trash.area, trash.data));
+		DISGUISE(write(1, trash.area, trash.data));
 	}
 
 	if (fe->mode == PR_MODE_HTTP)

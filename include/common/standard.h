@@ -1339,19 +1339,6 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf, unsigned int bas
 __attribute__((format(printf, 1, 2)))
 void calltrace(char *fmt, ...);
 
-/* used from everywhere just to drain results we don't want to read and which
- * recent versions of gcc increasingly and annoyingly complain about.
- */
-extern int shut_your_big_mouth_gcc_int;
-
-/* used from everywhere just to drain results we don't want to read and which
- * recent versions of gcc increasingly and annoyingly complain about.
- */
-static inline void shut_your_big_mouth_gcc(int r)
-{
-	shut_your_big_mouth_gcc_int = r;
-}
-
 /* same as strstr() but case-insensitive */
 const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2);
 
