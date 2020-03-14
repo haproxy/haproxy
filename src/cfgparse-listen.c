@@ -3867,7 +3867,7 @@ stats_error_parsing:
 		goto out;
 	}
 	else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore sionce HAProxy 2.1. "
+	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
