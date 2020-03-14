@@ -4,14 +4,14 @@ PROMEX: A Prometheus exporter for HAProxy
 Prometheus is a monitoring and alerting system. More and more people use it to
 monitor their environment (this is written February 2019). It collects metrics
 from monitored targets by scraping metrics HTTP endpoints on these targets. For
-HAProxy, The Prometheus team offically supports an exporter written in Go
+HAProxy, The Prometheus team officially supports an exporter written in Go
 (https://github.com/prometheus/haproxy_exporter). But it requires an extra
 software to deploy and monitor. PROMEX, on its side, is a built-in Prometheus
 exporter for HAProxy. It was developed as a service and is directly available in
 HAProxy, like the stats applet.
 
 However, PROMEX is not built by default with HAProxy. It is provided as an extra
-component for everyone want to use it. So you need to explicity build HAProxy
+component for everyone want to use it. So you need to explicitly build HAProxy
 with the PROMEX service, using the Makefile variable "EXTRA_OBJS". For instance:
 
     > make TARGET=linux-glibc EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o"
@@ -46,7 +46,7 @@ applet, all metrics are not grouped by service (proxy, listener or server). With
 PROMEX, all lines for a given metric are provided as one single group. So
 instead of collecting all metrics for a proxy before moving to the next one, we
 must loop on all proxies for each metric. Same for the servers. Thus, it will
-spend much more ressources to produce the Prometheus metrics than the CSV export
+spend much more resources to produce the Prometheus metrics than the CSV export
 through the stats page. To give a comparison order, quick benchmarks shown that
 a PROMEX dump is 5x slower and 20x more verbose than a CSV export.
 
@@ -99,7 +99,7 @@ Exported metrics
 | haproxy_process_pool_used_bytes                | Total amount of memory used in pools (in bytes).                              |
 | haproxy_process_pool_failures_total            | Total number of failed pool allocations.                                      |
 | haproxy_process_max_fds                        | Maximum number of open file descriptors; 0=unset.                             |
-| haproxy_process_max_sockets                    | Maximum numer of open sockets.                                                |
+| haproxy_process_max_sockets                    | Maximum number of open sockets.                                               |
 | haproxy_process_max_connections                | Maximum number of concurrent connections.                                     |
 | haproxy_process_hard_max_connections           | Initial Maximum number of concurrent connections.                             |
 | haproxy_process_current_connections            | Number of active sessions.                                                    |

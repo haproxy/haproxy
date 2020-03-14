@@ -62,7 +62,7 @@ make sure to respect this ordering when adding new ones.
   are serialized by the init_mutex, so that locking is not necessary in these
   functions. There is no relation between the thread numbers and the callback
   ordering. The function is expected to return non-zero on success, or zero on
-  failure. A failure will make the process emit a succint error message and
+  failure. A failure will make the process emit a succinct error message and
   immediately exit. See also hap_register_per_thread_free() for functions
   called after these ones.
 
@@ -110,7 +110,7 @@ make sure to respect this ordering when adding new ones.
   current one, the sequence of _alloc() and _init() calls will be atomic. There
   is no relation between the thread numbers and the callback ordering. The
   function is expected to return non-zero on success, or zero on failure. A
-  failure will make the process emit a succint error message and immediately
+  failure will make the process emit a succinct error message and immediately
   exit. See also hap_register_per_thread_alloc() for functions called before
   these ones.
 
@@ -123,7 +123,7 @@ make sure to respect this ordering when adding new ones.
   that would preferably not be done on the fly to avoid inducing extra time to
   a pure configuration check. Threads are not yet started so no protection is
   required. The function is expected to return non-zero on success, or zero on
-  failure. A failure will make the process emit a succint error message and
+  failure. A failure will make the process emit a succinct error message and
   immediately exit.
 
 - void hap_register_post_deinit(void (*fct)())
@@ -148,7 +148,7 @@ make sure to respect this ordering when adding new ones.
   worth being aware that such a function must be careful not to waste too much
   time in order not to significantly slow down configurations with tens of
   thousands of backends. The function is expected to return non-zero on
-  success, or zero on failure. A failure will make the process emit a succint
+  success, or zero on failure. A failure will make the process emit a succinct
   error message and immediately exit.
 
 - void hap_register_post_server_check(int (*fct)(struct server *))
@@ -160,7 +160,7 @@ make sure to respect this ordering when adding new ones.
   careful not to waste too much time in order not to significantly slow down
   configurations with tens of thousands of servers. The function is expected
   to return non-zero on success, or zero on failure. A failure will make the
-  process emit a succint error message and immediately exit.
+  process emit a succinct error message and immediately exit.
 
 - void hap_register_proxy_deinit(void (*fct)(struct proxy *))
 

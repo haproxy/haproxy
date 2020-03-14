@@ -79,7 +79,7 @@ Main process:
 
 Python:
 
- * Improve repporting: Catch python error message and repport it in the right
+ * Improve reporting: Catch python error message and report it in the right
    place. Today the error are dumped on stdout. How using syslog for logging
    stack traces ?
 

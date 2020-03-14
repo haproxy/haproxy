@@ -1,7 +1,7 @@
 ModSecurity for HAProxy
 -----------------------
 
-This is a third party deamon which speaks SPOE. It gives requests send by HAProxy
+This is a third party daemon which speaks SPOE. It gives requests send by HAProxy
 to ModSecurity and returns the verdict.
 
   Compilation
@@ -24,8 +24,8 @@ the Apache dependencies are installed on the system.
 	cp standalone/*.h $PWD/INSTALL/include
 	cp apache2/*.h $PWD/INSTALL/include
 
-Note that this compilation method works, but is a litle bit rustic. I can't
-deal with Lua, I supposed that is a dependecies problem on my computer.
+Note that this compilation method works, but is a little bit rustic. I can't
+deal with Lua, I supposed that is a dependencies problem on my computer.
 
   Start the service
 ---------------------
@@ -113,7 +113,7 @@ Modsecurity bugs:
    -    rc = apr_global_mutex_create(&msce->auditlog_lock, NULL, APR_LOCK_DEFAULT, mp);
    +    rc = apr_global_mutex_create(&msce->auditlog_lock, NULL, APR_LOCK_PROC_PTHREAD, mp);
 
-* Configuration file loaded with wilcard (eg. Include rules/*.conf), are loaded
+* Configuration file loaded with wildcard (eg. Include rules/*.conf), are loaded
   in reverse alphabetical order. You can found a patch below. The ModSecurity
   team ignored this patch.
 
