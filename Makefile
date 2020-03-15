@@ -328,6 +328,9 @@ ifeq ($(TARGET),linux-glibc)
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_BACKTRACE)
+ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep -v '^#'),__arm__/__aarch64__)
+  TARGET_LDFLAGS=-latomic
+endif
 endif
 
 # For linux >= 2.6.28, glibc without new features
