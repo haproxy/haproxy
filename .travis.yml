@@ -81,7 +81,7 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc BORINGSSL=yes CC=clang-9
+    env: TARGET=linux-glibc BORINGSSL=yes
   - os: linux
     if: type != cron
     compiler: clang
