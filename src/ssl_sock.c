@@ -4527,45 +4527,6 @@ ignore_entry:
 	return cfgerr;
 }
 
-/* Returns a set of ERR_* flags possibly with an error in <err>. */
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
-{
-	struct stat buf;
-	char fp[MAXPATHLEN+1];
-	int cfgerr = 0;
-	struct ckch_store *ckchs;
-
-	if ((ckchs = ckchs_lookup(path))) {
-		/* we found the ckchs in the tree, we can use it directly */
-		return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-	}
-	if (stat(path, &buf) == 0) {
-		if (S_ISDIR(buf.st_mode) == 0) {
-			ckchs =  ckchs_load_cert_file(path, 0,  err);
-			if (!ckchs)
-				return ERR_ALERT | ERR_FATAL;
-
-			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-		} else {
-			return ssl_sock_load_cert_dir(path, bind_conf, err);
-		}
-	} else {
-		/* stat failed, could be a bundle */
-		if (global_ssl.extra_files & SSL_GF_BUNDLE) {
-			/* try to load a bundle if it is permitted */
-			ckchs =  ckchs_load_cert_file(path, 1,  err);
-			if (!ckchs)
-				return ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
-		} else {
-			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
-			          err && *err ? *err : "", fp, strerror(errno));
-			cfgerr |= ERR_ALERT | ERR_FATAL;
-		}
-	}
-
-	return cfgerr;
-}
 
 /* Make sure openssl opens /dev/urandom before the chroot. The work is only
  * done once. Zero is returned if the operation fails. No error is returned
@@ -4769,6 +4730,46 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 		}
 	}
 	fclose(f);
+	return cfgerr;
+}
+
+/* Returns a set of ERR_* flags possibly with an error in <err>. */
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
+{
+	struct stat buf;
+	char fp[MAXPATHLEN+1];
+	int cfgerr = 0;
+	struct ckch_store *ckchs;
+
+	if ((ckchs = ckchs_lookup(path))) {
+		/* we found the ckchs in the tree, we can use it directly */
+		return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+	}
+	if (stat(path, &buf) == 0) {
+		if (S_ISDIR(buf.st_mode) == 0) {
+			ckchs =  ckchs_load_cert_file(path, 0,  err);
+			if (!ckchs)
+				return ERR_ALERT | ERR_FATAL;
+
+			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+		} else {
+			return ssl_sock_load_cert_dir(path, bind_conf, err);
+		}
+	} else {
+		/* stat failed, could be a bundle */
+		if (global_ssl.extra_files & SSL_GF_BUNDLE) {
+			/* try to load a bundle if it is permitted */
+			ckchs =  ckchs_load_cert_file(path, 1,  err);
+			if (!ckchs)
+				return ERR_ALERT | ERR_FATAL;
+			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, err);
+		} else {
+			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+			          err && *err ? *err : "", fp, strerror(errno));
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+
 	return cfgerr;
 }
 
