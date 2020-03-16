@@ -4461,6 +4461,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 	}
 	memcpy(dir->node.key, path, strlen(path) + 1);
 	dir->entries = EB_ROOT_UNIQUE; /* it's a directory, files are unique */
+	LIST_INIT(&dir->ord_entries);
 
 	n = scandir(path, &de_list, 0, alphasort);
 	if (n < 0) {
@@ -4483,6 +4484,11 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto ignore_entry;
 			}
+
+			/* directories don't use ssl_conf and filters */
+			entry->fcount = 0;
+			entry->filters = NULL;
+			entry->ssl_conf = NULL;
 
 			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
 			if (stat(fp, &buf) != 0) {
@@ -4532,9 +4538,8 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 						cfgerr |= ERR_ALERT | ERR_FATAL;
 						goto end;
 					}
-
 					entry->node.key = ckchs;
-					entry->ssl_conf = NULL; /* directories don't use ssl_conf */
+					LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 					ebpt_insert(&dir->entries, &entry->node);
 
 					/* Successfully processed the bundle */
@@ -4553,7 +4558,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 				goto end;
 			}
 			entry->node.key = ckchs;
-			entry->ssl_conf = NULL; /* directories don't use ssl_conf */
+			LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 			ebpt_insert(&dir->entries, &entry->node);
 
 ignore_entry:
@@ -4577,8 +4582,9 @@ end:
 			free(entry);
 		}
 		free(dir);
+	} else {
+		*crtlist = dir;
 	}
-
 	return cfgerr;
 
 }
