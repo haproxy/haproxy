@@ -342,7 +342,7 @@ int run_tasks_from_list(struct list *list, int max)
 			state = _HA_ATOMIC_XCHG(&t->state, state);
 			__ha_barrier_atomic_store();
 			__tasklet_remove_from_tasklet_list((struct tasklet *)t);
-			process(NULL, ctx, state);
+			process(t, ctx, state);
 			done++;
 			sched->current = NULL;
 			__ha_barrier_store();
