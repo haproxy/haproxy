@@ -11028,9 +11028,11 @@ static int cli_io_handler_dump_crtlist(struct appctx *appctx)
 		}
 		lnode = ebmb_next(lnode);
 	}
+	free_trash_chunk(trash);
 	return 1;
 yield:
 	appctx->ctx.cli.p1 = lnode;
+	free_trash_chunk(trash);
 	return 0;
 }
 
@@ -11075,9 +11077,11 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 			goto yield;
 		}
 	}
+	free_trash_chunk(trash);
 	return 1;
 yield:
 	appctx->ctx.cli.p1 = entry;
+	free_trash_chunk(trash);
 	return 0;
 }
 
