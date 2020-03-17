@@ -102,7 +102,7 @@ install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
-  - travis_wait scripts/build-ssl.sh > build-ssl.log 2>&1 || (cat build-ssl.log && exit 1)
+  - travis_wait bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
 
 script:
   - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
