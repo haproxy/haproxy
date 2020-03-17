@@ -4478,6 +4478,16 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
 				goto ignore_entry;
 
+			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
+			if (stat(fp, &buf) != 0) {
+				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+					  err && *err ? *err : "", fp, strerror(errno));
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto ignore_entry;
+			}
+			if (!S_ISREG(buf.st_mode))
+				goto ignore_entry;
+
 			entry = malloc(sizeof(*entry));
 			if (entry == NULL) {
 				memprintf(err, "not enough memory '%s'", fp);
@@ -4489,16 +4499,6 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 			entry->fcount = 0;
 			entry->filters = NULL;
 			entry->ssl_conf = NULL;
-
-			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
-			if (stat(fp, &buf) != 0) {
-				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
-					  err && *err ? *err : "", fp, strerror(errno));
-				cfgerr |= ERR_ALERT | ERR_FATAL;
-				goto ignore_entry;
-			}
-			if (!S_ISREG(buf.st_mode))
-				goto ignore_entry;
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			is_bundle = 0;
