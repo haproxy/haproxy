@@ -2660,10 +2660,10 @@ static int cmp_pat_ref(const void *_a, const void *_b)
  */
 int pattern_finalize_config(void)
 {
-	int len = 0;
-	int unassigned_pos = 0;
+	size_t len = 0;
+	size_t unassigned_pos = 0;
 	int next_unique_id = 0;
-	int i, j;
+	size_t i, j;
 	struct pat_ref *ref, **arr;
 	struct list pr = LIST_HEAD_INIT(pr);
 
@@ -2674,6 +2674,10 @@ int pattern_finalize_config(void)
 		len++;
 		if (ref->unique_id != -1)
 			unassigned_pos++;
+	}
+
+	if (len == 0) {
+		return 0;
 	}
 
 	arr = calloc(len, sizeof(*arr));
