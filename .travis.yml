@@ -42,11 +42,13 @@ matrix:
     if: type == push
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
-  - os: linux
-    arch: arm64
-    if: type == push
-    compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
+##################
+## temporarily disabled, until arm64 runners become stable
+#  - os: linux
+#    arch: arm64
+#    if: type == push
+#    compiler: clang
+#    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
   - os: linux
     arch: s390x
     if: type == push
