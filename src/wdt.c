@@ -18,6 +18,7 @@
 #include <common/initcall.h>
 #include <common/standard.h>
 #include <types/global.h>
+#include <types/signal.h>
 #include <proto/log.h>
 
 
@@ -26,11 +27,6 @@
  * this case.
  */
 #if defined(USE_RT) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
-
-/* We'll deliver SIGALRM when we've run out of CPU as it's not intercepted by
- * gdb by default.
- */
-#define WDTSIG SIGALRM
 
 /* Setup (or ping) the watchdog timer for thread <thr>. Returns non-zero on
  * success, zero on failure. It interrupts once per second of CPU time. It

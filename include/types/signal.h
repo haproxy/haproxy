@@ -25,6 +25,26 @@
 #define SIG_F_TYPE_FCT          0x0002  /* handler is a function + arg */
 #define SIG_F_TYPE_TASK         0x0004  /* handler is a task + reason */
 
+/* Define WDTSIG if available */
+#if defined(USE_RT) && (_POSIX_TIMERS > 0) && defined(_POSIX_THREAD_CPUTIME)
+
+
+/* We'll deliver SIGALRM when we've run out of CPU as it's not intercepted by
+ * gdb by default.
+ */
+#define WDTSIG SIGALRM
+
+#endif
+
+#ifdef USE_THREAD_DUMP
+/* The signal to trigger a debug dump on a thread is SIGURG. It has the benefit
+ * of not stopping gdb by default, so that issuing "show threads" in a process
+ * being debugged has no adverse effect.
+ */
+#define DEBUGSIG SIGURG
+
+#endif
+
 /* those are highly dynamic and stored in pools */
 struct sig_handler {
 	struct list list;

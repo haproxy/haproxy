@@ -29,6 +29,7 @@
 #include <common/standard.h>
 
 #include <types/global.h>
+#include <types/signal.h>
 
 #include <proto/cli.h>
 #include <proto/fd.h>
@@ -686,12 +687,6 @@ void ha_thread_dump_all_to_trash()
 }
 
 #else /* below USE_THREAD_DUMP is set */
-
-/* The signal to trigger a debug dump on a thread is SIGURG. It has the benefit
- * of not stopping gdb by default, so that issuing "show threads" in a process
- * being debugged has no adverse effect.
- */
-#define DEBUGSIG SIGURG
 
 /* ID of the thread requesting the dump */
 static unsigned int thread_dump_tid;
