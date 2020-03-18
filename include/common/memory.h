@@ -78,7 +78,7 @@ struct pool_head {
 	void **free_list;
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 	uintptr_t seq;
-	HA_RWLOCK_T flush_lock;
+	HA_SPINLOCK_T flush_lock;
 #else
 	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
 #endif
@@ -222,19 +222,15 @@ static inline void *__pool_get_first(struct pool_head *pool)
 	cmp.seq = pool->seq;
 	__ha_barrier_load();
 
-	HA_RWLOCK_RDLOCK(POOL_LOCK, &pool->flush_lock);
 	cmp.free_list = pool->free_list;
 	do {
-		if (cmp.free_list == NULL) {
-			HA_RWLOCK_RDUNLOCK(POOL_LOCK, &pool->flush_lock);
+		if (cmp.free_list == NULL)
 			return NULL;
-		}
 		new.seq = cmp.seq + 1;
 		__ha_barrier_load();
 		new.free_list = *POOL_LINK(pool, cmp.free_list);
 	} while (HA_ATOMIC_DWCAS((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
 	__ha_barrier_atomic_store();
-	HA_RWLOCK_RDUNLOCK(POOL_LOCK, &pool->flush_lock);
 
 	_HA_ATOMIC_ADD(&pool->used, 1);
 #ifdef DEBUG_MEMORY_POOLS
