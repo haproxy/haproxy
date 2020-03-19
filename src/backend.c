@@ -1095,8 +1095,10 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	/* If we found a connection in our own list, and we don't have to
 	 * steal one from another thread, then we're done.
 	 */
-	if (conn)
-		return conn;
+	if (conn) {
+		i = tid;
+		goto fix_conn;
+	}
 
 	/* Lookup all other threads for an idle connection, starting from tid + 1 */
 	for (i = tid; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
@@ -1116,6 +1118,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	if (!found)
 		conn = NULL;
 	else {
+fix_conn:
 		conn->idle_time = 0;
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[i], 1);
