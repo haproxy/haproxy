@@ -11254,6 +11254,14 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 			chunk_appendf(out, "*");
 		chunk_appendf(out, "%s\n", ckchs->path);
 
+		chunk_appendf(out, "Status: ");
+		if (ckchs->ckch->cert == NULL)
+			chunk_appendf(out, "Empty\n");
+		else if (LIST_ISEMPTY(&ckchs->ckch_inst))
+			chunk_appendf(out, "Unused\n");
+		else
+			chunk_appendf(out, "Used\n");
+
 		if (ckchs->ckch->cert == NULL)
 			goto end;
 
