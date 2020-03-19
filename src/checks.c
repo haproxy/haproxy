@@ -2775,7 +2775,7 @@ static char * tcpcheck_get_step_comment(struct check *check, int stepid)
  */
 static int tcpcheck_main(struct check *check)
 {
-	char *contentptr, *comment;
+	char *comment;
 	struct tcpcheck_rule *next;
 	int done = 0, ret = 0, step = 0;
 	struct conn_stream *cs = check->cs;
@@ -3081,10 +3081,7 @@ static int tcpcheck_main(struct check *check)
 			check->last_started_step = check->current_step;
 
 			/* reset the read buffer */
-			if (*b_head(&check->bi) != '\0') {
-				*b_head(&check->bi) = '\0';
-				b_reset(&check->bi);
-			}
+			b_reset(&check->bi);
 
 			if (check->current_step->string_len >= b_size(&check->bo)) {
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
@@ -3100,7 +3097,6 @@ static int tcpcheck_main(struct check *check)
 				continue;
 
 			b_putblk(&check->bo, check->current_step->string, check->current_step->string_len);
-			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
 
 			/* go to next rule and try to send */
 			check->current_step = LIST_NEXT(&check->current_step->list, struct tcpcheck_rule *, list);
@@ -3149,19 +3145,9 @@ static int tcpcheck_main(struct check *check)
 			/* mark the step as started */
 			check->last_started_step = check->current_step;
 
-
-			/* Intermediate or complete response received.
-			 * Terminate string in b_head(&check->bi) buffer.
-			 */
-			if (b_data(&check->bi) < b_size(&check->bi)) {
-				b_head(&check->bi)[b_data(&check->bi)] = '\0';
-			}
-			else {
-				b_head(&check->bi)[b_data(&check->bi) - 1] = '\0';
-				done = 1; /* buffer full, don't wait for more data */
-			}
-
-			contentptr = b_head(&check->bi);
+			/* buffer full, don't wait for more data */
+			if (b_full(&check->bi))
+				done = 1;
 
 			/* Check that response body is not empty... */
 			if (!b_data(&check->bi)) {
@@ -3198,10 +3184,10 @@ static int tcpcheck_main(struct check *check)
 			switch (expect->type) {
 			case TCPCHK_EXPECT_STRING:
 			case TCPCHK_EXPECT_BINARY:
-				match = my_memmem(contentptr, b_data(&check->bi), expect->string, expect->length) != NULL;
+				match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->string, expect->length) != NULL;
 				break;
 			case TCPCHK_EXPECT_REGEX:
-				match = regex_exec(expect->regex, contentptr);
+				match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
 				break;
 			case TCPCHK_EXPECT_UNDEF:
 				/* Should never happen. */
