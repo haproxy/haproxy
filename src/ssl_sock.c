@@ -3939,7 +3939,7 @@ static int ckch_inst_sni_ctx_to_sni_filters(const struct ckch_inst *ckchi, char 
 	if (!tmp_fcount)
 		goto end;
 
-	tmp_filter = malloc(sizeof(*tmp_filter) * tmp_fcount);
+	tmp_filter = calloc(tmp_fcount, sizeof(*tmp_filter));
 	if (!tmp_filter) {
 		errcode |= ERR_FATAL|ERR_ALERT;
 		goto error;
