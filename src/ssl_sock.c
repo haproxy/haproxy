@@ -4656,7 +4656,7 @@ static char **crtlist_dup_filters(char **args, int fcount)
 	char **dst;
 	int i;
 
-	dst = calloc(fcount, sizeof(*dst) + 1);
+	dst = calloc(fcount + 1, sizeof(*dst));
 	if (!dst)
 		return NULL;
 
