@@ -11254,6 +11254,9 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 			chunk_appendf(out, "*");
 		chunk_appendf(out, "%s\n", ckchs->path);
 
+		if (ckchs->ckch->cert == NULL)
+			goto end;
+
 		chain = ckchs->ckch->chain;
 		if (chain == NULL) {
 			struct issuer_chain *issuer;
@@ -11352,12 +11355,12 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		}
 	}
 
+end:
 	if (ci_putchk(si_ic(si), out) == -1) {
 		si_rx_room_blk(si);
 		goto yield;
 	}
 
-end:
 	free_trash_chunk(tmp);
 	free_trash_chunk(out);
 	return 1;
@@ -11962,6 +11965,61 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+/* parsing function of 'new ssl cert' */
+static int cli_parse_new_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *store;
+	char *err = NULL;
+	char *path;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'new ssl cert' expects a filename\n");
+
+	path = args[3];
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't create a certificate!\nOperations on certificates are currently locked!\n");
+
+	store = ckchs_lookup(path);
+	if (store != NULL) {
+		memprintf(&err, "Certificate '%s' already exists!\n", path);
+		store = NULL; /* we don't want to free it */
+		goto error;
+	}
+	store = calloc(1, sizeof(*store) + strlen(path) + 1);
+	if (!store) {
+		memprintf(&err, "unable to allocate memory.\n");
+		goto error;
+	}
+	store->ckch = calloc(1, sizeof(*store->ckch));
+	if (!store->ckch) {
+		memprintf(&err, "unable to allocate memory.\n");
+		goto error;
+	}
+	/* we won't create any instance */
+	LIST_INIT(&store->ckch_inst);
+
+	/* we won't support multi-certificate bundle here */
+	store->multi = 0;
+
+	/* insert into the ckchs tree */
+	memcpy(store->path, path, strlen(path) + 1);
+	ebst_insert(&ckchs_tree, &store->node);
+	memprintf(&err, "New empty certificate store '%s'!\n", args[3]);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+error:
+	free(store);
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
 static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
@@ -12156,6 +12214,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "tls-key", NULL }, "set ssl tls-key [id|keyfile] <tlskey>: set the next TLS key for the <id> or <keyfile> listener to <tlskey>", cli_parse_set_tlskeys, NULL },
 #endif
 	{ { "set", "ssl", "ocsp-response", NULL }, NULL, cli_parse_set_ocspresponse, NULL },
+	{ { "new", "ssl", "cert", NULL }, "new ssl cert <certfile> : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
 	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
