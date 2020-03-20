@@ -11293,6 +11293,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		write = BIO_read(bio, tmp->area, tmp->size-1);
 		tmp->area[write] = '\0';
 		BIO_free(bio);
+		bio = NULL;
 		chunk_appendf(out, "%s\n", tmp->area);
 
 		chunk_appendf(out, "notAfter: ");
@@ -11305,6 +11306,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 			goto end;
 		tmp->area[write] = '\0';
 		BIO_free(bio);
+		bio = NULL;
 		chunk_appendf(out, "%s\n", tmp->area);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -11372,6 +11374,8 @@ end:
 		goto yield;
 	}
 
+	if (bio)
+		BIO_free(bio);
 	free_trash_chunk(tmp);
 	free_trash_chunk(out);
 	return 1;
