@@ -11249,7 +11249,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	int i;
 
 	if (!tmp || !out)
-		goto end;
+		goto end_no_putchk;
 
 	if (!ckchs->multi) {
 		chunk_appendf(out, "Filename: ");
@@ -11374,6 +11374,7 @@ end:
 		goto yield;
 	}
 
+end_no_putchk:
 	if (bio)
 		BIO_free(bio);
 	free_trash_chunk(tmp);
