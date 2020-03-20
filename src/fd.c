@@ -336,7 +336,7 @@ static void fd_dodelete(int fd, int do_close)
 }
 
 #ifndef HA_HAVE_CAS_DW
-__decl_hathreads(__delc_rwlock(fd_mig_lock));
+__decl_hathreads(__decl_rwlock(fd_mig_lock));
 #endif
 
 /*
