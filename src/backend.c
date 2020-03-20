@@ -1350,13 +1350,18 @@ int connect_server(struct stream *s)
 		srv_cs = NULL;
 	}
 
-	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst))
+	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
+		if (srv_conn)
+			conn_free(srv_conn);
 		return SF_ERR_RESOURCE;
+	}
 
 	if (!(s->flags & SF_ADDR_SET)) {
 		err = assign_server_address(s);
-		if (err != SRV_STATUS_OK)
+		if (err != SRV_STATUS_OK) {
+			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;
+		}
 	}
 
 	/* copy the target address into the connection */
@@ -1372,11 +1377,15 @@ int connect_server(struct stream *s)
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
-			if (!(srv_conn->ctrl))
+			if (!(srv_conn->ctrl)) {
+				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
+			}
 		}
-		else
+		else {
+			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
+		}
 
 		srv_cs = si_alloc_cs(&s->si[1], srv_conn);
 		if (!srv_cs) {
