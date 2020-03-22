@@ -2473,6 +2473,10 @@ static void h1_detach(struct conn_stream *cs)
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto end;
 			}
+			/* At this point, the connection has been added to the
+			 * server idle list, so another thread may already have
+			 * hijacked it, so we can't do anything with it.
+			 */
 			return;
 		}
 	}

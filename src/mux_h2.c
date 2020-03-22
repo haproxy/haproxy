@@ -3959,6 +3959,10 @@ static void h2_detach(struct conn_stream *cs)
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}
+					/* At this point, the connection has been added to the
+					 * server idle list, so another thread may already have
+					 * hijacked it, so we can't do anything with it.
+					 */
 					TRACE_DEVEL("reusable idle connection", H2_EV_STRM_END);
 					return;
 
