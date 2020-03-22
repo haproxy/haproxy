@@ -2466,13 +2466,13 @@ static void h1_detach(struct conn_stream *cs)
 		if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
 			if (h1c->conn->owner == sess)
 				h1c->conn->owner = NULL;
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
 				/* The server doesn't want it, let's kill the connection right away */
 				h1c->conn->mux->destroy(h1c);
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto end;
 			}
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			return;
 		}
 	}
