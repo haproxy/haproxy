@@ -262,6 +262,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			return 0;
 		}
 		MT_LIST_DEL(&conn->list);
+		conn->idle_time = now_ms;
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
 			MT_LIST_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);
@@ -273,7 +274,6 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		}
 		_HA_ATOMIC_ADD(&srv->curr_idle_thr[tid], 1);
 
-		conn->idle_time = now_ms;
 		__ha_barrier_full();
 		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
 			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
