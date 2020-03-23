@@ -1,6 +1,107 @@
 ChangeLog :
 ===========
 
+2020/03/23 : 2.2-dev5
+    - CLEANUP: ssl: is_default is a bit in ckch_inst
+    - BUG/MINOR: ssl/cli: sni_ctx' mustn't always be used as filters
+    - DOC: ssl: clarify security implications of TLS tickets
+    - CLEANUP: remove support for Linux i686 vsyscalls
+    - CLEANUP: drop support for USE_MY_ACCEPT4
+    - CLEANUP: remove support for USE_MY_EPOLL
+    - CLEANUP: remove support for USE_MY_SPLICE
+    - CLEANUP: remove the now unused common/syscall.h
+    - BUILD: make dladdr1 depend on glibc version and not __USE_GNU
+    - BUILD: wdt: only test for SI_TKILL when compiled with thread support
+    - BUILD: Makefile: the compiler-specific flags should all be in SPEC_CFLAGS
+    - CLEANUP: ssl: separate the directory loading in a new function
+    - BUG/MINOR: buffers: MT_LIST_DEL_SAFE() expects the temporary pointer.
+    - BUG/MEDIUM: mt_lists: Make sure we set the deleted element to NULL;
+    - MINOR: init: move the maxsock calculation code to compute_ideal_maxsock()
+    - MEDIUM: init: always try to push the FD limit when maxconn is set from -m
+    - BUG/MAJOR: list: fix invalid element address calculation
+    - BUILD: stream-int: fix a few includes dependencies
+    - MINOR: mt_lists: Appease gcc.
+    - MINOR: lists: Implement function to convert list => mt_list and mt_list => list
+    - MINOR: servers: Kill priv_conns.
+    - MINOR: lists: fix indentation.
+    - BUG/MEDIUM: random: align the state on 2*64 bits for ARM64
+    - BUG/MEDIUM: connections: Don't assume the connection has a valid session.
+    - BUG/MEDIUM: pools: Always update free_list in pool_gc().
+    - BUG/MINOR: haproxy: always initialize sleeping_thread_mask
+    - BUG/MINOR: listener/mq: do not dispatch connections to remote threads when stopping
+    - BUG/MINOR: haproxy/threads: try to make all threads leave together
+    - Revert "BUILD: travis-ci: enable s390x builds"
+    - BUILD: travis-ci: enable regular s390x builds
+    - DOC: proxy_protocol: Reserve TLV type 0x05 as PP2_TYPE_UNIQUE_ID
+    - MINOR: proxy_protocol: Ingest PP2_TYPE_UNIQUE_ID on incoming connections
+    - MEDIUM: proxy_protocol: Support sending unique IDs using PPv2
+    - CLEANUP: connection: Add blank line after declarations in PP handling
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: add spellcheck github action
+    - DOC: correct typo in alert message about rspirep
+    - CI: travis: switch linux builds to clang-9
+    - MINOR: debug: add a new DISGUISE() macro to pass a value as identity
+    - MINOR: debug: consume the write() result in BUG_ON() to silence a warning
+    - MINOR: use DISGUISE() everywhere we deliberately want to ignore a result
+    - BUILD: pools: silence build warnings with DEBUG_MEMORY_POOLS and DEBUG_UAF
+    - CLEANUP: connection: Stop directly setting an ist's .ptr
+    - CI: travis: revert to clang-7 for BoringSSL tests
+    - BUILD: on ARM, must be linked to libatomic.
+    - BUILD: makefile: fix regex syntax in ARM platform detection
+    - BUG/MEDIUM: peers: resync ended with RESYNC_PARTIAL in wrong cases.
+    - REORG: ssl: move ssl_sock_load_cert()
+    - MINOR: ssl: pass ckch_inst to ssl_sock_load_ckchs()
+    - MEDIUM: ssl: allow crt-list caching
+    - MINOR: ssl: directories are loaded like crt-list
+    - BUG/MINOR: ssl: can't open directories anymore
+    - BUG/MEDIUM: spoe: dup agent's engine_id string from trash.area
+    - MINOR: fd: Use a separate lock for logs instead of abusing the fd lock.
+    - MINOR: mux_pt: Don't try to remove the connection from the idle list.
+    - MINOR: ssl/cli: show/dump ssl crt-list
+    - BUG/MINOR: ssl/cli: free the trash chunk in dump_crtlist
+    - MEDIUM: fd: Introduce a running mask, and use it instead of the spinlock.
+    - BUG/MINOR: ssl: memory leak in crtlist_parse_file()
+    - MINOR: tasks: Provide the tasklet to the callback.
+    - BUG/MINOR: ssl: memleak of struct crtlist_entry
+    - BUG/MINOR: pattern: Do not pass len = 0 to calloc()
+    - BUILD: makefile: fix expression again to detect ARM platform
+    - CI: travis: re-enable ASAN on clang
+    - CI: travis: proper group output redirection together with travis_wait
+    - DOC: assorted typo fixes in the documentation
+    - MINOR: wdt: Move the definitions of WDTSIG and DEBUGSIG into types/signal.h.
+    - BUG/MEDIUM: wdt: Don't ignore WDTSIG and DEBUGSIG in __signal_process_queue().
+    - MINOR: memory: Change the flush_lock to a spinlock, and don't get it in alloc.
+    - MINOR: ssl/cli: 'new ssl cert' command
+    - MINOR: ssl/cli: show certificate status in 'show ssl cert'
+    - MEDIUM: sessions: Don't be responsible for connections anymore.
+    - MEDIUM: servers: Split the connections into idle, safe, and available.
+    - MINOR: fd: Implement fd_takeover().
+    - MINOR: connections: Add a new mux method, "takeover".
+    - MINOR: connections: Make the "list" element a struct mt_list instead of list.
+    - MINOR: connections: Add a flag to know if we're in the safe or idle list.
+    - MEDIUM: connections: Attempt to get idle connections from other threads.
+    - MEDIUM: mux_h1: Implement the takeover() method.
+    - MEDIUM: mux_h2: Implement the takeover() method.
+    - MEDIUM: mux_fcgi: Implement the takeover() method.
+    - MEDIUM: connections: Kill connections even if we are reusing one.
+    - BUG/MEDIUM: connections: Don't forget to decrement idle connection counters.
+    - BUG/MINOR: ssl: Do not free garbage pointers on memory allocation failure
+    - BUG/MINOR: ssl: Correctly add the 1 for the sentinel to the number of elements
+    - BUG/MINOR: ssl: crtlist_dup_filters() must return NULL with fcount == 0
+    - BUG/MEDIUM: build: Fix compilation by spelling decl correctly.
+    - BUILD/MEDIUM: fd: Declare fd_mig_lock as extern.
+    - CI: run travis-ci builds on push only, skip pull requests
+    - CI: temporarily disable unstable travis arm64 builds
+    - BUG/MINOR: ssl/cli: free BIO upon error in 'show ssl cert'
+    - BUG/MINOR: connections: Make sure we free the connection on failure.
+    - BUG/MINOR: ssl/cli: fix a potential NULL dereference
+    - BUG/MEDIUM: h1: Make sure we subscribe before going into idle list.
+    - BUG/MINOR: connections: Set idle_time before adding to idle list.
+    - MINOR: muxes: Note that we can't usee a connection when added to the srv idle.
+    - REGTEST: increase timeouts on the seamless-reload test
+    - BUG/MINOR: haproxy/threads: close a possible race in soft-stop detection
+    - CLEANUP: haproxy/threads: don't check global_tasks_mask twice
+
 2020/03/09 : 2.2-dev4
     - MEDIUM: buffer: remove the buffer_wq lock
     - MINOR: ssl: move find certificate chain code to its own function
