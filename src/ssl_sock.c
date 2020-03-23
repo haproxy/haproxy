@@ -161,7 +161,7 @@ static struct xprt_ops ssl_sock;
 int nb_engines = 0;
 
 static struct eb_root cert_issuer_tree = EB_ROOT; /* issuers tree from "issuers-chain-path" */
-static struct issuer_chain* ssl_get_issuer_chain(X509 *cert);
+static struct issuer_chain* ssl_get0_issuer_chain(X509 *cert);
 
 static struct {
 	char *crt_base;             /* base directory path for certificates */
@@ -3629,7 +3629,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	} else {
 		/* Find Certificate Chain in global */
 		struct issuer_chain *issuer;
-		issuer = ssl_get_issuer_chain(ckch->cert);
+		issuer = ssl_get0_issuer_chain(ckch->cert);
 		if (issuer)
 			find_chain = issuer->chain;
 	}
@@ -10166,7 +10166,7 @@ static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 	return ret;
 }
 
-static struct issuer_chain* ssl_get_issuer_chain(X509 *cert)
+static struct issuer_chain* ssl_get0_issuer_chain(X509 *cert)
 {
 	AUTHORITY_KEYID *akid;
 	struct issuer_chain *issuer = NULL;
@@ -11268,7 +11268,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chain = ckchs->ckch->chain;
 		if (chain == NULL) {
 			struct issuer_chain *issuer;
-			issuer = ssl_get_issuer_chain(ckchs->ckch->cert);
+			issuer = ssl_get0_issuer_chain(ckchs->ckch->cert);
 			if (issuer) {
 				chain = issuer->chain;
 				chunk_appendf(out, "Chain Filename: ");
