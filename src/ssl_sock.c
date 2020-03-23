@@ -3634,33 +3634,30 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			find_chain = issuer->chain;
 	}
 
-	/* If we didn't find a chain we *MUST* use an empty X509 structure */
-	if (find_chain == NULL)
-		find_chain = sk_X509_new_null();
-
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
+	if (find_chain)
 #ifdef SSL_CTX_set1_chain
-        if (!SSL_CTX_set1_chain(ctx, find_chain)) {
-		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
-			  err && *err ? *err : "", path);
-		errcode |= ERR_ALERT | ERR_FATAL;
-		goto end;
-	}
+		if (!SSL_CTX_set1_chain(ctx, find_chain)) {
+			memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
+			          err && *err ? *err : "", path);
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
 #else
-	{ /* legacy compat (< openssl 1.0.2) */
-		X509 *ca;
-		STACK_OF(X509) *chain;
-		chain = X509_chain_up_ref(find_chain);
-		while ((ca = sk_X509_shift(chain)))
-			if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
-				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
-					  err && *err ? *err : "", path);
-				X509_free(ca);
-				sk_X509_pop_free(chain, X509_free);
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-	}
+		{ /* legacy compat (< openssl 1.0.2) */
+			X509 *ca;
+			STACK_OF(X509) *chain;
+			chain = X509_chain_up_ref(find_chain);
+			while ((ca = sk_X509_shift(chain)))
+				if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
+					memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
+					          err && *err ? *err : "", path);
+					X509_free(ca);
+					sk_X509_pop_free(chain, X509_free);
+					errcode |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
+		}
 #endif
 
 #ifndef OPENSSL_NO_DH
