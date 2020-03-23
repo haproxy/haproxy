@@ -113,7 +113,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 				 * empty the pipe.
 				 */
 				if (pipe->data) {
-					/* alway stop reading until the pipe is flushed */
+					/* always stop reading until the pipe is flushed */
 					conn->flags |= CO_FL_WAIT_ROOM;
 					break;
 				}

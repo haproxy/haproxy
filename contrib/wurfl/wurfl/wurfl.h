@@ -322,7 +322,7 @@ wurfl_error wurfl_updater_set_data_url(wurfl_handle hwurfl, const char *data_url
 wurfl_error wurfl_updater_set_data_frequency(wurfl_handle hwurfl, wurfl_updater_frequency freq);
 
 // Set updater timeouts.
-// There are two timeouts, both in miliseconds : connection timeout and operation timeout.
+// There are two timeouts, both in milliseconds : connection timeout and operation timeout.
 // The values are mapped to CURL --connect-timeout and --max-time parameters
 // (after millisecs-to-secs conversion). Note that CURL sub millisecond timeouts don't work for
 // lack of a way to specify decimal values for timeout to curl (using 0.05 for example fails to work

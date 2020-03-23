@@ -249,7 +249,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		/*
 		 * Call connection processing callbacks.  Note that it's
 		 * possible for this processing to alter the required event
-		 * port assocation; i.e., the "state" member of the "fdtab"
+		 * port association; i.e., the "state" member of the "fdtab"
 		 * entry.  If it changes, the fd will be placed on the updated
 		 * list for processing the next time we are called.
 		 */

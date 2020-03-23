@@ -123,7 +123,7 @@ int hlua_fcn_pushfield(lua_State *L, struct field *field)
 		/* 64 bits case, S64 is always supported */
 		lua_pushinteger(L, field->u.s64);
 #else
-		/* 64 bits case, S64 is supported beetween INT_MIN and INT_MAX */
+		/* 64 bits case, S64 is supported between INT_MIN and INT_MAX */
 		if (field->u.s64 < INT_MIN || field->u.s64 > INT_MAX)
 			lua_pushnumber(L, (lua_Number)field->u.s64);
 		else
@@ -214,7 +214,7 @@ int hlua_dump_object(struct lua_State *L)
 
 /* This function register a table as metatable and. It names
  * the metatable, and returns the associated reference.
- * The original table is poped from the top of the stack.
+ * The original table is popped from the top of the stack.
  * "name" is the referenced class name.
  */
 int hlua_register_metatable(struct lua_State *L, char *name)
@@ -235,7 +235,7 @@ int hlua_register_metatable(struct lua_State *L, char *name)
 	lua_rawset(L, -3);
 
 	/* Register a named entry for the table. The table
-	 * reference is copyed first because the function
+	 * reference is copied first because the function
 	 * lua_setfield() pop the entry.
 	 */
 	lua_pushvalue(L, -1);
@@ -424,7 +424,7 @@ static int hlua_concat_dump(lua_State *L)
 	buffer = lua_touserdata(L, -1);
 	lua_pop(L, 1);
 
-	/* Push the soncatenated strng in the stack. */
+	/* Push the soncatenated string in the stack. */
 	lua_pushlstring(L, buffer, b->len);
 	return 1;
 }
@@ -1421,7 +1421,7 @@ int hlua_fcn_post_init(lua_State *L)
  * It tokenize the input string using the list of separators
  * as separator.
  *
- * The functionreturns a tablle filled with tokens.
+ * The functionreturns a table filled with tokens.
  */
 int hlua_tokenize(lua_State *L)
 {

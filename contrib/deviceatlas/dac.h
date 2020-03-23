@@ -70,7 +70,7 @@ enum da_status {
 enum da_severity {
     DA_SEV_FATAL, /* The operation will not continue, and the operation will return an error. */
     DA_SEV_ERROR, /* An error occurred, but the API call will return at least some valid information */
-    DA_SEV_WARN,  /* An unexpected event occured, but the system dealt with it */
+    DA_SEV_WARN,  /* An unexpected event occurred, but the system dealt with it */
     DA_SEV_INFO   /* An informational message. */
 };
 /* Forward references to tagged types */

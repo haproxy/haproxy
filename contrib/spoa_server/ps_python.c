@@ -50,7 +50,7 @@ static PyObject *ps_python_register_message(PyObject *self, PyObject *args)
 
 	if (!PyArg_ParseTuple(args, "sO!", &name, &PyFunction_Type, &ref))
 		return NULL;
-	Py_XINCREF(ref); /* because the function is intenally refrenced */
+	Py_XINCREF(ref); /* because the function is internally referenced */
 
 	ps_register_message(&ps_python_bindings, name, (void *)ref);
 
@@ -602,7 +602,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		}
 	}
 
-	/* Dictionnary { args = <list-of-args> } for the function */
+	/* Dictionary { args = <list-of-args> } for the function */
 
 	fkw = PyDict_New();
 	if (fkw == NULL) {

@@ -73,7 +73,7 @@ enum {
 #define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
 
 /* The max length for metrics name. It is a hard limit but it should be
- * enougth.
+ * enough.
  */
 #define PROMEX_MAX_NAME_LEN 128
 
@@ -615,7 +615,7 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_NAME]                           = IST("Product name."),
 	[INF_VERSION]                        = IST("HAProxy version."),
-	[INF_RELEASE_DATE]                   = IST("HAProxy realease date."),
+	[INF_RELEASE_DATE]                   = IST("HAProxy release date."),
 	[INF_NBTHREAD]                       = IST("Configured number of threads."),
 	[INF_NBPROC]                         = IST("Configured number of processes."),
 	[INF_PROCESS_NUM]                    = IST("Relative process id, starting at 1."),
@@ -627,7 +627,7 @@ const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_POOL_USED_MB]                   = IST("Total amount of memory used in pools (in bytes)."),
 	[INF_POOL_FAILED]                    = IST("Total number of failed pool allocations."),
 	[INF_ULIMIT_N]                       = IST("Maximum number of open file descriptors; 0=unset."),
-	[INF_MAXSOCK]                        = IST("Maximum numer of open sockets."),
+	[INF_MAXSOCK]                        = IST("Maximum number of open sockets."),
 	[INF_MAXCONN]                        = IST("Maximum number of concurrent connections."),
 	[INF_HARD_MAXCONN]                   = IST("Initial Maximum number of concurrent connections."),
 	[INF_CURR_CONN]                      = IST("Number of active sessions."),
@@ -1140,7 +1140,7 @@ static int promex_metric_to_str(struct buffer *out, struct field *f, size_t max)
 /* Concatenate the <prefix> with the field name using the array
  * <promex_st_metric_names> and store it in <name>. The field type is in
  * <appctx->st2>. This function never fails but relies on
- * <PROMEX_MAX_NAME_LEN>. So by sure the result is small enougth to be copied in
+ * <PROMEX_MAX_NAME_LEN>. So by sure the result is small enough to be copied in
  * <name>
  */
 static void promex_metric_name(struct appctx *appctx, struct ist *name, const struct ist prefix)
@@ -1252,7 +1252,7 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx,
 }
 
 
-/* Dump global metrics (prefixed by "haproxy_process_"). It returns 1 on sucess,
+/* Dump global metrics (prefixed by "haproxy_process_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 {
@@ -1465,7 +1465,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
-/* Dump frontends metrics (prefixed by "haproxy_frontend_"). It returns 1 on sucess,
+/* Dump frontends metrics (prefixed by "haproxy_frontend_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 {
@@ -1648,7 +1648,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
-/* Dump backends metrics (prefixed by "haproxy_backend_"). It returns 1 on sucess,
+/* Dump backends metrics (prefixed by "haproxy_backend_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 {
@@ -1892,7 +1892,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
-/* Dump servers metrics (prefixed by "haproxy_server_"). It returns 1 on sucess,
+/* Dump servers metrics (prefixed by "haproxy_server_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 {
@@ -2243,7 +2243,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 	return -1;
 }
 
-/* Parse the query stirng of request URI to filter the metrics. It returns 1 on
+/* Parse the query string of request URI to filter the metrics. It returns 1 on
  * success and -1 on error. */
 static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 {
@@ -2401,7 +2401,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
 		si_rx_room_blk(si);
 		goto out;

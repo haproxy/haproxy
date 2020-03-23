@@ -10,7 +10,7 @@
  * XXX Please, first note that this code is not safe. XXX
  * It was developed fast so that to reproduce a bug.
  * You will certainly have to adapt it to your application.
- * But at least it gives an idea about how to programatically use plug
+ * But at least it gives an idea about how to programmatically use plug
  * queueing disciplines.
  */
 

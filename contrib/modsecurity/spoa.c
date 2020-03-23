@@ -197,7 +197,7 @@ check_proto_version(struct spoe_frame *frame, char **buf, char *end)
 	DEBUG(frame->worker, "<%lu> Supported versions : %.*s",
 	      frame->client->id, (int)sz, str);
 
-	/* TODO: Find the right verion in supported ones */
+	/* TODO: Find the right version in supported ones */
 
 	ret  = (p - *buf);
 	*buf = p;

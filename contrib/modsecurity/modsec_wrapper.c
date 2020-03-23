@@ -140,7 +140,7 @@ int modsecurity_load(const char *file)
 
 	modsec_server = modsecInit();
 	if (modsec_server == NULL) {
-		LOG(&null_worker, "ModSecurity initilisation failed.\n");
+		LOG(&null_worker, "ModSecurity initialisation failed.\n");
 		return -1;
 	}
 
@@ -153,7 +153,7 @@ int modsecurity_load(const char *file)
 
 	modsec_config = modsecGetDefaultConfig();
 	if (modsec_config == NULL) {
-		LOG(&null_worker, "ModSecurity default configuration initilisation failed.\n");
+		LOG(&null_worker, "ModSecurity default configuration initialisation failed.\n");
 		return -1;
 	}
 

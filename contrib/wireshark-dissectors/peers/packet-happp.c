@@ -158,7 +158,7 @@ enum {
 };
 
 /* The types of data we can store in a stick table.
- * Same defintions as in HAProxy sources.
+ * Same definitions as in HAProxy sources.
  */
 enum {
 	STKT_DT_SERVER_ID,      /* the server ID to use with this stream if > 0 */

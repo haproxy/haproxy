@@ -51,7 +51,7 @@ enum spoe_frame_type {
 	SPOE_FRM_T_AGENT_ACK
 };
 
-/* Errors triggerd by SPOE applet */
+/* Errors triggered by SPOE applet */
 enum spoe_frame_error {
 	SPOE_FRM_ERR_NONE = 0,
 	SPOE_FRM_ERR_IO,
@@ -501,7 +501,7 @@ check_proto_version(struct worker *w, int idx)
 		return -1;
 	}
 
-	/* TODO: Find the right verion in supported ones */
+	/* TODO: Find the right version in supported ones */
 
 	return idx;
 }
@@ -822,7 +822,7 @@ int set_var_bin(struct worker *w,
 }
 
 /* This function is a little bit ugly,
- * TODO: improve the response without copying the bufer
+ * TODO: improve the response without copying the buffer
  */
 static int commit_agentack(struct worker *w)
 {
@@ -872,7 +872,7 @@ handle_hanotify(struct worker *w)
 	DEBUG("Notify frame received: stream-id=%u - frame-id=%u",
 	      w->stream_id, w->frame_id);
 
-	/* Prepara ack, if the processing fails tha ack will be cancelled */
+	/* Prepare ack, if the processing fails the ack will be cancelled */
 	prepare_agentack(w);
 
 	/* Loop on messages */
@@ -915,7 +915,7 @@ handle_hanotify(struct worker *w)
 			idx += i;
 		}
 
-		/* Lookup for existsing bindings. If no existing message
+		/* Lookup for existing bindings. If no existing message
 		 * where found, does nothing.
 		 */
 		for (msg = ps_messages; msg; msg = msg->next)

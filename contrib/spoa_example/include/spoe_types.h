@@ -100,7 +100,7 @@ enum spoe_context_error {
 	SPOE_CTX_ERRS,
 };
 
-/* Errors triggerd by SPOE applet */
+/* Errors triggered by SPOE applet */
 enum spoe_frame_error {
 	SPOE_FRM_ERR_NONE = 0,
 	SPOE_FRM_ERR_IO,

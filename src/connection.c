@@ -140,7 +140,7 @@ void conn_fd_handler(int fd)
 
  leave:
 	/* If we don't yet have a mux, that means we were waiting for
-	 * informations to create one, typically from the ALPN. If we're
+	 * information to create one, typically from the ALPN. If we're
 	 * done with the handshake, attempt to create one.
 	 */
 	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_WAIT_XPRT))
@@ -1193,7 +1193,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	 *	code with one of the following values:
 	 *	90: request granted
 	 *	91: request rejected or failed
-	 *	92: request rejected becasue SOCKS server cannot connect to identd on the client
+	 *	92: request rejected because SOCKS server cannot connect to identd on the client
 	 *	93: request rejected because the client program and identd report different user-ids
 	 *	The remaining fields are ignored.
 	 */

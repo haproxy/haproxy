@@ -396,7 +396,7 @@ static int ps_lua_load_file(struct worker *w, const char *file)
 		lua_pop(L, 1);
 		return 0;
 	default:
-		fprintf(stderr, "lua unknonwn error: %s\n", lua_tostring(L, 0));
+		fprintf(stderr, "lua unknown error: %s\n", lua_tostring(L, 0));
 		lua_pop(L, 1);
 		return 0;
 	}
@@ -488,7 +488,7 @@ static int ps_lua_exec_message(struct worker *w, void *ref, int nargs, struct sp
 		case LUA_ERRERR:
 			msg_fmt = msg_fmt ? msg_fmt : "Lua message handler error";
 		default:
-			msg_fmt = msg_fmt ? msg_fmt : "Lua unknonwn error";
+			msg_fmt = msg_fmt ? msg_fmt : "Lua unknown error";
 			msg = lua_tostring(L, -1);
 			if (msg == NULL)
 				msg = "Unknown error";
