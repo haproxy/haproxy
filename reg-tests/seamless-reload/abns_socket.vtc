@@ -24,9 +24,9 @@ haproxy h1 -W -conf {
     ${no-htx} option http-use-htx
     log global
     option httplog
-    timeout connect         15ms
-    timeout client          20ms
-    timeout server          20ms
+    timeout connect         1s
+    timeout client          1s
+    timeout server          1s
 
   listen testme
     bind "fd@${testme}"
