@@ -211,6 +211,53 @@ struct cond_wordlist {
 	     &item->member != (list_head);                                \
 	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
 
+/*
+ * Iterate backwards <item> through a list of items of type "typeof(*item)"
+ * which are linked via a "struct list" member named <member>. A pointer to
+ * the head of the list is passed in <list_head>. No temporary variable is
+ * needed. Note that <item> must not be modified during the loop.
+ * Example: list_for_each_entry_rev(cur_acl, known_acl, list) { ... };
+ */
+#define list_for_each_entry_rev(item, list_head, member)                 \
+	for (item = LIST_ELEM((list_head)->p, typeof(item), member);     \
+	     &item->member != (list_head);                               \
+	     item = LIST_ELEM(item->member.p, typeof(item), member))
+
+/*
+ * Same as list_for_each_entry_rev but starting from current point
+ * Iterate backwards <item> through the list starting from <item>
+ * It's basically the same macro but without initializing item to the head of
+ * the list.
+ */
+#define list_for_each_entry_from_rev(item, list_head, member) \
+	for ( ; &item->member != (list_head); \
+	     item = LIST_ELEM(item->member.p, typeof(item), member))
+
+/*
+ * Iterate backwards <item> through a list of items of type "typeof(*item)"
+ * which are linked via a "struct list" member named <member>. A pointer to
+ * the head of the list is passed in <list_head>. A temporary variable <back>
+ * of same type as <item> is needed so that <item> may safely be deleted
+ * if needed.
+ * Example: list_for_each_entry_safe_rev(cur_acl, tmp, known_acl, list) { ... };
+ */
+#define list_for_each_entry_safe_rev(item, back, list_head, member)      \
+	for (item = LIST_ELEM((list_head)->p, typeof(item), member),     \
+	     back = LIST_ELEM(item->member.p, typeof(item), member);     \
+	     &item->member != (list_head);                               \
+	     item = back, back = LIST_ELEM(back->member.p, typeof(back), member))
+
+/*
+ * Same as list_for_each_entry_safe_rev but starting from current point
+ * Iterate backwards <item> through the list starting from <item>
+ * It's basically the same macro but without initializing item to the head of
+ * the list.
+ */
+#define list_for_each_entry_safe_from_rev(item, back, list_head, member) \
+	for (back = LIST_ELEM(item->member.p, typeof(item), member);     \
+	     &item->member != (list_head);                               \
+	     item = back, back = LIST_ELEM(back->member.p, typeof(back), member))
+
 #include <common/hathreads.h>
 #define MT_LIST_BUSY ((struct mt_list *)1)
 
