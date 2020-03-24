@@ -1,0 +1,27 @@
+
+name: compliance
+
+on:
+  schedule:
+    - cron: "0 0 * * 3"
+
+jobs:
+  h2spec:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: build haproxy
+      run: |
+        make -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1
+    - name: start haproxy
+      run: |
+        ./haproxy -f .github/h2spec.config -D
+    - name: download h2spec
+      run: |
+        wget https://github.com/summerwind/h2spec/releases/download/v2.4.0/h2spec_linux_amd64.tar.gz
+        tar xvf h2spec_linux_amd64.tar.gz
+    - name: run h2spec
+      run: |
+        ./h2spec -Svtk -h 127.0.0.1 -p 8443
