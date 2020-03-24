@@ -3911,11 +3911,10 @@ out_uri_auth_compat:
 		 stick-table used in the configuration, set its bind_proc
 		 by default to the first process. */
 		while (curpeers) {
-			if (!curpeers->peers_fe)
-				continue;
-			if (curpeers->peers_fe->bind_proc == 0)
-				curpeers->peers_fe->bind_proc = 1;
-
+			if (curpeers->peers_fe) {
+				if (curpeers->peers_fe->bind_proc == 0)
+					curpeers->peers_fe->bind_proc = 1;
+			}
 			curpeers = curpeers->next;
 		}
 
