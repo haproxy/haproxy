@@ -64,7 +64,7 @@
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
-static char * tcpcheck_get_step_comment(struct check *, int);
+static char *tcpcheck_get_step_comment(struct check *);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
@@ -664,7 +664,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				chunk_appendf(chk, " (send)");
 			}
 
-			comment = tcpcheck_get_step_comment(check, step);
+			comment = tcpcheck_get_step_comment(check);
 			if (comment)
 				chunk_appendf(chk, " comment: '%s'", comment);
 		}
@@ -2710,58 +2710,56 @@ static int httpchk_expect(struct server *s, int done)
  */
 static int tcpcheck_get_step_id(struct check *check)
 {
-	struct tcpcheck_rule *cur = NULL, *next = NULL;
+	struct tcpcheck_rule *cur;
 	int i = 0;
 
 	/* not even started anything yet => step 0 = initial connect */
 	if (!check->current_step)
 		return 0;
 
-	cur = check->last_started_step;
-
-	/* no step => first step */
-	if (cur == NULL)
+	/* no last started step => first step */
+	if (!check->last_started_step)
 		return 1;
 
-	/* increment i until current step */
-	list_for_each_entry(next, check->tcpcheck_rules, list) {
-		if (next->list.p == &cur->list)
+	list_for_each_entry(cur, check->tcpcheck_rules, list) {
+		if (cur->list.p == &check->last_started_step->list)
 			break;
-		++i;
+		i++;
 	}
-
 	return i;
 }
 
 /*
- * return the latest known comment before (including) the given stepid
- * returns NULL if no comment found
+ * return the latest known comment for the current rule, the comment attached to
+ * it or the COMMENT rule immediately preceedding the expect rule chain, if any.
+ * returns NULL if no comment found.
  */
-static char * tcpcheck_get_step_comment(struct check *check, int stepid)
+static char *tcpcheck_get_step_comment(struct check *check)
 {
-	struct tcpcheck_rule *cur = NULL;
+	struct tcpcheck_rule *cur;
 	char *ret = NULL;
-	int i = 0;
 
 	/* not even started anything yet, return latest comment found before any action */
-	if (!check->current_step) {
-		list_for_each_entry(cur, check->tcpcheck_rules, list) {
-			if (cur->action == TCPCHK_ACT_COMMENT)
-				ret = cur->comment;
-			else
-				goto return_comment;
-		}
+	if (!check->current_step || !check->last_started_step) {
+		cur = LIST_NEXT(check->tcpcheck_rules, typeof(cur), list);
+		if (cur->action == TCPCHK_ACT_COMMENT)
+			ret = cur->comment;
+		goto return_comment;
 	}
 
-	i = 1;
-	list_for_each_entry(cur, check->tcpcheck_rules, list) {
-		if (cur->comment)
+	if (check->last_started_step->comment) {
+		ret = check->last_started_step->comment;
+		goto return_comment;
+	}
+
+	cur = LIST_PREV(&check->last_started_step->list, typeof(cur), list);
+	list_for_each_entry_from_rev(cur, check->tcpcheck_rules, list) {
+		if (cur->action == TCPCHK_ACT_COMMENT) {
 			ret = cur->comment;
-
-		if (i >= stepid)
-			goto return_comment;
-
-		++i;
+			break;
+		}
+		else if (cur->action != TCPCHK_ACT_EXPECT)
+			break;
 	}
 
  return_comment:
@@ -2919,7 +2917,7 @@ static int tcpcheck_main(struct check *check)
 			if (!cs) {
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error allocating connection at step %d", step);
-				comment = tcpcheck_get_step_comment(check, step);
+				comment = tcpcheck_get_step_comment(check);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR,
@@ -3044,7 +3042,7 @@ static int tcpcheck_main(struct check *check)
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
 						step, strerror(errno));
-				comment = tcpcheck_get_step_comment(check, step);
+				comment = tcpcheck_get_step_comment(check);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_L4CON,
@@ -3055,7 +3053,7 @@ static int tcpcheck_main(struct check *check)
 			case SF_ERR_INTERNAL:
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d", step);
-				comment = tcpcheck_get_step_comment(check, step);
+				comment = tcpcheck_get_step_comment(check);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR,
@@ -3159,7 +3157,7 @@ static int tcpcheck_main(struct check *check)
 				/* empty response */
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK got an empty response at step %d", step);
-				comment = tcpcheck_get_step_comment(check, step);
+				comment = tcpcheck_get_step_comment(check);
 				if (comment)
 					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_L7RSP,
@@ -3257,7 +3255,7 @@ static int tcpcheck_main(struct check *check)
 				goto out;
 			}
 
-			comment = tcpcheck_get_step_comment(check, step);
+			comment = tcpcheck_get_step_comment(check);
 			if (comment)
 				chunk_appendf(&trash, " comment: '%s'", comment);
 			set_server_check_status(check, HCHK_STATUS_L7RSP,
