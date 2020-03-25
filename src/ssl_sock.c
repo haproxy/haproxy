@@ -4456,6 +4456,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 	}
 	memcpy(dir->node.key, path, strlen(path) + 1);
 	dir->entries = EB_ROOT_UNIQUE; /* it's a directory, files are unique */
+	dir->bind_conf = NULL;
 	LIST_INIT(&dir->ord_entries);
 
 	n = scandir(path, &de_list, 0, alphasort);
@@ -4719,6 +4720,7 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 	}
 	memcpy(newlist->node.key, file, strlen(file) + 1);
 	newlist->entries = EB_ROOT;
+	newlist->bind_conf = NULL;
 	LIST_INIT(&newlist->ord_entries);
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
@@ -4896,9 +4898,20 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	struct ebmb_node *eb;
 	struct crtlist_entry *entry;
 	struct list instances; /* temporary list head */
+	struct bind_conf_list *bind_conf_node = NULL;
 	int cfgerr = 0;
 
 	LIST_INIT(&instances);
+
+	bind_conf_node = malloc(sizeof(*bind_conf_node));
+	if (!bind_conf_node) {
+		memprintf(err, "%sCan't alloc memory!\n", err && *err ? *err : "");
+		cfgerr |= ERR_FATAL | ERR_ALERT;
+		goto error;
+	}
+	bind_conf_node->next = NULL;
+	bind_conf_node->bind_conf = bind_conf;
+
 	/* look for an existing crtlist or create one */
 	eb = ebst_lookup(&crtlists_tree, file);
 	if (eb) {
@@ -4935,6 +4948,10 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	/* add the instances to the actual instance list in the crtlist_entry */
 	LIST_SPLICE(&entry->ckch_inst, &instances);
 
+	/* add the bind_conf to the list */
+	bind_conf_node->next = crtlist->bind_conf;
+	crtlist->bind_conf = bind_conf_node;
+
 	return cfgerr;
 error:
 	{
@@ -4952,6 +4969,7 @@ error:
 			LIST_DEL(&inst->by_crtlist_entry);
 			free(inst);
 		}
+		free(bind_conf_node);
 	}
 	return cfgerr;
 }
