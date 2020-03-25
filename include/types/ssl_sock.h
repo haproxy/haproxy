@@ -91,6 +91,14 @@ struct sh_ssl_sess_hdr {
 	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
 };
 
+/* states of the CLI IO handler for 'set ssl cert' */
+enum {
+	SETCERT_ST_INIT = 0,
+	SETCERT_ST_GEN,
+	SETCERT_ST_INSERT,
+	SETCERT_ST_FIN,
+};
+
 /* This is used to preload the certifcate, private key
  * and Cert Chain of a file passed in via the crt
  * argument

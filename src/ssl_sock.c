@@ -11161,13 +11161,6 @@ struct {
 	[CERT_TYPE_MAX]    = { NULL,      CERT_TYPE_MAX,      NULL },
 };
 
-/* states of the CLI IO handler for 'set ssl cert' */
-enum {
-	SETCERT_ST_INIT = 0,
-	SETCERT_ST_GEN,
-	SETCERT_ST_INSERT,
-	SETCERT_ST_FIN,
-};
 
 /* release function of the  `show ssl cert' command */
 static void cli_release_show_cert(struct appctx *appctx)
