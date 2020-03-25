@@ -11134,6 +11134,240 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 	return 0;
 }
 
+/* release function of the  "add ssl crt-list' command, free things and unlock
+ the spinlock */
+static void cli_release_add_crtlist(struct appctx *appctx)
+{
+	struct crtlist_entry *entry = appctx->ctx.cli.p1;
+
+	if (appctx->st2 != SETCERT_ST_FIN) {
+		struct ckch_inst *inst, *inst_s;
+		/* upon error free the ckch_inst and everything inside */
+		ebpt_delete(&entry->node);
+		LIST_DEL(&entry->by_crtlist);
+		LIST_DEL(&entry->by_ckch_store);
+
+		list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_ckchs) {
+			struct sni_ctx *sni, *sni_s;
+
+			list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
+				if (sni->order == 0) /* we only free if it's the first inserted */
+					SSL_CTX_free(sni->ctx);
+				LIST_DEL(&sni->by_ckch_inst);
+				free(sni);
+			}
+			LIST_DEL(&inst->by_ckchs);
+			free(inst);
+		}
+		crtlist_free_filters(entry->filters);
+		ssl_sock_free_ssl_conf(entry->ssl_conf);
+		free(entry->ssl_conf);
+		free(entry);
+	}
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+
+/* IO Handler for the "add ssl crt-list" command It adds a new entry in the
+ * crt-list and generates the ckch_insts for each bind_conf that uses this crt-list
+ *
+ * The logic is the same as the "commit ssl cert" command but without the
+ * freeing of the old structures, because there are none.
+ */
+static int cli_io_handler_add_crtlist(struct appctx *appctx)
+{
+	struct bind_conf_list *bind_conf_node;
+	struct stream_interface *si = appctx->owner;
+	struct crtlist *crtlist = appctx->ctx.cli.p0;
+	struct crtlist_entry *entry = appctx->ctx.cli.p1;
+	struct ckch_store *store = entry->node.key;
+	struct buffer *trash = alloc_trash_chunk();
+	struct ckch_inst *new_inst;
+	char *err = NULL;
+	int i = 0;
+	int errcode = 0;
+
+	if (trash == NULL)
+		goto error;
+
+	/* for each bind_conf which use the crt-list, a new ckch_inst must be
+	 * created.
+	 */
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		goto error;
+
+	while (1) {
+		switch (appctx->st2) {
+			case SETCERT_ST_INIT:
+				/* This state just print the update message */
+				chunk_printf(trash, "Inserting certificate '%s' in crt-list '%s'", store->path, crtlist->node.key);
+				if (ci_putchk(si_ic(si), trash) == -1) {
+					si_rx_room_blk(si);
+					goto yield;
+				}
+				appctx->st2 = SETCERT_ST_GEN;
+				/* fallthrough */
+			case SETCERT_ST_GEN:
+				bind_conf_node = appctx->ctx.cli.p2; /* get the previous ptr from the yield */
+				if (bind_conf_node == NULL)
+					bind_conf_node = crtlist->bind_conf;
+				for (; bind_conf_node; bind_conf_node = bind_conf_node->next) {
+					struct bind_conf *bind_conf = bind_conf_node->bind_conf;
+					struct sni_ctx *sni;
+
+					/* yield every 10 generations */
+					if (i > 10) {
+						appctx->ctx.cli.p2 = bind_conf_node;
+						goto yield;
+					}
+
+					/* we don't support multi-cert bundles, only simple ones */
+					errcode |= ckch_inst_new_load_store(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, &new_inst, &err);
+					if (errcode & ERR_CODE)
+						goto error;
+
+					/* we need to initialize the SSL_CTX generated */
+					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
+					list_for_each_entry(sni, &new_inst->sni_ctx, by_ckch_inst) {
+						if (!sni->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
+							errcode |= ssl_sock_prepare_ctx(bind_conf, new_inst->ssl_conf, sni->ctx, &err);
+							if (errcode & ERR_CODE)
+								goto error;
+						}
+					}
+					/* display one dot for each new instance */
+					chunk_appendf(trash, ".");
+					i++;
+					LIST_ADDQ(&store->ckch_inst, &new_inst->by_ckchs);
+				}
+				appctx->st2 = SETCERT_ST_INSERT;
+				/* fallthrough */
+			case SETCERT_ST_INSERT:
+				/* insert SNIs in bind_conf */
+				list_for_each_entry(new_inst, &store->ckch_inst, by_ckchs) {
+					HA_RWLOCK_WRLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
+					ssl_sock_load_cert_sni(new_inst, new_inst->bind_conf);
+					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
+				}
+				appctx->st2 = SETCERT_ST_FIN;
+				goto end;
+		}
+	}
+
+end:
+	chunk_appendf(trash, "\n");
+	if (errcode & ERR_WARN)
+		chunk_appendf(trash, "%s", err);
+	chunk_appendf(trash, "Success!\n");
+	if (ci_putchk(si_ic(si), trash) == -1)
+		si_rx_room_blk(si);
+	free_trash_chunk(trash);
+	/* success: call the release function and don't come back */
+	return 1;
+yield:
+	/* store the state */
+	if (ci_putchk(si_ic(si), trash) == -1)
+		si_rx_room_blk(si);
+	free_trash_chunk(trash);
+	si_rx_endp_more(si); /* let's come back later */
+	return 0; /* should come back */
+
+error:
+	/* spin unlock and free are done in the release function */
+	if (trash) {
+		chunk_appendf(trash, "\n%sFailed!\n", err);
+		if (ci_putchk(si_ic(si), trash) == -1)
+			si_rx_room_blk(si);
+		free_trash_chunk(trash);
+	}
+	/* error: call the release function and don't come back */
+	return 1;
+}
+
+
+/*
+ * Parse a "add ssl crt-list <crt-list> <certfile>" line.
+ * Does not support options or filters yet.
+ */
+static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *store;
+	char *err = NULL;
+	char *crtlist_path, *cert_path;
+	struct ebmb_node *eb;
+	struct ebpt_node *inserted;
+	struct crtlist *crtlist;
+	struct crtlist_entry *entry;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3] || !*args[4])
+		return cli_err(appctx, "'add ssl crtlist' expects a filename and a certificate name\n");
+
+	crtlist_path = args[3];
+	cert_path = args[4];
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Operations on certificates are currently locked!\n");
+
+	eb = ebst_lookup(&crtlists_tree, crtlist_path);
+	if (!eb) {
+		memprintf(&err, "crt-list '%s' does not exist!", crtlist_path);
+		goto error;
+	}
+	crtlist = ebmb_entry(eb, struct crtlist, node);
+
+	store = ckchs_lookup(cert_path);
+	if (store == NULL) {
+		memprintf(&err, "certificate '%s' does not exist!", cert_path);
+		goto error;
+	}
+	if (store->ckch == NULL || store->ckch->cert == NULL) {
+		memprintf(&err, "certificate '%s' is empty!", cert_path);
+		goto error;
+	}
+
+	entry = malloc(sizeof(*entry));
+	if (entry == NULL) {
+		memprintf(&err, "Not enough memory!");
+		goto error;
+	}
+
+	/* check if it's possible to insert this new crtlist_entry */
+	entry->node.key = store;
+	inserted = ebpt_insert(&crtlist->entries, &entry->node);
+	if (inserted != &entry->node) {
+		memprintf(&err, "file already exists in this directory!");
+		free(entry);
+		goto error;
+	}
+
+	LIST_ADDQ(&crtlist->ord_entries, &entry->by_crtlist);
+	LIST_INIT(&entry->ckch_inst);
+	/* TODO: SSL conf support */
+	entry->ssl_conf = NULL;
+	/* TODO: filters support */
+	entry->fcount = 0;
+	entry->filters = NULL;
+	entry->crtlist = crtlist;
+	LIST_ADDQ(&store->crtlist_entry, &entry->by_ckch_store);
+
+	appctx->st2 = SETCERT_ST_INIT;
+	appctx->ctx.cli.p0 = crtlist;
+	appctx->ctx.cli.p1 = entry;
+
+	/* unlock is done in the release handler */
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	err = memprintf(&err, "Can't edit the crt-list: %s\n", err ? err : "");
+	return cli_dynerr(appctx, err);
+}
+
+
 /* Type of SSL payloads that can be updated over the CLI */
 
 enum {
@@ -12258,6 +12492,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <filename> <certfile> [options] : add a line <certfile> to a crt-list <filename>", cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
 	{ { "dump", "ssl", "crt-list", NULL }, "dump ssl crt-list <filename> : dump the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { NULL }, NULL, NULL, NULL }
