@@ -30,6 +30,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
+#include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
@@ -3366,6 +3367,31 @@ void free_check(struct check *check)
 	}
 }
 
+static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
+{
+	if (!rule)
+		return;
+
+	free(rule->comment);
+	free(rule->string);
+	switch (rule->expect.type) {
+	case TCPCHK_EXPECT_STRING:
+	case TCPCHK_EXPECT_BINARY:
+		free(rule->expect.string);
+		break;
+	case TCPCHK_EXPECT_REGEX:
+	case TCPCHK_EXPECT_REGEX_BINARY:
+		regex_free(rule->expect.regex);
+		break;
+	case TCPCHK_EXPECT_UNDEF:
+		break;
+	}
+	if (in_pool)
+		pool_free(pool_head_tcpcheck_rule, rule);
+	else
+		free(rule);
+}
+
 void email_alert_free(struct email_alert *alert)
 {
 	struct tcpcheck_rule *rule, *back;
@@ -3375,20 +3401,7 @@ void email_alert_free(struct email_alert *alert)
 
 	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list) {
 		LIST_DEL(&rule->list);
-		free(rule->comment);
-		switch (rule->expect.type) {
-		case TCPCHK_EXPECT_STRING:
-		case TCPCHK_EXPECT_BINARY:
-			free(rule->expect.string);
-			break;
-		case TCPCHK_EXPECT_REGEX:
-		case TCPCHK_EXPECT_REGEX_BINARY:
-			regex_free(rule->expect.regex);
-			break;
-		case TCPCHK_EXPECT_UNDEF:
-			break;
-		}
-		pool_free(pool_head_tcpcheck_rule, rule);
+		free_tcpcheck(rule, 1);
 	}
 	pool_free(pool_head_email_alert, alert);
 }
@@ -3863,6 +3876,21 @@ static int init_srv_agent_check(struct server *srv)
 	return ret;
 }
 
+static void deinit_proxy_tcpcheck(struct proxy *px)
+{
+	struct tcpcheck_rule *chk, *back;
+
+	if (!px->tcpcheck_rules)
+		return;
+
+	list_for_each_entry_safe(chk, back, px->tcpcheck_rules, list) {
+		LIST_DEL(&chk->list);
+		free_tcpcheck(chk, 0);
+	}
+	free(px->tcpcheck_rules);
+	px->tcpcheck_rules = NULL;
+}
+
 static void deinit_srv_check(struct server *srv)
 {
 	if (srv->do_check)
@@ -3880,8 +3908,412 @@ static void deinit_srv_agent_check(struct server *srv)
 REGISTER_POST_SERVER_CHECK(init_srv_check);
 REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
 
+REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
+
+static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct proxy *px, struct list *rules,
+						    char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	char *comment = NULL;
+	unsigned short conn_opts = 0;
+	long port = 0;
+
+	list_for_each_entry(chk, rules, list) {
+		if (chk->action != TCPCHK_ACT_COMMENT)
+			break;
+	}
+	if (&chk->list != rules && chk->action != TCPCHK_ACT_CONNECT) {
+		memprintf(errmsg, "first step MUST also be a 'connect' when there is a 'connect' step in the tcp-check ruleset");
+		goto error;
+	}
+
+	cur_arg++;
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "port") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a port number as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			port = atol(args[cur_arg]);
+			if (port > 65535 || port < 1) {
+				memprintf(errmsg, "expects a valid TCP port (from range 1 to 65535), got %s.", args[cur_arg]);
+				goto error;
+			}
+		}
+		else if (strcmp(args[cur_arg], "comment") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(comment);
+			comment = strdup(args[cur_arg]);
+			if (!comment) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else if (strcmp(args[cur_arg], "send-proxy") == 0)
+			conn_opts |= TCPCHK_OPT_SEND_PROXY;
+		else if (strcmp(args[cur_arg], "linger") == 0)
+			conn_opts |= TCPCHK_OPT_LINGER;
+#ifdef USE_OPENSSL
+		else if (strcmp(args[cur_arg], "ssl") == 0) {
+			px->options |= PR_O_TCPCHK_SSL;
+			conn_opts |= TCPCHK_OPT_SSL;
+		}
+#endif /* USE_OPENSSL */
+
+		else {
+			memprintf(errmsg, "expects 'comment', 'port', 'send-proxy'"
+#ifdef USE_OPENSSL
+				  ", 'ssl'"
+#endif /* USE_OPENSSL */
+				  " or 'linger' but got '%s' as argument.",
+				  args[cur_arg]);
+			goto error;
+		}
+		cur_arg++;
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action    = TCPCHK_ACT_CONNECT;
+	chk->port      = port;
+	chk->conn_opts = conn_opts;
+	chk->comment   = comment;
+	return chk;
+
+  error:
+	free(comment);
+	return NULL;
+}
+
+static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct list *rules, char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	char *str = NULL, *comment = NULL;
+	int len, is_binary;
+
+	is_binary = (strcmp(args[cur_arg], "send-binary") == 0);
+	if (!*(args[cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a %s as argument", (is_binary ? "binary string": "string"), args[cur_arg]);
+		goto error;
+	}
+
+	if (is_binary) {
+		if (parse_binary(args[cur_arg+1], &str, &len, errmsg) == 0) {
+			memprintf(errmsg, "'%s' invalid binary string (%s).\n", args[cur_arg], *errmsg);
+			goto error;
+		}
+	}
+	else {
+		str = strdup(args[cur_arg+1]);
+		len = strlen(args[cur_arg+1]);
+		if (!str) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	cur_arg++;
+
+	if (strcmp(args[cur_arg], "comment") == 0) {
+		if (!*(args[cur_arg+1])) {
+			memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+			goto error;
+		}
+		cur_arg++;
+		comment = strdup(args[cur_arg]);
+		if (!comment) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action     = TCPCHK_ACT_SEND;
+	chk->string     = str;
+	chk->string_len = len;
+	chk->comment    = comment;
+	return chk;
+
+  error:
+	free(str);
+	free(comment);
+	return NULL;
+}
+
+static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, struct list *rules, char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	char *comment = NULL;
+
+	if (!*(args[cur_arg+1])) {
+		memprintf(errmsg, "expects a string as argument");
+		goto error;
+	}
+	cur_arg++;
+	comment = strdup(args[cur_arg]);
+	if (!comment) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action  = TCPCHK_ACT_COMMENT;
+	chk->comment = comment;
+	return chk;
+
+  error:
+	free(comment);
+	return NULL;
+}
+
+static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct list *rules, char **errmsg)
+{
+	struct tcpcheck_rule *prev_check, *chk = NULL;
+	char *str = NULL, *comment = NULL, *pattern = NULL;
+	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
+	long min_recv = -1;
+	int inverse = 0, with_capture = 0;
+
+	if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
+		memprintf(errmsg, "expects a pattern (type+string) as arguments");
+		goto error;
+	}
+
+	cur_arg++;
+	while (*(args[cur_arg])) {
+		int in_pattern = 0;
+
+	  rescan:
+		if (strcmp(args[cur_arg], "min-recv") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a integer as argument", args[cur_arg]);
+				goto error;
+			}
+			/* Use an signed integer here because of chksize */
+			cur_arg++;
+			min_recv = atol(args[cur_arg]);
+			if (min_recv < -1 || min_recv > INT_MAX) {
+				memprintf(errmsg, "'%s' expects -1 or an integer from 0 to INT_MAX" , args[cur_arg-1]);
+				goto error;
+			}
+		}
+		else if (*(args[cur_arg]) == '!') {
+			in_pattern = 1;
+			while (*(args[cur_arg]) == '!') {
+				inverse = !inverse;
+				args[cur_arg]++;
+			}
+			if (!*(args[cur_arg]))
+				cur_arg++;
+			goto rescan;
+		}
+		else if (strcmp(args[cur_arg], "string") == 0 || strcmp(args[cur_arg], "binary") == 0 ||
+			 strcmp(args[cur_arg], "rstring") == 0 || strcmp(args[cur_arg], "rbinary") == 0) {
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING :
+				((*(args[cur_arg]) == 'b') ?  TCPCHK_EXPECT_BINARY :
+				 ((*(args[cur_arg]+1) == 's') ? TCPCHK_EXPECT_REGEX : TCPCHK_EXPECT_REGEX_BINARY)));
+
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			pattern = args[cur_arg];
+		}
+		else if (strcmp(args[cur_arg], "comment") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(comment);
+			comment = strdup(args[cur_arg]);
+			if (!comment) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else {
+			memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]rbinary'"
+				  " or comment but got '%s' as argument.", args[cur_arg]);
+			goto error;
+		}
+
+		cur_arg++;
+	}
+
+	if (comment) {
+		char *p = comment;
+
+		while (*p) {
+			if (*p == '\\') {
+				p++;
+				if (!*p || !isdigit((unsigned char)*p) ||
+				    (*p == 'x' && (!*(p+1) || !*(p+2) || !ishex(*(p+1)) || !ishex(*(p+2))))) {
+					memprintf(errmsg, "invalid backreference in 'comment' argument");
+					goto error;
+				}
+				with_capture = 1;
+			}
+			p++;
+		}
+		if (with_capture && !inverse)
+			memprintf(errmsg, "using backreference in a positive expect comment is useless");
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action  = TCPCHK_ACT_EXPECT;
+	chk->comment = comment;
+	chk->expect.type = type;
+	chk->expect.min_recv = min_recv;
+	chk->expect.inverse = inverse;
+	chk->expect.with_capture = with_capture;
+
+	switch (chk->expect.type) {
+	case TCPCHK_EXPECT_STRING:
+		chk->expect.string = strdup(pattern);
+		chk->expect.length = strlen(pattern);
+		if (!chk->expect.string) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+		break;
+	case TCPCHK_EXPECT_BINARY:
+		if (parse_binary(pattern, &chk->expect.string, &chk->expect.length, errmsg) == 0) {
+			memprintf(errmsg, "invalid binary string (%s)", *errmsg);
+			goto error;
+		}
+	case TCPCHK_EXPECT_REGEX:
+	case TCPCHK_EXPECT_REGEX_BINARY:
+		chk->expect.regex = regex_comp(pattern, 1, with_capture, errmsg);
+		if (!chk->expect.regex)
+			goto error;
+		break;
+	case TCPCHK_EXPECT_UNDEF:
+		free(chk);
+		memprintf(errmsg, "pattern not found");
+		goto error;
+	}
+
+	/* All tcp-check expect points back to the first inverse expect rule in
+	 * a chain of one or more expect rule, potentially itself.
+	 */
+	chk->expect.head = chk;
+	list_for_each_entry_rev(prev_check, rules, list) {
+		if (prev_check->action == TCPCHK_ACT_EXPECT) {
+			if (prev_check->expect.inverse)
+				chk->expect.head = prev_check;
+			continue;
+		}
+		if (prev_check->action != TCPCHK_ACT_COMMENT)
+			break;
+	}
+	return chk;
+
+  error:
+	free(chk);
+	free(str);
+	free(comment);
+	return NULL;
+}
+
+/* Parses the "tcp-check" proxy keyword */
+static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
+				struct proxy *defpx, const char *file, int line,
+				char **errmsg)
+{
+	struct list *rules = curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk = NULL;
+	int cur_arg, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
+		ret = 1;
+
+	if (curpx == defpx) {
+		memprintf(errmsg, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto error;
+	}
+
+	if (!rules) {
+		rules = calloc(1, sizeof(*rules));
+		if (!rules) {
+			memprintf(errmsg, "%s : out of memory.", args[0]);
+			goto error;
+		}
+		LIST_INIT(rules);
+		curpx->tcpcheck_rules = rules;
+	}
+
+	cur_arg = 1;
+	if (strcmp(args[cur_arg], "connect") == 0)
+		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules, errmsg);
+	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
+		chk = parse_tcpcheck_send(args, cur_arg, rules, errmsg);
+	else if (strcmp(args[cur_arg], "expect") == 0)
+		chk = parse_tcpcheck_expect(args, cur_arg, rules, errmsg);
+	else if (strcmp(args[cur_arg], "comment") == 0)
+		chk = parse_tcpcheck_comment(args, cur_arg, rules, errmsg);
+	else {
+		memprintf(errmsg, "'%s %s' only supports 'comment', 'connect', 'send', 'send-binary' or 'expect'.",
+			  args[0], args[1]);
+		goto error;
+	}
+
+	if (!chk) {
+		memprintf(errmsg, "'%s %s' : %s.", args[0], args[1], *errmsg);
+		goto error;
+	}
+	ret = (*errmsg != NULL); /* Handle warning */
+
+	/* No error: add the tcp-check rule in the list */
+	LIST_ADDQ(rules, &chk->list);
+	return ret;
+
+  error:
+	if (rules)
+		deinit_proxy_tcpcheck(curpx);
+	return -1;
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+        { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },
+        { 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:
