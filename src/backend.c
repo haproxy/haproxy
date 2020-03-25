@@ -1350,6 +1350,14 @@ int connect_server(struct stream *s)
 		srv_cs = NULL;
 	}
 
+	if (srv_conn && srv) {
+		_HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
+		/* It's ok not to do that atomically, we don't need an
+		 * exact max.
+		 */
+		if (srv->max_used_conns < srv->curr_used_conns)
+			srv->max_used_conns = srv->curr_used_conns;
+	}
 	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
 		if (srv_conn)
 			conn_free(srv_conn);

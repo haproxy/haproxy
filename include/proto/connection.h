@@ -479,6 +479,11 @@ static inline void conn_free(struct connection *conn)
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
+	} else {
+		struct server *srv = objt_server(conn->target);
+
+		if (srv)
+			_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
 	}
 
 	conn_force_unsubscribe(conn);
