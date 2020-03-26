@@ -211,10 +211,11 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
-#define TCPCHK_OPT_NONE         0x0000  /* no options specified, default */
-#define TCPCHK_OPT_SEND_PROXY   0x0001  /* send proxy-protocol string */
-#define TCPCHK_OPT_SSL          0x0002  /* SSL connection */
-#define TCPCHK_OPT_LINGER       0x0004  /* Do not RST connection, let it linger */
+#define TCPCHK_OPT_NONE            0x0000  /* no options specified, default */
+#define TCPCHK_OPT_SEND_PROXY      0x0001  /* send proxy-protocol string */
+#define TCPCHK_OPT_SSL             0x0002  /* SSL connection */
+#define TCPCHK_OPT_LINGER          0x0004  /* Do not RST connection, let it linger */
+#define TCPCHK_OPT_DEFAULT_CONNECT 0x0008  /* Do a connect using server params */
 
 struct tcpcheck_connect {
 	uint16_t port; /* port to connect to */

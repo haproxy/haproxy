@@ -1604,19 +1604,12 @@ static int connect_conn_chk(struct task *t)
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	struct protocol *proto;
-	struct tcpcheck_rule *tcp_rule = NULL;
 	int ret;
 	int connflags = 0;
 
 	/* we cannot have a connection here */
 	if (conn)
 		return SF_ERR_INTERNAL;
-
-	/* tcpcheck send/expect initialisation */
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		check->current_step = check->last_started_step = NULL;
-		tcp_rule = get_first_tcpcheck_rule(check->tcpcheck_rules);
-	}
 
 	/* prepare the check buffer.
 	 * This should not be used if check is the secondary agent check
@@ -1671,7 +1664,9 @@ static int connect_conn_chk(struct task *t)
 	/* for tcp-checks, the initial connection setup is handled separately as
 	 * it may be sent to a specific port and not to the server's.
 	 */
-	if (tcp_rule && tcp_rule->action == TCPCHK_ACT_CONNECT) {
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		/* tcpcheck initialisation */
+		check->current_step = check->last_started_step = NULL;
 		tcpcheck_main(check);
 		return SF_ERR_UP;
 	}
@@ -1723,12 +1718,8 @@ static int connect_conn_chk(struct task *t)
 		return SF_ERR_RESOURCE;
 	cs_attach(cs, check, &check_conn_cb);
 
-	/* only plain tcp-check supports quick ACK */
-	if (check->type != 0)
-		connflags |= CONNECT_HAS_DATA;
-	if ((check->type == 0 || check->type == PR_O2_TCPCHK_CHK) &&
-	    (!tcp_rule || tcp_rule->action != TCPCHK_ACT_EXPECT))
-		connflags |= CONNECT_DELACK_ALWAYS;
+	/* only plain tcp check supports quick ACK */
+	connflags |= (check->type ? CONNECT_HAS_DATA : CONNECT_DELACK_ALWAYS);
 
 	ret = SF_ERR_INTERNAL;
 	if (proto && proto->connect)
@@ -2738,6 +2729,12 @@ static int tcpcheck_get_step_id(struct check *check)
 	if (!check->last_started_step)
 		return 1;
 
+	/* last step is the first implicit connect */
+	if (check->last_started_step->index == 0 &&
+	    check->last_started_step->action == TCPCHK_ACT_CONNECT &&
+	    (check->last_started_step->connect.options & TCPCHK_OPT_DEFAULT_CONNECT))
+		return 0;
+
 	return check->last_started_step->index + 1;
 }
 
@@ -2957,38 +2954,31 @@ static int tcpcheck_main(struct check *check)
 				goto fail_check;
 			}
 
-			if (is_addr(&check->addr)) {
-				/* we'll connect to the check addr specified on the server */
-				*conn->dst = check->addr;
-			}
-			else {
-				/* we'll connect to the addr on the server */
-				*conn->dst = s->addr;
-			}
+			/* connect to the check addr if specified on the
+			 * server. otherwise, use the server addr
+			 */
+			*conn->dst = (is_addr(&check->addr) ? check->addr : s->addr);
 			proto = protocol_by_family(conn->dst->ss_family);
 
-			/* port */
 			if (connect->port)
 				set_host_port(conn->dst, connect->port);
 			else if (check->port)
 				set_host_port(conn->dst, check->port);
-			else if (s->svc_port)
-				set_host_port(conn->dst, s->svc_port);
-
-			if (connect->options & TCPCHK_OPT_SSL) {
-				xprt = xprt_get(XPRT_SSL);
-			}
 			else {
-				xprt = xprt_get(XPRT_RAW);
+				int i = get_host_port(&check->addr);
+
+				set_host_port(conn->dst, ((i > 0) ? i : s->svc_port));
 			}
+
+			xprt = ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
+				? check->xprt
+				: ((connect->options & TCPCHK_OPT_SSL) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW)));
 
 			conn_prepare(conn, proto, xprt);
-
 			if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0) {
 				ret = SF_ERR_RESOURCE;
 				goto fail_check;
 			}
-
 			cs_attach(cs, check, &check_conn_cb);
 
 			ret = SF_ERR_INTERNAL;
@@ -3000,18 +2990,42 @@ static int tcpcheck_main(struct check *check)
 					flags |= CONNECT_DELACK_ALWAYS;
 				ret = proto->connect(conn, flags);
 			}
-			if (conn_ctrl_ready(conn) &&
-				connect->options & TCPCHK_OPT_SEND_PROXY) {
-				conn->send_proxy_ofs = 1;
-				conn->flags |= CO_FL_SEND_PROXY;
-				if (xprt_add_hs(conn) < 0)
-					ret = SF_ERR_RESOURCE;
+
+			if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT) {
+#ifdef USE_OPENSSL
+				if (ret == SF_ERR_NONE) {
+					if (s->check.sni)
+						ssl_sock_set_servername(conn, s->check.sni);
+					if (s->check.alpn_str)
+						ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
+								  s->check.alpn_len);
+				}
+#endif
+				if (s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
+					conn->send_proxy_ofs = 1;
+					conn->flags |= CO_FL_SOCKS4;
+				}
+				if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
+					conn->send_proxy_ofs = 1;
+					conn->flags |= CO_FL_SEND_PROXY;
+				}
+			}
+			else {
+				/* TODO: add sock4 and sni option */
+				if (connect->options & TCPCHK_OPT_SEND_PROXY) {
+					conn->send_proxy_ofs = 1;
+					conn->flags |= CO_FL_SEND_PROXY;
+				}
+
+				if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
+					/* Some servers don't like reset on close */
+					fdtab[cs->conn->handle.fd].linger_risk = 0;
+				}
 			}
 
-			if (conn_ctrl_ready(conn) &&
-			    connect->options & TCPCHK_OPT_LINGER) {
-				/* Some servers don't like reset on close */
-				fdtab[cs->conn->handle.fd].linger_risk = 0;
+			if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
+				if (xprt_add_hs(conn) < 0)
+					ret = SF_ERR_RESOURCE;
 			}
 
 			/* It can return one of :
@@ -3796,6 +3810,35 @@ static int srv_check_healthcheck_port(struct check *chk)
 
 REGISTER_POST_CHECK(start_checks);
 
+static int check_proxy_tcpcheck(struct proxy *px)
+{
+	struct tcpcheck_rule *chk;
+	int ret = 0;
+
+	if (!px->tcpcheck_rules)
+		goto out;
+
+	/* If there is no connect rule preceeding all send / expect rules, an
+	 * implicit one is inserted before all others
+	 */
+	chk = get_first_tcpcheck_rule(px->tcpcheck_rules);
+	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
+		chk = calloc(1, sizeof(*chk));
+		if (!chk) {
+			ha_alert("config : proxy '%s': unable to add implicit tcp-check connect rule "
+				 "(out of memory).\n", px->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		chk->action = TCPCHK_ACT_CONNECT;
+		chk->connect.options = TCPCHK_OPT_DEFAULT_CONNECT;
+		LIST_ADD(px->tcpcheck_rules, &chk->list);
+	}
+
+  out:
+	return ret;
+}
+
 static int init_srv_check(struct server *srv)
 {
 	const char *err;
@@ -3929,6 +3972,8 @@ static void deinit_srv_agent_check(struct server *srv)
 	free(srv->agent.send_string);
 }
 
+
+REGISTER_POST_PROXY_CHECK(check_proxy_tcpcheck);
 REGISTER_POST_SERVER_CHECK(init_srv_check);
 REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
 
