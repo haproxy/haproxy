@@ -48,13 +48,11 @@ static inline void health_adjust(struct server *s, short status)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 }
 
-const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
 
 int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
 void send_email_alert(struct server *s, int priority, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
-int srv_check_healthcheck_port(struct check *chk);
 
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);

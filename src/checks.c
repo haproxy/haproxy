@@ -70,6 +70,8 @@ static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
 static void __event_srv_chk_r(struct conn_stream *cs);
 
+static int srv_check_healthcheck_port(struct check *chk);
+
 DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
 DECLARE_STATIC_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
 
@@ -3286,7 +3288,7 @@ static int tcpcheck_main(struct check *check)
 	return retcode;
 }
 
-const char *init_check(struct check *check, int type)
+static const char *init_check(struct check *check, int type)
 {
 	check->type = type;
 
@@ -3660,7 +3662,7 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
  *   the port to be used for the health check
  *   0 in case no port could be found for the check
  */
-int srv_check_healthcheck_port(struct check *chk)
+static int srv_check_healthcheck_port(struct check *chk)
 {
 	int i = 0;
 	struct server *srv = NULL;
