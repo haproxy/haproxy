@@ -5927,8 +5927,6 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	}
 	if (srv->use_ssl == 1)
 		srv->xprt = &ssl_sock;
-	if (srv->check.use_ssl == 1)
-		srv->check.xprt = &ssl_sock;
 
 	ctx = SSL_CTX_new(SSLv23_client_method());
 	if (!ctx) {

@@ -3310,6 +3310,10 @@ const char *init_check(struct check *check, int type)
 
 void free_check(struct check *check)
 {
+	task_destroy(check->task);
+	if (check->wait_list.tasklet)
+		tasklet_free(check->wait_list.tasklet);
+
 	free(check->bi.area);
 	free(check->bo.area);
 	if (check->cs) {
@@ -3441,7 +3445,6 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 		struct email_alertq *q     = &queues[i];
 		struct check        *check = &q->check;
 
-		task_destroy(check->task);
 		free_check(check);
 	}
 	free(queues);
@@ -3664,17 +3667,6 @@ int srv_check_healthcheck_port(struct check *chk)
 
 	srv = chk->server;
 
-	/* If neither a port nor an addr was specified and no check transport
-	 * layer is forced, then the transport layer used by the checks is the
-	 * same as for the production traffic. Otherwise we use raw_sock by
-	 * default, unless one is specified.
-	 */
-	if (!chk->port && !is_addr(&chk->addr)) {
-		if (!chk->use_ssl)
-			chk->use_ssl = srv->use_ssl;
-		chk->send_proxy |= (srv->pp_opts);
-	}
-
 	/* by default, we use the health check port ocnfigured */
 	if (chk->port > 0)
 		return chk->port;
@@ -3700,6 +3692,130 @@ int srv_check_healthcheck_port(struct check *chk)
 }
 
 REGISTER_POST_CHECK(start_checks);
+
+static int init_srv_check(struct server *srv)
+{
+	const char *err;
+	struct tcpcheck_rule *r;
+	int ret = 0;
+
+	if (!srv->do_check)
+		goto out;
+
+
+	/* If neither a port nor an addr was specified and no check transport
+	 * layer is forced, then the transport layer used by the checks is the
+	 * same as for the production traffic. Otherwise we use raw_sock by
+	 * default, unless one is specified.
+	 */
+	if (!srv->check.port && !is_addr(&srv->check.addr)) {
+		if (!srv->check.use_ssl && srv->use_ssl != -1) {
+			srv->check.use_ssl = srv->use_ssl;
+			srv->check.xprt    = srv->xprt;
+		}
+		else if (srv->check.use_ssl == 1)
+			srv->check.xprt = xprt_get(XPRT_SSL);
+
+		srv->check.send_proxy |= (srv->pp_opts);
+	}
+
+	/* validate <srv> server health-check settings */
+
+	/* We need at least a service port, a check port or the first tcp-check
+	 * rule must be a 'connect' one when checking an IPv4/IPv6 server.
+	 */
+	if ((srv_check_healthcheck_port(&srv->check) != 0) ||
+	    (!is_inet_addr(&srv->check.addr) && (is_addr(&srv->check.addr) || !is_inet_addr(&srv->addr))))
+		goto init;
+
+	if (!LIST_ISEMPTY(&srv->proxy->tcpcheck_rules)) {
+		ha_alert("config: %s '%s': server '%s' has neither service port nor check port.\n",
+			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+		ret |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* search the first action (connect / send / expect) in the list */
+	r = get_first_tcpcheck_rule(&srv->proxy->tcpcheck_rules);
+	if (!r || (r->action != TCPCHK_ACT_CONNECT) || !r->port) {
+		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
+			 "nor tcp_check rule 'connect' with port information.\n",
+			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+		ret |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* scan the tcp-check ruleset to ensure a port has been configured */
+	list_for_each_entry(r, &srv->proxy->tcpcheck_rules, list) {
+		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
+			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
+				 "and a tcp_check rule 'connect' with no port information.\n",
+				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+	}
+
+  init:
+	err = init_check(&srv->check, srv->proxy->options2 & PR_O2_CHK_ANY);
+	if (err) {
+		ha_alert("config: %s '%s': unable to init check for server '%s' (%s).\n",
+			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id, err);
+		ret |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+	srv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+	global.maxsock++;
+
+  out:
+	return ret;
+}
+
+static int init_srv_agent_check(struct server *srv)
+{
+	const char *err;
+	int ret = 0;
+
+	if (!srv->do_agent)
+		goto out;
+
+	err = init_check(&srv->agent, PR_O2_LB_AGENT_CHK);
+	if (err) {
+		ha_alert("config: %s '%s': unable to init agent-check for server '%s' (%s).\n",
+			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id, err);
+		ret |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	if (!srv->agent.inter)
+		srv->agent.inter = srv->check.inter;
+
+	srv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
+	global.maxsock++;
+
+  out:
+	return ret;
+}
+
+static void deinit_srv_check(struct server *srv)
+{
+	if (srv->do_check)
+		free_check(&srv->check);
+}
+
+
+static void deinit_srv_agent_check(struct server *srv)
+{
+	if (srv->do_agent)
+		free_check(&srv->agent);
+	free(srv->agent.send_string);
+}
+
+REGISTER_POST_SERVER_CHECK(init_srv_check);
+REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
+
+REGISTER_SERVER_DEINIT(deinit_srv_check);
+REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
 
 /*
  * Local variables:
