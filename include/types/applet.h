@@ -106,7 +106,7 @@ struct appctx {
 			int severity;           /* severity of the message to be returned according to (syslog) rfc5424 */
 			char *err;              /* pointer to a 'must free' message to be returned in CLI_ST_PRINT_FREE state */
 			struct list l0;         /* General purpose list element, pointers, offsets and integers for... */
-			void *p0, *p1;          /* ...registered commands, initialized to 0 by the CLI before first... */
+			void *p0, *p1, *p2;     /* ...registered commands, initialized to 0 by the CLI before first... */
 			size_t o0, o1;          /* ...invocation of the keyword parser, except for the list element which... */
 			int i0, i1;             /* ...is initialized with LIST_INIT(). */
 		} cli;                          /* context used by the CLI */
