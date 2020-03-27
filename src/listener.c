@@ -1290,6 +1290,18 @@ smp_fetch_so_id(const struct arg *args, struct sample *smp, const char *kw, void
 	smp->data.u.sint = smp->sess->listener->luid;
 	return 1;
 }
+static int
+smp_fetch_so_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.u.str.area = smp->sess->listener->name;
+	if (!smp->data.u.str.area)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
+	return 1;
+}
 
 /* parse the "accept-proxy" bind keyword */
 static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -1526,6 +1538,7 @@ static int cfg_parse_tune_listener_mq(char **args, int section_type, struct prox
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "dst_conn", smp_fetch_dconn, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ "so_id",    smp_fetch_so_id, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "so_name",  smp_fetch_so_name, 0, NULL, SMP_T_STR, SMP_USE_FTEND, },
 	{ /* END */ },
 }};
 

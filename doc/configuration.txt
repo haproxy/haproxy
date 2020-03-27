@@ -15449,6 +15449,11 @@ so_id : integer
   in frontends involving many "bind" lines, or to stick all users coming via a
   same socket to the same server.
 
+so_name : string
+  Returns a string containing the current listening socket's name, as defined
+  with name on a "bind" line. It can serve the same purposes as so_id but with
+  strings instead of integers.
+
 src : ip
   This is the source IPv4 address of the client of the session. It is of type
   IP and works on both IPv4 and IPv6 tables. On IPv6 tables, IPv4 addresses are

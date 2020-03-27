@@ -1,0 +1,22 @@
+varnishtest "so_name sample fetche Test"
+
+#REQUIRE_VERSION=2.2
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+
+    frontend fe
+        bind "fd@${fe}" name foo
+        http-request return status 200 hdr so-name %[so_name]
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.so-name == "foo"
+} -run
