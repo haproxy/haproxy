@@ -5925,9 +5925,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			return cfgerr;
 		}
 	}
-	if (srv->use_ssl)
+	if (srv->use_ssl == 1)
 		srv->xprt = &ssl_sock;
-	if (srv->check.use_ssl)
+	if (srv->check.use_ssl == 1)
 		srv->check.xprt = &ssl_sock;
 
 	ctx = SSL_CTX_new(SSLv23_client_method());
@@ -9956,7 +9956,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 /* parse the "no-check-ssl" server keyword */
 static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
-	newsrv->check.use_ssl = 0;
+	newsrv->check.use_ssl = -1;
 	free(newsrv->ssl_ctx.ciphers);
 	newsrv->ssl_ctx.ciphers = NULL;
 	newsrv->ssl_ctx.options &= ~global_ssl.connect_default_ssloptions;
@@ -9983,7 +9983,7 @@ static int srv_parse_no_send_proxy_cn(char **args, int *cur_arg, struct proxy *p
 /* parse the "no-ssl" server keyword */
 static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
-	newsrv->use_ssl = 0;
+	newsrv->use_ssl = -1;
 	free(newsrv->ssl_ctx.ciphers);
 	newsrv->ssl_ctx.ciphers = NULL;
 	return 0;

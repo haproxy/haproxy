@@ -167,7 +167,7 @@ struct check {
 	short status, code;			/* check result, check code */
 	unsigned short port;			/* the port to use for the health checks */
 	char desc[HCHK_DESC_LEN];		/* health check description */
-	int use_ssl;				/* use SSL for health checks */
+	char use_ssl;				/* use SSL for health checks (1: on, 0: server mode, -1: off) */
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	struct list *tcpcheck_rules;		/* tcp-check send / expect rules */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */

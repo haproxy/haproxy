@@ -3252,7 +3252,7 @@ out_uri_auth_compat:
 			}
 
 			/* this will also properly set the transport layer for prod and checks */
-			if (newsrv->use_ssl || newsrv->check.use_ssl) {
+			if (newsrv->use_ssl == 1 || newsrv->check.use_ssl == 1 || (newsrv->proxy->options & PR_O_TCPCHK_SSL)) {
 				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 					cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
 			}
@@ -4005,7 +4005,7 @@ out_uri_auth_compat:
 				p = curpeers->remote;
 				while (p) {
 					if (p->srv) {
-						if (p->srv->use_ssl && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
+						if (p->srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 							cfgerr += xprt_get(XPRT_SSL)->prepare_srv(p->srv);
 					}
 					p = p->next;

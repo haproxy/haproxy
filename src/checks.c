@@ -1371,7 +1371,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	default:
 		/* good connection is enough for pure TCP check */
 		if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-			if (check->use_ssl)
+			if (check->use_ssl == 1)
 				set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 			else
 				set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
@@ -2366,7 +2366,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		if (check->result == CHK_RES_UNKNOWN) {
 			/* good connection is enough for pure TCP check */
 			if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-				if (check->use_ssl)
+				if (check->use_ssl == 1)
 					set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 				else
 					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
@@ -3670,7 +3670,8 @@ int srv_check_healthcheck_port(struct check *chk)
 	 * default, unless one is specified.
 	 */
 	if (!chk->port && !is_addr(&chk->addr)) {
-		chk->use_ssl |= (srv->use_ssl || (srv->proxy->options & PR_O_TCPCHK_SSL));
+		if (!chk->use_ssl)
+			chk->use_ssl = srv->use_ssl;
 		chk->send_proxy |= (srv->pp_opts);
 	}
 
