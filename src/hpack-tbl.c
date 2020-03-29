@@ -346,9 +346,9 @@ int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value)
 	 * room left in the tail to suit the protocol, but tests show that in
 	 * practice it almost never happens in other situations so the extra
 	 * test is useless and we simply fill the headroom as long as it's
-	 * available.
+	 * available and we don't wrap.
 	 */
-	if (headroom >= name.len + value.len) {
+	if (prev == dht->front && headroom >= name.len + value.len) {
 		/* install upfront and update ->front */
 		dht->dte[head].addr = dht->dte[dht->front].addr - (name.len + value.len);
 		dht->front = head;
