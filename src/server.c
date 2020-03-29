@@ -5590,6 +5590,9 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
 	while (1) {
 		int srv_is_empty = 1;
+		int exceed_conns;
+		int to_kill;
+		int curr_idle;
 
 		eb = eb32_lookup_ge(&idle_conn_srv, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
@@ -5609,12 +5612,27 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			break;
 		}
 		srv = eb32_entry(eb, struct server, idle_node);
-		for (i = 0; i < global.nbthread; i++) {
-			int max_conn = (srv->curr_idle_thr[i] / 2) +
-			    (srv->curr_idle_thr[i] & 1);
+
+		/* Calculate how many idle connections we want to kill :
+		 * we want to remove half the difference between the total
+		 * of established connections (used or idle) and the max
+		 * number of used connections.
+		 */
+		curr_idle = srv->curr_idle_conns;
+		if (curr_idle == 0)
+			goto remove;
+		exceed_conns = srv->curr_used_conns + curr_idle -
+		               srv->max_used_conns;
+		exceed_conns = to_kill = exceed_conns / 2 + (exceed_conns & 1);
+		srv->max_used_conns = srv->curr_used_conns;
+
+		for (i = 0; i < global.nbthread && to_kill > 0; i++) {
+			int max_conn;
 			int j;
 			int did_remove = 0;
 
+			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
+			           curr_idle + 1;
 			HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[i]);
 			for (j = 0; j < max_conn; j++) {
 				struct connection *conn = MT_LIST_POP(&srv->idle_conns[i], struct connection *, list);
@@ -5632,6 +5650,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			if (did_remove)
 				task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
 		}
+remove:
 		eb32_delete(&srv->idle_node);
 		if (!srv_is_empty) {
 			/* There are still more idle connections, add the
