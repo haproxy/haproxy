@@ -751,6 +751,14 @@ static inline struct ist istadv(const struct ist ist, const size_t nb)
 	return ist2(ist.ptr + nb, ist.len - nb);
 }
 
+/*
+ * compare 2 ists and return non-zero if they are the same
+ */
+static inline int istissame(const struct ist ist1, const struct ist ist2)
+{
+	return ((ist1.ptr == ist2.ptr) && (ist1.len == ist2.len));
+}
+
 #ifndef IST_FREESTANDING
 /* This function allocates <size> bytes and returns an `ist` pointing to
  * the allocated area with size `0`.
