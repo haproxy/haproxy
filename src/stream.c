@@ -1169,7 +1169,20 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 				ret = !ret;
 
 			if (ret) {
-				struct server *srv = rule->srv.ptr;
+				struct server *srv;
+
+				if (rule->dynamic) {
+					struct buffer *tmp = get_trash_chunk();
+
+					if (!build_logline(s, tmp->area, tmp->size, &rule->expr))
+						break;
+
+					srv = findserver(s->be, tmp->area);
+					if (!srv)
+						break;
+				}
+				else
+					srv = rule->srv.ptr;
 
 				if ((srv->cur_state != SRV_ST_STOPPED) ||
 				    (px->options & PR_O_PERSIST) ||

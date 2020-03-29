@@ -2701,7 +2701,40 @@ int check_config_validity()
 
 		/* find the target server for 'use_server' rules */
 		list_for_each_entry(srule, &curproxy->server_rules, list) {
-			struct server *target = findserver(curproxy, srule->srv.name);
+			struct server *target;
+			struct logformat_node *node;
+			char *server_name;
+
+			/* We try to parse the string as a log format expression. If the result of the parsing
+			 * is only one entry containing a single string, then it's a standard string corresponding
+			 * to a static rule, thus the parsing is cancelled and we fall back to setting srv.ptr.
+			 */
+			server_name = srule->srv.name;
+			LIST_INIT(&srule->expr);
+			curproxy->conf.args.ctx = ARGC_USRV;
+			err = NULL;
+			if (!parse_logformat_string(server_name, curproxy, &srule->expr, 0, SMP_VAL_FE_HRQ_HDR, &err)) {
+				ha_alert("Parsing [%s:%d]; use-server rule failed to parse log-format '%s' : %s.\n",
+						srule->file, srule->line, server_name, err);
+				free(err);
+				cfgerr++;
+				continue;
+			}
+			node = LIST_NEXT(&srule->expr, struct logformat_node *, list);
+
+			if (!LIST_ISEMPTY(&srule->expr)) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr) {
+					srule->dynamic = 1;
+					free(server_name);
+					continue;
+				}
+				free(node->arg);
+				free(node);
+			}
+
+			srule->dynamic = 0;
+			srule->srv.name = server_name;
+			target = findserver(curproxy, srule->srv.name);
 
 			if (!target) {
 				ha_alert("config : %s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",

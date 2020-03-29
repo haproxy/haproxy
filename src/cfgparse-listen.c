@@ -1592,6 +1592,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->srv.name = strdup(args[1]);
+		rule->line = linenum;
+		rule->file = strdup(file);
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->server_rules, &rule->list);
 		curproxy->be_req_ana |= AN_REQ_SRV_RULES;

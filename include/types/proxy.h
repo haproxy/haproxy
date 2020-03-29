@@ -509,10 +509,14 @@ struct switching_rule {
 struct server_rule {
 	struct list list;			/* list linked to from the proxy */
 	struct acl_cond *cond;			/* acl condition to meet */
+	int dynamic;
 	union {
 		struct server *ptr;		/* target server */
 		char *name;			/* target server name during config parsing */
 	} srv;
+	struct list expr;		/* logformat expression to use for dynamic rules */
+	char *file;
+	int line;
 };
 
 struct persist_rule {

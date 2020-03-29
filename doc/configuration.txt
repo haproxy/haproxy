@@ -11141,7 +11141,8 @@ use-server <server> unless <condition>
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    no    |   yes  |   yes
   Arguments :
-    <server>    is the name of a valid server in the same backend section.
+    <server>    is the name of a valid server in the same backend section
+                or a "log-format" string resolving to a server name.
 
     <condition> is a condition composed of ACLs, as described in section 7.
 
@@ -11185,6 +11186,13 @@ use-server <server> unless <condition>
      server     imap 192.168.0.1:993 weight 0
      # all the rest is forwarded to this server
      server  default 192.168.0.2:443 check
+
+  When <server> is a simple name, it is checked against existing servers in the
+  configuration and an error is reported if the specified server does not exist.
+  If it is a log-format, no check is performed when parsing the configuration,
+  and if we can't resolve a valid server name at runtime but the use-server rule
+  was conditionned by an ACL returning true, no other use-server rule is applied
+  and we fall back to load balancing.
 
   See also: "use_backend", section 5 about server and section 7 about ACLs.
 

@@ -81,6 +81,7 @@ enum {
 	ARGC_SRV,      /* server line */
 	ARGC_SPOE,     /* spoe message args */
 	ARGC_UBK,      /* use_backend message */
+	ARGC_USRV,     /* use-server message */
 };
 
 /* flags used when compiling and executing regex */
