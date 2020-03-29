@@ -740,6 +740,17 @@ static inline struct ist iststop(const struct ist ist, char chr)
 	return ist2(ist.ptr, len - 1);
 }
 
+/*
+ * advance <.ptr> by <nb> characters.
+ * If <ist> is too short, (ist.end,0) is returned.
+ */
+static inline struct ist istadv(const struct ist ist, const size_t nb)
+{
+	if (ist.len < nb)
+		return ist2(ist.ptr + ist.len, 0);
+	return ist2(ist.ptr + nb, ist.len - nb);
+}
+
 #ifndef IST_FREESTANDING
 /* This function allocates <size> bytes and returns an `ist` pointing to
  * the allocated area with size `0`.
