@@ -11489,6 +11489,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct ckch_inst *ckchi, *ckchis;
 	struct buffer *trash = alloc_trash_chunk();
 	struct sni_ctx *sc0, *sc0s;
+	struct crtlist_entry *entry;
 
 	if (trash == NULL)
 		goto error;
@@ -11588,6 +11589,15 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				if (!new_ckchs)
 					continue;
+
+				/* get the list of crtlist_entry in the old store, and update the pointers to the store */
+				LIST_SPLICE(&new_ckchs->crtlist_entry, &old_ckchs->crtlist_entry);
+				list_for_each_entry(entry, &new_ckchs->crtlist_entry, by_ckch_store) {
+					ebpt_delete(&entry->node);
+					/* change the ptr and reinsert the node */
+					entry->node.key = new_ckchs;
+					ebpt_insert(&entry->crtlist->entries, &entry->node);
+				}
 
 				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
