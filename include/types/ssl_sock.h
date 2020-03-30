@@ -123,6 +123,7 @@ struct ckch_store {
 	struct cert_key_and_chain *ckch;
 	unsigned int multi:1;  /* is it a multi-cert bundle ? */
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
+	struct list crtlist_entry; /* list of entries which use this store */
 	struct ebmb_node node;
 	char path[0];
 };
@@ -168,6 +169,7 @@ struct crtlist_entry {
 	char **filters;
 	struct list ckch_inst; /* list of instances of this entry, there is 1 ckch_inst per instance of the crt-list */
 	struct list by_crtlist; /* ordered entries */
+	struct list by_ckch_store; /* linked in ckch_store list of crtlist_entries */
 	struct ebpt_node node; /* key is a ptr to a ckch_store */
 };
 

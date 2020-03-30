@@ -3781,6 +3781,7 @@ static struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	memcpy(dst->path, src->path, pathlen + 1);
 	dst->multi = src->multi;
 	LIST_INIT(&dst->ckch_inst);
+	LIST_INIT(&dst->crtlist_entry);
 
 	dst->ckch = calloc((src->multi ? SSL_SOCK_NUM_KEYTYPES : 1), sizeof(*dst->ckch));
 	if (!dst->ckch)
@@ -3845,6 +3846,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 	}
 
 	LIST_INIT(&ckchs->ckch_inst);
+	LIST_INIT(&ckchs->crtlist_entry);
 
 	if (!multi) {
 
@@ -4643,6 +4645,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 						goto end;
 					}
 					entry->node.key = ckchs;
+					LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 					LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 					ebpt_insert(&dir->entries, &entry->node);
 
@@ -4662,6 +4665,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 				goto end;
 			}
 			entry->node.key = ckchs;
+			LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 			LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 			ebpt_insert(&dir->entries, &entry->node);
 
@@ -4860,6 +4864,7 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		entry->fcount = arg - cur_arg - 1;
 		ebpt_insert(&newlist->entries, &entry->node);
 		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
+		LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 	}
 	if (cfgerr & ERR_CODE)
 		goto error;
@@ -12023,6 +12028,7 @@ static int cli_parse_new_cert(char **args, char *payload, struct appctx *appctx,
 	}
 	/* we won't create any instance */
 	LIST_INIT(&store->ckch_inst);
+	LIST_INIT(&store->crtlist_entry);
 
 	/* we won't support multi-certificate bundle here */
 	store->multi = 0;
