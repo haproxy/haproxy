@@ -76,6 +76,10 @@ static void __event_srv_chk_r(struct conn_stream *cs);
 
 static int srv_check_healthcheck_port(struct check *chk);
 
+/* Global list to share all tcp-checks */
+struct list tcpchecks_list = LIST_HEAD_INIT(tcpchecks_list);
+
+
 DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
 DECLARE_STATIC_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
 
@@ -1556,11 +1560,11 @@ static struct task *server_warmup(struct task *t, void *context, unsigned short 
 /* returns the first NON-COMMENT tcp-check rule from list <list> or NULL if
  * none was found.
  */
-static struct tcpcheck_rule *get_first_tcpcheck_rule(struct list *list)
+static struct tcpcheck_rule *get_first_tcpcheck_rule(struct tcpcheck_rules *rules)
 {
 	struct tcpcheck_rule *r;
 
-	list_for_each_entry(r, list, list) {
+	list_for_each_entry(r, rules->list, list) {
 		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
@@ -1571,15 +1575,15 @@ static struct tcpcheck_rule *get_first_tcpcheck_rule(struct list *list)
  * NULL if non was found. If <start> is NULL, it relies on
  * get_first_tcpcheck_rule().
  */
-static struct tcpcheck_rule *get_next_tcpcheck_rule(struct list *list, struct tcpcheck_rule *start)
+static struct tcpcheck_rule *get_next_tcpcheck_rule(struct tcpcheck_rules *rules, struct tcpcheck_rule *start)
 {
 	struct tcpcheck_rule *r;
 
 	if (!start)
-		return get_first_tcpcheck_rule(list);
+		return get_first_tcpcheck_rule(rules);
 
 	r = LIST_NEXT(&start->list, typeof(r), list);
-	list_for_each_entry_from(r, list, list) {
+	list_for_each_entry_from(r, rules->list, list) {
 		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
@@ -2775,7 +2779,7 @@ static char *tcpcheck_get_step_comment(struct check *check, struct tcpcheck_rule
 	}
 
 	rule = LIST_PREV(&rule->list, typeof(cur), list);
-	list_for_each_entry_from_rev(rule, check->tcpcheck_rules, list) {
+	list_for_each_entry_from_rev(rule, check->tcpcheck_rules->list, list) {
 		if (rule->action == TCPCHK_ACT_COMMENT) {
 			ret = rule->comment;
 			break;
@@ -3307,10 +3311,10 @@ static int tcpcheck_main(struct check *check)
 			goto out_end_tcpcheck;
 		}
 		vars_init(&check->vars, SCOPE_CHECK);
-		rule = LIST_NEXT(check->tcpcheck_rules, typeof(rule), list);
+		rule = LIST_NEXT(check->tcpcheck_rules->list, typeof(rule), list);
 	}
 
-	list_for_each_entry_from(rule, check->tcpcheck_rules, list) {
+	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
 		enum tcpcheck_eval_ret eval_ret;
 
 		switch (rule->action) {
@@ -3534,9 +3538,13 @@ void email_alert_free(struct email_alert *alert)
 	if (!alert)
 		return;
 
-	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list) {
-		LIST_DEL(&rule->list);
-		free_tcpcheck(rule, 1);
+	if (alert->rules.list) {
+		list_for_each_entry_safe(rule, back, alert->rules.list, list) {
+			LIST_DEL(&rule->list);
+			free_tcpcheck(rule, 1);
+		}
+		free(alert->rules.list);
+		alert->rules.list = NULL;
 	}
 	pool_free(pool_head_email_alert, alert);
 }
@@ -3562,7 +3570,7 @@ static struct task *process_email_alert(struct task *t, void *context, unsigned 
 			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
 			LIST_DEL(&alert->list);
 			t->expire             = now_ms;
-			check->tcpcheck_rules = &alert->tcpcheck_rules;
+			check->tcpcheck_rules = &alert->rules;
 			check->status         = HCHK_STATUS_INI;
 			check->state         |= CHK_ST_ENABLED;
 		}
@@ -3571,7 +3579,7 @@ static struct task *process_email_alert(struct task *t, void *context, unsigned 
 		if (check->state & CHK_ST_INPROGRESS)
 			break;
 
-		alert = container_of(check->tcpcheck_rules, typeof(*alert), tcpcheck_rules);
+		alert = container_of(check->tcpcheck_rules, typeof(*alert), rules);
 		email_alert_free(alert);
 		check->tcpcheck_rules = NULL;
 		check->server         = NULL;
@@ -3653,7 +3661,7 @@ int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
 }
 
 
-static int add_tcpcheck_expect_str(struct list *list, const char *str)
+static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck, *prev_check;
 	struct tcpcheck_expect *expect;
@@ -3676,7 +3684,7 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 	 * in a chain of one or more expect rule, potentially itself.
 	 */
 	tcpcheck->expect.head = tcpcheck;
-	list_for_each_entry_rev(prev_check, list, list) {
+	list_for_each_entry_rev(prev_check, rules->list, list) {
 		if (prev_check->action == TCPCHK_ACT_EXPECT) {
 			if (prev_check->expect.inverse)
 				tcpcheck->expect.head = prev_check;
@@ -3685,11 +3693,11 @@ static int add_tcpcheck_expect_str(struct list *list, const char *str)
 		if (prev_check->action != TCPCHK_ACT_COMMENT && prev_check->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
-	LIST_ADDQ(list, &tcpcheck->list);
+	LIST_ADDQ(rules->list, &tcpcheck->list);
 	return 1;
 }
 
-static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
+static int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs)
 {
 	struct tcpcheck_rule *tcpcheck;
 	struct tcpcheck_send *send;
@@ -3719,7 +3727,7 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 		for (in = strs[i]; (*dst = *in++); dst++);
 	*dst = 0;
 
-	LIST_ADDQ(list, &tcpcheck->list);
+	LIST_ADDQ(rules->list, &tcpcheck->list);
 	return 1;
 }
 
@@ -3733,7 +3741,11 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	if ((alert = pool_alloc(pool_head_email_alert)) == NULL)
 		goto error;
 	LIST_INIT(&alert->list);
-	LIST_INIT(&alert->tcpcheck_rules);
+	alert->rules.flags = 0;
+	alert->rules.list = calloc(1, sizeof(*alert->rules.list));
+	if (!alert->rules.list)
+		goto error;
+	LIST_INIT(alert->rules.list);
 	alert->srv = s;
 
 	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
@@ -3742,45 +3754,45 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
 	tcpcheck->comment      = NULL;
 
-	LIST_ADDQ(&alert->tcpcheck_rules, &tcpcheck->list);
+	LIST_ADDQ(alert->rules.list, &tcpcheck->list);
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "220 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "220 "))
 		goto error;
 
 	{
 		const char * const strs[4] = { "EHLO ", p->email_alert.myhostname, "\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
 		goto error;
 
 	{
 		const char * const strs[4] = { "MAIL FROM:<", p->email_alert.from, ">\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
 		goto error;
 
 	{
 		const char * const strs[4] = { "RCPT TO:<", p->email_alert.to, ">\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
 		goto error;
 
 	{
 		const char * const strs[2] = { "DATA\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "354 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "354 "))
 		goto error;
 
 	{
@@ -3804,20 +3816,20 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 			goto error;
 		}
 
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
 		goto error;
 
 	{
 		const char * const strs[2] = { "QUIT\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+		if (!add_tcpcheck_send_strs(&alert->rules, strs))
 			goto error;
 	}
 
-	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "221 "))
+	if (!add_tcpcheck_expect_str(&alert->rules, "221 "))
 		goto error;
 
 	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
@@ -3915,13 +3927,23 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	struct tcpcheck_rule *chk;
 	int ret = 0;
 
-	if (!px->tcpcheck_rules)
+	if ((px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
 		goto out;
+
+	if (!px->tcpcheck_rules.list) {
+		px->tcpcheck_rules.list = calloc(1, sizeof(*px->tcpcheck_rules.list));
+		if (!px->tcpcheck_rules.list) {
+			ha_alert("config : proxy '%s': out of memory.\n", px->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		LIST_INIT(px->tcpcheck_rules.list);
+	}
 
 	/* If there is no connect rule preceeding all send / expect rules, an
 	 * implicit one is inserted before all others
 	 */
-	chk = get_first_tcpcheck_rule(px->tcpcheck_rules);
+	chk = get_first_tcpcheck_rule(&px->tcpcheck_rules);
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
@@ -3932,7 +3954,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = TCPCHK_OPT_DEFAULT_CONNECT;
-		LIST_ADD(px->tcpcheck_rules, &chk->list);
+		LIST_ADD(px->tcpcheck_rules.list, &chk->list);
 	}
 
   out:
@@ -3974,7 +3996,7 @@ static int init_srv_check(struct server *srv)
 	    (!is_inet_addr(&srv->check.addr) && (is_addr(&srv->check.addr) || !is_inet_addr(&srv->addr))))
 		goto init;
 
-	if (!srv->proxy->tcpcheck_rules || LIST_ISEMPTY(srv->proxy->tcpcheck_rules)) {
+	if (!srv->proxy->tcpcheck_rules.list || LIST_ISEMPTY(srv->proxy->tcpcheck_rules.list)) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port.\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 		ret |= ERR_ALERT | ERR_ABORT;
@@ -3982,7 +4004,7 @@ static int init_srv_check(struct server *srv)
 	}
 
 	/* search the first action (connect / send / expect) in the list */
-	r = get_first_tcpcheck_rule(srv->proxy->tcpcheck_rules);
+	r = get_first_tcpcheck_rule(&srv->proxy->tcpcheck_rules);
 	if (!r || (r->action != TCPCHK_ACT_CONNECT) || (!r->connect.port && !get_host_port(&r->connect.addr))) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
 			 "nor tcp_check rule 'connect' with port information.\n",
@@ -3992,7 +4014,7 @@ static int init_srv_check(struct server *srv)
 	}
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
-	list_for_each_entry(r, srv->proxy->tcpcheck_rules, list) {
+	list_for_each_entry(r, srv->proxy->tcpcheck_rules.list, list) {
 		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port || !get_host_port(&r->connect.addr))) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",
@@ -4043,19 +4065,22 @@ static int init_srv_agent_check(struct server *srv)
 	return ret;
 }
 
-static void deinit_proxy_tcpcheck(struct proxy *px)
+void deinit_proxy_tcpcheck(struct proxy *px)
 {
 	struct tcpcheck_rule *chk, *back;
 
-	if (!px->tcpcheck_rules)
-		return;
+	if (!px->tcpcheck_rules.list || (px->tcpcheck_rules.flags & TCPCHK_RULES_SHARED))
+		goto end;
 
-	list_for_each_entry_safe(chk, back, px->tcpcheck_rules, list) {
+	list_for_each_entry_safe(chk, back, px->tcpcheck_rules.list, list) {
 		LIST_DEL(&chk->list);
 		free_tcpcheck(chk, 0);
 	}
-	free(px->tcpcheck_rules);
-	px->tcpcheck_rules = NULL;
+	free(px->tcpcheck_rules.list);
+
+  end:
+	px->tcpcheck_rules.flags = 0;
+	px->tcpcheck_rules.list  = NULL;
 }
 
 static void deinit_srv_check(struct server *srv)
@@ -4072,6 +4097,22 @@ static void deinit_srv_agent_check(struct server *srv)
 	free(srv->agent.send_string);
 }
 
+static void deinit_tcpchecks()
+{
+	struct tcpcheck_ruleset *rs, *rsb;
+	struct tcpcheck_rule *r, *rb;
+
+	list_for_each_entry_safe(rs, rsb, &tcpchecks_list, list) {
+		LIST_DEL(&rs->list);
+		list_for_each_entry_safe(r, rb, &rs->rules, list) {
+			LIST_DEL(&r->list);
+			free_tcpcheck(r, 0);
+		}
+		free(rs->name);
+		free(rs);
+	}
+}
+
 
 REGISTER_POST_PROXY_CHECK(check_proxy_tcpcheck);
 REGISTER_POST_SERVER_CHECK(init_srv_check);
@@ -4080,6 +4121,7 @@ REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
 REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
+REGISTER_POST_DEINIT(deinit_tcpchecks);
 
 struct action_kw_list tcp_check_keywords = {
 	.list = LIST_HEAD_INIT(tcp_check_keywords.list),
@@ -4098,7 +4140,8 @@ static void action_kw_tcp_check_build_list(struct buffer *chk)
 
 /* Create a tcp-check rule resulting from parsing a custom keyword. */
 static struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, struct proxy *px,
-						   struct list *rules, struct action_kw *kw, char **errmsg)
+						   struct list *rules, struct action_kw *kw,
+						   const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
 	struct act_rule *actrule = NULL;
@@ -4321,7 +4364,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 }
 
 static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy *px, struct list *rules,
-						 char **errmsg)
+						 const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
 	char *comment = NULL, *data = NULL;
@@ -4409,7 +4452,8 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 	return NULL;
 }
 
-static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, struct list *rules, char **errmsg)
+static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, struct proxy *px, struct list *rules,
+						    const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
 	char *comment = NULL;
@@ -4439,7 +4483,8 @@ static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, st
 	return NULL;
 }
 
-static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct list *rules, char **errmsg)
+static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct proxy *px, struct list *rules,
+						   const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
 	char *str = NULL, *comment = NULL, *pattern = NULL;
@@ -4611,7 +4656,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 				struct proxy *defpx, const char *file, int line,
 				char **errmsg)
 {
-	struct list *rules = curpx->tcpcheck_rules;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
 	struct tcpcheck_rule *chk = NULL;
 	int index, cur_arg, ret = 0;
 
@@ -4623,31 +4668,40 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 		goto error;
 	}
 
-	if (!rules) {
-		rules = calloc(1, sizeof(*rules));
-		if (!rules) {
+	if (rules->flags & TCPCHK_RULES_DEF) {
+		/* Only shared ruleset can be inherited from the default section */
+		rules->flags = 0;
+		rules->list  = NULL;
+	}
+	if (rules->list && (rules->flags & TCPCHK_RULES_SHARED)) {
+		memprintf(errmsg, "%s : A shared tcp-check ruleset already configured.", args[0]);
+		goto error;
+	}
+
+	if (!rules->list) {
+		rules->list = calloc(1, sizeof(*rules->list));
+		if (!rules->list) {
 			memprintf(errmsg, "%s : out of memory.", args[0]);
 			goto error;
 		}
-		LIST_INIT(rules);
-		curpx->tcpcheck_rules = rules;
+		LIST_INIT(rules->list);
 	}
 
 	index = 0;
-	if (!LIST_ISEMPTY(rules)) {
-		chk = LIST_PREV(rules, typeof(chk), list);
+	if (!LIST_ISEMPTY(rules->list)) {
+		chk = LIST_PREV(rules->list, typeof(chk), list);
 		index = chk->index + 1;
 	}
 
 	cur_arg = 1;
 	if (strcmp(args[cur_arg], "connect") == 0)
-		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules, file, line, errmsg);
+		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules->list, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
-		chk = parse_tcpcheck_send(args, cur_arg, curpx, rules, errmsg);
+		chk = parse_tcpcheck_send(args, cur_arg, curpx, rules->list, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "expect") == 0)
-		chk = parse_tcpcheck_expect(args, cur_arg, rules, errmsg);
+		chk = parse_tcpcheck_expect(args, cur_arg, curpx, rules->list, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "comment") == 0)
-		chk = parse_tcpcheck_comment(args, cur_arg, rules, errmsg);
+		chk = parse_tcpcheck_comment(args, cur_arg, curpx, rules->list, file, line, errmsg);
 	else {
 		struct action_kw *kw = action_kw_tcp_check_lookup(args[cur_arg]);
 
@@ -4658,7 +4712,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 				  args[0], (*trash.area ? ", " : ""), trash.area, args[1]);
 			goto error;
 		}
-		chk = parse_tcpcheck_action(args, cur_arg, curpx, rules, kw, errmsg);
+		chk = parse_tcpcheck_action(args, cur_arg, curpx, rules->list, kw, file, line, errmsg);
 	}
 
 	if (!chk) {
@@ -4669,12 +4723,11 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 
 	/* No error: add the tcp-check rule in the list */
 	chk->index = index;
-	LIST_ADDQ(rules, &chk->list);
+	LIST_ADDQ(rules->list, &chk->list);
 	return ret;
 
   error:
-	if (rules)
-		deinit_proxy_tcpcheck(curpx);
+	deinit_proxy_tcpcheck(curpx);
 	return -1;
 }
 

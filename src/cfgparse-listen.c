@@ -303,15 +303,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			curproxy->check_body_len = defproxy.check_body_len;
 
-			if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK) {
-				curproxy->tcpcheck_rules =  calloc(1, sizeof(*curproxy->tcpcheck_rules));
-				if (!curproxy->tcpcheck_rules) {
-					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				LIST_INIT(curproxy->tcpcheck_rules);
-			}
+			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags | TCPCHK_RULES_DEF);
+			curproxy->tcpcheck_rules.list  = defproxy.tcpcheck_rules.list;
 
 			if (defproxy.expect_str) {
 				curproxy->expect_str = strdup(defproxy.expect_str);
@@ -539,6 +532,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.conf.lfsd_file);
 
 		proxy_release_conf_errors(&defproxy);
+
+		deinit_proxy_tcpcheck(&defproxy);
 
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
@@ -2669,18 +2664,31 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "tcp-check")) {
+			struct tcpcheck_rules *rules = &curproxy->tcpcheck_rules;
+
 			/* use raw TCPCHK send/expect to check servers' health */
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
 				err_code |= ERR_WARN;
 
-			if ((curproxy != &defproxy) && !curproxy->tcpcheck_rules) {
-				curproxy->tcpcheck_rules =  calloc(1, sizeof(*curproxy->tcpcheck_rules));
-				if (!curproxy->tcpcheck_rules) {
+			if (rules->flags & TCPCHK_RULES_DEF) {
+				/* Only shared ruleset can be inherited from the default section */
+				rules->flags = 0;
+				rules->list  = NULL;
+			}
+			else if (rules->list && (rules->flags & TCPCHK_RULES_SHARED)) {
+				ha_alert("parsing [%s:%d] : A shared tcp-check ruleset alreayd configured.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			if (curproxy != &defproxy && !rules->list) {
+				rules->list = calloc(1, sizeof(*rules->list));
+				if (!rules->list) {
 					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				LIST_INIT(curproxy->tcpcheck_rules);
+				LIST_INIT(rules->list);
 			}
 
 			free(curproxy->check_req);

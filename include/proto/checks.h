@@ -62,6 +62,7 @@ static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
 	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
 }
 
+void deinit_proxy_tcpcheck(struct proxy *px);
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);

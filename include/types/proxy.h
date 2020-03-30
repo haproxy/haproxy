@@ -281,7 +281,7 @@ struct error_snapshot {
 
 struct email_alert {
 	struct list list;
-	struct list tcpcheck_rules;
+	struct tcpcheck_rules rules;
 	struct server *srv;
 };
 
@@ -422,7 +422,7 @@ struct proxy {
 	struct stktable *table;			/* table for storing sticking streams */
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
-	struct list *tcpcheck_rules;		/* tcp-check send / expect rules */
+	struct tcpcheck_rules tcpcheck_rules;   /* tcp-check send / expect rules */
 	int grace;				/* grace time after stop request */
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */

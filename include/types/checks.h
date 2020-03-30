@@ -171,7 +171,7 @@ struct check {
 	char desc[HCHK_DESC_LEN];		/* health check description */
 	char use_ssl;				/* use SSL for health checks (1: on, 0: server mode, -1: off) */
 	int send_proxy;				/* send a PROXY protocol header with checks */
-	struct list *tcpcheck_rules;		/* tcp-check send / expect rules */
+	struct tcpcheck_rules *tcpcheck_rules;	/* tcp-check send / expect rules */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	enum chk_result result;                 /* health-check result : CHK_RES_* */
@@ -291,5 +291,23 @@ struct tcpcheck_rule {
 		struct tcpcheck_action_kw action_kw;  /* Custom action. */
 	};
 };
+
+#define TCPCHK_RULES_NONE   0x00000000
+#define TCPCHK_RULES_SHARED 0x00000001 /* Set for shared list of tcp-check rules */
+#define TCPCHK_RULES_DEF    0x00000002 /* Ruleset inherited from the default section */
+
+/* a list of tcp-check rules */
+struct tcpcheck_rules {
+	unsigned int flags; /* flags applied to the rules */
+	struct list *list; /* the list of tcpcheck_rules */
+};
+
+/* A list of tcp-check rules with a name */
+struct tcpcheck_ruleset {
+	char *name;         /* the ruleset name */
+	struct list rules;  /* the list of tcpcheck_rule */
+	struct list list;   /* used to chain rulesets */
+};
+
 
 #endif /* _TYPES_CHECKS_H */
