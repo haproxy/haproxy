@@ -171,7 +171,6 @@ struct check {
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	struct list *tcpcheck_rules;		/* tcp-check send / expect rules */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
-	struct tcpcheck_rule *last_started_step;/* pointer to latest tcpcheck rule started */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	enum chk_result result;                 /* health-check result : CHK_RES_* */
 	int state;				/* state of the check : CHK_ST_*   */

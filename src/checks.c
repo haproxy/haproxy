@@ -64,8 +64,8 @@
 #include <proto/ssl_sock.h>
 
 static int httpchk_expect(struct server *s, int done);
-static int tcpcheck_get_step_id(struct check *);
-static char *tcpcheck_get_step_comment(struct check *);
+static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);
+static char *tcpcheck_get_step_comment(struct check *, struct tcpcheck_rule *);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
@@ -628,20 +628,20 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	chk = get_trash_chunk();
 
 	if (check->type == PR_O2_TCPCHK_CHK) {
-		step = tcpcheck_get_step_id(check);
+		step = tcpcheck_get_step_id(check, NULL);
 		if (!step)
 			chunk_printf(chk, " at initial connection step of tcp-check");
 		else {
 			chunk_printf(chk, " at step %d of tcp-check", step);
 			/* we were looking for a string */
-			if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_CONNECT) {
-				if (check->last_started_step->connect.port)
-					chunk_appendf(chk, " (connect port %d)" ,check->last_started_step->connect.port);
+			if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
+				if (check->current_step->connect.port)
+					chunk_appendf(chk, " (connect port %d)" ,check->current_step->connect.port);
 				else
 					chunk_appendf(chk, " (connect)");
 			}
-			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_EXPECT) {
-				struct tcpcheck_expect *expect = &check->last_started_step->expect;
+			else if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
+				struct tcpcheck_expect *expect = &check->current_step->expect;
 
 				switch (expect->type) {
 				case TCPCHK_EXPECT_STRING:
@@ -661,11 +661,11 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					break;
 				}
 			}
-			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_SEND) {
+			else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
 				chunk_appendf(chk, " (send)");
 			}
 
-			comment = tcpcheck_get_step_comment(check);
+			comment = tcpcheck_get_step_comment(check, NULL);
 			if (comment)
 				chunk_appendf(chk, " comment: '%s'", comment);
 		}
@@ -1666,7 +1666,7 @@ static int connect_conn_chk(struct task *t)
 	 */
 	if (check->type == PR_O2_TCPCHK_CHK) {
 		/* tcpcheck initialisation */
-		check->current_step = check->last_started_step = NULL;
+		check->current_step = NULL;
 		tcpcheck_main(check);
 		return SF_ERR_UP;
 	}
@@ -2314,7 +2314,6 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			 * as it may be to short for a full check otherwise
 			 */
 			t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
-
 			if (proxy->timeout.check && proxy->timeout.connect) {
 				int t_con = tick_add(now_ms, proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
@@ -2381,7 +2380,6 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 
 			t_con = tick_add(t->expire, proxy->timeout.connect);
 			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-
 			if (proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
@@ -2719,23 +2717,22 @@ static int httpchk_expect(struct server *s, int done)
 /*
  * return the id of a step in a send/expect session
  */
-static int tcpcheck_get_step_id(struct check *check)
+static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 {
-	/* not even started anything yet => step 0 = initial connect */
-	if (!check->current_step && !check->last_started_step)
-		return 0;
+	if (!rule)
+		rule = check->current_step;
 
 	/* no last started step => first step */
-	if (!check->last_started_step)
+	if (!rule)
 		return 1;
 
 	/* last step is the first implicit connect */
-	if (check->last_started_step->index == 0 &&
-	    check->last_started_step->action == TCPCHK_ACT_CONNECT &&
-	    (check->last_started_step->connect.options & TCPCHK_OPT_DEFAULT_CONNECT))
+	if (rule->index == 0 &&
+	    rule->action == TCPCHK_ACT_CONNECT &&
+	    (rule->connect.options & TCPCHK_OPT_DEFAULT_CONNECT))
 		return 0;
 
-	return check->last_started_step->index + 1;
+	return rule->index + 1;
 }
 
 /*
@@ -2743,35 +2740,410 @@ static int tcpcheck_get_step_id(struct check *check)
  * it or the COMMENT rule immediately preceedding the expect rule chain, if any.
  * returns NULL if no comment found.
  */
-static char *tcpcheck_get_step_comment(struct check *check)
+static char *tcpcheck_get_step_comment(struct check *check, struct tcpcheck_rule *rule)
 {
 	struct tcpcheck_rule *cur;
 	char *ret = NULL;
 
-	/* not even started anything yet, return latest comment found before any action */
-	if (!check->current_step || !check->last_started_step) {
-		cur = LIST_NEXT(check->tcpcheck_rules, typeof(cur), list);
-		if (cur->action == TCPCHK_ACT_COMMENT)
-			ret = cur->comment;
+	if (!rule)
+		rule = check->current_step;
+
+	if (rule->comment) {
+		ret = rule->comment;
 		goto return_comment;
 	}
 
-	if (check->last_started_step->comment) {
-		ret = check->last_started_step->comment;
-		goto return_comment;
-	}
-
-	cur = LIST_PREV(&check->last_started_step->list, typeof(cur), list);
-	list_for_each_entry_from_rev(cur, check->tcpcheck_rules, list) {
-		if (cur->action == TCPCHK_ACT_COMMENT) {
-			ret = cur->comment;
+	rule = LIST_PREV(&rule->list, typeof(cur), list);
+	list_for_each_entry_from_rev(rule, check->tcpcheck_rules, list) {
+		if (rule->action == TCPCHK_ACT_COMMENT) {
+			ret = rule->comment;
 			break;
 		}
-		else if (cur->action != TCPCHK_ACT_EXPECT)
+		else if (rule->action != TCPCHK_ACT_EXPECT)
 			break;
 	}
 
  return_comment:
+	return ret;
+}
+
+enum tcpcheck_eval_ret {
+	TCPCHK_EVAL_WAIT = 0,
+	TCPCHK_EVAL_STOP,
+	TCPCHK_EVAL_CONTINUE,
+};
+
+/* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
+ * to wait and -1 to stop the check. */
+static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpcheck_rule *rule)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	struct tcpcheck_connect *connect = &rule->connect;
+	struct proxy *proxy = check->proxy;
+	struct server *s = check->server;
+	struct task *t = check->task;
+	struct conn_stream *cs;
+	struct connection *conn = NULL;
+	struct protocol *proto;
+	struct xprt_ops *xprt;
+	char *comment;
+	int status;
+
+	/* For a connect action we'll create a new connection. We may also have
+	 * to kill a previous one. But we don't want to leave *without* a
+	 * connection if we came here from the connection layer, hence with a
+	 * connection.  Thus we'll proceed in the following order :
+	 *   1: close but not release previous connection (handled by the caller)
+	 *   2: try to get a new connection
+	 *   3: release and replace the old one on success
+	 */
+
+	/* 2- prepare new connection */
+	cs = cs_new(NULL);
+	if (!cs) {
+		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
+			     tcpcheck_get_step_id(check, rule));
+		comment = tcpcheck_get_step_comment(check, rule);
+		if (comment)
+			chunk_appendf(&trash, " comment: '%s'", comment);
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+
+	/* 3- release and replace the old one on success */
+	if (check->cs) {
+		if (check->wait_list.events)
+			cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx,
+						    check->wait_list.events, &check->wait_list);
+
+		/* We may have been scheduled to run, and the I/O handler
+		 * expects to have a cs, so remove the tasklet
+		 */
+		tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
+		cs_destroy(check->cs);
+	}
+
+	tasklet_set_tid(check->wait_list.tasklet, tid);
+
+	check->cs = cs;
+	conn = cs->conn;
+
+	/* Maybe there were an older connection we were waiting on */
+	check->wait_list.events = 0;
+	conn->target = s ? &s->obj_type : &proxy->obj_type;
+
+	/* no client address */
+	if (!sockaddr_alloc(&conn->dst)) {
+		status = SF_ERR_RESOURCE;
+		goto fail_check;
+	}
+
+	/* connect to the check addr if specified on the server. otherwise, use
+	 * the server addr
+	 */
+	*conn->dst = (is_addr(&check->addr) ? check->addr : s->addr);
+	proto = protocol_by_family(conn->dst->ss_family);
+
+	if (connect->port)
+		set_host_port(conn->dst, connect->port);
+	else if (check->port)
+		set_host_port(conn->dst, check->port);
+	else {
+		int i = get_host_port(&check->addr);
+		set_host_port(conn->dst, ((i > 0) ? i : s->svc_port));
+	}
+
+	xprt = ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
+		? check->xprt
+		: ((connect->options & TCPCHK_OPT_SSL) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW)));
+
+	conn_prepare(conn, proto, xprt);
+	if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0) {
+		status = SF_ERR_RESOURCE;
+		goto fail_check;
+	}
+	cs_attach(cs, check, &check_conn_cb);
+
+	status = SF_ERR_INTERNAL;
+	if (proto && proto->connect) {
+		struct tcpcheck_rule *next;
+		int flags = CONNECT_HAS_DATA;
+
+		next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
+		if (!next || next->action != TCPCHK_ACT_EXPECT)
+			flags |= CONNECT_DELACK_ALWAYS;
+		status = proto->connect(conn, flags);
+	}
+
+	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT) {
+#ifdef USE_OPENSSL
+		if (status == SF_ERR_NONE) {
+			if (s->check.sni)
+				ssl_sock_set_servername(conn, s->check.sni);
+			if (s->check.alpn_str)
+				ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
+						  s->check.alpn_len);
+		}
+#endif
+		if (s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
+			conn->send_proxy_ofs = 1;
+			conn->flags |= CO_FL_SOCKS4;
+		}
+		if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
+			conn->send_proxy_ofs = 1;
+			conn->flags |= CO_FL_SEND_PROXY;
+		}
+	}
+	else {
+		/* TODO: add support for sock4 and sni option */
+		if (connect->options & TCPCHK_OPT_SEND_PROXY) {
+			conn->send_proxy_ofs = 1;
+			conn->flags |= CO_FL_SEND_PROXY;
+		}
+		if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
+			/* Some servers don't like reset on close */
+			fdtab[cs->conn->handle.fd].linger_risk = 0;
+		}
+	}
+
+	if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
+		if (xprt_add_hs(conn) < 0)
+			status = SF_ERR_RESOURCE;
+	}
+
+  fail_check:
+	/* It can return one of :
+	 *  - SF_ERR_NONE if everything's OK
+	 *  - SF_ERR_SRVTO if there are no more servers
+	 *  - SF_ERR_SRVCL if the connection was refused by the server
+	 *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+	 *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+	 *  - SF_ERR_INTERNAL for any other purely internal errors
+	 * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
+	 * Note that we try to prevent the network stack from sending the ACK during the
+	 * connect() when a pure TCP check is used (without PROXY protocol).
+	 */
+	switch (status) {
+	case SF_ERR_NONE:
+		/* we allow up to min(inter, timeout.connect) for a connection
+		 * to establish but only when timeout.check is set as it may be
+		 * to short for a full check otherwise
+		 */
+		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
+
+		if (proxy->timeout.check && proxy->timeout.connect) {
+			int t_con = tick_add(now_ms, proxy->timeout.connect);
+			t->expire = tick_first(t->expire, t_con);
+		}
+		break;
+	case SF_ERR_SRVTO: /* ETIMEDOUT */
+	case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+		chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
+			     tcpcheck_get_step_id(check, rule), strerror(errno));
+		comment = tcpcheck_get_step_comment(check, rule);
+		if (comment)
+			chunk_appendf(&trash, " comment: '%s'", comment);
+		set_server_check_status(check, HCHK_STATUS_L4CON, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	case SF_ERR_PRXCOND:
+	case SF_ERR_RESOURCE:
+	case SF_ERR_INTERNAL:
+		chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
+			     tcpcheck_get_step_id(check, rule));
+		comment = tcpcheck_get_step_comment(check, rule);
+		if (comment)
+			chunk_appendf(&trash, " comment: '%s'", comment);
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+
+	/* don't do anything until the connection is established */
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
+  out:
+	if (conn && check->result == CHK_RES_FAILED)
+		conn->flags |= CO_FL_ERROR;
+	return ret;
+}
+
+/* Evaluate a TCPCHK_ACT_SEND rule. It returns 1 to evaluate the next rule, 0
+ * to wait and -1 to stop the check. */
+static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_rule *rule)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	struct tcpcheck_send *send = &rule->send;
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
+
+	/* reset the read & write buffer */
+	b_reset(&check->bi);
+	b_reset(&check->bo);
+
+	if (send->length >= b_size(&check->bo)) {
+		chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
+			     send->length, (unsigned int)b_size(&check->bo),
+			     tcpcheck_get_step_id(check, rule));
+		set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+
+	switch (send->type) {
+	case TCPCHK_SEND_STRING:
+	case TCPCHK_SEND_BINARY:
+		b_putblk(&check->bo, send->string, send->length);
+		break;
+	case TCPCHK_SEND_UNDEF:
+		/* Should never happen. */
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	};
+
+	if (conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0) <= 0) {
+		ret = TCPCHK_EVAL_WAIT;
+		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))
+			ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+	if (b_data(&check->bo)) {
+		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
+  out:
+	return ret;
+}
+
+/* Evaluate a TCPCHK_ACT_EXPECT rule. It returns 1 to evaluate the next rule, 0
+ * to wait and -1 to stop the check. <rule> is updated to point on the last
+ * evaluated TCPCHK_ACT_EXPECT rule.
+ */
+static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	struct tcpcheck_expect *expect = &check->current_step->expect;
+	char *comment, *diag;
+	int match;
+
+	/* The current expect might need more data than the previous one, check again
+	 * that the minimum amount data required to match is respected.
+	 */
+	if (!last_read) {
+		if ((expect->type == TCPCHK_EXPECT_STRING || expect->type == TCPCHK_EXPECT_BINARY) &&
+		    (b_data(&check->bi) < expect->length)) {
+			ret = TCPCHK_EVAL_WAIT;
+			goto out;
+		}
+		if (expect->min_recv > 0 && (b_data(&check->bi) < expect->min_recv)) {
+			ret = TCPCHK_EVAL_WAIT;
+			goto out;
+		}
+	}
+
+	/* Make GCC happy ; initialize match to a failure state. */
+	match = expect->inverse;
+
+	switch (expect->type) {
+	case TCPCHK_EXPECT_STRING:
+	case TCPCHK_EXPECT_BINARY:
+		match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->string, expect->length) != NULL;
+		break;
+	case TCPCHK_EXPECT_REGEX:
+		if (expect->with_capture)
+			match = regex_exec_match2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1),
+						  MAX_MATCH, pmatch, 0);
+		else
+			match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
+		break;
+
+	case TCPCHK_EXPECT_REGEX_BINARY:
+		chunk_reset(&trash);
+		dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
+		if (expect->with_capture)
+			match = regex_exec_match2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1),
+						  MAX_MATCH, pmatch, 0);
+		else
+			match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
+		break;
+	case TCPCHK_EXPECT_UNDEF:
+		/* Should never happen. */
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+
+
+	/* Wait for more data on mismatch only if no minimum is defined (-1),
+	 * otherwise the absence of match is already conclusive.
+	 */
+	if (!match && !last_read && (expect->min_recv == -1)) {
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
+	/* Result as expected, next rule. */
+	if (match ^ expect->inverse)
+		goto out;
+
+
+	/* From this point on, we matched something we did not want, this is an error state. */
+	ret = TCPCHK_EVAL_STOP;
+
+	diag = match ? "matched unwanted content" : "did not match content";
+	switch (expect->type) {
+	case TCPCHK_EXPECT_STRING:
+		chunk_printf(&trash, "TCPCHK %s '%s' at step %d",
+			     diag, expect->string, tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_BINARY:
+		chunk_printf(&trash, "TCPCHK %s (binary) at step %d",
+			     diag, tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_REGEX:
+		chunk_printf(&trash, "TCPCHK %s (regex) at step %d",
+			     diag, tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_REGEX_BINARY:
+		chunk_printf(&trash, "TCPCHK %s (binary regex) at step %d",
+			     diag, tcpcheck_get_step_id(check, rule));
+
+		/* If references to the matched text were made, divide the
+		 * offsets by 2 to match offset of the original response buffer.
+		 */
+		if (expect->with_capture) {
+			int i;
+
+			for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
+				pmatch[i].rm_so /= 2; /* at first matched char. */
+				pmatch[i].rm_eo /= 2; /* at last matched char. */
+			}
+		}
+		break;
+	case TCPCHK_EXPECT_UNDEF:
+		/* Should never happen. */
+		goto out;
+	}
+
+	comment = tcpcheck_get_step_comment(check, rule);
+	if (comment) {
+		if (expect->with_capture) {
+			ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), comment, pmatch);
+			if (ret > 0) /* ignore comment if too large */
+				trash.data += ret;
+		}
+		else
+			chunk_appendf(&trash, " comment: '%s'", comment);
+	}
+	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+	ret = TCPCHK_EVAL_STOP;
+
+  out:
 	return ret;
 }
 
@@ -2785,566 +3157,167 @@ static char *tcpcheck_get_step_comment(struct check *check)
  */
 static int tcpcheck_main(struct check *check)
 {
-	struct tcpcheck_rule *next;
-	int done = 0, ret = 0, step = 0;
+	struct tcpcheck_rule *rule;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
-	struct server *s = check->server;
-	struct proxy *proxy = check->proxy;
-	struct task *t = check->task;
-	struct list *head = check->tcpcheck_rules;
-	char *comment;
-	int retcode = 0;
+	int must_read = 1, last_read = 0;
+	int ret, retcode = 0;
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
 		goto out_end_tcpcheck;
 
-	/* We have 4 possibilities here :
-	 *   1. we've not yet attempted step 1, and step 1 is a connect, so no
-	 *      connection attempt was made yet ; conn==NULL;current_step==NULL.
-	 *   2. we've not yet attempted step 1, and step 1 is a not connect or
-	 *      does not exist (no rule), so a connection attempt was made
-	 *      before coming here, conn!=NULL.
-	 *   3. we're coming back after having started with step 1, so we may
-	 *      be waiting for a connection attempt to complete. conn!=NULL.
-	 *   4. the connection + handshake are complete. conn!=NULL.
-	 *
-	 * #2 and #3 are quite similar, we want both the connection and the
-	 * handshake to complete before going any further. Thus we must always
-	 * wait for a connection to complete unless we're before and existing
-	 * step 1.
-	 */
-
-	/* find first rule and skip comments */
-	next = get_first_tcpcheck_rule(head);
-
-	if ((check->current_step || next == NULL) &&
-	    (conn->flags & CO_FL_WAIT_XPRT)) {
-		/* we allow up to min(inter, timeout.connect) for a connection
-		 * to establish but only when timeout.check is set
-		 * as it may be to short for a full check otherwise
-		 */
-		while (tick_is_expired(t->expire, now_ms)) {
-			int t_con;
-
-			t_con = tick_add(t->expire, proxy->timeout.connect);
-			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-
-			if (proxy->timeout.check)
-				t->expire = tick_first(t->expire, t_con);
-		}
-		goto out;
-	}
-
-	/* special case: option tcp-check with no rule, a connect is enough */
-	if (next == NULL) {
-		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
+	/* 1- check for connection error, if any */
+	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 		goto out_end_tcpcheck;
-	}
 
-	/* no step means first step initialisation */
-	if (check->current_step == NULL && check->last_started_step == NULL) {
-		b_reset(&check->bo);
-		b_reset(&check->bi);
-		check->current_step = next;
-		t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
-		if (proxy->timeout.check)
-			t->expire = tick_add_ifset(now_ms, proxy->timeout.check);
-	}
+	/* 2- check if we are waiting for the connection establishment. It only
+	 *    happens during TCPCHK_ACT_CONNECT. */
+	if (conn && (conn->flags & CO_FL_WAIT_XPRT))
+		goto out;
 
-	while (1) {
-		/* We have to try to flush the output buffer before reading, at
-		 * the end, or if we're about to send a string that does not fit
-		 * in the remaining space. That explains why we break out of the
-		 * loop after this control. If we have data, conn is valid.
-		 */
-		if (b_data(&check->bo) &&
-		    (check->current_step == NULL ||
-		     check->current_step->action != TCPCHK_ACT_SEND ||
-		     check->current_step->send.length >= b_room(&check->bo))) {
-			int ret;
-
-			ret = cs->conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
-			b_realign_if_empty(&check->bo);
-
-			if (ret <= 0) {
-				if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
-					chk_report_conn_err(check, errno, 0);
-					goto out_end_tcpcheck;
-				}
-				break;
-			}
-			if (b_data(&check->bo)) {
-				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-				goto out;
-			}
+	/* 3- check for pending outgoing data. It only happens during TCPCHK_ACT_SEND. */
+	if (conn && b_data(&check->bo)) {
+		ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+		if (ret <= 0) {
+			if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
+				goto out_end_tcpcheck;
+			goto out;
 		}
+		if (b_data(&check->bo)) {
+			cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+			goto out;
+		}
+	}
 
-		if (check->current_step == NULL)
-			break;
+	/* Now evaluate the tcp-check rules */
 
-		/* have 'next' point to the next rule or NULL if we're on the
-		 * last one, connect() needs this.
-		 */
-		next = get_next_tcpcheck_rule(head, check->current_step);
+	/* If check->current_step is defined, we are in resume condition. For
+	 * TCPCHK_ACT_CONNECT and TCPCHK_ACT_SEND rules, we must go to the next
+	 * rule before resuming the evaluation. For TCPCHK_ACT_EXPECT, we
+	 * re-evaluate the current rule. Others cannot yield.
+	 */
+        if (check->current_step) {
+		if (check->current_step->action == TCPCHK_ACT_CONNECT ||
+		    check->current_step->action == TCPCHK_ACT_SEND)
+			rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
+		else
+			rule = check->current_step;
+	}
+	else
+		rule = LIST_NEXT(check->tcpcheck_rules, typeof(rule), list);
 
-		if (check->current_step->action == TCPCHK_ACT_CONNECT) {
-			struct tcpcheck_connect *connect = &check->current_step->connect;
-			struct protocol *proto;
-			struct xprt_ops *xprt;
+	list_for_each_entry_from(rule, check->tcpcheck_rules, list) {
+		enum tcpcheck_eval_ret eval_ret;
 
-			/* For a connect action we'll create a new connection.
-			 * We may also have to kill a previous one. But we don't
-			 * want to leave *without* a connection if we came here
-			 * from the connection layer, hence with a connection.
-			 * Thus we'll proceed in the following order :
-			 *   1: close but not release previous connection
-			 *   2: try to get a new connection
-			 *   3: release and replace the old one on success
-			 */
+		switch (rule->action) {
+		case TCPCHK_ACT_CONNECT:
+			check->current_step = rule;
+
+			/* close but not release yet previous connection  */
 			if (check->cs) {
 				cs_close(check->cs);
 				retcode = -1; /* do not reuse the fd in the caller! */
 			}
+			eval_ret = tcpcheck_eval_connect(check, rule);
+			must_read = 1; last_read = 0;
+			break;
+		case TCPCHK_ACT_SEND:
+			check->current_step = rule;
+			eval_ret = tcpcheck_eval_send(check, rule);
+			must_read = 1;
+			break;
+		case TCPCHK_ACT_EXPECT:
+			check->current_step = rule;
+			if (must_read) {
+				if (check->proxy->timeout.check)
+					check->task->expire = tick_add_ifset(now_ms, check->proxy->timeout.check);
 
-			/* mark the step as started */
-			check->last_started_step = check->current_step;
-
-			/* prepare new connection */
-			cs = cs_new(NULL);
-			if (!cs) {
-				step = tcpcheck_get_step_id(check);
-				chunk_printf(&trash, "TCPCHK error allocating connection at step %d", step);
-				comment = tcpcheck_get_step_comment(check);
-				if (comment)
-					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_SOCKERR,
-							trash.area);
-				check->current_step = NULL;
-				goto out;
-			}
-
-			if (check->cs) {
-				if (check->wait_list.events)
-					cs->conn->xprt->unsubscribe(cs->conn,
-					                            cs->conn->xprt_ctx,
-								    check->wait_list.events,
-								    &check->wait_list);
-				/* We may have been scheduled to run, and the
-				 * I/O handler expects to have a cs, so remove
-				 * the tasklet
+				/* If we already subscribed, then we tried to received and
+				 * failed, so there's no point trying again.
 				 */
-				tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-				cs_destroy(check->cs);
-			}
-
-			tasklet_set_tid(check->wait_list.tasklet, tid);
-
-			check->cs = cs;
-			conn = cs->conn;
-			/* Maybe there were an older connection we were waiting on */
-			check->wait_list.events = 0;
-			conn->target = s ? &s->obj_type : &proxy->obj_type;
-
-			/* no client address */
-
-			if (!sockaddr_alloc(&conn->dst)) {
-				ret = SF_ERR_RESOURCE;
-				goto fail_check;
-			}
-
-			/* connect to the check addr if specified on the
-			 * server. otherwise, use the server addr
-			 */
-			*conn->dst = (is_addr(&check->addr) ? check->addr : s->addr);
-			proto = protocol_by_family(conn->dst->ss_family);
-
-			if (connect->port)
-				set_host_port(conn->dst, connect->port);
-			else if (check->port)
-				set_host_port(conn->dst, check->port);
-			else {
-				int i = get_host_port(&check->addr);
-
-				set_host_port(conn->dst, ((i > 0) ? i : s->svc_port));
-			}
-
-			xprt = ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
-				? check->xprt
-				: ((connect->options & TCPCHK_OPT_SSL) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW)));
-
-			conn_prepare(conn, proto, xprt);
-			if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, NULL) < 0) {
-				ret = SF_ERR_RESOURCE;
-				goto fail_check;
-			}
-			cs_attach(cs, check, &check_conn_cb);
-
-			ret = SF_ERR_INTERNAL;
-			if (proto && proto->connect) {
-				int flags;
-
-				flags = CONNECT_HAS_DATA;
-				if (next && next->action != TCPCHK_ACT_EXPECT)
-					flags |= CONNECT_DELACK_ALWAYS;
-				ret = proto->connect(conn, flags);
-			}
-
-			if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT) {
-#ifdef USE_OPENSSL
-				if (ret == SF_ERR_NONE) {
-					if (s->check.sni)
-						ssl_sock_set_servername(conn, s->check.sni);
-					if (s->check.alpn_str)
-						ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
-								  s->check.alpn_len);
-				}
-#endif
-				if (s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
-					conn->send_proxy_ofs = 1;
-					conn->flags |= CO_FL_SOCKS4;
-				}
-				if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
-					conn->send_proxy_ofs = 1;
-					conn->flags |= CO_FL_SEND_PROXY;
-				}
-			}
-			else {
-				/* TODO: add sock4 and sni option */
-				if (connect->options & TCPCHK_OPT_SEND_PROXY) {
-					conn->send_proxy_ofs = 1;
-					conn->flags |= CO_FL_SEND_PROXY;
-				}
-
-				if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
-					/* Some servers don't like reset on close */
-					fdtab[cs->conn->handle.fd].linger_risk = 0;
-				}
-			}
-
-			if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
-				if (xprt_add_hs(conn) < 0)
-					ret = SF_ERR_RESOURCE;
-			}
-
-			/* It can return one of :
-			 *  - SF_ERR_NONE if everything's OK
-			 *  - SF_ERR_SRVTO if there are no more servers
-			 *  - SF_ERR_SRVCL if the connection was refused by the server
-			 *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
-			 *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
-			 *  - SF_ERR_INTERNAL for any other purely internal errors
-			 * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
-			 * Note that we try to prevent the network stack from sending the ACK during the
-			 * connect() when a pure TCP check is used (without PROXY protocol).
-			 */
-		fail_check:
-			switch (ret) {
-			case SF_ERR_NONE:
-				/* we allow up to min(inter, timeout.connect) for a connection
-				 * to establish but only when timeout.check is set
-				 * as it may be to short for a full check otherwise
-				 */
-				t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
-
-				if (proxy->timeout.check && proxy->timeout.connect) {
-					int t_con = tick_add(now_ms, proxy->timeout.connect);
-					t->expire = tick_first(t->expire, t_con);
-				}
-				break;
-			case SF_ERR_SRVTO: /* ETIMEDOUT */
-			case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-				step = tcpcheck_get_step_id(check);
-				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
-						step, strerror(errno));
-				comment = tcpcheck_get_step_comment(check);
-				if (comment)
-					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_L4CON,
-							trash.area);
-				goto out_end_tcpcheck;
-			case SF_ERR_PRXCOND:
-			case SF_ERR_RESOURCE:
-			case SF_ERR_INTERNAL:
-				step = tcpcheck_get_step_id(check);
-				chunk_printf(&trash, "TCPCHK error establishing connection at step %d", step);
-				comment = tcpcheck_get_step_comment(check);
-				if (comment)
-					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_SOCKERR,
-							trash.area);
-				goto out_end_tcpcheck;
-			}
-
-			/* allow next rule */
-			check->current_step = get_next_tcpcheck_rule(head, check->current_step);
-			if (check->current_step == NULL)
-				break;
-
-			/* don't do anything until the connection is established */
-			if (conn->flags & CO_FL_WAIT_XPRT)
-				break;
-
-		} /* end 'connect' */
-		else if (check->current_step->action == TCPCHK_ACT_SEND) {
-			struct tcpcheck_send *send = &check->current_step->send;
-
-			/* mark the step as started */
-			check->last_started_step = check->current_step;
-
-			/* reset the read buffer */
-			b_reset(&check->bi);
-
-			if (send->length >= b_size(&check->bo)) {
-				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
-					     send->length, (unsigned int)b_size(&check->bo),
-					     tcpcheck_get_step_id(check));
-				set_server_check_status(check, HCHK_STATUS_L7RSP,
-							trash.area);
-				goto out_end_tcpcheck;
-			}
-
-			/* do not try to send if there is no space */
-			if (send->length >= b_room(&check->bo))
-				continue;
-
-			switch (send->type) {
-			case TCPCHK_SEND_STRING:
-			case TCPCHK_SEND_BINARY:
-				b_putblk(&check->bo, send->string, send->length);
-				break;
-			case TCPCHK_SEND_UNDEF:
-				/* Should never happen. */
-				retcode = -1;
-				goto out;
-			};
-
-			check->current_step = get_next_tcpcheck_rule(head, check->current_step);
-		} /* end 'send' */
-		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
-			struct tcpcheck_expect *expect = &check->current_step->expect;
-			char *diag;
-			int match;
-
-			if (unlikely(check->result == CHK_RES_FAILED))
-				goto out_end_tcpcheck;
-
-			/* If we already subscribed, then we tried to received
-			 * and failed, so there's no point trying again.
-			 */
-			if (check->wait_list.events & SUB_RETRY_RECV)
-				break;
-			if (cs->conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
-				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
-					done = 1;
-					if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
-						/* Report network errors only if we got no other data. Otherwise
-						 * we'll let the upper layers decide whether the response is OK
-						 * or not. It is very common that an RST sent by the server is
-						 * reported as an error just after the last data chunk.
-						 */
-						chk_report_conn_err(check, errno, 0);
-						goto out_end_tcpcheck;
+				if (check->wait_list.events & SUB_RETRY_RECV)
+					goto out;
+				if (conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
+					if (conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
+						last_read = 1;
+						if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
+							/* Report network errors only if we got no other data. Otherwise
+							 * we'll let the upper layers decide whether the response is OK
+							 * or not. It is very common that an RST sent by the server is
+							 * reported as an error just after the last data chunk.
+							 */
+							goto out_end_tcpcheck;
+						}
+					}
+					else {
+						conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+						goto out;
 					}
 				}
-				else {
-					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
-					break;
+
+				/* buffer full, don't wait for more data */
+				if (b_full(&check->bi))
+					last_read = 1;
+
+				/* Check that response body is not empty... */
+				if (!b_data(&check->bi)) {
+					char *comment;
+
+					if (!last_read)
+						goto out;
+
+					/* empty response */
+					chunk_printf(&trash, "TCPCHK got an empty response at step %d",
+						     tcpcheck_get_step_id(check, rule));
+					comment = tcpcheck_get_step_comment(check, rule);
+					if (comment)
+						chunk_appendf(&trash, " comment: '%s'", comment);
+					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+					ret = -1;
+					goto out_end_tcpcheck;
 				}
+				must_read = 0;
 			}
-
-			/* Having received new data, reset the expect chain to its head. */
-			check->current_step = expect->head;
-
-			/* mark the step as started */
-			check->last_started_step = check->current_step;
-
-			/* buffer full, don't wait for more data */
-			if (b_full(&check->bi))
-				done = 1;
-
-			/* Check that response body is not empty... */
-			if (!b_data(&check->bi)) {
-				if (!done)
-					continue;
-
-				/* empty response */
-				step = tcpcheck_get_step_id(check);
-				chunk_printf(&trash, "TCPCHK got an empty response at step %d", step);
-				comment = tcpcheck_get_step_comment(check);
-				if (comment)
-					chunk_appendf(&trash, " comment: '%s'", comment);
-				set_server_check_status(check, HCHK_STATUS_L7RSP,
-							trash.area);
-
-				goto out_end_tcpcheck;
+			eval_ret = tcpcheck_eval_expect(check, rule, last_read);
+			if (eval_ret == TCPCHK_EVAL_WAIT) {
+				check->current_step = rule->expect.head;
+				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			}
-
-		next_tcpcheck_expect:
-			/* The current expect might need more data than the previous one, check again
-			 * that the minimum amount data required to match is respected.
+			break;
+		default:
+			/* Otherwise, just go to the next one and don't update
+			 * the current step
 			 */
-			if (!done) {
-				if ((expect->type == TCPCHK_EXPECT_STRING || expect->type == TCPCHK_EXPECT_BINARY) &&
-				    (b_data(&check->bi) < expect->length))
-					continue; /* try to read more */
-				if (expect->min_recv > 0 && (b_data(&check->bi) < expect->min_recv))
-					continue; /* try to read more */
-			}
-
-			/* Make GCC happy ; initialize match to a failure state. */
-			match = expect->inverse;
-
-			switch (expect->type) {
-			case TCPCHK_EXPECT_STRING:
-			case TCPCHK_EXPECT_BINARY:
-				match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->string, expect->length) != NULL;
-				break;
-			case TCPCHK_EXPECT_REGEX:
-				if (expect->with_capture)
-					match = regex_exec_match2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1),
-								  MAX_MATCH, pmatch, 0);
-				else
-					match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
-				break;
-
-			case TCPCHK_EXPECT_REGEX_BINARY:
-				chunk_reset(&trash);
-				dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
-				if (expect->with_capture)
-					match = regex_exec_match2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1),
-								  MAX_MATCH, pmatch, 0);
-				else
-					match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
-				break;
-			case TCPCHK_EXPECT_UNDEF:
-				/* Should never happen. */
-				retcode = -1;
-				goto out;
-			}
-
-			/* Wait for more data on mismatch only if no minimum is defined (-1),
-			 * otherwise the absence of match is already conclusive.
-			 */
-			if (!match && !done && (expect->min_recv == -1))
-				continue; /* try to read more */
-
-			if (match ^ expect->inverse) {
-				/* Result as expected, next rule. */
-				check->current_step = get_next_tcpcheck_rule(head, check->current_step);
-				if (check->current_step == NULL)
-					break;
-
-				if (check->current_step->action == TCPCHK_ACT_EXPECT) {
-					expect = &check->current_step->expect;
-					goto next_tcpcheck_expect;
-				}
-
-				continue;
-			}
-
-			/* From this point on, we matched something we did not want, this is an error state. */
-
-			step = tcpcheck_get_step_id(check);
-			diag = match ? "matched unwanted content" : "did not match content";
-
-			switch (expect->type) {
-			case TCPCHK_EXPECT_STRING:
-				chunk_printf(&trash, "TCPCHK %s '%s' at step %d",
-				             diag, expect->string, step);
-				break;
-			case TCPCHK_EXPECT_BINARY:
-				chunk_printf(&trash, "TCPCHK %s (binary) at step %d",
-				             diag, step);
-				break;
-			case TCPCHK_EXPECT_REGEX:
-				chunk_printf(&trash, "TCPCHK %s (regex) at step %d",
-				             diag, step);
-				break;
-			case TCPCHK_EXPECT_REGEX_BINARY:
-				chunk_printf(&trash, "TCPCHK %s (binary regex) at step %d",
-					     diag, step);
-
-				/* If references to the matched text were made,
-				 * divide the offsets by 2 to match offset of
-				 * the original response buffer.
-				 */
-				if (expect->with_capture) {
-					int i;
-
-					for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
-						pmatch[i].rm_so /= 2; /* at first matched char. */
-						pmatch[i].rm_eo /= 2; /* at last matched char. */
-					}
-				}
-				break;
-			case TCPCHK_EXPECT_UNDEF:
-				/* Should never happen. */
-				retcode = -1;
-				goto out;
-			}
-
-			comment = tcpcheck_get_step_comment(check);
-			if (comment) {
-				if (expect->with_capture) {
-					ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), comment, pmatch);
-					if (ret > 0) /* ignore comment if too large */
-						trash.data += ret;
-				}
-				else
-					chunk_appendf(&trash, " comment: '%s'", comment);
-			}
-			set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
-			goto out_end_tcpcheck;
-		} /* end expect */
-	} /* end loop over double chained step list */
-
-	/* don't do anything until the connection is established */
-	if (conn->flags & CO_FL_WAIT_XPRT) {
-		/* update expire time, should be done by process_chk */
-		/* we allow up to min(inter, timeout.connect) for a connection
-		 * to establish but only when timeout.check is set
-		 * as it may be to short for a full check otherwise
-		 */
-		while (tick_is_expired(t->expire, now_ms)) {
-			int t_con;
-
-			t_con = tick_add(t->expire, proxy->timeout.connect);
-			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-
-			if (proxy->timeout.check)
-				t->expire = tick_first(t->expire, t_con);
+			eval_ret = TCPCHK_EVAL_CONTINUE;
+			break;
 		}
-		goto out;
+
+		switch (eval_ret) {
+		case TCPCHK_EVAL_CONTINUE:
+			break;
+		case TCPCHK_EVAL_WAIT:
+			goto out;
+		case TCPCHK_EVAL_STOP:
+			goto out_end_tcpcheck;
+		}
 	}
 
-	/* We're waiting for some I/O to complete, we've reached the end of the
-	 * rules, or both. Do what we have to do, otherwise we're done.
-	 */
-	if (check->current_step == NULL && !b_data(&check->bo)) {
-		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
-		goto out_end_tcpcheck;
-	}
+	/* All rules was evaluated */
+	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
+	check->current_step = NULL;
 
-	if (check->current_step != NULL &&
-	    check->current_step->action == TCPCHK_ACT_EXPECT)
-		__event_srv_chk_r(cs);
-	goto out;
+  out:
+	return retcode;
 
- out_end_tcpcheck:
-	/* collect possible new errors */
+  out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
-		chk_report_conn_err(check, 0, 0);
+		chk_report_conn_err(check, errno, 0);
 
 	/* cleanup before leaving */
-	check->current_step = check->last_started_step = NULL;
+	check->current_step = NULL;
 
-	if (check->result == CHK_RES_FAILED)
-		conn->flags |= CO_FL_ERROR;
-
- out:
-	return retcode;
+	goto out;
 }
 
 static const char *init_check(struct check *check, int type)
