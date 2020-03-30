@@ -3028,24 +3028,41 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 	struct tcpcheck_send *send = &rule->send;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
+	struct buffer *tmp = NULL;
 
 	/* reset the read & write buffer */
 	b_reset(&check->bi);
 	b_reset(&check->bo);
 
-	if (send->length >= b_size(&check->bo)) {
-		chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%u) at step %d",
-			     send->length, (unsigned int)b_size(&check->bo),
-			     tcpcheck_get_step_id(check, rule));
-		set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
-		ret = TCPCHK_EVAL_STOP;
-		goto out;
-	}
-
 	switch (send->type) {
 	case TCPCHK_SEND_STRING:
 	case TCPCHK_SEND_BINARY:
-		b_putblk(&check->bo, send->string, send->length);
+		if (istlen(send->data) >= b_size(&check->bo)) {
+			chunk_printf(&trash, "tcp-check send : string too large (%u) for buffer size (%u) at step %d",
+				     (unsigned int)istlen(send->data), (unsigned int)b_size(&check->bo),
+				     tcpcheck_get_step_id(check, rule));
+			set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+			ret = TCPCHK_EVAL_STOP;
+			goto out;
+		}
+		b_putist(&check->bo, send->data);
+		break;
+	case TCPCHK_SEND_STRING_LF:
+		check->bo.data = sess_build_logline(check->sess, NULL, b_orig(&check->bo), b_size(&check->bo), &rule->send.fmt);
+		if (!b_data(&check->bo))
+			goto out;
+		break;
+	case TCPCHK_SEND_BINARY_LF:
+		tmp = alloc_trash_chunk();
+		if (!tmp)
+			goto error_lf;
+		tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &rule->send.fmt);
+		if (!b_data(tmp))
+			goto out;
+		tmp->area[tmp->data] = '\0';
+		b_set_data(&check->bo, b_size(&check->bo));
+		if (parse_binary(b_orig(tmp),  &check->bo.area, (int *)&check->bo.data, NULL) == 0)
+			goto error_lf;
 		break;
 	case TCPCHK_SEND_UNDEF:
 		/* Should never happen. */
@@ -3066,7 +3083,16 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 	}
 
   out:
+	free_trash_chunk(tmp);
 	return ret;
+
+  error_lf:
+	chunk_printf(&trash, "tcp-check send : failed to build log-format string at step %d",
+		     tcpcheck_get_step_id(check, rule));
+	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+	ret = TCPCHK_EVAL_STOP;
+	goto out;
+
 }
 
 /* Evaluate a TCPCHK_ACT_EXPECT rule. It returns 1 to evaluate the next rule, 0
@@ -3443,6 +3469,8 @@ void free_check(struct check *check)
 
 static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 {
+	struct logformat_node *lf, *lfb;
+
 	if (!rule)
 		return;
 
@@ -3452,7 +3480,16 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		switch (rule->send.type) {
 		case TCPCHK_SEND_STRING:
 		case TCPCHK_SEND_BINARY:
-			free(rule->send.string);
+			free(rule->send.data.ptr);
+			break;
+		case TCPCHK_SEND_STRING_LF:
+		case TCPCHK_SEND_BINARY_LF:
+			list_for_each_entry_safe(lf, lfb, &rule->send.fmt, list) {
+				LIST_DEL(&lf->list);
+				release_sample_expr(lf->expr);
+				free(lf->arg);
+				free(lf);
+			}
 			break;
 		case TCPCHK_SEND_UNDEF:
 			break;
@@ -3669,15 +3706,15 @@ static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
 	send->type = TCPCHK_SEND_STRING;
 
 	for (i = 0; strs[i]; i++)
-		send->length += strlen(strs[i]);
+		send->data.len += strlen(strs[i]);
 
-	send->string = malloc(send->length + 1);
-	if (!send->string) {
+	send->data.ptr = malloc(send->data.len + 1);
+	if (!isttest(send->data)) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
 
-	dst = send->string;
+	dst = send->data.ptr;
 	for (i = 0; strs[i]; i++)
 		for (in = strs[i]; (*dst = *in++); dst++);
 	*dst = 0;
@@ -4283,12 +4320,12 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	return NULL;
 }
 
-static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct list *rules, char **errmsg)
+static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy *px, struct list *rules,
+						 char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
-	char *str = NULL, *comment = NULL;
+	char *comment = NULL, *data = NULL;
 	enum tcpcheck_send_type type = TCPCHK_SEND_UNDEF;
-	int len;
 
 	type = ((strcmp(args[cur_arg], "send-binary") == 0) ? TCPCHK_SEND_BINARY : TCPCHK_SEND_STRING);
 	if (!*(args[cur_arg+1])) {
@@ -4297,33 +4334,35 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 		goto error;
 	}
 
-	if (type == TCPCHK_SEND_BINARY) {
-		if (parse_binary(args[cur_arg+1], &str, &len, errmsg) == 0) {
-			memprintf(errmsg, "'%s' invalid binary string (%s).\n", args[cur_arg], *errmsg);
-			goto error;
-		}
-	}
-	else {
-		str = strdup(args[cur_arg+1]);
-		len = strlen(args[cur_arg+1]);
-		if (!str) {
-			memprintf(errmsg, "out of memory");
-			goto error;
-		}
-	}
-	cur_arg++;
+	data = args[cur_arg+1];
 
-	if (strcmp(args[cur_arg], "comment") == 0) {
-		if (!*(args[cur_arg+1])) {
-			memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+	cur_arg += 2;
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "comment") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(comment);
+			comment = strdup(args[cur_arg]);
+			if (!comment) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else if (strcmp(args[cur_arg], "log-format") == 0) {
+			if (type == TCPCHK_SEND_BINARY)
+				type = TCPCHK_SEND_BINARY_LF;
+			else if (type == TCPCHK_SEND_STRING)
+				type = TCPCHK_SEND_STRING_LF;
+		}
+		else {
+			memprintf(errmsg, "expects 'comment', 'log-format' but got '%s' as argument.",
+				  args[cur_arg]);
 			goto error;
 		}
 		cur_arg++;
-		comment = strdup(args[cur_arg]);
-		if (!comment) {
-			memprintf(errmsg, "out of memory");
-			goto error;
-		}
 	}
 
 	chk = calloc(1, sizeof(*chk));
@@ -4334,12 +4373,38 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 	chk->action      = TCPCHK_ACT_SEND;
 	chk->comment     = comment;
 	chk->send.type   = type;
-	chk->send.string = str;
-	chk->send.length = len;
+
+	switch (chk->send.type) {
+	case TCPCHK_SEND_STRING:
+		chk->send.data = ist2(strdup(data), strlen(data));
+		if (!isttest(chk->send.data)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+		break;
+	case TCPCHK_SEND_BINARY:
+		if (parse_binary(data, &chk->send.data.ptr, (int *)&chk->send.data.len, errmsg) == 0) {
+			memprintf(errmsg, "'%s' invalid binary string (%s).\n", data, *errmsg);
+			goto error;
+		}
+		break;
+	case TCPCHK_SEND_STRING_LF:
+	case TCPCHK_SEND_BINARY_LF:
+		LIST_INIT(&chk->send.fmt);
+		px->conf.args.ctx = ARGC_SRV;
+		if (!parse_logformat_string(data, px, &chk->send.fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", data, *errmsg);
+			goto error;
+		}
+		break;
+	case TCPCHK_SEND_UNDEF:
+		goto error;
+	}
+
 	return chk;
 
   error:
-	free(str);
+	free(chk);
 	free(comment);
 	return NULL;
 }
@@ -4578,7 +4643,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	if (strcmp(args[cur_arg], "connect") == 0)
 		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
-		chk = parse_tcpcheck_send(args, cur_arg, rules, errmsg);
+		chk = parse_tcpcheck_send(args, cur_arg, curpx, rules, errmsg);
 	else if (strcmp(args[cur_arg], "expect") == 0)
 		chk = parse_tcpcheck_expect(args, cur_arg, rules, errmsg);
 	else if (strcmp(args[cur_arg], "comment") == 0)

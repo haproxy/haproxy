@@ -230,15 +230,19 @@ struct tcpcheck_connect {
 };
 
 enum tcpcheck_send_type {
-	TCPCHK_SEND_UNDEF = 0, /* Send is not parsed. */
-	TCPCHK_SEND_STRING, /* Send an ASCII string. */
-	TCPCHK_SEND_BINARY, /* Send a binary sequence. */
+	TCPCHK_SEND_UNDEF = 0,  /* Send is not parsed. */
+	TCPCHK_SEND_STRING,     /* Send an ASCII string. */
+	TCPCHK_SEND_BINARY,     /* Send a binary sequence. */
+	TCPCHK_SEND_STRING_LF, /* Send an ASCII log-format string. */
+	TCPCHK_SEND_BINARY_LF, /* Send a binary log-format sequence. */
 };
 
 struct tcpcheck_send {
 	enum tcpcheck_send_type type;
-	char *string; /* Sending an ASCII string or a binary sequence. */
-	int length; /* Size in bytes of the sequence referenced by string / binary. */
+	union {
+		struct ist  data; /* an ASCII string or a binary sequence */
+		struct list fmt;  /* an ASCII or hexa log-format string */
+	};
 };
 
 enum tcpcheck_expect_type {
