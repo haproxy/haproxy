@@ -4896,12 +4896,9 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 {
 	struct crtlist *crtlist = NULL;
 	struct ebmb_node *eb;
-	struct crtlist_entry *entry;
-	struct list instances; /* temporary list head */
+	struct crtlist_entry *entry = NULL;
 	struct bind_conf_list *bind_conf_node = NULL;
 	int cfgerr = 0;
-
-	LIST_INIT(&instances);
 
 	bind_conf_node = malloc(sizeof(*bind_conf_node));
 	if (!bind_conf_node) {
@@ -4943,10 +4940,8 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 			memprintf(err, "error processing line %d in file '%s' : %s", entry->linenum, file, *err);
 			goto error;
 		}
-		LIST_ADDQ(&instances, &ckch_inst->by_crtlist_entry);
+		LIST_ADDQ(&entry->ckch_inst, &ckch_inst->by_crtlist_entry);
 	}
-	/* add the instances to the actual instance list in the crtlist_entry */
-	LIST_SPLICE(&entry->ckch_inst, &instances);
 
 	/* add the bind_conf to the list */
 	bind_conf_node->next = crtlist->bind_conf;
@@ -4955,19 +4950,32 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	return cfgerr;
 error:
 	{
+		struct crtlist_entry *lastentry;
 		struct ckch_inst *inst, *s_inst;
 
-		list_for_each_entry_safe(inst, s_inst, &instances, by_crtlist_entry) {
-			struct sni_ctx *sni, *s_sni;
+		lastentry = entry; /* which entry we tried to generate last */
+		if (lastentry) {
+			list_for_each_entry(entry, &crtlist->ord_entries, by_crtlist) {
+				if (entry == lastentry) /* last entry we tried to generate, no need to go further */
+					break;
 
-			/* free the sni_ctx */
-			list_for_each_entry_safe(sni, s_sni, &inst->sni_ctx, by_ckch_inst) {
-				ebmb_delete(&sni->name);
-				LIST_DEL(&sni->by_ckch_inst);
-				free(sni);
+				list_for_each_entry_safe(inst, s_inst, &entry->ckch_inst, by_crtlist_entry) {
+					struct sni_ctx *sni, *s_sni;
+
+					/* this was not generated for this bind_conf, skip */
+					if (inst->bind_conf != bind_conf)
+						continue;
+
+					/* free the sni_ctx */
+					list_for_each_entry_safe(sni, s_sni, &inst->sni_ctx, by_ckch_inst) {
+						ebmb_delete(&sni->name);
+						LIST_DEL(&sni->by_ckch_inst);
+						free(sni);
+					}
+					LIST_DEL(&inst->by_crtlist_entry);
+					free(inst);
+				}
 			}
-			LIST_DEL(&inst->by_crtlist_entry);
-			free(inst);
 		}
 		free(bind_conf_node);
 	}
