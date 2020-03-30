@@ -4425,6 +4425,114 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 }
 
 
+
+
+/* Make sure openssl opens /dev/urandom before the chroot. The work is only
+ * done once. Zero is returned if the operation fails. No error is returned
+ * if the random is said as not implemented, because we expect that openssl
+ * will use another method once needed.
+ */
+static int ssl_initialize_random()
+{
+	unsigned char random;
+	static int random_initialized = 0;
+
+	if (!random_initialized && RAND_bytes(&random, 1) != 0)
+		random_initialized = 1;
+
+	return random_initialized;
+}
+
+/* release ssl bind conf */
+void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
+{
+	if (conf) {
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+		free(conf->npn_str);
+		conf->npn_str = NULL;
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+		free(conf->alpn_str);
+		conf->alpn_str = NULL;
+#endif
+		free(conf->ca_file);
+		conf->ca_file = NULL;
+		free(conf->ca_verify_file);
+		conf->ca_verify_file = NULL;
+		free(conf->crl_file);
+		conf->crl_file = NULL;
+		free(conf->ciphers);
+		conf->ciphers = NULL;
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+		free(conf->ciphersuites);
+		conf->ciphersuites = NULL;
+#endif
+		free(conf->curves);
+		conf->curves = NULL;
+		free(conf->ecdhe);
+		conf->ecdhe = NULL;
+	}
+}
+/* free sni filters */
+static void crtlist_free_filters(char **args)
+{
+	int i;
+
+	if (!args)
+		return;
+
+	for (i = 0; args[i]; i++)
+		free(args[i]);
+
+	free(args);
+}
+
+/* Alloc and duplicate a char ** array */
+static char **crtlist_dup_filters(char **args, int fcount)
+{
+	char **dst;
+	int i;
+
+	if (fcount == 0)
+		return NULL;
+
+	dst = calloc(fcount + 1, sizeof(*dst));
+	if (!dst)
+		return NULL;
+
+	for (i = 0; i < fcount; i++) {
+		dst[i] = strdup(args[i]);
+		if (!dst[i])
+			goto error;
+	}
+	return dst;
+
+error:
+	crtlist_free_filters(dst);
+	return NULL;
+}
+
+
+/* Free a crtlist, from the crt_entry to the content of the ssl_conf */
+static void crtlist_free(struct crtlist *crtlist)
+{
+	struct crtlist_entry *entry, *s_entry;
+
+	if (crtlist == NULL)
+		return;
+
+	list_for_each_entry_safe(entry, s_entry, &crtlist->ord_entries, by_crtlist) {
+		ebpt_delete(&entry->node);
+		LIST_DEL(&entry->by_crtlist);
+		crtlist_free_filters(entry->filters);
+		ssl_sock_free_ssl_conf(entry->ssl_conf);
+		free(entry->ssl_conf);
+		free(entry);
+	}
+	ebmb_delete(&crtlist->node);
+	free(crtlist);
+}
+
 /* This function reads a directory and stores it in a struct crtlist, each file is a crtlist_entry structure
  * Fill the <crtlist> argument with a pointer to a new crtlist struct
  *
@@ -4583,113 +4691,6 @@ end:
 	}
 	return cfgerr;
 
-}
-
-
-/* Make sure openssl opens /dev/urandom before the chroot. The work is only
- * done once. Zero is returned if the operation fails. No error is returned
- * if the random is said as not implemented, because we expect that openssl
- * will use another method once needed.
- */
-static int ssl_initialize_random()
-{
-	unsigned char random;
-	static int random_initialized = 0;
-
-	if (!random_initialized && RAND_bytes(&random, 1) != 0)
-		random_initialized = 1;
-
-	return random_initialized;
-}
-
-/* release ssl bind conf */
-void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
-{
-	if (conf) {
-#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
-		free(conf->npn_str);
-		conf->npn_str = NULL;
-#endif
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-		free(conf->alpn_str);
-		conf->alpn_str = NULL;
-#endif
-		free(conf->ca_file);
-		conf->ca_file = NULL;
-		free(conf->ca_verify_file);
-		conf->ca_verify_file = NULL;
-		free(conf->crl_file);
-		conf->crl_file = NULL;
-		free(conf->ciphers);
-		conf->ciphers = NULL;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-		free(conf->ciphersuites);
-		conf->ciphersuites = NULL;
-#endif
-		free(conf->curves);
-		conf->curves = NULL;
-		free(conf->ecdhe);
-		conf->ecdhe = NULL;
-	}
-}
-/* free sni filters */
-static void crtlist_free_filters(char **args)
-{
-	int i;
-
-	if (!args)
-		return;
-
-	for (i = 0; args[i]; i++)
-		free(args[i]);
-
-	free(args);
-}
-
-/* Alloc and duplicate a char ** array */
-static char **crtlist_dup_filters(char **args, int fcount)
-{
-	char **dst;
-	int i;
-
-	if (fcount == 0)
-		return NULL;
-
-	dst = calloc(fcount + 1, sizeof(*dst));
-	if (!dst)
-		return NULL;
-
-	for (i = 0; i < fcount; i++) {
-		dst[i] = strdup(args[i]);
-		if (!dst[i])
-			goto error;
-	}
-	return dst;
-
-error:
-	crtlist_free_filters(dst);
-	return NULL;
-}
-
-
-/* Free a crtlist, from the crt_entry to the content of the ssl_conf */
-static void crtlist_free(struct crtlist *crtlist)
-{
-	struct crtlist_entry *entry, *s_entry;
-
-	if (crtlist == NULL)
-		return;
-
-	list_for_each_entry_safe(entry, s_entry, &crtlist->ord_entries, by_crtlist) {
-		ebpt_delete(&entry->node);
-		LIST_DEL(&entry->by_crtlist);
-		crtlist_free_filters(entry->filters);
-		ssl_sock_free_ssl_conf(entry->ssl_conf);
-		free(entry->ssl_conf);
-		free(entry);
-	}
-	ebmb_delete(&crtlist->node);
-	free(crtlist);
 }
 
 /* This function parse a crt-list file and store it in a struct crtlist, each line is a crtlist_entry structure
