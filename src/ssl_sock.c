@@ -4674,18 +4674,7 @@ end:
 
 	if (cfgerr & ERR_CODE) {
 		/* free the dir and entries on error */
-		struct ebpt_node *node;
-
-		node = ebpt_first(&dir->entries);
-		while (node) {
-			struct crtlist_entry *entry;
-
-			entry = ebpt_entry(node, typeof(*entry), node);
-			node = ebpt_next(node);
-			ebpt_delete(&entry->node);
-			free(entry);
-		}
-		free(dir);
+		crtlist_free(dir);
 	} else {
 		*crtlist = dir;
 	}
