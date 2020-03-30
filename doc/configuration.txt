@@ -9818,6 +9818,9 @@ tcp-check connect [params*]
     They are optional and can be used to describe how HAProxy should open and
     use the TCP connection.
 
+    default      Use default options of the server line to do the health
+                 checks. This parameter is exclusive with all other options.
+
     port      if not set, check port or server port is used.
               It tells HAProxy where to open the connection to.
               <port> must be a valid TCP port source integer, from 1 to 65535.

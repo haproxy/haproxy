@@ -4099,7 +4099,14 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 
 	cur_arg++;
 	while (*(args[cur_arg])) {
-		if (strcmp(args[cur_arg], "port") == 0) {
+		if (strcmp(args[cur_arg], "default") == 0) {
+			if (cur_arg != 2 || *(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' is exclusive with all other options", args[cur_arg]);
+				goto error;
+			}
+			conn_opts = TCPCHK_OPT_DEFAULT_CONNECT;
+		}
+		else if (strcmp(args[cur_arg], "port") == 0) {
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a port number as argument.", args[cur_arg]);
 				goto error;
@@ -4168,7 +4175,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 #ifdef USE_OPENSSL
 				  ", 'ssl', 'sni', 'alpn'"
 #endif /* USE_OPENSSL */
-				  " or 'via-socks4', 'linger' but got '%s' as argument.",
+				  " or 'via-socks4', 'linger', 'default' but got '%s' as argument.",
 				  args[cur_arg]);
 			goto error;
 		}
