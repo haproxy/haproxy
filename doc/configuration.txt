@@ -9830,6 +9830,11 @@ tcp-check connect [params*]
 
     sni <sni>    specifies the SNI to use to do health checks over SSL.
 
+    alpn <alpn>  defines which protocols to advertise with ALPN. The protocol
+                 list consists in a comma-delimited list of protocol names,
+                 for instance: "http/1.1,http/1.0" (without quotes).
+                 If it is not set, the server ALPN is used.
+
     linger    cleanly close the connection instead of using a single RST.
 
     Examples:

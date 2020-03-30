@@ -2920,6 +2920,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		if (status == SF_ERR_NONE) {
 			if (connect->sni)
 				ssl_sock_set_servername(conn, connect->sni);
+			if (connect->alpn)
+				ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn,
+						  connect->alpn_len);
 		}
 #endif
 		if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
@@ -3455,6 +3458,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		break;
 	case TCPCHK_ACT_CONNECT:
 		free(rule->connect.sni);
+		free(rule->connect.alpn);
 		break;
 	case TCPCHK_ACT_COMMENT:
 		break;
@@ -4077,9 +4081,10 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 						    char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
-	char *comment = NULL, *sni = NULL;
+	char *comment = NULL, *sni = NULL, *alpn = NULL;
 	unsigned short conn_opts = 0;
 	long port = 0;
+	int alpn_len = 0;
 
 	list_for_each_entry(chk, rules, list) {
 		if (chk->action != TCPCHK_ACT_COMMENT && chk->action != TCPCHK_ACT_ACTION_KW)
@@ -4143,12 +4148,25 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 				goto error;
 			}
 		}
+		else if (strcmp(args[cur_arg], "alpn") == 0) {
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+			free(alpn);
+			if (ssl_sock_parse_alpn(args[cur_arg + 1], &alpn, &alpn_len, errmsg)) {
+				memprintf(errmsg, "'%s' : %s", args[cur_arg], *errmsg);
+				goto error;
+			}
+			cur_arg++;
+#else
+			memprintf(errmsg, "'%s' : library does not support TLS ALPN extension.", args[cur_arg]);
+			goto error;
+#endif
+		}
 #endif /* USE_OPENSSL */
 
 		else {
 			memprintf(errmsg, "expects 'comment', 'port', 'send-proxy'"
 #ifdef USE_OPENSSL
-				  ", 'ssl', 'sni'"
+				  ", 'ssl', 'sni', 'alpn'"
 #endif /* USE_OPENSSL */
 				  " or 'via-socks4', 'linger' but got '%s' as argument.",
 				  args[cur_arg]);
@@ -4167,9 +4185,12 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	chk->connect.port    = port;
 	chk->connect.options = conn_opts;
 	chk->connect.sni     = sni;
+	chk->connect.alpn    = alpn;
+	chk->connect.alpn_len= alpn_len;
 	return chk;
 
   error:
+	free(alpn);
 	free(sni);
 	free(comment);
 	return NULL;
