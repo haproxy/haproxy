@@ -2916,7 +2916,13 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		}
 	}
 	else {
-		/* TODO: add support for sock4 and sni option */
+#ifdef USE_OPENSSL
+		if (status == SF_ERR_NONE) {
+			if (connect->sni)
+				ssl_sock_set_servername(conn, connect->sni);
+		}
+#endif
+		/* TODO: add support for sock4  option */
 		if (connect->options & TCPCHK_OPT_SEND_PROXY) {
 			conn->send_proxy_ofs = 1;
 			conn->flags |= CO_FL_SEND_PROXY;
@@ -3445,6 +3451,8 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		}
 		break;
 	case TCPCHK_ACT_CONNECT:
+		free(rule->connect.sni);
+		break;
 	case TCPCHK_ACT_COMMENT:
 		break;
 	case TCPCHK_ACT_ACTION_KW:
@@ -4066,7 +4074,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 						    char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
-	char *comment = NULL;
+	char *comment = NULL, *sni = NULL;
 	unsigned short conn_opts = 0;
 	long port = 0;
 
@@ -4117,12 +4125,25 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 			px->options |= PR_O_TCPCHK_SSL;
 			conn_opts |= TCPCHK_OPT_SSL;
 		}
+		else if (strcmp(args[cur_arg], "sni") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(sni);
+			sni = strdup(args[cur_arg]);
+			if (!sni) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
 #endif /* USE_OPENSSL */
 
 		else {
 			memprintf(errmsg, "expects 'comment', 'port', 'send-proxy'"
 #ifdef USE_OPENSSL
-				  ", 'ssl'"
+				  ", 'ssl', 'sni'"
 #endif /* USE_OPENSSL */
 				  " or 'linger' but got '%s' as argument.",
 				  args[cur_arg]);
@@ -4140,9 +4161,11 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	chk->comment = comment;
 	chk->connect.port    = port;
 	chk->connect.options = conn_opts;
+	chk->connect.sni     = sni;
 	return chk;
 
   error:
+	free(sni);
 	free(comment);
 	return NULL;
 }

@@ -219,8 +219,11 @@ struct analyze_status {
 #define TCPCHK_OPT_DEFAULT_CONNECT 0x0008  /* Do a connect using server params */
 
 struct tcpcheck_connect {
-	uint16_t port; /* port to connect to */
+	uint16_t port;    /* port to connect to */
 	uint16_t options; /* options when setting up a new connection */
+	char *sni;        /* server name to use for SSL connections */
+	char *alpn;       /* ALPN to use for the SSL connection */
+	int alpn_len;     /* ALPN string length */
 };
 
 enum tcpcheck_send_type {

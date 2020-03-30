@@ -9826,6 +9826,8 @@ tcp-check connect [params*]
 
     ssl          opens a ciphered connection
 
+    sni <sni>    specifies the SNI to use to do health checks over SSL.
+
     linger    cleanly close the connection instead of using a single RST.
 
     Examples:
