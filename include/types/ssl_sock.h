@@ -167,6 +167,7 @@ struct crtlist_entry {
 	unsigned int linenum;
 	unsigned int fcount; /* filters count */
 	char **filters;
+	struct crtlist *crtlist; /* ptr to the parent crtlist */
 	struct list ckch_inst; /* list of instances of this entry, there is 1 ckch_inst per instance of the crt-list */
 	struct list by_crtlist; /* ordered entries */
 	struct list by_ckch_store; /* linked in ckch_store list of crtlist_entries */

@@ -4645,6 +4645,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 						goto end;
 					}
 					entry->node.key = ckchs;
+					entry->crtlist = dir;
 					LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 					LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 					ebpt_insert(&dir->entries, &entry->node);
@@ -4665,6 +4666,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 				goto end;
 			}
 			entry->node.key = ckchs;
+			entry->crtlist = dir;
 			LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 			LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
 			ebpt_insert(&dir->entries, &entry->node);
@@ -4859,6 +4861,7 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		}
 		entry->node.key = ckchs;
 		entry->ssl_conf = ssl_conf;
+		entry->crtlist = newlist;
 		/* filters */
 		entry->filters = crtlist_dup_filters(&args[cur_arg], arg - cur_arg - 1);
 		entry->fcount = arg - cur_arg - 1;
