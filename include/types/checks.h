@@ -225,6 +225,7 @@ struct tcpcheck_connect {
 	int alpn_len;                  /* ALPN string length */
 	uint16_t options;              /* options when setting up a new connection */
 	uint16_t port;                 /* port to connect to */
+	struct sample_expr *port_expr; /* sample expr to determine the port, may be NULL */
 	struct sockaddr_storage addr;  /* the address to the connect */
 };
 

@@ -64,6 +64,7 @@
 #include <proto/dns.h>
 #include <proto/proto_udp.h>
 #include <proto/ssl_sock.h>
+#include <proto/sample.h>
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);
@@ -2870,6 +2871,15 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	port = 0;
 	if (!port && connect->port)
 		port = connect->port;
+	if (!port && connect->port_expr) {
+		struct sample *smp;
+
+		smp = sample_fetch_as_type(check->proxy, check->sess, NULL,
+					   SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+					   connect->port_expr, SMP_T_SINT);
+		if (smp)
+			port = smp->data.u.sint;
+	}
 	if (!port && is_inet_addr(&connect->addr))
 		port = get_host_port(&connect->addr);
 	if (!port && check->port)
@@ -3465,6 +3475,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 	case TCPCHK_ACT_CONNECT:
 		free(rule->connect.sni);
 		free(rule->connect.alpn);
+		release_sample_expr(rule->connect.port_expr);
 		break;
 	case TCPCHK_ACT_COMMENT:
 		break;
@@ -4084,11 +4095,12 @@ static struct tcpcheck_rule *parse_tcpcheck_action(char **args, int cur_arg, str
 }
 
 static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct proxy *px, struct list *rules,
-						    char **errmsg)
+						    const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
 	struct sockaddr_storage *sk = NULL;
 	char *comment = NULL, *sni = NULL, *alpn = NULL;
+	struct sample_expr *port_expr = NULL;
 	unsigned short conn_opts = 0;
 	long port = 0;
 	int alpn_len = 0;
@@ -4144,14 +4156,41 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "port") == 0) {
+			const char *p, *end;
+
 			if (!*(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s' expects a port number as argument.", args[cur_arg]);
+				memprintf(errmsg, "'%s' expects a port number or a sample expression as argument.", args[cur_arg]);
 				goto error;
 			}
 			cur_arg++;
-			port = atol(args[cur_arg]);
-			if (port > 65535 || port < 1) {
-				memprintf(errmsg, "expects a valid TCP port (from range 1 to 65535), got %s.", args[cur_arg]);
+
+			port = 0;
+			release_sample_expr(port_expr);
+			p = args[cur_arg]; end = p + strlen(p);
+			port = read_uint(&p, end);
+			if (p != end) {
+				int idx = 0;
+
+				px->conf.args.ctx = ARGC_SRV;
+				port_expr = sample_parse_expr((char *[]){args[cur_arg], NULL}, &idx,
+							      file, line, errmsg, &px->conf.args, NULL);
+
+				if (!port_expr) {
+					memprintf(errmsg, "error detected while parsing port expression : %s", *errmsg);
+					goto error;
+				}
+				if (!(port_expr->fetch->val & SMP_VAL_BE_CHK_RUL)) {
+					memprintf(errmsg, "error detected while parsing port expression : "
+						  " fetch method '%s' extracts information from '%s', "
+						  "none of which is available here.\n",
+						  args[cur_arg], sample_src_names(port_expr->fetch->use));
+					goto error;
+				}
+				px->http_needed |= !!(port_expr->fetch->use & SMP_USE_HTTP_ANY);
+			}
+			else if (port > 65535 || port < 1) {
+				memprintf(errmsg, "expects a valid TCP port (from range 1 to 65535) or a sample expression, got %s.",
+					  args[cur_arg]);
 				goto error;
 			}
 		}
@@ -4231,6 +4270,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	chk->connect.sni     = sni;
 	chk->connect.alpn    = alpn;
 	chk->connect.alpn_len= alpn_len;
+	chk->connect.port_expr= port_expr;
 	if (sk)
 		chk->connect.addr = *sk;
 	return chk;
@@ -4239,6 +4279,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	free(alpn);
 	free(sni);
 	free(comment);
+	release_sample_expr(port_expr);
 	return NULL;
 }
 
@@ -4535,7 +4576,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 
 	cur_arg = 1;
 	if (strcmp(args[cur_arg], "connect") == 0)
-		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules, errmsg);
+		chk = parse_tcpcheck_connect(args, cur_arg, curpx, rules, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
 		chk = parse_tcpcheck_send(args, cur_arg, rules, errmsg);
 	else if (strcmp(args[cur_arg], "expect") == 0)
