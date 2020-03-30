@@ -9824,6 +9824,8 @@ tcp-check connect [params*]
 
     send-proxy   send a PROXY protocol string
 
+    via-socks4   enables outgoing health checks using upstream socks4 proxy.
+
     ssl          opens a ciphered connection
 
     sni <sni>    specifies the SNI to use to do health checks over SSL.

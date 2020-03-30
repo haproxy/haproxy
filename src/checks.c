@@ -2922,7 +2922,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 				ssl_sock_set_servername(conn, connect->sni);
 		}
 #endif
-		/* TODO: add support for sock4  option */
+		if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
+			conn->send_proxy_ofs = 1;
+			conn->flags |= CO_FL_SOCKS4;
+		}
 		if (connect->options & TCPCHK_OPT_SEND_PROXY) {
 			conn->send_proxy_ofs = 1;
 			conn->flags |= CO_FL_SEND_PROXY;
@@ -4118,6 +4121,8 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 		}
 		else if (strcmp(args[cur_arg], "send-proxy") == 0)
 			conn_opts |= TCPCHK_OPT_SEND_PROXY;
+		else if (strcmp(args[cur_arg], "via-socks4") == 0)
+			conn_opts |= TCPCHK_OPT_SOCKS4;
 		else if (strcmp(args[cur_arg], "linger") == 0)
 			conn_opts |= TCPCHK_OPT_LINGER;
 #ifdef USE_OPENSSL
@@ -4145,7 +4150,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 #ifdef USE_OPENSSL
 				  ", 'ssl', 'sni'"
 #endif /* USE_OPENSSL */
-				  " or 'linger' but got '%s' as argument.",
+				  " or 'via-socks4', 'linger' but got '%s' as argument.",
 				  args[cur_arg]);
 			goto error;
 		}
