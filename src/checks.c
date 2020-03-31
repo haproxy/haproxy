@@ -2807,7 +2807,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	struct protocol *proto;
 	struct xprt_ops *xprt;
 	char *comment;
-	int status;
+	int status, port;
 
 	/* For a connect action we'll create a new connection. We may also have
 	 * to kill a previous one. But we don't want to leave *without* a
@@ -2859,20 +2859,26 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		goto fail_check;
 	}
 
-	/* connect to the check addr if specified on the server. otherwise, use
-	 * the server addr
+	/* connect to the connect rule addr if specified, otherwise the check
+	 * addr if specified on the server. otherwise, use the server addr
 	 */
-	*conn->dst = (is_addr(&check->addr) ? check->addr : s->addr);
+	*conn->dst = (is_addr(&connect->addr)
+		      ? connect->addr
+		      : (is_addr(&check->addr) ? check->addr : s->addr));
 	proto = protocol_by_family(conn->dst->ss_family);
 
-	if (connect->port)
-		set_host_port(conn->dst, connect->port);
-	else if (check->port)
-		set_host_port(conn->dst, check->port);
-	else {
-		int i = get_host_port(&check->addr);
-		set_host_port(conn->dst, ((i > 0) ? i : s->svc_port));
-	}
+	port = 0;
+	if (!port && connect->port)
+		port = connect->port;
+	if (!port && is_inet_addr(&connect->addr))
+		port = get_host_port(&connect->addr);
+	if (!port && check->port)
+		port = check->port;
+	if (!port && is_inet_addr(&check->addr))
+		port = get_host_port(&check->addr);
+	if (!port)
+		port = s->svc_port;
+	set_host_port(conn->dst, port);
 
 	xprt = ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
 		? check->xprt
@@ -3929,7 +3935,7 @@ static int init_srv_check(struct server *srv)
 
 	/* search the first action (connect / send / expect) in the list */
 	r = get_first_tcpcheck_rule(srv->proxy->tcpcheck_rules);
-	if (!r || (r->action != TCPCHK_ACT_CONNECT) || !r->connect.port) {
+	if (!r || (r->action != TCPCHK_ACT_CONNECT) || (!r->connect.port && !get_host_port(&r->connect.addr))) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
 			 "nor tcp_check rule 'connect' with port information.\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
@@ -3939,7 +3945,7 @@ static int init_srv_check(struct server *srv)
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
 	list_for_each_entry(r, srv->proxy->tcpcheck_rules, list) {
-		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port)) {
+		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port || !get_host_port(&r->connect.addr))) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",
 				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
@@ -4081,6 +4087,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 						    char **errmsg)
 {
 	struct tcpcheck_rule *chk = NULL;
+	struct sockaddr_storage *sk = NULL;
 	char *comment = NULL, *sni = NULL, *alpn = NULL;
 	unsigned short conn_opts = 0;
 	long port = 0;
@@ -4105,6 +4112,36 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 				goto error;
 			}
 			conn_opts = TCPCHK_OPT_DEFAULT_CONNECT;
+		}
+		else if (strcmp(args[cur_arg], "addr") == 0) {
+			int port1, port2;
+			struct protocol *proto;
+
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects <ipv4|ipv6> as argument.", args[cur_arg]);
+				goto error;
+			}
+
+			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, errmsg, NULL, NULL, 1);
+			if (!sk) {
+				memprintf(errmsg, "'%s' : %s.", args[cur_arg], *errmsg);
+				goto error;
+			}
+
+			proto = protocol_by_family(sk->ss_family);
+			if (!proto || !proto->connect) {
+				memprintf(errmsg, "'%s' : connect() not supported for this address family.\n",
+					  args[cur_arg]);
+				goto error;
+			}
+
+			if (port1 != port2) {
+				memprintf(errmsg, "'%s' : port ranges and offsets are not allowed in '%s'\n",
+					  args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+
+			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "port") == 0) {
 			if (!*(args[cur_arg+1])) {
@@ -4171,7 +4208,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 #endif /* USE_OPENSSL */
 
 		else {
-			memprintf(errmsg, "expects 'comment', 'port', 'send-proxy'"
+			memprintf(errmsg, "expects 'comment', 'port', 'addr', 'send-proxy'"
 #ifdef USE_OPENSSL
 				  ", 'ssl', 'sni', 'alpn'"
 #endif /* USE_OPENSSL */
@@ -4194,6 +4231,8 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	chk->connect.sni     = sni;
 	chk->connect.alpn    = alpn;
 	chk->connect.alpn_len= alpn_len;
+	if (sk)
+		chk->connect.addr = *sk;
 	return chk;
 
   error:

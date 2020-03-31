@@ -9821,9 +9821,12 @@ tcp-check connect [params*]
     default      Use default options of the server line to do the health
                  checks. This parameter is exclusive with all other options.
 
-    port      if not set, check port or server port is used.
-              It tells HAProxy where to open the connection to.
-              <port> must be a valid TCP port source integer, from 1 to 65535.
+    port         if not set, check port or server port is used.
+                 It tells HAProxy where to open the connection to.
+                 <port> must be a valid TCP port source integer, from 1 to
+                 65535.
+
+    addr <ip>    defines the IP address to do the health check.
 
     send-proxy   send a PROXY protocol string
 
@@ -9838,7 +9841,7 @@ tcp-check connect [params*]
                  for instance: "http/1.1,http/1.0" (without quotes).
                  If it is not set, the server ALPN is used.
 
-    linger    cleanly close the connection instead of using a single RST.
+    linger       cleanly close the connection instead of using a single RST.
 
     Examples:
          # check HTTP and HTTPs services on a server.

@@ -220,11 +220,12 @@ struct analyze_status {
 #define TCPCHK_OPT_SOCKS4          0x0010  /* check the connection via socks4 proxy */
 
 struct tcpcheck_connect {
-	uint16_t port;    /* port to connect to */
-	uint16_t options; /* options when setting up a new connection */
-	char *sni;        /* server name to use for SSL connections */
-	char *alpn;       /* ALPN to use for the SSL connection */
-	int alpn_len;     /* ALPN string length */
+	char *sni;                     /* server name to use for SSL connections */
+	char *alpn;                    /* ALPN to use for the SSL connection */
+	int alpn_len;                  /* ALPN string length */
+	uint16_t options;              /* options when setting up a new connection */
+	uint16_t port;                 /* port to connect to */
+	struct sockaddr_storage addr;  /* the address to the connect */
 };
 
 enum tcpcheck_send_type {
