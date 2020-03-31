@@ -1,0 +1,68 @@
+#REGTEST_TYPE=slow
+
+# This reg-test uses the "add ssl crt-list" command to add a certificate over the CLI.
+# It requires socat and curl to upload and validate that the certificate was well updated
+
+# If this test does not work anymore:
+# - Check that you have socat and curl
+# - Check if haproxy and curl use the same ciphers
+
+varnishtest "Test the 'add ssl crt-list' feature of the CLI"
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat,curl
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+  global
+    tune.ssl.default-dh-param 2048
+    tune.ssl.capture-cipherlist-size 1
+    crt-base ${testdir}
+    stats socket "${tmpdir}/h1/stats" level admin
+
+  listen frt
+    mode http
+    ${no-htx} option http-use-htx
+    bind "fd@${frt}" ssl strict-sni crt-list ${testdir}/localhost.crt-list
+    http-request redirect location /
+} -start
+
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.pem"
+    expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+}
+
+shell {
+    HOST=${h1_frt_addr}
+    if [ "${h1_frt_addr}" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+    curl -v -i -k --resolve www.test1.com:${h1_frt_port}:${h1_frt_addr} https://www.test1.com:${h1_frt_port}
+}
+
+shell {
+   echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+   printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+   echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+   echo "add ssl crt-list ${testdir}/localhost.crt-list ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/ecdsa.pem"
+    expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+}
+
+haproxy h1 -cli {
+    send "show ssl crt-list ${testdir}/localhost.crt-list"
+    expect ~ ".*${testdir}/ecdsa.pem"
+}
+
+shell {
+    HOST=${h1_frt_addr}
+    if [ "${h1_frt_addr}" = "::1" ] ; then
+        HOST="\[::1\]"
+    fi
+    curl -v -i -k --resolve localhost:${h1_frt_port}:${h1_frt_addr} https://localhost:${h1_frt_port}
+}

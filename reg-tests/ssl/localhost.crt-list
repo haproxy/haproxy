@@ -1,0 +1,1 @@
+common.pem !not.test1.com *.test1.com !localhost
