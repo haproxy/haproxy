@@ -1,4 +1,4 @@
-#REGTEST_TYPE=slow
+#REGTEST_TYPE=devel
 
 # This reg-test uses the "set ssl cert" command to update a certificate over the CLI.
 # It requires socat and curl to upload and validate that the certificate was well updated
