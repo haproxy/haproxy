@@ -217,7 +217,8 @@ struct analyze_status {
 #define TCPCHK_OPT_SSL             0x0002  /* SSL connection */
 #define TCPCHK_OPT_LINGER          0x0004  /* Do not RST connection, let it linger */
 #define TCPCHK_OPT_DEFAULT_CONNECT 0x0008  /* Do a connect using server params */
-#define TCPCHK_OPT_SOCKS4          0x0010  /* check the connection via socks4 proxy */
+#define TCPCHK_OPT_IMPLICIT        0x0010  /* Implicit connect */
+#define TCPCHK_OPT_SOCKS4          0x0020  /* check the connection via socks4 proxy */
 
 struct tcpcheck_connect {
 	char *sni;                     /* server name to use for SSL connections */

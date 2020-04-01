@@ -9820,7 +9820,7 @@ tcp-check connect [params*]
     use the TCP connection.
 
     default      Use default options of the server line to do the health
-                 checks. This parameter is exclusive with all other options.
+                 checks. The server options are used only if not redifined.
 
     port <expr>  if not set, check port or server port is used.
                  It tells HAProxy where to open the connection to.

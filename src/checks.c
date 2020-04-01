@@ -2757,7 +2757,7 @@ static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 	/* last step is the first implicit connect */
 	if (rule->index == 0 &&
 	    rule->action == TCPCHK_ACT_CONNECT &&
-	    (rule->connect.options & TCPCHK_OPT_DEFAULT_CONNECT))
+	    (rule->connect.options & TCPCHK_OPT_IMPLICIT))
 		return 0;
 
 	return rule->index + 1;
@@ -2863,9 +2863,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		port = s->svc_port;
 	set_host_port(conn->dst, port);
 
-	xprt = ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
-		? check->xprt
-		: ((connect->options & TCPCHK_OPT_SSL) ? xprt_get(XPRT_SSL) : xprt_get(XPRT_RAW)));
+	xprt = ((connect->options & TCPCHK_OPT_SSL)
+		? xprt_get(XPRT_SSL)
+		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
 	conn_prepare(conn, proto, xprt);
 	if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, check->sess) < 0) {
@@ -2885,47 +2885,40 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		status = proto->connect(conn, flags);
 	}
 
-	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT) {
 #ifdef USE_OPENSSL
-		if (status == SF_ERR_NONE) {
-			if (s->check.sni)
-				ssl_sock_set_servername(conn, s->check.sni);
-			if (s->check.alpn_str)
-				ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
-						  s->check.alpn_len);
-		}
-#endif
-		if (s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
-			conn->send_proxy_ofs = 1;
-			conn->flags |= CO_FL_SOCKS4;
-		}
-		if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
-			conn->send_proxy_ofs = 1;
-			conn->flags |= CO_FL_SEND_PROXY;
-		}
+	if (status == SF_ERR_NONE) {
+		if (connect->sni)
+			ssl_sock_set_servername(conn, connect->sni);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.sni)
+			ssl_sock_set_servername(conn, s->check.sni);
+
+		if (connect->alpn)
+			ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.alpn_str)
+			ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 	}
-	else {
-#ifdef USE_OPENSSL
-		if (status == SF_ERR_NONE) {
-			if (connect->sni)
-				ssl_sock_set_servername(conn, connect->sni);
-			if (connect->alpn)
-				ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn,
-						  connect->alpn_len);
-		}
 #endif
-		if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
-			conn->send_proxy_ofs = 1;
-			conn->flags |= CO_FL_SOCKS4;
-		}
-		if (connect->options & TCPCHK_OPT_SEND_PROXY) {
-			conn->send_proxy_ofs = 1;
-			conn->flags |= CO_FL_SEND_PROXY;
-		}
-		if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
-			/* Some servers don't like reset on close */
-			fdtab[cs->conn->handle.fd].linger_risk = 0;
-		}
+	if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SOCKS4;
+	}
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SOCKS4;
+	}
+
+	if (connect->options & TCPCHK_OPT_SEND_PROXY) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SEND_PROXY;
+	}
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SEND_PROXY;
+	}
+
+	if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
+		/* Some servers don't like reset on close */
+		fdtab[cs->conn->handle.fd].linger_risk = 0;
 	}
 
 	if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
@@ -3973,7 +3966,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			goto out;
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
-		chk->connect.options = TCPCHK_OPT_DEFAULT_CONNECT;
+		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
 		LIST_ADD(px->tcpcheck_rules.list, &chk->list);
 	}
 
@@ -4289,13 +4282,8 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 
 	cur_arg++;
 	while (*(args[cur_arg])) {
-		if (strcmp(args[cur_arg], "default") == 0) {
-			if (cur_arg != 2 || *(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s' is exclusive with all other options", args[cur_arg]);
-				goto error;
-			}
-			conn_opts = TCPCHK_OPT_DEFAULT_CONNECT;
-		}
+		if (strcmp(args[cur_arg], "default") == 0)
+			conn_opts |= TCPCHK_OPT_DEFAULT_CONNECT;
 		else if (strcmp(args[cur_arg], "addr") == 0) {
 			int port1, port2;
 			struct protocol *proto;
