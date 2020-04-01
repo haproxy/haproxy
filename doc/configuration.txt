@@ -9873,7 +9873,7 @@ tcp-check connect [params*]
 
 
 tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
-                 [on-success <fmt>] [on-error <fmt>]
+                 [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                  [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
@@ -9921,6 +9921,11 @@ tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
                        informational message reported in logs if an error
                        occurred during the expect rule evaluation. <fmt> is a
                        log-format string.
+
+    status-code <expr> is optional and can be used to set the check status code
+                       reported in logs, on success or on error. <expr> is a
+                       standard HAProxy expression formed by a sample-fetch
+                       followed by some converters.
 
     <pattern> is the pattern to look for. It may be a string or a regular
               expression. If the pattern contains spaces, they must be escaped

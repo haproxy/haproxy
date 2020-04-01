@@ -3187,6 +3187,16 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 			chunk_appendf(msg, " comment: '%s'", rule->comment);
 	}
 
+	if (expect->status_expr) {
+		struct sample *smp;
+
+		smp = sample_fetch_as_type(check->proxy, check->sess, NULL,
+					   SMP_OPT_DIR_RES | SMP_OPT_FINAL,
+					   expect->status_expr, SMP_T_SINT);
+		if (smp)
+			check->code = smp->data.u.sint;
+	}
+
   no_desc:
 	set_server_check_status(check, expect->err_status, (msg ? b_head(msg) : NULL));
 	ret = TCPCHK_EVAL_STOP;
@@ -3386,12 +3396,23 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* All rules was evaluated */
-	if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT &&
-	    !LIST_ISEMPTY(&check->current_step->expect.onsuccess_fmt)) {
-		msg = alloc_trash_chunk();
-		if (msg)
-			msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
-							&check->current_step->expect.onsuccess_fmt);
+	if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
+		if (!LIST_ISEMPTY(&check->current_step->expect.onsuccess_fmt)) {
+			msg = alloc_trash_chunk();
+			if (msg)
+				msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
+								&check->current_step->expect.onsuccess_fmt);
+		}
+
+		if (check->current_step->expect.status_expr) {
+			struct sample *smp;
+
+			smp = sample_fetch_as_type(check->proxy, check->sess, NULL,
+						   SMP_OPT_DIR_RES | SMP_OPT_FINAL,
+						   check->current_step->expect.status_expr, SMP_T_SINT);
+			if (smp)
+				check->code = smp->data.u.sint;
+		}
 	}
 
 	set_server_check_status(check, HCHK_STATUS_L7OKD, (msg ? b_head(msg) : "(tcp-check)"));
@@ -3492,6 +3513,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 			free(lf->arg);
 			free(lf);
 		}
+		release_sample_expr(rule->expect.status_expr);
 		switch (rule->expect.type) {
 		case TCPCHK_EXPECT_STRING:
 		case TCPCHK_EXPECT_BINARY:
@@ -4556,6 +4578,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 						   const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
+	struct sample_expr *status_expr = NULL;
 	char *str, *on_success_msg, *on_error_msg, *comment, *pattern;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
 	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
@@ -4693,6 +4716,36 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			}
 			cur_arg++;
 		}
+		else if (strcmp(args[cur_arg], "status-code") == 0) {
+			int idx = 0;
+
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects an expression as argument", args[cur_arg]);
+				goto error;
+			}
+
+			cur_arg++;
+			release_sample_expr(status_expr);
+			px->conf.args.ctx = ARGC_SRV;
+			status_expr = sample_parse_expr((char *[]){args[cur_arg], NULL}, &idx,
+							file, line, errmsg, &px->conf.args, NULL);
+			if (!status_expr) {
+				memprintf(errmsg, "error detected while parsing status-code expression : %s", *errmsg);
+				goto error;
+			}
+			if (!(status_expr->fetch->val & SMP_VAL_BE_CHK_RUL)) {
+				memprintf(errmsg, "error detected while parsing status-code expression : "
+					  " fetch method '%s' extracts information from '%s', "
+					  "none of which is available here.\n",
+					  args[cur_arg], sample_src_names(status_expr->fetch->use));
+					goto error;
+			}
+			px->http_needed |= !!(status_expr->fetch->use & SMP_USE_HTTP_ANY);
+		}
 		else if (strcmp(args[cur_arg], "tout-status") == 0) {
 			if (in_pattern) {
 				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
@@ -4758,6 +4811,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->expect.with_capture = with_capture;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
+	chk->expect.status_expr = status_expr; status_expr = NULL;
 
 	if (on_success_msg) {
 		px->conf.args.ctx = ARGC_SRV;
@@ -4825,6 +4879,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	free(comment);
 	free(on_success_msg);
 	free(on_error_msg);
+	release_sample_expr(status_expr);
 	return NULL;
 }
 
