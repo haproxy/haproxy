@@ -11362,26 +11362,28 @@ error:
 
 /*
  * Parse a "add ssl crt-list <crt-list> <certfile>" line.
- * Does not support options or filters yet.
+ * Filters and option must be passed through payload:
  */
 static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int cfgerr = 0;
 	struct ckch_store *store;
 	char *err = NULL;
-	char *crtlist_path, *cert_path;
+	char path[MAXPATHLEN+1];
+	char *crtlist_path;
+	char *cert_path = NULL;
 	struct ebmb_node *eb;
 	struct ebpt_node *inserted;
 	struct crtlist *crtlist;
-	struct crtlist_entry *entry;
+	struct crtlist_entry *entry = NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[3] || !*args[4])
+	if (!*args[3] || (!payload && !*args[4]))
 		return cli_err(appctx, "'add ssl crtlist' expects a filename and a certificate name\n");
 
 	crtlist_path = args[3];
-	cert_path = args[4];
 
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Operations on certificates are currently locked!\n");
@@ -11393,6 +11395,46 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	}
 	crtlist = ebmb_entry(eb, struct crtlist, node);
 
+	entry = malloc(sizeof(*entry));
+	if (entry == NULL) {
+		memprintf(&err, "Not enough memory!");
+		goto error;
+	}
+	entry->filters = NULL;
+	entry->ssl_conf = NULL;
+
+	if (payload) {
+		char *lf;
+
+		lf = strrchr(payload, '\n');
+		if (lf) {
+			memprintf(&err, "only one line of payload is supported!");
+			goto error;
+		}
+		/* cert_path is filled here */
+		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, "CLI", 1, &err);
+		if (cfgerr & ERR_CODE)
+			goto error;
+	} else {
+		cert_path = args[4];
+	}
+
+	if (!cert_path) {
+		memprintf(&err, "'add ssl crtlist' should contain the certificate name in the payload");
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
+	if (*cert_path != '/' && global_ssl.crt_base) {
+		if ((strlen(global_ssl.crt_base) + 1 + strlen(cert_path)) > MAXPATHLEN) {
+			memprintf(&err, "'%s' : path too long", cert_path);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+		snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, cert_path);
+		cert_path = path;
+	}
+
 	store = ckchs_lookup(cert_path);
 	if (store == NULL) {
 		memprintf(&err, "certificate '%s' does not exist!", cert_path);
@@ -11403,28 +11445,16 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
-	entry = malloc(sizeof(*entry));
-	if (entry == NULL) {
-		memprintf(&err, "Not enough memory!");
-		goto error;
-	}
-
 	/* check if it's possible to insert this new crtlist_entry */
 	entry->node.key = store;
 	inserted = ebpt_insert(&crtlist->entries, &entry->node);
 	if (inserted != &entry->node) {
 		memprintf(&err, "file already exists in this directory!");
-		free(entry);
 		goto error;
 	}
 
 	LIST_ADDQ(&crtlist->ord_entries, &entry->by_crtlist);
 	LIST_INIT(&entry->ckch_inst);
-	/* TODO: SSL conf support */
-	entry->ssl_conf = NULL;
-	/* TODO: filters support */
-	entry->fcount = 0;
-	entry->filters = NULL;
 	entry->crtlist = crtlist;
 	LIST_ADDQ(&store->crtlist_entry, &entry->by_ckch_store);
 
@@ -11436,6 +11466,12 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	return 0;
 
 error:
+	if (entry) {
+		crtlist_free_filters(entry->filters);
+		ssl_sock_free_ssl_conf(entry->ssl_conf);
+		free(entry->ssl_conf);
+		free(entry);
+	}
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	err = memprintf(&err, "Can't edit the crt-list: %s\n", err ? err : "");
 	return cli_dynerr(appctx, err);
