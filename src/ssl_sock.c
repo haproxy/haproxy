@@ -4689,6 +4689,137 @@ end:
 
 }
 
+/*
+ *  Read a single crt-list line. /!\ alter the <line> string.
+ *  Fill <crt_path> and <crtlist_entry>
+ *  <crtlist_entry> must be alloc and free by the caller
+ *  <crtlist_entry->ssl_conf> is alloc by the function
+ *  <crtlist_entry->filters> is alloc by the function
+ *  <crt_path> is a ptr in <line>
+ *  Return an error code
+ */
+static int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, const char *file, int linenum, char **err)
+{
+	int cfgerr = 0;
+	int arg, newarg, cur_arg, i, ssl_b = 0, ssl_e = 0;
+	char *end;
+	char *args[MAX_CRT_ARGS + 1];
+	struct ssl_bind_conf *ssl_conf = NULL;
+
+	if (!line || !crt_path || !entry)
+		return ERR_ALERT | ERR_FATAL;
+
+	end = line + strlen(line);
+	if (end-line >= CRT_LINESIZE-1 && *(end-1) != '\n') {
+		/* Check if we reached the limit and the last char is not \n.
+		 * Watch out for the last line without the terminating '\n'!
+		 */
+		memprintf(err, "line %d too long in file '%s', limit is %d characters",
+		          linenum, file, CRT_LINESIZE-1);
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+	arg = 0;
+	newarg = 1;
+	while (*line) {
+		if (isspace((unsigned char)*line)) {
+			newarg = 1;
+			*line = 0;
+		} else if (*line == '[') {
+			if (ssl_b) {
+				memprintf(err, "too many '[' on line %d in file '%s'.", linenum, file);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+			if (!arg) {
+				memprintf(err, "file must start with a cert on line %d in file '%s'", linenum, file);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+			ssl_b = arg;
+			newarg = 1;
+			*line = 0;
+		} else if (*line == ']') {
+			if (ssl_e) {
+				memprintf(err, "too many ']' on line %d in file '%s'.", linenum, file);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+			if (!ssl_b) {
+				memprintf(err, "missing '[' in line %d in file '%s'.", linenum, file);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+			ssl_e = arg;
+			newarg = 1;
+			*line = 0;
+		} else if (newarg) {
+			if (arg == MAX_CRT_ARGS) {
+				memprintf(err, "too many args on line %d in file '%s'.", linenum, file);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+				goto error;
+			}
+			newarg = 0;
+			args[arg++] = line;
+		}
+		line++;
+	}
+	args[arg++] = line;
+
+	/* empty line */
+	if (!*args[0]) {
+		cfgerr |= ERR_NONE;
+		goto error;
+	}
+
+	*crt_path = args[0];
+
+	ssl_conf = calloc(1, sizeof *ssl_conf);
+	if (!ssl_conf) {
+		memprintf(err, "not enough memory!");
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+	cur_arg = ssl_b ? ssl_b : 1;
+	while (cur_arg < ssl_e) {
+		newarg = 0;
+		for (i = 0; ssl_bind_kws[i].kw != NULL; i++) {
+			if (strcmp(ssl_bind_kws[i].kw, args[cur_arg]) == 0) {
+				newarg = 1;
+				cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, NULL, ssl_conf, err);
+				if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
+					memprintf(err, "ssl args out of '[]' for %s on line %d in file '%s'",
+					          args[cur_arg], linenum, file);
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+					goto error;
+				}
+				cur_arg += 1 + ssl_bind_kws[i].skip;
+				break;
+			}
+		}
+		if (!cfgerr && !newarg) {
+			memprintf(err, "unknown ssl keyword %s on line %d in file '%s'.",
+				  args[cur_arg], linenum, file);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+	}
+
+	entry->ssl_conf = ssl_conf;
+	entry->filters = crtlist_dup_filters(&args[cur_arg], arg - cur_arg - 1);
+	entry->fcount = arg - cur_arg - 1;
+
+	return cfgerr;
+
+error:
+	crtlist_free_filters(entry->filters);
+	entry->filters = NULL;
+	ssl_sock_free_ssl_conf(entry->ssl_conf);
+	free(entry->ssl_conf);
+	entry->ssl_conf = NULL;
+	return cfgerr;
+}
+
 /* This function parse a crt-list file and store it in a struct crtlist, each line is a crtlist_entry structure
  * Fill the <crtlist> argument with a pointer to a new crtlist struct
  *
@@ -4697,6 +4828,7 @@ end:
 static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, struct crtlist **crtlist, char **err)
 {
 	struct crtlist *newlist;
+	struct crtlist_entry *entry = NULL;
 	char thisline[CRT_LINESIZE];
 	char path[MAXPATHLEN+1];
 	FILE *f;
@@ -4718,13 +4850,11 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 	memcpy(newlist->node.key, file, strlen(file) + 1);
 	newlist->entries = EB_ROOT;
 	newlist->bind_conf = NULL;
+	newlist->node.node.leaf_p = NULL;
 	LIST_INIT(&newlist->ord_entries);
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
-		struct crtlist_entry *entry;
-		int arg, newarg, cur_arg, i, ssl_b = 0, ssl_e = 0;
 		char *end;
-		char *args[MAX_CRT_ARGS + 1];
 		char *line = thisline;
 		char *crt_path;
 		struct ssl_bind_conf *ssl_conf = NULL;
@@ -4741,98 +4871,43 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			break;
 		}
-		arg = 0;
-		newarg = 1;
-		while (*line) {
-			if (*line == '#' || *line == '\n' || *line == '\r') {
-				/* end of string, end of loop */
-				*line = 0;
-				break;
-			} else if (isspace((unsigned char)*line)) {
-				newarg = 1;
-				*line = 0;
-			} else if (*line == '[') {
-				if (ssl_b) {
-					memprintf(err, "too many '[' on line %d in file '%s'.", linenum, file);
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-				if (!arg) {
-					memprintf(err, "file must start with a cert on line %d in file '%s'", linenum, file);
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-				ssl_b = arg;
-				newarg = 1;
-				*line = 0;
-			} else if (*line == ']') {
-				if (ssl_e) {
-					memprintf(err, "too many ']' on line %d in file '%s'.", linenum, file);
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-				if (!ssl_b) {
-					memprintf(err, "missing '[' in line %d in file '%s'.", linenum, file);
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-				ssl_e = arg;
-				newarg = 1;
-				*line = 0;
-			} else if (newarg) {
-				if (arg == MAX_CRT_ARGS) {
-					memprintf(err, "too many args on line %d in file '%s'.", linenum, file);
-					cfgerr |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-				newarg = 0;
-				args[arg++] = line;
-			}
-			line++;
-		}
-		if (cfgerr)
-			break;
-		args[arg++] = line;
 
-		/* empty line */
-		if (!*args[0])
+		if (*line == '#' || *line == '\n' || *line == '\r')
 			continue;
 
-		crt_path = args[0];
+		entry = malloc(sizeof(*entry));
+		if (entry == NULL) {
+			memprintf(err, "Not enough memory!");
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
+		entry->fcount = 0;
+		entry->filters = NULL;
+		entry->ssl_conf = NULL;
+		entry->node.key = NULL;
+		LIST_INIT(&entry->by_crtlist);
+
+		*(end - 1) = '\0'; /* line parser mustn't receive any \n */
+		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, err);
+		if (cfgerr)
+			goto error;
+
+		/* empty line */
+		if (!crt_path || !*crt_path) {
+			free(entry);
+			entry = NULL;
+			continue;
+		}
+
 		if (*crt_path != '/' && global_ssl.crt_base) {
 			if ((strlen(global_ssl.crt_base) + 1 + strlen(crt_path)) > MAXPATHLEN) {
 				memprintf(err, "'%s' : path too long on line %d in file '%s'",
 					  crt_path, linenum, file);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
-				break;
+				goto error;
 			}
 			snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, crt_path);
 			crt_path = path;
-		}
-
-		ssl_conf = calloc(1, sizeof *ssl_conf);
-		cur_arg = ssl_b ? ssl_b : 1;
-		while (cur_arg < ssl_e) {
-			newarg = 0;
-			for (i = 0; ssl_bind_kws[i].kw != NULL; i++) {
-				if (strcmp(ssl_bind_kws[i].kw, args[cur_arg]) == 0) {
-					newarg = 1;
-					cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, curproxy, ssl_conf, err);
-					if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
-						memprintf(err, "ssl args out of '[]' for %s on line %d in file '%s'",
-							  args[cur_arg], linenum, file);
-						cfgerr |= ERR_ALERT | ERR_FATAL;
-					}
-					cur_arg += 1 + ssl_bind_kws[i].skip;
-					break;
-				}
-			}
-			if (!cfgerr && !newarg) {
-				memprintf(err, "unknown ssl keyword %s on line %d in file '%s'.",
-					  args[cur_arg], linenum, file);
-				cfgerr |= ERR_ALERT | ERR_FATAL;
-				break;
-			}
 		}
 
 		/* Look for a ckch_store or create one */
@@ -4846,30 +4921,18 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		if (ckchs == NULL)
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 
-		entry = malloc(sizeof(*entry));
-		if (entry == NULL) {
-			memprintf(err, "Not enough memory!");
-			cfgerr |= ERR_ALERT | ERR_FATAL;
-		}
-
-		if (cfgerr & ERR_CODE) {
-			free(entry);
-			entry = NULL;
-			ssl_sock_free_ssl_conf(ssl_conf);
-			free(ssl_conf);
-			ssl_conf = NULL;
+		if (cfgerr & ERR_CODE)
 			goto error;
-		}
+
 		entry->node.key = ckchs;
 		entry->ssl_conf = ssl_conf;
 		entry->crtlist = newlist;
 		LIST_INIT(&entry->ckch_inst);
-		/* filters */
-		entry->filters = crtlist_dup_filters(&args[cur_arg], arg - cur_arg - 1);
-		entry->fcount = arg - cur_arg - 1;
 		ebpt_insert(&newlist->entries, &entry->node);
 		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
 		LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
+
+		entry = NULL;
 	}
 	if (cfgerr & ERR_CODE)
 		goto error;
@@ -4879,6 +4942,15 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 
 	return cfgerr;
 error:
+	if (entry) {
+		crtlist_free_filters(entry->filters);
+		entry->filters = NULL;
+		ssl_sock_free_ssl_conf(entry->ssl_conf);
+		free(entry->ssl_conf);
+		entry->ssl_conf = NULL;
+		free(entry);
+	}
+
 	fclose(f);
 	crtlist_free(newlist);
 	return cfgerr;
