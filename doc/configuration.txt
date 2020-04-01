@@ -14119,6 +14119,12 @@ hex2i
   Converts a hex string containing two hex digits per input byte to an
   integer. If the input value cannot be converted, then zero is returned.
 
+htonl
+  Converts the input integer value to its 32-bit binary representation in the
+  network byte order. Because sample fetches own signed 64-bit integer, when
+  this converter is used, the input integer value is first casted to an
+  unsigned 32-bit integer.
+
 http_date([<offset],[<unit>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If

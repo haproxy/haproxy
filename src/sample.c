@@ -2962,6 +2962,23 @@ static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
 	return 0;
 }
 
+/**/
+static int sample_conv_htonl(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *tmp;
+	uint32_t n;
+
+	n = htonl((uint32_t)smp->data.u.sint);
+	tmp = get_trash_chunk();
+
+	memcpy(b_head(tmp), &n, 4);
+	b_add(tmp, 4);
+
+	smp->data.u.str = *tmp;
+	smp->data.type = SMP_T_BIN;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -3430,6 +3447,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "mod",    sample_conv_arith_mod,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "neg",    sample_conv_arith_neg,            0, NULL, SMP_T_SINT, SMP_T_SINT  },
 
+	{ "htonl",  sample_conv_htonl,                0, NULL, SMP_T_SINT, SMP_T_BIN  },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
