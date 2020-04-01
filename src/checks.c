@@ -3073,7 +3073,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &check->current_step->expect;
-	char *diag;
+	struct buffer *msg = NULL;
 	int match;
 
 	/* The current expect might need more data than the previous one, check again
@@ -3138,24 +3138,23 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 
 	/* From this point on, we matched something we did not want, this is an error state. */
 	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (!msg)
+		goto no_desc;
 
-	diag = match ? "matched unwanted content" : "did not match content";
+	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (expect->type) {
 	case TCPCHK_EXPECT_STRING:
-		chunk_printf(&trash, "TCPCHK %s '%s' at step %d",
-			     diag, expect->string, tcpcheck_get_step_id(check, rule));
+		chunk_appendf(msg, " '%s' at step %d", expect->string, tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_BINARY:
-		chunk_printf(&trash, "TCPCHK %s (binary) at step %d",
-			     diag, tcpcheck_get_step_id(check, rule));
+		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_REGEX:
-		chunk_printf(&trash, "TCPCHK %s (regex) at step %d",
-			     diag, tcpcheck_get_step_id(check, rule));
+		chunk_appendf(msg, " (regex) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_REGEX_BINARY:
-		chunk_printf(&trash, "TCPCHK %s (binary regex) at step %d",
-			     diag, tcpcheck_get_step_id(check, rule));
+		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
 
 		/* If references to the matched text were made, divide the
 		 * offsets by 2 to match offset of the original response buffer.
@@ -3171,22 +3170,29 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		break;
 	case TCPCHK_EXPECT_UNDEF:
 		/* Should never happen. */
-		goto out;
+		goto no_desc;
 	}
 
-	if (rule->comment) {
+	if (!LIST_ISEMPTY(&expect->onerror_fmt)) {
+		chunk_strcat(msg, " comment: ");
+		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg), &expect->onerror_fmt);
+	}
+	else if (rule->comment) {
 		if (expect->with_capture) {
-			ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), rule->comment, pmatch);
-			if (ret > 0) /* ignore comment if too large */
-				trash.data += ret;
+			ret = exp_replace(b_tail(msg), b_room(msg), b_head(&check->bi), rule->comment, pmatch);
+			if (ret != -1) /* ignore comment if too large */
+				msg->data += ret;
 		}
 		else
-			chunk_appendf(&trash, " comment: '%s'", rule->comment);
+			chunk_appendf(msg, " comment: '%s'", rule->comment);
 	}
-	set_server_check_status(check, expect->err_status, trash.area);
+
+  no_desc:
+	set_server_check_status(check, expect->err_status, (msg ? b_head(msg) : NULL));
 	ret = TCPCHK_EVAL_STOP;
 
   out:
+	free_trash_chunk(msg);
 	return ret;
 }
 
@@ -3224,6 +3230,7 @@ static int tcpcheck_main(struct check *check)
 	struct tcpcheck_rule *rule;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
+	struct buffer *msg = NULL;
 	int must_read = 1, last_read = 0;
 	int ret, retcode = 0;
 
@@ -3379,7 +3386,17 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* All rules was evaluated */
-	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
+	if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT &&
+	    !LIST_ISEMPTY(&check->current_step->expect.onsuccess_fmt)) {
+		msg = alloc_trash_chunk();
+		if (msg)
+			msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
+							&check->current_step->expect.onsuccess_fmt);
+	}
+
+	set_server_check_status(check, HCHK_STATUS_L7OKD, (msg ? b_head(msg) : "(tcp-check)"));
+	check->current_step = NULL;
+	free_trash_chunk(msg);
 
   out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
@@ -3463,6 +3480,18 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		}
 		break;
 	case TCPCHK_ACT_EXPECT:
+		list_for_each_entry_safe(lf, lfb, &rule->expect.onerror_fmt, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+		list_for_each_entry_safe(lf, lfb, &rule->expect.onsuccess_fmt, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
 		switch (rule->expect.type) {
 		case TCPCHK_EXPECT_STRING:
 		case TCPCHK_EXPECT_BINARY:
@@ -3636,6 +3665,8 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 
 	expect = &tcpcheck->expect;
 	expect->type = TCPCHK_EXPECT_STRING;
+	LIST_INIT(&expect->onerror_fmt);
+	LIST_INIT(&expect->onsuccess_fmt);
 	expect->err_status = HCHK_STATUS_L7RSP;
 	expect->tout_status = HCHK_STATUS_L7TOUT;
 	expect->string = strdup(str);
@@ -4525,13 +4556,14 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 						   const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
-	char *str = NULL, *comment = NULL, *pattern = NULL;
+	char *str, *on_success_msg, *on_error_msg, *comment, *pattern;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
 	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
 	enum healthcheck_status tout_st = HCHK_STATUS_L7TOUT;
 	long min_recv = -1;
 	int inverse = 0, with_capture = 0;
 
+	str = on_success_msg = on_error_msg = comment = pattern = NULL;
 	if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
 		memprintf(errmsg, "expects a pattern (type+string) as arguments");
 		goto error;
@@ -4599,6 +4631,40 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			free(comment);
 			comment = strdup(args[cur_arg]);
 			if (!comment) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else if (strcmp(args[cur_arg], "on-success") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(on_success_msg);
+			on_success_msg = strdup(args[cur_arg]);
+			if (!on_success_msg) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else if (strcmp(args[cur_arg], "on-error") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(on_error_msg);
+			on_error_msg = strdup(args[cur_arg]);
+			if (!on_error_msg) {
 				memprintf(errmsg, "out of memory");
 				goto error;
 			}
@@ -4683,13 +4749,34 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		goto error;
 	}
 	chk->action  = TCPCHK_ACT_EXPECT;
-	chk->comment = comment;
+	LIST_INIT(&chk->expect.onerror_fmt);
+	LIST_INIT(&chk->expect.onsuccess_fmt);
+	chk->comment = comment; comment = NULL;
 	chk->expect.type = type;
 	chk->expect.min_recv = min_recv;
 	chk->expect.inverse = inverse;
 	chk->expect.with_capture = with_capture;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
+
+	if (on_success_msg) {
+		px->conf.args.ctx = ARGC_SRV;
+		if (!parse_logformat_string(on_success_msg, px, &chk->expect.onsuccess_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", on_success_msg, *errmsg);
+			goto error;
+		}
+		free(on_success_msg);
+		on_success_msg = NULL;
+	}
+	if (on_error_msg) {
+		px->conf.args.ctx = ARGC_SRV;
+		if (!parse_logformat_string(on_error_msg, px, &chk->expect.onerror_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", on_error_msg, *errmsg);
+			goto error;
+		}
+		free(on_error_msg);
+		on_error_msg = NULL;
+	}
 
 	switch (chk->expect.type) {
 	case TCPCHK_EXPECT_STRING:
@@ -4733,9 +4820,11 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	return chk;
 
   error:
-	free(chk);
+	free_tcpcheck(chk, 0);
 	free(str);
 	free(comment);
+	free(on_success_msg);
+	free(on_error_msg);
 	return NULL;
 }
 

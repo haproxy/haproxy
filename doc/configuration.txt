@@ -9873,6 +9873,7 @@ tcp-check connect [params*]
 
 
 tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
+                 [on-success <fmt>] [on-error <fmt>]
                  [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
@@ -9910,6 +9911,16 @@ tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
                        be used to set, respectively, HCHK_STATUS_L7TOUT,
                        HCHK_STATUS_L6TOUT or HCHK_STATUS_L4TOUT timeout status.
                        By default "L7TOUT" is used.
+
+    on-success <fmt>   is optional and can be used to customize the
+                       informational message reported in logs if the expect
+                       rule is successfully evaluated and if it is the last rule
+                       in the tcp-check ruleset. <fmt> is a log-format string.
+
+    on-error <fmt>     is optional and can be used to customize the
+                       informational message reported in logs if an error
+                       occurred during the expect rule evaluation. <fmt> is a
+                       log-format string.
 
     <pattern> is the pattern to look for. It may be a string or a regular
               expression. If the pattern contains spaces, they must be escaped
