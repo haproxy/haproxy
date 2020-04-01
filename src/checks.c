@@ -741,13 +741,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		enum healthcheck_status tout = HCHK_STATUS_L7TOUT;
 
 		/* connection established but expired check */
-		if (check->type == PR_O2_SSL3_CHK)
-			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
-		else {	/* HTTP, SMTP, ... */
-			if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT)
-				tout = check->current_step->expect.tout_status;
-			set_server_check_status(check, tout, err_msg);
-		}
+		if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT)
+			tout = check->current_step->expect.tout_status;
+		set_server_check_status(check, tout, err_msg);
 	}
 
 	return;
@@ -951,17 +947,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 			cut_crlf(desc);
 			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 		}
-		break;
-
-	case PR_O2_SSL3_CHK:
-		if (!done && b_data(&check->bi) < 5)
-			goto wait_more_data;
-
-		/* Check for SSLv3 alert or handshake */
-		if ((b_data(&check->bi) >= 5) && (*b_head(&check->bi) == 0x15 || *b_head(&check->bi) == 0x16))
-			set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
-		else
-			set_server_check_status(check, HCHK_STATUS_L6RSP, NULL);
 		break;
 
 	case PR_O2_SMTP_CHK:
@@ -1623,15 +1608,10 @@ static int connect_conn_chk(struct task *t)
 	if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
 		b_putblk(&check->bo, s->proxy->check_req, s->proxy->check_len);
 
-		/* we want to check if this host replies to HTTP or SSLv3 requests
+		/* we want to check if this host replies to HTTP requests
 		 * so we'll send the request, and won't wake the checker up now.
 		 */
-		if ((check->type) == PR_O2_SSL3_CHK) {
-			/* SSL requires that we put Unix time in the request */
-			int gmt_time = htonl(date.tv_sec);
-			memcpy(b_head(&check->bo) + 11, &gmt_time, 4);
-		}
-		else if ((check->type) == PR_O2_HTTP_CHK) {
+		if ((check->type) == PR_O2_HTTP_CHK) {
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
 				b_putist(&check->bo, ist("Connection: close\r\n"));
@@ -5193,6 +5173,115 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
+
+
+/* Parses the "option ssl-hello-chk" proxy keyword */
+int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				  const char *file, int line)
+{
+	/* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
+	 * ssl-hello-chk option to ensure that the remote server speaks SSL.
+	 *
+	 * Check RFC 2246 (TLSv1.0) sections A.3 and A.4 for details.
+	 */
+	static char sslv3_client_hello[] = {
+		"16"                        /* ContentType         : 0x16 = Hanshake           */
+		"0300"                      /* ProtocolVersion     : 0x0300 = SSLv3            */
+		"0079"                      /* ContentLength       : 0x79 bytes after this one */
+		"01"                        /* HanshakeType        : 0x01 = CLIENT HELLO       */
+		"000075"                    /* HandshakeLength     : 0x75 bytes after this one */
+		"0300"                      /* Hello Version       : 0x0300 = v3               */
+		"%[date(),htonl,hex]"       /* Unix GMT Time (s)   : filled with <now> (@0x0B) */
+		"%[str(HAPROXYSSLCHK\nHAPROXYSSLCHK\n),hex]" /* Random   : must be exactly 28 bytes  */
+		"00"                        /* Session ID length   : empty (no session ID)     */
+		"004E"                      /* Cipher Suite Length : 78 bytes after this one   */
+		"0001" "0002" "0003" "0004" /* 39 most common ciphers :  */
+		"0005" "0006" "0007" "0008" /* 0x01...0x1B, 0x2F...0x3A  */
+		"0009" "000A" "000B" "000C" /* This covers RSA/DH,       */
+		"000D" "000E" "000F" "0010" /* various bit lengths,      */
+		"0011" "0012" "0013" "0014" /* SHA1/MD5, DES/3DES/AES... */
+		"0015" "0016" "0017" "0018"
+		"0019" "001A" "001B" "002F"
+		"0030" "0031" "0032" "0033"
+		"0034" "0035" "0036" "0037"
+		"0038" "0039" "003A"
+		"01"                       /* Compression Length  : 0x01 = 1 byte for types   */
+		"00"                       /* Compression Type    : 0x00 = NULL compression   */
+	};
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *errmsg = NULL;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	rs = tcpcheck_ruleset_lookup("*ssl-hello-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*ssl-hello-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", sslv3_client_hello, "log-format", ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^1[56]",
+				                "min-recv", "5",
+				                "error-status", "L6RSP", "tout-status", "L6TOUT",
+				                ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_SSL3_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
 
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },

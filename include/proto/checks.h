@@ -71,6 +71,9 @@ int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int er
 
 int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 				const char *file, int line);
+int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				  const char *file, int line);
+
 #endif /* _PROTO_CHECKS_H */
 
 /*

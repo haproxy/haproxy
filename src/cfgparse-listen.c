@@ -2397,16 +2397,8 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "ssl-hello-chk")) {
-			/* use SSLv3 CLIENT HELLO to check servers' health */
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_SSL3_CHK;
-
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_ssl_hello_chk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {

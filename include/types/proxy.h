@@ -175,7 +175,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_HTTP_CHK  0x40000000      /* use HTTP 'OPTIONS' method to check server health */
 #define PR_O2_MYSQL_CHK 0x50000000      /* use MYSQL check for server health */
 #define PR_O2_LDAP_CHK  0x60000000      /* use LDAP check for server health */
-#define PR_O2_SSL3_CHK  0x70000000      /* use SSLv3 CLIENT_HELLO packets for server health */
+/* unused: 0x70000000 */
 #define PR_O2_LB_AGENT_CHK 0x80000000   /* use a TCP connection to obtain a metric of server health */
 #define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
 #define PR_O2_EXT_CHK   0xA0000000      /* use external command for server health */

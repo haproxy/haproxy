@@ -313,6 +313,7 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_DEF         0x00000002 /* Ruleset inherited from the default section */
 
 #define TCPCHK_RULES_REDIS_CHK   0x00000020
+#define TCPCHK_RULES_SSL3_CHK    0x00000070
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */
 struct tcpcheck_var {
