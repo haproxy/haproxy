@@ -308,9 +308,11 @@ struct tcpcheck_rule {
 	};
 };
 
-#define TCPCHK_RULES_NONE   0x00000000
-#define TCPCHK_RULES_SHARED 0x00000001 /* Set for shared list of tcp-check rules */
-#define TCPCHK_RULES_DEF    0x00000002 /* Ruleset inherited from the default section */
+#define TCPCHK_RULES_NONE        0x00000000
+#define TCPCHK_RULES_SHARED      0x00000001 /* Set for shared list of tcp-check rules */
+#define TCPCHK_RULES_DEF         0x00000002 /* Ruleset inherited from the default section */
+
+#define TCPCHK_RULES_REDIS_CHK   0x00000020
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */
 struct tcpcheck_var {

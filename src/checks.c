@@ -1222,18 +1222,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		}
 		break;
 
-	case PR_O2_REDIS_CHK:
-		if (!done && b_data(&check->bi) < 7)
-			goto wait_more_data;
-
-		if (strcmp(b_head(&check->bi), "+PONG\r\n") == 0) {
-			set_server_check_status(check, HCHK_STATUS_L7OKD, "Redis server is ok");
-		}
-		else {
-			set_server_check_status(check, HCHK_STATUS_L7STS, b_head(&check->bi));
-		}
-		break;
-
 	case PR_O2_MYSQL_CHK:
 		if (!done && b_data(&check->bi) < 5)
 			goto wait_more_data;
@@ -5075,6 +5063,135 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
   error:
 	deinit_proxy_tcpcheck(curpx);
 	return -1;
+}
+
+
+static struct tcpcheck_ruleset *tcpcheck_ruleset_lookup(const char *name)
+{
+	struct tcpcheck_ruleset *rs;
+
+	list_for_each_entry(rs, &tcpchecks_list, list) {
+		if (strcmp(rs->name, name) == 0)
+			return rs;
+	}
+	return NULL;
+}
+
+static struct tcpcheck_ruleset *tcpcheck_ruleset_create(const char *name)
+{
+	struct tcpcheck_ruleset *rs;
+
+	rs = calloc(1, sizeof(*rs));
+	if (rs == NULL)
+		return NULL;
+
+	rs->name = strdup(name);
+	if (rs->name == NULL) {
+		free(rs);
+		return NULL;
+	}
+
+	LIST_INIT(&rs->list);
+	LIST_INIT(&rs->rules);
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	return rs;
+}
+
+static void tcpcheck_ruleset_release(struct tcpcheck_ruleset *rs)
+{
+	struct tcpcheck_rule *r, *rb;
+	if (!rs)
+		return;
+
+	LIST_DEL(&rs->list);
+	list_for_each_entry_safe(r, rb, &rs->rules, list) {
+		LIST_DEL(&r->list);
+		free_tcpcheck(r, 0);
+	}
+	free(rs->name);
+	free(rs);
+}
+
+
+/* Parses the "option redis-check" proxy keyword */
+int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line)
+{
+	static char *redis_req = "*1\r\n$4\r\nPING\r\n";
+	static char *redis_res = "+PONG\r\n";
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *errmsg = NULL;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	rs = tcpcheck_ruleset_lookup("*redis-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*redis-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", redis_req, ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "string", redis_res,
+				               "error-status", "L7STS",
+				               "on-error", "%[check.payload(),cut_crlf]",
+				               "on-success", "Redis server is ok",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_REDIS_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {

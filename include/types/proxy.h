@@ -170,7 +170,7 @@ enum PR_SRV_STATE_FILE {
 /* server health checks */
 #define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
 #define PR_O2_PGSQL_CHK 0x10000000      /* use PGSQL check for server health */
-#define PR_O2_REDIS_CHK 0x20000000      /* use LDAP check for server health */
+/* unused: 0x20000000 */
 #define PR_O2_SMTP_CHK  0x30000000      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
 #define PR_O2_HTTP_CHK  0x40000000      /* use HTTP 'OPTIONS' method to check server health */
 #define PR_O2_MYSQL_CHK 0x50000000      /* use MYSQL check for server health */

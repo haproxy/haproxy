@@ -2495,22 +2495,9 @@ stats_error_parsing:
 			if (alertif_too_many_args_idx(2, 1, file, linenum, args, &err_code))
 				goto out;
 		}
-
 		else if (!strcmp(args[1], "redis-check")) {
-			/* use REDIS PING request to check servers' health */
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_REDIS_CHK;
-
-			curproxy->check_req = malloc(sizeof(DEF_REDIS_CHECK_REQ) - 1);
-			memcpy(curproxy->check_req, DEF_REDIS_CHECK_REQ, sizeof(DEF_REDIS_CHECK_REQ) - 1);
-			curproxy->check_len = sizeof(DEF_REDIS_CHECK_REQ) - 1;
-
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_redis_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 
