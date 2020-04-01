@@ -949,36 +949,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		}
 		break;
 
-	case PR_O2_SMTP_CHK:
-		if (!done && b_data(&check->bi) < strlen("000\r"))
-			goto wait_more_data;
-
-		/* do not reset when closing, servers don't like this */
-		if (conn_ctrl_ready(cs->conn))
-			fdtab[cs->conn->handle.fd].linger_risk = 0;
-
-		/* Check if the server speaks SMTP */
-		if ((b_data(&check->bi) < strlen("000\r")) ||
-		    (*(b_head(&check->bi) + 3) != ' ' && *(b_head(&check->bi) + 3) != '\r') ||
-		    !isdigit((unsigned char) *b_head(&check->bi)) || !isdigit((unsigned char) *(b_head(&check->bi) + 1)) ||
-		    !isdigit((unsigned char) *(b_head(&check->bi) + 2))) {
-			cut_crlf(b_head(&check->bi));
-			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
-			goto out_wakeup;
-		}
-
-		check->code = str2uic(b_head(&check->bi));
-
-		desc = ltrim(b_head(&check->bi) + 3, ' ');
-		cut_crlf(desc);
-
-		/* Check for SMTP code 2xx (should be 250) */
-		if (*b_head(&check->bi) == '2')
-			set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
-		else
-			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-		break;
-
 	case PR_O2_LB_AGENT_CHK: {
 		int status = HCHK_STATUS_CHECKED;
 		const char *hs = NULL; /* health status      */
@@ -5282,6 +5252,153 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	goto out;
 }
 
+/* Parses the "option smtpchk" proxy keyword */
+int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			    const char *file, int line)
+{
+	static char *smtp_req = "%[var(check.smtp_cmd)]\r\n";
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	struct tcpcheck_var *var = NULL;
+	char *cmd = NULL, *errmsg = NULL;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(2, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	cur_arg += 2;
+	if (*args[cur_arg] && *args[cur_arg+1] &&
+	    (strcmp(args[cur_arg], "EHLO") == 0 || strcmp(args[cur_arg], "HELO") == 0)) {
+		cmd = calloc(strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + 1, sizeof(*cmd));
+		if (cmd)
+			sprintf(cmd, "%s %s", args[cur_arg], args[cur_arg+1]);
+	}
+	else {
+		/* this just hits the default for now, but you could potentially expand it to allow for other stuff
+		   though, it's unlikely you'd want to send anything other than an EHLO or HELO */
+		cmd = strdup("HELO localhost");
+	}
+
+	var = tcpcheck_var_create("check.smtp_cmd");
+	if (cmd == NULL || var == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+	var->data.type = SMP_T_STR;
+	var->data.u.str.area = cmd;
+	var->data.u.str.data = strlen(cmd);
+	LIST_INIT(&var->list);
+	LIST_ADDQ(&rules->preset_vars, &var->list);
+	cmd = NULL;
+	var = NULL;
+
+	rs = tcpcheck_ruleset_lookup("*smtp-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*smtp-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
+				     1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^[0-9]{3}[ \r]",
+				               "min-recv", "4",
+				               "error-status", "L7RSP",
+				               "on-error", "%[check.payload(),cut_crlf]",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[ \r]",
+				               "min-recv", "4",
+				               "error-status", "L7STS",
+				               "on-error", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
+				               "status-code", "check.payload(0,3)",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 2;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", smtp_req, "log-format", ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 3;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[- \r]",
+				               "min-recv", "4",
+				               "error-status", "L7STS",
+				               "on-error", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
+				               "on-success", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
+				               "status-code", "check.payload(0,3)",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 4;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_SMTP_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	free(cmd);
+	free(var);
+	free_tcpcheck_vars(&rules->preset_vars);
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
 
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },

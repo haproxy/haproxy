@@ -3,7 +3,7 @@
   Functions prototypes for the checks.
 
   Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -73,6 +73,8 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 				const char *file, int line);
 int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 				  const char *file, int line);
+int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			    const char *file, int line);
 
 #endif /* _PROTO_CHECKS_H */
 

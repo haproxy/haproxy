@@ -2402,29 +2402,8 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
-			/* use SMTP request to check servers' health */
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_SMTP_CHK;
-
-			if (!*args[2] || !*args[3]) { /* no argument or incomplete EHLO host */
-				curproxy->check_req = strdup(DEF_SMTP_CHECK_REQ); /* default request */
-				curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
-			} else { /* ESMTP EHLO, or SMTP HELO, and a hostname */
-				if (!strcmp(args[2], "EHLO") || !strcmp(args[2], "HELO")) {
-					int reqlen = strlen(args[2]) + strlen(args[3]) + strlen(" \r\n") + 1;
-					curproxy->check_req = malloc(reqlen);
-					curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-								       "%s %s\r\n", args[2], args[3]); /* HELO hostname */
-				} else {
-					/* this just hits the default for now, but you could potentially expand it to allow for other stuff
-					   though, it's unlikely you'd want to send anything other than an EHLO or HELO */
-					curproxy->check_req = strdup(DEF_SMTP_CHECK_REQ); /* default request */
-					curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
-				}
-			}
-			if (alertif_too_many_args_idx(2, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_smtpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "pgsql-check")) {
