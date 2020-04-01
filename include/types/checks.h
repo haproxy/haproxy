@@ -44,7 +44,7 @@ enum chk_result {
 #define CHK_ST_PORT_MISS        0x0020  /* check can't be send because no port is configured to run it */
 
 /* check status */
-enum {
+enum healthcheck_status {
 	HCHK_STATUS_UNKNOWN	 = 0,	/* Unknown */
 	HCHK_STATUS_INI,		/* Initializing */
 	HCHK_STATUS_START,		/* Check started - SPECIAL STATUS */
