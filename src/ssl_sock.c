@@ -12716,6 +12716,9 @@ INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
  */
+
+/* the <ssl_bind_kws> keywords are used for crt-list parsing, they *MUST* be safe
+ * with their proxy argument NULL and must only fill the ssl_bind_conf */
 static struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "allow-0rtt",            ssl_bind_parse_allow_0rtt,       0 }, /* allow 0-RTT */
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
