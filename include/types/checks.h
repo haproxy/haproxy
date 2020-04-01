@@ -264,6 +264,8 @@ struct tcpcheck_expect {
 	int inverse;                    /* Match is inversed. */
 	int with_capture;               /* Match will store captured groups for back-reference in comment. */
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
+	enum healthcheck_status err_status;  /* The healthcheck status to use on error (default: L7RSP) */
+	enum healthcheck_status tout_status; /* The healthcheck status to use on timeout (default: L7TOUT) */
 };
 
 struct tcpcheck_action_kw {

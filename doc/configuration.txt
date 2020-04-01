@@ -9871,7 +9871,8 @@ tcp-check connect [params*]
   See also : "option tcp-check", "tcp-check send", "tcp-check expect"
 
 
-tcp-check expect [min-recv <int>] [!] <match> <pattern>
+tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
+                 [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
                                no     |    no    |   yes  |   yes
@@ -9894,6 +9895,20 @@ tcp-check expect [min-recv <int>] [!] <match> <pattern>
               The keyword may be preceded by an exclamation mark ("!") to negate
               the match. Spaces are allowed between the exclamation mark and the
               keyword. See below for more details on the supported keywords.
+
+    error-status <st>  is optional and can be used to set the check status if
+                       an error occurred during the expect rule evaluation.
+                       "L7RSP", "L7STS", "L6RSP" and "L4CON" are supported and
+                       may be used to set, respectively, HCHK_STATUS_L7RSP,
+                       HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP or HCHK_STATUS_L4CON
+                       error status. By default "L7RSP" is used.
+
+    tout-status <st>  is optional and can be used to set the check status if
+                       a timeout occurred during the expect rule evaluation.
+                       "L7TOUT", "L6TOUT", and "L4TOUT" are supported and may
+                       be used to set, respectively, HCHK_STATUS_L7TOUT,
+                       HCHK_STATUS_L6TOUT or HCHK_STATUS_L4TOUT timeout status.
+                       By default "L7TOUT" is used.
 
     <pattern> is the pattern to look for. It may be a string or a regular
               expression. If the pattern contains spaces, they must be escaped

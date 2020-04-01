@@ -737,11 +737,16 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 	else if (expired) {
+		enum healthcheck_status tout = HCHK_STATUS_L7TOUT;
+
 		/* connection established but expired check */
 		if (check->type == PR_O2_SSL3_CHK)
 			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
-		else	/* HTTP, SMTP, ... */
-			set_server_check_status(check, HCHK_STATUS_L7TOUT, err_msg);
+		else {	/* HTTP, SMTP, ... */
+			if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT)
+				tout = check->current_step->expect.tout_status;
+			set_server_check_status(check, tout, err_msg);
+		}
 	}
 
 	return;
@@ -3217,7 +3222,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		else
 			chunk_appendf(&trash, " comment: '%s'", comment);
 	}
-	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+	set_server_check_status(check, expect->err_status, trash.area);
 	ret = TCPCHK_EVAL_STOP;
 
   out:
@@ -3380,7 +3385,7 @@ static int tcpcheck_main(struct check *check)
 					comment = tcpcheck_get_step_comment(check, rule);
 					if (comment)
 						chunk_appendf(&trash, " comment: '%s'", comment);
-					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+					set_server_check_status(check, rule->expect.err_status, trash.area);
 					ret = -1;
 					goto out_end_tcpcheck;
 				}
@@ -3673,6 +3678,8 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 
 	expect = &tcpcheck->expect;
 	expect->type = TCPCHK_EXPECT_STRING;
+	expect->err_status = HCHK_STATUS_L7RSP;
+	expect->tout_status = HCHK_STATUS_L7TOUT;
 	expect->string = strdup(str);
 	if (!expect->string) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
@@ -4489,6 +4496,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	struct tcpcheck_rule *prev_check, *chk = NULL;
 	char *str = NULL, *comment = NULL, *pattern = NULL;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
+	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
+	enum healthcheck_status tout_st = HCHK_STATUS_L7TOUT;
 	long min_recv = -1;
 	int inverse = 0, with_capture = 0;
 
@@ -4563,6 +4572,52 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 		}
+		else if (strcmp(args[cur_arg], "error-status") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			if (strcasecmp(args[cur_arg+1], "L7RSP") == 0)
+				err_st = HCHK_STATUS_L7RSP;
+			else if (strcasecmp(args[cur_arg+1], "L7STS") == 0)
+				err_st = HCHK_STATUS_L7STS;
+			else if (strcasecmp(args[cur_arg+1], "L6RSP") == 0)
+				err_st = HCHK_STATUS_L6RSP;
+			else if (strcasecmp(args[cur_arg+1], "L4CON") == 0)
+				err_st = HCHK_STATUS_L4CON;
+			else  {
+				memprintf(errmsg, "'%s' only supports 'L4CON', 'L6RSP', 'L7RSP' or 'L7STS' status (got '%s').",
+					  args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "tout-status") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			if (strcasecmp(args[cur_arg+1], "L7TOUT") == 0)
+				tout_st = HCHK_STATUS_L7TOUT;
+			else if (strcasecmp(args[cur_arg+1], "L6TOUT") == 0)
+				tout_st = HCHK_STATUS_L6TOUT;
+			else if (strcasecmp(args[cur_arg+1], "L4TOUT") == 0)
+				tout_st = HCHK_STATUS_L4TOUT;
+			else  {
+				memprintf(errmsg, "'%s' only supports 'L4TOUT', 'L6TOUT' or 'L7TOUT' status (got '%s').",
+					  args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+			cur_arg++;
+		}
 		else {
 			memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]rbinary'"
 				  " or comment but got '%s' as argument.", args[cur_arg]);
@@ -4602,6 +4657,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->expect.min_recv = min_recv;
 	chk->expect.inverse = inverse;
 	chk->expect.with_capture = with_capture;
+	chk->expect.err_status = err_st;
+	chk->expect.tout_status = tout_st;
 
 	switch (chk->expect.type) {
 	case TCPCHK_EXPECT_STRING:
