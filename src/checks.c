@@ -68,7 +68,6 @@
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);
-static char *tcpcheck_get_step_comment(struct check *, struct tcpcheck_rule *);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
@@ -616,7 +615,6 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	const char *err_msg;
 	struct buffer *chk;
 	int step;
-	char *comment;
 
 	if (check->result != CHK_RES_UNKNOWN)
 		return;
@@ -674,9 +672,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				chunk_appendf(chk, " (send)");
 			}
 
-			comment = tcpcheck_get_step_comment(check, NULL);
-			if (comment)
-				chunk_appendf(chk, " comment: '%s'", comment);
+			if (check->current_step && check->current_step->comment)
+				chunk_appendf(chk, " comment: '%s'", check->current_step->comment);
 		}
 	}
 
@@ -2765,38 +2762,6 @@ static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 	return rule->index + 1;
 }
 
-/*
- * return the latest known comment for the current rule, the comment attached to
- * it or the COMMENT rule immediately preceedding the expect rule chain, if any.
- * returns NULL if no comment found.
- */
-static char *tcpcheck_get_step_comment(struct check *check, struct tcpcheck_rule *rule)
-{
-	struct tcpcheck_rule *cur;
-	char *ret = NULL;
-
-	if (!rule)
-		rule = check->current_step;
-
-	if (rule->comment) {
-		ret = rule->comment;
-		goto return_comment;
-	}
-
-	rule = LIST_PREV(&rule->list, typeof(cur), list);
-	list_for_each_entry_from_rev(rule, check->tcpcheck_rules->list, list) {
-		if (rule->action == TCPCHK_ACT_COMMENT) {
-			ret = rule->comment;
-			break;
-		}
-		else if (rule->action != TCPCHK_ACT_EXPECT)
-			break;
-	}
-
- return_comment:
-	return ret;
-}
-
 enum tcpcheck_eval_ret {
 	TCPCHK_EVAL_WAIT = 0,
 	TCPCHK_EVAL_STOP,
@@ -2816,7 +2781,6 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	struct connection *conn = NULL;
 	struct protocol *proto;
 	struct xprt_ops *xprt;
-	char *comment;
 	int status, port;
 
 	/* For a connect action we'll create a new connection. We may also have
@@ -2833,9 +2797,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	if (!cs) {
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
-		comment = tcpcheck_get_step_comment(check, rule);
-		if (comment)
-			chunk_appendf(&trash, " comment: '%s'", comment);
+		if (rule->comment)
+			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -2998,9 +2961,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 		chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
 			     tcpcheck_get_step_id(check, rule), strerror(errno));
-		comment = tcpcheck_get_step_comment(check, rule);
-		if (comment)
-			chunk_appendf(&trash, " comment: '%s'", comment);
+		if (rule->comment)
+			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 		set_server_check_status(check, HCHK_STATUS_L4CON, trash.area);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -3009,9 +2971,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	case SF_ERR_INTERNAL:
 		chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
-		comment = tcpcheck_get_step_comment(check, rule);
-		if (comment)
-			chunk_appendf(&trash, " comment: '%s'", comment);
+		if (rule->comment)
+			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -3111,7 +3072,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &check->current_step->expect;
-	char *comment, *diag;
+	char *diag;
 	int match;
 
 	/* The current expect might need more data than the previous one, check again
@@ -3212,15 +3173,14 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		goto out;
 	}
 
-	comment = tcpcheck_get_step_comment(check, rule);
-	if (comment) {
+	if (rule->comment) {
 		if (expect->with_capture) {
-			ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), comment, pmatch);
+			ret = exp_replace(b_tail(&trash), b_room(&trash), b_head(&check->bi), rule->comment, pmatch);
 			if (ret > 0) /* ignore comment if too large */
 				trash.data += ret;
 		}
 		else
-			chunk_appendf(&trash, " comment: '%s'", comment);
+			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 	}
 	set_server_check_status(check, expect->err_status, trash.area);
 	ret = TCPCHK_EVAL_STOP;
@@ -3374,17 +3334,14 @@ static int tcpcheck_main(struct check *check)
 
 				/* Check that response body is not empty... */
 				if (!b_data(&check->bi)) {
-					char *comment;
-
 					if (!last_read)
 						goto out;
 
 					/* empty response */
 					chunk_printf(&trash, "TCPCHK got an empty response at step %d",
 						     tcpcheck_get_step_id(check, rule));
-					comment = tcpcheck_get_step_comment(check, rule);
-					if (comment)
-						chunk_appendf(&trash, " comment: '%s'", comment);
+					if (rule->comment)
+						chunk_appendf(&trash, " comment: '%s'", rule->comment);
 					set_server_check_status(check, rule->expect.err_status, trash.area);
 					ret = -1;
 					goto out_end_tcpcheck;
@@ -3931,7 +3888,9 @@ REGISTER_POST_CHECK(start_checks);
 
 static int check_proxy_tcpcheck(struct proxy *px)
 {
-	struct tcpcheck_rule *chk;
+	struct tcpcheck_rule *chk, *back;
+	char *comment = NULL;
+	enum tcpcheck_rule_type prev_action = TCPCHK_ACT_COMMENT;
 	int ret = 0;
 
 	if ((px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
@@ -3963,6 +3922,39 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		chk->connect.options = TCPCHK_OPT_DEFAULT_CONNECT;
 		LIST_ADD(px->tcpcheck_rules.list, &chk->list);
 	}
+
+	/* Now remove comment rules */
+	list_for_each_entry_safe(chk, back, px->tcpcheck_rules.list, list) {
+		if (chk->action != prev_action && prev_action != TCPCHK_ACT_COMMENT) {
+			free(comment);
+			comment = NULL;
+		}
+
+		prev_action = chk->action;
+		switch (chk->action) {
+		case TCPCHK_ACT_COMMENT:
+			free(comment);
+			comment = chk->comment;
+			LIST_DEL(&chk->list);
+			free(chk);
+			break;
+		case TCPCHK_ACT_CONNECT:
+			if (!chk->comment && comment)
+				chk->comment = strdup(comment);
+			/* fall though */
+		case TCPCHK_ACT_ACTION_KW:
+			free(comment);
+			comment = NULL;
+			break;
+		case TCPCHK_ACT_SEND:
+		case TCPCHK_ACT_EXPECT:
+			if (!chk->comment && comment)
+				chk->comment = strdup(comment);
+			break;
+		}
+	}
+	free(comment);
+	comment = NULL;
 
   out:
 	return ret;
