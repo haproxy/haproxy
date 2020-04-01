@@ -14249,6 +14249,10 @@ ltime(<format>[,<offset>])
       # e.g.  20140710162350 127.0.0.1:57325
       log-format %[date,ltime(%Y%m%d%H%M%S)]\ %ci:%cp
 
+ltrim(<chars>)
+  Skips any characters from <chars> from the beginning of the string
+  representation of the input sample.
+
 map(<map_file>[,<default_value>])
 map_<match_type>(<map_file>[,<default_value>])
 map_<match_type>_<output_type>(<map_file>[,<default_value>])
