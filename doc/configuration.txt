@@ -14036,6 +14036,11 @@ crc32c([<avalanche>])
   not be used for security purposes as a 32-bit hash is trivial to break. See
   also "djb2", "sdbm", "wt6", "crc32" and the "hash-type" directive.
 
+cut_crlf
+  Cuts the string representation of the input sample on the first carriage
+  return ('\r') or newline ('\n') character found. Only the string length is
+  updated.
+
 da-csv-conv(<prop>[,<prop>*])
   Asks the DeviceAtlas converter to identify the User Agent string passed on
   input, and to emit a string made of the concatenation of the properties

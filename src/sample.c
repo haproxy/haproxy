@@ -2979,6 +2979,21 @@ static int sample_conv_htonl(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+/**/
+static int sample_conv_cut_crlf(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	char *p;
+	size_t l;
+
+	p = smp->data.u.str.area;
+	for (l = 0; l < smp->data.u.str.data; l++) {
+		if (*(p+l) == '\r' || *(p+l) == '\n')
+			break;
+	}
+	smp->data.u.str.data = l;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -3447,7 +3462,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "mod",    sample_conv_arith_mod,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "neg",    sample_conv_arith_neg,            0, NULL, SMP_T_SINT, SMP_T_SINT  },
 
-	{ "htonl",  sample_conv_htonl,                0, NULL, SMP_T_SINT, SMP_T_BIN  },
+	{ "htonl",    sample_conv_htonl,              0, NULL, SMP_T_SINT, SMP_T_BIN  },
+	{ "cut_crlf", sample_conv_cut_crlf,           0, NULL, SMP_T_STR,  SMP_T_STR  },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
