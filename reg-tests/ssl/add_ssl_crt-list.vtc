@@ -46,7 +46,7 @@ shell {
    echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
    printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
    echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
-   echo "add ssl crt-list ${testdir}/localhost.crt-list ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+   printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
@@ -56,7 +56,8 @@ haproxy h1 -cli {
 
 haproxy h1 -cli {
     send "show ssl crt-list ${testdir}/localhost.crt-list"
-    expect ~ ".*${testdir}/ecdsa.pem"
+    # check the options and the filters in any order
+    expect ~ ".*${testdir}/ecdsa.pem \\[(?=.*verify none)(?=.*allow-0rtt).*\\](?=.*!www.test1.com)(?=.*localhost).*"
 }
 
 shell {
