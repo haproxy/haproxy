@@ -44,6 +44,7 @@
 #include <types/stats.h>
 
 #include <proto/action.h>
+#include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/checks.h>
 #include <proto/stats.h>
@@ -4121,6 +4122,44 @@ REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
 REGISTER_POST_DEINIT(deinit_tcpchecks);
+
+/* extracts check payload at a fixed position and length */
+static int
+smp_fetch_chk_payload(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
+{
+	unsigned int buf_offset = ((arg_p[0].type == ARGT_SINT) ? arg_p[0].data.sint : 0);
+	unsigned int buf_size = ((arg_p[1].type == ARGT_SINT) ? arg_p[1].data.sint : 0);
+	struct server *srv = (smp->sess ? objt_server(smp->sess->origin) : NULL);
+	struct buffer *buf;
+
+	if (!srv || !srv->do_check)
+		return 0;
+
+	buf = &srv->check.bi;
+	if (buf_offset > b_data(buf))
+		goto no_match;
+	if (buf_offset + buf_size > b_data(buf))
+		buf_size = 0;
+
+	/* init chunk as read only */
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
+	chunk_initlen(&smp->data.u.str, b_head(buf) + buf_offset, 0, (buf_size ? buf_size : (b_data(buf) - buf_offset)));
+
+	return 1;
+
+ no_match:
+	smp->flags = 0;
+	return 0;
+}
+
+static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "check.payload", smp_fetch_chk_payload,   ARG2(0,SINT,SINT), NULL, SMP_T_STR,  SMP_USE_INTRN },
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
+
 
 struct action_kw_list tcp_check_keywords = {
 	.list = LIST_HEAD_INIT(tcp_check_keywords.list),

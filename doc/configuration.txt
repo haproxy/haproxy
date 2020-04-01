@@ -87,7 +87,8 @@ Summary
 7.3.4.        Fetching samples at Layer 5
 7.3.5.        Fetching samples from buffer contents (Layer 6)
 7.3.6.        Fetching HTTP samples (Layer 7)
-7.3.7.        Fetching samples for developers
+7.3.7.        Fetching health-check samples
+7.3.8.        Fetching samples for developers
 7.4.      Pre-defined ACLs
 
 8.    Logging
@@ -17164,7 +17165,25 @@ url32+src : binary
   the source address family. This can be used to track per-IP, per-URL counters.
 
 
-7.3.7. Fetching samples for developers
+7.3.7. Fetching health-check samples
+-------------------------------------
+
+This set of sample fetch methods may be called from an health-check execution
+context. It was introduced in the version 2.2. The following sample fetches are
+placed in the dedicated scope "check". Other sample fetches may also be called
+when an health-check is performed if it makes sense and if the sample fetch was
+adapted to be called in this context.
+
+check.payload(<offset>,<length>) : binary
+  This extracts a binary block of <length> bytes and starting at byte <offset>
+  in the check input buffer. As a special case, if the <length> argument is
+  zero, then the whole buffer from <offset> to the end is extracted. This can
+  be called from a tcp-check expect rule, or eventually from a set-var rule
+  after an expect rule and before a send rule (check input buffer is filled on
+  tcp-check expect rules and reset on tcp-check send rules).
+
+
+7.3.8. Fetching samples for developers
 ---------------------------------------
 
 This set of sample fetch methods is reserved to developers and must never be
