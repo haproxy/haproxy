@@ -3015,6 +3015,26 @@ static int sample_conv_ltrim(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+/**/
+static int sample_conv_rtrim(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	char *delimiters, *p;
+	size_t dlen, l;
+
+	delimiters =  arg_p[0].data.str.area;
+	dlen = arg_p[0].data.str.data;
+
+	l = smp->data.u.str.data;
+	p = smp->data.u.str.area + l - 1;
+	while (l && memchr(delimiters, *p, dlen) != NULL) {
+		p--;
+		l--;
+	}
+
+	smp->data.u.str.data = l;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -3486,6 +3506,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "htonl",    sample_conv_htonl,              0, NULL, SMP_T_SINT, SMP_T_BIN  },
 	{ "cut_crlf", sample_conv_cut_crlf,           0, NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "ltrim",    sample_conv_ltrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "rtrim",    sample_conv_rtrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

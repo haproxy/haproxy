@@ -14442,6 +14442,10 @@ capture-res(<id>)
             "http-response capture", "capture.req.hdr" and
             "capture.res.hdr" (sample fetches).
 
+rtrim(<chars>)
+  Skips any characters from <chars> from the end of the string representation
+  of the input sample.
+
 sdbm([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the SDBM
   hash function. Optionally, it is possible to apply a full avalanche hash
