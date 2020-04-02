@@ -1156,27 +1156,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		break;
 	}
 
-	case PR_O2_PGSQL_CHK:
-		if (!done && b_data(&check->bi) < 9)
-			goto wait_more_data;
-
-		/* do not reset when closing, servers don't like this */
-		if (conn_ctrl_ready(cs->conn))
-			fdtab[cs->conn->handle.fd].linger_risk = 0;
-
-		if (b_head(&check->bi)[0] == 'R') {
-			set_server_check_status(check, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
-		}
-		else {
-			if ((b_head(&check->bi)[0] == 'E') && (b_head(&check->bi)[5]!=0) && (b_head(&check->bi)[6]!=0))
-				desc = &b_head(&check->bi)[6];
-			else
-				desc = "PostgreSQL unknown error";
-
-			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-		}
-		break;
-
 	case PR_O2_MYSQL_CHK:
 		if (!done && b_data(&check->bi) < 5)
 			goto wait_more_data;
@@ -3512,7 +3491,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 }
 
 
-static __maybe_unused struct tcpcheck_var *tcpcheck_var_create(const char *name)
+static struct tcpcheck_var *tcpcheck_var_create(const char *name)
 {
 	struct tcpcheck_var *var = NULL;
 
@@ -5399,6 +5378,162 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
+
+/* Parses the "option pgsql-check" proxy keyword */
+int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line)
+{
+	static char pgsql_req[] = {
+		"%[var(check.plen),htonl,hex]" /* The packet length*/
+		"00030000"                     /* the version 3.0 */
+		"7573657200"                   /* "user" key */
+		"%[var(check.username),hex]00" /* the username */
+		"00"
+	};
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	struct tcpcheck_var *var = NULL;
+	char *user = NULL, *errmsg = NULL;
+	size_t packetlen = 0;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(2, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	cur_arg += 2;
+	if (!*args[cur_arg] || !*args[cur_arg+1]) {
+		ha_alert("parsing [%s:%d] : '%s %s' expects 'user <username>' as argument.\n",
+			 file, line, args[0], args[1]);
+		goto error;
+	}
+	if (strcmp(args[cur_arg], "user") == 0) {
+		packetlen = 15 + strlen(args[cur_arg+1]);
+		user = strdup(args[cur_arg+1]);
+
+		var = tcpcheck_var_create("check.username");
+		if (user == NULL || var == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+		var->data.type = SMP_T_STR;
+		var->data.u.str.area = user;
+		var->data.u.str.data = strlen(user);
+		LIST_INIT(&var->list);
+		LIST_ADDQ(&rules->preset_vars, &var->list);
+		user = NULL;
+		var = NULL;
+
+		var = tcpcheck_var_create("check.plen");
+		if (var == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+		var->data.type = SMP_T_SINT;
+		var->data.u.sint = packetlen;
+		LIST_INIT(&var->list);
+		LIST_ADDQ(&rules->preset_vars, &var->list);
+		var = NULL;
+	}
+	else {
+		ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'user'.\n",
+			 file, line, args[0], args[1]);
+		goto error;
+	}
+
+	rs = tcpcheck_ruleset_lookup("*pgsql-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*pgsql-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
+				     1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", pgsql_req, "log-format", ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "!rstring", "^E",
+				               "min-recv", "5",
+				               "error-status", "L7RSP",
+				               "on-error", "%[check.payload(6,0)]",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 2;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^520000000800000000",
+				               "min-recv", "9",
+				               "error-status", "L7STS",
+				               "on-success", "PostgreSQL server is ok",
+				               "on-error",   "PostgreSQL unknown error",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 3;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_PGSQL_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	free(user);
+	free(var);
+	free_tcpcheck_vars(&rules->preset_vars);
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
 
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },

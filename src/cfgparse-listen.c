@@ -2407,63 +2407,8 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "pgsql-check")) {
-			/* use PostgreSQL request to check servers' health */
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_PGSQL_CHK;
-
-			if (*(args[2])) {
-				int cur_arg = 2;
-
-				while (*(args[cur_arg])) {
-					if (strcmp(args[cur_arg], "user") == 0) {
-						char * packet;
-						uint32_t packet_len;
-						uint32_t pv;
-
-						/* suboption header - needs additional argument for it */
-						if (*(args[cur_arg+1]) == 0) {
-							ha_alert("parsing [%s:%d] : '%s %s %s' expects <username> as argument.\n",
-								 file, linenum, args[0], args[1], args[cur_arg]);
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-
-						/* uint32_t + uint32_t + strlen("user")+1 + strlen(username)+1 + 1 */
-						packet_len = 4 + 4 + 5 + strlen(args[cur_arg + 1])+1 +1;
-						pv = htonl(0x30000); /* protocol version 3.0 */
-
-						packet = calloc(1, packet_len);
-
-						memcpy(packet + 4, &pv, 4);
-
-						/* copy "user" */
-						memcpy(packet + 8, "user", 4);
-
-						/* copy username */
-						memcpy(packet + 13, args[cur_arg+1], strlen(args[cur_arg+1]));
-
-						free(curproxy->check_req);
-						curproxy->check_req = packet;
-						curproxy->check_len = packet_len;
-
-						packet_len = htonl(packet_len);
-						memcpy(packet, &packet_len, 4);
-						cur_arg += 2;
-					} else {
-						/* unknown suboption - catchall */
-						ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'user'.\n",
-							 file, linenum, args[0], args[1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				} /* end while loop */
-			}
-			if (alertif_too_many_args_idx(2, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_pgsql_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "redis-check")) {

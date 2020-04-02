@@ -312,6 +312,7 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_SHARED      0x00000001 /* Set for shared list of tcp-check rules */
 #define TCPCHK_RULES_DEF         0x00000002 /* Ruleset inherited from the default section */
 
+#define TCPCHK_RULES_PGSQL_CHK   0x00000010
 #define TCPCHK_RULES_REDIS_CHK   0x00000020
 #define TCPCHK_RULES_SMTP_CHK    0x00000030
 #define TCPCHK_RULES_SSL3_CHK    0x00000070

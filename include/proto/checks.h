@@ -74,7 +74,9 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 				  const char *file, int line);
 int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			    const char *file, int line);
+			const char *file, int line);
+int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line);
 
 #endif /* _PROTO_CHECKS_H */
 
