@@ -49,7 +49,7 @@ static struct bind_kw_list bind_keywords = {
 struct xfer_sock_list *xfer_sock_list = NULL;
 
 /* there is one listener queue per thread so that a thread unblocking the
- * global queue can wake up listeners bound only to foreing threads by
+ * global queue can wake up listeners bound only to foreign threads by
  * moving them to the remote queues and waking up the associated tasklet.
  */
 static struct work_list *local_listener_queue;
@@ -230,7 +230,7 @@ REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
- * LI_FULL state depending on its number of connections. In deamon mode, we
+ * LI_FULL state depending on its number of connections. In daemon mode, we
  * also support binding only the relevant processes to their respective
  * listeners. We don't do that in debug mode however.
  */

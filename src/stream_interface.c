@@ -1046,7 +1046,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			cs->flags |= CS_FL_KILL_CONN;
 
 		if (si->flags & SI_FL_ERR) {
-			/* quick close, the socket is alredy shut anyway */
+			/* quick close, the socket is already shut anyway */
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
 			/* unclean data-layer shutdown, typically an aborted request

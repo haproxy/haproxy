@@ -252,7 +252,7 @@ static const char *spoe_appctx_state_str[SPOE_APPCTX_ST_END+1] = {
 #endif
 
 /* Used to generates a unique id for an engine. On success, it returns a
- * allocated string. So it is the caller's reponsibility to release it. If the
+ * allocated string. So it is the caller's responsibility to release it. If the
  * allocation failed, it returns NULL. */
 static char *
 generate_pseudo_uuid()
@@ -435,7 +435,7 @@ spoe_prepare_hahello_frame(struct appctx *appctx, char *frame, size_t size)
 	if (spoe_encode_buffer(chk->area, chk->data, &p, end) == -1)
 		goto too_big;
 
-	/* (optionnal) "engine-id" K/V item, if present */
+	/* (optional) "engine-id" K/V item, if present */
 	if (agent != NULL && agent->rt[tid].engine_id != NULL) {
 		sz = SLEN(ENGINE_ID_KEY);
 		if (spoe_encode_buffer(ENGINE_ID_KEY, sz, &p, end) == -1)
@@ -1125,7 +1125,7 @@ spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen
 }
 
 /* Send a SPOE frame to an agent. It returns -1 when an error occurred, 0 when
- * the frame can be ignored, 1 to retry later, and the frame legnth on
+ * the frame can be ignored, 1 to retry later, and the frame length on
  * success. */
 static int
 spoe_send_frame(struct appctx *appctx, char *buf, size_t framesz)
@@ -2985,7 +2985,7 @@ spoe_init(struct proxy *px, struct flt_conf *fconf)
 	return 0;
 }
 
-/* Free ressources allocated by the SPOE filter. */
+/* Free resources allocated by the SPOE filter. */
 static void
 spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 {

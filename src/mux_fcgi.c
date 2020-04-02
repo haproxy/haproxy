@@ -712,7 +712,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 
 	fconn->flags = FCGI_CF_NONE;
 
-	/* Retrieve usefull info from the FCGI app */
+	/* Retrieve useful info from the FCGI app */
 	if (app->flags & FCGI_APP_FL_KEEP_CONN)
 		fconn->flags |= FCGI_CF_KEEP_CONN;
 	if (app->flags & FCGI_APP_FL_GET_VALUES)
@@ -868,7 +868,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 }
 
 
-/* Retruns true if the FCGI connection must be release */
+/* Returns true if the FCGI connection must be release */
 static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 {
 	if (eb_is_empty(&fconn->streams_by_id) &&               /* don't close if streams exist */
@@ -1342,7 +1342,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		/* If some special characters are found in the decoded path (\n
 		 * or \0), the PATH_INFO regex cannot match. This is theorically
 		 * valid, but probably unexpected, to have such characters. So,
-		 * to avoid any suprises, an error is triggered in this
+		 * to avoid any surprises, an error is triggered in this
 		 * case.
 		 */
 		if (istchr(path, '\n') || istchr(path, '\0'))
@@ -2312,7 +2312,7 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 /* Processes an empty STDOUT. Returns > 0 on success, 0 if it couldn't do
  * anything. It only skip the padding in fact, there is no payload for such
- * records. It makrs the end of the response.
+ * records. It marks the end of the response.
  */
 static int fcgi_strm_handle_empty_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fstrm)
 {
@@ -4114,7 +4114,7 @@ static int fcgi_takeover(struct connection *conn)
 }
 
 /****************************************/
-/* MUX initialization and instanciation */
+/* MUX initialization and instantiation */
 /****************************************/
 
 /* The mux operations */

@@ -99,7 +99,7 @@ void recalc_server_map(struct proxy *px)
 	/* this algorithm gives priority to the first server, which means that
 	 * it will respect the declaration order for equivalent weights, and
 	 * that whatever the weights, the first server called will always be
-	 * the first declared. This is an important asumption for the backup
+	 * the first declared. This is an important assumption for the backup
 	 * case, where we want the first server only.
 	 */
 	for (cur = px->srv; cur; cur = cur->next)

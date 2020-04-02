@@ -434,7 +434,7 @@ int main(int argc, char **argv)
 			if (!value)
 				break;
 
-			/* skip common leading delimitors that slip from copy-paste */
+			/* skip common leading delimiters that slip from copy-paste */
 			while (*value == ' ' || *value == '\t' || *value == ':' || *value == '=')
 				value++;
 

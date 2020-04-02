@@ -91,7 +91,7 @@
  * Check RFC 2246 (TLSv1.0) sections A.3 and A.4 for details.
  */
 const char sslv3_client_hello_pkt[] = {
-	"\x16"                /* ContentType         : 0x16 = Hanshake           */
+	"\x16"                /* ContentType         : 0x16 = Handshake          */
 	"\x03\x00"            /* ProtocolVersion     : 0x0300 = SSLv3            */
 	"\x00\x79"            /* ContentLength       : 0x79 bytes after this one */
 	"\x01"                /* HanshakeType        : 0x01 = CLIENT HELLO       */
@@ -3830,7 +3830,7 @@ out_uri_auth_compat:
 			 * maximize the work at once, but in multi-process we want to keep
 			 * some fairness between processes, so we target half of the max
 			 * number of events to be balanced over all the processes the proxy
-			 * is bound to. Rememeber that maxaccept = -1 must be kept as it is
+			 * is bound to. Remember that maxaccept = -1 must be kept as it is
 			 * used to disable the limit.
 			 */
 			if (listener->maxaccept > 0 && nbproc > 1) {

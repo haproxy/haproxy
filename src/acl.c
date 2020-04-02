@@ -503,7 +503,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 expr->kw, file, line);
 	trash.area[trash.size - 1] = '\0';
 
-	/* Create new patern reference. */
+	/* Create new pattern reference. */
 	ref = pat_ref_newid(unique_id, trash.area, PAT_REF_ACL);
 	if (!ref) {
 		memprintf(err, "memory error");
@@ -521,7 +521,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 		/* Compatibility layer. Each pattern can parse only one string per pattern,
 		 * but the pat_parser_int() and pat_parse_dotted_ver() parsers were need
-		 * optionnaly two operators. The first operator is the match method: eq,
+		 * optionally two operators. The first operator is the match method: eq,
 		 * le, lt, ge and gt. pat_parse_int() and pat_parse_dotted_ver() functions
 		 * can have a compatibility syntax based on ranges:
 		 *

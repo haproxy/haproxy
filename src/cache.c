@@ -520,7 +520,7 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 }
 
 /*
- * This fonction will store the headers of the response in a buffer and then
+ * This function will store the headers of the response in a buffer and then
  * register a filter to store the data
  */
 enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
@@ -822,7 +822,7 @@ static size_t htx_cache_dump_msg(struct appctx *appctx, struct htx *htx, unsigne
 			goto add_data_blk;
 		}
 
-		/* Get info of the next HTX block. May be splitted on 2 shblk */
+		/* Get info of the next HTX block. May be split on 2 shblk */
 		sz = MIN(4, shctx->block_size - offset);
 		memcpy((char *)&info, (const char *)shblk->data + offset, sz);
 		offset += sz;
@@ -888,7 +888,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
 		si_rx_room_blk(si);
 		goto out;

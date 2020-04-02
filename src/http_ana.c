@@ -622,7 +622,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * points will have set, if any.
 	 */
 	req->analyse_exp = TICK_ETERNITY;
- done_without_exp: /* done with this analyser, but dont reset the analyse_exp. */
+ done_without_exp: /* done with this analyser, but don't reset the analyse_exp. */
 	req->analysers &= ~an_bit;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
@@ -1505,7 +1505,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			    (!conn || conn->err_code != CO_ER_SSL_EARLY_FAILED)) {
 				/* If we arrive here, then CF_READ_ERROR was
 				 * set by si_cs_recv() because we matched a
-				 * status, overwise it would have removed
+				 * status, otherwise it would have removed
 				 * the SI_FL_L7_RETRY flag, so it's ok not
 				 * to check s->be->retry_type.
 				 */
@@ -1944,10 +1944,10 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 *
 	 * Maybe we are in resume condiion. In this case I choose the
 	 * "struct proxy" which contains the rule list matching the resume
-	 * pointer. If none of theses "struct proxy" match, I initialise
+	 * pointer. If none of these "struct proxy" match, I initialise
 	 * the process with the first one.
 	 *
-	 * In fact, I check only correspondance betwwen the current list
+	 * In fact, I check only correspondence between the current list
 	 * pointer and the ->fe rule list. If it doesn't match, I initialize
 	 * the loop with the ->be.
 	 */
@@ -3200,7 +3200,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 		 * implementations trying to do that. So let's do what servers do.
 		 * Latest ietf draft forbids spaces all around. Also, earlier RFCs
 		 * allowed quoted strings in values, with any possible character
-		 * after a backslash, including control chars and delimitors, which
+		 * after a backslash, including control chars and delimiters, which
 		 * causes parsing to become ambiguous. Browsers also allow spaces
 		 * within values even without quotes.
 		 *
@@ -3251,7 +3251,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				att_end = equal;
 			}
 
-			/* here, <equal> points to '=', a delimitor or the end. <att_end>
+			/* here, <equal> points to '=', a delimiter or the end. <att_end>
 			 * is between <att_beg> and <equal>, both may be identical.
 			 */
 			/* look for end of cookie if there is an equal sign */
@@ -3264,7 +3264,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				/* find the end of the value, respecting quotes */
 				next = http_find_cookie_value_end(val_beg, hdr_end);
 
-				/* make val_end point to the first white space or delimitor after the value */
+				/* make val_end point to the first white space or delimiter after the value */
 				val_end = next;
 				while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 					val_end--;
@@ -3361,7 +3361,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				struct server *srv = s->be->srv;
 				char *delim;
 
-				/* if we're in cookie prefix mode, we'll search the delimitor so that we
+				/* if we're in cookie prefix mode, we'll search the delimiter so that we
 				 * have the server ID between val_beg and delim, and the original cookie between
 				 * delim+1 and val_end. Otherwise, delim==val_end :
 				 *
@@ -3661,7 +3661,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 				att_end = equal;
 			}
 
-			/* here, <equal> points to '=', a delimitor or the end. <att_end>
+			/* here, <equal> points to '=', a delimiter or the end. <att_end>
 			 * is between <att_beg> and <equal>, both may be identical.
 			 */
 
@@ -3675,7 +3675,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 				/* find the end of the value, respecting quotes */
 				next = http_find_cookie_value_end(val_beg, hdr_end);
 
-				/* make val_end point to the first white space or delimitor after the value */
+				/* make val_end point to the first white space or delimiter after the value */
 				val_end = next;
 				while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 					val_end--;
@@ -4303,7 +4303,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	channel_htx_truncate(res, htx);
 }
 
-/* This function terminates the request because it was completly analyzed or
+/* This function terminates the request because it was completely analyzed or
  * because an error was triggered during the body forwarding.
  */
 static void http_end_request(struct stream *s)
@@ -4440,7 +4440,7 @@ static void http_end_request(struct stream *s)
 }
 
 
-/* This function terminates the response because it was completly analyzed or
+/* This function terminates the response because it was completely analyzed or
  * because an error was triggered during the body forwarding.
  */
 static void http_end_response(struct stream *s)
