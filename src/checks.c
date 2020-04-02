@@ -1156,100 +1156,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		break;
 	}
 
-	case PR_O2_MYSQL_CHK:
-		if (!done && b_data(&check->bi) < 5)
-			goto wait_more_data;
-
-		/* do not reset when closing, servers don't like this */
-		if (conn_ctrl_ready(cs->conn))
-			fdtab[cs->conn->handle.fd].linger_risk = 0;
-
-		if (s->proxy->check_len == 0) { // old mode
-			if (*(b_head(&check->bi) + 4) != '\xff') {
-				/* We set the MySQL Version in description for information purpose
-				 * FIXME : it can be cool to use MySQL Version for other purpose,
-				 * like mark as down old MySQL server.
-				 */
-				if (b_data(&check->bi) > 51) {
-					desc = ltrim(b_head(&check->bi) + 5, ' ');
-					set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
-				}
-				else {
-					if (!done)
-						goto wait_more_data;
-
-					/* it seems we have a OK packet but without a valid length,
-					 * it must be a protocol error
-					 */
-					set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
-				}
-			}
-			else {
-				/* An error message is attached in the Error packet */
-				desc = ltrim(b_head(&check->bi) + 7, ' ');
-				set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-			}
-		} else {
-			unsigned int first_packet_len = ((unsigned int) *b_head(&check->bi)) +
-			                                (((unsigned int) *(b_head(&check->bi) + 1)) << 8) +
-			                                (((unsigned int) *(b_head(&check->bi) + 2)) << 16);
-
-			if (b_data(&check->bi) == first_packet_len + 4) {
-				/* MySQL Error packet always begin with field_count = 0xff */
-				if (*(b_head(&check->bi) + 4) != '\xff') {
-					/* We have only one MySQL packet and it is a Handshake Initialization packet
-					* but we need to have a second packet to know if it is alright
-					*/
-					if (!done && b_data(&check->bi) < first_packet_len + 5)
-						goto wait_more_data;
-				}
-				else {
-					/* We have only one packet and it is an Error packet,
-					* an error message is attached, so we can display it
-					*/
-					desc = &b_head(&check->bi)[7];
-					//ha_warning("onlyoneERR: %s\n", desc);
-					set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-				}
-			} else if (b_data(&check->bi) > first_packet_len + 4) {
-				unsigned int second_packet_len = ((unsigned int) *(b_head(&check->bi) + first_packet_len + 4)) +
-				                                 (((unsigned int) *(b_head(&check->bi) + first_packet_len + 5)) << 8) +
-				                                 (((unsigned int) *(b_head(&check->bi) + first_packet_len + 6)) << 16);
-
-				if (b_data(&check->bi) == first_packet_len + 4 + second_packet_len + 4 ) {
-					/* We have 2 packets and that's good */
-					/* Check if the second packet is a MySQL Error packet or not */
-					if (*(b_head(&check->bi) + first_packet_len + 8) != '\xff') {
-						/* No error packet */
-						/* We set the MySQL Version in description for information purpose */
-						desc = &b_head(&check->bi)[5];
-						//ha_warning("2packetOK: %s\n", desc);
-						set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
-					}
-					else {
-						/* An error message is attached in the Error packet
-						* so we can display it ! :)
-						*/
-						desc = &b_head(&check->bi)[first_packet_len+11];
-						//ha_warning("2packetERR: %s\n", desc);
-						set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-					}
-				}
-			}
-			else {
-				if (!done)
-					goto wait_more_data;
-
-				/* it seems we have a Handshake Initialization packet but without a valid length,
-				 * it must be a protocol error
-				 */
-				desc = &b_head(&check->bi)[5];
-				//ha_warning("protoerr: %s\n", desc);
-				set_server_check_status(check, HCHK_STATUS_L7RSP, desc);
-			}
-		}
-		break;
-
 	case PR_O2_LDAP_CHK:
 		if (!done && b_data(&check->bi) < 14)
 			goto wait_more_data;
@@ -2775,6 +2681,95 @@ static void tcpcheck_onsuccess_message(struct buffer *msg, struct check *check, 
 
 	*(b_tail(msg)) = '\0';
 }
+
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, struct tcpcheck_rule *rule,
+							   unsigned int offset, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status;
+	struct buffer *msg = NULL;
+	struct ist desc = ist(NULL);
+	unsigned int err = 0, plen = 0;
+
+
+	/* 3 Bytes for the packet length and 1 byte for the sequence id */
+	if (!last_read && b_data(&check->bi) < offset+4) {
+		if (!last_read)
+			goto wait_more_data;
+
+		/* invalid length or truncated response */
+		status = HCHK_STATUS_L7RSP;
+		goto error;
+	}
+
+	plen = ((unsigned char) *b_peek(&check->bi, offset)) +
+		(((unsigned char) *(b_peek(&check->bi, offset+1))) << 8) +
+		(((unsigned char) *(b_peek(&check->bi, offset+2))) << 16);
+
+	if (b_data(&check->bi) < offset+plen+4) {
+		if (!last_read)
+			goto wait_more_data;
+
+		/* invalid length or truncated response */
+		status = HCHK_STATUS_L7RSP;
+		goto error;
+	}
+
+	if (*b_peek(&check->bi, offset+4) == '\xff') {
+		/* MySQL Error packet always begin with field_count = 0xff */
+		status = HCHK_STATUS_L7STS;
+		err = ((unsigned char) *b_peek(&check->bi, offset+5)) +
+			(((unsigned char) *(b_peek(&check->bi, offset+6))) << 8);
+		desc = ist2(b_peek(&check->bi, offset+7), b_data(&check->bi) - offset - 7);
+		goto error;
+	}
+
+	if (get_next_tcpcheck_rule(check->tcpcheck_rules, rule) != NULL) {
+		/* Not the last rule, continue */
+		goto out;
+	}
+
+	/* We set the MySQL Version in description for information purpose
+	 * FIXME : it can be cool to use MySQL Version for other purpose,
+	 * like mark as down old MySQL server.
+	 */
+	set_server_check_status(check, HCHK_STATUS_L7OKD, b_peek(&check->bi, 5));
+
+  out:
+	free_trash_chunk(msg);
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	check->code = err;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
+
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_iniths(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	return tcpcheck_mysql_expect_packet(check, rule, 0, last_read);
+}
+
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	unsigned int hslen = 0;
+
+	hslen = 4 + ((unsigned char) *b_head(&check->bi)) +
+		(((unsigned char) *(b_peek(&check->bi, 1))) << 8) +
+		(((unsigned char) *(b_peek(&check->bi, 2))) << 16);
+
+	return tcpcheck_mysql_expect_packet(check, rule, hslen, last_read);
+}
+
 
 /* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check. */
@@ -5526,6 +5521,240 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	return err_code;
 
   error:
+	free(user);
+	free(var);
+	free_tcpcheck_vars(&rules->preset_vars);
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
+/* Parses the "option mysql-check" proxy keyword */
+int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line)
+{
+	/* This is an example of a MySQL >=4.0 client Authentication packet kindly provided by Cyril Bonte.
+	 * const char mysql40_client_auth_pkt[] = {
+	 * 	"\x0e\x00\x00"	// packet length
+	 * 	"\x01"		// packet number
+	 * 	"\x00\x00"	// client capabilities
+	 * 	"\x00\x00\x01"	// max packet
+	 * 	"haproxy\x00"	// username (null terminated string)
+	 * 	"\x00"		// filler (always 0x00)
+	 * 	"\x01\x00\x00"	// packet length
+	 * 	"\x00"		// packet number
+	 * 	"\x01"		// COM_QUIT command
+	 * };
+	 */
+	static char mysql40_rsname[] = "*mysql40-check";
+	static char mysql40_req[] = {
+		"%[var(check.header),hex]"     /* 3 bytes for the packet length and 1 byte for the sequence ID */
+		"0080"                         /* client capabilities */
+		"000001"                       /* max packet */
+		"%[var(check.username),hex]00" /* the username */
+		"00"                           /* filler (always 0x00) */
+		"010000"                       /* packet length*/
+		"00"                           /* sequence ID */
+		"01"                           /* COM_QUIT command */
+	};
+
+	/* This is an example of a MySQL >=4.1  client Authentication packet provided by Nenad Merdanovic.
+	 * const char mysql41_client_auth_pkt[] = {
+	 * 	"\x0e\x00\x00\"		// packet length
+	 * 	"\x01"			// packet number
+	 * 	"\x00\x00\x00\x00"	// client capabilities
+	 * 	"\x00\x00\x00\x01"	// max packet
+	 *	"\x21"			// character set (UTF-8)
+	 *	char[23]		// All zeroes
+	 * 	"haproxy\x00"		// username (null terminated string)
+	 * 	"\x00"			// filler (always 0x00)
+	 * 	"\x01\x00\x00"		// packet length
+	 * 	"\x00"			// packet number
+	 * 	"\x01"			// COM_QUIT command
+	 * };
+	 */
+	static char mysql41_rsname[] = "*mysql41-check";
+	static char mysql41_req[] = {
+		"%[var(check.header),hex]"     /* 3 bytes for the packet length and 1 byte for the sequence ID */
+		"00820000"                     /* client capabilities */
+		"00800001"                     /* max packet */
+		"21"                           /* character set (UTF-8) */
+		"000000000000000000000000"     /* 23 bytes, al zeroes */
+		"0000000000000000000000"
+		"%[var(check.username),hex]00" /* the username */
+		"00"                           /* filler (always 0x00) */
+		"010000"                       /* packet length*/
+		"00"                           /* sequence ID */
+		"01"                           /* COM_QUIT command */
+	};
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	struct tcpcheck_var *var = NULL;
+	char *mysql_rsname = "*mysql-check";
+	char *mysql_req = NULL, *hdr = NULL, *user = NULL, *errmsg = NULL;
+	int index = 0, err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(3, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	cur_arg += 2;
+	if (*args[cur_arg]) {
+		char *user;
+		int packetlen, userlen;
+
+		if (strcmp(args[cur_arg], "user") != 0) {
+			ha_alert("parsing [%s:%d] : '%s %s' only supports optional values: 'user' (got '%s').\n",
+				 file, line, args[0], args[1], args[cur_arg]);
+			goto error;
+		}
+
+		if (*(args[cur_arg+1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s %s %s' expects <username> as argument.\n",
+				 file, line, args[0], args[1], args[cur_arg]);
+			goto error;
+		}
+
+		hdr     = calloc(4, sizeof(*hdr));
+		user    = strdup(args[cur_arg+1]);
+		userlen = strlen(args[cur_arg+1]);
+
+		if (hdr == NULL || user == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+
+		if (*args[cur_arg+2]) {
+			if (strcmp(args[cur_arg+2], "post-41") != 0) {
+				ha_alert("parsing [%s:%d] : keyword '%s' only supports option 'post-41' (got '%s').\n",
+					 file, line, args[cur_arg], args[cur_arg+2]);
+				goto error;
+			}
+			packetlen = userlen + 7 + 27;
+			mysql_req = mysql41_req;
+			mysql_rsname  = mysql41_rsname;
+		}
+		else {
+			packetlen = userlen + 7;
+			mysql_req = mysql40_req;
+			mysql_rsname  = mysql40_rsname;
+		}
+
+		hdr[0] = (unsigned char)(packetlen & 0xff);
+		hdr[1] = (unsigned char)((packetlen >> 8) & 0xff);
+		hdr[2] = (unsigned char)((packetlen >> 16) & 0xff);
+		hdr[3] = 1;
+
+		var = tcpcheck_var_create("check.header");
+		if (var == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+		var->data.type = SMP_T_STR;
+		var->data.u.str.area = hdr;
+		var->data.u.str.data = 4;
+		LIST_INIT(&var->list);
+		LIST_ADDQ(&rules->preset_vars, &var->list);
+		hdr = NULL;
+		var = NULL;
+
+		var = tcpcheck_var_create("check.username");
+		if (var == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+		var->data.type = SMP_T_STR;
+		var->data.u.str.area = user;
+		var->data.u.str.data = strlen(user);
+		LIST_INIT(&var->list);
+		LIST_ADDQ(&rules->preset_vars, &var->list);
+		user = NULL;
+		var = NULL;
+	}
+
+	rs = tcpcheck_ruleset_lookup(mysql_rsname);
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create(mysql_rsname);
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
+				     1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = index++;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	if (mysql_req) {
+		chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", mysql_req, "log-format", ""},
+					  1, curpx, &rs->rules, file, line, &errmsg);
+		if (!chk) {
+			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+			goto error;
+		}
+		chk->index = index++;
+		LIST_ADDQ(&rs->rules, &chk->list);
+	}
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->expect.custom = tcpcheck_mysql_expect_iniths;
+	chk->index = index++;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	if (mysql_req) {
+		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+					    1, curpx, &rs->rules, file, line, &errmsg);
+		if (!chk) {
+			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+			goto error;
+		}
+		chk->expect.custom = tcpcheck_mysql_expect_ok;
+		chk->index = index++;
+		LIST_ADDQ(&rs->rules, &chk->list);
+	}
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_MYSQL_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	free(hdr);
 	free(user);
 	free(var);
 	free_tcpcheck_vars(&rules->preset_vars);
