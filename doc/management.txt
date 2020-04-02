@@ -1399,6 +1399,26 @@ add map <map> <payload>
 
     >
 
+add ssl crt-list <crtlist> <certificate>
+add ssl crt-list <crtlist> <payload>
+  Add an certificate in a crt-list. It can also be used for directories since
+  directories are now loaded the same way as the crt-lists. This command allow
+  you to use a certificate name in parameter, to use SSL options or filters a
+  crt-list line must sent as a payload instead. Only one crt-list line is
+  supported in the payload. This command will load the certificate for every
+  bind lines using the crt-list. To push a new certificate to HAProxy the
+  commands "new ssl cert" and "set ssl cert" must be used.
+
+  Example:
+    $ echo "new ssl cert foobar.pem" | socat /tmp/sock1 -
+    $ echo -e "set ssl cert foobar.pem <<\n$(cat foobar.pem)\n" | socat
+    /tmp/sock1 -
+    $ echo "commit ssl cert foobar.pem" | socat /tmp/sock1 -
+    $ echo "add ssl crt-list certlist1 foobar.pem" | socat /tmp/sock1 -
+
+    $ echo -e 'add ssl crt-list certlist1 <<\nfoobar.pem [allow-0rtt] foo.bar.com
+    !test1.com\n' | socat /tmp/sock1 -
+
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
   backend) and in each server. The accumulated counters are not affected. The
@@ -1569,6 +1589,18 @@ disable server <backend>/<server>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+dump ssl crt-list <filename>
+  Dump the content of a crt-list or a directory. Once dumped the output can be
+  used as a crt-list file.
+
+  Example:
+    echo "dump ssl crt-list localhost.crt-list" | socat /tmp/sock1 -
+    # localhost.crt-list
+    common.pem !not.test1.com *.test1.com !localhost
+    common.pem
+    ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
+    ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
+
 enable agent <backend>/<server>
   Resume auxiliary agent check that was temporarily stopped.
 
@@ -1670,6 +1702,11 @@ get weight <backend>/<server>
 help
   Print the list of known keywords and their basic usage. The same help screen
   is also displayed for unknown commands.
+
+new ssl cert <filename>
+  Create a new empty SSL certificate store to be filled with a certificate and
+  added to a directory or a crt-list. This command should be used in
+  combination with "set ssl cert" and "add ssl crt-list".
 
 prompt
   Toggle the prompt at the beginning of the line and enter or leave interactive
@@ -2538,6 +2575,21 @@ show ssl cert [<filename>]
     $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/haproxy.master -
     Filename: *test.local.pem
     [...]
+
+show ssl crt-list [<filename>]
+  Display the list of crt-list and directories used in the HAProxy
+  configuration. If a directory or a crt-list is specified, displays its
+  content. Does not use this command to dump your crt-list configuration as it
+  provides extra informations not compatible with the crt-list. To dump a
+  crt-list, use the "dump ssl crt-list" command instead.
+
+  Example:
+    echo "show ssl crt-list localhost.crt-list" | socat /tmp/sock1 -
+    # localhost.crt-list
+    0x55db301c29a0 common.pem !not.test1.com *.test1.com !localhost
+    0x55db301f99e0 common.pem
+    0x7fb6f40220b0 ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
+    0x55db30277070 ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
 
 show resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections
