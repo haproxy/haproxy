@@ -158,7 +158,7 @@ protobuf_varint(uint64_t *val, unsigned char *pos, size_t len)
 
 		shift += 7;
 		/* The maximum length in bytes of a 64-bit encoded value is 10. */
-		if (shift > 70)
+		if (shift > 63)
 			return 0;
 	}
 
@@ -194,7 +194,7 @@ protobuf_decode_varint(uint64_t *val, unsigned char **pos, size_t *len)
 
 		shift += 7;
 		/* The maximum length in bytes of a 64-bit encoded value is 10. */
-		if (shift > 70)
+		if (shift > 63)
 			return 0;
 	}
 
@@ -227,7 +227,7 @@ protobuf_skip_varint(unsigned char **pos, size_t *len, size_t vlen)
 
 		shift += 7;
 		/* The maximum length in bytes of a 64-bit encoded value is 10. */
-		if (shift > 70)
+		if (shift > 63)
 			return 0;
 	}
 
@@ -263,7 +263,7 @@ protobuf_varint_getlen(unsigned char *pos, size_t len)
 
 		shift += 7;
 		/* The maximum length in bytes of a 64-bit encoded value is 10. */
-		if (shift > 70)
+		if (shift > 63)
 			return -1;
 	}
 
