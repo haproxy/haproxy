@@ -42,23 +42,23 @@ matrix:
     arch: amd64
     if: type == push
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
 ##################
 ## temporarily disabled, until arm64 runners become stable
 #  - os: linux
 #    arch: arm64
 #    if: type == push
 #    compiler: clang
-#    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d CC=clang-9
+#    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
   - os: linux
     arch: s390x
     if: type == push
     compiler: gcc
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1d COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC"
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC"
     script:
       - |
         if [ ! -z ${COVERITY_SCAN_TOKEN+x} ]; then
@@ -93,7 +93,7 @@ matrix:
   - os: osx
     if: type == push
     compiler: clang
-    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1d
+    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1f
   - os: linux
     if: type == cron
     compiler: clang
