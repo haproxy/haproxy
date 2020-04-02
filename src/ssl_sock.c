@@ -11077,7 +11077,7 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		space++;
 	}
 
-	chunk_appendf(buf, "] ");
+	chunk_appendf(buf, "]");
 
 	return;
 }
@@ -11085,17 +11085,13 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 /* dump a list of filters */
 static void dump_crtlist_filters(struct buffer *buf, struct crtlist_entry *entry)
 {
-	int space = 0;
 	int i;
 
 	if (!entry->fcount)
 		return;
 
 	for (i = 0; i < entry->fcount; i++) {
-		if (space)
-			chunk_appendf(buf, " ");
-		chunk_appendf(buf, "%s", entry->filters[i]);
-		space = 1;
+		chunk_appendf(buf, " %s", entry->filters[i]);
 	}
 	return;
 }
