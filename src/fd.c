@@ -314,8 +314,8 @@ static void fd_dodelete(int fd, int do_close)
 
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
-		setsockopt(fd, SOL_SOCKET, SO_LINGER,
-			   (struct linger *) &nolinger, sizeof(struct linger));
+		DISGUISE(setsockopt(fd, SOL_SOCKET, SO_LINGER,
+			   (struct linger *) &nolinger, sizeof(struct linger)));
 	}
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
