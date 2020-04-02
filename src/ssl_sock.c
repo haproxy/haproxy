@@ -11400,6 +11400,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		memprintf(&err, "Not enough memory!");
 		goto error;
 	}
+	entry->fcount = 0;
 	entry->filters = NULL;
 	entry->ssl_conf = NULL;
 
