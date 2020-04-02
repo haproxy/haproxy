@@ -305,6 +305,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags | TCPCHK_RULES_DEF);
 			curproxy->tcpcheck_rules.list  = defproxy.tcpcheck_rules.list;
+			if (!LIST_ISEMPTY(&defproxy.tcpcheck_rules.preset_vars)) {
+				if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
+						       &defproxy.tcpcheck_rules.preset_vars)) {
+					ha_alert("parsing [%s:%d] : failed to duplicate tcpcheck preset-vars\n",
+						 file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
 
 			if (defproxy.expect_str) {
 				curproxy->expect_str = strdup(defproxy.expect_str);

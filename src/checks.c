@@ -3279,6 +3279,8 @@ static int tcpcheck_main(struct check *check)
 			rule = check->current_step;
 	}
 	else {
+		struct tcpcheck_var *var;
+
 		/* First evaluation, create a session */
 		check->sess = session_new(&checks_fe, NULL, (check->server ? &check->server->obj_type : NULL));
 		if (!check->sess) {
@@ -3288,6 +3290,16 @@ static int tcpcheck_main(struct check *check)
 		}
 		vars_init(&check->vars, SCOPE_CHECK);
 		rule = LIST_NEXT(check->tcpcheck_rules->list, typeof(rule), list);
+
+		/* Preset tcp-check variables */
+		list_for_each_entry(var, &check->tcpcheck_rules->preset_vars, list) {
+			struct sample smp;
+
+			memset(&smp, 0, sizeof(smp));
+			smp_set_owner(&smp, check->proxy, check->sess, NULL, SMP_OPT_FINAL);
+			smp.data = var->data;
+			vars_set_by_name_ifexist(var->name.ptr, var->name.len, &smp);
+		}
 	}
 
 	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
@@ -3538,6 +3550,80 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		free(rule);
 }
 
+
+static __maybe_unused struct tcpcheck_var *tcpcheck_var_create(const char *name)
+{
+	struct tcpcheck_var *var = NULL;
+
+	var = calloc(1, sizeof(*var));
+	if (var == NULL)
+		return NULL;
+
+	var->name = ist2(strdup(name), strlen(name));
+	if (var->name.ptr == NULL) {
+		free(var);
+		return NULL;
+	}
+
+	LIST_INIT(&var->list);
+	return var;
+}
+
+static void tcpcheck_var_release(struct tcpcheck_var *var)
+{
+	if (!var)
+		return;
+
+	free(var->name.ptr);
+	if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN)
+		free(var->data.u.str.area);
+	else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER)
+		free(var->data.u.meth.str.area);
+	free(var);
+}
+
+int dup_tcpcheck_vars(struct list *dst, struct list *src)
+{
+	struct tcpcheck_var *var, *new = NULL;
+
+	list_for_each_entry(var, src, list) {
+		new = tcpcheck_var_create(var->name.ptr);
+		if (!new)
+			goto error;
+		new->data.type = var->data.type;
+		if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN) {
+			if (chunk_dup(&new->data.u.str, &var->data.u.str) == NULL)
+				goto error;
+			if (var->data.type == SMP_T_STR)
+				new->data.u.str.area[new->data.u.str.data] = 0;
+		}
+		else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
+			if (chunk_dup(&new->data.u.str, &var->data.u.str) == NULL)
+				goto error;
+			new->data.u.str.area[new->data.u.str.data] = 0;
+			new->data.u.meth.meth = var->data.u.meth.meth;
+		}
+		else
+			new->data.u = var->data.u;
+		LIST_ADDQ(dst, &new->list);
+	}
+	return 1;
+
+ error:
+	free(new);
+	return 0;
+}
+
+static void free_tcpcheck_vars(struct list *vars)
+{
+	struct tcpcheck_var *var, *back;
+
+	list_for_each_entry_safe(var, back, vars, list) {
+		LIST_DEL(&var->list);
+		tcpcheck_var_release(var);
+	}
+}
+
 void email_alert_free(struct email_alert *alert)
 {
 	struct tcpcheck_rule *rule, *back;
@@ -3550,6 +3636,7 @@ void email_alert_free(struct email_alert *alert)
 			LIST_DEL(&rule->list);
 			free_tcpcheck(rule, 1);
 		}
+		free_tcpcheck_vars(&alert->rules.preset_vars);
 		free(alert->rules.list);
 		alert->rules.list = NULL;
 	}
@@ -3757,6 +3844,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	if (!alert->rules.list)
 		goto error;
 	LIST_INIT(alert->rules.list);
+	LIST_INIT(&alert->rules.preset_vars); /* unused for email alerts */
 	alert->srv = s;
 
 	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
@@ -4122,6 +4210,7 @@ void deinit_proxy_tcpcheck(struct proxy *px)
 		LIST_DEL(&chk->list);
 		free_tcpcheck(chk, 0);
 	}
+	free_tcpcheck_vars(&px->tcpcheck_rules.preset_vars);
 	free(px->tcpcheck_rules.list);
 
   end:

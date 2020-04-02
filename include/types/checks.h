@@ -302,10 +302,18 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_SHARED 0x00000001 /* Set for shared list of tcp-check rules */
 #define TCPCHK_RULES_DEF    0x00000002 /* Ruleset inherited from the default section */
 
+/* A list of tcp-check vars, to be registered before executing a ruleset */
+struct tcpcheck_var {
+	struct ist name;         /* the variable name with the scope */
+	struct sample_data data; /* the data associated to the variable */
+	struct list list;        /* element to chain tcp-check vars */
+};
+
 /* a list of tcp-check rules */
 struct tcpcheck_rules {
-	unsigned int flags; /* flags applied to the rules */
-	struct list *list; /* the list of tcpcheck_rules */
+	unsigned int flags;       /* flags applied to the rules */
+	struct list *list;        /* the list of tcpcheck_rules */
+	struct list  preset_vars; /* The list of variable to preset before executing the ruleset */
 };
 
 /* A list of tcp-check rules with a name */
