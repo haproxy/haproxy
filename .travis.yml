@@ -16,6 +16,7 @@ env:
     - SSL_INC=${HOME}/opt/include
     - TMPDIR=/tmp
     - FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
+    - DEBUG_OPTIONS="DEBUG_STRICT=1"
 
 addons:
   apt:
@@ -73,6 +74,7 @@ matrix:
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
   - os: linux
+    env: DEBUG_OPTIONS=""
     if: type == cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2 CC=clang-9
@@ -109,7 +111,7 @@ install:
 script:
   - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
   - make -C contrib/wurfl
-  - make -j3 CC=$CC V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="-Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS"
+  - make -j3 CC=$CC V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="-Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
