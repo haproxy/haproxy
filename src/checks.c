@@ -2763,6 +2763,96 @@ static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 	return rule->index + 1;
 }
 
+static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, struct tcpcheck_rule *rule,
+				     int match, struct ist info)
+{
+	struct sample *smp;
+
+	if (istlen(info)) {
+		chunk_strncat(msg, info.ptr, info.len);
+		goto comment;
+	}
+	else if (!LIST_ISEMPTY(&rule->expect.onerror_fmt)) {
+		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg), &rule->expect.onerror_fmt);
+		goto comment;
+	}
+
+	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
+	switch (rule->expect.type) {
+	case TCPCHK_EXPECT_STRING:
+		chunk_appendf(msg, " '%s' at step %d", rule->expect.string, tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_BINARY:
+		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_REGEX:
+		chunk_appendf(msg, " (regex) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_REGEX_BINARY:
+		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
+
+		/* If references to the matched text were made, divide the
+		 * offsets by 2 to match offset of the original response buffer.
+		 */
+		if (rule->expect.with_capture) {
+			int i;
+
+			for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
+				pmatch[i].rm_so /= 2; /* at first matched char. */
+				pmatch[i].rm_eo /= 2; /* at last matched char. */
+			}
+		}
+		break;
+	case TCPCHK_EXPECT_UNDEF:
+		/* Should never happen. */
+		return;
+	}
+
+  comment:
+	if (rule->comment) {
+		chunk_strcat(msg, " comment: ");
+		if (rule->expect.with_capture) {
+			int ret = exp_replace(b_tail(msg), b_room(msg), b_head(&check->bi), rule->comment, pmatch);
+			if (ret != -1) /* ignore comment if too large */
+				msg->data += ret;
+		}
+		else
+			chunk_strcat(msg, rule->comment);
+	}
+
+	if (rule->expect.status_expr) {
+		smp = sample_fetch_as_type(check->proxy, check->sess, NULL, SMP_OPT_DIR_RES | SMP_OPT_FINAL,
+					   rule->expect.status_expr, SMP_T_SINT);
+		if (smp)
+			check->code = smp->data.u.sint;
+	}
+
+	*(b_tail(msg)) = '\0';
+}
+
+static void tcpcheck_onsuccess_message(struct buffer *msg, struct check *check, struct tcpcheck_rule *rule,
+				       struct ist info)
+{
+	struct sample *smp;
+
+	if (istlen(info))
+		chunk_strncat(msg, info.ptr, info.len);
+	if (!LIST_ISEMPTY(&rule->expect.onsuccess_fmt))
+		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
+						&rule->expect.onsuccess_fmt);
+	else
+		chunk_strcat(msg, "(tcp-check)");
+
+	if (rule->expect.status_expr) {
+		smp = sample_fetch_as_type(check->proxy, check->sess, NULL, SMP_OPT_DIR_RES | SMP_OPT_FINAL,
+					   rule->expect.status_expr, SMP_T_SINT);
+		if (smp)
+			check->code = smp->data.u.sint;
+	}
+
+	*(b_tail(msg)) = '\0';
+}
+
 /* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check. */
 static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpcheck_rule *rule)
@@ -3126,70 +3216,13 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	/* From this point on, we matched something we did not want, this is an error state. */
 	ret = TCPCHK_EVAL_STOP;
 	msg = alloc_trash_chunk();
-	if (!msg)
-		goto no_desc;
-
-	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
-	switch (expect->type) {
-	case TCPCHK_EXPECT_STRING:
-		chunk_appendf(msg, " '%s' at step %d", expect->string, tcpcheck_get_step_id(check, rule));
-		break;
-	case TCPCHK_EXPECT_BINARY:
-		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
-		break;
-	case TCPCHK_EXPECT_REGEX:
-		chunk_appendf(msg, " (regex) at step %d", tcpcheck_get_step_id(check, rule));
-		break;
-	case TCPCHK_EXPECT_REGEX_BINARY:
-		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
-
-		/* If references to the matched text were made, divide the
-		 * offsets by 2 to match offset of the original response buffer.
-		 */
-		if (expect->with_capture) {
-			int i;
-
-			for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
-				pmatch[i].rm_so /= 2; /* at first matched char. */
-				pmatch[i].rm_eo /= 2; /* at last matched char. */
-			}
-		}
-		break;
-	case TCPCHK_EXPECT_UNDEF:
-		/* Should never happen. */
-		goto no_desc;
-	}
-
-	if (!LIST_ISEMPTY(&expect->onerror_fmt)) {
-		chunk_strcat(msg, " comment: ");
-		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg), &expect->onerror_fmt);
-	}
-	else if (rule->comment) {
-		if (expect->with_capture) {
-			ret = exp_replace(b_tail(msg), b_room(msg), b_head(&check->bi), rule->comment, pmatch);
-			if (ret != -1) /* ignore comment if too large */
-				msg->data += ret;
-		}
-		else
-			chunk_appendf(msg, " comment: '%s'", rule->comment);
-	}
-
-	if (expect->status_expr) {
-		struct sample *smp;
-
-		smp = sample_fetch_as_type(check->proxy, check->sess, NULL,
-					   SMP_OPT_DIR_RES | SMP_OPT_FINAL,
-					   expect->status_expr, SMP_T_SINT);
-		if (smp)
-			check->code = smp->data.u.sint;
-	}
-
-  no_desc:
+	if (msg)
+		tcpcheck_onerror_message(msg, check, rule, match, ist(NULL));
 	set_server_check_status(check, expect->err_status, (msg ? b_head(msg) : NULL));
+	free_trash_chunk(msg);
 	ret = TCPCHK_EVAL_STOP;
 
   out:
-	free_trash_chunk(msg);
 	return ret;
 }
 
@@ -3396,26 +3429,11 @@ static int tcpcheck_main(struct check *check)
 
 	/* All rules was evaluated */
 	if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
-		if (!LIST_ISEMPTY(&check->current_step->expect.onsuccess_fmt)) {
-			msg = alloc_trash_chunk();
-			if (msg)
-				msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
-								&check->current_step->expect.onsuccess_fmt);
-		}
-
-		if (check->current_step->expect.status_expr) {
-			struct sample *smp;
-
-			smp = sample_fetch_as_type(check->proxy, check->sess, NULL,
-						   SMP_OPT_DIR_RES | SMP_OPT_FINAL,
-						   check->current_step->expect.status_expr, SMP_T_SINT);
-			if (smp)
-				check->code = smp->data.u.sint;
-		}
+		msg = alloc_trash_chunk();
+		if (msg)
+			tcpcheck_onsuccess_message(msg, check, check->current_step, ist(NULL));
 	}
-
 	set_server_check_status(check, HCHK_STATUS_L7OKD, (msg ? b_head(msg) : "(tcp-check)"));
-	check->current_step = NULL;
 	free_trash_chunk(msg);
 
   out_end_tcpcheck:
