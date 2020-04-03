@@ -177,6 +177,9 @@ static struct {
 	char *listen_default_ciphersuites;
 	char *connect_default_ciphersuites;
 #endif
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+	char *listen_default_curves;
+#endif
 	int listen_default_ssloptions;
 	int connect_default_ssloptions;
 	struct tls_version_filter listen_default_sslmethods;
@@ -9517,6 +9520,10 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+	if (global_ssl.listen_default_curves && !conf->ssl_conf.curves)
+		conf->ssl_conf.curves = strdup(global_ssl.listen_default_curves);
+#endif
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	if (global_ssl.listen_default_ciphersuites && !conf->ssl_conf.ciphersuites)
 		conf->ssl_conf.ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
@@ -10513,6 +10520,31 @@ static int ssl_parse_global_ciphersuites(char **args, int section_type, struct p
 }
 #endif
 
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+/*
+ * parse the "ssl-default-bind-curves" keyword in a global section.
+ * Returns <0 on alert, >0 on warning, 0 on success.
+ */
+static int ssl_parse_global_curves(char **args, int section_type, struct proxy *curpx,
+                                   struct proxy *defpx, const char *file, int line,
+				   char **err)
+{
+	char **target;
+	target = &global_ssl.listen_default_curves;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "global statement '%s' expects a curves suite as an arguments.", args[0]);
+		return -1;
+	}
+
+	free(*target);
+	*target = strdup(args[1]);
+	return 0;
+}
+#endif
 /* parse various global tune.ssl settings consisting in positive integers.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -13029,6 +13061,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+	{ CFG_GLOBAL, "ssl-default-bind-curves", ssl_parse_global_curves },
+#endif
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	{ CFG_GLOBAL, "ssl-default-bind-ciphersuites", ssl_parse_global_ciphersuites },
 	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },

@@ -622,6 +622,7 @@ The following keywords are supported in the "global" section :
    - stats
    - ssl-default-bind-ciphers
    - ssl-default-bind-ciphersuites
+   - ssl-default-bind-curves
    - ssl-default-bind-options
    - ssl-default-server-ciphers
    - ssl-default-server-ciphersuites
@@ -1270,6 +1271,13 @@ ssl-default-bind-ciphersuites <ciphersuites>
   cipher configuration for TLSv1.2 and earlier, please check the
   "ssl-default-bind-ciphers" keyword. Please check the "bind" keyword for more
   information.
+
+ssl-default-bind-curves <curves>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the default string describing the list of elliptic curves algorithms ("curve
+  suite") that are negotiated during the SSL/TLS handshake with ECDHE. The format
+  of the string is a colon-delimited list of curve name.
+  Please check the "bind" keyword for more information.
 
 ssl-default-bind-options [<option>]...
   This setting is only available when support for OpenSSL was built in. It sets
