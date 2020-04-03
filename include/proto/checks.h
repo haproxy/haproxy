@@ -79,6 +79,8 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 				const char *file, int line);
 int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 			    const char *file, int line);
+int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			       const char *file, int line);
 
 #endif /* _PROTO_CHECKS_H */
 

@@ -857,7 +857,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	struct task *t = check->task;
 	char *desc;
 	int done;
-	unsigned short msglen;
 
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
@@ -1155,59 +1154,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 			set_server_check_status(check, status, NULL);
 		break;
 	}
-
-	case PR_O2_LDAP_CHK:
-		if (!done && b_data(&check->bi) < 14)
-			goto wait_more_data;
-
-		/* Check if the server speaks LDAP (ASN.1/BER)
-		 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
-		 * http://tools.ietf.org/html/rfc4511
-		 */
-
-		/* http://tools.ietf.org/html/rfc4511#section-4.1.1
-		 *   LDAPMessage: 0x30: SEQUENCE
-		 */
-		if ((b_data(&check->bi) < 14) || (*(b_head(&check->bi)) != '\x30')) {
-			set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
-		}
-		else {
-			 /* size of LDAPMessage */
-			msglen = (*(b_head(&check->bi) + 1) & 0x80) ? (*(b_head(&check->bi) + 1) & 0x7f) : 0;
-
-			/* http://tools.ietf.org/html/rfc4511#section-4.2.2
-			 *   messageID: 0x02 0x01 0x01: INTEGER 1
-			 *   protocolOp: 0x61: bindResponse
-			 */
-			if ((msglen > 2) ||
-			    (memcmp(b_head(&check->bi) + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
-				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
-				goto out_wakeup;
-			}
-
-			/* size of bindResponse */
-			msglen += (*(b_head(&check->bi) + msglen + 6) & 0x80) ? (*(b_head(&check->bi) + msglen + 6) & 0x7f) : 0;
-
-			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
-			 *   ldapResult: 0x0a 0x01: ENUMERATION
-			 */
-			if ((msglen > 4) ||
-			    (memcmp(b_head(&check->bi) + 7 + msglen, "\x0a\x01", 2) != 0)) {
-				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
-				goto out_wakeup;
-			}
-
-			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
-			 *   resultCode
-			 */
-			check->code = *(b_head(&check->bi) + msglen + 9);
-			if (check->code) {
-				set_server_check_status(check, HCHK_STATUS_L7STS, "See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
-			} else {
-				set_server_check_status(check, HCHK_STATUS_L7OKD, "Success");
-			}
-		}
-		break;
 
 	case PR_O2_SPOP_CHK: {
 		unsigned int framesz;
@@ -2770,6 +2716,71 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, stru
 	return tcpcheck_mysql_expect_packet(check, rule, hslen, last_read);
 }
 
+static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status;
+	struct buffer *msg = NULL;
+	struct ist desc = ist(NULL);
+	unsigned short msglen = 0;
+
+	/* Check if the server speaks LDAP (ASN.1/BER)
+	 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
+	 * http://tools.ietf.org/html/rfc4511
+	 */
+	/* size of LDAPMessage */
+	msglen = (*(b_head(&check->bi) + 1) & 0x80) ? (*(b_head(&check->bi) + 1) & 0x7f) : 0;
+
+	/* http://tools.ietf.org/html/rfc4511#section-4.2.2
+	 *   messageID: 0x02 0x01 0x01: INTEGER 1
+	 *   protocolOp: 0x61: bindResponse
+	 */
+	if ((msglen > 2) || (memcmp(b_head(&check->bi) + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
+		status = HCHK_STATUS_L7RSP;
+		desc = ist("Not LDAPv3 protocol");
+		goto error;
+	}
+
+	/* size of bindResponse */
+	msglen += (*(b_head(&check->bi) + msglen + 6) & 0x80) ? (*(b_head(&check->bi) + msglen + 6) & 0x7f) : 0;
+
+	/* http://tools.ietf.org/html/rfc4511#section-4.1.9
+	 *   ldapResult: 0x0a 0x01: ENUMERATION
+	 */
+	if ((msglen > 4) || (memcmp(b_head(&check->bi) + 7 + msglen, "\x0a\x01", 2) != 0)) {
+		status = HCHK_STATUS_L7RSP;
+		desc = ist("Not LDAPv3 protocol");
+		goto error;
+	}
+
+	/* http://tools.ietf.org/html/rfc4511#section-4.1.9
+	 *   resultCode
+	 */
+	check->code = *(b_head(&check->bi) + msglen + 9);
+	if (check->code) {
+		status = HCHK_STATUS_L7STS;
+		desc = ist("See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
+		goto error;
+	}
+
+	set_server_check_status(check, HCHK_STATUS_L7OKD, "Success");
+
+  out:
+	free_trash_chunk(msg);
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
 
 /* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check. */
@@ -5763,6 +5774,93 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	goto out;
 }
 
+int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			       const char *file, int line)
+{
+	static char *ldap_req = "300C020101600702010304008000";
+
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *errmsg = NULL;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	rs = tcpcheck_ruleset_lookup("*ldap-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*ldap-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", ldap_req, ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^30",
+				               "min-recv", "14",
+				               "on-error", "Not LDAPv3 protocol",
+				               ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->expect.custom = tcpcheck_ldap_expect_bindrsp;
+	chk->index = 2;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_LDAP_CHK);
+
+  out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
 
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },

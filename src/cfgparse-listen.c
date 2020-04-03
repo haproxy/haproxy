@@ -2422,16 +2422,8 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "ldap-check")) {
-			/* use LDAP request to check servers' health */
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_LDAP_CHK;
-
-			curproxy->check_req = malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
-			memcpy(curproxy->check_req, DEF_LDAP_CHECK_REQ, sizeof(DEF_LDAP_CHECK_REQ) - 1);
-			curproxy->check_len = sizeof(DEF_LDAP_CHECK_REQ) - 1;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_ldap_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "spop-check")) {
