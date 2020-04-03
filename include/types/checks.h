@@ -246,6 +246,12 @@ struct tcpcheck_send {
 	};
 };
 
+enum tcpcheck_eval_ret {
+	TCPCHK_EVAL_WAIT = 0,
+	TCPCHK_EVAL_STOP,
+	TCPCHK_EVAL_CONTINUE,
+};
+
 enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_UNDEF = 0, /* Match is not used. */
 	TCPCHK_EXPECT_STRING, /* Matches a string. */

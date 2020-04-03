@@ -2763,12 +2763,6 @@ static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 	return rule->index + 1;
 }
 
-enum tcpcheck_eval_ret {
-	TCPCHK_EVAL_WAIT = 0,
-	TCPCHK_EVAL_STOP,
-	TCPCHK_EVAL_CONTINUE,
-};
-
 /* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check. */
 static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpcheck_rule *rule)
