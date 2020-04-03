@@ -664,6 +664,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_REGEX_BINARY:
 					chunk_appendf(chk, " (expect binary regex)");
 					break;
+				case TCPCHK_EXPECT_CUSTOM:
+					chunk_appendf(chk, " (expect custom function)");
+					break;
 				case TCPCHK_EXPECT_UNDEF:
 					chunk_appendf(chk, " (undefined expect!)");
 					break;
@@ -2803,6 +2806,9 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 			}
 		}
 		break;
+	case TCPCHK_EXPECT_CUSTOM:
+		chunk_appendf(msg, " (custom function) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
 	case TCPCHK_EXPECT_UNDEF:
 		/* Should never happen. */
 		return;
@@ -3193,6 +3199,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		else
 			match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
 		break;
+	case TCPCHK_EXPECT_CUSTOM:
+		if (expect->custom)
+			ret = expect->custom(check, rule, last_read);
+		goto out;
 	case TCPCHK_EXPECT_UNDEF:
 		/* Should never happen. */
 		ret = TCPCHK_EVAL_STOP;
@@ -3540,6 +3550,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		case TCPCHK_EXPECT_REGEX_BINARY:
 			regex_free(rule->expect.regex);
 			break;
+		case TCPCHK_EXPECT_CUSTOM:
 		case TCPCHK_EXPECT_UNDEF:
 			break;
 		}
@@ -4676,8 +4687,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	int inverse = 0, with_capture = 0;
 
 	str = on_success_msg = on_error_msg = comment = pattern = NULL;
-	if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
-		memprintf(errmsg, "expects a pattern (type+string) as arguments");
+	if (!*(args[cur_arg+1])) {
+		memprintf(errmsg, "expects at least a matching pattern as arguments");
 		goto error;
 	}
 
@@ -4729,6 +4740,17 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			}
 			cur_arg++;
 			pattern = args[cur_arg];
+		}
+		else if (strcmp(args[cur_arg], "custom") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			type = TCPCHK_EXPECT_CUSTOM;
 		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
 			if (in_pattern) {
@@ -4940,6 +4962,9 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		chk->expect.regex = regex_comp(pattern, 1, with_capture, errmsg);
 		if (!chk->expect.regex)
 			goto error;
+		break;
+	case TCPCHK_EXPECT_CUSTOM:
+		chk->expect.custom = NULL; /* Must be defined by the caller ! */
 		break;
 	case TCPCHK_EXPECT_UNDEF:
 		free(chk);

@@ -253,11 +253,12 @@ enum tcpcheck_eval_ret {
 };
 
 enum tcpcheck_expect_type {
-	TCPCHK_EXPECT_UNDEF = 0, /* Match is not used. */
-	TCPCHK_EXPECT_STRING, /* Matches a string. */
-	TCPCHK_EXPECT_REGEX, /* Matches a regular pattern. */
+	TCPCHK_EXPECT_UNDEF = 0,    /* Match is not used. */
+	TCPCHK_EXPECT_STRING,       /* Matches a string. */
+	TCPCHK_EXPECT_REGEX,        /* Matches a regular pattern. */
 	TCPCHK_EXPECT_REGEX_BINARY, /* Matches a regular pattern on a hex-encoded text. */
-	TCPCHK_EXPECT_BINARY, /* Matches a binary sequence. */
+	TCPCHK_EXPECT_BINARY,       /* Matches a binary sequence. */
+	TCPCHK_EXPECT_CUSTOM,       /* Execute a custom function. */
 };
 
 struct tcpcheck_expect {
@@ -265,6 +266,9 @@ struct tcpcheck_expect {
 	union {
 		char *string;           /* Matching a literal string / binary anywhere in the response. */
 		struct my_regex *regex; /* Matching a regex pattern. */
+
+		/* custom function to eval epxect rule */
+		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);
 	};
 	struct tcpcheck_rule *head;     /* first expect of a chain. */
 	int length;                     /* Size in bytes of the pattern referenced by string / binary. */
