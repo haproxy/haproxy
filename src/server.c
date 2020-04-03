@@ -2156,7 +2156,7 @@ static int server_template_init(struct server *srv, struct proxy *px)
 	return i - srv->tmpl_info.nb_low;
 }
 
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr)
+int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr, int in_peers_section)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
@@ -2186,11 +2186,16 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		/* There is no mandatory first arguments for default server. */
 		if (srv && parse_addr) {
 			if (!*args[2]) {
-				/* 'server' line number of argument check. */
-				ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
-					  file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
+				if (in_peers_section) {
+					return 0;
+				}
+				else {
+					/* 'server' line number of argument check. */
+					ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+						  file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 			}
 
 			err = invalid_char(args[1]);

@@ -712,7 +712,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, 0);
+		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, 0, 1);
 	}
 	else if (strcmp(args[0], "log") == 0) {
 		if (init_peers_frontend(file, linenum, NULL, curpeers) != 0) {
@@ -821,9 +821,19 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * The server address is parsed only if we are parsing a "peer" line,
 		 * or if we are parsing a "server" line and the current peer is not the local one.
 		 */
-		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, peer || !local_peer);
-		if (!curpeers->peers_fe->srv)
+		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL, peer || !local_peer, 1);
+		if (!curpeers->peers_fe->srv) {
+			/* Remove the newly allocated peer. */
+			if (newpeer != curpeers->local) {
+				struct peer *p;
+
+				p = curpeers->remote;
+				curpeers->remote = curpeers->remote->next;
+				free(p->id);
+				free(p);
+			}
 			goto out;
+		}
 
 		/* If the peer address has just been parsed, let's copy it to <newpeer>
 		 * and initializes ->proto.
