@@ -318,6 +318,7 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_MYSQL_CHK   0x00000050
 #define TCPCHK_RULES_LDAP_CHK    0x00000060
 #define TCPCHK_RULES_SSL3_CHK    0x00000070
+#define TCPCHK_RULES_SPOP_CHK    0x00000090
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */
 struct tcpcheck_var {

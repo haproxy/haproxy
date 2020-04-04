@@ -1155,26 +1155,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		break;
 	}
 
-	case PR_O2_SPOP_CHK: {
-		unsigned int framesz;
-		char	     err[HCHK_DESC_LEN];
-
-		if (!done && b_data(&check->bi) < 4)
-			goto wait_more_data;
-
-		memcpy(&framesz, b_head(&check->bi), 4);
-		framesz = ntohl(framesz);
-
-		if (!done && b_data(&check->bi) < (4+framesz))
-		    goto wait_more_data;
-
-		if (!spoe_handle_healthcheck_response(b_head(&check->bi)+4, framesz, err, HCHK_DESC_LEN-1))
-			set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
-		else
-			set_server_check_status(check, HCHK_STATUS_L7STS, err);
-		break;
-	}
-
 	default:
 		/* good connection is enough for pure TCP check */
 		if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
@@ -2764,6 +2744,48 @@ static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, 
 	}
 
 	set_server_check_status(check, HCHK_STATUS_L7OKD, "Success");
+
+  out:
+	free_trash_chunk(msg);
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
+
+static enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status;
+	struct buffer *msg = NULL;
+	struct ist desc = ist(NULL);
+	unsigned int framesz;
+
+
+	memcpy(&framesz, b_head(&check->bi), 4);
+	framesz = ntohl(framesz);
+
+	if (!last_read && b_data(&check->bi) < (4+framesz))
+		goto wait_more_data;
+
+	memset(b_orig(&trash), 0, b_size(&trash));
+	if (spoe_handle_healthcheck_response(b_peek(&check->bi, 4), framesz, b_orig(&trash), HCHK_DESC_LEN) == -1) {
+		status = HCHK_STATUS_L7RSP;
+		desc = ist2(b_orig(&trash), strlen(b_orig(&trash)));
+		goto error;
+	}
+
+	set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
 
   out:
 	free_trash_chunk(msg);
@@ -5853,6 +5875,91 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_LDAP_CHK);
 
   out:
+	free(errmsg);
+	return err_code;
+
+  error:
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			       const char *file, int line)
+{
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *spop_req = NULL;
+	char *errmsg = NULL;
+	int spop_len = 0, err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->list && !(rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A custom tcp-check ruleset is already configured.\n",
+			 file, line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list  = NULL;
+	rules->flags = 0;
+
+
+	rs = tcpcheck_ruleset_lookup("*spop-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*spop-check");
+	if (rs == NULL) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+
+	if (spoe_prepare_healthcheck_request(&spop_req, &spop_len) == -1) {
+		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+		goto error;
+	}
+	chunk_reset(&trash);
+	dump_binary(&trash, spop_req, spop_len);
+	trash.area[trash.data] = '\0';
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", b_head(&trash), ""},
+				  1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", "min-recv", "4", ""},
+		                    1, curpx, &rs->rules, file, line, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+		goto error;
+	}
+	chk->expect.custom = tcpcheck_spop_expect_agenthello;
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_SPOP_CHK);
+
+  out:
+	free(spop_req);
 	free(errmsg);
 	return err_code;
 
