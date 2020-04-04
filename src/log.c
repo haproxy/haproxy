@@ -551,7 +551,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
  * You can set arguments using { } : %{many arguments}varname.
  * The curproxy->conf.args.ctx must be set by the caller.
  *
- *  str: the string to parse
+ *  fmt: the string to parse
  *  curproxy: the proxy affected
  *  list_format: the destination list
  *  options: LOG_OPT_* to force on every node
