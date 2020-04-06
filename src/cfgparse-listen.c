@@ -3019,6 +3019,13 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
+		if (curproxy == &defproxy) {
+			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (strcmp(args[1], "comment") == 0) {
 			int cur_arg;
 			struct tcpcheck_rule *tcpcheck;
