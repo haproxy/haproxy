@@ -532,7 +532,8 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	 * now on, but this will leave with sample capabilities soon.
 	 */
 	curpx->to_log |= LW_XPRT;
-	curpx->to_log |= LW_REQ;
+	if (curpx->http_needed)
+		curpx->to_log |= LW_REQ;
 	LIST_ADDQ(list_format, &node->list);
 	return 1;
 
