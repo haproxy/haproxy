@@ -4188,8 +4188,10 @@ void deinit_proxy_tcpcheck(struct proxy *px)
 
 static void deinit_srv_check(struct server *srv)
 {
-	if (srv->do_check)
+	if (srv->check.state & CHK_ST_CONFIGURED)
 		free_check(&srv->check);
+	srv->check.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED;
+	srv->do_check = 0;
 }
 
 
@@ -5970,6 +5972,52 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 }
 
 
+/* Parse the "addr" server keyword */
+static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+			  char **errmsg)
+{
+	struct sockaddr_storage *sk;
+	struct protocol *proto;
+	int port1, port2, err_code = 0;
+
+
+	if (!*args[*cur_arg+1]) {
+		memprintf(errmsg, "'%s' expects <ipv4|ipv6> as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, errmsg, NULL, NULL, 1);
+	if (!sk) {
+		memprintf(errmsg, "'%s' : %s", args[*cur_arg], *errmsg);
+		goto error;
+	}
+
+	proto = protocol_by_family(sk->ss_family);
+	if (!proto || !proto->connect) {
+		memprintf(errmsg, "'%s %s' : connect() not supported for this address family.",
+		          args[*cur_arg], args[*cur_arg+1]);
+		goto error;
+	}
+
+	if (port1 != port2) {
+		memprintf(errmsg, "'%s' : port ranges and offsets are not allowed in '%s'.",
+		          args[*cur_arg], args[*cur_arg+1]);
+		goto error;
+	}
+
+	srv->check.addr = srv->agent.addr = *sk;
+	srv->flags |= SRV_F_CHECKADDR;
+	srv->flags |= SRV_F_AGENTADDR;
+
+  out:
+	return err_code;
+
+ error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
 /* Parse the "agent-addr" server keyword */
 static int srv_parse_agent_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
@@ -6107,18 +6155,284 @@ static int srv_parse_no_agent_check(char **args, int *cur_arg, struct proxy *cur
 	return 0;
 }
 
+/* Parse the "check" server keyword */
+static int srv_parse_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+			   char **errmsg)
+{
+	srv->do_check = 1;
+	return 0;
+}
+
+/* Parse the "check-send-proxy" server keyword */
+static int srv_parse_check_send_proxy(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				      char **errmsg)
+{
+	srv->check.send_proxy = 1;
+	return 0;
+}
+
+/* Parse the "check-via-socks4" server keyword */
+static int srv_parse_check_via_socks4(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				      char **errmsg)
+{
+	srv->check.via_socks4 = 1;
+	return 0;
+}
+
+/* Parse the "no-check" server keyword */
+static int srv_parse_no_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+			      char **errmsg)
+{
+	deinit_srv_check(srv);
+	return 0;
+}
+
+/* Parse the "no-check-send-proxy" server keyword */
+static int srv_parse_no_check_send_proxy(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+					 char **errmsg)
+{
+	srv->check.send_proxy = 0;
+	return 0;
+}
+
+/* Parse the "rise" server keyword */
+static int srv_parse_check_rise(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(errmsg, "'%s' expects an integer argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	srv->check.rise = atol(args[*cur_arg+1]);
+	if (srv->check.rise <= 0) {
+		memprintf(errmsg, "'%s' has to be > 0.", args[*cur_arg]);
+		goto error;
+	}
+
+	if (srv->check.health)
+		srv->check.health = srv->check.rise;
+
+  out:
+	return err_code;
+
+  error:
+	deinit_srv_agent_check(srv);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+	return 0;
+}
+
+/* Parse the "fall" server keyword */
+static int srv_parse_check_fall(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(errmsg, "'%s' expects an integer argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	srv->check.fall = atol(args[*cur_arg+1]);
+	if (srv->check.fall <= 0) {
+		memprintf(errmsg, "'%s' has to be > 0.", args[*cur_arg]);
+		goto error;
+	}
+
+  out:
+	return err_code;
+
+  error:
+	deinit_srv_agent_check(srv);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+	return 0;
+}
+
+/* Parse the "inter" server keyword */
+static int srv_parse_check_inter(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				 char **errmsg)
+{
+	const char *err = NULL;
+	unsigned int delay;
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a delay as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	err = parse_time_err(args[*cur_arg+1], &delay, TIME_UNIT_MS);
+	if (err == PARSE_TIME_OVER) {
+		memprintf(errmsg, "timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err == PARSE_TIME_UNDER) {
+		memprintf(errmsg, "timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err) {
+		memprintf(errmsg, "unexpected character '%c' in 'agent-inter' argument of server %s.",
+			  *err, srv->id);
+		goto error;
+	}
+	if (delay <= 0) {
+		memprintf(errmsg, "invalid value %d for argument '%s' of server %s.",
+			  delay, args[*cur_arg], srv->id);
+		goto error;
+	}
+	srv->check.inter = delay;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
+/* Parse the "fastinter" server keyword */
+static int srv_parse_check_fastinter(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				     char **errmsg)
+{
+	const char *err = NULL;
+	unsigned int delay;
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a delay as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	err = parse_time_err(args[*cur_arg+1], &delay, TIME_UNIT_MS);
+	if (err == PARSE_TIME_OVER) {
+		memprintf(errmsg, "timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err == PARSE_TIME_UNDER) {
+		memprintf(errmsg, "timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err) {
+		memprintf(errmsg, "unexpected character '%c' in 'agent-inter' argument of server %s.",
+			  *err, srv->id);
+		goto error;
+	}
+	if (delay <= 0) {
+		memprintf(errmsg, "invalid value %d for argument '%s' of server %s.",
+			  delay, args[*cur_arg], srv->id);
+		goto error;
+	}
+	srv->check.fastinter = delay;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
+/* Parse the "downinter" server keyword */
+static int srv_parse_check_downinter(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				     char **errmsg)
+{
+	const char *err = NULL;
+	unsigned int delay;
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a delay as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	err = parse_time_err(args[*cur_arg+1], &delay, TIME_UNIT_MS);
+	if (err == PARSE_TIME_OVER) {
+		memprintf(errmsg, "timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err == PARSE_TIME_UNDER) {
+		memprintf(errmsg, "timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err) {
+		memprintf(errmsg, "unexpected character '%c' in 'agent-inter' argument of server %s.",
+			  *err, srv->id);
+		goto error;
+	}
+	if (delay <= 0) {
+		memprintf(errmsg, "invalid value %d for argument '%s' of server %s.",
+			  delay, args[*cur_arg], srv->id);
+		goto error;
+	}
+	srv->check.downinter = delay;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+/* Parse the "port" server keyword */
+static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a port number as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	global.maxsock++;
+	srv->check.port = atol(args[*cur_arg+1]);
+	srv->flags |= SRV_F_CHECKPORT;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },
         { 0, NULL, NULL },
 }};
 
 static struct srv_kw_list srv_kws = { "CHK", { }, {
+	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
 	{ "agent-addr",          srv_parse_agent_addr,          1,  1 }, /* Enable an auxiliary agent check */
 	{ "agent-check",         srv_parse_agent_check,         0,  1 }, /* Enable agent checks */
 	{ "agent-inter",         srv_parse_agent_inter,         1,  1 }, /* Set the interval between two agent checks */
 	{ "agent-port",          srv_parse_agent_port,          1,  1 }, /* Set the TCP port used for agent checks. */
 	{ "agent-send",          srv_parse_agent_send,          1,  1 }, /* Set string to send to agent. */
+	{ "check",               srv_parse_check,               0,  1 }, /* Enable health checks */
+	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* Enable PROXY protocol for health checks */
+	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
+	{ "no-check",            srv_parse_no_check,            0,  1 }, /* Disable health checks */
+	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* Disable PROXY protol for health checks */
+	{ "rise",                srv_parse_check_rise,          1,  1 }, /* Set rise value for health checks */
+	{ "fall",                srv_parse_check_fall,          1,  1 }, /* Set fall value for health checks */
+	{ "inter",               srv_parse_check_inter,         1,  1 }, /* Set inter value for health checks */
+	{ "fastinter",           srv_parse_check_fastinter,     1,  1 }, /* Set fastinter value for health checks */
+	{ "downinter",           srv_parse_check_downinter,     1,  1 }, /* Set downinter value for health checks */
+	{ "port",                srv_parse_check_port,          1,  1 }, /* Set the TCP port used for health checks. */
 	{ NULL, NULL, 0 },
 }};
 

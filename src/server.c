@@ -262,53 +262,6 @@ void srv_dump_kws(char **out)
 	}
 }
 
-/* Parse the "addr" server keyword */
-static int srv_parse_addr(char **args, int *cur_arg,
-                          struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	char *errmsg, *arg;
-	struct sockaddr_storage *sk;
-	int port1, port2;
-	struct protocol *proto;
-
-	errmsg = NULL;
-	arg = args[*cur_arg + 1];
-
-	if (!*arg) {
-		memprintf(err, "'%s' expects <ipv4|ipv6> as argument.\n", args[*cur_arg]);
-		goto err;
-	}
-
-	sk = str2sa_range(arg, NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
-	if (!sk) {
-		memprintf(err, "'%s' : %s", args[*cur_arg], errmsg);
-		goto err;
-	}
-
-	proto = protocol_by_family(sk->ss_family);
-	if (!proto || !proto->connect) {
-		memprintf(err, "'%s %s' : connect() not supported for this address family.\n",
-		          args[*cur_arg], arg);
-		goto err;
-	}
-
-	if (port1 != port2) {
-		memprintf(err, "'%s' : port ranges and offsets are not allowed in '%s'\n",
-		          args[*cur_arg], arg);
-		goto err;
-	}
-
-	newsrv->check.addr = newsrv->agent.addr = *sk;
-	newsrv->flags |= SRV_F_CHECKADDR;
-	newsrv->flags |= SRV_F_AGENTADDR;
-
-	return 0;
-
- err:
-	free(errmsg);
-	return ERR_ALERT | ERR_FATAL;
-}
-
 /* Parse the "backup" server keyword */
 static int srv_parse_backup(char **args, int *cur_arg,
                             struct proxy *curproxy, struct server *newsrv, char **err)
@@ -317,29 +270,6 @@ static int srv_parse_backup(char **args, int *cur_arg,
 	return 0;
 }
 
-/* Parse the "check" server keyword */
-static int srv_parse_check(char **args, int *cur_arg,
-                           struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	newsrv->do_check = 1;
-	return 0;
-}
-
-/* Parse the "check-send-proxy" server keyword */
-static int srv_parse_check_send_proxy(char **args, int *cur_arg,
-                                      struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	newsrv->check.send_proxy = 1;
-	return 0;
-}
-
-/* Parse the "check-via-socks4" server keyword */
-static int srv_parse_check_via_socks4(char **args, int *cur_arg,
-                                      struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	newsrv->check.via_socks4 = 1;
-	return 0;
-}
 
 /* Parse the "cookie" server keyword */
 static int srv_parse_cookie(char **args, int *cur_arg,
@@ -529,23 +459,6 @@ static int srv_parse_no_backup(char **args, int *cur_arg,
 	return 0;
 }
 
-/* Parse the "no-check" server keyword */
-static int srv_parse_no_check(char **args, int *cur_arg,
-                              struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	free_check(&newsrv->check);
-	newsrv->check.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED;
-	newsrv->do_check = 0;
-	return 0;
-}
-
-/* Parse the "no-check-send-proxy" server keyword */
-static int srv_parse_no_check_send_proxy(char **args, int *cur_arg,
-                                         struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	newsrv->check.send_proxy = 0;
-	return 0;
-}
 
 /* Disable server PROXY protocol flags. */
 static inline int srv_disable_pp_flags(struct server *srv, unsigned int flags)
@@ -1332,10 +1245,7 @@ void srv_compute_all_admin_states(struct proxy *px)
  * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
-	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
-	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
-	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
 	{ "cookie",              srv_parse_cookie,              1,  1 }, /* Assign a cookie to the server */
 	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
@@ -1343,8 +1253,6 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "max-reuse",           srv_parse_max_reuse,           1,  1 }, /* Set the max number of requests on a connection, -1 means unlimited */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
-	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
-	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "no-tfo",              srv_parse_no_tfo,              0,  1 }, /* Disable use of TCP Fast Open */
@@ -1362,7 +1270,6 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "tfo",                 srv_parse_tfo,                 0,  1 }, /* enable TCP Fast Open of server */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",              srv_parse_socks4,              1,  1 }, /* Set the socks4 proxy of the server*/
-	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1 }, /* enable socks4 proxy for health checks */
 	{ NULL, NULL, 0 },
 }};
 
@@ -2337,140 +2244,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					p = e;
 				}
 
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "rise")) {
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->check.rise = atol(args[cur_arg + 1]);
-				if (newsrv->check.rise <= 0) {
-					ha_alert("parsing [%s:%d]: '%s' has to be > 0.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (newsrv->check.health)
-					newsrv->check.health = newsrv->check.rise;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "fall")) {
-				newsrv->check.fall = atol(args[cur_arg + 1]);
-
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (newsrv->check.fall <= 0) {
-					ha_alert("parsing [%s:%d]: '%s' has to be > 0.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "inter")) {
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-
-				if (err == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err) {
-					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'inter' argument of server %s.\n",
-					      file, linenum, *err, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (val <= 0) {
-					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
-					      file, linenum, val, args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->check.inter = val;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "fastinter")) {
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-
-				if (err == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err) {
-					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'fastinter' argument of server %s.\n",
-					      file, linenum, *err, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (val <= 0) {
-					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
-					      file, linenum, val, args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->check.fastinter = val;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "downinter")) {
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-
-				if (err == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err) {
-					ha_alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
-					      file, linenum, *err, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (val <= 0) {
-					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
-					      file, linenum, val, args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->check.downinter = val;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "port")) {
-				newsrv->check.port = atol(args[cur_arg + 1]);
-				newsrv->flags |= SRV_F_CHECKPORT;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "weight")) {
