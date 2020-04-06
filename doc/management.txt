@@ -1524,6 +1524,12 @@ del map <map> [<key>|#<ref>]
   listing the content of the map. Note that if the reference <map> is a file and
   is shared with a acl, the entry will be also deleted in the map.
 
+del ssl crt-list <filename> <certfile[:line]>
+  Delete an entry in a crt-list. This will delete every SNIs used for this
+  entry in the frontends. If a certificate is used several time in a crt-list,
+  you will need to provide which line you want to delete. To display the line
+  numbers, use "show ssl crt-list -n <crtlist>".
+
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
 

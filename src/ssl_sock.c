@@ -11474,6 +11474,127 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+/* Parse a "del ssl crt-list <crt-list> <certfile>" line. */
+static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *store;
+	char *err = NULL;
+	char *crtlist_path, *cert_path;
+	struct ebmb_node *ebmb;
+	struct ebpt_node *ebpt;
+	struct crtlist *crtlist;
+	struct crtlist_entry *entry = NULL;
+	struct ckch_inst *inst, *inst_s;
+	int linenum = 0;
+	char *colons;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3] || !*args[4])
+		return cli_err(appctx, "'del ssl crtlist' expects a filename and a certificate name\n");
+
+	crtlist_path = args[3];
+	cert_path = args[4];
+
+	colons = strchr(cert_path, ':');
+	if (colons) {
+		char *endptr;
+
+		linenum = strtol(colons + 1, &endptr, 10);
+		if (colons + 1 == endptr || *endptr != '\0') {
+			memprintf(&err, "wrong line number after colons in '%s'!", cert_path);
+			goto error;
+		}
+		*colons = '\0';
+	}
+	/* look for crtlist */
+	ebmb = ebst_lookup(&crtlists_tree, crtlist_path);
+	if (!ebmb) {
+		memprintf(&err, "crt-list '%s' does not exist!", crtlist_path);
+		goto error;
+	}
+	crtlist = ebmb_entry(ebmb, struct crtlist, node);
+
+	/* look for store */
+	store = ckchs_lookup(cert_path);
+	if (store == NULL) {
+		memprintf(&err, "certificate '%s' does not exist!", cert_path);
+		goto error;
+	}
+	if (store->ckch == NULL || store->ckch->cert == NULL) {
+		memprintf(&err, "certificate '%s' is empty!", cert_path);
+		goto error;
+	}
+
+	ebpt = ebpt_lookup(&crtlist->entries, store);
+	if (!ebpt) {
+		memprintf(&err, "certificate '%s' can't be found in crt-list '%s'!", cert_path, crtlist_path);
+		goto error;
+	}
+
+	/* list the line number of entries for errors in err, and select the right ebpt */
+	for (; ebpt; ebpt = ebpt_next_dup(ebpt)) {
+		struct crtlist_entry *tmp;
+
+		tmp = ebpt_entry(ebpt, struct crtlist_entry, node);
+		memprintf(&err, "%s%s%d", err ? err : "", err ? ", " : "", tmp->linenum);
+
+		/* select the entry we wanted */
+		if (linenum == 0 || tmp->linenum == linenum) {
+			if (!entry)
+				entry = tmp;
+		}
+	}
+
+	/* we didn't found the specified entry */
+	if (!entry) {
+		memprintf(&err, "found a certificate '%s' but the line number is incorrect, please specify a correct line number preceded by colons (%s)!", cert_path, err ? err : NULL);
+		goto error;
+	}
+
+	/* we didn't specified a line number but there were several entries */
+	if (linenum == 0 && ebpt_next_dup(&entry->node)) {
+		memprintf(&err, "found the certificate '%s' in several entries, please specify a line number preceded by colons (%s)!", cert_path, err ? err : NULL);
+		goto error;
+	}
+
+	/* upon error free the ckch_inst and everything inside */
+
+	ebpt_delete(&entry->node);
+	LIST_DEL(&entry->by_crtlist);
+	LIST_DEL(&entry->by_ckch_store);
+
+	list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
+		struct sni_ctx *sni, *sni_s;
+
+		HA_RWLOCK_WRLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
+		list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
+			ebmb_delete(&sni->name);
+			LIST_DEL(&sni->by_ckch_inst);
+			if (sni->order == 0) /* we only free if it's the first inserted */
+				SSL_CTX_free(sni->ctx);
+			free(sni);
+		}
+		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
+		LIST_DEL(&inst->by_ckchs);
+		free(inst);
+	}
+
+	crtlist_free_filters(entry->filters);
+	ssl_sock_free_ssl_conf(entry->ssl_conf);
+	free(entry->ssl_conf);
+	free(entry);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	err = memprintf(&err, "Entry '%s' deleted in crtlist '%s'!\n", cert_path, crtlist_path);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	err = memprintf(&err, "Can't delete the entry: %s\n", err ? err : "");
+	return cli_dynerr(appctx, err);
+}
 
 /* Type of SSL payloads that can be updated over the CLI */
 
@@ -12600,6 +12721,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <filename> <certfile> [options] : add a line <certfile> to a crt-list <filename>", cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
+	{ { "del", "ssl", "crt-list", NULL }, "del ssl crt-list <filename> <certfile[:line]> : delete a line <certfile> in a crt-list <filename>", cli_parse_del_crtlist, NULL, NULL },
 	{ { "dump", "ssl", "crt-list", NULL }, "dump ssl crt-list <filename> : dump the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { NULL }, NULL, NULL, NULL }
