@@ -309,14 +309,6 @@ static int srv_parse_addr(char **args, int *cur_arg,
 	return ERR_ALERT | ERR_FATAL;
 }
 
-/* Parse the "agent-check" server keyword */
-static int srv_parse_agent_check(char **args, int *cur_arg,
-                                 struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	newsrv->do_agent = 1;
-	return 0;
-}
-
 /* Parse the "backup" server keyword */
 static int srv_parse_backup(char **args, int *cur_arg,
                             struct proxy *curproxy, struct server *newsrv, char **err)
@@ -527,18 +519,6 @@ static int srv_parse_namespace(char **args, int *cur_arg,
 	memprintf(err, "'%s': '%s' option not implemented", args[0], args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #endif
-}
-
-/* Parse the "no-agent-check" server keyword */
-static int srv_parse_no_agent_check(char **args, int *cur_arg,
-                                     struct proxy *curproxy, struct server *newsrv, char **err)
-{
-	free_check(&newsrv->agent);
-	newsrv->agent.inter = 0;
-	newsrv->agent.port = 0;
-	newsrv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
-	newsrv->do_agent = 0;
-	return 0;
 }
 
 /* Parse the "no-backup" server keyword */
@@ -1353,7 +1333,6 @@ void srv_compute_all_admin_states(struct proxy *px)
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "addr",                srv_parse_addr,                1,  1 }, /* IP address to send health to or to probe from agent-check */
-	{ "agent-check",         srv_parse_agent_check,         0,  1 }, /* Enable an auxiliary agent check */
 	{ "backup",              srv_parse_backup,              0,  1 }, /* Flag as backup server */
 	{ "check",               srv_parse_check,               0,  1 }, /* enable health checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* enable PROXY protocol for health checks */
@@ -1363,7 +1342,6 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
 	{ "max-reuse",           srv_parse_max_reuse,           1,  1 }, /* Set the max number of requests on a connection, -1 means unlimited */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
-	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-check",            srv_parse_no_check,            0,  1 }, /* disable health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* disable PROXY protol for health checks */
@@ -2210,58 +2188,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "agent-inter")) {
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-
-				if (err == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err) {
-					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'agent-inter' argument of server %s.\n",
-					      file, linenum, *err, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (val <= 0) {
-					ha_alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
-					      file, linenum, val, args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->agent.inter = val;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "agent-addr")) {
-				if(str2ip(args[cur_arg + 1], &newsrv->agent.addr) == NULL) {
-					ha_alert("parsing agent-addr failed. Check if %s is correct address.\n", args[cur_arg + 1]);
-					goto out;
-				}
-
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "agent-port")) {
-				global.maxsock++;
-				newsrv->agent.port = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "agent-send")) {
-				global.maxsock++;
-				free(newsrv->agent.send_string);
-				newsrv->agent.send_string_len = strlen(args[cur_arg + 1]);
-				newsrv->agent.send_string = calloc(1, newsrv->agent.send_string_len + 1);
-				memcpy(newsrv->agent.send_string, args[cur_arg + 1], newsrv->agent.send_string_len);
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "init-addr")) {
+			if (!strcmp(args[cur_arg], "init-addr")) {
 				char *p, *end;
 				int done;
 				struct sockaddr_storage sa;

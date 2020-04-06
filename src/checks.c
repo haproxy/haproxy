@@ -5969,12 +5969,161 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	goto out;
 }
 
+
+/* Parse the "agent-addr" server keyword */
+static int srv_parse_agent_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects an address as argument.", args[*cur_arg]);
+		goto error;
+	}
+	if(str2ip(args[*cur_arg+1], &srv->agent.addr) == NULL) {
+		memprintf(errmsg, "parsing agent-addr failed. Check if '%s' is correct address.", args[*cur_arg+1]);
+		goto error;
+	}
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+/* Parse the "agent-check" server keyword */
+static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				 char **errmsg)
+{
+	srv->do_agent = 1;
+	return 0;
+}
+
+/* Parse the "agent-inter" server keyword */
+static int srv_parse_agent_inter(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				 char **errmsg)
+{
+	const char *err = NULL;
+	unsigned int delay;
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a delay as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	err = parse_time_err(args[*cur_arg+1], &delay, TIME_UNIT_MS);
+	if (err == PARSE_TIME_OVER) {
+		memprintf(errmsg, "timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err == PARSE_TIME_UNDER) {
+		memprintf(errmsg, "timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+			  args[*cur_arg+1], args[*cur_arg], srv->id);
+		goto error;
+	}
+	else if (err) {
+		memprintf(errmsg, "unexpected character '%c' in 'agent-inter' argument of server %s.",
+			  *err, srv->id);
+		goto error;
+	}
+	if (delay <= 0) {
+		memprintf(errmsg, "invalid value %d for argument '%s' of server %s.",
+			  delay, args[*cur_arg], srv->id);
+		goto error;
+	}
+	srv->agent.inter = delay;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+/* Parse the "agent-port" server keyword */
+static int srv_parse_agent_port(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a port number as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	global.maxsock++;
+	srv->agent.port = atol(args[*cur_arg+1]);
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
+/* Parse the "agent-send" server keyword */
+static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(errmsg, "'%s' expects a string as argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	free(srv->agent.send_string);
+	srv->agent.send_string_len = strlen(args[*cur_arg+1]);
+	srv->agent.send_string = strdup(args[*cur_arg+1]);
+	if (srv->agent.send_string == NULL) {
+		memprintf(errmsg, "out of memory.");
+		goto error;
+	}
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+/* Parse the "no-agent-send" server keyword */
+static int srv_parse_no_agent_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				    char **errmsg)
+{
+	free_check(&srv->agent);
+	srv->agent.inter = 0;
+	srv->agent.port = 0;
+	srv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
+	srv->do_agent = 0;
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },
         { 0, NULL, NULL },
 }};
 
+static struct srv_kw_list srv_kws = { "CHK", { }, {
+	{ "agent-addr",          srv_parse_agent_addr,          1,  1 }, /* Enable an auxiliary agent check */
+	{ "agent-check",         srv_parse_agent_check,         0,  1 }, /* Enable agent checks */
+	{ "agent-inter",         srv_parse_agent_inter,         1,  1 }, /* Set the interval between two agent checks */
+	{ "agent-port",          srv_parse_agent_port,          1,  1 }, /* Set the TCP port used for agent checks. */
+	{ "agent-send",          srv_parse_agent_send,          1,  1 }, /* Set string to send to agent. */
+	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
+	{ NULL, NULL, 0 },
+}};
+
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 /*
  * Local variables:
