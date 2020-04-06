@@ -180,8 +180,6 @@ struct check {
 						 * rise to rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
 	int type;				/* Check type, one of PR_O2_*_CHK */
-	int send_string_len;			/* length of agent command string */
-	char *send_string;			/* optionally send a string when connecting to the agent */
 	struct server *server;			/* back-pointer to server */
 	struct proxy *proxy;                    /* proxy to be used */
 	char **argv;				/* the arguments to use if running a process-based check */
@@ -318,6 +316,7 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_MYSQL_CHK   0x00000050
 #define TCPCHK_RULES_LDAP_CHK    0x00000060
 #define TCPCHK_RULES_SSL3_CHK    0x00000070
+#define TCPCHK_RULES_AGENT_CHK   0x00000080
 #define TCPCHK_RULES_SPOP_CHK    0x00000090
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */

@@ -171,8 +171,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
 /* unused: 0x10000000..0x30000000 */
 #define PR_O2_HTTP_CHK  0x40000000      /* use HTTP 'OPTIONS' method to check server health */
-/* unused 0x50000000..0x70000000 */
-#define PR_O2_LB_AGENT_CHK 0x80000000   /* use a TCP connection to obtain a metric of server health */
+/* unused 0x50000000..0x80000000 */
 #define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
 #define PR_O2_EXT_CHK   0xA0000000      /* use external command for server health */
 /* unused: 0xB0000000 to 0xF000000, reserved for health checks */

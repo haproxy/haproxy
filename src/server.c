@@ -1665,9 +1665,18 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->check.downinter          = src->check.downinter;
 	srv->agent.use_ssl            = src->agent.use_ssl;
 	srv->agent.port               = src->agent.port;
-	if (src->agent.send_string != NULL)
-		srv->agent.send_string = strdup(src->agent.send_string);
-	srv->agent.send_string_len    = src->agent.send_string_len;
+
+	if (src->agent.tcpcheck_rules) {
+		srv->agent.tcpcheck_rules = calloc(1, sizeof(*srv->agent.tcpcheck_rules));
+		if (srv->agent.tcpcheck_rules) {
+			srv->agent.tcpcheck_rules->flags = src->agent.tcpcheck_rules->flags;
+			srv->agent.tcpcheck_rules->list  = src->agent.tcpcheck_rules->list;
+			LIST_INIT(&srv->agent.tcpcheck_rules->preset_vars);
+			dup_tcpcheck_vars(&srv->agent.tcpcheck_rules->preset_vars,
+					  &src->agent.tcpcheck_rules->preset_vars);
+		}
+	}
+
 	srv->agent.inter              = src->agent.inter;
 	srv->agent.fastinter          = src->agent.fastinter;
 	srv->agent.downinter          = src->agent.downinter;
@@ -4300,14 +4309,8 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (!(sv->agent.state & CHK_ST_ENABLED))
 			cli_err(appctx, "agent checks are not enabled on this server.\n");
 		else {
-			char *nss = strdup(args[4]);
-			if (!nss)
+			if (!set_srv_agent_send(sv, args[4]))
 				cli_err(appctx, "cannot allocate memory for new string.\n");
-			else {
-				free(sv->agent.send_string);
-				sv->agent.send_string = nss;
-				sv->agent.send_string_len = strlen(args[4]);
-			}
 		}
 	}
 	else if (strcmp(args[3], "check-port") == 0) {

@@ -948,213 +948,6 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 		}
 		break;
 
-	case PR_O2_LB_AGENT_CHK: {
-		int status = HCHK_STATUS_CHECKED;
-		const char *hs = NULL; /* health status      */
-		const char *as = NULL; /* admin status */
-		const char *ps = NULL; /* performance status */
-		const char *cs = NULL; /* maxconn */
-		const char *err = NULL; /* first error to report */
-		const char *wrn = NULL; /* first warning to report */
-		char *cmd, *p;
-
-		/* We're getting an agent check response. The agent could
-		 * have been disabled in the mean time with a long check
-		 * still pending. It is important that we ignore the whole
-		 * response.
-		 */
-		if (!(check->server->agent.state & CHK_ST_ENABLED))
-			break;
-
-		/* The agent supports strings made of a single line ended by the
-		 * first CR ('\r') or LF ('\n'). This line is composed of words
-		 * delimited by spaces (' '), tabs ('\t'), or commas (','). The
-		 * line may optionally contained a description of a state change
-		 * after a sharp ('#'), which is only considered if a health state
-		 * is announced.
-		 *
-		 * Words may be composed of :
-		 *   - a numeric weight suffixed by the percent character ('%').
-		 *   - a health status among "up", "down", "stopped", and "fail".
-		 *   - an admin status among "ready", "drain", "maint".
-		 *
-		 * These words may appear in any order. If multiple words of the
-		 * same category appear, the last one wins.
-		 */
-
-		p = b_head(&check->bi);
-		while (*p && *p != '\n' && *p != '\r')
-			p++;
-
-		if (!*p) {
-			if (!done)
-				goto wait_more_data;
-
-			/* at least inform the admin that the agent is mis-behaving */
-			set_server_check_status(check, check->status, "Ignoring incomplete line from agent");
-			break;
-		}
-
-		*p = 0;
-		cmd = b_head(&check->bi);
-
-		while (*cmd) {
-			/* look for next word */
-			if (*cmd == ' ' || *cmd == '\t' || *cmd == ',') {
-				cmd++;
-				continue;
-			}
-
-			if (*cmd == '#') {
-				/* this is the beginning of a health status description,
-				 * skip the sharp and blanks.
-				 */
-				cmd++;
-				while (*cmd == '\t' || *cmd == ' ')
-					cmd++;
-				break;
-			}
-
-			/* find the end of the word so that we have a null-terminated
-			 * word between <cmd> and <p>.
-			 */
-			p = cmd + 1;
-			while (*p && *p != '\t' && *p != ' ' && *p != '\n' && *p != ',')
-				p++;
-			if (*p)
-				*p++ = 0;
-
-			/* first, health statuses */
-			if (strcasecmp(cmd, "up") == 0) {
-				check->health = check->rise + check->fall - 1;
-				status = HCHK_STATUS_L7OKD;
-				hs = cmd;
-			}
-			else if (strcasecmp(cmd, "down") == 0) {
-				check->health = 0;
-				status = HCHK_STATUS_L7STS;
-				hs = cmd;
-			}
-			else if (strcasecmp(cmd, "stopped") == 0) {
-				check->health = 0;
-				status = HCHK_STATUS_L7STS;
-				hs = cmd;
-			}
-			else if (strcasecmp(cmd, "fail") == 0) {
-				check->health = 0;
-				status = HCHK_STATUS_L7STS;
-				hs = cmd;
-			}
-			/* admin statuses */
-			else if (strcasecmp(cmd, "ready") == 0) {
-				as = cmd;
-			}
-			else if (strcasecmp(cmd, "drain") == 0) {
-				as = cmd;
-			}
-			else if (strcasecmp(cmd, "maint") == 0) {
-				as = cmd;
-			}
-			/* try to parse a weight here and keep the last one */
-			else if (isdigit((unsigned char)*cmd) && strchr(cmd, '%') != NULL) {
-				ps = cmd;
-			}
-			/* try to parse a maxconn here */
-			else if (strncasecmp(cmd, "maxconn:", strlen("maxconn:")) == 0) {
-				cs = cmd;
-			}
-			else {
-				/* keep a copy of the first error */
-				if (!err)
-					err = cmd;
-			}
-			/* skip to next word */
-			cmd = p;
-		}
-		/* here, cmd points either to \0 or to the beginning of a
-		 * description. Skip possible leading spaces.
-		 */
-		while (*cmd == ' ' || *cmd == '\n')
-			cmd++;
-
-		/* First, update the admin status so that we avoid sending other
-		 * possibly useless warnings and can also update the health if
-		 * present after going back up.
-		 */
-		if (as) {
-			if (strcasecmp(as, "drain") == 0)
-				srv_adm_set_drain(check->server);
-			else if (strcasecmp(as, "maint") == 0)
-				srv_adm_set_maint(check->server);
-			else
-				srv_adm_set_ready(check->server);
-		}
-
-		/* now change weights */
-		if (ps) {
-			const char *msg;
-
-			msg = server_parse_weight_change_request(s, ps);
-			if (!wrn || !*wrn)
-				wrn = msg;
-		}
-
-		if (cs) {
-			const char *msg;
-
-			cs += strlen("maxconn:");
-
-			msg = server_parse_maxconn_change_request(s, cs);
-			if (!wrn || !*wrn)
-				wrn = msg;
-		}
-
-		/* and finally health status */
-		if (hs) {
-			/* We'll report some of the warnings and errors we have
-			 * here. Down reports are critical, we leave them untouched.
-			 * Lack of report, or report of 'UP' leaves the room for
-			 * ERR first, then WARN.
-			 */
-			const char *msg = cmd;
-			struct buffer *t;
-
-			if (!*msg || status == HCHK_STATUS_L7OKD) {
-				if (err && *err)
-					msg = err;
-				else if (wrn && *wrn)
-					msg = wrn;
-			}
-
-			t = get_trash_chunk();
-			chunk_printf(t, "via agent : %s%s%s%s",
-				     hs, *msg ? " (" : "",
-				     msg, *msg ? ")" : "");
-
-			set_server_check_status(check, status, t->area);
-		}
-		else if (err && *err) {
-			/* No status change but we'd like to report something odd.
-			 * Just report the current state and copy the message.
-			 */
-			chunk_printf(&trash, "agent reports an error : %s", err);
-			set_server_check_status(check, status/*check->status*/,
-                                                trash.area);
-
-		}
-		else if (wrn && *wrn) {
-			/* No status change but we'd like to report something odd.
-			 * Just report the current state and copy the message.
-			 */
-			chunk_printf(&trash, "agent warns : %s", wrn);
-			set_server_check_status(check, status/*check->status*/,
-                                                trash.area);
-		}
-		else
-			set_server_check_status(check, status, NULL);
-		break;
-	}
-
 	default:
 		/* good connection is enough for pure TCP check */
 		if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
@@ -1419,10 +1212,6 @@ static int connect_conn_chk(struct task *t)
 
 			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
 		}
-	}
-
-	if ((check->type & PR_O2_LB_AGENT_CHK) && check->send_string_len) {
-		b_putblk(&check->bo, check->send_string, check->send_string_len);
 	}
 
 	/* for tcp-checks, the initial connection setup is handled separately as
@@ -2804,6 +2593,217 @@ static enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *chec
 	goto out;
 }
 
+static enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_STOP;
+	enum healthcheck_status status = HCHK_STATUS_CHECKED;
+	const char *hs = NULL; /* health status      */
+	const char *as = NULL; /* admin status */
+	const char *ps = NULL; /* performance status */
+	const char *cs = NULL; /* maxconn */
+	const char *err = NULL; /* first error to report */
+	const char *wrn = NULL; /* first warning to report */
+	char *cmd, *p;
+
+	/* We're getting an agent check response. The agent could
+	 * have been disabled in the mean time with a long check
+	 * still pending. It is important that we ignore the whole
+	 * response.
+	 */
+	if (!(check->state & CHK_ST_ENABLED))
+		goto out;
+
+	/* The agent supports strings made of a single line ended by the
+	 * first CR ('\r') or LF ('\n'). This line is composed of words
+	 * delimited by spaces (' '), tabs ('\t'), or commas (','). The
+	 * line may optionally contained a description of a state change
+	 * after a sharp ('#'), which is only considered if a health state
+	 * is announced.
+	 *
+	 * Words may be composed of :
+	 *   - a numeric weight suffixed by the percent character ('%').
+	 *   - a health status among "up", "down", "stopped", and "fail".
+	 *   - an admin status among "ready", "drain", "maint".
+	 *
+	 * These words may appear in any order. If multiple words of the
+	 * same category appear, the last one wins.
+	 */
+
+	p = b_head(&check->bi);
+	while (*p && *p != '\n' && *p != '\r')
+		p++;
+
+	if (!*p) {
+		if (!last_read)
+			goto wait_more_data;
+
+		/* at least inform the admin that the agent is mis-behaving */
+		set_server_check_status(check, check->status, "Ignoring incomplete line from agent");
+		goto out;
+	}
+
+	*p = 0;
+	cmd = b_head(&check->bi);
+
+	while (*cmd) {
+		/* look for next word */
+		if (*cmd == ' ' || *cmd == '\t' || *cmd == ',') {
+			cmd++;
+			continue;
+		}
+
+		if (*cmd == '#') {
+			/* this is the beginning of a health status description,
+			 * skip the sharp and blanks.
+			 */
+			cmd++;
+			while (*cmd == '\t' || *cmd == ' ')
+				cmd++;
+			break;
+		}
+
+		/* find the end of the word so that we have a null-terminated
+		 * word between <cmd> and <p>.
+		 */
+		p = cmd + 1;
+		while (*p && *p != '\t' && *p != ' ' && *p != '\n' && *p != ',')
+			p++;
+		if (*p)
+			*p++ = 0;
+
+		/* first, health statuses */
+		if (strcasecmp(cmd, "up") == 0) {
+			check->server->check.health = check->server->check.rise + check->server->check.fall - 1;
+			status = HCHK_STATUS_L7OKD;
+			hs = cmd;
+		}
+		else if (strcasecmp(cmd, "down") == 0) {
+			check->server->check.health = 0;
+			status = HCHK_STATUS_L7STS;
+			hs = cmd;
+		}
+		else if (strcasecmp(cmd, "stopped") == 0) {
+			check->server->check.health = 0;
+			status = HCHK_STATUS_L7STS;
+			hs = cmd;
+		}
+		else if (strcasecmp(cmd, "fail") == 0) {
+			check->server->check.health = 0;
+			status = HCHK_STATUS_L7STS;
+			hs = cmd;
+		}
+		/* admin statuses */
+		else if (strcasecmp(cmd, "ready") == 0) {
+			as = cmd;
+		}
+		else if (strcasecmp(cmd, "drain") == 0) {
+			as = cmd;
+		}
+		else if (strcasecmp(cmd, "maint") == 0) {
+			as = cmd;
+		}
+		/* try to parse a weight here and keep the last one */
+		else if (isdigit((unsigned char)*cmd) && strchr(cmd, '%') != NULL) {
+			ps = cmd;
+		}
+		/* try to parse a maxconn here */
+		else if (strncasecmp(cmd, "maxconn:", strlen("maxconn:")) == 0) {
+			cs = cmd;
+		}
+		else {
+			/* keep a copy of the first error */
+			if (!err)
+				err = cmd;
+		}
+		/* skip to next word */
+		cmd = p;
+	}
+	/* here, cmd points either to \0 or to the beginning of a
+	 * description. Skip possible leading spaces.
+	 */
+	while (*cmd == ' ' || *cmd == '\n')
+		cmd++;
+
+	/* First, update the admin status so that we avoid sending other
+	 * possibly useless warnings and can also update the health if
+	 * present after going back up.
+	 */
+	if (as) {
+		if (strcasecmp(as, "drain") == 0)
+			srv_adm_set_drain(check->server);
+		else if (strcasecmp(as, "maint") == 0)
+			srv_adm_set_maint(check->server);
+		else
+			srv_adm_set_ready(check->server);
+	}
+
+	/* now change weights */
+	if (ps) {
+		const char *msg;
+
+		msg = server_parse_weight_change_request(check->server, ps);
+		if (!wrn || !*wrn)
+			wrn = msg;
+	}
+
+	if (cs) {
+		const char *msg;
+
+		cs += strlen("maxconn:");
+
+		msg = server_parse_maxconn_change_request(check->server, cs);
+		if (!wrn || !*wrn)
+			wrn = msg;
+	}
+
+	/* and finally health status */
+	if (hs) {
+		/* We'll report some of the warnings and errors we have
+		 * here. Down reports are critical, we leave them untouched.
+		 * Lack of report, or report of 'UP' leaves the room for
+		 * ERR first, then WARN.
+		 */
+		const char *msg = cmd;
+		struct buffer *t;
+
+		if (!*msg || status == HCHK_STATUS_L7OKD) {
+			if (err && *err)
+				msg = err;
+			else if (wrn && *wrn)
+				msg = wrn;
+		}
+
+		t = get_trash_chunk();
+		chunk_printf(t, "via agent : %s%s%s%s",
+			     hs, *msg ? " (" : "",
+			     msg, *msg ? ")" : "");
+		set_server_check_status(check, status, t->area);
+	}
+	else if (err && *err) {
+		/* No status change but we'd like to report something odd.
+		 * Just report the current state and copy the message.
+		 */
+		chunk_printf(&trash, "agent reports an error : %s", err);
+		set_server_check_status(check, status/*check->status*/, trash.area);
+	}
+	else if (wrn && *wrn) {
+		/* No status change but we'd like to report something odd.
+		 * Just report the current state and copy the message.
+		 */
+		chunk_printf(&trash, "agent warns : %s", wrn);
+		set_server_check_status(check, status/*check->status*/, trash.area);
+	}
+	else
+		set_server_check_status(check, status, NULL);
+
+  out:
+	return ret;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
 /* Evaluate a TCPCHK_ACT_CONNECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check. */
 static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpcheck_rule *rule)
@@ -4143,13 +4143,33 @@ static int init_srv_check(struct server *srv)
 
 static int init_srv_agent_check(struct server *srv)
 {
+	struct tcpcheck_rule *chk;
 	const char *err;
 	int ret = 0;
 
 	if (!srv->do_agent)
 		goto out;
 
-	err = init_check(&srv->agent, PR_O2_LB_AGENT_CHK);
+	/* If there is no connect rule preceeding all send / expect rules, an
+	 * implicit one is inserted before all others.
+	 */
+	chk = get_first_tcpcheck_rule(srv->agent.tcpcheck_rules);
+	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
+		chk = calloc(1, sizeof(*chk));
+		if (!chk) {
+			ha_alert("config : %s '%s': unable to add implicit tcp-check connect rule"
+				 " to agent-check for server '%s' (out of memory).\n",
+				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		chk->action = TCPCHK_ACT_CONNECT;
+		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
+		LIST_ADD(srv->agent.tcpcheck_rules->list, &chk->list);
+	}
+
+
+	err = init_check(&srv->agent, PR_O2_TCPCHK_CHK);
 	if (err) {
 		ha_alert("config: %s '%s': unable to init agent-check for server '%s' (%s).\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id, err);
@@ -4197,9 +4217,17 @@ static void deinit_srv_check(struct server *srv)
 
 static void deinit_srv_agent_check(struct server *srv)
 {
-	if (srv->do_agent)
+	if (srv->agent.tcpcheck_rules) {
+		free_tcpcheck_vars(&srv->agent.tcpcheck_rules->preset_vars);
+		free(srv->agent.tcpcheck_rules);
+		srv->agent.tcpcheck_rules = NULL;
+	}
+
+	if (srv->agent.state & CHK_ST_CONFIGURED)
 		free_check(&srv->agent);
-	free(srv->agent.send_string);
+
+	srv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
+	srv->do_agent = 0;
 }
 
 static void deinit_tcpchecks()
@@ -6045,8 +6073,70 @@ static int srv_parse_agent_addr(char **args, int *cur_arg, struct proxy *curpx, 
 static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				 char **errmsg)
 {
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	int err_code = 0;
+
+	if (srv->do_agent)
+		goto out;
+
+	if (!rules) {
+		rules = calloc(1, sizeof(*rules));
+		if (!rules) {
+			memprintf(errmsg, "out of memory.");
+			goto error;
+		}
+		LIST_INIT(&rules->preset_vars);
+		srv->agent.tcpcheck_rules = rules;
+	}
+	rules->list  = NULL;
+	rules->flags = 0;
+
+	rs = tcpcheck_ruleset_lookup("*agent-check");
+	if (rs)
+		goto ruleset_found;
+
+	rs = tcpcheck_ruleset_create("*agent-check");
+	if (rs == NULL) {
+		memprintf(errmsg, "out of memory.");
+		goto error;
+	}
+
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", "%[var(check.agent_string)]", "log-format", ""},
+				  1, curpx, &rs->rules, srv->conf.file, srv->conf.line, errmsg);
+	if (!chk) {
+		memprintf(errmsg, "'%s': %s", args[*cur_arg], *errmsg);
+		goto error;
+	}
+	chk->index = 0;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+		                    1, curpx, &rs->rules, srv->conf.file, srv->conf.line, errmsg);
+	if (!chk) {
+		memprintf(errmsg, "'%s': %s", args[*cur_arg], *errmsg);
+		goto error;
+	}
+	chk->expect.custom = tcpcheck_agent_expect_reply;
+	chk->index = 1;
+	LIST_ADDQ(&rs->rules, &chk->list);
+
+	LIST_ADDQ(&tcpchecks_list, &rs->list);
+
+  ruleset_found:
+	rules->list = &rs->rules;
+	rules->flags |= (TCPCHK_RULES_SHARED|TCPCHK_RULES_AGENT_CHK);
 	srv->do_agent = 1;
+
+  out:
 	return 0;
+
+  error:
+	deinit_srv_agent_check(srv);
+	tcpcheck_ruleset_release(rs);
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
 }
 
 /* Parse the "agent-inter" server keyword */
@@ -6115,11 +6205,38 @@ static int srv_parse_agent_port(char **args, int *cur_arg, struct proxy *curpx, 
 	goto out;
 }
 
+int set_srv_agent_send(struct server *srv, const char *send)
+{
+	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
+	struct tcpcheck_var *var = NULL;
+	char *str;
+
+	str = strdup(send);
+	var = tcpcheck_var_create("check.agent_string");
+	if (str == NULL || var == NULL)
+		goto error;
+
+	free_tcpcheck_vars(&rules->preset_vars);
+
+	var->data.type = SMP_T_STR;
+	var->data.u.str.area = str;
+	var->data.u.str.data = strlen(str);
+	LIST_INIT(&var->list);
+	LIST_ADDQ(&rules->preset_vars, &var->list);
+
+	return 1;
+
+  error:
+	free(str);
+	free(var);
+	return 0;
+}
 
 /* Parse the "agent-send" server keyword */
 static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
 {
+	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
 	int err_code = 0;
 
 	if (!*(args[*cur_arg+1])) {
@@ -6127,10 +6244,17 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 		goto error;
 	}
 
-	free(srv->agent.send_string);
-	srv->agent.send_string_len = strlen(args[*cur_arg+1]);
-	srv->agent.send_string = strdup(args[*cur_arg+1]);
-	if (srv->agent.send_string == NULL) {
+	if (!rules) {
+		rules = calloc(1, sizeof(*rules));
+		if (!rules) {
+			memprintf(errmsg, "out of memory.");
+			goto error;
+		}
+		LIST_INIT(&rules->preset_vars);
+		srv->agent.tcpcheck_rules = rules;
+	}
+
+	if (!set_srv_agent_send(srv, args[*cur_arg+1])) {
 		memprintf(errmsg, "out of memory.");
 		goto error;
 	}
@@ -6139,6 +6263,7 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 	return err_code;
 
   error:
+	deinit_srv_agent_check(srv);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
@@ -6147,11 +6272,7 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 static int srv_parse_no_agent_check(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				    char **errmsg)
 {
-	free_check(&srv->agent);
-	srv->agent.inter = 0;
-	srv->agent.port = 0;
-	srv->agent.state &= ~CHK_ST_CONFIGURED & ~CHK_ST_ENABLED & ~CHK_ST_AGENT;
-	srv->do_agent = 0;
+	deinit_srv_agent_check(srv);
 	return 0;
 }
 

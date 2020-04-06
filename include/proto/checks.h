@@ -84,6 +84,8 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 			       const char *file, int line);
 
+int set_srv_agent_send(struct server *srv, const char *send);
+
 #endif /* _PROTO_CHECKS_H */
 
 /*
