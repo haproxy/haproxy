@@ -4567,6 +4567,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 	memcpy(dir->node.key, path, strlen(path) + 1);
 	dir->entries = EB_ROOT_UNIQUE; /* it's a directory, files are unique */
 	dir->bind_conf = NULL;
+	dir->linecount = 0;
 	LIST_INIT(&dir->ord_entries);
 
 	n = scandir(path, &de_list, 0, alphasort);
@@ -4602,6 +4603,7 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 			}
 
 			/* directories don't use ssl_conf and filters */
+			entry->linenum = 0;
 			entry->fcount = 0;
 			entry->filters = NULL;
 			entry->ssl_conf = NULL;
@@ -4804,7 +4806,7 @@ static int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry 
 			goto error;
 		}
 	}
-
+	entry->linenum = linenum;
 	entry->ssl_conf = ssl_conf;
 	entry->filters = crtlist_dup_filters(&args[cur_arg], arg - cur_arg - 1);
 	entry->fcount = arg - cur_arg - 1;
@@ -4936,6 +4938,8 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 	}
 	if (cfgerr & ERR_CODE)
 		goto error;
+
+	newlist->linecount = linenum;
 
 	fclose(f);
 	*crtlist = newlist;
@@ -11155,9 +11159,9 @@ static int cli_io_handler_dump_crtlist_entries(struct appctx *appctx)
 
 		store = entry->node.key;
 		filename = store->path;
-		if (appctx->ctx.cli.i0 == 's') /* show */
-			chunk_appendf(trash, "%p ", entry);
 		chunk_appendf(trash, "%s", filename);
+		if (appctx->ctx.cli.i0 == 's') /* show */
+			chunk_appendf(trash, ":%d", entry->linenum);
 		dump_crtlist_sslconf(trash, entry->ssl_conf);
 		dump_crtlist_filters(trash, entry);
 		chunk_appendf(trash, "\n");
@@ -11179,6 +11183,7 @@ yield:
 static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct ebmb_node *lnode;
+	char *filename = NULL;
 	int mode;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -11186,13 +11191,20 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 
 	appctx->ctx.cli.p0 = NULL;
 	appctx->ctx.cli.p1 = NULL;
-	mode = (int)args[0][0]; /* 'd' or 's' */
 
-	if (mode == 'd' && !*args[3])
-		return cli_err(appctx, "'dump ssl crt-list' expects a filename or a directory\n");
+	if (*args[3] && !strcmp(args[3], "-n")) {
+		mode = 's';
+		filename = args[4];
+	} else {
+		mode = 'd';
+		filename = args[3];
+	}
 
-	if (*args[3]) {
-		lnode = ebst_lookup(&crtlists_tree, args[3]);
+	if (mode == 's' && !*args[4])
+		return cli_err(appctx, "'show ssl crt-list -n' expects a filename or a directory\n");
+
+	if (filename && *filename) {
+		lnode = ebst_lookup(&crtlists_tree, filename);
 		if (lnode == NULL)
 			return cli_err(appctx, "didn't find the specified filename\n");
 
@@ -11320,6 +11332,7 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 					ssl_sock_load_cert_sni(new_inst, new_inst->bind_conf);
 					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &new_inst->bind_conf->sni_lock);
 				}
+				entry->linenum = ++crtlist->linecount;
 				appctx->st2 = SETCERT_ST_FIN;
 				goto end;
 		}
@@ -12722,8 +12735,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <filename> <certfile> [options] : add a line <certfile> to a crt-list <filename>", cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
 	{ { "del", "ssl", "crt-list", NULL }, "del ssl crt-list <filename> <certfile[:line]> : delete a line <certfile> in a crt-list <filename>", cli_parse_del_crtlist, NULL, NULL },
-	{ { "dump", "ssl", "crt-list", NULL }, "dump ssl crt-list <filename> : dump the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
-	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
+	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [-n] [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 

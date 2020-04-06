@@ -156,6 +156,7 @@ struct bind_conf_list {
 /* This structure is basically a crt-list or a directory */
 struct crtlist {
 	struct bind_conf_list *bind_conf; /* list of bind_conf which use this crtlist */
+	unsigned int linecount; /* number of lines */
 	struct eb_root entries;
 	struct list ord_entries; /* list to keep the line order of the crt-list file */
 	struct ebmb_node node; /* key is the filename or directory */

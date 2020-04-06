@@ -1595,18 +1595,6 @@ disable server <backend>/<server>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
-dump ssl crt-list <filename>
-  Dump the content of a crt-list or a directory. Once dumped the output can be
-  used as a crt-list file.
-
-  Example:
-    echo "dump ssl crt-list localhost.crt-list" | socat /tmp/sock1 -
-    # localhost.crt-list
-    common.pem !not.test1.com *.test1.com !localhost
-    common.pem
-    ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
-    ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
-
 enable agent <backend>/<server>
   Resume auxiliary agent check that was temporarily stopped.
 
@@ -2582,20 +2570,22 @@ show ssl cert [<filename>]
     Filename: *test.local.pem
     [...]
 
-show ssl crt-list [<filename>]
+show ssl crt-list [-n] [<filename>]
   Display the list of crt-list and directories used in the HAProxy
-  configuration. If a directory or a crt-list is specified, displays its
-  content. Does not use this command to dump your crt-list configuration as it
-  provides extra informations not compatible with the crt-list. To dump a
-  crt-list, use the "dump ssl crt-list" command instead.
+  configuration. If a filename is specified, dump the content of a crt-list or
+  a directory. Once dumped the output can be used as a crt-list file.
+  The '-n' option can be used to display the line number, which is useful when
+  combined with the 'del ssl crt-list' option when a entry is duplicated. The
+  output with the '-n' option is not compatible with the crt-list format and
+  not loadable by haproxy.
 
   Example:
-    echo "show ssl crt-list localhost.crt-list" | socat /tmp/sock1 -
+    echo "show ssl crt-list -n localhost.crt-list" | socat /tmp/sock1 -
     # localhost.crt-list
-    0x55db301c29a0 common.pem !not.test1.com *.test1.com !localhost
-    0x55db301f99e0 common.pem
-    0x7fb6f40220b0 ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
-    0x55db30277070 ecdsa.pem [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
+    common.pem:1 !not.test1.com *.test1.com !localhost
+    common.pem:2
+    ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
+    ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
 
 show resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections
