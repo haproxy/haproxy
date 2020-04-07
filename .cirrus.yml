@@ -4,7 +4,7 @@ FreeBSD_task:
       image_family: freebsd-12-1
   only_if: $CIRRUS_BRANCH =~ 'master|next'
   install_script:
-    - pkg update -f && pkg upgrade -y && pkg install -y openssl111 git gmake lua53 socat
+    - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat
   script:
     - git clone https://github.com/VTest/VTest.git ../vtest
     - make -C ../vtest
