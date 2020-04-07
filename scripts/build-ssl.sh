@@ -3,8 +3,17 @@ set -eux
 
 download_openssl () {
     if [ ! -f "download-cache/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
+
+#
+# OpenSSL has different links for latest and previous releases
+# since we want to download several versions, let us try to treat
+# current version as latest, if it fails, follow with previous
+#
+
+	wget -P download-cache/ \
+	    "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" || \
         wget -P download-cache/ \
-            "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+            "https://www.openssl.org/source/old/${OPENSSL_VERSION%[a-z]}/openssl-${OPENSSL_VERSION}.tar.gz"
     fi
 }
 
