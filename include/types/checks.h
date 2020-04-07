@@ -275,6 +275,7 @@ struct tcpcheck_expect {
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
 	struct list onerror_fmt;        /* log-format string to use as comment on error */
 	struct list onsuccess_fmt;      /* log-format string to use as comment on success (if last rule) */
+	enum healthcheck_status ok_status;   /* The healthcheck status to use on success (default: L7OKD) */
 	enum healthcheck_status err_status;  /* The healthcheck status to use on error (default: L7RSP) */
 	enum healthcheck_status tout_status; /* The healthcheck status to use on timeout (default: L7TOUT) */
 	struct sample_expr *status_expr; /* sample expr to determine the check status code */

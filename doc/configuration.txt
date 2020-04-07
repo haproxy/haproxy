@@ -9872,7 +9872,8 @@ tcp-check connect [params*]
   See also : "option tcp-check", "tcp-check send", "tcp-check expect"
 
 
-tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
+tcp-check expect [min-recv <int>]
+                 [ok-status <st>] [error-status <st>] [tout-status <st>]
                  [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                  [!] <match> <pattern>
   Specify data to be collected and analyzed during a generic health check
@@ -9898,6 +9899,14 @@ tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
               the match. Spaces are allowed between the exclamation mark and the
               keyword. See below for more details on the supported keywords.
 
+    ok-status <st>     is optional and can be used to set the check status if
+                       the expect rule is successfully evaluated and if it is
+                       the last rule in the tcp-check ruleset. "L7OK", "L7OKC",
+                       "L6OK" and "L4OK" are supported and may be used to set,
+                       respectively, HCHK_STATUS_L7OK, HCHK_STATUS_L7OKCD,
+                       HCHK_STATUS_L6OK or HCHK_STATUS_L4OK success status.
+                        By default "L7OK" is used.
+
     error-status <st>  is optional and can be used to set the check status if
                        an error occurred during the expect rule evaluation.
                        "L7RSP", "L7STS", "L6RSP" and "L4CON" are supported and
@@ -9905,7 +9914,7 @@ tcp-check expect [min-recv <int>] [error-status <st>] [tout-status <st>]
                        HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP or HCHK_STATUS_L4CON
                        error status. By default "L7RSP" is used.
 
-    tout-status <st>  is optional and can be used to set the check status if
+    tout-status <st>   is optional and can be used to set the check status if
                        a timeout occurred during the expect rule evaluation.
                        "L7TOUT", "L6TOUT", and "L4TOUT" are supported and may
                        be used to set, respectively, HCHK_STATUS_L7TOUT,

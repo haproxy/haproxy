@@ -2452,7 +2452,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	 * FIXME : it can be cool to use MySQL Version for other purpose,
 	 * like mark as down old MySQL server.
 	 */
-	set_server_check_status(check, HCHK_STATUS_L7OKD, b_peek(&check->bi, 5));
+	set_server_check_status(check, rule->expect.ok_status, b_peek(&check->bi, 5));
 
   out:
 	free_trash_chunk(msg);
@@ -2536,7 +2536,7 @@ static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, 
 		goto error;
 	}
 
-	set_server_check_status(check, HCHK_STATUS_L7OKD, "Success");
+	set_server_check_status(check, rule->expect.ok_status, "Success");
 
   out:
 	free_trash_chunk(msg);
@@ -2578,7 +2578,7 @@ static enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *chec
 		goto error;
 	}
 
-	set_server_check_status(check, HCHK_STATUS_L7OKD, "SPOA server is ok");
+	set_server_check_status(check, rule->expect.ok_status, "SPOA server is ok");
 
   out:
 	free_trash_chunk(msg);
@@ -3104,7 +3104,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
-	struct tcpcheck_expect *expect = &check->current_step->expect;
+	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
 	int match;
 
@@ -3391,9 +3391,11 @@ static int tcpcheck_main(struct check *check)
 		msg = alloc_trash_chunk();
 		if (msg)
 			tcpcheck_onsuccess_message(msg, check, check->current_step, ist(NULL));
+		set_server_check_status(check, check->current_step->expect.ok_status, (msg ? b_head(msg) : "(tcp-check)"));
+		free_trash_chunk(msg);
 	}
-	set_server_check_status(check, HCHK_STATUS_L7OKD, (msg ? b_head(msg) : "(tcp-check)"));
-	free_trash_chunk(msg);
+	else
+		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 
   out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
@@ -3741,6 +3743,7 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 	expect->type = TCPCHK_EXPECT_STRING;
 	LIST_INIT(&expect->onerror_fmt);
 	LIST_INIT(&expect->onsuccess_fmt);
+	expect->ok_status = HCHK_STATUS_L7OKD;
 	expect->err_status = HCHK_STATUS_L7RSP;
 	expect->tout_status = HCHK_STATUS_L7TOUT;
 	expect->string = strdup(str);
@@ -4660,6 +4663,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	struct sample_expr *status_expr = NULL;
 	char *str, *on_success_msg, *on_error_msg, *comment, *pattern;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
+	enum healthcheck_status ok_st = HCHK_STATUS_L7OKD;
 	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
 	enum healthcheck_status tout_st = HCHK_STATUS_L7TOUT;
 	long min_recv = -1;
@@ -4782,6 +4786,30 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 		}
+		else if (strcmp(args[cur_arg], "ok-status") == 0) {
+			if (in_pattern) {
+				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
+				goto error;
+			}
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument", args[cur_arg]);
+				goto error;
+			}
+			if (strcasecmp(args[cur_arg+1], "L7OK") == 0)
+				ok_st = HCHK_STATUS_L7OKD;
+			else if (strcasecmp(args[cur_arg+1], "L7OKC") == 0)
+				ok_st = HCHK_STATUS_L7OKCD;
+			else if (strcasecmp(args[cur_arg+1], "L6OK") == 0)
+				ok_st = HCHK_STATUS_L6OK;
+			else if (strcasecmp(args[cur_arg+1], "L4OK") == 0)
+				ok_st = HCHK_STATUS_L4OK;
+			else  {
+				memprintf(errmsg, "'%s' only supports 'L4OK', 'L6OK', 'L7OK' or 'L7OKC' status (got '%s').",
+					  args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+			cur_arg++;
+		}
 		else if (strcmp(args[cur_arg], "error-status") == 0) {
 			if (in_pattern) {
 				memprintf(errmsg, "[!] not supported with '%s'", args[cur_arg]);
@@ -4899,6 +4927,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->expect.min_recv = min_recv;
 	chk->expect.inverse = inverse;
 	chk->expect.with_capture = with_capture;
+	chk->expect.ok_status = ok_st;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
 	chk->expect.status_expr = status_expr; status_expr = NULL;
@@ -5266,7 +5295,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^1[56]",
-				                "min-recv", "5",
+				                "min-recv", "5", "ok-status", "L6OK",
 				                "error-status", "L6RSP", "tout-status", "L6TOUT",
 				                ""},
 		                    1, curpx, &rs->rules, file, line, &errmsg);
