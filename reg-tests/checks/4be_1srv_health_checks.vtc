@@ -39,7 +39,7 @@ syslog S1 -level notice {
     recv
     expect ~ "Proxy be1 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be1/srv1 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
@@ -47,7 +47,7 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be1 has no server available!"
     barrier b1 sync
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be1/srv1 is UP/READY \\(leaving forced maintenance\\).|Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be1/srv1 is UP/READY \\(leaving forced maintenance\\).|Health check for server be1/srv1 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP)"
     barrier b1 sync
 } -start
 
@@ -55,7 +55,7 @@ syslog S2 -level notice {
     recv
     expect ~ "Proxy be2 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be2/srv2 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
@@ -63,7 +63,7 @@ syslog S2 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be2 has no server available!"
     barrier b1 sync
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be2/srv2 is UP/READY \\(leaving forced maintenance\\).|Health check for server be2/srv2 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be2/srv2 is UP/READY \\(leaving forced maintenance\\).|Health check for server be2/srv2 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP)"
     barrier b1 sync
 } -start
 
@@ -71,7 +71,7 @@ syslog S3 -level notice {
     recv
     expect ~ "Proxy be3 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be3/srv3 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
@@ -79,7 +79,7 @@ syslog S3 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be3 has no server available!"
     barrier b1 sync
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be3/srv3 is UP/READY \\(leaving forced maintenance\\).|Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be3/srv3 is UP/READY \\(leaving forced maintenance\\).|Health check for server be3/srv3 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP)"
     barrier b1 sync
 } -start
 
@@ -87,7 +87,7 @@ syslog S4 -level notice {
     recv
     expect ~ "Proxy be4 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Server be4/srv4 is going DOWN for maintenance. 0 active and 0 backup servers left. [01] sessions active, 0 requeued, 0 remaining in queue."
@@ -95,7 +95,7 @@ syslog S4 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: backend be4 has no server available!"
     barrier b1 sync
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be4/srv4 is UP/READY \\(leaving forced maintenance\\).|Health check for server be4/srv4 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Server be4/srv4 is UP/READY \\(leaving forced maintenance\\).|Health check for server be4/srv4 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP)"
     barrier b1 sync
 } -start
 
@@ -105,7 +105,7 @@ haproxy h1 -conf {
         timeout client  1s
         timeout server  1s
         timeout connect 1s
-        default-server check downinter 1s rise 1 fall 1
+        default-server check inter 200ms downinter 100s rise 1 fall 1
 
     frontend fe1
         bind "fd@${fe1}"

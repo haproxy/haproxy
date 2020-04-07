@@ -13,7 +13,7 @@ feature ignore_unknown_macro
 # Note that the first syslog message received is: "Proxy <name> started."
 syslog S -repeat 21 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Health check for server be1/srv([13579]|[123][13579]) succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP|Proxy be1 started.)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Health check for server be1/srv([13579]|[123][13579]) succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP|Proxy be1 started.)"
 } -start
 
 server s0 {} -start
@@ -62,7 +62,7 @@ haproxy h1 -conf {
         timeout client 1s
         timeout server 1s
         timeout connect 1s
-        default-server no-check downinter 1s rise 1 fall 1
+        default-server no-check inter 200ms downinter 100ms rise 1 fall 1
 
     backend be1
         option log-health-checks
