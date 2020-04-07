@@ -318,6 +318,8 @@ struct tcpcheck_rule {
 #define TCPCHK_RULES_SSL3_CHK    0x00000070
 #define TCPCHK_RULES_AGENT_CHK   0x00000080
 #define TCPCHK_RULES_SPOP_CHK    0x00000090
+/* Unused 0x000000A0..0x00000F00 (reserverd for futur proto) */
+#define TCPCHK_RULES_PROTO_CHK   0x00000FF0 /* Mask to cover protocol check */
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */
 struct tcpcheck_var {

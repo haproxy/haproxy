@@ -635,7 +635,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	 */
 	chk = get_trash_chunk();
 
-	if (check->type == PR_O2_TCPCHK_CHK) {
+	if (check->type == PR_O2_TCPCHK_CHK &&
+	    !(check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK)) {
 		step = tcpcheck_get_step_id(check, NULL);
 		if (!step)
 			chunk_printf(chk, " at initial connection step of tcp-check");
@@ -2318,6 +2319,9 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 		goto comment;
 	}
 
+       if (check->type == PR_O2_TCPCHK_CHK && (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK))
+	       goto comment;
+
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (rule->expect.type) {
 	case TCPCHK_EXPECT_STRING:
@@ -2384,7 +2388,7 @@ static void tcpcheck_onsuccess_message(struct buffer *msg, struct check *check, 
 	if (!LIST_ISEMPTY(&rule->expect.onsuccess_fmt))
 		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
 						&rule->expect.onsuccess_fmt);
-	else
+	else if (check->type == PR_O2_TCPCHK_CHK && !(check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK))
 		chunk_strcat(msg, "(tcp-check)");
 
 	if (rule->expect.status_expr) {
