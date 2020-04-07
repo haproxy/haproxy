@@ -42,7 +42,7 @@
  *   - FAIL : no mattern may ever match
  *
  * We assign values 0, 1 and 3 to FAIL, MISS and PASS respectively, so that we
- * can make use of standard arithmetics for the truth tables below :
+ * can make use of standard arithmetic for the truth tables below :
  *
  *      x  | !x          x&y | F(0) | M(1) | P(3)     x|y | F(0) | M(1) | P(3)
  *   ------+-----       -----+------+------+-----    -----+------+------+-----

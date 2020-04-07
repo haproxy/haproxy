@@ -703,7 +703,7 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
  * <nid> is the stick-table name which is sent over the network. It must be equal
  * to <id> if this stick-table is parsed from a proxy section, and prefixed by <peers>
  * "peers" section name followed by a '/' character if parsed from a "peers" section.
- * This is the responsability of the caller to check this.
+ * This is the responsibility of the caller to check this.
  * Return an error status with ERR_* flags set if required, 0 if no error was encountered.
  */
 int parse_stick_table(const char *file, int linenum, char **args,

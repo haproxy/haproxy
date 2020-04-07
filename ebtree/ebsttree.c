@@ -23,7 +23,7 @@
 #include "ebsttree.h"
 
 /* Find the first occurrence of a zero-terminated string <x> in the tree <root>.
- * It's the caller's reponsibility to use this function only on trees which
+ * It's the caller's responsibility to use this function only on trees which
  * only contain zero-terminated strings. If none can be found, return NULL.
  */
 struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x)

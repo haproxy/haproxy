@@ -46,7 +46,7 @@ extern struct pool_head *dns_requester_pool;
 #define DNS_MAX_NAME_SIZE    255
 #define DNS_MAX_UDP_MESSAGE  8192
 
-/* DNS minimun record size: 1 char + 1 NULL + type + class */
+/* DNS minimum record size: 1 char + 1 NULL + type + class */
 #define DNS_MIN_RECORD_SIZE  (1 + 1 + 2 + 2)
 
 /* DNS smallest fqdn 'a.gl' size */
@@ -151,7 +151,7 @@ struct dns_answer_item {
 	struct sockaddr address;                     /* IPv4 or IPv6, network format */
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
 	time_t          last_seen;                   /* When was the answer was last seen */
-	struct dns_answer_item *ar_item;             /* pointer to a RRset from the additionnal section, if exists */
+	struct dns_answer_item *ar_item;             /* pointer to a RRset from the additional section, if exists */
 	struct list     list;
 };
 

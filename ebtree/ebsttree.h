@@ -33,7 +33,7 @@ struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x);
 struct ebmb_node *ebst_insert(struct eb_root *root, struct ebmb_node *new);
 
 /* Find the first occurrence of a length <len> string <x> in the tree <root>.
- * It's the caller's reponsibility to use this function only on trees which
+ * It's the caller's responsibility to use this function only on trees which
  * only contain zero-terminated strings, and that no null character is present
  * in string <x> in the first <len> chars. If none can be found, return NULL.
  */
@@ -49,7 +49,7 @@ ebst_lookup_len(struct eb_root *root, const char *x, unsigned int len)
 }
 
 /* Find the first occurrence of a zero-terminated string <x> in the tree <root>.
- * It's the caller's reponsibility to use this function only on trees which
+ * It's the caller's responsibility to use this function only on trees which
  * only contain zero-terminated strings. If none can be found, return NULL.
  */
 static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const void *x)

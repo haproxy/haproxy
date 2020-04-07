@@ -39,7 +39,7 @@ struct applet {
 	enum obj_type obj_type;            /* object type = OBJ_TYPE_APPLET */
 	/* 3 unused bytes here */
 	char *name;                        /* applet's name to report in logs */
-	int (*init)(struct appctx *, struct proxy *px, struct stream *strm);   /* callback to init ressources, may be NULL.
+	int (*init)(struct appctx *, struct proxy *px, struct stream *strm);   /* callback to init resources, may be NULL.
 	                                     expect 1 if ok, 0 if an error occurs, -1 if miss data. */
 	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
@@ -114,7 +114,7 @@ struct appctx {
 			struct cache_entry *entry;  /* Entry to be sent from cache. */
 			unsigned int sent;          /* The number of bytes already sent for this cache entry. */
 			unsigned int offset;        /* start offset of remaining data relative to beginning of the next block */
-			unsigned int rem_data;      /* Remaing bytes for the last data block (HTX only, 0 means process next block) */
+			unsigned int rem_data;      /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
 			struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
 		} cache;
 		/* all entries below are used by various CLI commands, please

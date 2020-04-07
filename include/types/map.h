@@ -28,7 +28,7 @@
 struct map_descriptor {
 	struct sample_conv *conv;      /* original converter descriptor */
 	struct pattern_head pat;       /* the pattern matching associated to the map */
-	int do_free;                   /* set if <pat> is the orignal pat and must be freed */
+	int do_free;                   /* set if <pat> is the original pat and must be freed */
 };
 
 #endif /* _TYPES_MAP_H */

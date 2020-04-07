@@ -124,7 +124,7 @@ struct hlua_appctx {
 	struct hlua_txn htxn;
 };
 
-/* This struc is used with sample fetches and sample converters. */
+/* This struct is used with sample fetches and sample converters. */
 struct hlua_smp {
 	struct stream *s;
 	struct proxy *p;

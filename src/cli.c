@@ -1770,11 +1770,11 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	 *  Listener options, as an int.
 	 */
 	/* We will send sockets MAX_SEND_FD per MAX_SEND_FD, allocate a
-	 * buffer big enough to store the socket informations.
+	 * buffer big enough to store the socket information.
 	 */
 	tmpbuf = malloc(MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
 	if (tmpbuf == NULL) {
-		ha_warning("Failed to allocate memory to transfer socket informations\n");
+		ha_warning("Failed to allocate memory to transfer socket information\n");
 		goto out;
 	}
 	iov.iov_base = tmpbuf;
@@ -2391,7 +2391,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* We must trim any excess data from the response buffer, because we
 		 * may have blocked an invalid response from a server that we don't
-		 * want to accidently forward once we disable the analysers, nor do
+		 * want to accidentally forward once we disable the analysers, nor do
 		 * we want those data to come along with next response. A typical
 		 * example of such data would be from a buggy server responding to
 		 * a HEAD with some data, or sending more than the advertised

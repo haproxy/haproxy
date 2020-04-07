@@ -405,8 +405,8 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 
 /* This function take one entrie in an LUA stack at the index "ud",
  * and try to convert it in an HAProxy argument entry. This is useful
- * with sample fetch wrappers. The input arguments are gived to the
- * lua wrapper and converted as arg list by thi function.
+ * with sample fetch wrappers. The input arguments are given to the
+ * lua wrapper and converted as arg list by the function.
  */
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
 {
@@ -441,7 +441,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
 
 /* the following functions are used to convert a struct sample
  * in Lua type. This useful to convert the return of the
- * fetchs or converters.
+ * fetches or converters.
  */
 static int hlua_smp2lua(lua_State *L, struct sample *smp)
 {
@@ -493,7 +493,7 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 
 /* the following functions are used to convert a struct sample
  * in Lua strings. This is useful to convert the return of the
- * fetchs or converters.
+ * fetches or converters.
  */
 static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
 {
@@ -584,7 +584,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 	return 1;
 }
 
-/* This function check the "argp" builded by another conversion function
+/* This function check the "argp" built by another conversion function
  * is in accord with the expected argp defined by the "mask". The function
  * returns true or false. It can be adjust the types if there compatibles.
  *
@@ -2696,7 +2696,7 @@ static int hlua_channel_new(lua_State *L, struct channel *channel)
  * in a string LUA variables. Returns -1 and push a nil value in
  * the stack if the channel is closed and all the data are consumed,
  * returns 0 if no data are available, otherwise it returns the length
- * of the builded string.
+ * of the built string.
  */
 static inline int _hlua_channel_dup(struct channel *chn, lua_State *L)
 {
@@ -7456,7 +7456,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	appctx->ctx.hlua_cli.hlua = hlua;
 
 	/* Create task used by signal to wakeup applets.
-	 * We use the same wakeup fonction than the Lua applet_tcp and
+	 * We use the same wakeup function than the Lua applet_tcp and
 	 * applet_http. It is absolutely compatible.
 	 */
 	appctx->ctx.hlua_cli.task = task_new(tid_bit);
@@ -7816,7 +7816,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 		lua_pop(gL.T, 1);
 		return -1;
 	default:
-		memprintf(err, "Lua unknonwn error: %s\n", lua_tostring(gL.T, -1));
+		memprintf(err, "Lua unknown error: %s\n", lua_tostring(gL.T, -1));
 		lua_pop(gL.T, 1);
 		return -1;
 	}
@@ -8124,7 +8124,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8156,7 +8156,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8187,7 +8187,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8280,7 +8280,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8318,7 +8318,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8346,7 +8346,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8377,7 +8377,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
@@ -8431,7 +8431,7 @@ void hlua_init(void)
 	/* Create and fill the metatable. */
 	lua_newtable(gL.T);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 

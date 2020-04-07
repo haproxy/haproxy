@@ -992,7 +992,7 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	return buf;
 }
 
-/* Convert the raw http message <msg> into an HTX message. On sucess, the HTX
+/* Convert the raw http message <msg> into an HTX message. On success, the HTX
  * message is returned. On error, NULL is returned and an error message is
  * written into the <errmsg> buffer.
  */
@@ -1974,7 +1974,7 @@ int val_blk_arg(struct arg *arg, char **err_msg)
 
 
 /* Note: must not be declared <const> as its list will be overwritten.
- * Note: htx sample fetches should only used for developpement purpose.
+ * Note: htx sample fetches should only used for development purpose.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "internal.strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_L6REQ },

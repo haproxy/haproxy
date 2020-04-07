@@ -57,7 +57,7 @@ struct comp_ctx {
 	int cur_lvl;
 };
 
-/* Thanks to MSIE/IIS, the "deflate" name is ambigous, as according to the RFC
+/* Thanks to MSIE/IIS, the "deflate" name is ambiguous, as according to the RFC
  * it's a zlib-wrapped deflate stream, but MSIE only understands a raw deflate
  * stream. For this reason some people prefer to emit a raw deflate stream on
  * "deflate" and we'll need two algos for the same name, they are distinguished

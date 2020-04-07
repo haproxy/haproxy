@@ -132,7 +132,7 @@ enum spoe_context_error {
 	SPOE_CTX_ERRS,
 };
 
-/* Errors triggerd by SPOE applet */
+/* Errors triggered by SPOE applet */
 enum spoe_frame_error {
 	SPOE_FRM_ERR_NONE = 0,
 	SPOE_FRM_ERR_IO,
@@ -269,7 +269,7 @@ struct spoe_agent {
 		struct freq_ctr processing_per_sec;
 
 		struct freq_ctr conn_per_sec;   /* connections per second */
-		struct freq_ctr err_per_sec;    /* connetion errors per second */
+		struct freq_ctr err_per_sec;    /* connection errors per second */
 
 		struct eb_root  idle_applets;   /* idle SPOE applets available to process data */
 		struct list     applets;        /* all SPOE applets for this agent */
@@ -307,7 +307,7 @@ struct spoe_context {
 	struct list        *groups;       /* List of available SPOE group */
 
 	struct buffer       buffer;       /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;  /* position in the list of ressources waiting for a buffer */
+	struct buffer_wait  buffer_wait;  /* position in the list of resources waiting for a buffer */
 	struct list         list;
 
 	enum spoe_ctx_state state;        /* SPOE_CTX_ST_* */
@@ -359,7 +359,7 @@ struct spoe_appctx {
 #endif
 
 	struct buffer       buffer;         /* Buffer used to store a encoded messages */
-	struct buffer_wait  buffer_wait;    /* position in the list of ressources waiting for a buffer */
+	struct buffer_wait  buffer_wait;    /* position in the list of resources waiting for a buffer */
 	struct list         waiting_queue;  /* list of streams waiting for a ACK frame, in sync and pipelining mode */
 	struct list         list;           /* next spoe appctx for the same agent */
 	struct eb32_node    node;           /* node used for applets tree */
