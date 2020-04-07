@@ -3219,7 +3219,6 @@ static int tcpcheck_main(struct check *check)
 	struct tcpcheck_rule *rule;
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
-	struct buffer *msg = NULL;
 	int must_read = 1, last_read = 0;
 	int ret, retcode = 0;
 
@@ -3387,12 +3386,24 @@ static int tcpcheck_main(struct check *check)
 	}
 
 	/* All rules was evaluated */
-	if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
-		msg = alloc_trash_chunk();
-		if (msg)
-			tcpcheck_onsuccess_message(msg, check, check->current_step, ist(NULL));
-		set_server_check_status(check, check->current_step->expect.ok_status, (msg ? b_head(msg) : "(tcp-check)"));
-		free_trash_chunk(msg);
+	if (check->current_step) {
+		rule = check->current_step;
+
+		if (rule->action == TCPCHK_ACT_EXPECT) {
+			struct buffer *msg = alloc_trash_chunk();
+
+			if (msg)
+				tcpcheck_onsuccess_message(msg, check, rule, ist(NULL));
+			set_server_check_status(check, rule->expect.ok_status,
+						(msg ? b_head(msg) : "(tcp-check)"));
+			free_trash_chunk(msg);
+		}
+		else if (rule->action == TCPCHK_ACT_CONNECT) {
+			const char *msg = ((rule->connect.options & TCPCHK_OPT_IMPLICIT) ? NULL : "(tcp-check)");
+			enum healthcheck_status status = ((conn && ssl_sock_is_ssl(conn)) ? HCHK_STATUS_L6OK : HCHK_STATUS_L4OK);
+
+			set_server_check_status(check, status, msg);
+		}
 	}
 	else
 		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
