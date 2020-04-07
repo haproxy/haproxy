@@ -3323,11 +3323,16 @@ static int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_
 	} else {
 		/* reading from a file */
 		in = BIO_new(BIO_s_file());
-		if (in == NULL)
+		if (in == NULL) {
+			memprintf(err, "%sCan't allocate memory\n", err && *err ? *err : "");
 			goto end;
+		}
 
-		if (BIO_read_filename(in, path) <= 0)
+		if (BIO_read_filename(in, path) <= 0) {
+			memprintf(err, "%scannot open the file '%s'.\n",
+			          err && *err ? *err : "", path);
 			goto end;
+		}
 	}
 
 	/* Read Private Key */
