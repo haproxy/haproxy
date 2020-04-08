@@ -12103,6 +12103,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
+						if (sc0->order == 0) /* we only free if it's the first inserted */
+							SSL_CTX_free(sc0->ctx);
 						ebmb_delete(&sc0->name);
 						LIST_DEL(&sc0->by_ckch_inst);
 						free(sc0);
