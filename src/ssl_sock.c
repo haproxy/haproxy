@@ -3774,32 +3774,35 @@ static int ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root *
 
 #endif
 /*
- * Free a ckch_store and its ckch(s)
- * The linked ckch_inst are not free'd
+ * Free a ckch_store, its ckch, its instances and remove it from the ebtree
  */
-void ckchs_free(struct ckch_store *ckchs)
+static void ckch_store_free(struct ckch_store *store)
 {
-	if (!ckchs)
+	struct ckch_inst *inst, *inst_s;
+
+	if (!store)
 		return;
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-	if (ckchs->multi) {
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200L
+	if (store->multi) {
 		int n;
 
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-			ssl_sock_free_cert_key_and_chain_contents(&ckchs->ckch[n]);
-		}
-		free(ckchs->ckch);
-		ckchs->ckch = NULL;
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
+			ssl_sock_free_cert_key_and_chain_contents(&store->ckch[n]);
 	} else
 #endif
 	{
-		ssl_sock_free_cert_key_and_chain_contents(ckchs->ckch);
-		free(ckchs->ckch);
-		ckchs->ckch = NULL;
+		ssl_sock_free_cert_key_and_chain_contents(store->ckch);
 	}
 
-	free(ckchs);
+	free(store->ckch);
+	store->ckch = NULL;
+
+	list_for_each_entry_safe(inst, inst_s, &store->ckch_inst, by_ckchs) {
+		ckch_inst_free(inst);
+	}
+	ebmb_delete(&store->node);
+	free(store);
 }
 
 /* allocate and duplicate a ckch_store
@@ -3843,7 +3846,7 @@ static struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	return dst;
 
 error:
-	ckchs_free(dst);
+	ckch_store_free(dst);
 
 	return NULL;
 }
@@ -3922,12 +3925,7 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 	return ckchs;
 
 end:
-	if (ckchs) {
-		free(ckchs->ckch);
-		ebmb_delete(&ckchs->node);
-	}
-
-	free(ckchs);
+	ckch_store_free(ckchs);
 
 	return NULL;
 }
@@ -11870,7 +11868,6 @@ error:
 static void cli_release_commit_cert(struct appctx *appctx)
 {
 	struct ckch_store *new_ckchs;
-	struct ckch_inst *ckchi, *ckchis;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
@@ -11878,14 +11875,8 @@ static void cli_release_commit_cert(struct appctx *appctx)
 		/* free every new sni_ctx and the new store, which are not in the trees so no spinlock there */
 		new_ckchs = appctx->ctx.ssl.new_ckchs;
 
-		if (!new_ckchs)
-			return;
-
 		/* if the allocation failed, we need to free everything from the temporary list */
-		list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-			ckch_inst_free(ckchi);
-		}
-		ckchs_free(new_ckchs);
+		ckch_store_free(new_ckchs);
 	}
 }
 
@@ -12025,8 +12016,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				}
 
 				/* Replace the old ckchs by the new one */
-				ebmb_delete(&old_ckchs->node);
-				ckchs_free(old_ckchs);
+				ckch_store_free(old_ckchs);
 				ebst_insert(&ckchs_tree, &new_ckchs->node);
 				appctx->st2 = SETCERT_ST_FIN;
 				/* fallthrough */
@@ -12332,7 +12322,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* free the previous ckchs if there was a transaction */
-	ckchs_free(ckchs_transaction.new_ckchs);
+	ckch_store_free(ckchs_transaction.new_ckchs);
 
 	ckchs_transaction.new_ckchs = appctx->ctx.ssl.new_ckchs;
 
@@ -12344,7 +12334,7 @@ end:
 
 	if (errcode & ERR_CODE) {
 
-		ckchs_free(appctx->ctx.ssl.new_ckchs);
+		ckch_store_free(appctx->ctx.ssl.new_ckchs);
 		appctx->ctx.ssl.new_ckchs = NULL;
 
 		appctx->ctx.ssl.old_ckchs = NULL;
@@ -12389,9 +12379,9 @@ static int cli_parse_abort_cert(char **args, char *payload, struct appctx *appct
 	}
 
 	/* Only free the ckchs there, because the SNI and instances were not generated yet */
-	ckchs_free(ckchs_transaction.new_ckchs);
+	ckch_store_free(ckchs_transaction.new_ckchs);
 	ckchs_transaction.new_ckchs = NULL;
-	ckchs_free(ckchs_transaction.old_ckchs);
+	ckch_store_free(ckchs_transaction.old_ckchs);
 	ckchs_transaction.old_ckchs = NULL;
 	free(ckchs_transaction.path);
 	ckchs_transaction.path = NULL;
@@ -12492,7 +12482,7 @@ static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	ebmb_delete(&store->node);
-	ckchs_free(store);
+	ckch_store_free(store);
 
 	memprintf(&err, "Certificate '%s' deleted!\n", filename);
 
