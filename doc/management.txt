@@ -1524,6 +1524,12 @@ del map <map> [<key>|#<ref>]
   listing the content of the map. Note that if the reference <map> is a file and
   is shared with a acl, the entry will be also deleted in the map.
 
+del ssl cert <certfile>
+  Delete a certificate store from HAProxy. The certificate must be unused and
+  removed from any crt-list or directory. "show ssl cert" displays the status
+  of the certificate. The deletion doesn't work with a certificate referenced
+  directly with the "crt" directive in the configuration.
+
 del ssl crt-list <filename> <certfile[:line]>
   Delete an entry in a crt-list. This will delete every SNIs used for this
   entry in the frontends. If a certificate is used several time in a crt-list,

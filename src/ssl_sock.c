@@ -12550,6 +12550,50 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+/* parsing function of 'del ssl cert' */
+static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *store;
+	char *err = NULL;
+	char *filename;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'del ssl cert' expects a certificate name\n");
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't delete the certificate!\nOperations on certificates are currently locked!\n");
+
+	filename = args[3];
+
+	store = ckchs_lookup(filename);
+	if (store == NULL) {
+		memprintf(&err, "certificate '%s' doesn't exist!\n", filename);
+		goto error;
+	}
+	if (!LIST_ISEMPTY(&store->ckch_inst)) {
+		memprintf(&err, "certificate '%s' in use, can't be deleted!\n", filename);
+		goto error;
+	}
+
+	ebmb_delete(&store->node);
+	ckchs_free(store);
+
+	memprintf(&err, "Certificate '%s' deleted!\n", filename);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	memprintf(&err, "Can't remove the certificate: %s\n", err ? err : "");
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
+
+
 static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
@@ -12748,6 +12792,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
 	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
 	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
+	{ { "del", "ssl", "cert", NULL }, "del ssl cert <certfile> : delete an unused certificate file", cli_parse_del_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <filename> <certfile> [options] : add a line <certfile> to a crt-list <filename>", cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
 	{ { "del", "ssl", "crt-list", NULL }, "del ssl crt-list <filename> <certfile[:line]> : delete a line <certfile> in a crt-list <filename>", cli_parse_del_crtlist, NULL, NULL },
