@@ -3762,12 +3762,16 @@ void ckchs_free(struct ckch_store *ckchs)
 	if (ckchs->multi) {
 		int n;
 
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
+		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
 			ssl_sock_free_cert_key_and_chain_contents(&ckchs->ckch[n]);
+		}
+		free(ckchs->ckch);
+		ckchs->ckch = NULL;
 	} else
 #endif
 	{
 		ssl_sock_free_cert_key_and_chain_contents(ckchs->ckch);
+		free(ckchs->ckch);
 		ckchs->ckch = NULL;
 	}
 
