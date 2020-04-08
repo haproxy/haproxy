@@ -4560,10 +4560,6 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 	int j;
 #endif
 
-	/* strip trailing slashes, including first one */
-	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
-		*end = 0;
-
 	dir = malloc(sizeof(*dir) + strlen(path) + 1);
 	if (dir == NULL) {
 		memprintf(err, "not enough memory");
@@ -4980,6 +4976,7 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	struct crtlist_entry *entry = NULL;
 	struct bind_conf_list *bind_conf_node = NULL;
 	int cfgerr = 0;
+	char *end;
 
 	bind_conf_node = malloc(sizeof(*bind_conf_node));
 	if (!bind_conf_node) {
@@ -4989,6 +4986,10 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	}
 	bind_conf_node->next = NULL;
 	bind_conf_node->bind_conf = bind_conf;
+
+	/* strip trailing slashes, including first one */
+	for (end = file + strlen(file) - 1; end >= file && *end == '/'; end--)
+		*end = 0;
 
 	/* look for an existing crtlist or create one */
 	eb = ebst_lookup(&crtlists_tree, file);
