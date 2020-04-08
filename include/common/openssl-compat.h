@@ -224,6 +224,11 @@ static inline void EVP_PKEY_up_ref(EVP_PKEY *pkey)
 {
 	CRYPTO_add(&pkey->references, 1, CRYPTO_LOCK_EVP_PKEY);
 }
+
+static inline void SSL_CTX_up_ref(SSL_CTX *ctx)
+{
+    CRYPTO_add(&ctx->references, 1, CRYPTO_LOCK_SSL_CTX);
+}
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (LIBRESSL_VERSION_NUMBER >= 0x2070200fL)

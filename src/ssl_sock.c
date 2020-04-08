@@ -2943,6 +2943,7 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 		if (!sc)
 			return -1;
 		memcpy(sc->name.key, trash.area, len + 1);
+		SSL_CTX_up_ref(ctx);
 		sc->ctx = ctx;
 		sc->conf = conf;
 		sc->kinfo = kinfo;
@@ -2987,6 +2988,7 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 			    && sc1->neg == sc0->neg && sc1->wild == sc0->wild) {
 				/* it's a duplicate, we should remove and free it */
 				LIST_DEL(&sc0->by_ckch_inst);
+				SSL_CTX_free(sc0->ctx);
 				free(sc0);
 				sc0 = NULL;
 				break;
@@ -3004,7 +3006,8 @@ static void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf
 
 		/* replace the default_ctx if required with the first ctx */
 		if (ckch_inst->is_default && !def) {
-			/* we don't need to free the default_ctx because the refcount was not incremented */
+			SSL_CTX_free(bind_conf->default_ctx);
+			SSL_CTX_up_ref(sc0->ctx);
 			bind_conf->default_ctx = sc0->ctx;
 			def = 1;
 		}
@@ -4185,6 +4188,7 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 				bind_conf->default_ctx = key_combos[i].ctx;
 				bind_conf->default_ssl_conf = ssl_conf;
 				ckch_inst->is_default = 1;
+				SSL_CTX_up_ref(bind_conf->default_ctx);
 				break;
 			}
 		}
@@ -4194,6 +4198,7 @@ static int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *c
 	ckch_inst->ssl_conf = ssl_conf;
 	ckch_inst->ckch_store = ckchs;
 	ckch_inst->filters = !!fcount;
+
 end:
 
 	if (names)
@@ -4207,22 +4212,29 @@ end:
 		node = next;
 	}
 
+	/* we need to free the ctx since we incremented the refcount where it's used */
+	for (i = 0; i < SSL_SOCK_POSSIBLE_KT_COMBOS; i++) {
+		if (key_combos[i].ctx)
+			SSL_CTX_free(key_combos[i].ctx);
+	}
+
 	if (errcode & ERR_CODE && ckch_inst) {
 		struct sni_ctx *sc0, *sc0b;
 
-		/* free the SSL_CTX in case of error */
-		for (i = 0; i < SSL_SOCK_POSSIBLE_KT_COMBOS; i++) {
-			if (key_combos[i].ctx)
-				SSL_CTX_free(key_combos[i].ctx);
-		}
 
 		/* free the sni_ctx in case of error */
 		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
 
 			ebmb_delete(&sc0->name);
 			LIST_DEL(&sc0->by_ckch_inst);
+			SSL_CTX_free(sc0->ctx);
 			free(sc0);
 		}
+		if (ckch_inst->is_default) {
+			SSL_CTX_free(bind_conf->default_ctx);
+			bind_conf->default_ctx = NULL;
+		}
+
 		free(ckch_inst);
 		ckch_inst = NULL;
 	}
@@ -4377,6 +4389,7 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 		bind_conf->default_ctx = ctx;
 		bind_conf->default_ssl_conf = ssl_conf;
 		ckch_inst->is_default = 1;
+		SSL_CTX_up_ref(ctx);
 	}
 
 	/* everything succeed, the ckch instance can be used */
@@ -4384,6 +4397,8 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 	ckch_inst->ssl_conf = ssl_conf;
 	ckch_inst->ckch_store = ckchs;
 	ckch_inst->filters = !!fcount;
+
+	SSL_CTX_free(ctx); /* we need to free the ctx since we incremented the refcount where it's used */
 
 	*ckchi = ckch_inst;
 	return errcode;
@@ -4396,13 +4411,16 @@ error:
 		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
 
 			ebmb_delete(&sc0->name);
+			SSL_CTX_free(sc0->ctx);
 			LIST_DEL(&sc0->by_ckch_inst);
 			free(sc0);
 		}
+		if (ckch_inst->is_default)
+			SSL_CTX_free(ctx);
+
 		free(ckch_inst);
 		ckch_inst = NULL;
 	}
-	/* We only created 1 SSL_CTX so we can free it there */
 	SSL_CTX_free(ctx);
 
 	return errcode;
@@ -6273,8 +6291,8 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		back = ebmb_next(node);
 		ebmb_delete(node);
-		if (!sni->order) { /* only free the CTX on its first occurrence */
-			SSL_CTX_free(sni->ctx);
+		SSL_CTX_free(sni->ctx);
+		if (!sni->order) { /* only free the CTX conf on its first occurrence */
 			ssl_sock_free_ssl_conf(sni->conf);
 			free(sni->conf);
 			sni->conf = NULL;
@@ -6288,8 +6306,8 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		back = ebmb_next(node);
 		ebmb_delete(node);
-		if (!sni->order) { /* only free the CTX on its first occurrence */
-			SSL_CTX_free(sni->ctx);
+		SSL_CTX_free(sni->ctx);
+		if (!sni->order) { /* only free the SSL conf its first occurrence */
 			ssl_sock_free_ssl_conf(sni->conf);
 			free(sni->conf);
 			sni->conf = NULL;
@@ -6299,6 +6317,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 	}
 	SSL_CTX_free(bind_conf->initial_ctx);
 	bind_conf->initial_ctx = NULL;
+	SSL_CTX_free(bind_conf->default_ctx);
 	bind_conf->default_ctx = NULL;
 	bind_conf->default_ssl_conf = NULL;
 }
@@ -11239,8 +11258,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 			struct sni_ctx *sni, *sni_s;
 
 			list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
-				if (sni->order == 0) /* we only free if it's the first inserted */
-					SSL_CTX_free(sni->ctx);
+				SSL_CTX_free(sni->ctx);
 				LIST_DEL(&sni->by_ckch_inst);
 				free(sni);
 			}
@@ -11602,8 +11620,7 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 		list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
 			ebmb_delete(&sni->name);
 			LIST_DEL(&sni->by_ckch_inst);
-			if (sni->order == 0) /* we only free if it's the first inserted */
-				SSL_CTX_free(sni->ctx);
+			SSL_CTX_free(sni->ctx);
 			free(sni);
 		}
 		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
@@ -11955,8 +11972,7 @@ static void cli_release_commit_cert(struct appctx *appctx)
 			struct sni_ctx *sc0, *sc0s;
 
 			list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-				if (sc0->order == 0) /* we only free if it's the first inserted */
-					SSL_CTX_free(sc0->ctx);
+				SSL_CTX_free(sc0->ctx);
 				LIST_DEL(&sc0->by_ckch_inst);
 				free(sc0);
 			}
@@ -12103,8 +12119,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-						if (sc0->order == 0) /* we only free if it's the first inserted */
-							SSL_CTX_free(sc0->ctx);
+						SSL_CTX_free(sc0->ctx);
 						ebmb_delete(&sc0->name);
 						LIST_DEL(&sc0->by_ckch_inst);
 						free(sc0);
