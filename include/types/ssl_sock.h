@@ -132,8 +132,6 @@ struct ckch_store {
  * This structure describe a ckch instance. An instance is generated for each
  * bind_conf.  The instance contains a linked list of the sni ctx which uses
  * the ckch in this bind_conf.
- *
- * XXX: the instance may evolve to handle ssl_bind_conf instead of bind_conf.
  */
 struct ckch_inst {
 	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
