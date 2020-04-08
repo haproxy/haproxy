@@ -11512,6 +11512,9 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 	if (!*args[3] || !*args[4])
 		return cli_err(appctx, "'del ssl crtlist' expects a filename and a certificate name\n");
 
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't delete!\nOperations on certificates are currently locked!\n");
+
 	crtlist_path = args[3];
 	cert_path = args[4];
 
