@@ -6339,6 +6339,22 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	goto out;
 }
 
+int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				   const char *file, int line)
+{
+	int err_code = 0;
+
+	free(curpx->check_req);
+	curpx->check_req = NULL;
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_EXT_CHK;
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+  out:
+	return err_code;
+}
+
 /* Parse the "addr" server keyword */
 static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 			  char **errmsg)

@@ -87,6 +87,8 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 			       const char *file, int line);
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 			    const char *file, int line);
+int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				   const char *file, int line);
 
 int set_srv_agent_send(struct server *srv, const char *send);
 
