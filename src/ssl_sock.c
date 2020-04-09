@@ -3805,26 +3805,50 @@ static void ckch_store_free(struct ckch_store *store)
 	free(store);
 }
 
+/*
+ * create and initialize a ckch_store
+ * <path> is the key name
+ * <nmemb> is the number of store->ckch objects to allocate
+ *
+ * Return a ckch_store or NULL upon failure.
+ */
+static struct ckch_store *ckch_store_new(const char *filename, int nmemb)
+{
+	struct ckch_store *store;
+	int pathlen;
+
+	pathlen = strlen(filename);
+	store = calloc(1, sizeof(*store) + pathlen + 1);
+	if (!store)
+		return NULL;
+
+	if (nmemb > 1)
+		store->multi = 1;
+	else
+		store->multi = 0;
+
+	memcpy(store->path, filename, pathlen + 1);
+
+	LIST_INIT(&store->ckch_inst);
+	LIST_INIT(&store->crtlist_entry);
+
+	store->ckch = calloc(nmemb, sizeof(*store->ckch));
+	if (!store->ckch)
+		goto error;
+
+	return store;
+error:
+	ckch_store_free(store);
+	return NULL;
+}
+
 /* allocate and duplicate a ckch_store
  * Return a new ckch_store or NULL */
 static struct ckch_store *ckchs_dup(const struct ckch_store *src)
 {
 	struct ckch_store *dst;
-	int pathlen;
 
-	pathlen = strlen(src->path);
-	dst = calloc(1, sizeof(*dst) + pathlen + 1);
-	if (!dst)
-		return NULL;
-	/* copy previous key */
-	memcpy(dst->path, src->path, pathlen + 1);
-	dst->multi = src->multi;
-	LIST_INIT(&dst->ckch_inst);
-	LIST_INIT(&dst->crtlist_entry);
-
-	dst->ckch = calloc((src->multi ? SSL_SOCK_NUM_KEYTYPES : 1), sizeof(*dst->ckch));
-	if (!dst->ckch)
-		goto error;
+	dst = ckch_store_new(src->path, src->multi ? SSL_SOCK_NUM_KEYTYPES : 1);
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 	if (src->multi) {
@@ -3872,21 +3896,11 @@ static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err
 {
 	struct ckch_store *ckchs;
 
-	ckchs = calloc(1, sizeof(*ckchs) + strlen(path) + 1);
+	ckchs = ckch_store_new(path, multi ? SSL_SOCK_NUM_KEYTYPES : 1);
 	if (!ckchs) {
 		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
 		goto end;
 	}
-	ckchs->ckch = calloc(1, sizeof(*ckchs->ckch) * (multi ? SSL_SOCK_NUM_KEYTYPES : 1));
-
-	if (!ckchs->ckch) {
-		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
-		goto end;
-	}
-
-	LIST_INIT(&ckchs->ckch_inst);
-	LIST_INIT(&ckchs->crtlist_entry);
-
 	if (!multi) {
 
 		if (ssl_sock_load_files_into_ckch(path, ckchs->ckch, err) == 1)
@@ -12425,25 +12439,14 @@ static int cli_parse_new_cert(char **args, char *payload, struct appctx *appctx,
 		store = NULL; /* we don't want to free it */
 		goto error;
 	}
-	store = calloc(1, sizeof(*store) + strlen(path) + 1);
+	/* we won't support multi-certificate bundle here */
+	store = ckch_store_new(path, 1);
 	if (!store) {
 		memprintf(&err, "unable to allocate memory.\n");
 		goto error;
 	}
-	store->ckch = calloc(1, sizeof(*store->ckch));
-	if (!store->ckch) {
-		memprintf(&err, "unable to allocate memory.\n");
-		goto error;
-	}
-	/* we won't create any instance */
-	LIST_INIT(&store->ckch_inst);
-	LIST_INIT(&store->crtlist_entry);
-
-	/* we won't support multi-certificate bundle here */
-	store->multi = 0;
 
 	/* insert into the ckchs tree */
-	memcpy(store->path, path, strlen(path) + 1);
 	ebst_insert(&ckchs_tree, &store->node);
 	memprintf(&err, "New empty certificate store '%s'!\n", args[3]);
 
