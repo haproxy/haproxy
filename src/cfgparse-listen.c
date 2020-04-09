@@ -2370,38 +2370,8 @@ stats_error_parsing:
 				goto out;
 		}
 		else if (!strcmp(args[1], "tcp-check")) {
-			struct tcpcheck_rules *rules = &curproxy->tcpcheck_rules;
-
-			/* use raw TCPCHK send/expect to check servers' health */
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			if (rules->flags & TCPCHK_RULES_DEF) {
-				/* Only shared ruleset can be inherited from the default section */
-				rules->flags = 0;
-				rules->list  = NULL;
-			}
-			else if (rules->list && (rules->flags & TCPCHK_RULES_SHARED)) {
-				ha_alert("parsing [%s:%d] : A shared tcp-check ruleset alreayd configured.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (curproxy != &defproxy && !rules->list) {
-				rules->list = calloc(1, sizeof(*rules->list));
-				if (!rules->list) {
-					ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				LIST_INIT(rules->list);
-			}
-
-			free(curproxy->check_req);
-			curproxy->check_req = NULL;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_TCPCHK_CHK;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "external-check")) {

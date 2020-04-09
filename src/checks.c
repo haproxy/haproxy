@@ -5143,6 +5143,50 @@ static void tcpcheck_ruleset_release(struct tcpcheck_ruleset *rs)
 	free(rs);
 }
 
+/* Parses the "option tcp-check" proxy keyword */
+int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			      const char *file, int line)
+{
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
+		goto out;
+
+	if (rules->flags & TCPCHK_RULES_DEF) {
+		/* Only shared ruleset can be inherited from the default section */
+		rules->flags = 0;
+		rules->list  = NULL;
+	}
+	else if (rules->list && (rules->flags & TCPCHK_RULES_SHARED)) {
+		ha_alert("parsing [%s:%d] : A shared tcp-check ruleset alreayd configured.\n", file, line);
+		goto error;
+	}
+
+	if (curpx != defpx && !rules->list) {
+		rules->list = calloc(1, sizeof(*rules->list));
+		if (!rules->list) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
+		}
+		LIST_INIT(rules->list);
+	}
+
+	free(curpx->check_req);
+	curpx->check_req = NULL;
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
 
 /* Parses the "option redis-check" proxy keyword */
 int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
