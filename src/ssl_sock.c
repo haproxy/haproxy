@@ -2898,6 +2898,26 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename)
 }
 #endif
 
+/* unlink a ckch_inst, free all SNIs, free the ckch_inst */
+/* The caller must use the lock of the bind_conf if used with inserted SNIs */
+static void ckch_inst_free(struct ckch_inst *inst)
+{
+	struct sni_ctx *sni, *sni_s;
+
+	if (inst == NULL)
+		return;
+
+	list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
+		SSL_CTX_free(sni->ctx);
+		LIST_DEL(&sni->by_ckch_inst);
+		ebmb_delete(&sni->name);
+		free(sni);
+	}
+	LIST_DEL(&inst->by_ckchs);
+	LIST_DEL(&inst->by_crtlist_entry);
+	free(inst);
+}
+
 /* Alloc and init a ckch_inst */
 static struct ckch_inst *ckch_inst_new()
 {
@@ -4148,23 +4168,12 @@ end:
 	}
 
 	if (errcode & ERR_CODE && ckch_inst) {
-		struct sni_ctx *sc0, *sc0b;
-
-
-		/* free the sni_ctx in case of error */
-		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
-
-			ebmb_delete(&sc0->name);
-			LIST_DEL(&sc0->by_ckch_inst);
-			SSL_CTX_free(sc0->ctx);
-			free(sc0);
-		}
 		if (ckch_inst->is_default) {
 			SSL_CTX_free(bind_conf->default_ctx);
 			bind_conf->default_ctx = NULL;
 		}
 
-		free(ckch_inst);
+		ckch_inst_free(ckch_inst);
 		ckch_inst = NULL;
 	}
 
@@ -4334,19 +4343,10 @@ static int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, 
 error:
 	/* free the allocated sni_ctxs */
 	if (ckch_inst) {
-		struct sni_ctx *sc0, *sc0b;
-
-		list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
-
-			ebmb_delete(&sc0->name);
-			SSL_CTX_free(sc0->ctx);
-			LIST_DEL(&sc0->by_ckch_inst);
-			free(sc0);
-		}
 		if (ckch_inst->is_default)
 			SSL_CTX_free(ctx);
 
-		free(ckch_inst);
+		ckch_inst_free(ckch_inst);
 		ckch_inst = NULL;
 	}
 	SSL_CTX_free(ctx);
@@ -4989,20 +4989,13 @@ error:
 					break;
 
 				list_for_each_entry_safe(inst, s_inst, &entry->ckch_inst, by_crtlist_entry) {
-					struct sni_ctx *sni, *s_sni;
 
 					/* this was not generated for this bind_conf, skip */
 					if (inst->bind_conf != bind_conf)
 						continue;
 
-					/* free the sni_ctx */
-					list_for_each_entry_safe(sni, s_sni, &inst->sni_ctx, by_ckch_inst) {
-						ebmb_delete(&sni->name);
-						LIST_DEL(&sni->by_ckch_inst);
-						free(sni);
-					}
-					LIST_DEL(&inst->by_crtlist_entry);
-					free(inst);
+					/* free the sni_ctx and instance */
+					ckch_inst_free(inst);
 				}
 			}
 		}
@@ -11184,15 +11177,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 		LIST_DEL(&entry->by_ckch_store);
 
 		list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_ckchs) {
-			struct sni_ctx *sni, *sni_s;
-
-			list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
-				SSL_CTX_free(sni->ctx);
-				LIST_DEL(&sni->by_ckch_inst);
-				free(sni);
-			}
-			LIST_DEL(&inst->by_ckchs);
-			free(inst);
+			ckch_inst_free(inst);
 		}
 		crtlist_free_filters(entry->filters);
 		ssl_sock_free_ssl_conf(entry->ssl_conf);
@@ -11898,15 +11883,7 @@ static void cli_release_commit_cert(struct appctx *appctx)
 
 		/* if the allocation failed, we need to free everything from the temporary list */
 		list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-			struct sni_ctx *sc0, *sc0s;
-
-			list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-				SSL_CTX_free(sc0->ctx);
-				LIST_DEL(&sc0->by_ckch_inst);
-				free(sc0);
-			}
-			LIST_DEL(&ckchi->by_ckchs);
-			free(ckchi);
+			ckch_inst_free(ckchi);
 		}
 		ckchs_free(new_ckchs);
 	}
@@ -12042,17 +12019,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					list_for_each_entry_safe(sc0, sc0s, &ckchi->sni_ctx, by_ckch_inst) {
-						SSL_CTX_free(sc0->ctx);
-						ebmb_delete(&sc0->name);
-						LIST_DEL(&sc0->by_ckch_inst);
-						free(sc0);
-					}
+					ckch_inst_free(ckchi);
 					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					LIST_DEL(&ckchi->by_ckchs);
-					free(ckchi);
 				}
 
 				/* Replace the old ckchs by the new one */
