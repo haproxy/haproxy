@@ -5096,6 +5096,175 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	return -1;
 }
 
+/* Parses the "http-check" proxy keyword */
+static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
+				 struct proxy *defpx, const char *file, int line,
+				 char **errmsg)
+{
+	int cur_arg, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
+		ret = 1;
+
+	cur_arg = 1;
+	if (strcmp(args[cur_arg], "disable-on-404") == 0) {
+		/* enable a graceful server shutdown on an HTTP 404 response */
+		curpx->options |= PR_O_DISABLE404;
+		if (too_many_args(1, args, errmsg, NULL))
+			goto error;
+	}
+	else if (strcmp(args[cur_arg], "send-state") == 0) {
+		/* enable emission of the apparent state of a server in HTTP checks */
+		curpx->options2 |= PR_O2_CHK_SNDST;
+		if (too_many_args(1, args, errmsg, NULL))
+			goto error;
+	}
+	else if (strcmp(args[cur_arg], "send") == 0) {
+		free(curpx->check_hdrs);
+		free(curpx->check_body);
+		curpx->check_hdrs = curpx->check_body = NULL;
+		curpx->check_hdrs_len = curpx->check_body_len = 0;
+
+		cur_arg++;
+		while (*(args[cur_arg])) {
+			if (strcmp(args[cur_arg], "hdr") == 0) {
+				int hdr_len;
+				if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
+					memprintf(errmsg, "'%s %s' : %s expects a name and a value as parameter.",
+						  args[0], args[1], args[cur_arg]);
+					goto error;
+				}
+
+				cur_arg++;
+				hdr_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + 4;
+				curpx->check_hdrs = my_realloc2(curpx->check_hdrs, curpx->check_hdrs_len+hdr_len+1);
+				if (curpx->check_hdrs == NULL) {
+					memprintf(errmsg, "out of memory.");
+					goto error;
+				}
+				snprintf(curpx->check_hdrs + curpx->check_hdrs_len, hdr_len+1, "%s: %s\r\n", args[cur_arg], args[cur_arg+1]);
+				curpx->check_hdrs_len += hdr_len;
+
+				cur_arg++;
+			}
+			else if (strcmp(args[cur_arg], "body") == 0) {
+				if (!*(args[cur_arg+1])) {
+					memprintf(errmsg, "'%s %s' : %s expects a string as parameter.",
+						  args[0], args[1], args[cur_arg]);
+					goto error;
+				}
+				cur_arg++;
+				free(curpx->check_body);
+				curpx->check_body = strdup(args[cur_arg]);
+				curpx->check_body_len = strlen(args[cur_arg]);
+				if (curpx->check_body == NULL) {
+					memprintf(errmsg, "out of memory.");
+					goto error;
+				}
+			}
+			else {
+				memprintf(errmsg, "'%s %s' only supports 'hdr' and 'body', found '%s'.",
+					 args[0], args[1], args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+		}
+	}
+	else if (strcmp(args[cur_arg], "expect") == 0) {
+		const char *ptr_arg;
+
+		if (curpx->options2 & PR_O2_EXP_TYPE) {
+			memprintf(errmsg, "'%s %s' already specified.", args[0], args[1]);
+			goto error;
+		}
+
+		cur_arg++;
+
+		/* consider exclamation marks, sole or at the beginning of a word */
+		while (*(ptr_arg = args[cur_arg])) {
+			while (*ptr_arg == '!') {
+				curpx->options2 ^= PR_O2_EXP_INV;
+				ptr_arg++;
+			}
+			if (*ptr_arg)
+				break;
+			cur_arg++;
+		}
+
+		/* now ptr_arg points to the beginning of a word past any possible
+		 * exclamation mark, and cur_arg is the argument which holds this word.
+		 */
+		if (strcmp(ptr_arg, "status") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s %s %s' expects <string> as an argument.",
+					  args[0], args[1], ptr_arg);
+				goto error;
+			}
+			curpx->options2 |= PR_O2_EXP_STS;
+			free(curpx->expect_str);
+			curpx->expect_str = strdup(args[cur_arg+1]);
+		}
+		else if (strcmp(ptr_arg, "string") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s %s %s' expects <string> as an argument.",
+					  args[0], args[1], ptr_arg);
+				goto error;
+			}
+			curpx->options2 |= PR_O2_EXP_STR;
+			free(curpx->expect_str);
+			curpx->expect_str = strdup(args[cur_arg+1]);
+		}
+		else if (strcmp(ptr_arg, "rstatus") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s %s %s' expects <regex> as an argument.",
+					  args[0], args[1], ptr_arg);
+				goto error;
+			}
+			curpx->options2 |= PR_O2_EXP_RSTS;
+			free(curpx->expect_str);
+			regex_free(curpx->expect_regex);
+			curpx->expect_str = strdup(args[cur_arg+1]);
+			if (!(curpx->expect_regex = regex_comp(args[cur_arg+1], 1, 1, errmsg))) {
+				memprintf(errmsg, "'%s %s %s' : regular expression '%s': %s.",
+					  args[0], args[1], ptr_arg, args[cur_arg+1], *errmsg);
+				goto error;
+			}
+		}
+		else if (strcmp(ptr_arg, "rstring") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s %s %s' expects <regex> as an argument.",
+					  args[0], args[1], ptr_arg);
+				goto error;
+			}
+			curpx->options2 |= PR_O2_EXP_RSTR;
+			free(curpx->expect_str);
+			regex_free(curpx->expect_regex);
+			curpx->expect_str = strdup(args[cur_arg+1]);
+			if (!(curpx->expect_regex = regex_comp(args[cur_arg+1], 1, 1, errmsg))) {
+				memprintf(errmsg, "'%s %s %s' : regular expression '%s': %s.",
+					  args[0], args[1], ptr_arg, args[cur_arg + 1], *errmsg);
+				goto error;
+			}
+		}
+		else {
+			memprintf(errmsg, "'%s %s' only supports [!] 'status', 'string', 'rstatus', 'rstring', found '%s'.",
+				  args[0], args[1], ptr_arg);
+			goto error;
+		}
+	}
+	else {
+		memprintf(errmsg, "'%s' only supports 'disable-on-404', 'send', 'send-state' and 'expect'. but got '%s'.",
+			  args[0], args[1]);
+		goto error;
+	}
+
+	ret = (*errmsg != NULL); /* Handle warning */
+	return ret;
+
+  error:
+	return -1;
+}
+
 
 static struct tcpcheck_ruleset *tcpcheck_ruleset_lookup(const char *name)
 {
@@ -6701,7 +6870,8 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-        { CFG_LISTEN, "tcp-check",  proxy_parse_tcpcheck },
+        { CFG_LISTEN, "tcp-check",   proxy_parse_tcpcheck },
+        { CFG_LISTEN, "http-check",  proxy_parse_httpcheck },
         { 0, NULL, NULL },
 }};
 
