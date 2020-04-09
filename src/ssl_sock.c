@@ -4498,6 +4498,29 @@ static void crtlist_free(struct crtlist *crtlist)
 	free(crtlist);
 }
 
+/* Alloc and initialize a struct crtlist
+ * <filename> is the key of the ebmb_node
+ * <unique> initialize the list of entries to be unique (1) or not (0)
+ */
+static struct crtlist *crtlist_new(const char *filename, int unique)
+{
+	struct crtlist *newlist;
+
+	newlist = calloc(1, sizeof(*newlist) + strlen(filename) + 1);
+	if (newlist == NULL)
+		return NULL;
+
+	memcpy(newlist->node.key, filename, strlen(filename) + 1);
+	if (unique)
+		newlist->entries = EB_ROOT_UNIQUE;
+	else
+		newlist->entries = EB_ROOT;
+
+	LIST_INIT(&newlist->ord_entries);
+
+	return newlist;
+}
+
 /* This function reads a directory and stores it in a struct crtlist, each file is a crtlist_entry structure
  * Fill the <crtlist> argument with a pointer to a new crtlist struct
  *
@@ -4518,16 +4541,11 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 	int j;
 #endif
 
-	dir = malloc(sizeof(*dir) + strlen(path) + 1);
+	dir = crtlist_new(path, 1);
 	if (dir == NULL) {
 		memprintf(err, "not enough memory");
 		return ERR_ALERT | ERR_FATAL;
 	}
-	memcpy(dir->node.key, path, strlen(path) + 1);
-	dir->entries = EB_ROOT_UNIQUE; /* it's a directory, files are unique */
-	dir->bind_conf = NULL;
-	dir->linecount = 0;
-	LIST_INIT(&dir->ord_entries);
 
 	n = scandir(path, &de_list, 0, alphasort);
 	if (n < 0) {
@@ -4802,17 +4820,12 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	newlist = malloc(sizeof(*newlist) + strlen(file) + 1);
+	newlist = crtlist_new(file, 0);
 	if (newlist == NULL) {
 		memprintf(err, "Not enough memory!");
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
-	memcpy(newlist->node.key, file, strlen(file) + 1);
-	newlist->entries = EB_ROOT;
-	newlist->bind_conf = NULL;
-	newlist->node.node.leaf_p = NULL;
-	LIST_INIT(&newlist->ord_entries);
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		char *end;
