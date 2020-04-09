@@ -3097,7 +3097,7 @@ out_uri_auth_compat:
 			}
 		}
 
-		if (curproxy->tcpcheck_rules.list != NULL &&
+		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS) &&
 		    (curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
 			ha_warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
 				   proxy_type_str(curproxy), curproxy->id);

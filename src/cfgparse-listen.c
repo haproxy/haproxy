@@ -303,7 +303,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			curproxy->check_body_len = defproxy.check_body_len;
 
-			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags | TCPCHK_RULES_DEF);
+			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags & ~TCPCHK_RULES_UNUSED_TCP_RS);
 			curproxy->tcpcheck_rules.list  = defproxy.tcpcheck_rules.list;
 			if (!LIST_ISEMPTY(&defproxy.tcpcheck_rules.preset_vars)) {
 				if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
