@@ -1150,45 +1150,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.set = 1;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (!strcmp(args[0], "external-check")) {
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-                }
-
-		if (!strcmp(args[1], "command")) {
-			if (alertif_too_many_args(2, file, linenum, args, &err_code))
-				goto out;
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->check_command);
-			curproxy->check_command = strdup(args[2]);
-		}
-		else if (!strcmp(args[1], "path")) {
-			if (alertif_too_many_args(2, file, linenum, args, &err_code))
-				goto out;
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->check_path);
-			curproxy->check_path = strdup(args[2]);
-		}
-		else {
-			ha_alert("parsing [%s:%d] : external-check: unknown argument '%s'.\n",
-				 file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}/* end else if (!strcmp(args[0], "external-check"))  */
 	else if (!strcmp(args[0], "persist")) {  /* persist */
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : missing persist method.\n",

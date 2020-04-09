@@ -5265,6 +5265,51 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 	return -1;
 }
 
+/* Parses the "external-check" proxy keyword */
+static int proxy_parse_extcheck(char **args, int section, struct proxy *curpx,
+				struct proxy *defpx, const char *file, int line,
+				char **errmsg)
+{
+	int cur_arg, ret = 0;
+
+	cur_arg = 1;
+	if (!*(args[cur_arg])) {
+		memprintf(errmsg, "missing argument after '%s'.\n", args[0]);
+		goto error;
+	}
+
+	if (strcmp(args[cur_arg], "command") == 0) {
+		if (too_many_args(2, args, errmsg, NULL))
+			goto error;
+		if (!*(args[cur_arg+1])) {
+			memprintf(errmsg, "missing argument after '%s'.", args[cur_arg]);
+			goto error;
+		}
+		free(curpx->check_command);
+		curpx->check_command = strdup(args[cur_arg+1]);
+	}
+	else if (strcmp(args[cur_arg], "path") == 0) {
+		if (too_many_args(2, args, errmsg, NULL))
+			goto error;
+		if (!*(args[cur_arg+1])) {
+			memprintf(errmsg, "missing argument after '%s'.", args[cur_arg]);
+			goto error;
+		}
+		free(curpx->check_path);
+		curpx->check_path = strdup(args[cur_arg+1]);
+	}
+	else {
+		memprintf(errmsg, "'%s' only supports 'command' and 'path'. but got '%s'.",
+			  args[0], args[1]);
+		goto error;
+	}
+
+	ret = (*errmsg != NULL); /* Handle warning */
+	return ret;
+
+error:
+	return -1;
+}
 
 static struct tcpcheck_ruleset *tcpcheck_ruleset_lookup(const char *name)
 {
@@ -6886,8 +6931,9 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-        { CFG_LISTEN, "tcp-check",   proxy_parse_tcpcheck },
-        { CFG_LISTEN, "http-check",  proxy_parse_httpcheck },
+        { CFG_LISTEN, "tcp-check",      proxy_parse_tcpcheck },
+        { CFG_LISTEN, "http-check",     proxy_parse_httpcheck },
+        { CFG_LISTEN, "external-check", proxy_parse_extcheck },
         { 0, NULL, NULL },
 }};
 
