@@ -426,6 +426,10 @@ struct proxy {
 	int grace;				/* grace time after stop request */
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
+	int check_body_len;                     /* Length of the request body for HTTP checks */
+	char *check_hdrs;                       /* Request headers for HTTP cheks */
+	int check_hdrs_len;                     /* Length of the headers for HTTP checks */
+	char *check_body;                       /* Request body for HTTP cheks */
 	char *check_command;			/* Command to use for external agent checks */
 	char *check_path;			/* PATH environment to use for external agent checks */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */

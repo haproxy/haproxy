@@ -291,6 +291,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			curproxy->check_len = defproxy.check_len;
 
+			if (defproxy.check_hdrs) {
+				curproxy->check_hdrs = calloc(1, defproxy.check_hdrs_len);
+				memcpy(curproxy->check_hdrs, defproxy.check_hdrs, defproxy.check_hdrs_len);
+			}
+			curproxy->check_hdrs_len = defproxy.check_hdrs_len;
+
+			if (defproxy.check_body) {
+				curproxy->check_body = calloc(1, defproxy.check_body_len);
+				memcpy(curproxy->check_body, defproxy.check_body, defproxy.check_body_len);
+			}
+			curproxy->check_body_len = defproxy.check_body_len;
+
 			if (defproxy.expect_str) {
 				curproxy->expect_str = strdup(defproxy.expect_str);
 				if (defproxy.expect_regex) {
@@ -2309,7 +2321,10 @@ stats_error_parsing:
 
 			/* use HTTP request to check servers' health */
 			free(curproxy->check_req);
-			curproxy->check_req = NULL;
+			free(curproxy->check_hdrs);
+			free(curproxy->check_body);
+			curproxy->check_req = curproxy->check_hdrs = curproxy->check_body = NULL;
+			curproxy->check_len = curproxy->check_hdrs_len = curproxy->check_body_len = 0;
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
@@ -2320,16 +2335,49 @@ stats_error_parsing:
 				curproxy->check_req = malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "OPTIONS %s HTTP/1.0\r\n", args[2]); /* URI to use */
-			} else { /* more arguments : METHOD URI [HTTP_VER] */
-				int reqlen = strlen(args[2]) + strlen(args[3]) + 3 + strlen("\r\n");
-				if (*args[4])
-					reqlen += strlen(args[4]);
-				else
-					reqlen += strlen("HTTP/1.0");
+			} else if (!*args[4]) { /* two arguments : METHOD URI */
+				int reqlen = strlen(args[2]) + strlen(args[3]) + strlen(" HTTP/1.0\r\n") + 1;
 
 				curproxy->check_req = malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-							       "%s %s %s\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
+							       "%s %s HTTP/1.0\r\n", args[2], args[3]);
+			} else { /* 3 arguments : METHOD URI HTTP_VER */
+				char *vsn = args[4];
+				char *hdrs = strstr(vsn, "\r\n");
+				char *body = strstr(vsn, "\r\n\r\n");
+
+				if (hdrs || body) {
+					ha_warning("parsing [%s:%d]: '%s %s' : hiding headers or body at the end of the version string is deprecated."
+						   " Please, consider to use 'http-check send' directive instead.\n",
+						   file, linenum, args[0], args[1]);
+					err_code |= ERR_WARN;
+				}
+
+				if (hdrs == body)
+					hdrs = NULL;
+				if (hdrs) {
+					*hdrs = '\0';
+					hdrs += 2;
+				}
+				if (body) {
+					*body = '\0';
+					body += 4;
+				}
+
+				curproxy->check_len = strlen(args[2]) + strlen(args[3]) + strlen(vsn) + 4;
+				curproxy->check_req = malloc(curproxy->check_len+1);
+				snprintf(curproxy->check_req, curproxy->check_len+1, "%s %s %s\r\n", args[2], args[3], vsn);
+
+				if (hdrs) {
+					curproxy->check_hdrs_len = strlen(hdrs) + 2;
+					curproxy->check_hdrs = malloc(curproxy->check_hdrs_len+1);
+					snprintf(curproxy->check_hdrs, curproxy->check_hdrs_len+1, "%s\r\n", hdrs);
+				}
+
+				if (body) {
+					curproxy->check_body_len = strlen(body);
+					curproxy->check_body = strdup(body);
+				}
 			}
 			if (alertif_too_many_args_idx(3, 1, file, linenum, args, &err_code))
 				goto out;
@@ -2810,6 +2858,63 @@ stats_error_parsing:
 			curproxy->options2 |= PR_O2_CHK_SNDST;
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
+		}
+		else if (strcmp(args[1], "send") == 0) {
+			int cur_arg = 2;
+
+			free(curproxy->check_hdrs);
+			free(curproxy->check_body);
+			curproxy->check_hdrs = curproxy->check_body = NULL;
+			curproxy->check_hdrs_len = curproxy->check_body_len = 0;
+			while (*(args[cur_arg])) {
+				if (strcmp(args[cur_arg], "hdr") == 0) {
+					int hdr_len;
+					if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
+						ha_alert("parsing [%s:%d] : '%s %s' : %s expects a name and a value as parameter.\n",
+							 file, linenum, args[0], args[1], args[cur_arg]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
+					cur_arg++;
+					hdr_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + 4;
+					curproxy->check_hdrs = my_realloc2(curproxy->check_hdrs, curproxy->check_hdrs_len+hdr_len+1);
+					if (curproxy->check_hdrs == NULL) {
+						ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					snprintf(curproxy->check_hdrs + curproxy->check_hdrs_len, hdr_len+1, "%s: %s\r\n", args[cur_arg], args[cur_arg+1]);
+					curproxy->check_hdrs_len += hdr_len;
+
+					cur_arg++;
+				}
+				else if (strcmp(args[cur_arg], "body") == 0) {
+					if (!*(args[cur_arg+1])) {
+						ha_alert("parsing [%s:%d] : '%s %s' : %s expects a string as parameter.\n",
+							 file, linenum, args[0], args[1], args[cur_arg]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					cur_arg++;
+					free(curproxy->check_body);
+					curproxy->check_body = strdup(args[cur_arg]);
+					curproxy->check_body_len = strlen(args[cur_arg]);
+					if (curproxy->check_body == NULL) {
+						ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
+				else {
+					ha_alert("parsing [%s:%d] : '%s %s' only supports 'hdr' and 'body', found '%s'.\n",
+						 file, linenum, args[0], args[1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				cur_arg++;
+			}
+
 		}
 		else if (strcmp(args[1], "expect") == 0) {
 			const char *ptr_arg;

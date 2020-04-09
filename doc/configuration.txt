@@ -4491,6 +4491,33 @@ http-check expect [!] <match> <pattern>
   See also : "option httpchk", "http-check disable-on-404"
 
 
+http-check send [hdr <name> <value>]* [body <string>]
+  Add a possible list of headers and/or a body to the request sent during HTTP
+  health checks.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    hdr <name> <value>   adds the HTTP header field whose name is specified in
+                         <name> and whose value is defined by <value> to the
+                         request sent during HTTP health checks.
+
+    body <string>        add the body defined by <string> to the request sent
+                         sent during HTTP health checks. If defined, the
+                         "Content-Length" header is thus automatically added
+                         to the request.
+
+  In addition to the request line defined by the "option httpchk" directive,
+  this one is the valid way to add some headers and optionally a body to the
+  request sent during HTTP health checks. If a body is defined, the associate
+  "Content-Length" header is automatically added. The old trick consisting to
+  add headers after the version string on the "option httpchk" line is now
+  deprecated. Note also the "Connection: close" header is still added if a
+  "http-check expect" direcive is defined independently of this directive, just
+  like the state header if the directive "http-check send-state" is defined.
+
+  See also : "option httpchk", "http-check send-state" and "http-check expect"
+
+
 http-check send-state
   Enable emission of a state header with HTTP health checks
   May be used in sections :   defaults | frontend | listen | backend
@@ -7143,8 +7170,7 @@ option httpchk <method> <uri> <version>
     <version> is the optional HTTP version string. It defaults to "HTTP/1.0"
               but some servers might behave incorrectly in HTTP 1.0, so turning
               it to HTTP/1.1 may sometimes help. Note that the Host field is
-              mandatory in HTTP/1.1, and as a trick, it is possible to pass it
-              after "\r\n" following the version string.
+              mandatory in HTTP/1.1, use "http-check send" directive to add it.
 
   By default, server health checks only consist in trying to establish a TCP
   connection. When "option httpchk" is specified, a complete HTTP request is
@@ -7158,12 +7184,18 @@ option httpchk <method> <uri> <version>
   plain TCP backends. This is particularly useful to check simple scripts bound
   to some dedicated ports using the inetd daemon.
 
+  Note : For a while, there was no way to add headers or body in the request
+         used for HTTP health checks. So a workaround was to hide it at the end
+         of the version string with a "\r\n" after the version. It is now
+	 deprecated. The directive "http-check send" must be used instead.
+
   Examples :
       # Relay HTTPS traffic to Apache instance and check service availability
       # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
       backend https_relay
           mode tcp
-          option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+          option httpchk OPTIONS * HTTP/1.1
+          http-check send hdr Host www
           server apache1 192.168.1.1:443 check port 80
 
   See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",

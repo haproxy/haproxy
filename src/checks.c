@@ -1599,13 +1599,30 @@ static int connect_conn_chk(struct task *t)
 			memcpy(b_head(&check->bo) + 11, &gmt_time, 4);
 		}
 		else if ((check->type) == PR_O2_HTTP_CHK) {
-			if (s->proxy->options2 & PR_O2_CHK_SNDST)
-				b_putblk(&check->bo, trash.area,
-					 httpchk_build_status_header(s, trash.area, trash.size));
 			/* prevent HTTP keep-alive when "http-check expect" is used */
 			if (s->proxy->options2 & PR_O2_EXP_TYPE)
 				b_putist(&check->bo, ist("Connection: close\r\n"));
+
+			/* If there is a body, add its content-length */
+			if (s->proxy->check_body_len)
+				chunk_appendf(&check->bo, "Content-Length: %s\r\n", ultoa(s->proxy->check_body_len));
+
+			/* Add configured headers */
+			if (s->proxy->check_hdrs)
+				b_putblk(&check->bo, s->proxy->check_hdrs, s->proxy->check_hdrs_len);
+
+			/* Add send-state header */
+			if (s->proxy->options2 & PR_O2_CHK_SNDST)
+				b_putblk(&check->bo, trash.area,
+					 httpchk_build_status_header(s, trash.area, trash.size));
+
+			/* end-of-header */
 			b_putist(&check->bo, ist("\r\n"));
+
+			/* Add the body */
+			if (s->proxy->check_body)
+				b_putblk(&check->bo, s->proxy->check_body, s->proxy->check_body_len);
+
 			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
 		}
 	}
