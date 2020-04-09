@@ -2904,8 +2904,12 @@ static struct ckch_inst *ckch_inst_new()
 	struct ckch_inst *ckch_inst;
 
 	ckch_inst = calloc(1, sizeof *ckch_inst);
-	if (ckch_inst)
-		LIST_INIT(&ckch_inst->sni_ctx);
+	if (!ckch_inst)
+		return NULL;
+
+	LIST_INIT(&ckch_inst->sni_ctx);
+	LIST_INIT(&ckch_inst->by_ckchs);
+	LIST_INIT(&ckch_inst->by_crtlist_entry);
 
 	return ckch_inst;
 }
