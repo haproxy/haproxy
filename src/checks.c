@@ -6043,6 +6043,88 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	goto out;
 }
 
+int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			    const char *file, int line)
+{
+	static const char *http_req =  "OPTIONS / HTTP/1.0\r\n";
+	int err_code = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
+		err_code |= ERR_WARN;
+
+	if (alertif_too_many_args_idx(3, 1, file, line, args, &err_code))
+		goto out;
+
+	/* use HTTP request to check servers' health */
+	free(curpx->check_req);
+	free(curpx->check_hdrs);
+	free(curpx->check_body);
+
+	curpx->check_req = curpx->check_hdrs = curpx->check_body = NULL;
+	curpx->check_len = curpx->check_hdrs_len = curpx->check_body_len = 0;
+	curpx->options2 &= ~PR_O2_CHK_ANY;
+	curpx->options2 |= PR_O2_HTTP_CHK;
+
+	cur_arg += 2;
+	if (!*args[cur_arg]) { /* no argument */
+		curpx->check_req = strdup(http_req); /* default request */
+		curpx->check_len = strlen(http_req);
+	}
+	else if (!*args[cur_arg+1]) { /* one argument : URI */
+		curpx->check_len = strlen(args[cur_arg]) + strlen("OPTIONS  HTTP/1.0\r\n");
+		curpx->check_req = malloc(curpx->check_len+1);
+		curpx->check_len = snprintf(curpx->check_req, curpx->check_len+1,
+					    "OPTIONS %s HTTP/1.0\r\n", args[cur_arg]);
+	}
+	else if (!*args[cur_arg+2]) { /* two arguments : METHOD URI */
+		curpx->check_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + strlen(" HTTP/1.0\r\n") + 1;
+		curpx->check_req = malloc(curpx->check_len+1);
+		curpx->check_len = snprintf(curpx->check_req, curpx->check_len+1,
+					    "%s %s HTTP/1.0\r\n", args[cur_arg], args[cur_arg+1]);
+	}
+	else { /* 3 arguments : METHOD URI HTTP_VER */
+		char *hdrs = strstr(args[cur_arg+2], "\r\n");
+		char *body = strstr(args[cur_arg+2], "\r\n\r\n");
+
+		if (hdrs || body) {
+			ha_warning("parsing [%s:%d]: '%s %s' : hiding headers or body at the end of the version string is deprecated."
+				   " Please, consider to use 'http-check send' directive instead.\n",
+				   file, line, args[0], args[1]);
+			err_code |= ERR_WARN;
+		}
+
+		if (hdrs == body)
+			hdrs = NULL;
+		if (hdrs) {
+			*hdrs = '\0';
+			hdrs += 2;
+		}
+		if (body) {
+			*body = '\0';
+			body += 4;
+		}
+
+		curpx->check_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + strlen(args[cur_arg+2]) + 4;
+		curpx->check_req = malloc(curpx->check_len+1);
+		snprintf(curpx->check_req, curpx->check_len+1, "%s %s %s\r\n",
+			 args[cur_arg], args[cur_arg+1], args[cur_arg+2]);
+		if (hdrs) {
+			curpx->check_hdrs_len = strlen(hdrs) + 2;
+			curpx->check_hdrs = malloc(curpx->check_hdrs_len+1);
+			snprintf(curpx->check_hdrs, curpx->check_hdrs_len+1, "%s\r\n", hdrs);
+		}
+		if (body) {
+			curpx->check_body_len = strlen(body);
+			curpx->check_body = strdup(body);
+		}
+	}
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
 
 /* Parse the "addr" server keyword */
 static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,

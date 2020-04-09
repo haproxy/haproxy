@@ -175,7 +175,6 @@
 #define DEF_RISETIME    2
 #define DEF_AGENT_FALLTIME    1
 #define DEF_AGENT_RISETIME    1
-#define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n"
 #define DEF_CHECK_PATH  ""
 
 

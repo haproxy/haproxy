@@ -2330,70 +2330,8 @@ stats_error_parsing:
 				curproxy->options |= PR_O_TCP_SRV_KA;
 		}
 		else if (!strcmp(args[1], "httpchk")) {
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			/* use HTTP request to check servers' health */
-			free(curproxy->check_req);
-			free(curproxy->check_hdrs);
-			free(curproxy->check_body);
-			curproxy->check_req = curproxy->check_hdrs = curproxy->check_body = NULL;
-			curproxy->check_len = curproxy->check_hdrs_len = curproxy->check_body_len = 0;
-			curproxy->options2 &= ~PR_O2_CHK_ANY;
-			curproxy->options2 |= PR_O2_HTTP_CHK;
-			if (!*args[2]) { /* no argument */
-				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
-				curproxy->check_len = strlen(DEF_CHECK_REQ);
-			} else if (!*args[3]) { /* one argument : URI */
-				int reqlen = strlen(args[2]) + strlen("OPTIONS  HTTP/1.0\r\n") + 1;
-				curproxy->check_req = malloc(reqlen);
-				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-							       "OPTIONS %s HTTP/1.0\r\n", args[2]); /* URI to use */
-			} else if (!*args[4]) { /* two arguments : METHOD URI */
-				int reqlen = strlen(args[2]) + strlen(args[3]) + strlen(" HTTP/1.0\r\n") + 1;
-
-				curproxy->check_req = malloc(reqlen);
-				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-							       "%s %s HTTP/1.0\r\n", args[2], args[3]);
-			} else { /* 3 arguments : METHOD URI HTTP_VER */
-				char *vsn = args[4];
-				char *hdrs = strstr(vsn, "\r\n");
-				char *body = strstr(vsn, "\r\n\r\n");
-
-				if (hdrs || body) {
-					ha_warning("parsing [%s:%d]: '%s %s' : hiding headers or body at the end of the version string is deprecated."
-						   " Please, consider to use 'http-check send' directive instead.\n",
-						   file, linenum, args[0], args[1]);
-					err_code |= ERR_WARN;
-				}
-
-				if (hdrs == body)
-					hdrs = NULL;
-				if (hdrs) {
-					*hdrs = '\0';
-					hdrs += 2;
-				}
-				if (body) {
-					*body = '\0';
-					body += 4;
-				}
-
-				curproxy->check_len = strlen(args[2]) + strlen(args[3]) + strlen(vsn) + 4;
-				curproxy->check_req = malloc(curproxy->check_len+1);
-				snprintf(curproxy->check_req, curproxy->check_len+1, "%s %s %s\r\n", args[2], args[3], vsn);
-
-				if (hdrs) {
-					curproxy->check_hdrs_len = strlen(hdrs) + 2;
-					curproxy->check_hdrs = malloc(curproxy->check_hdrs_len+1);
-					snprintf(curproxy->check_hdrs, curproxy->check_hdrs_len+1, "%s\r\n", hdrs);
-				}
-
-				if (body) {
-					curproxy->check_body_len = strlen(body);
-					curproxy->check_body = strdup(body);
-				}
-			}
-			if (alertif_too_many_args_idx(3, 1, file, linenum, args, &err_code))
+			err_code |= proxy_parse_httpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (!strcmp(args[1], "ssl-hello-chk")) {
