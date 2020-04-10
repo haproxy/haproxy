@@ -654,10 +654,10 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 
 				switch (expect->type) {
 				case TCPCHK_EXPECT_STRING:
-					chunk_appendf(chk, " (expect string '%s')", expect->string);
+					chunk_appendf(chk, " (expect string '%.*s')", (unsigned int)istlen(expect->data), expect->data.ptr);
 					break;
 				case TCPCHK_EXPECT_BINARY:
-					chunk_appendf(chk, " (expect binary '%s')", expect->string);
+					chunk_appendf(chk, " (expect binary '%.*s')", (unsigned int)istlen(expect->data), expect->data.ptr);
 					break;
 				case TCPCHK_EXPECT_REGEX:
 					chunk_appendf(chk, " (expect regex)");
@@ -2325,7 +2325,8 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (rule->expect.type) {
 	case TCPCHK_EXPECT_STRING:
-		chunk_appendf(msg, " '%s' at step %d", rule->expect.string, tcpcheck_get_step_id(check, rule));
+		chunk_appendf(msg, " '%.*s' at step %d", (unsigned int)istlen(rule->expect.data), rule->expect.data.ptr,
+			      tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_BINARY:
 		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
@@ -3113,7 +3114,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	 */
 	if (!last_read) {
 		if ((expect->type == TCPCHK_EXPECT_STRING || expect->type == TCPCHK_EXPECT_BINARY) &&
-		    (b_data(&check->bi) < expect->length)) {
+		    (b_data(&check->bi) < istlen(expect->data))) {
 			ret = TCPCHK_EVAL_WAIT;
 			goto out;
 		}
@@ -3129,7 +3130,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	switch (expect->type) {
 	case TCPCHK_EXPECT_STRING:
 	case TCPCHK_EXPECT_BINARY:
-		match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->string, expect->length) != NULL;
+		match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->data.ptr, istlen(expect->data)) != NULL;
 		break;
 	case TCPCHK_EXPECT_REGEX:
 		if (expect->with_capture)
@@ -3506,7 +3507,7 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		switch (rule->expect.type) {
 		case TCPCHK_EXPECT_STRING:
 		case TCPCHK_EXPECT_BINARY:
-			free(rule->expect.string);
+			free(rule->expect.data.ptr);
 			break;
 		case TCPCHK_EXPECT_REGEX:
 		case TCPCHK_EXPECT_REGEX_BINARY:
@@ -3757,12 +3758,11 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 	expect->ok_status = HCHK_STATUS_L7OKD;
 	expect->err_status = HCHK_STATUS_L7RSP;
 	expect->tout_status = HCHK_STATUS_L7TOUT;
-	expect->string = strdup(str);
-	if (!expect->string) {
+	expect->data = ist2(strdup(str), strlen(str));
+	if (!expect->data.ptr) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
 	}
-	expect->length = strlen(expect->string);
 
 	/* All tcp-check expect points back to the first inverse expect rule
 	 * in a chain of one or more expect rule, potentially itself.
@@ -4994,15 +4994,14 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 
 	switch (chk->expect.type) {
 	case TCPCHK_EXPECT_STRING:
-		chk->expect.string = strdup(pattern);
-		chk->expect.length = strlen(pattern);
-		if (!chk->expect.string) {
+		chk->expect.data = ist2(strdup(pattern), strlen(pattern));
+		if (!chk->expect.data.ptr) {
 			memprintf(errmsg, "out of memory");
 			goto error;
 		}
 		break;
 	case TCPCHK_EXPECT_BINARY:
-		if (parse_binary(pattern, &chk->expect.string, &chk->expect.length, errmsg) == 0) {
+		if (parse_binary(pattern, &chk->expect.data.ptr, (int *)&chk->expect.data.len, errmsg) == 0) {
 			memprintf(errmsg, "invalid binary string (%s)", *errmsg);
 			goto error;
 		}

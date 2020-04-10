@@ -262,14 +262,13 @@ enum tcpcheck_expect_type {
 struct tcpcheck_expect {
 	enum tcpcheck_expect_type type; /* Type of pattern used for matching. */
 	union {
-		char *string;           /* Matching a literal string / binary anywhere in the response. */
+		struct ist data;        /* Matching a literal string / binary anywhere in the response. */
 		struct my_regex *regex; /* Matching a regex pattern. */
 
 		/* custom function to eval epxect rule */
 		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);
 	};
 	struct tcpcheck_rule *head;     /* first expect of a chain. */
-	int length;                     /* Size in bytes of the pattern referenced by string / binary. */
 	int inverse;                    /* Match is inversed. */
 	int with_capture;               /* Match will store captured groups for back-reference in comment. */
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
