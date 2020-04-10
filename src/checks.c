@@ -2340,7 +2340,7 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 		/* If references to the matched text were made, divide the
 		 * offsets by 2 to match offset of the original response buffer.
 		 */
-		if (rule->expect.with_capture) {
+		if (rule->expect.flags & TCPCHK_EXPT_FL_CAP) {
 			int i;
 
 			for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
@@ -2360,7 +2360,7 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
   comment:
 	if (rule->comment) {
 		chunk_strcat(msg, " comment: ");
-		if (rule->expect.with_capture) {
+		if (rule->expect.flags & TCPCHK_EXPT_FL_CAP) {
 			int ret = exp_replace(b_tail(msg), b_room(msg), b_head(&check->bi), rule->comment, pmatch);
 			if (ret != -1) /* ignore comment if too large */
 				msg->data += ret;
@@ -3107,7 +3107,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
-	int match;
+	int match, inverse;
 
 	/* The current expect might need more data than the previous one, check again
 	 * that the minimum amount data required to match is respected.
@@ -3124,8 +3124,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		}
 	}
 
+	inverse = !!(expect->flags & TCPCHK_EXPT_FL_INV);
 	/* Make GCC happy ; initialize match to a failure state. */
-	match = expect->inverse;
+	match = inverse;
 
 	switch (expect->type) {
 	case TCPCHK_EXPECT_STRING:
@@ -3133,7 +3134,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		match = my_memmem(b_head(&check->bi), b_data(&check->bi), expect->data.ptr, istlen(expect->data)) != NULL;
 		break;
 	case TCPCHK_EXPECT_REGEX:
-		if (expect->with_capture)
+		if (expect->flags & TCPCHK_EXPT_FL_CAP)
 			match = regex_exec_match2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1),
 						  MAX_MATCH, pmatch, 0);
 		else
@@ -3143,7 +3144,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	case TCPCHK_EXPECT_REGEX_BINARY:
 		chunk_reset(&trash);
 		dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
-		if (expect->with_capture)
+		if (expect->flags & TCPCHK_EXPT_FL_CAP)
 			match = regex_exec_match2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1),
 						  MAX_MATCH, pmatch, 0);
 		else
@@ -3169,7 +3170,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	}
 
 	/* Result as expected, next rule. */
-	if (match ^ expect->inverse)
+	if (match ^ inverse)
 		goto out;
 
 
@@ -3770,7 +3771,7 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 	tcpcheck->expect.head = tcpcheck;
 	list_for_each_entry_rev(prev_check, rules->list, list) {
 		if (prev_check->action == TCPCHK_ACT_EXPECT) {
-			if (prev_check->expect.inverse)
+			if (prev_check->expect.flags & TCPCHK_EXPT_FL_INV)
 				tcpcheck->expect.head = prev_check;
 			continue;
 		}
@@ -4966,8 +4967,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->comment = comment; comment = NULL;
 	chk->expect.type = type;
 	chk->expect.min_recv = min_recv;
-	chk->expect.inverse = inverse;
-	chk->expect.with_capture = with_capture;
+	chk->expect.flags |= (inverse ? TCPCHK_EXPT_FL_INV : 0);
+	chk->expect.flags |= (with_capture ? TCPCHK_EXPT_FL_CAP : 0);
 	chk->expect.ok_status = ok_st;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
@@ -5026,7 +5027,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->expect.head = chk;
 	list_for_each_entry_rev(prev_check, rules, list) {
 		if (prev_check->action == TCPCHK_ACT_EXPECT) {
-			if (prev_check->expect.inverse)
+			if (prev_check->expect.flags & TCPCHK_EXPT_FL_INV)
 				chk->expect.head = prev_check;
 			continue;
 		}

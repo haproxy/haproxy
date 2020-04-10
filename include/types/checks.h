@@ -259,18 +259,21 @@ enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_CUSTOM,       /* Execute a custom function. */
 };
 
+/* tcp-check expect flags */
+#define TCPCHK_EXPT_FL_INV    0x0001 /* Matching is inversed */
+#define TCPCHK_EXPT_FL_CAP    0x0002 /* Regex matching with capture */
+
 struct tcpcheck_expect {
-	enum tcpcheck_expect_type type; /* Type of pattern used for matching. */
+	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */
+	unsigned int flags;               /* TCPCHK_EXPT_FL_* */
 	union {
-		struct ist data;        /* Matching a literal string / binary anywhere in the response. */
-		struct my_regex *regex; /* Matching a regex pattern. */
+		struct ist data;          /* Matching a literal string / binary anywhere in the response. */
+		struct my_regex *regex;   /* Matching a regex pattern. */
 
 		/* custom function to eval epxect rule */
 		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);
 	};
 	struct tcpcheck_rule *head;     /* first expect of a chain. */
-	int inverse;                    /* Match is inversed. */
-	int with_capture;               /* Match will store captured groups for back-reference in comment. */
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
 	struct list onerror_fmt;        /* log-format string to use as comment on error */
 	struct list onsuccess_fmt;      /* log-format string to use as comment on success (if last rule) */
