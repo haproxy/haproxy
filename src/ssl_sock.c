@@ -4862,7 +4862,6 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		char *end;
 		char *line = thisline;
 		char *crt_path;
-		struct ssl_bind_conf *ssl_conf = NULL;
 		struct ckch_store *ckchs;
 
 		linenum++;
@@ -4925,7 +4924,6 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 			goto error;
 
 		entry->node.key = ckchs;
-		entry->ssl_conf = ssl_conf;
 		entry->crtlist = newlist;
 		ebpt_insert(&newlist->entries, &entry->node);
 		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
