@@ -4784,11 +4784,13 @@ static int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry 
 
 	*crt_path = args[0];
 
-	ssl_conf = calloc(1, sizeof *ssl_conf);
-	if (!ssl_conf) {
-		memprintf(err, "not enough memory!");
-		cfgerr |= ERR_ALERT | ERR_FATAL;
-		goto error;
+	if (ssl_b) {
+		ssl_conf = calloc(1, sizeof *ssl_conf);
+		if (!ssl_conf) {
+			memprintf(err, "not enough memory!");
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+			goto error;
+		}
 	}
 	cur_arg = ssl_b ? ssl_b : 1;
 	while (cur_arg < ssl_e) {
