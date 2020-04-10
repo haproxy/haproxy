@@ -3004,6 +3004,49 @@ error:
 	return NULL;
 }
 
+/*
+ * Detach and free a crtlist_entry.
+ * Free the filters, the ssl_conf and call ckch_inst_free() for each ckch_inst
+ */
+static void crtlist_entry_free(struct crtlist_entry *entry)
+{
+	struct ckch_inst *inst, *inst_s;
+
+	if (entry == NULL)
+		return;
+
+	ebpt_delete(&entry->node);
+	LIST_DEL(&entry->by_crtlist);
+	LIST_DEL(&entry->by_ckch_store);
+	crtlist_free_filters(entry->filters);
+	ssl_sock_free_ssl_conf(entry->ssl_conf);
+	free(entry->ssl_conf);
+	list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
+		ckch_inst_free(inst);
+	}
+	free(entry);
+}
+
+/*
+ * Allocate and initialize a crtlist_entry
+ */
+static struct crtlist_entry *crtlist_entry_new()
+{
+	struct crtlist_entry *entry;
+
+	entry = calloc(1, sizeof(*entry));
+	if (entry == NULL)
+		return NULL;
+
+	LIST_INIT(&entry->ckch_inst);
+
+	/* initialize the nodes so we can LIST_DEL in any cases */
+	LIST_INIT(&entry->by_crtlist);
+	LIST_INIT(&entry->by_ckch_store);
+
+	return entry;
+}
+
 /* Free a crtlist, from the crt_entry to the content of the ssl_conf */
 static void crtlist_free(struct crtlist *crtlist)
 {
@@ -4567,19 +4610,12 @@ static int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct
 			if (!S_ISREG(buf.st_mode))
 				goto ignore_entry;
 
-			entry = malloc(sizeof(*entry));
+			entry = crtlist_entry_new();
 			if (entry == NULL) {
 				memprintf(err, "not enough memory '%s'", fp);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto ignore_entry;
 			}
-
-			/* directories don't use ssl_conf and filters */
-			entry->linenum = 0;
-			entry->fcount = 0;
-			entry->filters = NULL;
-			entry->ssl_conf = NULL;
-			LIST_INIT(&entry->ckch_inst);
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 			is_bundle = 0;
@@ -4844,17 +4880,12 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		if (*line == '#' || *line == '\n' || *line == '\r')
 			continue;
 
-		entry = malloc(sizeof(*entry));
+		entry = crtlist_entry_new();
 		if (entry == NULL) {
 			memprintf(err, "Not enough memory!");
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			goto error;
 		}
-		entry->fcount = 0;
-		entry->filters = NULL;
-		entry->ssl_conf = NULL;
-		entry->node.key = NULL;
-		LIST_INIT(&entry->by_crtlist);
 
 		*(end - 1) = '\0'; /* line parser mustn't receive any \n */
 		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, err);
@@ -4863,7 +4894,7 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 
 		/* empty line */
 		if (!crt_path || !*crt_path) {
-			free(entry);
+			crtlist_entry_free(entry);
 			entry = NULL;
 			continue;
 		}
@@ -4896,7 +4927,6 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 		entry->node.key = ckchs;
 		entry->ssl_conf = ssl_conf;
 		entry->crtlist = newlist;
-		LIST_INIT(&entry->ckch_inst);
 		ebpt_insert(&newlist->entries, &entry->node);
 		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
 		LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
@@ -4913,14 +4943,7 @@ static int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct pr
 
 	return cfgerr;
 error:
-	if (entry) {
-		crtlist_free_filters(entry->filters);
-		entry->filters = NULL;
-		ssl_sock_free_ssl_conf(entry->ssl_conf);
-		free(entry->ssl_conf);
-		entry->ssl_conf = NULL;
-		free(entry);
-	}
+	crtlist_entry_free(entry);
 
 	fclose(f);
 	crtlist_free(newlist);
@@ -11362,14 +11385,11 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	}
 	crtlist = ebmb_entry(eb, struct crtlist, node);
 
-	entry = malloc(sizeof(*entry));
+	entry = crtlist_entry_new();
 	if (entry == NULL) {
 		memprintf(&err, "Not enough memory!");
 		goto error;
 	}
-	entry->fcount = 0;
-	entry->filters = NULL;
-	entry->ssl_conf = NULL;
 
 	if (payload) {
 		char *lf;
@@ -11426,7 +11446,6 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	}
 
 	LIST_ADDQ(&crtlist->ord_entries, &entry->by_crtlist);
-	LIST_INIT(&entry->ckch_inst);
 	entry->crtlist = crtlist;
 	LIST_ADDQ(&store->crtlist_entry, &entry->by_ckch_store);
 
@@ -11438,12 +11457,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	return 0;
 
 error:
-	if (entry) {
-		crtlist_free_filters(entry->filters);
-		ssl_sock_free_ssl_conf(entry->ssl_conf);
-		free(entry->ssl_conf);
-		free(entry);
-	}
+	crtlist_entry_free(entry);
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	err = memprintf(&err, "Can't edit the crt-list: %s\n", err ? err : "");
 	return cli_dynerr(appctx, err);
