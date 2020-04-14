@@ -79,5 +79,5 @@ algorithms that are better for different inputs. Avalanche is not always
 applicable and may result in less smooth distribution.
 
 References:
-Mixing Functions/Avalanche: http://home.comcast.net/~bretm/hash/3.html
+Mixing Functions/Avalanche: https://papa.bretmulvey.com/post/124027987928/hash-functions
 Hash Functions: http://www.cse.yorku.ca/~oz/hash.html
