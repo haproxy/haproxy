@@ -1378,6 +1378,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	/* At least one of src or dst is not of AF_INET or AF_INET6 */
 	if (  !src
 	   || !dst
+	   || conn_is_back(remote)
 	   || (src->ss_family != AF_INET && src->ss_family != AF_INET6)
 	   || (dst->ss_family != AF_INET && dst->ss_family != AF_INET6)) {
 		if (buf_len < PP2_HDR_LEN_UNSPEC)
@@ -1387,14 +1388,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		ret = PP2_HDR_LEN_UNSPEC;
 	}
 	else {
-		/* Note: due to historic compatibility with V1 which required
-		 * to send "PROXY" with local addresses for local connections,
-		 * we can end up here with the remote in fact being our outgoing
-		 * connection. We still want to send real addresses and LOCAL on
-		 * it.
-		 */
-		hdr->ver_cmd = PP2_VERSION;
-		hdr->ver_cmd |= conn_is_back(remote) ? PP2_CMD_LOCAL : PP2_CMD_PROXY;
+		hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
 		/* IPv4 for both src and dst */
 		if (src->ss_family == AF_INET && dst->ss_family == AF_INET) {
 			if (buf_len < PP2_HDR_LEN_INET)
