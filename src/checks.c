@@ -1125,6 +1125,20 @@ static struct tcpcheck_rule *get_first_tcpcheck_rule(struct tcpcheck_rules *rule
 	return NULL;
 }
 
+/* returns the last NON-COMMENT tcp-check rule from list <list> or NULL if none
+ * was found.
+ */
+static struct tcpcheck_rule *get_last_tcpcheck_rule(struct tcpcheck_rules *rules)
+{
+	struct tcpcheck_rule *r;
+
+	list_for_each_entry_rev(r, rules->list, list) {
+		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
+			return r;
+	}
+	return NULL;
+}
+
 /* returns the NON-COMMENT tcp-check rule from list <list> following <start> or
  * NULL if non was found. If <start> is NULL, it relies on
  * get_first_tcpcheck_rule().
