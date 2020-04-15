@@ -193,7 +193,7 @@ list of options is :
 
   -c : only performs a check of the configuration files and exits before trying
     to bind. The exit status is zero if everything is OK, or non-zero if an
-    error is encountered.
+    error is encountered. Presence of warnings will be reported if any.
 
   -d : enable debug mode. This disables daemon mode, forces the process to stay
     in foreground and to show incoming and outgoing events. It is equivalent to

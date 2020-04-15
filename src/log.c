@@ -1123,6 +1123,8 @@ void ha_warning(const char *fmt, ...)
 {
 	va_list argp;
 
+	warned |= WARN_ANY;
+
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
 		print_message("WARNING", fmt, argp);

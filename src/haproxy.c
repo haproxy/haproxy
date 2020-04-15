@@ -2101,6 +2101,9 @@ static void init(int argc, char **argv)
 		struct peers *pr;
 		struct proxy *px;
 
+		if (warned & WARN_ANY)
+			qfprintf(stdout, "Warnings were found.\n");
+
 		for (pr = cfg_peers; pr; pr = pr->next)
 			if (pr->peers_fe)
 				break;
