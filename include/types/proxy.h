@@ -156,22 +156,10 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
 
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
-/* unused : 0x00400000 */
-
-#define PR_O2_EXP_NONE  0x00000000      /* http-check : no expect rule */
-#define PR_O2_EXP_STS   0x00800000      /* http-check expect status */
-#define PR_O2_EXP_RSTS  0x01000000      /* http-check expect rstatus */
-#define PR_O2_EXP_STR   0x01800000      /* http-check expect string */
-#define PR_O2_EXP_RSTR  0x02000000      /* http-check expect rstring */
-#define PR_O2_EXP_TYPE  0x03800000      /* mask for http-check expect type */
-#define PR_O2_EXP_INV   0x04000000      /* http-check expect !<rule> */
-/* unused: 0x08000000 */
+/* unused : 0x00400000..0x80000000 */
 
 /* server health checks */
 #define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
-/* unused: 0x10000000..0x30000000 */
-#define PR_O2_HTTP_CHK  0x40000000      /* use HTTP 'OPTIONS' method to check server health */
-/* unused 0x50000000..0x80000000 */
 #define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
 #define PR_O2_EXT_CHK   0xA0000000      /* use external command for server health */
 /* unused: 0xB0000000 to 0xF000000, reserved for health checks */
@@ -418,16 +406,8 @@ struct proxy {
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
 	struct tcpcheck_rules tcpcheck_rules;   /* tcp-check send / expect rules */
 	int grace;				/* grace time after stop request */
-	int check_len;				/* Length of the HTTP or SSL3 request */
-	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
-	int check_body_len;                     /* Length of the request body for HTTP checks */
-	char *check_hdrs;                       /* Request headers for HTTP cheks */
-	int check_hdrs_len;                     /* Length of the headers for HTTP checks */
-	char *check_body;                       /* Request body for HTTP cheks */
 	char *check_command;			/* Command to use for external agent checks */
 	char *check_path;			/* PATH environment to use for external agent checks */
-	char *expect_str;			/* http-check expected content : string or text version of the regex */
-	struct my_regex *expect_regex;		/* http-check expected content */
 	struct buffer *errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */

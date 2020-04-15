@@ -38,6 +38,8 @@
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/hathreads.h>
+#include <common/http.h>
+#include <common/h1.h>
 
 #include <types/global.h>
 #include <types/dns.h>
@@ -67,7 +69,6 @@
 #include <proto/ssl_sock.h>
 #include <proto/sample.h>
 
-static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);
 static int tcpcheck_main(struct check *);
 static void __event_srv_chk_w(struct conn_stream *cs);
@@ -75,6 +76,12 @@ static int wake_srv_chk(struct conn_stream *cs);
 static void __event_srv_chk_r(struct conn_stream *cs);
 
 static int srv_check_healthcheck_port(struct check *chk);
+static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct proxy *px,
+						    struct list *rules, const char *file, int line,
+						    char **errmsg);
+static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct proxy *px,
+						   struct list *rules, unsigned int proto,
+						   const char *file, int line, char **errmsg);
 
 /* Global list to share all tcp-checks */
 struct list tcpchecks_list = LIST_HEAD_INIT(tcpchecks_list);
@@ -665,6 +672,18 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_REGEX_BINARY:
 					chunk_appendf(chk, " (expect binary regex)");
 					break;
+				case TCPCHK_EXPECT_HTTP_STATUS:
+					chunk_appendf(chk, " (expect HTTP status '%.*s')", (unsigned int)istlen(expect->data), expect->data.ptr);
+					break;
+				case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+					chunk_appendf(chk, " (expect HTTP status regex)");
+					break;
+				case TCPCHK_EXPECT_HTTP_BODY:
+					chunk_appendf(chk, " (expect HTTP body content '%.*s')", (unsigned int)istlen(expect->data), expect->data.ptr);
+					break;
+				case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+					chunk_appendf(chk, " (expect HTTP body regex)");
+					break;
 				case TCPCHK_EXPECT_CUSTOM:
 					chunk_appendf(chk, " (expect custom function)");
 					break;
@@ -854,9 +873,7 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 {
 	struct connection *conn = cs->conn;
 	struct check *check = cs->data;
-	struct server *s = check->server;
 	struct task *t = check->task;
-	char *desc;
 	int done;
 
 	if (unlikely(check->result == CHK_RES_FAILED))
@@ -907,58 +924,14 @@ static void __event_srv_chk_r(struct conn_stream *cs)
 	}
 
 	/* Run the checks... */
-	switch (check->type) {
-	case PR_O2_HTTP_CHK:
-		if (!done && b_data(&check->bi) < strlen("HTTP/1.0 000\r"))
-			goto wait_more_data;
 
-		/* Check if the server speaks HTTP 1.X */
-		if ((b_data(&check->bi) < strlen("HTTP/1.0 000\r")) ||
-		    (memcmp(b_head(&check->bi), "HTTP/1.", 7) != 0 ||
-		    (*(b_head(&check->bi) + 12) != ' ' && *(b_head(&check->bi) + 12) != '\r')) ||
-		    !isdigit((unsigned char) *(b_head(&check->bi) + 9)) || !isdigit((unsigned char) *(b_head(&check->bi) + 10)) ||
-		    !isdigit((unsigned char) *(b_head(&check->bi) + 11))) {
-			cut_crlf(b_head(&check->bi));
-			set_server_check_status(check, HCHK_STATUS_L7RSP, b_head(&check->bi));
-
-			goto out_wakeup;
-		}
-
-		check->code = str2uic(b_head(&check->bi) + 9);
-		desc = ltrim(b_head(&check->bi) + 12, ' ');
-
-		if ((s->proxy->options & PR_O_DISABLE404) &&
-			 (s->next_state != SRV_ST_STOPPED) && (check->code == 404)) {
-			/* 404 may be accepted as "stopping" only if the server was up */
-			cut_crlf(desc);
-			set_server_check_status(check, HCHK_STATUS_L7OKCD, desc);
-		}
-		else if (s->proxy->options2 & PR_O2_EXP_TYPE) {
-			/* Run content verification check... We know we have at least 13 chars */
-			if (!httpchk_expect(s, done))
-				goto wait_more_data;
-		}
-		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		else if (*(b_head(&check->bi) + 9) == '2' || *(b_head(&check->bi) + 9) == '3') {
-			cut_crlf(desc);
-			set_server_check_status(check,  HCHK_STATUS_L7OKD, desc);
-		}
-		else {
-			cut_crlf(desc);
-			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
-		}
-		break;
-
-	default:
-		/* good connection is enough for pure TCP check */
-		if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-			if (check->use_ssl == 1)
-				set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
-			else
-				set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
-		}
-		break;
-	} /* switch */
+	/* good connection is enough for pure TCP check */
+	if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
+		if (check->use_ssl == 1)
+			set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
+		else
+			set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
+	}
 
  out_wakeup:
 	/* collect possible new errors */
@@ -1187,47 +1160,6 @@ static int connect_conn_chk(struct task *t)
 	/* we cannot have a connection here */
 	if (conn)
 		return SF_ERR_INTERNAL;
-
-	/* prepare the check buffer.
-	 * This should not be used if check is the secondary agent check
-	 * of a server as s->proxy->check_req will relate to the
-	 * configuration of the primary check. Similarly, tcp-check uses
-	 * its own strings.
-	 */
-	if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
-		b_putblk(&check->bo, s->proxy->check_req, s->proxy->check_len);
-
-		/* we want to check if this host replies to HTTP requests
-		 * so we'll send the request, and won't wake the checker up now.
-		 */
-		if ((check->type) == PR_O2_HTTP_CHK) {
-			/* prevent HTTP keep-alive when "http-check expect" is used */
-			if (s->proxy->options2 & PR_O2_EXP_TYPE)
-				b_putist(&check->bo, ist("Connection: close\r\n"));
-
-			/* If there is a body, add its content-length */
-			if (s->proxy->check_body_len)
-				chunk_appendf(&check->bo, "Content-Length: %s\r\n", ultoa(s->proxy->check_body_len));
-
-			/* Add configured headers */
-			if (s->proxy->check_hdrs)
-				b_putblk(&check->bo, s->proxy->check_hdrs, s->proxy->check_hdrs_len);
-
-			/* Add send-state header */
-			if (s->proxy->options2 & PR_O2_CHK_SNDST)
-				b_putblk(&check->bo, trash.area,
-					 httpchk_build_status_header(s, trash.area, trash.size));
-
-			/* end-of-header */
-			b_putist(&check->bo, ist("\r\n"));
-
-			/* Add the body */
-			if (s->proxy->check_body)
-				b_putblk(&check->bo, s->proxy->check_body, s->proxy->check_body_len);
-
-			*b_tail(&check->bo) = '\0'; /* to make gdb output easier to read */
-		}
-	}
 
 	/* for tcp-checks, the initial connection setup is handled separately as
 	 * it may be sent to a specific port and not to the server's.
@@ -2195,110 +2127,6 @@ static int start_checks()
 }
 
 /*
- * Perform content verification check on data in s->check.buffer buffer.
- * The buffer MUST be terminated by a null byte before calling this function.
- * Sets server status appropriately. The caller is responsible for ensuring
- * that the buffer contains at least 13 characters. If <done> is zero, we may
- * return 0 to indicate that data is required to decide of a match.
- */
-static int httpchk_expect(struct server *s, int done)
-{
-	static THREAD_LOCAL char status_msg[] = "HTTP status check returned code <000>";
-	char status_code[] = "000";
-	char *contentptr;
-	int crlf;
-	int ret;
-
-	switch (s->proxy->options2 & PR_O2_EXP_TYPE) {
-	case PR_O2_EXP_STS:
-	case PR_O2_EXP_RSTS:
-		memcpy(status_code, b_head(&s->check.bi) + 9, 3);
-		memcpy(status_msg + strlen(status_msg) - 4, b_head(&s->check.bi) + 9, 3);
-
-		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STS)
-			ret = strncmp(s->proxy->expect_str, status_code, 3) == 0;
-		else
-			ret = regex_exec(s->proxy->expect_regex, status_code);
-
-		/* we necessarily have the response, so there are no partial failures */
-		if (s->proxy->options2 & PR_O2_EXP_INV)
-			ret = !ret;
-
-		set_server_check_status(&s->check, ret ? HCHK_STATUS_L7OKD : HCHK_STATUS_L7STS, status_msg);
-		break;
-
-	case PR_O2_EXP_STR:
-	case PR_O2_EXP_RSTR:
-		/* very simple response parser: ignore CR and only count consecutive LFs,
-		 * stop with contentptr pointing to first char after the double CRLF or
-		 * to '\0' if crlf < 2.
-		 */
-		crlf = 0;
-		for (contentptr = b_head(&s->check.bi); *contentptr; contentptr++) {
-			if (crlf >= 2)
-				break;
-			if (*contentptr == '\r')
-				continue;
-			else if (*contentptr == '\n')
-				crlf++;
-			else
-				crlf = 0;
-		}
-
-		/* Check that response contains a body... */
-		if (crlf < 2) {
-			if (!done)
-				return 0;
-
-			set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
-						"HTTP content check could not find a response body");
-			return 1;
-		}
-
-		/* Check that response body is not empty... */
-		if (*contentptr == '\0') {
-			if (!done)
-				return 0;
-
-			set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
-						"HTTP content check found empty response body");
-			return 1;
-		}
-
-		/* Check the response content against the supplied string
-		 * or regex... */
-		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STR)
-			ret = strstr(contentptr, s->proxy->expect_str) != NULL;
-		else
-			ret = regex_exec(s->proxy->expect_regex, contentptr);
-
-		/* if we don't match, we may need to wait more */
-		if (!ret && !done)
-			return 0;
-
-		if (ret) {
-			/* content matched */
-			if (s->proxy->options2 & PR_O2_EXP_INV)
-				set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
-							"HTTP check matched unwanted content");
-			else
-				set_server_check_status(&s->check, HCHK_STATUS_L7OKD,
-							"HTTP content check matched");
-		}
-		else {
-			if (s->proxy->options2 & PR_O2_EXP_INV)
-				set_server_check_status(&s->check, HCHK_STATUS_L7OKD,
-							"HTTP check did not match unwanted content");
-			else
-				set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
-							"HTTP content check did not match");
-		}
-		break;
-	}
-	return 1;
-}
-
-/*
  * return the id of a step in a send/expect session
  */
 static int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
@@ -2339,6 +2167,8 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (rule->expect.type) {
 	case TCPCHK_EXPECT_STRING:
+	case TCPCHK_EXPECT_HTTP_STATUS:
+	case TCPCHK_EXPECT_HTTP_BODY:
 		chunk_appendf(msg, " '%.*s' at step %d", (unsigned int)istlen(rule->expect.data), rule->expect.data.ptr,
 			      tcpcheck_get_step_id(check, rule));
 		break;
@@ -2346,6 +2176,8 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_REGEX:
+	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 		chunk_appendf(msg, " (regex) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_REGEX_BINARY:
@@ -3082,6 +2914,54 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		if (parse_binary(b_orig(tmp),  &check->bo.area, (int *)&check->bo.data, NULL) == 0)
 			goto error_lf;
 		break;
+	case TCPCHK_SEND_HTTP: {
+		struct ist meth, uri, vsn;
+
+		meth = ((send->http.meth.meth == HTTP_METH_OTHER)
+			? ist2(send->http.meth.str.area, send->http.meth.str.data)
+			: http_known_methods[send->http.meth.meth]);
+		uri = (isttest(send->http.uri) ? send->http.uri : ist("/")); // TODO: handle uri_fmt
+		vsn = (isttest(send->http.vsn) ? send->http.vsn : ist("HTTP/1.0"));
+
+		chunk_istcat(&check->bo, meth);
+		check->bo.area[check->bo.data++] = ' ';
+		chunk_istcat(&check->bo, uri);
+		check->bo.area[check->bo.data++] = ' ';
+		chunk_istcat(&check->bo, vsn);
+		chunk_istcat(&check->bo, ist("\r\n"));
+		chunk_istcat(&check->bo, ist("Connection: close\r\n"));
+		if (isttest(send->http.body)) {
+			// TODO: handle body_fmt
+			chunk_appendf(&check->bo, "Content-Length: %s\r\n", ultoa(istlen(send->http.body)));
+		}
+		if (check->proxy->options2 & PR_O2_CHK_SNDST) {
+			trash.data = httpchk_build_status_header(check->server, b_orig(&trash), b_size(&trash));
+			chunk_cat(&check->bo, &trash);
+		}
+		if (!LIST_ISEMPTY(&send->http.hdrs)) {
+			struct tcpcheck_http_hdr *hdr;
+
+			tmp = alloc_trash_chunk();
+			if (!tmp)
+				goto error_lf;
+			list_for_each_entry(hdr, &send->http.hdrs, list) {
+				chunk_reset(tmp);
+                                tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &hdr->value);
+				if (!b_data(tmp))
+					continue;
+				chunk_istcat(&check->bo, hdr->name);
+				check->bo.area[check->bo.data++] = ' ';
+				chunk_cat(&check->bo, tmp);
+				chunk_istcat(&check->bo, ist("\r\n"));
+			}
+		}
+		chunk_istcat(&check->bo, ist("\r\n"));
+		if (isttest(send->http.body)) {
+			// TODO: handle body_fmt
+			chunk_istcat(&check->bo, send->http.body);
+		}
+		break;
+	}
 	case TCPCHK_SEND_UNDEF:
 		/* Should never happen. */
 		ret = TCPCHK_EVAL_STOP;
@@ -3113,6 +2993,130 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 
 }
 
+static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	struct tcpcheck_expect *expect = &rule->expect;
+	struct buffer *msg = NULL;
+	enum healthcheck_status status;
+	struct ist desc = ist(NULL);
+	char *body;
+	size_t body_len;
+	int match, inverse;
+
+	last_read |= b_full(&check->bi);
+
+	/* Must at least receive the status line (HTTP/1.X XXX.) */
+	if (!last_read && b_data(&check->bi) < 13)
+		goto wait_more_data;
+
+	/* Check if the server speaks HTTP 1.X */
+	if (b_data(&check->bi) < 13 ||
+	    memcmp(b_head(&check->bi), "HTTP/1.", 7) != 0 ||
+	    (*b_peek(&check->bi, 12) != ' ' && *b_peek(&check->bi, 12) != '\r') ||
+	    !isdigit((unsigned char) *b_peek(&check->bi, 9)) || !isdigit((unsigned char) *b_peek(&check->bi, 10)) ||
+	    !isdigit((unsigned char) *b_peek(&check->bi, 11))) {
+		status = HCHK_STATUS_L7RSP;
+		desc   = ist2(b_head(&check->bi), my_memcspn(b_head(&check->bi), b_data(&check->bi), "\r\n", 2));
+		goto error;
+	}
+
+	check->code = strl2uic(b_peek(&check->bi, 9), 3);
+
+	if (check->server &&
+	    (check->server->proxy->options & PR_O_DISABLE404) &&
+	    (check->server->next_state != SRV_ST_STOPPED) &&
+	    (check->code == 404)) {
+		/* 404 may be accepted as "stopping" only if the server was up */
+		goto out;
+	}
+
+	inverse = !!(expect->flags & TCPCHK_EXPT_FL_INV);
+	/* Make GCC happy ; initialize match to a failure state. */
+	match = inverse;
+
+	switch (expect->type) {
+	case TCPCHK_EXPECT_HTTP_STATUS:
+		match = my_memmem(b_peek(&check->bi, 9), 3, expect->data.ptr, istlen(expect->data)) != NULL;
+
+		/* Set status and description in case of error */
+		status = HCHK_STATUS_L7STS;
+		desc  = ist2(b_peek(&check->bi, 12), my_memcspn(b_peek(&check->bi, 12), b_data(&check->bi) - 12, "\r\n", 2));
+		break;
+	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+		match = regex_exec2(expect->regex, b_peek(&check->bi, 9), 3);
+
+		/* Set status and description in case of error */
+		status = HCHK_STATUS_L7STS;
+		desc  = ist2(b_peek(&check->bi, 12), my_memcspn(b_peek(&check->bi, 12), b_data(&check->bi) - 12, "\r\n", 2));
+		break;
+	case TCPCHK_EXPECT_HTTP_BODY:
+	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+		body = (char *)my_memmem(b_head(&check->bi), b_data(&check->bi), "\r\n\r\n", 4);
+		if (!body) {
+			if (!last_read)
+				goto wait_more_data;
+
+			status = HCHK_STATUS_L7RSP;
+			desc = ist("HTTP content check could not find a response body");
+			goto error;
+		}
+		body += 4;
+		body_len = b_tail(&check->bi) - body;
+
+		if (!last_read &&
+		    ((expect->type == TCPCHK_EXPECT_HTTP_BODY && body_len < istlen(expect->data)) ||
+		     (expect->min_recv > 0 && body_len < expect->min_recv))) {
+			ret = TCPCHK_EVAL_WAIT;
+			goto out;
+		}
+
+		if (expect->type ==TCPCHK_EXPECT_HTTP_BODY)
+			match = my_memmem(body, body_len, expect->data.ptr, istlen(expect->data)) != NULL;
+		else
+			match = regex_exec2(expect->regex, body, body_len);
+
+		/* Set status and description in case of error */
+		status = HCHK_STATUS_L7RSP;
+		desc = (inverse
+			? ist("HTTP check matched unwanted content")
+			: ist("HTTP content check did not match"));
+		break;
+
+	default:
+		/* should never happen */
+		status = HCHK_STATUS_L7RSP;
+		goto error;
+	}
+
+	/* Wait for more data on mismatch only if no minimum is defined (-1),
+	 * otherwise the absence of match is already conclusive.
+	 */
+	if (!match && !last_read && (expect->min_recv == -1)) {
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
+	if (!(match ^ inverse))
+		goto error;
+
+  out:
+	free_trash_chunk(msg);
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
 /* Evaluate a TCPCHK_ACT_EXPECT rule. It returns 1 to evaluate the next rule, 0
  * to wait and -1 to stop the check.
  */
@@ -3122,6 +3126,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
 	int match, inverse;
+
+	last_read |= b_full(&check->bi);
 
 	/* The current expect might need more data than the previous one, check again
 	 * that the minimum amount data required to match is respected.
@@ -3168,7 +3174,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		if (expect->custom)
 			ret = expect->custom(check, rule, last_read);
 		goto out;
-	case TCPCHK_EXPECT_UNDEF:
+	default:
 		/* Should never happen. */
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -3306,6 +3312,7 @@ static int tcpcheck_main(struct check *check)
 	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
 		enum tcpcheck_eval_ret eval_ret;
 
+		check->code = 0;
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
 			check->current_step = rule;
@@ -3352,10 +3359,6 @@ static int tcpcheck_main(struct check *check)
 					}
 				}
 
-				/* buffer full, don't wait for more data */
-				if (b_full(&check->bi))
-					last_read = 1;
-
 				/* Check that response body is not empty... */
 				if (!b_data(&check->bi)) {
 					if (!last_read)
@@ -3373,7 +3376,10 @@ static int tcpcheck_main(struct check *check)
 				must_read = 0;
 			}
 
-			eval_ret = tcpcheck_eval_expect(check, rule, last_read);
+			eval_ret = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
+				    ? tcpcheck_eval_expect_http(check, rule, last_read)
+				    : tcpcheck_eval_expect(check, rule, last_read));
+
 			if (eval_ret == TCPCHK_EVAL_WAIT) {
 				check->current_step = rule->expect.head;
 				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
@@ -3406,8 +3412,17 @@ static int tcpcheck_main(struct check *check)
 		rule = check->current_step;
 
 		if (rule->action == TCPCHK_ACT_EXPECT) {
-			struct buffer *msg = alloc_trash_chunk();
+			struct buffer *msg;
 
+			if (check->server &&
+			    (check->server->proxy->options & PR_O_DISABLE404) &&
+			    (check->server->next_state != SRV_ST_STOPPED) &&
+			    (check->code == 404)) {
+				set_server_check_status(check, HCHK_STATUS_L7OKCD, NULL);
+				goto out_end_tcpcheck;
+			}
+
+			msg = alloc_trash_chunk();
 			if (msg)
 				tcpcheck_onsuccess_message(msg, check, rule, ist(NULL));
 			set_server_check_status(check, rule->expect.ok_status,
@@ -3477,10 +3492,40 @@ void free_check(struct check *check)
 	}
 }
 
-static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
+static void free_tcpcheck_fmt(struct list *fmt)
 {
 	struct logformat_node *lf, *lfb;
 
+	list_for_each_entry_safe(lf, lfb, fmt, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+}
+
+static void free_tcpcheck_http_hdr(struct tcpcheck_http_hdr *hdr)
+{
+	if (!hdr)
+		return;
+
+	free_tcpcheck_fmt(&hdr->value);
+	free(hdr->name.ptr);
+	free(hdr);
+}
+
+static void free_tcpcheck_http_hdrs(struct list *hdrs)
+{
+	struct tcpcheck_http_hdr *hdr, *bhdr;
+
+	list_for_each_entry_safe(hdr, bhdr, hdrs, list) {
+		LIST_DEL(&hdr->list);
+		free_tcpcheck_http_hdr(hdr);
+	}
+}
+
+static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
+{
 	if (!rule)
 		return;
 
@@ -3494,38 +3539,40 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 			break;
 		case TCPCHK_SEND_STRING_LF:
 		case TCPCHK_SEND_BINARY_LF:
-			list_for_each_entry_safe(lf, lfb, &rule->send.fmt, list) {
-				LIST_DEL(&lf->list);
-				release_sample_expr(lf->expr);
-				free(lf->arg);
-				free(lf);
-			}
+			free_tcpcheck_fmt(&rule->send.fmt);
+			break;
+		case TCPCHK_SEND_HTTP:
+			free(rule->send.http.meth.str.area);
+			if (!(rule->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
+				free(rule->send.http.uri.ptr);
+			else
+				free_tcpcheck_fmt(&rule->send.http.uri_fmt);
+			free(rule->send.http.vsn.ptr);
+			free_tcpcheck_http_hdrs(&rule->send.http.hdrs);
+			if (!(rule->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
+				free(rule->send.http.body.ptr);
+			else
+				free_tcpcheck_fmt(&rule->send.http.body_fmt);
 			break;
 		case TCPCHK_SEND_UNDEF:
 			break;
 		}
 		break;
 	case TCPCHK_ACT_EXPECT:
-		list_for_each_entry_safe(lf, lfb, &rule->expect.onerror_fmt, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-		list_for_each_entry_safe(lf, lfb, &rule->expect.onsuccess_fmt, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
+		free_tcpcheck_fmt(&rule->expect.onerror_fmt);
+		free_tcpcheck_fmt(&rule->expect.onsuccess_fmt);
 		release_sample_expr(rule->expect.status_expr);
 		switch (rule->expect.type) {
 		case TCPCHK_EXPECT_STRING:
 		case TCPCHK_EXPECT_BINARY:
+		case TCPCHK_EXPECT_HTTP_STATUS:
+		case TCPCHK_EXPECT_HTTP_BODY:
 			free(rule->expect.data.ptr);
 			break;
 		case TCPCHK_EXPECT_REGEX:
 		case TCPCHK_EXPECT_REGEX_BINARY:
+		case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+		case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 			regex_free(rule->expect.regex);
 			break;
 		case TCPCHK_EXPECT_CUSTOM:
@@ -4025,17 +4072,56 @@ REGISTER_POST_CHECK(start_checks);
 static int check_proxy_tcpcheck(struct proxy *px)
 {
 	struct tcpcheck_rule *chk, *back;
-	char *comment = NULL;
+	char *comment = NULL, *errmsg = NULL;
 	enum tcpcheck_rule_type prev_action = TCPCHK_ACT_COMMENT;
 	int ret = 0;
 
-	if (!(px->cap & PR_CAP_BE) || (px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
+	if (!(px->cap & PR_CAP_BE) || (px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
+		deinit_proxy_tcpcheck(px);
 		goto out;
+	}
+
+	free(px->check_command);
+	free(px->check_path);
+	px->check_command = px->check_path = NULL;
 
 	if (!px->tcpcheck_rules.list) {
 		ha_alert("config : proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
 		ret |= ERR_ALERT | ERR_FATAL;
 		goto out;
+	}
+
+	/* HTTP ruleset */
+	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+		struct tcpcheck_rule *next;
+
+		/* move remaining send rule from "option httpchk" line to the right place */
+		chk = get_first_tcpcheck_rule(&px->tcpcheck_rules);
+		if (chk && chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
+			next = get_next_tcpcheck_rule(&px->tcpcheck_rules, chk);
+			if (next && next->action == TCPCHK_ACT_CONNECT) {
+				LIST_DEL(&chk->list);
+				LIST_ADD(&next->list, &chk->list);
+				chk->index = next->index;
+			}
+		}
+
+		/* add implicit expect rule if the last one is a send. */
+		chk = get_last_tcpcheck_rule(&px->tcpcheck_rules);
+		if (chk && chk->action == TCPCHK_ACT_SEND) {
+			next = parse_tcpcheck_expect((char *[]){"http-check", "expect", "rstatus", "^[23]", ""},
+						     1, px, px->tcpcheck_rules.list, TCPCHK_RULES_HTTP_CHK,
+						     px->conf.file, px->conf.line, &errmsg);
+			if (!next) {
+				ha_alert("config : proxy '%s': unable to add implicit http-check expect rule "
+					 "(%s).\n", px->id, errmsg);
+				free(errmsg);
+				ret |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			LIST_ADDQ(px->tcpcheck_rules.list, &next->list);
+			next->index = chk->index;
+		}
 	}
 
 	/* If there is no connect rule preceeding all send / expect rules, an
@@ -4420,10 +4506,13 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	int alpn_len = 0;
 
 	list_for_each_entry(chk, rules, list) {
-		if (chk->action != TCPCHK_ACT_COMMENT && chk->action != TCPCHK_ACT_ACTION_KW)
+		if (chk->action == TCPCHK_ACT_CONNECT)
 			break;
-	}
-	if (&chk->list != rules && chk->action != TCPCHK_ACT_CONNECT) {
+		if (chk->action == TCPCHK_ACT_COMMENT ||
+		    chk->action == TCPCHK_ACT_ACTION_KW ||
+		    (chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)))
+			continue;
+
 		memprintf(errmsg, "first step MUST also be a 'connect', "
 			  "optionnaly preceded by a 'set-var', an 'unset-var' or a 'comment', "
 			  "when there is a 'connect' step in the tcp-check ruleset");
@@ -4669,6 +4758,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 			goto error;
 		}
 		break;
+	case TCPCHK_SEND_HTTP:
 	case TCPCHK_SEND_UNDEF:
 		goto error;
 	}
@@ -4679,6 +4769,283 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 	free(chk);
 	free(comment);
 	return NULL;
+}
+
+static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct proxy *px, struct list *rules,
+						      const char *file, int line, char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	struct tcpcheck_http_hdr *hdr = NULL;
+        struct http_hdr hdrs[global.tune.max_http_hdr];
+	char *meth = NULL, *uri = NULL, *vsn = NULL;
+	char *body = NULL, *comment = NULL;
+	unsigned int flags = 0;
+	int i = 0;
+
+	cur_arg++;
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "meth") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			meth = args[cur_arg];
+		}
+		else if (strcmp(args[cur_arg], "uri") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			uri = args[cur_arg];
+			// TODO: log-format uri
+		}
+		else if (strcmp(args[cur_arg], "vsn") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			vsn = args[cur_arg];
+		}
+                else if (strcmp(args[cur_arg], "hdr") == 0) {
+			if (!*args[cur_arg+1] || !*args[cur_arg+2]) {
+				memprintf(errmsg, "'%s' expects <name> and <value> as arguments", args[cur_arg]);
+				goto error;
+			}
+			hdrs[i].n = ist2(args[cur_arg+1], strlen(args[cur_arg+1]));
+			hdrs[i].v = ist2(args[cur_arg+2], strlen(args[cur_arg+2]));
+			i++;
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "body") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			body = args[cur_arg];
+			// TODO: log-format body
+		}
+		else if (strcmp(args[cur_arg], "comment") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			free(comment);
+			comment = strdup(args[cur_arg]);
+			if (!comment) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+		else {
+			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'hdr' and 'body' but got '%s' as argument.",
+				  args[cur_arg]);
+			goto error;
+		}
+		cur_arg++;
+	}
+
+	hdrs[i].n = hdrs[i].v = IST_NULL;
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action    = TCPCHK_ACT_SEND;
+	chk->comment   = comment; comment = NULL;
+	chk->send.type = TCPCHK_SEND_HTTP;
+	chk->send.http.flags = flags;
+	LIST_INIT(&chk->send.http.hdrs);
+
+	if (meth) {
+		chk->send.http.meth.meth = find_http_meth(meth, strlen(meth));
+		chk->send.http.meth.str.area = strdup(meth);
+		chk->send.http.meth.str.data = strlen(meth);
+		if (!chk->send.http.meth.str.area) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	if (uri) {
+		chk->send.http.uri = ist2(strdup(uri), strlen(uri));
+		if (!isttest(chk->send.http.uri)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	if (vsn) {
+		chk->send.http.vsn = ist2(strdup(vsn), strlen(vsn));
+		if (!isttest(chk->send.http.vsn)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	for (i = 0; hdrs[i].n.len; i++) {
+		hdr = calloc(1, sizeof(*hdr));
+		if (!hdr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+		LIST_INIT(&hdr->value);
+		hdr->name = ist2(strdup(hdrs[i].n.ptr), hdrs[i].n.len);
+		if (!hdr->name.ptr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		hdrs[i].v.ptr[hdrs[i].v.len] = '\0';
+		if (!parse_logformat_string(hdrs[i].v.ptr, px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
+			goto error;
+		LIST_ADDQ(&chk->send.http.hdrs, &hdr->list);
+		hdr = NULL;
+	}
+
+	if (body) {
+		chk->send.http.body = ist2(strdup(body), strlen(body));
+		if (!isttest(chk->send.http.body)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+
+	return chk;
+
+  error:
+	free_tcpcheck_http_hdr(hdr);
+	free_tcpcheck(chk, 0);
+	free(comment);
+	return NULL;
+}
+
+static void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpcheck_rule *new)
+{
+	struct logformat_node *lf, *lfb;
+	struct tcpcheck_http_hdr *hdr, *bhdr;
+
+
+	if (new->send.http.meth.str.area) {
+		free(old->send.http.meth.str.area);
+		old->send.http.meth.meth = new->send.http.meth.meth;
+		old->send.http.meth.str.area = new->send.http.meth.str.area;
+		old->send.http.meth.str.data = new->send.http.meth.str.data;
+		new->send.http.meth.str = BUF_NULL;
+	}
+
+	if (!(new->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT) && isttest(new->send.http.uri)) {
+		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
+			free(old->send.http.uri.ptr);
+		else
+			free_tcpcheck_fmt(&old->send.http.uri_fmt);
+		old->send.http.flags &= ~TCPCHK_SND_HTTP_FL_URI_FMT;
+		old->send.http.uri = new->send.http.uri;
+		new->send.http.uri = IST_NULL;
+	}
+	else if ((new->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT) && !LIST_ISEMPTY(&new->send.http.uri_fmt)) {
+		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT))
+			free(old->send.http.uri.ptr);
+		else
+			free_tcpcheck_fmt(&old->send.http.uri_fmt);
+		old->send.http.flags |= TCPCHK_SND_HTTP_FL_URI_FMT;
+		LIST_INIT(&old->send.http.uri_fmt);
+		list_for_each_entry_safe(lf, lfb, &new->send.http.uri_fmt, list) {
+			LIST_DEL(&lf->list);
+			LIST_ADDQ(&old->send.http.uri_fmt, &lf->list);
+		}
+	}
+
+	if (isttest(new->send.http.vsn)) {
+		free(old->send.http.vsn.ptr);
+		old->send.http.vsn = new->send.http.vsn;
+		new->send.http.vsn = IST_NULL;
+	}
+
+	free_tcpcheck_http_hdrs(&old->send.http.hdrs);
+	list_for_each_entry_safe(hdr, bhdr, &new->send.http.hdrs, list) {
+		LIST_DEL(&hdr->list);
+		LIST_ADDQ(&old->send.http.hdrs, &hdr->list);
+	}
+
+	if (!(new->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && isttest(new->send.http.body)) {
+		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
+			free(old->send.http.body.ptr);
+		else
+			free_tcpcheck_fmt(&old->send.http.body_fmt);
+		old->send.http.flags &= ~TCPCHK_SND_HTTP_FL_BODY_FMT;
+		old->send.http.body = new->send.http.body;
+		new->send.http.body = IST_NULL;
+	}
+	else if ((new->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && !LIST_ISEMPTY(&new->send.http.body_fmt)) {
+		if (!(old->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT))
+			free(old->send.http.body.ptr);
+		else
+			free_tcpcheck_fmt(&old->send.http.body_fmt);
+		old->send.http.flags |= TCPCHK_SND_HTTP_FL_BODY_FMT;
+		LIST_INIT(&old->send.http.body_fmt);
+		list_for_each_entry_safe(lf, lfb, &new->send.http.body_fmt, list) {
+			LIST_DEL(&lf->list);
+			LIST_ADDQ(&old->send.http.body_fmt, &lf->list);
+		}
+	}
+}
+
+static int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rules, char **errmsg)
+{
+	struct tcpcheck_rule *r;
+
+	if (chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
+		r = get_first_tcpcheck_rule(rules);
+		if (r && r->action == TCPCHK_ACT_CONNECT)
+			r = get_next_tcpcheck_rule(rules, r);
+		if (!r || r->action != TCPCHK_ACT_SEND)
+			LIST_ADD(rules->list, &chk->list);
+		else if (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT) {
+			LIST_DEL(&r->list);
+			free_tcpcheck(r, 0);
+			LIST_ADD(rules->list, &chk->list);
+		}
+		else {
+			tcpcheck_overwrite_send_http_rule(r, chk);
+			free_tcpcheck(chk, 0);
+		}
+	}
+	else {
+		r = get_last_tcpcheck_rule(rules);
+		if (!r || (r->action == TCPCHK_ACT_SEND && (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)))
+			/* no error */;
+		else if (r->action != TCPCHK_ACT_CONNECT && chk->action == TCPCHK_ACT_SEND) {
+			memprintf(errmsg, "unable to add http-check send rule at step %d (missing connect rule).",
+				  chk->index+1);
+			return 0;
+		}
+		else if (r->action != TCPCHK_ACT_SEND && chk->action == TCPCHK_ACT_EXPECT) {
+			memprintf(errmsg, "unable to add http-check expect rule at step %d (missing send rule).",
+				  chk->index+1);
+			return 0;
+		}
+		else if (r->action != TCPCHK_ACT_EXPECT && chk->action == TCPCHK_ACT_CONNECT) {
+			memprintf(errmsg, "unable to add http-check connect rule at step %d (missing expect rule).",
+				  chk->index+1);
+			return 0;
+		}
+
+		if (chk->action == TCPCHK_ACT_SEND) {
+			r = get_first_tcpcheck_rule(rules);
+			if (r && r->action == TCPCHK_ACT_SEND && (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
+				tcpcheck_overwrite_send_http_rule(r, chk);
+				free_tcpcheck(chk, 0);
+				LIST_DEL(&r->list);
+				r->send.http.flags &= ~TCPCHK_SND_HTTP_FROM_OPT;
+				chk = r;
+			}
+		}
+		LIST_ADDQ(rules->list, &chk->list);
+	}
+	return 1;
 }
 
 static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, struct proxy *px, struct list *rules,
@@ -4712,7 +5079,8 @@ static struct tcpcheck_rule *parse_tcpcheck_comment(char **args, int cur_arg, st
 	return NULL;
 }
 
-static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct proxy *px, struct list *rules,
+static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct proxy *px,
+						   struct list *rules, unsigned int proto,
 						   const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
@@ -4763,15 +5131,47 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				cur_arg++;
 			goto rescan;
 		}
-		else if (strcmp(args[cur_arg], "string") == 0 || strcmp(args[cur_arg], "binary") == 0 ||
-			 strcmp(args[cur_arg], "rstring") == 0 || strcmp(args[cur_arg], "rbinary") == 0) {
+		else if (strcmp(args[cur_arg], "string") == 0 || strcmp(args[cur_arg], "rstring") == 0) {
 			if (type != TCPCHK_EXPECT_UNDEF) {
 				memprintf(errmsg, "only on pattern expected");
 				goto error;
 			}
-			type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING :
-				((*(args[cur_arg]) == 'b') ?  TCPCHK_EXPECT_BINARY :
-				 ((*(args[cur_arg]+1) == 's') ? TCPCHK_EXPECT_REGEX : TCPCHK_EXPECT_REGEX_BINARY)));
+			if (proto != TCPCHK_RULES_HTTP_CHK)
+				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING : TCPCHK_EXPECT_REGEX);
+			else
+				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_BODY : TCPCHK_EXPECT_HTTP_REGEX_BODY);
+
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			pattern = args[cur_arg];
+		}
+		else if (strcmp(args[cur_arg], "binary") == 0 || strcmp(args[cur_arg], "rbinary") == 0) {
+			if (proto == TCPCHK_RULES_HTTP_CHK)
+				goto bad_http_kw;
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			type = ((*(args[cur_arg]) == 'b') ?  TCPCHK_EXPECT_BINARY : TCPCHK_EXPECT_REGEX_BINARY);
+
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			pattern = args[cur_arg];
+		}
+		else if (strcmp(args[cur_arg], "status") == 0 || strcmp(args[cur_arg], "rstatus") == 0) {
+			if (proto != TCPCHK_RULES_HTTP_CHK)
+				goto bad_tcp_kw;
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_STATUS : TCPCHK_EXPECT_HTTP_REGEX_STATUS);
 
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
@@ -4943,8 +5343,16 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			cur_arg++;
 		}
 		else {
-			memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]rbinary'"
-				  " or comment but got '%s' as argument.", args[cur_arg]);
+			if (proto == TCPCHK_RULES_HTTP_CHK) {
+			  bad_http_kw:
+				memprintf(errmsg, "'only supports min-recv, [!]string', '[!]rstring', '[!]status', '[!]rstatus'"
+					  " or comment but got '%s' as argument.", args[cur_arg]);
+			}
+			else {
+			  bad_tcp_kw:
+				memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]rbinary'"
+					  " or comment but got '%s' as argument.", args[cur_arg]);
+			}
 			goto error;
 		}
 
@@ -5009,6 +5417,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 
 	switch (chk->expect.type) {
 	case TCPCHK_EXPECT_STRING:
+	case TCPCHK_EXPECT_HTTP_STATUS:
+	case TCPCHK_EXPECT_HTTP_BODY:
 		chk->expect.data = ist2(strdup(pattern), strlen(pattern));
 		if (!chk->expect.data.ptr) {
 			memprintf(errmsg, "out of memory");
@@ -5022,6 +5432,8 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		}
 	case TCPCHK_EXPECT_REGEX:
 	case TCPCHK_EXPECT_REGEX_BINARY:
+	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 		chk->expect.regex = regex_comp(pattern, 1, with_capture, errmsg);
 		if (!chk->expect.regex)
 			goto error;
@@ -5098,7 +5510,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
 		chk = parse_tcpcheck_send(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "expect") == 0)
-		chk = parse_tcpcheck_expect(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
+		chk = parse_tcpcheck_expect(args, cur_arg, curpx, &rs->rules, 0, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "comment") == 0)
 		chk = parse_tcpcheck_comment(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
 	else {
@@ -5148,7 +5560,9 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 				 struct proxy *defpx, const char *file, int line,
 				 char **errmsg)
 {
-	int cur_arg, ret = 0;
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rule *chk = NULL;
+	int index, cur_arg, ret = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
 		ret = 1;
@@ -5159,156 +5573,89 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 		curpx->options |= PR_O_DISABLE404;
 		if (too_many_args(1, args, errmsg, NULL))
 			goto error;
+		goto out;
 	}
 	else if (strcmp(args[cur_arg], "send-state") == 0) {
 		/* enable emission of the apparent state of a server in HTTP checks */
 		curpx->options2 |= PR_O2_CHK_SNDST;
 		if (too_many_args(1, args, errmsg, NULL))
 			goto error;
+		goto out;
 	}
-	else if (strcmp(args[cur_arg], "send") == 0) {
-		free(curpx->check_hdrs);
-		free(curpx->check_body);
-		curpx->check_hdrs = curpx->check_body = NULL;
-		curpx->check_hdrs_len = curpx->check_body_len = 0;
 
-		cur_arg++;
-		while (*(args[cur_arg])) {
-			if (strcmp(args[cur_arg], "hdr") == 0) {
-				int hdr_len;
-				if (!*(args[cur_arg+1]) || !*(args[cur_arg+2])) {
-					memprintf(errmsg, "'%s %s' : %s expects a name and a value as parameter.",
-						  args[0], args[1], args[cur_arg]);
-					goto error;
-				}
+	/* Deduce the ruleset name from the proxy info */
+	chunk_printf(&trash, "*http-check-%s_%s-%d",
+		     ((curpx == defpx) ? "defaults" : curpx->id),
+		     curpx->conf.file, curpx->conf.line);
 
-				cur_arg++;
-				hdr_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + 4;
-				curpx->check_hdrs = my_realloc2(curpx->check_hdrs, curpx->check_hdrs_len+hdr_len+1);
-				if (curpx->check_hdrs == NULL) {
-					memprintf(errmsg, "out of memory.");
-					goto error;
-				}
-				snprintf(curpx->check_hdrs + curpx->check_hdrs_len, hdr_len+1, "%s: %s\r\n", args[cur_arg], args[cur_arg+1]);
-				curpx->check_hdrs_len += hdr_len;
-
-				cur_arg++;
-			}
-			else if (strcmp(args[cur_arg], "body") == 0) {
-				if (!*(args[cur_arg+1])) {
-					memprintf(errmsg, "'%s %s' : %s expects a string as parameter.",
-						  args[0], args[1], args[cur_arg]);
-					goto error;
-				}
-				cur_arg++;
-				free(curpx->check_body);
-				curpx->check_body = strdup(args[cur_arg]);
-				curpx->check_body_len = strlen(args[cur_arg]);
-				if (curpx->check_body == NULL) {
-					memprintf(errmsg, "out of memory.");
-					goto error;
-				}
-			}
-			else {
-				memprintf(errmsg, "'%s %s' only supports 'hdr' and 'body', found '%s'.",
-					 args[0], args[1], args[cur_arg]);
-				goto error;
-			}
-			cur_arg++;
-		}
-	}
-	else if (strcmp(args[cur_arg], "expect") == 0) {
-		const char *ptr_arg;
-
-		if (curpx->options2 & PR_O2_EXP_TYPE) {
-			memprintf(errmsg, "'%s %s' already specified.", args[0], args[1]);
+	rs = tcpcheck_ruleset_lookup(b_orig(&trash));
+	if (rs == NULL) {
+		rs = tcpcheck_ruleset_create(b_orig(&trash));
+		if (rs == NULL) {
+			memprintf(errmsg, "out of memory.\n");
 			goto error;
 		}
+	}
 
-		cur_arg++;
+	index = 0;
+	if (!LIST_ISEMPTY(&rs->rules)) {
+		chk = LIST_PREV(&rs->rules, typeof(chk), list);
+		if (chk->action != TCPCHK_ACT_SEND || !(chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT))
+			index = chk->index + 1;
+	}
 
-		/* consider exclamation marks, sole or at the beginning of a word */
-		while (*(ptr_arg = args[cur_arg])) {
-			while (*ptr_arg == '!') {
-				curpx->options2 ^= PR_O2_EXP_INV;
-				ptr_arg++;
-			}
-			if (*ptr_arg)
-				break;
-			cur_arg++;
-		}
+	if (strcmp(args[cur_arg], "connect") == 0)
+		chk = parse_tcpcheck_connect(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
+	else if (strcmp(args[cur_arg], "send") == 0)
+		chk = parse_tcpcheck_send_http(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
+	else if (strcmp(args[cur_arg], "expect") == 0)
+		chk = parse_tcpcheck_expect(args, cur_arg, curpx, &rs->rules, TCPCHK_RULES_HTTP_CHK,
+					    file, line, errmsg);
+	else if (strcmp(args[cur_arg], "comment") == 0)
+		chk = parse_tcpcheck_comment(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
+	else {
+		struct action_kw *kw = action_kw_tcp_check_lookup(args[cur_arg]);
 
-		/* now ptr_arg points to the beginning of a word past any possible
-		 * exclamation mark, and cur_arg is the argument which holds this word.
-		 */
-		if (strcmp(ptr_arg, "status") == 0) {
-			if (!*(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s %s %s' expects <string> as an argument.",
-					  args[0], args[1], ptr_arg);
-				goto error;
-			}
-			curpx->options2 |= PR_O2_EXP_STS;
-			free(curpx->expect_str);
-			curpx->expect_str = strdup(args[cur_arg+1]);
+		if (!kw) {
+			action_kw_tcp_check_build_list(&trash);
+			memprintf(errmsg, "'%s' only supports 'disable-on-404', 'send-state', 'comment', 'connect',"
+				  " 'send', 'expect'%s%s. but got '%s'",
+				  args[0], (*trash.area ? ", " : ""), trash.area, args[1]);
+			goto error;
 		}
-		else if (strcmp(ptr_arg, "string") == 0) {
-			if (!*(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s %s %s' expects <string> as an argument.",
-					  args[0], args[1], ptr_arg);
-				goto error;
-			}
-			curpx->options2 |= PR_O2_EXP_STR;
-			free(curpx->expect_str);
-			curpx->expect_str = strdup(args[cur_arg+1]);
-		}
-		else if (strcmp(ptr_arg, "rstatus") == 0) {
-			if (!*(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s %s %s' expects <regex> as an argument.",
-					  args[0], args[1], ptr_arg);
-				goto error;
-			}
-			curpx->options2 |= PR_O2_EXP_RSTS;
-			free(curpx->expect_str);
-			regex_free(curpx->expect_regex);
-			curpx->expect_str = strdup(args[cur_arg+1]);
-			if (!(curpx->expect_regex = regex_comp(args[cur_arg+1], 1, 1, errmsg))) {
-				memprintf(errmsg, "'%s %s %s' : regular expression '%s': %s.",
-					  args[0], args[1], ptr_arg, args[cur_arg+1], *errmsg);
-				goto error;
-			}
-		}
-		else if (strcmp(ptr_arg, "rstring") == 0) {
-			if (!*(args[cur_arg+1])) {
-				memprintf(errmsg, "'%s %s %s' expects <regex> as an argument.",
-					  args[0], args[1], ptr_arg);
-				goto error;
-			}
-			curpx->options2 |= PR_O2_EXP_RSTR;
-			free(curpx->expect_str);
-			regex_free(curpx->expect_regex);
-			curpx->expect_str = strdup(args[cur_arg+1]);
-			if (!(curpx->expect_regex = regex_comp(args[cur_arg+1], 1, 1, errmsg))) {
-				memprintf(errmsg, "'%s %s %s' : regular expression '%s': %s.",
-					  args[0], args[1], ptr_arg, args[cur_arg + 1], *errmsg);
-				goto error;
-			}
-		}
-		else {
-			memprintf(errmsg, "'%s %s' only supports [!] 'status', 'string', 'rstatus', 'rstring', found '%s'.",
-				  args[0], args[1], ptr_arg);
+		chk = parse_tcpcheck_action(args, cur_arg, curpx, &rs->rules, kw, file, line, errmsg);
+	}
+
+	if (!chk) {
+		memprintf(errmsg, "'%s %s' : %s.", args[0], args[1], *errmsg);
+		goto error;
+	}
+	ret = (*errmsg != NULL); /* Handle warning */
+
+	chk->index = index;
+	if ((curpx->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
+	    (curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+		/* Use this ruleset if the proxy already has http-check enabled */
+		curpx->tcpcheck_rules.list = &rs->rules;
+		curpx->tcpcheck_rules.flags &= ~TCPCHK_RULES_UNUSED_HTTP_RS;
+		if (!tcpcheck_add_http_rule(chk, &curpx->tcpcheck_rules, errmsg)) {
+			memprintf(errmsg, "'%s %s' : %s.", args[0], args[1], *errmsg);
+			curpx->tcpcheck_rules.list = NULL;
 			goto error;
 		}
 	}
 	else {
-		memprintf(errmsg, "'%s' only supports 'disable-on-404', 'send', 'send-state' and 'expect'. but got '%s'.",
-			  args[0], args[1]);
-		goto error;
+		/* mark this ruleset as unused for now */
+		curpx->tcpcheck_rules.flags |= TCPCHK_RULES_UNUSED_HTTP_RS;
+		LIST_ADDQ(&rs->rules, &chk->list);
 	}
 
-	ret = (*errmsg != NULL); /* Handle warning */
+  out:
 	return ret;
 
   error:
+	free_tcpcheck(chk, 0);
+	tcpcheck_ruleset_release(rs);
 	return -1;
 }
 
@@ -5413,9 +5760,6 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, str
 	rules->list  = NULL;
 	rules->flags = 0;
 
-	free(curpx->check_req);
-	curpx->check_req = NULL;
-
 	rules->list = &rs->rules;
 
   out:
@@ -5476,7 +5820,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 				               "on-error", "%[check.payload(),cut_crlf]",
 				               "on-success", "Redis server is ok",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+				    1, curpx, &rs->rules, TCPCHK_RULES_REDIS_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5577,7 +5921,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 				                "min-recv", "5", "ok-status", "L6OK",
 				                "error-status", "L6RSP", "tout-status", "L6TOUT",
 				                ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SSL3_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5677,7 +6021,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 				               "error-status", "L7RSP",
 				               "on-error", "%[check.payload(),cut_crlf]",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5691,7 +6035,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 				               "on-error", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
 				               "status-code", "check.payload(0,3)",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5715,7 +6059,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 				               "on-success", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
 				               "status-code", "check.payload(0,3)",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5848,7 +6192,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 				               "error-status", "L7RSP",
 				               "on-error", "%[check.payload(6,0)]",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_PGSQL_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -5862,7 +6206,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 				               "on-success", "PostgreSQL server is ok",
 				               "on-error",   "PostgreSQL unknown error",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_PGSQL_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -6075,7 +6419,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	}
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_MYSQL_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -6086,7 +6430,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 	if (mysql_req) {
 		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
-					    1, curpx, &rs->rules, file, line, &errmsg);
+					    1, curpx, &rs->rules, TCPCHK_RULES_MYSQL_CHK, file, line, &errmsg);
 		if (!chk) {
 			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 			goto error;
@@ -6163,7 +6507,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 				               "min-recv", "14",
 				               "on-error", "Not LDAPv3 protocol",
 				               ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_LDAP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -6172,7 +6516,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_LDAP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -6249,7 +6593,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", "min-recv", "4", ""},
-		                    1, curpx, &rs->rules, file, line, &errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_SPOP_CHK, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
 		goto error;
@@ -6275,10 +6619,140 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	goto out;
 }
 
+
+struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, struct proxy *px, char **errmsg)
+{
+	struct tcpcheck_rule *chk = NULL;
+	struct tcpcheck_http_hdr *hdr = NULL;
+	char *meth = NULL, *uri = NULL, *vsn = NULL;
+	char *hdrs, *body;
+
+	hdrs = (*args[cur_arg+2] ? strstr(args[cur_arg+2], "\r\n") : NULL);
+	body = (*args[cur_arg+2] ? strstr(args[cur_arg+2], "\r\n\r\n") : NULL);
+	if (hdrs == body)
+		hdrs = NULL;
+	if (hdrs) {
+		*hdrs = '\0';
+		hdrs +=2;
+	}
+	if (body) {
+		*body = '\0';
+		body += 4;
+	}
+	if (hdrs || body) {
+		memprintf(errmsg, "hiding headers or body at the end of the version string is deprecated."
+			  " Please, consider to use 'http-check send' directive instead.");
+	}
+
+	chk = calloc(1, sizeof(*chk));
+	if (!chk) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	chk->action    = TCPCHK_ACT_SEND;
+	chk->send.type = TCPCHK_SEND_HTTP;
+	chk->send.http.flags |= TCPCHK_SND_HTTP_FROM_OPT;
+	chk->send.http.meth.meth = HTTP_METH_OPTIONS;
+	LIST_INIT(&chk->send.http.hdrs);
+
+	/* Copy the method, uri and version */
+	if (*args[cur_arg]) {
+		if (!*args[cur_arg+1])
+			uri = args[cur_arg];
+		else
+			meth = args[cur_arg];
+	}
+	if (*args[cur_arg+1])
+		uri = args[cur_arg+1];
+	if (*args[cur_arg+2])
+		vsn = args[cur_arg+2];
+
+	if (meth) {
+		chk->send.http.meth.meth = find_http_meth(meth, strlen(meth));
+		chk->send.http.meth.str.area = strdup(meth);
+		chk->send.http.meth.str.data = strlen(meth);
+		if (!chk->send.http.meth.str.area) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	if (uri) {
+		chk->send.http.uri = ist2(strdup(uri), strlen(uri));
+		if (!chk->send.http.uri.ptr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+	if (vsn) {
+		chk->send.http.vsn = ist2(strdup(vsn), strlen(vsn));
+		if (!chk->send.http.vsn.ptr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+
+	/* Copy the header */
+	if (hdrs) {
+		struct http_hdr tmp_hdrs[global.tune.max_http_hdr];
+		struct h1m h1m;
+		int i, ret;
+
+		/* Build and parse the request */
+		chunk_printf(&trash, "%s\r\n\r\n", hdrs);
+
+		h1m.flags = H1_MF_HDRS_ONLY;
+		ret = h1_headers_to_hdr_list(b_orig(&trash), b_tail(&trash),
+					     tmp_hdrs, sizeof(tmp_hdrs)/sizeof(tmp_hdrs[0]),
+					     &h1m, NULL);
+		if (ret <= 0) {
+			memprintf(errmsg, "unable to parse the request '%s'.", b_orig(&trash));
+			goto error;
+		}
+
+		for (i = 0; tmp_hdrs[i].n.len; i++) {
+			hdr = calloc(1, sizeof(*hdr));
+			if (!hdr) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+			LIST_INIT(&hdr->value);
+			hdr->name = ist2(strdup(tmp_hdrs[i].n.ptr), tmp_hdrs[i].n.len);
+			if (!hdr->name.ptr) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+
+			tmp_hdrs[i].v.ptr[tmp_hdrs[i].v.len] = '\0';
+			if (!parse_logformat_string(tmp_hdrs[i].v.ptr, px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
+				goto error;
+			LIST_ADDQ(&chk->send.http.hdrs, &hdr->list);
+		}
+	}
+
+	/* Copy the body */
+	if (body) {
+		chk->send.http.body = ist2(strdup(body), strlen(body));
+		if (!chk->send.http.body.ptr) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+	}
+
+	return chk;
+
+  error:
+	free_tcpcheck_http_hdr(hdr);
+	free_tcpcheck(chk, 0);
+	return NULL;
+}
+
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 			    const char *file, int line)
 {
-	static const char *http_req =  "OPTIONS / HTTP/1.0\r\n";
+	struct tcpcheck_ruleset *rs = NULL;
+	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck_rule *chk;
+	char *errmsg = NULL;
 	int err_code = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
@@ -6287,73 +6761,55 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	if (alertif_too_many_args_idx(3, 1, file, line, args, &err_code))
 		goto out;
 
-	/* use HTTP request to check servers' health */
-	free(curpx->check_req);
-	free(curpx->check_hdrs);
-	free(curpx->check_body);
+	chk = proxy_parse_httpchk_req(args, cur_arg+2, curpx, &errmsg);
+	if (!chk) {
+		ha_alert("parsing [%s:%d] : '%s %s' : %s.\n", file, line, args[0], args[1], errmsg);
+		goto error;
+	}
+	if (errmsg) {
+		ha_warning("parsing [%s:%d]: '%s %s' : %s\n", file, line, args[0], args[1], errmsg);
+		err_code |= ERR_WARN;
+		free(errmsg);
+		errmsg = NULL;
+	}
 
-	curpx->check_req = curpx->check_hdrs = curpx->check_body = NULL;
-	curpx->check_len = curpx->check_hdrs_len = curpx->check_body_len = 0;
+  no_request:
 	curpx->options2 &= ~PR_O2_CHK_ANY;
-	curpx->options2 |= PR_O2_HTTP_CHK;
+	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	cur_arg += 2;
-	if (!*args[cur_arg]) { /* no argument */
-		curpx->check_req = strdup(http_req); /* default request */
-		curpx->check_len = strlen(http_req);
-	}
-	else if (!*args[cur_arg+1]) { /* one argument : URI */
-		curpx->check_len = strlen(args[cur_arg]) + strlen("OPTIONS  HTTP/1.0\r\n");
-		curpx->check_req = malloc(curpx->check_len+1);
-		curpx->check_len = snprintf(curpx->check_req, curpx->check_len+1,
-					    "OPTIONS %s HTTP/1.0\r\n", args[cur_arg]);
-	}
-	else if (!*args[cur_arg+2]) { /* two arguments : METHOD URI */
-		curpx->check_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + strlen(" HTTP/1.0\r\n") + 1;
-		curpx->check_req = malloc(curpx->check_len+1);
-		curpx->check_len = snprintf(curpx->check_req, curpx->check_len+1,
-					    "%s %s HTTP/1.0\r\n", args[cur_arg], args[cur_arg+1]);
-	}
-	else { /* 3 arguments : METHOD URI HTTP_VER */
-		char *hdrs = strstr(args[cur_arg+2], "\r\n");
-		char *body = strstr(args[cur_arg+2], "\r\n\r\n");
+	free_tcpcheck_vars(&rules->preset_vars);
+	rules->list = NULL;
+	rules->flags |= TCPCHK_SND_HTTP_FROM_OPT;
 
-		if (hdrs || body) {
-			ha_warning("parsing [%s:%d]: '%s %s' : hiding headers or body at the end of the version string is deprecated."
-				   " Please, consider to use 'http-check send' directive instead.\n",
-				   file, line, args[0], args[1]);
-			err_code |= ERR_WARN;
-		}
+	/* Deduce the ruleset name from the proxy info */
+	chunk_printf(&trash, "*http-check-%s_%s-%d",
+		     ((curpx == defpx) ? "defaults" : curpx->id),
+		     curpx->conf.file, curpx->conf.line);
 
-		if (hdrs == body)
-			hdrs = NULL;
-		if (hdrs) {
-			*hdrs = '\0';
-			hdrs += 2;
-		}
-		if (body) {
-			*body = '\0';
-			body += 4;
-		}
-
-		curpx->check_len = strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + strlen(args[cur_arg+2]) + 4;
-		curpx->check_req = malloc(curpx->check_len+1);
-		snprintf(curpx->check_req, curpx->check_len+1, "%s %s %s\r\n",
-			 args[cur_arg], args[cur_arg+1], args[cur_arg+2]);
-		if (hdrs) {
-			curpx->check_hdrs_len = strlen(hdrs) + 2;
-			curpx->check_hdrs = malloc(curpx->check_hdrs_len+1);
-			snprintf(curpx->check_hdrs, curpx->check_hdrs_len+1, "%s\r\n", hdrs);
-		}
-		if (body) {
-			curpx->check_body_len = strlen(body);
-			curpx->check_body = strdup(body);
+	rs = tcpcheck_ruleset_lookup(b_orig(&trash));
+	if (rs == NULL) {
+		rs = tcpcheck_ruleset_create(b_orig(&trash));
+		if (rs == NULL) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
+			goto error;
 		}
 	}
+
+	rules->list = &rs->rules;
+	rules->flags |= TCPCHK_RULES_HTTP_CHK;
+	if (!tcpcheck_add_http_rule(chk, rules, &errmsg)) {
+		ha_alert("parsing [%s:%d] : '%s %s' : %s.\n", file, line, args[0], args[1], errmsg);
+		rules->list = NULL;
+		goto error;
+	}
+
   out:
+	free(errmsg);
 	return err_code;
 
   error:
+	tcpcheck_ruleset_release(rs);
+	free_tcpcheck(chk, 0);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
@@ -6363,8 +6819,6 @@ int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx
 {
 	int err_code = 0;
 
-	free(curpx->check_req);
-	curpx->check_req = NULL;
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_EXT_CHK;
 	if (alertif_too_many_args_idx(0, 1, file, line, args, &err_code))
@@ -6487,7 +6941,8 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
-		                    1, curpx, &rs->rules, srv->conf.file, srv->conf.line, errmsg);
+		                    1, curpx, &rs->rules, TCPCHK_RULES_AGENT_CHK,
+				    srv->conf.file, srv->conf.line, errmsg);
 	if (!chk) {
 		memprintf(errmsg, "'%s': %s", args[*cur_arg], *errmsg);
 		goto error;

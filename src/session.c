@@ -216,7 +216,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		if (l->proto->drain)
 			l->proto->drain(cfd);
 		if (p->mode == PR_MODE_HTTP ||
-		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
+		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
+		     (p->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK))
 			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
 		else if (p->mode == PR_MODE_HEALTH)
 			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);

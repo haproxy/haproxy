@@ -2526,9 +2526,6 @@ void deinit(void)
 	while (p) {
 		free(p->conf.file);
 		free(p->id);
-		free(p->check_req);
-		free(p->check_hdrs);
-		free(p->check_body);
 		free(p->cookie_name);
 		free(p->cookie_domain);
 		free(p->cookie_attrs);

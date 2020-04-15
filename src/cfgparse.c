@@ -2504,7 +2504,14 @@ int check_config_validity()
 		else if (curproxy->options & PR_O_TRANSP)
 			curproxy->options &= ~(PR_O_DISPATCH | PR_O_HTTP_PROXY);
 
-		if ((curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_HTTP_CHK) {
+		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_HTTP_RS)) {
+			ha_warning("config : %s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
+				   proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+		}
+
+		if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
+		    (curproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 			if (curproxy->options & PR_O_DISABLE404) {
 				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 					   "disable-on-404", proxy_type_str(curproxy), curproxy->id);
@@ -3097,8 +3104,7 @@ out_uri_auth_compat:
 			}
 		}
 
-		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS) &&
-		    (curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
+		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS)) {
 			ha_warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;

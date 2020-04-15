@@ -166,7 +166,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
 	const char *err;
-	char *error;
 	int rc;
 	unsigned val;
 	int err_code = 0;
@@ -285,25 +284,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->redispatch_after = defproxy.redispatch_after;
 			curproxy->max_ka_queue = defproxy.max_ka_queue;
 
-			if (defproxy.check_req) {
-				curproxy->check_req = calloc(1, defproxy.check_len);
-				memcpy(curproxy->check_req, defproxy.check_req, defproxy.check_len);
-			}
-			curproxy->check_len = defproxy.check_len;
-
-			if (defproxy.check_hdrs) {
-				curproxy->check_hdrs = calloc(1, defproxy.check_hdrs_len);
-				memcpy(curproxy->check_hdrs, defproxy.check_hdrs, defproxy.check_hdrs_len);
-			}
-			curproxy->check_hdrs_len = defproxy.check_hdrs_len;
-
-			if (defproxy.check_body) {
-				curproxy->check_body = calloc(1, defproxy.check_body_len);
-				memcpy(curproxy->check_body, defproxy.check_body, defproxy.check_body_len);
-			}
-			curproxy->check_body_len = defproxy.check_body_len;
-
-			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags & ~TCPCHK_RULES_UNUSED_TCP_RS);
+			curproxy->tcpcheck_rules.flags = (defproxy.tcpcheck_rules.flags & ~TCPCHK_RULES_UNUSED_RS);
 			curproxy->tcpcheck_rules.list  = defproxy.tcpcheck_rules.list;
 			if (!LIST_ISEMPTY(&defproxy.tcpcheck_rules.preset_vars)) {
 				if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
@@ -312,21 +293,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 						 file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
-				}
-			}
-
-			if (defproxy.expect_str) {
-				curproxy->expect_str = strdup(defproxy.expect_str);
-				if (defproxy.expect_regex) {
-					/* note: this regex is known to be valid */
-					error = NULL;
-					if (!(curproxy->expect_regex = regex_comp(defproxy.expect_str, 1, 1, &error))) {
-						ha_alert("parsing [%s:%d] : regular expression '%s' : %s\n", file, linenum,
-						         defproxy.expect_str, error);
-						free(error);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
 				}
 			}
 
@@ -502,7 +468,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		free(defproxy.check_req);
 		free(defproxy.check_command);
 		free(defproxy.check_path);
 		free(defproxy.cookie_name);
@@ -521,9 +486,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		defproxy.orgto_hdr_len = 0;
 		free(defproxy.server_id_hdr_name);
 		defproxy.server_id_hdr_len = 0;
-		free(defproxy.expect_str);
-		regex_free(defproxy.expect_regex);
-		defproxy.expect_regex = NULL;
 
 		if (defproxy.conf.logformat_string != default_http_log_format &&
 		    defproxy.conf.logformat_string != default_tcp_log_format &&

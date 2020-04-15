@@ -2653,9 +2653,12 @@ fullconn                                  X          -         X         X
 grace                                     X          X         X         X
 hash-type                                 X          -         X         X
 http-after-response                       -          X         X         X
+http-check connect                        X          -         X         X
 http-check disable-on-404                 X          -         X         X
-http-check expect                         -          -         X         X
+http-check expect                         X          -         X         X
 http-check send-state                     X          -         X         X
+http-check set-var                        X          -         X         X
+http-check unset-var                      X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
 http-reuse                                X          -         X         X
@@ -4386,6 +4389,72 @@ http-after-response unset-var(<var-name>) [ { if | unless } <condition> ]
   Example:
     http-after-response unset-var(sess.last_redir)
 
+http-check connect [params*]
+  Opens a new connection to perform an HTTP health check
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  Just like tcp-check health checks, it is possible to configure the connection
+  to use to perform HTTP health check. This directive should also be used to
+  describe a scenario involving several request/response exchanges, possibly on
+  different ports or with different servers.
+
+  When there are no TCP port configured on the server line neither server port
+  directive, then the first step of the http-check sequence must be to specify
+  the port with a "http-check connect".
+
+  In an http-check ruleset a 'connect' is required, it is also mandatory to start
+  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
+  do.
+
+  When a connect must start the ruleset, if may still be preceded by set-var,
+  unset-var or comment rules.
+
+  Parameters :
+    They are optional and can be used to describe how HAProxy should open and
+    use the HTTP connection.
+
+    default      Use default options of the server line to do the health
+                 checks. The server options are used only if not redifined.
+
+    port <expr>  if not set, check port or server port is used.
+                 It tells HAProxy where to open the connection to.
+                 <port> must be a valid TCP port source integer, from 1 to
+                 65535 or an sample-fetch expression.
+
+    addr <ip>    defines the IP address to do the health check.
+
+    send-proxy   send a PROXY protocol string
+
+    via-socks4   enables outgoing health checks using upstream socks4 proxy.
+
+    ssl          opens a ciphered connection
+
+    sni <sni>    specifies the SNI to use to do health checks over SSL.
+
+    alpn <alpn>  defines which protocols to advertise with ALPN. The protocol
+                 list consists in a comma-delimited list of protocol names,
+                 for instance: "h2,http/1.1". If it is not set, the server ALPN
+                 is used.
+
+    linger       cleanly close the connection instead of using a single RST.
+
+    Examples:
+         # check HTTP and HTTPs services on a server.
+         # first open port 80 thanks to server line port directive, then
+         # tcp-check opens port 443, ciphered and run a request on it:
+         option httpchk
+
+         http-check connect
+         http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check expect rstatus "^[23][0-9]{2}"
+         http-check connect port 443 ssl sni haproxy.1wt.eu
+         http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check expect rstatus "^[23][0-9]{2}"
+
+         server www 10.0.0.1 check port 80
+
+  See also : "option httpchk", "http-check send", "http-check expect"
 
 http-check disable-on-404
   Enable a maintenance mode upon HTTP/404 response to health-checks
@@ -4408,11 +4477,58 @@ http-check disable-on-404
   See also : "option httpchk", "http-check expect"
 
 
-http-check expect [!] <match> <pattern>
+http-check expect [min-recv <int>]
+                  [ok-status <st>] [error-status <st>] [tout-status <st>]
+                  [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
+                  [!] <match> <pattern>
   Make HTTP health checks consider response contents or specific status codes
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
+
   Arguments :
+    min-recv  is optional and can define the minimum amount of data required to
+              evaluate the current expect rule. If the number of received bytes
+              is under this limit, the check will wait for more data. This
+              option can be used to resolve some ambiguous matching rules or to
+              avoid executing costly regex matches on content known to be still
+              incomplete. If an exact string is used, the minimum between the
+              string length and this parameter is used. This parameter is
+              ignored if it is set to -1. If the expect rule does not match,
+              the check will wait for more data. If set to 0, the evaluation
+              result is always conclusive.
+
+    ok-status <st>     is optional and can be used to set the check status if
+                       the expect rule is successfully evaluated and if it is
+                       the last rule in the tcp-check ruleset. "L7OK", "L7OKC",
+                       "L6OK" and "L4OK" are supported and may be used to set,
+                       respectively, HCHK_STATUS_L7OK, HCHK_STATUS_L7OKCD,
+                       HCHK_STATUS_L6OK or HCHK_STATUS_L4OK success status.
+                        By default "L7OK" is used.
+
+    error-status <st>  is optional and can be used to set the check status if
+                       an error occurred during the expect rule evaluation.
+                       "L7RSP", "L7STS", "L6RSP" and "L4CON" are supported and
+                       may be used to set, respectively, HCHK_STATUS_L7RSP,
+                       HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP or HCHK_STATUS_L4CON
+                       error status. By default "L7RSP" is used.
+
+    tout-status <st>   is optional and can be used to set the check status if
+                       a timeout occurred during the expect rule evaluation.
+                       "L7TOUT", "L6TOUT", and "L4TOUT" are supported and may
+                       be used to set, respectively, HCHK_STATUS_L7TOUT,
+                       HCHK_STATUS_L6TOUT or HCHK_STATUS_L4TOUT timeout status.
+                       By default "L7TOUT" is used.
+
+    on-success <fmt>   is optional and can be used to customize the
+                       informational message reported in logs if the expect
+                       rule is successfully evaluated and if it is the last rule
+                       in the tcp-check ruleset. <fmt> is a log-format string.
+
+    on-error <fmt>     is optional and can be used to customize the
+                       informational message reported in logs if an error
+                       occurred during the expect rule evaluation. <fmt> is a
+                       log-format string.
+
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus",
               "string", or "rstring". The keyword may be preceded by an
@@ -4471,9 +4587,11 @@ http-check expect [!] <match> <pattern>
   waste some CPU cycles, especially when regular expressions are used, and that
   it is always better to focus the checks on smaller resources.
 
-  Also "http-check expect" doesn't support HTTP keep-alive. Keep in mind that it
-  will automatically append a "Connection: close" header, meaning that this
-  header should not be present in the request provided by "option httpchk".
+  In an http-check ruleset, the last expect rule may be implicit. If no expect
+  rule is specified after the last "http-check send", an implicit expect rule
+  is defined to match on 2xx or 3xx status codes. It means this rule is also
+  defined if there is no "http-check" rule at all, when only "option httpchk"
+  is set.
 
   Last, if "http-check expect" is combined with "http-check disable-on-404",
   then this last one has precedence when the server responds with 404.
@@ -4491,23 +4609,41 @@ http-check expect [!] <match> <pattern>
          # check that we have a correct hexadecimal tag before /html
          http-check expect rstring <!--tag:[0-9a-f]*--></html>
 
-  See also : "option httpchk", "http-check disable-on-404"
+  See also : "option httpchk", "http-check connect", "http-check disable-on-404"
+             and "http-check send"
 
 
-http-check send [hdr <name> <value>]* [body <string>]
+http-check send [meth <method>] [uri <uri>] [vsn <version>]
+                [hdr <name> <fmt>]* [body <string>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    hdr <name> <value>   adds the HTTP header field whose name is specified in
-                         <name> and whose value is defined by <value> to the
-                         request sent during HTTP health checks.
+    meth <method>  is the optional HTTP method used with the requests. When not
+                   set, the "OPTIONS" method is used, as it generally requires
+                   low server processing and is easy to filter out from the
+                   logs. Any method may be used, though it is not recommended
+                   to invent non-standard ones.
 
-    body <string>        add the body defined by <string> to the request sent
-                         sent during HTTP health checks. If defined, the
-                         "Content-Length" header is thus automatically added
-                         to the request.
+    uri <uri>      is optional and set the URI referenced in the HTTP requests.
+                   it defaults to " / " which is accessible by default on almost
+                   any server, but may be changed to any other URI. Query
+                   strings are permitted.
+
+    vsn <version>  is the optional HTTP version string. It defaults to
+                   "HTTP/1.0" but some servers might behave incorrectly in HTTP
+                   1.0, so turningit to HTTP/1.1 may sometimes help. Note that
+                   the Host field is mandatory in HTTP/1.1, use "hdr" argument
+                   to add it.
+
+    hdr <name> <fmt>  adds the HTTP header field whose name is specified in
+                      <name> and whose value is defined by <fmt>, which follows
+                      to the log-format rules.
+
+    body <string>  add the body defined by <string> to the request sent during
+                   HTTP health checks. If defined, the "Content-Length" header
+                   is thus automatically added to the request.
 
   In addition to the request line defined by the "option httpchk" directive,
   this one is the valid way to add some headers and optionally a body to the
@@ -4517,6 +4653,10 @@ http-check send [hdr <name> <value>]* [body <string>]
   deprecated. Note also the "Connection: close" header is still added if a
   "http-check expect" direcive is defined independently of this directive, just
   like the state header if the directive "http-check send-state" is defined.
+
+  Also "http-check send" doesn't support HTTP keep-alive. Keep in mind that it
+  will automatically append a "Connection: close" header, meaning that this
+  header should not be present in the request provided by "http-check send".
 
   See also : "option httpchk", "http-check send-state" and "http-check expect"
 
@@ -4570,6 +4710,50 @@ http-check send-state
            scur=13/22; qcur=0
 
   See also : "option httpchk", "http-check disable-on-404"
+
+
+http-check set-var(<var-name>) <expr>
+
+  This operation sets the content of a variable. The variable is declared inline.
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed for http-check are:
+                  "proc" : the variable is shared with the whole process.
+                  "sess" : the variable is shared with the tcp-check session.
+                  "check": the variable is declared for the lifetime of the tcp-check.
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
+                and '-'.
+
+    <expr>      Is a sample-fetch expression potentially followed by converters.
+
+  Example:
+    http-check set-var(check.port) int(1234)
+
+
+http-check unset-var(<var-name>)
+
+  Free a reference to a variable within its scope.
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  Arguments:
+    <var-name>  The name of the variable starts with an indication about its
+                scope. The scopes allowed for http-check are:
+                  "proc" : the variable is shared with the whole process.
+                  "sess" : the variable is shared with the tcp-check session.
+                  "check": the variable is declared for the lifetime of the tcp-check.
+                This prefix is followed by a name. The separator is a '.'.
+                The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
+                and '-'.
+
+  Example:
+    http-check unset-var(check.port)
 
 
 http-request <action> [options...] [ { if | unless } <condition> ]
@@ -7181,11 +7365,18 @@ option httpchk <method> <uri> <version>
   considered valid, while all other ones indicate a server failure, including
   the lack of any response.
 
-  The port and interval are specified in the server configuration.
+  Combined with "http-check" directives, it is possible to customize the
+  request sent during the HTTP health checks or the matching rules on the
+  response. It is also possible to configure a send/expect sequence, just like
+  with the directive "tcp-check" for TCP health checks.
 
-  This option does not necessarily require an HTTP backend, it also works with
-  plain TCP backends. This is particularly useful to check simple scripts bound
-  to some dedicated ports using the inetd daemon.
+  The server configuration is used by default to open connections to perform
+  HTTP health checks. By it is also possible to overwrite server parameters
+  using "http-check connect" rules.
+
+  "httpchk" option does not necessarily require an HTTP backend, it also works
+  with plain TCP backends. This is particularly useful to check simple scripts
+  bound to some dedicated ports using the inetd daemon.
 
   Note : For a while, there was no way to add headers or body in the request
          used for HTTP health checks. So a workaround was to hide it at the end

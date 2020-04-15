@@ -232,15 +232,40 @@ enum tcpcheck_send_type {
 	TCPCHK_SEND_UNDEF = 0,  /* Send is not parsed. */
 	TCPCHK_SEND_STRING,     /* Send an ASCII string. */
 	TCPCHK_SEND_BINARY,     /* Send a binary sequence. */
-	TCPCHK_SEND_STRING_LF, /* Send an ASCII log-format string. */
-	TCPCHK_SEND_BINARY_LF, /* Send a binary log-format sequence. */
+	TCPCHK_SEND_STRING_LF,  /* Send an ASCII log-format string. */
+	TCPCHK_SEND_BINARY_LF,  /* Send a binary log-format sequence. */
+	TCPCHK_SEND_HTTP,       /* Send an HTTP request */
 };
+
+struct tcpcheck_http_hdr {
+	struct ist  name;  /* the header name */
+	struct list value; /* the log-format string value */
+	struct list list;  /* header chained list */
+};
+
+#define TCPCHK_SND_HTTP_FL_URI_FMT    0x0001 /* Use a log-format string for the uri */
+#define TCPCHK_SND_HTTP_FL_BODY_FMT   0x0002 /* Use a log-format string for the body */
+#define TCPCHK_SND_HTTP_FROM_OPT      0x0004 /* Send rule coming from "option httpck" directive */
 
 struct tcpcheck_send {
 	enum tcpcheck_send_type type;
 	union {
 		struct ist  data; /* an ASCII string or a binary sequence */
 		struct list fmt;  /* an ASCII or hexa log-format string */
+		struct {
+			unsigned int flags;             /* TCPCHK_SND_HTTP_FL_* */
+			struct http_meth meth;          /* the HTTP request method */
+			union {
+				struct ist  uri;        /* the HTTP request uri is a string  */
+				struct list uri_fmt;    /* or a log-format string */
+			};
+			struct ist vsn;                 /* the HTTP request version string */
+			struct list hdrs;               /* the HTTP request header list */
+			union {
+				struct ist   body;      /* the HTTP request payload is a string */
+				struct list  body_fmt;  /* or a log-format string */
+			};
+		} http;           /* Info about the HTTP request to send */
 	};
 };
 
@@ -251,12 +276,16 @@ enum tcpcheck_eval_ret {
 };
 
 enum tcpcheck_expect_type {
-	TCPCHK_EXPECT_UNDEF = 0,    /* Match is not used. */
-	TCPCHK_EXPECT_STRING,       /* Matches a string. */
-	TCPCHK_EXPECT_REGEX,        /* Matches a regular pattern. */
-	TCPCHK_EXPECT_REGEX_BINARY, /* Matches a regular pattern on a hex-encoded text. */
-	TCPCHK_EXPECT_BINARY,       /* Matches a binary sequence. */
-	TCPCHK_EXPECT_CUSTOM,       /* Execute a custom function. */
+	TCPCHK_EXPECT_UNDEF = 0,         /* Match is not used. */
+	TCPCHK_EXPECT_STRING,            /* Matches a string. */
+	TCPCHK_EXPECT_REGEX,             /* Matches a regular pattern. */
+	TCPCHK_EXPECT_REGEX_BINARY,      /* Matches a regular pattern on a hex-encoded text. */
+	TCPCHK_EXPECT_BINARY,            /* Matches a binary sequence. */
+	TCPCHK_EXPECT_CUSTOM,            /* Execute a custom function. */
+	TCPCHK_EXPECT_HTTP_STATUS,       /* Matches a string */
+	TCPCHK_EXPECT_HTTP_REGEX_STATUS, /* Matches a regular pattern */
+	TCPCHK_EXPECT_HTTP_BODY,         /* Matches a string */
+	TCPCHK_EXPECT_HTTP_REGEX_BODY,   /* Matches a regular pattern */
 };
 
 /* tcp-check expect flags */
@@ -275,11 +304,11 @@ struct tcpcheck_expect {
 	};
 	struct tcpcheck_rule *head;     /* first expect of a chain. */
 	int min_recv;                   /* Minimum amount of data before an expect can be applied. (default: -1, ignored) */
-	struct list onerror_fmt;        /* log-format string to use as comment on error */
-	struct list onsuccess_fmt;      /* log-format string to use as comment on success (if last rule) */
 	enum healthcheck_status ok_status;   /* The healthcheck status to use on success (default: L7OKD) */
 	enum healthcheck_status err_status;  /* The healthcheck status to use on error (default: L7RSP) */
 	enum healthcheck_status tout_status; /* The healthcheck status to use on timeout (default: L7TOUT) */
+	struct list onerror_fmt;        /* log-format string to use as comment on error */
+	struct list onsuccess_fmt;      /* log-format string to use as comment on success (if last rule) */
 	struct sample_expr *status_expr; /* sample expr to determine the check status code */
 };
 
@@ -311,10 +340,13 @@ struct tcpcheck_rule {
 
 #define TCPCHK_RULES_NONE           0x00000000
 #define TCPCHK_RULES_UNUSED_TCP_RS  0x00000001 /* An unused tcp-check ruleset exists */
+#define TCPCHK_RULES_UNUSED_HTTP_RS 0x00000002 /* An unused http-check ruleset exists */
+#define TCPCHK_RULES_UNUSED_RS      0x00000003 /* Mask for unused ruleset */
 
 #define TCPCHK_RULES_PGSQL_CHK   0x00000010
 #define TCPCHK_RULES_REDIS_CHK   0x00000020
 #define TCPCHK_RULES_SMTP_CHK    0x00000030
+#define TCPCHK_RULES_HTTP_CHK    0x00000040
 #define TCPCHK_RULES_MYSQL_CHK   0x00000050
 #define TCPCHK_RULES_LDAP_CHK    0x00000060
 #define TCPCHK_RULES_SSL3_CHK    0x00000070
