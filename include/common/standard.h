@@ -1006,6 +1006,16 @@ char *my_strndup(const char *src, int n);
  */
 const void *my_memmem(const void *, size_t, const void *, size_t);
 
+/* get length of the initial segment consiting entirely of bytes within a given
+ * mask
+ */
+size_t my_memspn(const void *, size_t, const void *, size_t);
+
+/* get length of the initial segment consiting entirely of bytes not within a
+ * given mask
+ */
+size_t my_memcspn(const void *, size_t, const void *, size_t);
+
 /* This function returns the first unused key greater than or equal to <key> in
  * ID tree <root>. Zero is returned if no place is found.
  */

@@ -2292,6 +2292,32 @@ const void *my_memmem(const void *haystack, size_t haystacklen, const void *need
 	return NULL;
 }
 
+/* get length of the initial segment consiting entirely of bytes in <accept> */
+size_t my_memspn(const void *str, size_t len, const void *accept, size_t acceptlen)
+{
+	size_t ret = 0;
+
+	while (ret < len && memchr(accept, *((int *)str), acceptlen)) {
+		str++;
+		ret++;
+	}
+	return ret;
+}
+
+/* get length of the initial segment consiting entirely of bytes not in <rejcet> */
+size_t my_memcspn(const void *str, size_t len, const void *reject, size_t rejectlen)
+{
+	size_t ret = 0;
+
+	while (ret < len) {
+		if(memchr(reject, *((int *)str), rejectlen))
+			return ret;
+		str++;
+		ret++;
+	}
+	return ret;
+}
+
 /* This function returns the first unused key greater than or equal to <key> in
  * ID tree <root>. Zero is returned if no place is found.
  */
