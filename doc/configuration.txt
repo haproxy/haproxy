@@ -7616,6 +7616,26 @@ no option redispatch
   Specifying "option redispatch" will allow the proxy to break cookie or
   consistent hash based persistence and redistribute them to a working server.
 
+  Active servers are selected from a subset of the list of available
+  servers. Active servers that are not down or in maintenance (i.e., whose
+  health is not checked or that have been checked as "up"), are selected in the
+  following order:
+
+    1. Any active, non-backup server, if any, or,
+
+    2. If the "allbackups" option is not set, the first backup server in the
+       list, or
+
+    3. If the "allbackups" option is set, any backup server.
+
+  When a retry occurs, HAProxy tries to select another server than the last
+  one. The new server is selected from the current list of servers.
+
+  Sometimes, if the list is updated between retries (e.g., if numerous retries
+  occur and last longer than the time needed to check that a server is down,
+  remove it from the list and fall back on the list of backup servers),
+  connections may be redirected to a backup server, though.
+
   It also allows to retry connections to another server in case of multiple
   connection failures. Of course, it requires having "retries" set to a nonzero
   value.
