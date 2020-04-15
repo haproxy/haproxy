@@ -228,6 +228,15 @@ list of options is :
     environment. Never use this in an init script as it degrades SSL security
     to the servers.
 
+  -dW : if set, haproxy will refuse to start if any warning was emitted while
+   processing the configuration. This helps detect subtle mistakes and keep the
+   configuration clean and portable across versions. It is recommended to set
+   this option in service scripts when configurations are managed by humans,
+   but it is recommended not to use it with generated configurations, which
+   tend to emit more warnings. It may be combined with "-c" to cause warnings
+   in checked configurations to fail. This is equivalent to global option
+   "zero-warning".
+
   -db : disable background mode and multi-process mode. The process remains in
     foreground. It is mainly used during development or during small tests, as
     Ctrl-C is enough to stop the process. Never use it in an init script.

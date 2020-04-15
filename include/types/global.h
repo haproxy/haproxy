@@ -48,6 +48,7 @@
 #define	MODE_FOREGROUND	0x40
 #define	MODE_MWORKER	0x80    /* Master Worker */
 #define	MODE_MWORKER_WAIT	0x100    /* Master Worker wait mode */
+#define	MODE_ZERO_WARNING       0x200    /* warnings cause a failure */
 
 /* list of last checks to perform, depending on config options */
 #define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */

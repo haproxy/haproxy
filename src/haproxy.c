@@ -658,6 +658,7 @@ static void usage(char *name)
 #endif
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
+		"        -dW fails if any warning is emitted\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"        -S <bind>[,<bind options>...] new master CLI\n"
@@ -1762,6 +1763,8 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'b')
 				arg_mode |= MODE_FOREGROUND;
+			else if (*flag == 'd' && flag[1] == 'W')
+				arg_mode |= MODE_ZERO_WARNING;
 			else if (*flag == 'd' && flag[1] == 'M')
 				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
 			else if (*flag == 'd' && flag[1] == 'r')
@@ -1895,7 +1898,7 @@ static void init(int argc, char **argv)
 	}
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
-				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
+				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
@@ -2094,6 +2097,11 @@ static void init(int argc, char **argv)
 	err_code |= srv_init_addr();
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Failed to initialize server(s) addr.\n");
+		exit(1);
+	}
+
+	if (warned & WARN_ANY && global.mode & MODE_ZERO_WARNING) {
+		ha_alert("Some warnings were found and 'zero-warning' is set. Aborting.\n");
 		exit(1);
 	}
 

@@ -133,6 +133,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		global.mode |= MODE_QUIET;
 	}
+	else if (!strcmp(args[0], "zero-warning")) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		global.mode |= MODE_ZERO_WARNING;
+	}
 	else if (!strcmp(args[0], "tune.runqueue-depth")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;

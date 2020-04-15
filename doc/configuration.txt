@@ -711,6 +711,7 @@ The following keywords are supported in the "global" section :
  * Debugging
    - debug
    - quiet
+   - zero-warning
 
 
 3.1. Process management and security
@@ -2169,6 +2170,14 @@ debug (deprecated)
 quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".
+
+zero-warning
+  When this option is set, haproxy will refuse to start if any warning was
+  emitted while processing the configuration. It is highly recommended to set
+  this option on configurations that are not changed often, as it helps detect
+  subtle mistakes and keep the configuration clean and forward-compatible. Note
+  that "haproxy -c" will also report errors in such a case. This option is
+  equivalent to command line argument "-dW".
 
 
 3.4. Userlists
