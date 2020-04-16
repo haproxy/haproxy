@@ -16,6 +16,10 @@
 #include <link.h>
 #endif
 
+#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#include <sys/auxv.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
@@ -4333,6 +4337,22 @@ void debug_hexdump(FILE *out, const char *pfx, const char *buf,
 		}
 		fputc('\n', out);
 	}
+}
+
+/* Tries to report the executable path name on platforms supporting this. If
+ * not found or not possible, returns NULL.
+ */
+const char *get_exec_path()
+{
+	const char *ret = NULL;
+
+#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+	long execfn = getauxval(AT_EXECFN);
+
+	if (execfn && execfn != ENOENT)
+		ret = (const char *)execfn;
+#endif
+	return ret;
 }
 
 #ifdef __ELF__

@@ -1496,6 +1496,7 @@ void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, 
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
 void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr);
+const char *get_exec_path();
 
 #if defined(USE_BACKTRACE)
 /* Note that this may result in opening libgcc() on first call, so it may need

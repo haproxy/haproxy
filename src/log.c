@@ -29,6 +29,7 @@
 #include <common/initcall.h>
 #include <common/standard.h>
 #include <common/time.h>
+#include <common/version.h>
 
 #include <types/cli.h>
 #include <types/global.h>
@@ -1109,6 +1110,14 @@ void ha_alert(const char *fmt, ...)
 	va_list argp;
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
+		if (!(warned & WARN_EXEC_PATH)) {
+			const char *path = get_exec_path();
+
+			warned |= WARN_EXEC_PATH;
+			ha_notice("haproxy version is %s\n", haproxy_version);
+			if (path)
+				ha_notice("path to executable is %s\n", path);
+		}
 		va_start(argp, fmt);
 		print_message("ALERT", fmt, argp);
 		va_end(argp);

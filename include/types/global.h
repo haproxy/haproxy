@@ -245,6 +245,7 @@ extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially
 /* bit values to go with "warned" above */
 #define WARN_ANY                    0x00000001 /* any warning was emitted */
 #define WARN_FORCECLOSE_DEPRECATED  0x00000002
+#define WARN_EXEC_PATH              0x00000004 /* executable path already reported */
 
 
 /* to be used with warned and WARN_* */
