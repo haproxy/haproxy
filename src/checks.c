@@ -2993,6 +2993,76 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 
 }
 
+/*  */
+static enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_rule *rule)
+{
+	struct conn_stream *cs = check->cs;
+	struct connection *conn = cs_conn(cs);
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	size_t max, read, cur_read = 0;
+	int is_empty;
+	int read_poll = MAX_READ_POLL_LOOPS;
+
+	if (check->wait_list.events & SUB_RETRY_RECV)
+		goto wait_more_data;
+
+	if (cs->flags & CS_FL_EOS)
+		goto end_recv;
+
+	/* errors on the connection and the conn-stream were already checked */
+
+	/* prepare to detect if the mux needs more room */
+	cs->flags &= ~CS_FL_WANT_ROOM;
+
+	while ((cs->flags & CS_FL_RCV_MORE) ||
+	       (!(conn->flags & CO_FL_ERROR) && !(cs->flags & (CS_FL_ERROR|CS_FL_EOS)))) {
+		max = b_room(&check->bi);
+		read = conn->mux->rcv_buf(cs, &check->bi, max, 0);
+		cur_read += read;
+		if (!read ||
+		    (cs->flags & CS_FL_WANT_ROOM) ||
+		    (--read_poll <= 0) ||
+		    (read < max && read >= global.tune.recv_enough))
+			break;
+	}
+
+  end_recv:
+	is_empty = !b_data(&check->bi);
+	if (is_empty && ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))) {
+		/* Report network errors only if we got no other data. Otherwise
+		 * we'll let the upper layers decide whether the response is OK
+		 * or not. It is very common that an RST sent by the server is
+		 * reported as an error just after the last data chunk.
+		 */
+		goto stop;
+	}
+	if (!cur_read) {
+		if (!(cs->flags & (CS_FL_WANT_ROOM|CS_FL_ERROR|CS_FL_EOS))) {
+			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+			goto wait_more_data;
+		}
+		if (is_empty) {
+			chunk_printf(&trash, "TCPCHK got an empty response at step %d",
+				     tcpcheck_get_step_id(check, rule));
+			if (rule->comment)
+				chunk_appendf(&trash, " comment: '%s'", rule->comment);
+			set_server_check_status(check, rule->expect.err_status, trash.area);
+			goto stop;
+		}
+	}
+
+  out:
+	return ret;
+
+  stop:
+	ret = TCPCHK_EVAL_STOP;
+	goto out;
+
+  wait_more_data:
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
 static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
@@ -3343,43 +3413,12 @@ static int tcpcheck_main(struct check *check)
 				if (check->proxy->timeout.check)
 					check->task->expire = tick_add_ifset(now_ms, check->proxy->timeout.check);
 
-				/* If we already subscribed, then we tried to received and
-				 * failed, so there's no point trying again.
-				 */
-				if (check->wait_list.events & SUB_RETRY_RECV)
-					goto out;
-				if (conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0) <= 0) {
-					if (conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
-						last_read = 1;
-						if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
-							/* Report network errors only if we got no other data. Otherwise
-							 * we'll let the upper layers decide whether the response is OK
-							 * or not. It is very common that an RST sent by the server is
-							 * reported as an error just after the last data chunk.
-							 */
-							goto out_end_tcpcheck;
-						}
-					}
-					else {
-						conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
-						goto out;
-					}
-				}
-
-				/* Check that response body is not empty... */
-				if (!b_data(&check->bi)) {
-					if (!last_read)
-						goto out;
-
-					/* empty response */
-					chunk_printf(&trash, "TCPCHK got an empty response at step %d",
-						     tcpcheck_get_step_id(check, rule));
-					if (rule->comment)
-						chunk_appendf(&trash, " comment: '%s'", rule->comment);
-					set_server_check_status(check, rule->expect.err_status, trash.area);
-					ret = -1;
+				eval_ret = tcpcheck_eval_recv(check, rule);
+				if (eval_ret == TCPCHK_EVAL_STOP)
 					goto out_end_tcpcheck;
-				}
+				else if (eval_ret == TCPCHK_EVAL_WAIT)
+					goto out;
+				last_read = ((conn->flags & CO_FL_ERROR) || (cs->flags & (CS_FL_ERROR|CS_FL_EOS)));
 				must_read = 0;
 			}
 
