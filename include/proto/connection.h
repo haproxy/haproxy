@@ -39,6 +39,9 @@ extern struct pool_head *pool_head_authority;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
 
+#define IS_HTX_CONN(conn) ((conn)->mux && ((conn)->mux->flags & MX_FL_HTX))
+#define IS_HTX_CS(cs)     (IS_HTX_CONN((cs)->conn))
+
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops.
  */
