@@ -1,0 +1,33 @@
+#
+# special purpose CI: test against OpenSSL built in "no-deprecated" mode
+# let us run those builds weekly
+#
+# for example, OpenWRT uses such OpenSSL builds (those builds are smaller)
+#
+#
+# some details might be found at NL: https://www.mail-archive.com/haproxy@formilux.org/msg35759.html
+#                                GH: https://github.com/haproxy/haproxy/issues/367
+
+name: openssl no-deprecated
+
+on:
+  schedule:
+    - cron: "0 0 * * 4"
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: prepare VTest
+      run: |
+        git clone https://github.com/VTest/VTest.git ../vtest
+        make -C ../vtest FLAGS="-O2 -s -Wall"
+    - name: build haproxy
+      run: |
+        make DEFINE="-DOPENSSL_API_COMPAT=0x10100000L -DOPENSSL_NO_DEPRECATED" -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1
+    - name: run reg-tests
+      run: |
+        make reg-tests VTEST_PROGRAM=../vtest/vtest
