@@ -310,7 +310,7 @@ static inline void fd_want_send(int fd)
 }
 
 /* Set the fd as currently running on the current thread.
- * Retuns 0 if all goes well, or -1 if we no longer own the fd, and should
+ * Returns 0 if all goes well, or -1 if we no longer own the fd, and should
  * do nothing with it.
  */
 static inline int fd_set_running(int fd)

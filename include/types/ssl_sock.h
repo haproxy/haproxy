@@ -99,7 +99,7 @@ enum {
 	SETCERT_ST_FIN,
 };
 
-/* This is used to preload the certifcate, private key
+/* This is used to preload the certificate, private key
  * and Cert Chain of a file passed in via the crt
  * argument
  *

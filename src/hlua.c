@@ -111,7 +111,7 @@
  * code and recompile the library. This system will probably not accepted
  * by maintainers of various distribs.
  *
- * Our main excution point of the Lua is the function lua_resume(). A
+ * Our main execution point of the Lua is the function lua_resume(). A
  * quick looking on the Lua sources displays a lua_lock() a the start
  * of function and a lua_unlock() at the end of the function. So I
  * conclude that the Lua thread safe mode just perform a mutex around
@@ -653,7 +653,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			return 0;
 		}
 
-		/* Check for exceed the number of requiered argument. */
+		/* Check for exceed the number of required argument. */
 		if ((mask & ARGT_MASK) == ARGT_STOP &&
 		    argp[idx].type != ARGT_STOP) {
 			WILL_LJMP(luaL_argerror(L, first + idx, "Last argument expected"));
@@ -883,18 +883,18 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  * throws an error (longjmp).
  *
  * In some case (at least one), this function can be called from safe
- * environement, so we must not initialise it. While the support of
+ * environment, so we must not initialise it. While the support of
  * threads appear, the safe environment set a lock to ensure only one
  * Lua execution at a time. If we initialize safe environment in another
- * safe environmenet, we have a dead lock.
+ * safe environment, we have a dead lock.
  *
  * set "already_safe" true if the context is initialized form safe
- * Lua fonction.
+ * Lua function.
  *
  * This function manipulates two Lua stacks: the main and the thread. Only
  * the main stack can fail. The thread is not manipulated. This function
  * MUST NOT manipulate the created thread stack state, because it is not
- * proctected against errors thrown by the thread stack.
+ * protected against errors thrown by the thread stack.
  */
 int hlua_ctx_init(struct hlua *lua, struct task *task, int already_safe)
 {
@@ -1023,7 +1023,7 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 
 	/* Lua cannot yield when its returning from a function,
 	 * so, we can fix the interrupt hook to 1 instruction,
-	 * expecting that the function is finnished.
+	 * expecting that the function is finished.
 	 */
 	if (lua_gethookmask(L) & LUA_MASKRET) {
 		lua_sethook(hlua->T, hlua_hook, LUA_MASKCOUNT, 1);
@@ -1418,7 +1418,7 @@ static int hlua_set_map(lua_State *L)
  *    __pow    "^"
  *    __concat ".."
  *
- * Special methods for redfining standar relations
+ * Special methods for redefining standard relations
  * http://www.lua.org/pil/13.2.html
  *
  *    __eq "=="
@@ -2540,7 +2540,7 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 
 	tmout = MS_TO_TICKS((int)dtmout);
 	if (tmout == 0)
-		tmout++; /* very small timeouts are adjusted to a minium of 1ms */
+		tmout++; /* very small timeouts are adjusted to a minimum of 1ms */
 
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
@@ -2598,7 +2598,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	memset(socket, 0, sizeof(*socket));
 	socket->tid = tid;
 
-	/* Check if the various memory pools are intialized. */
+	/* Check if the various memory pools are initialized. */
 	if (!pool_head_stream || !pool_head_buffer) {
 		hlua_pusherror(L, "socket: uninitialized pools.");
 		goto out_fail_conf;
@@ -2884,7 +2884,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	if (max == 0 && co_data(chn) == 0) {
 		/* There are no space available, and the output buffer is empty.
 		 * in this case, we cannot add more data, so we cannot yield,
-		 * we return the amount of copyied data.
+		 * we return the amount of copied data.
 		 */
 		return 1;
 	}
@@ -2971,7 +2971,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 
 	/* If there is no space available, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
-	 * we return the amount of copyied data.
+	 * we return the amount of copied data.
 	 */
 	if (max == 0 && co_data(chn) == 0)
 		return 1;
@@ -3000,7 +3000,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 
 	/* If there is no space available, and the output buffer is empty.
 	 * in this case, we cannot add more data, so we cannot yield,
-	 * we return the amount of copyied data.
+	 * we return the amount of copied data.
 	 */
 	max = b_room(&chn->buf);
 	if (max == 0 && co_data(chn) == 0)
@@ -3021,7 +3021,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	return 1;
 }
 
-/* Just a wraper of "_hlua_channel_send". This wrapper permits
+/* Just a wrapper of "_hlua_channel_send". This wrapper permits
  * yield the LUA process, and resume it without checking the
  * input arguments.
  */
@@ -3038,7 +3038,7 @@ __LJMP static int hlua_channel_send(lua_State *L)
  * forwarded. This function never fails.
  *
  * The Lua function takes an amount of bytes to be forwarded in
- * imput. It returns the number of bytes forwarded.
+ * input. It returns the number of bytes forwarded.
  */
 __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KContext ctx)
 {
@@ -3686,7 +3686,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 
 	} else {
 
-		/* Copy the fisrt block caping to the length required. */
+		/* Copy the first block caping to the length required. */
 		if (len1 > len)
 			len1 = len;
 		luaL_addlstring(&appctx->b, blk1, len1);
@@ -3781,7 +3781,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	return 1;
 }
 
-/* Just a wraper of "hlua_applet_tcp_send_yield". This wrapper permits
+/* Just a wrapper of "hlua_applet_tcp_send_yield". This wrapper permits
  * yield the LUA process, and resume it without checking the
  * input arguments.
  */
@@ -4312,7 +4312,7 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 	return 1;
 }
 
-/* Just a wraper of "hlua_applet_send_yield". This wrapper permits
+/* Just a wrapper of "hlua_applet_send_yield". This wrapper permits
  * yield the LUA process, and resume it without checking the
  * input arguments.
  */
@@ -4326,7 +4326,7 @@ __LJMP static int hlua_applet_http_send(lua_State *L)
 		WILL_LJMP(lua_error(L));
 	}
 
-	/* This interger is used for followinf the amount of data sent. */
+	/* This integer is used for followinf the amount of data sent. */
 	lua_pushinteger(L, 0);
 
 	return MAY_LJMP(hlua_applet_http_send_yield(L, 0, 0));
@@ -4549,8 +4549,8 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	/* If we dont have a content-length set, and the HTTP version is 1.1
 	 * and the status code implies the presence of a message body, we must
 	 * announce a transfer encoding chunked. This is required by haproxy
-	 * for the keepalive compliance. If the applet annouces a transfer-encoding
-	 * chunked itslef, don't do anything.
+	 * for the keepalive compliance. If the applet announces a transfer-encoding
+	 * chunked itself, don't do anything.
 	 */
 	if ((flags & (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN)) == HTX_SL_F_VER_11 &&
 	    appctx->appctx->ctx.hlua_apphttp.status >= 200 &&
@@ -5363,7 +5363,7 @@ __LJMP static int hlua_txn_set_priority_offset(lua_State *L)
 }
 
 /* Forward the Reply object to the client. This function converts the reply in
- * HTX an push it to into the response channel. It is response to foward the
+ * HTX an push it to into the response channel. It is response to forward the
  * message and terminate the transaction. It returns 1 on success and 0 on
  * error. The Reply must be on top of the stack.
  */
@@ -6985,7 +6985,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
 
-	/* Check if the input buffer is avalaible. */
+	/* Check if the input buffer is available. */
 	if (!b_size(&res->buf)) {
 		si_rx_room_blk(si);
 		goto out;
@@ -7147,7 +7147,7 @@ static void hlua_applet_http_release(struct appctx *ctx)
 }
 
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
- * succes case, else return ACT_RET_PRS_ERR.
+ * success case, else return ACT_RET_PRS_ERR.
  *
  * This function can fail with an abort() due to an Lua critical error.
  * We are in the configuration parsing process of HAProxy, this abort() is
@@ -7202,9 +7202,9 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 	struct hlua_function *fcn = rule->kw->private;
 
 	/* HTTP applets are forbidden in tcp-request rules.
-	 * HTTP applet request requires everything initilized by
+	 * HTTP applet request requires everything initialized by
 	 * "http_process_request" (analyzer flag AN_REQ_HTTP_INNER).
-	 * The applet will be immediately initilized, but its before
+	 * The applet will be immediately initialized, but its before
 	 * the call of this analyzer.
 	 */
 	if (rule->from != ACT_F_HTTP_REQ) {
@@ -7893,7 +7893,7 @@ int hlua_post_init()
 	enum hlua_exec ret;
 	const char *error;
 
-	/* Call post initialisation function in safe environement. */
+	/* Call post initialisation function in safe environment. */
 	if (!SET_SAFE_LJMP(gL.T)) {
 		if (lua_type(gL.T, -1) == LUA_TSTRING)
 			error = lua_tostring(gL.T, -1);

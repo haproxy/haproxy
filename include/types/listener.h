@@ -190,7 +190,7 @@ struct bind_conf {
 struct listener {
 	enum obj_type obj_type;         /* object type = OBJ_TYPE_LISTENER */
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
-	short int nice;                 /* nice value to assign to the instanciated tasks */
+	short int nice;                 /* nice value to assign to the instantiated tasks */
 	int fd;				/* the listen socket */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */

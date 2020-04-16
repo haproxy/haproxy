@@ -613,7 +613,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				var = str;
 			}
 			else if (*str == '%')
-				cformat = LF_TEXT;     // convert this character to a litteral (useful for '%')
+				cformat = LF_TEXT;     // convert this character to a literal (useful for '%')
 			else if (isdigit((unsigned char)*str) || *str == ' ' || *str == '\t') {
 				/* single '%' followed by blank or digit, send them both */
 				cformat = LF_TEXT;
@@ -625,7 +625,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 			}
 			else
-				cformat = LF_INIT;     // handle other cases of litterals
+				cformat = LF_INIT;     // handle other cases of literals
 			break;
 
 		case LF_STARG:                         // text immediately following '%{'
@@ -726,7 +726,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 }
 
 /*
- * Parse the first range of indexes from a string made of a list of comma seperated
+ * Parse the first range of indexes from a string made of a list of comma separated
  * ranges of indexes. Note that an index may be considered as a particular range
  * with a high limit to the low limit.
  */
@@ -1364,7 +1364,7 @@ static inline char *lf_text(char *dst, const char *src, size_t size, const struc
 
 /*
  * Write a IP address to the log string
- * +X option write in hexadecimal notation, most signifant byte on the left
+ * +X option write in hexadecimal notation, most significant byte on the left
  */
 char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {
@@ -1402,7 +1402,7 @@ char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struc
 
 /*
  * Write a port to the log
- * +X option write in hexadecimal notation, most signifant byte on the left
+ * +X option write in hexadecimal notation, most significant byte on the left
  */
 char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node)
 {

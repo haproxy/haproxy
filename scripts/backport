@@ -88,7 +88,7 @@ update_up() {
 
 # backports commit "$1" with a signed-off by tag. In case of failure, aborts
 # the change and returns non-zero. Unneeded cherry-picks do return an error
-# because we don't want to accidently backport the latest commit instead of
+# because we don't want to accidentally backport the latest commit instead of
 # this one, and we don't know this one's ID.
 backport_commit() {
 	local empty=1

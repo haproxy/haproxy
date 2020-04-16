@@ -1142,7 +1142,7 @@ void len2mask6(int len, struct in6_addr *addr)
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
- * is optionnal and either in the dotted or CIDR notation.
+ * is optional and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
 int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask)
@@ -1193,7 +1193,7 @@ int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *
 /*
  * converts <str> to two struct in6_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
- * is an optionnal number of bits (128 being the default).
+ * is an optional number of bits (128 being the default).
  * Returns 1 if OK, 0 if error.
  */
 int str62net(const char *str, struct in6_addr *addr, unsigned char *mask)
@@ -1276,7 +1276,7 @@ int url2ipv4(const char *addr, struct in_addr *dst)
 
 /*
  * Resolve destination server from URL. Convert <str> to a sockaddr_storage.
- * <out> contain the code of the dectected scheme, the start and length of
+ * <out> contain the code of the detected scheme, the start and length of
  * the hostname. Actually only http and https are supported. <out> can be NULL.
  * This function returns the consumed length. It is useful if you parse complete
  * url like http://host:port/path, because the consumed length corresponds to
@@ -2187,9 +2187,9 @@ const char *parse_size_err(const char *text, unsigned *ret) {
 
 /*
  * Parse binary string written in hexadecimal (source) and store the decoded
- * result into binstr and set binstrlen to the lengh of binstr. Memory for
+ * result into binstr and set binstrlen to the length of binstr. Memory for
  * binstr is allocated by the function. In case of error, returns 0 with an
- * error message in err. In succes case, it returns the consumed length.
+ * error message in err. In success case, it returns the consumed length.
  */
 int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 {
@@ -2403,7 +2403,7 @@ int word_match(const char *sample, int slen, const char *word, int wlen)
 /* Converts any text-formatted IPv4 address to a host-order IPv4 address. It
  * is particularly fast because it avoids expensive operations such as
  * multiplies, which are optimized away at the end. It requires a properly
- * formated address though (3 points).
+ * formatted address though (3 points).
  */
 unsigned int inetaddr_host(const char *text)
 {
@@ -3765,7 +3765,7 @@ int append_prefixed_str(struct buffer *out, const char *in, const char *pfx, cha
 /* removes environment variable <name> from the environment as found in
  * environ. This is only provided as an alternative for systems without
  * unsetenv() (old Solaris and AIX versions). THIS IS NOT THREAD SAFE.
- * The principle is to scan environ for each occurence of variable name
+ * The principle is to scan environ for each occurrence of variable name
  * <name> and to replace the matching pointers with the last pointer of
  * the array (since variables are not ordered).
  * It always returns 0 (success).

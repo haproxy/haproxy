@@ -253,7 +253,7 @@ enum {
 	CO_ER_SSL_TIMEOUT,      /* timeout during SSL handshake */
 	CO_ER_SSL_TOO_MANY,     /* too many SSL connections */
 	CO_ER_SSL_NO_MEM,       /* no more memory to allocate an SSL connection */
-	CO_ER_SSL_RENEG,        /* forbidden client renegociation */
+	CO_ER_SSL_RENEG,        /* forbidden client renegotiation */
 	CO_ER_SSL_CA_FAIL,      /* client cert verification failed in the CA chain */
 	CO_ER_SSL_CRT_FAIL,     /* client cert verification failed on the certificate */
 	CO_ER_SSL_MISMATCH,     /* Server presented an SSL certificate different from the configured one */
@@ -345,7 +345,7 @@ enum mux_ctl_type {
 /* mux_ops describes the mux operations, which are to be performed at the
  * connection level after data are exchanged with the transport layer in order
  * to propagate them to streams. The <init> function will automatically be
- * called once the mux is instanciated by the connection's owner at the end
+ * called once the mux is instantiated by the connection's owner at the end
  * of a transport handshake, when it is about to transfer data and the data
  * layer is not ready yet.
  */
@@ -370,7 +370,7 @@ struct mux_ops {
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	void (*reset)(struct connection *conn); /* Reset the mux, because we're re-trying to connect */
 	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
-	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides informations about the mux */
+	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux */
 	int (*takeover)(struct connection *conn); /* Attempts to migrate the connection to the current thread */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
 	char name[8];                                 /* mux layer name, zero-terminated */
@@ -426,14 +426,14 @@ struct conn_stream {
 
 /*
  * This structure describes the info related to a conn_stream known by the mux
- * only but usefull for the upper layer.
+ * only but useful for the upper layer.
  * For now, only some dates and durations are reported. This structure will
  * envolved. But for now, only the bare minimum is referenced.
  */
 struct cs_info {
 	struct timeval create_date;  /* Creation date of the conn_stream in user date */
 	struct timeval tv_create;    /* Creation date of the conn_stream in internal date (monotonic) */
-	long t_handshake;            /* hanshake duration, -1 if never occurs */
+	long t_handshake;            /* handshake duration, -1 if never occurs */
 	long t_idle;                 /* idle duration, -1 if never occurs */
 };
 
@@ -452,7 +452,7 @@ struct connection {
 	unsigned int flags;           /* CO_FL_* */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
-	const struct mux_ops  *mux;   /* mux layer opreations. Must be set before xprt->init() */
+	const struct mux_ops  *mux;   /* mux layer operations. Must be set before xprt->init() */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *ctx;                    /* highest level context (usually the mux), initialized to NULL */
 	void *owner;                  /* pointer to the owner session, or NULL */

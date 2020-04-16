@@ -19,7 +19,7 @@ _help()
     --v, to run verbose
       run-regtests.sh --v, disables the default vtest 'quiet' parameter
 
-    --debug to show test logs on standard ouput (implies --v)
+    --debug to show test logs on standard output (implies --v)
       run-regtests.sh --debug
 
     --keep-logs to keep all log directories (by default kept if test fails)
