@@ -3254,38 +3254,43 @@ static int tcpcheck_main(struct check *check)
 
 	/* 2- check if we are waiting for the connection establishment. It only
 	 *    happens during TCPCHK_ACT_CONNECT. */
-	if (conn && (conn->flags & CO_FL_WAIT_XPRT))
-		goto out;
-
-	/* 3- check for pending outgoing data. It only happens during TCPCHK_ACT_SEND. */
-	if (conn && b_data(&check->bo)) {
-		ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
-		if (ret <= 0) {
-			if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
-				goto out_end_tcpcheck;
-			goto out;
-		}
-		if (b_data(&check->bo)) {
-			cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+	if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
+		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
+		if (conn && (conn->flags & CO_FL_WAIT_XPRT)) {
+			if (rule->action == TCPCHK_ACT_SEND)
+				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+			else if (rule->action == TCPCHK_ACT_EXPECT)
+				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			goto out;
 		}
 	}
 
-	/* Now evaluate the tcp-check rules */
-
-	/* If check->current_step is defined, we are in resume condition. For
-	 * TCPCHK_ACT_CONNECT and TCPCHK_ACT_SEND rules, we must go to the next
-	 * rule before resuming the evaluation. For TCPCHK_ACT_EXPECT, we
-	 * re-evaluate the current rule. Others cannot yield.
-	 */
-        if (check->current_step) {
-		if (check->current_step->action == TCPCHK_ACT_CONNECT ||
-		    check->current_step->action == TCPCHK_ACT_SEND)
-			rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
-		else
-			rule = check->current_step;
+	/* 3- check for pending outgoing data. It only happens during
+	 *    TCPCHK_ACT_SEND. */
+	else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
+		if (conn && b_data(&check->bo)) {
+			ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+			if (ret <= 0) {
+				if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
+					goto out_end_tcpcheck;
+				goto out;
+			}
+			if (b_data(&check->bo)) {
+				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+				goto out;
+			}
+		}
+		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 	}
-	else {
+
+	/* 4- check if a rule must be resume. It happens if check->current_step
+	 *    is defined. */
+	else if (check->current_step)
+		rule = check->current_step;
+
+	/* 5- It is the first evaluation. We must create a session and preset
+	 *    tcp-check variables */
+        else {
 		struct tcpcheck_var *var;
 
 		/* First evaluation, create a session */
@@ -3308,6 +3313,8 @@ static int tcpcheck_main(struct check *check)
 			vars_set_by_name_ifexist(var->name.ptr, var->name.len, &smp);
 		}
 	}
+
+	/* Now evaluate the tcp-check rules */
 
 	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
 		enum tcpcheck_eval_ret eval_ret;
