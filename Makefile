@@ -139,8 +139,8 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specific target OS among the
 # following list (use the default "generic" if uncertain) :
-#    linux-glibc, linux-glibc-legacy, solaris, freebsd, openbsd, netbsd,
-#    cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom
+#    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, openbsd,
+#    netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom
 TARGET =
 
 #### TARGET CPU
@@ -339,6 +339,18 @@ ifeq ($(TARGET),linux-glibc-legacy)
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_GETADDRINFO)
+endif
+
+# For linux >= 2.6.28 and musl
+ifeq ($(TARGET),linux-musl)
+  set_target_defaults = $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
+    USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
+    USE_GETADDRINFO)
+ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm__/__aarch64__)
+  TARGET_LDFLAGS=-latomic
+endif
 endif
 
 # Solaris 8 and above
@@ -757,8 +769,8 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux-glibc, linux-glibc-legacy, solaris, freebsd, openbsd, netbsd,"
-	@echo "   cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom"
+	@echo "   linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, openbsd, "
+	@echo "   netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"

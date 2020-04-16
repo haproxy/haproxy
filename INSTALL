@@ -372,6 +372,7 @@ and assign it to the TARGET variable :
 
   - linux-glibc         for Linux kernel 2.6.28 and above
   - linux-glibc-legacy  for Linux kernel 2.6.28 and above without new features
+  - linux-musl          for Linux kernel 2.6.28 and above with musl libc
   - solaris             for Solaris 8 or 10 (others untested)
   - freebsd             for FreeBSD 5 to 12 (others untested)
   - netbsd              for NetBSD
