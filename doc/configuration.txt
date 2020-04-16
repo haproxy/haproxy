@@ -7376,7 +7376,9 @@ option httpchk <method> <uri> <version>
 
   "httpchk" option does not necessarily require an HTTP backend, it also works
   with plain TCP backends. This is particularly useful to check simple scripts
-  bound to some dedicated ports using the inetd daemon.
+  bound to some dedicated ports using the inetd daemon. However, it will always
+  internally relies on an HTX mutliplexer. Thus, it means the request
+  formatting and the response parsing will be strict.
 
   Note : For a while, there was no way to add headers or body in the request
          used for HTTP health checks. So a workaround was to hide it at the end

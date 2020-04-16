@@ -40,6 +40,7 @@
 #include <common/hathreads.h>
 #include <common/http.h>
 #include <common/h1.h>
+#include <common/htx.h>
 
 #include <types/global.h>
 #include <types/dns.h>
@@ -51,6 +52,7 @@
 #include <proto/checks.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
+#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>
 #include <proto/queue.h>
@@ -500,20 +502,16 @@ void __health_adjust(struct server *s, short status)
 	}
 }
 
-static int httpchk_build_status_header(struct server *s, char *buffer, int size)
+static int httpchk_build_status_header(struct server *s, struct buffer *buf)
 {
 	int sv_state;
 	int ratio;
-	int hlen = 0;
 	char addr[46];
 	char port[6];
 	const char *srv_hlt_st[7] = { "DOWN", "DOWN %d/%d",
 				      "UP %d/%d", "UP",
 				      "NOLB %d/%d", "NOLB",
 				      "no check" };
-
-	memcpy(buffer + hlen, "X-Haproxy-Server-State: ", 24);
-	hlen += 24;
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;
@@ -532,10 +530,9 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 			sv_state = 0; /* DOWN */
 	}
 
-	hlen += snprintf(buffer + hlen, size - hlen,
-			     srv_hlt_st[sv_state],
-			     (s->cur_state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
-			     (s->cur_state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
+	chunk_appendf(buf, srv_hlt_st[sv_state],
+		      (s->cur_state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
+		      (s->cur_state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
 
 	addr_to_str(&s->addr, addr, sizeof(addr));
 	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
@@ -543,25 +540,22 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 	else
 		*port = 0;
 
-	hlen += snprintf(buffer + hlen,  size - hlen, "; address=%s; port=%s; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
-			     addr, port, s->proxy->id, s->id,
-			     global.node,
-			     (s->cur_eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
-			     (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
-			     s->cur_sess, s->proxy->beconn - s->proxy->nbpend,
-			     s->nbpend);
+	chunk_appendf(buf, "; address=%s; port=%s; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
+		      addr, port, s->proxy->id, s->id,
+		      global.node,
+		      (s->cur_eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
+		      (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
+		      s->cur_sess, s->proxy->beconn - s->proxy->nbpend,
+		      s->nbpend);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
-		hlen += snprintf(buffer + hlen, size - hlen, "; throttle=%d%%", ratio);
+		chunk_appendf(buf, "; throttle=%d%%", ratio);
 	}
 
-	buffer[hlen++] = '\r';
-	buffer[hlen++] = '\n';
-
-	return hlen;
+	return b_data(buf);
 }
 
 /* Check the connection. If an error has already been reported or the socket is
@@ -2708,6 +2702,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 
 	check->cs = cs;
 	conn = cs->conn;
+	conn_set_owner(conn, check->sess, NULL);
 
 	/* Maybe there were an older connection we were waiting on */
 	check->wait_list.events = 0;
@@ -2754,10 +2749,6 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
 	conn_prepare(conn, proto, xprt);
-	if (conn_install_mux(conn, &mux_pt_ops, cs, proxy, check->sess) < 0) {
-		status = SF_ERR_RESOURCE;
-		goto fail_check;
-	}
 	cs_attach(cs, check, &check_conn_cb);
 
 	status = SF_ERR_INTERNAL;
@@ -2771,18 +2762,46 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		status = proto->connect(conn, flags);
 	}
 
-#ifdef USE_OPENSSL
-	if (status == SF_ERR_NONE) {
-		if (connect->sni)
-			ssl_sock_set_servername(conn, connect->sni);
-		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.sni)
-			ssl_sock_set_servername(conn, s->check.sni);
+	if (status != SF_ERR_NONE)
+		goto fail_check;
 
-		if (connect->alpn)
-			ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
-		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.alpn_str)
-			ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
+	conn->flags |= CO_FL_PRIVATE;
+	conn->ctx = cs;
+
+	/* The mux may be initialized now if there isn't server attached to the
+	 * check (email alerts) or if there is a mux proto specified or if there
+	 * is no alpn.
+	 */
+	if (!s || connect->mux_proto || check->mux_proto || (!connect->alpn && !check->alpn_str)) {
+		const struct mux_ops *mux_ops;
+
+		if (connect->mux_proto)
+			mux_ops = connect->mux_proto->mux;
+		else if (check->mux_proto)
+			mux_ops = check->mux_proto->mux;
+		else {
+			int mode = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
+				    ? PROTO_MODE_HTTP
+				    : PROTO_MODE_TCP);
+
+			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
+		}
+		if (mux_ops && conn_install_mux(conn, mux_ops, cs, proxy, check->sess) < 0) {
+			status = SF_ERR_INTERNAL;
+			goto fail_check;
+		}
 	}
+
+#ifdef USE_OPENSSL
+	if (connect->sni)
+		ssl_sock_set_servername(conn, connect->sni);
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.sni)
+		ssl_sock_set_servername(conn, s->check.sni);
+
+	if (connect->alpn)
+		ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.alpn_str)
+		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 #endif
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
@@ -2879,6 +2898,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	struct buffer *tmp = NULL;
+	struct htx *htx = NULL;
 
 	/* reset the read & write buffer */
 	b_reset(&check->bi);
@@ -2915,7 +2935,13 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 			goto error_lf;
 		break;
 	case TCPCHK_SEND_HTTP: {
-		struct ist meth, uri, vsn;
+		struct htx_sl *sl;
+		struct ist meth, uri, vsn, clen, body;
+		unsigned int slflags = 0;
+
+		tmp = alloc_trash_chunk();
+		if (!tmp)
+			goto error_htx;
 
 		meth = ((send->http.meth.meth == HTTP_METH_OTHER)
 			? ist2(send->http.meth.str.area, send->http.meth.str.data)
@@ -2923,43 +2949,52 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		uri = (isttest(send->http.uri) ? send->http.uri : ist("/")); // TODO: handle uri_fmt
 		vsn = (isttest(send->http.vsn) ? send->http.vsn : ist("HTTP/1.0"));
 
-		chunk_istcat(&check->bo, meth);
-		check->bo.area[check->bo.data++] = ' ';
-		chunk_istcat(&check->bo, uri);
-		check->bo.area[check->bo.data++] = ' ';
-		chunk_istcat(&check->bo, vsn);
-		chunk_istcat(&check->bo, ist("\r\n"));
-		chunk_istcat(&check->bo, ist("Connection: close\r\n"));
-		if (isttest(send->http.body)) {
-			// TODO: handle body_fmt
-			chunk_appendf(&check->bo, "Content-Length: %s\r\n", ultoa(istlen(send->http.body)));
-		}
-		if (check->proxy->options2 & PR_O2_CHK_SNDST) {
-			trash.data = httpchk_build_status_header(check->server, b_orig(&trash), b_size(&trash));
-			chunk_cat(&check->bo, &trash);
-		}
+		if (istlen(vsn) == 8 &&
+		    (*(vsn.ptr+5) > '1' || (*(vsn.ptr+5) == '1' && *(vsn.ptr+7) >= '1')))
+			slflags |= HTX_SL_F_VER_11;
+		slflags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+		if (!isttest(send->http.body))
+			slflags |= HTX_SL_F_BODYLESS;
+
+		htx = htx_from_buf(&check->bo);
+		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, slflags, meth, uri, vsn);
+		if (!sl)
+			goto error_htx;
+		sl->info.req.meth = send->http.meth.meth;
+
+		body = send->http.body; // TODO: handle body_fmt
+		clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
+
+		if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
+		    !htx_add_header(htx, ist("Content-length"), clen))
+			goto error_htx;
+
 		if (!LIST_ISEMPTY(&send->http.hdrs)) {
 			struct tcpcheck_http_hdr *hdr;
 
-			tmp = alloc_trash_chunk();
-			if (!tmp)
-				goto error_lf;
 			list_for_each_entry(hdr, &send->http.hdrs, list) {
 				chunk_reset(tmp);
                                 tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &hdr->value);
 				if (!b_data(tmp))
 					continue;
-				chunk_istcat(&check->bo, hdr->name);
-				check->bo.area[check->bo.data++] = ' ';
-				chunk_cat(&check->bo, tmp);
-				chunk_istcat(&check->bo, ist("\r\n"));
+				if (!htx_add_header(htx, hdr->name, ist2(b_orig(tmp), b_data(tmp))))
+					goto error_htx;
 			}
+
 		}
-		chunk_istcat(&check->bo, ist("\r\n"));
-		if (isttest(send->http.body)) {
-			// TODO: handle body_fmt
-			chunk_istcat(&check->bo, send->http.body);
+		if (check->proxy->options2 & PR_O2_CHK_SNDST) {
+			chunk_reset(tmp);
+			httpchk_build_status_header(check->server, tmp);
+			if (!htx_add_header(htx, ist("X-Haproxy-Server-State"), ist2(b_orig(tmp), b_data(tmp))))
+				goto error_htx;
 		}
+
+		if (!htx_add_endof(htx, HTX_BLK_EOH) ||
+		    (istlen(body) && !htx_add_data_atonce(htx, send->http.body)) ||
+		    !htx_add_endof(htx, HTX_BLK_EOM))
+			goto error_htx;
+
+		htx_to_buf(htx, &check->bo);
 		break;
 	}
 	case TCPCHK_SEND_UNDEF:
@@ -2983,6 +3018,17 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
   out:
 	free_trash_chunk(tmp);
 	return ret;
+
+  error_htx:
+	if (htx) {
+		htx_reset(htx);
+		htx_to_buf(htx, &check->bo);
+	}
+	chunk_printf(&trash, "tcp-check send : failed to build HTTP request at step %d",
+		     tcpcheck_get_step_id(check, rule));
+	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
+	ret = TCPCHK_EVAL_STOP;
+	goto out;
 
   error_lf:
 	chunk_printf(&trash, "tcp-check send : failed to build log-format string at step %d",
@@ -3016,7 +3062,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcp
 
 	while ((cs->flags & CS_FL_RCV_MORE) ||
 	       (!(conn->flags & CO_FL_ERROR) && !(cs->flags & (CS_FL_ERROR|CS_FL_EOS)))) {
-		max = b_room(&check->bi);
+		max = (IS_HTX_CS(cs) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
 		read = conn->mux->rcv_buf(cs, &check->bi, max, 0);
 		cur_read += read;
 		if (!read ||
@@ -3027,7 +3073,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcp
 	}
 
   end_recv:
-	is_empty = !b_data(&check->bi);
+	is_empty = (IS_HTX_CS(cs) ? htx_is_empty(htxbuf(&check->bi)) : !b_data(&check->bi));
 	if (is_empty && ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))) {
 		/* Report network errors only if we got no other data. Otherwise
 		 * we'll let the upper layers decide whether the response is OK
@@ -3065,33 +3111,33 @@ static enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcp
 
 static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
+	struct htx *htx = htxbuf(&check->bi);
+	struct htx_sl *sl;
+	struct htx_blk *blk;
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
 	enum healthcheck_status status;
 	struct ist desc = ist(NULL);
-	char *body;
-	size_t body_len;
 	int match, inverse;
 
-	last_read |= b_full(&check->bi);
+	last_read |= (!htx_free_space(htx) || (htx_get_tail_type(htx) == HTX_BLK_EOM));
 
-	/* Must at least receive the status line (HTTP/1.X XXX.) */
-	if (!last_read && b_data(&check->bi) < 13)
-		goto wait_more_data;
-
-	/* Check if the server speaks HTTP 1.X */
-	if (b_data(&check->bi) < 13 ||
-	    memcmp(b_head(&check->bi), "HTTP/1.", 7) != 0 ||
-	    (*b_peek(&check->bi, 12) != ' ' && *b_peek(&check->bi, 12) != '\r') ||
-	    !isdigit((unsigned char) *b_peek(&check->bi, 9)) || !isdigit((unsigned char) *b_peek(&check->bi, 10)) ||
-	    !isdigit((unsigned char) *b_peek(&check->bi, 11))) {
+	if (htx->flags & HTX_FL_PARSING_ERROR) {
 		status = HCHK_STATUS_L7RSP;
-		desc   = ist2(b_head(&check->bi), my_memcspn(b_head(&check->bi), b_data(&check->bi), "\r\n", 2));
 		goto error;
 	}
 
-	check->code = strl2uic(b_peek(&check->bi, 9), 3);
+	if (htx_is_empty(htx)) {
+		if (last_read) {
+			status = HCHK_STATUS_L7RSP;
+			goto error;
+		}
+		goto wait_more_data;
+	}
+
+	sl = http_get_stline(htx);
+	check->code = sl->info.res.status;
 
 	if (check->server &&
 	    (check->server->proxy->options & PR_O_DISABLE404) &&
@@ -3107,44 +3153,53 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 	switch (expect->type) {
 	case TCPCHK_EXPECT_HTTP_STATUS:
-		match = my_memmem(b_peek(&check->bi, 9), 3, expect->data.ptr, istlen(expect->data)) != NULL;
+		match = isteq(htx_sl_res_code(sl), expect->data);
 
 		/* Set status and description in case of error */
 		status = HCHK_STATUS_L7STS;
-		desc  = ist2(b_peek(&check->bi, 12), my_memcspn(b_peek(&check->bi, 12), b_data(&check->bi) - 12, "\r\n", 2));
+		desc   = htx_sl_res_reason(sl);
 		break;
 	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
-		match = regex_exec2(expect->regex, b_peek(&check->bi, 9), 3);
+		match = regex_exec2(expect->regex, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 
 		/* Set status and description in case of error */
 		status = HCHK_STATUS_L7STS;
-		desc  = ist2(b_peek(&check->bi, 12), my_memcspn(b_peek(&check->bi, 12), b_data(&check->bi) - 12, "\r\n", 2));
+		desc   = htx_sl_res_reason(sl);
 		break;
+
 	case TCPCHK_EXPECT_HTTP_BODY:
 	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
-		body = (char *)my_memmem(b_head(&check->bi), b_data(&check->bi), "\r\n\r\n", 4);
-		if (!body) {
+		chunk_reset(&trash);
+		for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+			enum htx_blk_type type = htx_get_blk_type(blk);
+
+			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+				break;
+			if (type == HTX_BLK_DATA) {
+				if (!chunk_istcat(&trash, htx_get_blk_value(htx, blk)))
+					break;
+			}
+		}
+
+		if (!b_data(&trash)) {
 			if (!last_read)
 				goto wait_more_data;
-
 			status = HCHK_STATUS_L7RSP;
 			desc = ist("HTTP content check could not find a response body");
 			goto error;
 		}
-		body += 4;
-		body_len = b_tail(&check->bi) - body;
 
 		if (!last_read &&
-		    ((expect->type == TCPCHK_EXPECT_HTTP_BODY && body_len < istlen(expect->data)) ||
-		     (expect->min_recv > 0 && body_len < expect->min_recv))) {
+		    ((expect->type == TCPCHK_EXPECT_HTTP_BODY && b_data(&trash) < istlen(expect->data)) ||
+		     (expect->min_recv > 0 && b_data(&trash) < expect->min_recv))) {
 			ret = TCPCHK_EVAL_WAIT;
 			goto out;
 		}
 
 		if (expect->type ==TCPCHK_EXPECT_HTTP_BODY)
-			match = my_memmem(body, body_len, expect->data.ptr, istlen(expect->data)) != NULL;
+			match = my_memmem(b_orig(&trash), b_data(&trash), expect->data.ptr, istlen(expect->data)) != NULL;
 		else
-			match = regex_exec2(expect->regex, body, body_len);
+			match = regex_exec2(expect->regex, b_orig(&trash), b_data(&trash));
 
 		/* Set status and description in case of error */
 		status = HCHK_STATUS_L7RSP;

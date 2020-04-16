@@ -46,11 +46,16 @@ int conn_create_mux(struct connection *conn)
 	if (conn_is_back(conn)) {
 		struct server *srv;
 		struct conn_stream *cs = conn->ctx;
+		struct session *sess = conn->owner;
 
 		if (conn->flags & CO_FL_ERROR)
 			goto fail;
 
-		if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
+		if (sess && obj_type(sess->origin) == OBJ_TYPE_CHECK) {
+			if (conn_install_mux_chk(conn, conn->ctx, conn->owner) < 0)
+				goto fail;
+		}
+		else if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
