@@ -1,6 +1,96 @@
 ChangeLog :
 ===========
 
+2020/04/17 : 2.2-dev6
+    - BUG/MINOR: ssl: memory leak when find_chain is NULL
+    - CLEANUP: ssl: rename ssl_get_issuer_chain to ssl_get0_issuer_chain
+    - MINOR: ssl: rework add cert chain to CTX to be libssl independent
+    - BUG/MINOR: peers: init bind_proc to 1 if it wasn't initialized
+    - BUG/MINOR: peers: avoid an infinite loop with peers_fe is NULL
+    - BUG/MINOR: peers: Use after free of "peers" section.
+    - CI: github actions: add weekly h2spec test
+    - BUG/MEDIUM: mux_h1: Process a new request if we already received it.
+    - MINOR: build: Fix build in mux_h1
+    - CLEANUP: remove obsolete comments
+    - BUG/MEDIUM: dns: improper parsing of aditional records
+    - MINOR: ssl: skip self issued CA in cert chain for ssl_ctx
+    - MINOR: listener: add so_name sample fetch
+    - MEDIUM: stream: support use-server rules with dynamic names
+    - MINOR: servers: Add a counter for the number of currently used connections.
+    - MEDIUM: connections: Revamp the way idle connections are killed
+    - MINOR: cli: add a general purpose pointer in the CLI struct
+    - MINOR: ssl: add a list of bind_conf in struct crtlist
+    - REORG: ssl: move SETCERT enum to ssl_sock.h
+    - BUG/MINOR: ssl: ckch_inst wrongly inserted in crtlist_entry
+    - REORG: ssl: move some functions above crtlist_load_cert_dir()
+    - MINOR: ssl: use crtlist_free() upon error in directory loading
+    - MINOR: ssl: add a list of crtlist_entry in ckch_store
+    - MINOR: ssl: store a ptr to crtlist in crtlist_entry
+    - MINOR: ssl/cli: update pointer to store in 'commit ssl cert'
+    - MEDIUM: ssl/cli: 'add ssl crt-list' command
+    - REGTEST: ssl/cli: test the 'add ssl crt-list' command
+    - BUG/MINOR: ssl: entry->ckch_inst not initialized
+    - REGTEST: ssl/cli: change test type to devel
+    - REGTEST: make the PROXY TLV validation depend on version 2.2
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: stats: Fix color of draining servers on stats page
+    - DOC: internals: Fix spelling errors in filters.txt
+    - MINOR: connections: Don't mark conn flags 0x00000001 and 0x00000002 as unused.
+    - REGTEST: make the unique-id test depend on version 2.0
+    - BUG/MEDIUM: dns: Consider the fact that dns answers are case-insensitive
+    - MINOR: ssl: split the line parsing of the crt-list
+    - MINOR: ssl/cli: support filters and options in add ssl crt-list
+    - MINOR: ssl: add a comment above the ssl_bind_conf keywords
+    - REGTEST: ssl/cli: tests options and filters w/ add ssl crt-list
+    - REGTEST: ssl: pollute the crt-list file
+    - BUG/CRITICAL: hpack: never index a header into the headroom after wrapping
+    - BUG/MINOR: protocol_buffer: Wrong maximum shifting.
+    - CLEANUP: src/fd.c: mask setsockopt with DISGUISE
+    - BUG/MINOR: ssl/cli: initialize fcount int crtlist_entry
+    - REGTEST: ssl/cli: add other cases of 'add ssl crt-list'
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DOC: management: add the new crt-list CLI commands
+    - BUG/MINOR: ssl/cli: fix spaces in 'show ssl crt-list'
+    - MINOR: ssl/cli: 'del ssl crt-list' delete an entry
+    - MINOR: ssl/cli: replace dump/show ssl crt-list by '-n' option
+    - CI: use better SSL library definition
+    - CI: travis-ci: enable DEBUG_STRICT=1 for CI builds
+    - CI: travis-ci: upgrade openssl to 1.1.1f
+    - MINOR: ssl: improve the errors when a crt can't be open
+    - CI: cirrus-ci: rename openssl package after it is renamed in FreeBSD
+    - CI: adopt openssl download script to download all versions
+    - BUG/MINOR: ssl/cli: lock the ckch structures during crt-list delete
+    - MINOR: ssl/cli: improve error for bundle in add/del ssl crt-list
+    - MINOR: ssl/cli: 'del ssl cert' deletes a certificate
+    - BUG/MINOR: ssl: trailing slashes in directory names wrongly cached
+    - BUG/MINOR: ssl/cli: memory leak in 'set ssl cert'
+    - CLEANUP: ssl: use the refcount for the SSL_CTX'
+    - CLEANUP: ssl/cli: use the list of filters in the crtlist_entry
+    - BUG/MINOR: ssl: memleak of the struct cert_key_and_chain
+    - CLEANUP: ssl: remove a commentary in struct ckch_inst
+    - MINOR: ssl: initialize all list in ckch_inst_new()
+    - MINOR: ssl: free instances and SNIs with ckch_inst_free()
+    - MINOR: ssl: replace ckchs_free() by ckch_store_free()
+    - BUG/MEDIUM: ssl/cli: trying to access to free'd memory
+    - MINOR: ssl: ckch_store_new() alloc and init a ckch_store
+    - MINOR: ssl: crtlist_new() alloc and initialize a struct crtlist
+    - REORG: ssl: move some free/new functions
+    - MINOR: ssl: crtlist_entry_{new, free}
+    - BUG/MINOR: ssl: ssl_conf always set to NULL on crt-list parsing
+    - MINOR: ssl: don't alloc ssl_conf if no option found
+    - BUG/MINOR: connection: always send address-less LOCAL PROXY connections
+    - BUG/MINOR: peers: Incomplete peers sections should be validated.
+    - MINOR: init: report in "haproxy -c" whether there were warnings or not
+    - MINOR: init: add -dW and "zero-warning" to reject configs with warnings
+    - MINOR: init: report the compiler version in haproxy -vv
+    - CLEANUP: assorted typo fixes in the code and comments
+    - MINOR: init: report the haproxy version and executable path once on errors
+    - DOC: Make how "option redispatch" works more explicit
+    - BUILD: Makefile: add linux-musl to TARGET
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CLEANUP: http: Fixed small typo in parse_http_return
+    - DOC: hashing: update link to hashing functions
+
 2020/03/23 : 2.2-dev5
     - CLEANUP: ssl: is_default is a bit in ckch_inst
     - BUG/MINOR: ssl/cli: sni_ctx' mustn't always be used as filters
