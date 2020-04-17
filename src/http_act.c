@@ -2387,8 +2387,8 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			ctype = NULL;
 		}
 		if (global.tune.bufsize - objlen < global.tune.maxrewrite) {
-			ha_warning("parsing [%s:%d] : 'http-%s return' : the payload runs ober the buffer space reserved to headers rewritting."
-				   " It may lead to internal errors if strict rewritting mode is enabled.\n",
+			ha_warning("parsing [%s:%d] : 'http-%s return' : the payload runs over the buffer space reserved to headers rewriting."
+				   " It may lead to internal errors if strict rewriting mode is enabled.\n",
 				   px->conf.args.file, px->conf.args.line,
 				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
 		}
