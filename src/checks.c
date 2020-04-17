@@ -85,6 +85,10 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 						   struct list *rules, unsigned int proto,
 						   const char *file, int line, char **errmsg);
 
+static struct tcpcheck_ruleset *tcpcheck_ruleset_lookup(const char *name);
+static struct tcpcheck_ruleset *tcpcheck_ruleset_create(const char *name);
+static void tcpcheck_ruleset_release(struct tcpcheck_ruleset *rs);
+
 /* Global list to share all tcp-checks */
 struct list tcpchecks_list = LIST_HEAD_INIT(tcpchecks_list);
 
@@ -637,7 +641,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	chk = get_trash_chunk();
 
 	if (check->type == PR_O2_TCPCHK_CHK &&
-	    !(check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK)) {
+	    (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		step = tcpcheck_get_step_id(check, NULL);
 		if (!step)
 			chunk_printf(chk, " at initial connection step of tcp-check");
@@ -2155,7 +2159,8 @@ static void tcpcheck_onerror_message(struct buffer *msg, struct check *check, st
 		goto comment;
 	}
 
-       if (check->type == PR_O2_TCPCHK_CHK && (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK))
+       if (check->type == PR_O2_TCPCHK_CHK &&
+	   (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK)
 	       goto comment;
 
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
@@ -2229,7 +2234,8 @@ static void tcpcheck_onsuccess_message(struct buffer *msg, struct check *check, 
 	if (!LIST_ISEMPTY(&rule->expect.onsuccess_fmt))
 		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
 						&rule->expect.onsuccess_fmt);
-	else if (check->type == PR_O2_TCPCHK_CHK && !(check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK))
+	else if (check->type == PR_O2_TCPCHK_CHK &&
+		 (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK)
 		chunk_strcat(msg, "(tcp-check)");
 
 	if (rule->expect.status_expr) {
@@ -2754,7 +2760,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	status = SF_ERR_INTERNAL;
 	if (proto && proto->connect) {
 		struct tcpcheck_rule *next;
-		int flags = CONNECT_HAS_DATA;
+		int flags = 0;
+
+		if (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK)
+			flags |= CONNECT_HAS_DATA;
 
 		next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
 		if (!next || next->action != TCPCHK_ACT_EXPECT)
@@ -3988,7 +3997,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	if ((alert = pool_alloc(pool_head_email_alert)) == NULL)
 		goto error;
 	LIST_INIT(&alert->list);
-	alert->rules.flags = 0;
+	alert->rules.flags = TCPCHK_RULES_TCP_CHK;
 	alert->rules.list = calloc(1, sizeof(*alert->rules.list));
 	if (!alert->rules.list)
 		goto error;
@@ -4343,6 +4352,30 @@ static int init_srv_check(struct server *srv)
 	}
 
   init:
+	if (!(srv->proxy->options2 & PR_O2_CHK_ANY)) {
+		struct tcpcheck_ruleset *rs = NULL;
+		struct tcpcheck_rules *rules = &srv->proxy->tcpcheck_rules;
+		//char *errmsg = NULL;
+
+		srv->proxy->options2 &= ~PR_O2_CHK_ANY;
+		srv->proxy->options2 |= PR_O2_TCPCHK_CHK;
+
+		rs = tcpcheck_ruleset_lookup("*tcp-check");
+		if (!rs) {
+			rs = tcpcheck_ruleset_create("*tcp-check");
+			if (rs == NULL) {
+				ha_alert("config: %s '%s': out of memory.\n",
+					 proxy_type_str(srv->proxy), srv->proxy->id);
+				ret |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+
+		free_tcpcheck_vars(&rules->preset_vars);
+		rules->list = &rs->rules;
+		rules->flags = 0;
+	}
+
 	err = init_check(&srv->check, srv->proxy->options2 & PR_O2_CHK_ANY);
 	if (err) {
 		ha_alert("config: %s '%s': unable to init check for server '%s' (%s).\n",
@@ -5638,7 +5671,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	if ((curpx->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-	    !(curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK)) {
+	    (curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		/* Use this ruleset if the proxy already has tcp-check enabled */
 		curpx->tcpcheck_rules.list = &rs->rules;
 		curpx->tcpcheck_rules.flags &= ~TCPCHK_RULES_UNUSED_TCP_RS;
@@ -5823,7 +5856,7 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, str
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	if (!(rules->flags & TCPCHK_RULES_PROTO_CHK)) {
+	if ((rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		/* If a tcp-check rulesset is already set, do nothing */
 		if (rules->list)
 			goto out;
@@ -5858,10 +5891,8 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, str
 
   ruleset_found:
 	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
-
 	rules->list = &rs->rules;
+	rules->flags |= TCPCHK_RULES_TCP_CHK;
 
   out:
 	return err_code;
