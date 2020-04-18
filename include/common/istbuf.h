@@ -139,6 +139,19 @@ static inline size_t b_putist(struct buffer *b, const struct ist ist)
 	return b_putblk(b, ist.ptr, ist.len);
 }
 
+/* builds and return a <struct buffer> based on <ist>
+ */
+static inline struct buffer ist2buf(const struct ist ist)
+{
+	struct buffer buf;
+
+	buf.area = ist.ptr;
+	buf.size = ist.len;
+	buf.data = ist.len;
+	buf.head = 0;
+	return buf;
+}
+
 #endif /* _COMMON_ISTBUF_H */
 
 /*
