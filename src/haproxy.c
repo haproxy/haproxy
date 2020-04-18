@@ -46,6 +46,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <sys/resource.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <syslog.h>
@@ -541,6 +542,8 @@ void hap_register_per_thread_free(int (*fct)())
 
 static void display_version()
 {
+	struct utsname utsname;
+
 	printf("HA-Proxy version %s %s - https://haproxy.org/\n"
 	       PRODUCT_STATUS "\n", haproxy_version, haproxy_date);
 
@@ -562,6 +565,10 @@ static void display_version()
 			printf("Known bugs: https://github.com/haproxy/haproxy/issues?q=is:issue+is:open\n");
 		else
 			printf("Known bugs: " PRODUCT_URL_BUGS "\n", base_version);
+	}
+
+	if (uname(&utsname) == 0) {
+		printf("Running on: %s %s %s %s\n", utsname.sysname, utsname.release, utsname.version, utsname.machine);
 	}
 }
 
