@@ -73,9 +73,7 @@
 
 static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);
 static int tcpcheck_main(struct check *);
-static void __event_srv_chk_w(struct conn_stream *cs);
 static int wake_srv_chk(struct conn_stream *cs);
-static void __event_srv_chk_r(struct conn_stream *cs);
 
 static int srv_check_healthcheck_port(struct check *chk);
 static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct proxy *px,
@@ -782,189 +780,42 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
 			HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 		else
 			HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
-		__event_srv_chk_r(cs);
+
+		if (unlikely(check->result == CHK_RES_FAILED)) {
+			/* collect possible new errors */
+			if (cs->conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
+				chk_report_conn_err(check, 0, 0);
+
+			/* Reset the check buffer... */
+			b_reset(&check->bi);
+
+			/* Close the connection... We still attempt to nicely close if,
+			 * for instance, SSL needs to send a "close notify." Later, we perform
+			 * a hard close and reset the connection if some data are pending,
+			 * otherwise we end up with many TIME_WAITs and eat all the source port
+			 * range quickly.  To avoid sending RSTs all the time, we first try to
+			 * drain pending data.
+			 */
+			/* Call cs_shutr() first, to add the CO_FL_SOCK_RD_SH flag on the
+			 * connection, to make sure cs_shutw() will not lead to a shutdown()
+			 * that would provoke TIME_WAITs.
+			 */
+			cs_shutr(cs, CS_SHR_DRAIN);
+			cs_shutw(cs, CS_SHW_NORMAL);
+
+			/* OK, let's not stay here forever */
+			if (check->result == CHK_RES_FAILED)
+				cs->conn->flags |= CO_FL_ERROR;
+
+			task_wakeup(t, TASK_WOKEN_IO);
+		}
+
 		if (check->server)
 			HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 		else
 			HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	}
 	return NULL;
-}
-
-/* same as above but protected by the server lock.
- *
- * Please do NOT place any return statement in this function and only leave
- * via the out label. NOTE THAT THIS FUNCTION DOESN'T LOCK, YOU PROBABLY WANT
- * TO USE event_srv_chk_w() instead.
- */
-static void __event_srv_chk_w(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-	struct check *check = cs->data;
-	struct server *s = check->server;
-	struct task *t = check->task;
-
-	if (unlikely(check->result == CHK_RES_FAILED))
-		goto out_wakeup;
-
-	if (retrieve_errno_from_socket(conn)) {
-		chk_report_conn_err(check, errno, 0);
-		goto out_wakeup;
-	}
-
-	/* here, we know that the connection is established. That's enough for
-	 * a pure TCP check.
-	 */
-	if (!check->type)
-		goto out_wakeup;
-
-	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK)
-		goto out;
-
-	if (b_data(&check->bo)) {
-		cs->conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
-		b_realign_if_empty(&check->bo);
-		if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) {
-			chk_report_conn_err(check, errno, 0);
-			goto out_wakeup;
-		}
-		if (b_data(&check->bo)) {
-			conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-			goto out;
-		}
-	}
-
-	/* full request sent, we allow up to <timeout.check> if nonzero for a response */
-	if (s->proxy->timeout.check) {
-		t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
-		task_queue(t);
-	}
-	goto out;
-
- out_wakeup:
-	task_wakeup(t, TASK_WOKEN_IO);
- out:
-	return;
-}
-
-/*
- * This function is used only for server health-checks. It handles the server's
- * reply to an HTTP request, SSL HELLO or MySQL client Auth. It calls
- * set_server_check_status() to update check->status, check->duration
- * and check->result.
-
- * The set_server_check_status function is called with HCHK_STATUS_L7OKD if
- * an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP server
- * returns 2xx, HCHK_STATUS_L6OK if an SSL server returns at least 5 bytes in
- * response to an SSL HELLO (the principle is that this is enough to
- * distinguish between an SSL server and a pure TCP relay). All other cases will
- * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
- * etc.
- *
- * Please do NOT place any return statement in this function and only leave
- * via the out label.
- *
- * This must be called with the server lock held.
- */
-static void __event_srv_chk_r(struct conn_stream *cs)
-{
-	struct connection *conn = cs->conn;
-	struct check *check = cs->data;
-	struct task *t = check->task;
-	int done;
-
-	if (unlikely(check->result == CHK_RES_FAILED))
-		goto out_wakeup;
-
-	/* wake() will take care of calling tcpcheck_main() */
-	if (check->type == PR_O2_TCPCHK_CHK)
-		goto out;
-
-	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
-	 * but the connection was closed on the remote end. Fortunately, recv still
-	 * works correctly and we don't need to do the getsockopt() on linux.
-	 */
-
-	/* Set buffer to point to the end of the data already read, and check
-	 * that there is free space remaining. If the buffer is full, proceed
-	 * with running the checks without attempting another socket read.
-	 */
-
-	done = 0;
-
-	cs->conn->mux->rcv_buf(cs, &check->bi, b_size(&check->bi), 0);
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH) || cs->flags & CS_FL_ERROR) {
-		done = 1;
-		if ((conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR) && !b_data(&check->bi)) {
-			/* Report network errors only if we got no other data. Otherwise
-			 * we'll let the upper layers decide whether the response is OK
-			 * or not. It is very common that an RST sent by the server is
-			 * reported as an error just after the last data chunk.
-			 */
-			chk_report_conn_err(check, errno, 0);
-			goto out_wakeup;
-		}
-	}
-
-	/* the rest of the code below expects the connection to be ready! */
-	if (conn->flags & CO_FL_WAIT_XPRT && !done)
-		goto wait_more_data;
-
-	/* Intermediate or complete response received.
-	 * Terminate string in b_head(&check->bi) buffer.
-	 */
-	if (b_data(&check->bi) < b_size(&check->bi))
-		b_head(&check->bi)[b_data(&check->bi)] = '\0';
-	else {
-		b_head(&check->bi)[b_data(&check->bi) - 1] = '\0';
-		done = 1; /* buffer full, don't wait for more data */
-	}
-
-	/* Run the checks... */
-
-	/* good connection is enough for pure TCP check */
-	if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-		if (check->use_ssl == 1)
-			set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
-		else
-			set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
-	}
-
- out_wakeup:
-	/* collect possible new errors */
-	if (conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-		chk_report_conn_err(check, 0, 0);
-
-	/* Reset the check buffer... */
-	*b_head(&check->bi) = '\0';
-	b_reset(&check->bi);
-
-	/* Close the connection... We still attempt to nicely close if,
-	 * for instance, SSL needs to send a "close notify." Later, we perform
-	 * a hard close and reset the connection if some data are pending,
-	 * otherwise we end up with many TIME_WAITs and eat all the source port
-	 * range quickly.  To avoid sending RSTs all the time, we first try to
-	 * drain pending data.
-	 */
-	/* Call cs_shutr() first, to add the CO_FL_SOCK_RD_SH flag on the
-	 * connection, to make sure cs_shutw() will not lead to a shutdown()
-	 * that would provoke TIME_WAITs.
-	 */
-	cs_shutr(cs, CS_SHR_DRAIN);
-	cs_shutw(cs, CS_SHW_NORMAL);
-
-	/* OK, let's not stay here forever */
-	if (check->result == CHK_RES_FAILED)
-		conn->flags |= CO_FL_ERROR;
-
-	task_wakeup(t, TASK_WOKEN_IO);
-out:
-	return;
-
- wait_more_data:
-	cs->conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
-        goto out;
 }
 
 /*
@@ -986,16 +837,10 @@ static int wake_srv_chk(struct conn_stream *cs)
 		HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
 	/* we may have to make progress on the TCP checks */
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		ret = tcpcheck_main(check);
-		cs = check->cs;
-		conn = cs->conn;
-	} else {
-		if (!(check->wait_list.events & SUB_RETRY_SEND))
-			__event_srv_chk_w(cs);
-		if (!(check->wait_list.events & SUB_RETRY_RECV))
-			__event_srv_chk_r(cs);
-	}
+	ret = tcpcheck_main(check);
+
+	cs = check->cs;
+	conn = cs->conn;
 
 	if (unlikely(conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
@@ -1005,13 +850,6 @@ static int wake_srv_chk(struct conn_stream *cs)
 		 * we expect errno to still be valid.
 		 */
 		chk_report_conn_err(check, errno, 0);
-		task_wakeup(check->task, TASK_WOKEN_IO);
-	}
-	else if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-		/* we may get here if only a connection probe was required : we
-		 * don't have any data to send nor anything expected in response,
-		 * so the completion of the connection establishment is enough.
-		 */
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
@@ -1127,123 +965,6 @@ static struct tcpcheck_rule *get_next_tcpcheck_rule(struct tcpcheck_rules *rules
 			return r;
 	}
 	return NULL;
-}
-
-/*
- * establish a server health-check that makes use of a connection.
- *
- * It can return one of :
- *  - SF_ERR_NONE if everything's OK and tcpcheck_main() was not called
- *  - SF_ERR_UP if if everything's OK and tcpcheck_main() was called
- *  - SF_ERR_SRVTO if there are no more servers
- *  - SF_ERR_SRVCL if the connection was refused by the server
- *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SF_ERR_INTERNAL for any other purely internal errors
- *  - SF_ERR_CHK_PORT if no port could be found to run a health check on an AF_INET* socket
- * Additionally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
- * Note that we try to prevent the network stack from sending the ACK during the
- * connect() when a pure TCP check is used (without PROXY protocol).
- */
-static int connect_conn_chk(struct task *t)
-{
-	struct check *check = t->context;
-	struct server *s = check->server;
-	struct conn_stream *cs = check->cs;
-	struct connection *conn = cs_conn(cs);
-	struct protocol *proto;
-	int ret;
-	int connflags = 0;
-
-	/* we cannot have a connection here */
-	if (conn)
-		return SF_ERR_INTERNAL;
-
-	/* for tcp-checks, the initial connection setup is handled separately as
-	 * it may be sent to a specific port and not to the server's.
-	 */
-	if (check->type == PR_O2_TCPCHK_CHK) {
-		/* tcpcheck initialisation */
-		check->current_step = NULL;
-		tcpcheck_main(check);
-		return SF_ERR_UP;
-	}
-
-	/* prepare a new connection */
-	cs = check->cs = cs_new(NULL);
-	if (!check->cs)
-		return SF_ERR_RESOURCE;
-	conn = cs->conn;
-	/* Maybe there were an older connection we were waiting on */
-	check->wait_list.events = 0;
-	tasklet_set_tid(check->wait_list.tasklet, tid);
-
-
-	if (!sockaddr_alloc(&conn->dst))
-		return SF_ERR_RESOURCE;
-
-	if (is_addr(&check->addr)) {
-		/* we'll connect to the check addr specified on the server */
-		*conn->dst = check->addr;
-	}
-	else {
-		/* we'll connect to the addr on the server */
-		*conn->dst = s->addr;
-	}
-
-	if (s->check.via_socks4 &&  (s->flags & SRV_F_SOCKS4_PROXY)) {
-		conn->send_proxy_ofs = 1;
-		conn->flags |= CO_FL_SOCKS4;
-	}
-
-	proto = protocol_by_family(conn->dst->ss_family);
-	conn->target = &s->obj_type;
-
-	if ((conn->dst->ss_family == AF_INET) || (conn->dst->ss_family == AF_INET6)) {
-		int i = 0;
-
-		i = srv_check_healthcheck_port(check);
-		if (i == 0)
-			return SF_ERR_CHK_PORT;
-
-		set_host_port(conn->dst, i);
-	}
-
-	/* no client address */
-
-	conn_prepare(conn, proto, check->xprt);
-	if (conn_install_mux(conn, &mux_pt_ops, cs, s->proxy, NULL) < 0)
-		return SF_ERR_RESOURCE;
-	cs_attach(cs, check, &check_conn_cb);
-
-	/* only plain tcp check supports quick ACK */
-	connflags |= (check->type ? CONNECT_HAS_DATA : CONNECT_DELACK_ALWAYS);
-
-	ret = SF_ERR_INTERNAL;
-	if (proto && proto->connect)
-		ret = proto->connect(conn, connflags);
-
-
-#ifdef USE_OPENSSL
-	if (ret == SF_ERR_NONE) {
-		if (s->check.sni)
-			ssl_sock_set_servername(conn, s->check.sni);
-		if (s->check.alpn_str)
-			ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str,
-			    s->check.alpn_len);
-	}
-#endif
-	if (s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
-		conn->send_proxy_ofs = 1;
-		conn->flags |= CO_FL_SEND_PROXY;
-	}
-	if (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4) &&
-	    conn_ctrl_ready(conn)) {
-		if (xprt_add_hs(conn) < 0)
-			ret = SF_ERR_RESOURCE;
-	}
-
-	return ret;
 }
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
@@ -1772,7 +1493,6 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	int rv;
-	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
 	if (check->server)
@@ -1798,55 +1518,16 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		b_reset(&check->bo);
 
 		task_set_affinity(t, tid_bit);
-		ret = connect_conn_chk(t);
 		cs = check->cs;
 		conn = cs_conn(cs);
-
-		switch (ret) {
-		case SF_ERR_UP:
+		if (!conn) {
+			check->current_step = NULL;
+			tcpcheck_main(check);
 			goto out_unlock;
-
-		case SF_ERR_NONE:
-			/* we allow up to min(inter, timeout.connect) for a connection
-			 * to establish but only when timeout.check is set
-			 * as it may be to short for a full check otherwise
-			 */
-			t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
-			if (proxy->timeout.check && proxy->timeout.connect) {
-				int t_con = tick_add(now_ms, proxy->timeout.connect);
-				t->expire = tick_first(t->expire, t_con);
-			}
-
-			if (check->type) {
-				/* send the request if we have one. We avoid receiving
-				 * if not connected, unless we didn't subscribe for
-				 * sending since otherwise we won't be woken up.
-				 */
-				__event_srv_chk_w(cs);
-				if (!(conn->flags & CO_FL_WAIT_XPRT) ||
-				    !(check->wait_list.events & SUB_RETRY_SEND))
-					__event_srv_chk_r(cs);
-			}
-
-			goto reschedule;
-
-		case SF_ERR_SRVTO: /* ETIMEDOUT */
-		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-			if (conn)
-				conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(check, errno, 0);
-			break;
-		/* should share same code than cases below */
-		case SF_ERR_CHK_PORT:
-			check->state |= CHK_ST_PORT_MISS;
-		case SF_ERR_PRXCOND:
-		case SF_ERR_RESOURCE:
-		case SF_ERR_INTERNAL:
-			if (conn)
-				conn->flags |= CO_FL_ERROR;
-			chk_report_conn_err(check, conn ? 0 : ENOMEM, 0);
-			break;
 		}
+
+		conn->flags |= CO_FL_ERROR;
+		chk_report_conn_err(check, 0, 0);
 
 		/* here, we have seen a synchronous error, no fd was allocated */
 		task_set_affinity(t, MAX_THREADS_MASK);
@@ -1888,14 +1569,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		 * which can happen on connect timeout or error.
 		 */
 		if (check->result == CHK_RES_UNKNOWN) {
-			/* good connection is enough for pure TCP check */
-			if (!(conn->flags & CO_FL_WAIT_XPRT) && !check->type) {
-				if (check->use_ssl == 1)
-					set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
-				else
-					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
-			}
-			else if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
+			if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
 				chk_report_conn_err(check, 0, expired);
 			}
 			else
@@ -1923,9 +1597,9 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		if (cs) {
 			if (check->wait_list.events)
 				cs->conn->xprt->unsubscribe(cs->conn,
-				    cs->conn->xprt_ctx,
-				    check->wait_list.events,
-				    &check->wait_list);
+							    cs->conn->xprt_ctx,
+							    check->wait_list.events,
+							    &check->wait_list);
 			/* We may have been scheduled to run, and the
 			 * I/O handler expects to have a cs, so remove
 			 * the tasklet
@@ -2867,21 +2541,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		break;
 	case SF_ERR_SRVTO: /* ETIMEDOUT */
 	case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-		chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
-			     tcpcheck_get_step_id(check, rule), strerror(errno));
-		if (rule->comment)
-			chunk_appendf(&trash, " comment: '%s'", rule->comment);
-		set_server_check_status(check, HCHK_STATUS_L4CON, trash.area);
-		ret = TCPCHK_EVAL_STOP;
-		goto out;
 	case SF_ERR_PRXCOND:
 	case SF_ERR_RESOURCE:
 	case SF_ERR_INTERNAL:
-		chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
-			     tcpcheck_get_step_id(check, rule));
-		if (rule->comment)
-			chunk_appendf(&trash, " comment: '%s'", rule->comment);
-		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+		chk_report_conn_err(check, errno, 0);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
 	}
