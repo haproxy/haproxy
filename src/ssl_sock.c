@@ -9455,39 +9455,45 @@ static int bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct bin
 	return ssl_bind_parse_npn(args, cur_arg, px, &conf->ssl_conf, err);
 }
 
-/* parse the "alpn" bind keyword */
-static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+
+/* Parses a alpn string and converts it to the right format for the SSL api */
+int ssl_sock_parse_alpn(char *arg, char **alpn_str, int *alpn_len, char **err)
 {
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	char *p1, *p2;
+	char *p1, *p2, *alpn = NULL;
+	int len, ret = 0;
 
-	if (!*args[cur_arg + 1]) {
-		memprintf(err, "'%s' : missing the comma-delimited ALPN protocol suite", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
+	*alpn_str = NULL;
+	*alpn_len = 0;
+
+	if (!*arg) {
+		memprintf(err, "missing the comma-delimited ALPN protocol suite");
+		goto error;
 	}
-
-	free(conf->alpn_str);
 
 	/* the ALPN string is built as a suite of (<len> <name>)*,
 	 * so we reuse each comma to store the next <len> and need
 	 * one more for the end of the string.
 	 */
-	conf->alpn_len = strlen(args[cur_arg + 1]) + 1;
-	conf->alpn_str = calloc(1, conf->alpn_len + 1);
-	memcpy(conf->alpn_str + 1, args[cur_arg + 1], conf->alpn_len);
+	len  = strlen(arg) + 1;
+	alpn = calloc(1, len+1);
+	if (!alpn) {
+		memprintf(err, "'%s' : out of memory", arg);
+		goto error;
+	}
+	memcpy(alpn+1, arg, len);
 
 	/* replace commas with the name length */
-	p1 = conf->alpn_str;
+	p1 = alpn;
 	p2 = p1 + 1;
 	while (1) {
-		p2 = memchr(p1 + 1, ',', conf->alpn_str + conf->alpn_len - (p1 + 1));
+		p2 = memchr(p1 + 1, ',', alpn + len - (p1 + 1));
 		if (!p2)
 			p2 = p1 + 1 + strlen(p1 + 1);
 
 		if (p2 - (p1 + 1) > 255) {
 			*p2 = '\0';
-			memprintf(err, "'%s' : ALPN protocol name too long : '%s'", args[cur_arg], p1 + 1);
-			return ERR_ALERT | ERR_FATAL;
+			memprintf(err, "ALPN protocol name too long : '%s'", p1 + 1);
+			goto error;
 		}
 
 		*p1 = p2 - (p1 + 1);
@@ -9498,7 +9504,31 @@ static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struc
 
 		*(p2++) = '\0';
 	}
-	return 0;
+
+	*alpn_str = alpn;
+	*alpn_len = len;
+
+  out:
+	return ret;
+
+  error:
+	free(alpn);
+	ret = ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+/* parse the "alpn" bind keyword */
+static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+{
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	int ret;
+
+	free(conf->alpn_str);
+
+	ret = ssl_sock_parse_alpn(args[cur_arg + 1], &conf->alpn_str, &conf->alpn_len, err);
+	if (ret)
+		memprintf(err, "'%s' : %s", args[cur_arg], *err);
+	return ret;
 #else
 	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
@@ -9769,9 +9799,9 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	char *p1, *p2;
 	char **alpn_str;
 	int *alpn_len;
+	int ret;
 
 	if (*args[*cur_arg] == 'c') {
 		alpn_str = &newsrv->check.alpn_str;
@@ -9781,44 +9811,12 @@ static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct se
 		alpn_len = &newsrv->ssl_ctx.alpn_len;
 
 	}
-	if (!*args[*cur_arg + 1]) {
-		memprintf(err, "'%s' : missing the comma-delimited ALPN protocol suite", args[*cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	free(*alpn_str);
-
-	/* the ALPN string is built as a suite of (<len> <name>)*,
-	 * so we reuse each comma to store the next <len> and need
-	 * one more for the end of the string.
-	 */
-	*alpn_len = strlen(args[*cur_arg + 1]) + 1;
-	*alpn_str = calloc(1, *alpn_len + 1);
-	memcpy(*alpn_str + 1, args[*cur_arg + 1], *alpn_len);
-
-	/* replace commas with the name length */
-	p1 = *alpn_str;
-	p2 = p1 + 1;
-	while (1) {
-		p2 = memchr(p1 + 1, ',', *alpn_str + *alpn_len - (p1 + 1));
-		if (!p2)
-			p2 = p1 + 1 + strlen(p1 + 1);
-
-		if (p2 - (p1 + 1) > 255) {
-			*p2 = '\0';
-			memprintf(err, "'%s' : ALPN protocol name too long : '%s'", args[*cur_arg], p1 + 1);
-			return ERR_ALERT | ERR_FATAL;
-		}
-
-		*p1 = p2 - (p1 + 1);
-		p1 = p2;
-
-		if (!*p2)
-			break;
-
-		*(p2++) = '\0';
-	}
-	return 0;
+	ret = ssl_sock_parse_alpn(args[*cur_arg + 1], alpn_str, alpn_len, err);
+	if (ret)
+		memprintf(err, "'%s' : %s", args[*cur_arg], *err);
+	return ret;
 #else
 	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;

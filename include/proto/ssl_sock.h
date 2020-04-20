@@ -57,6 +57,7 @@ const char *ssl_sock_get_sni(struct connection *conn);
 const char *ssl_sock_get_cert_sig(struct connection *conn);
 const char *ssl_sock_get_cipher_name(struct connection *conn);
 const char *ssl_sock_get_proto_version(struct connection *conn);
+int ssl_sock_parse_alpn(char *arg, char **alpn_str, int *alpn_len, char **err);
 void ssl_sock_set_alpn(struct connection *conn, const unsigned char *, int);
 void ssl_sock_set_servername(struct connection *conn, const char *hostname);
 
