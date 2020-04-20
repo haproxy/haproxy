@@ -32,8 +32,6 @@ const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 void __health_adjust(struct server *s, short status);
 
-extern struct data_cb check_conn_cb;
-
 /* Use this one only. This inline version only ensures that we don't
  * call the function when the observe mode is disabled.
  */

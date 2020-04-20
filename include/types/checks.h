@@ -81,35 +81,6 @@ enum healthcheck_status {
 	HCHK_STATUS_SIZE
 };
 
-/* environment variables memory requirement for different types of data */
-#define EXTCHK_SIZE_EVAL_INIT 0                  /* size determined during the init phase,
-                                                  * such environment variables are not updatable. */
-#define EXTCHK_SIZE_ULONG     20                 /* max string length for an unsigned long value */
-#define EXTCHK_SIZE_UINT      11                 /* max string length for an unsigned int value */
-#define EXTCHK_SIZE_ADDR      INET6_ADDRSTRLEN+1 /* max string length for an address */
-
-/* external checks environment variables */
-enum {
-	EXTCHK_PATH = 0,
-
-	/* Proxy specific environment variables */
-	EXTCHK_HAPROXY_PROXY_NAME,	/* the backend name */
-	EXTCHK_HAPROXY_PROXY_ID,	/* the backend id */
-	EXTCHK_HAPROXY_PROXY_ADDR,	/* the first bind address if available (or empty) */
-	EXTCHK_HAPROXY_PROXY_PORT,	/* the first bind port if available (or empty) */
-
-	/* Server specific environment variables */
-	EXTCHK_HAPROXY_SERVER_NAME,	/* the server name */
-	EXTCHK_HAPROXY_SERVER_ID,	/* the server id */
-	EXTCHK_HAPROXY_SERVER_ADDR,	/* the server address */
-	EXTCHK_HAPROXY_SERVER_PORT,	/* the server port if available (or empty) */
-	EXTCHK_HAPROXY_SERVER_MAXCONN,	/* the server max connections */
-	EXTCHK_HAPROXY_SERVER_CURCONN,	/* the current number of connections on the server */
-
-	EXTCHK_SIZE
-};
-
-
 /* health status for response tracking */
 enum {
 	HANA_STATUS_UNKNOWN	= 0,
@@ -193,22 +164,6 @@ struct check {
 	int alpn_len;                           /* ALPN string length */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
 	int via_socks4;                         /* check the connection via socks4 proxy */
-};
-
-struct check_status {
-	short result;			/* one of SRV_CHK_* */
-	char *info;			/* human readable short info */
-	char *desc;			/* long description */
-};
-
-struct extcheck_env {
-	char *name;	/* environment variable name */
-	int vmaxlen;	/* value maximum length, used to determine the required memory allocation */
-};
-
-struct analyze_status {
-	char *desc;				/* description */
-	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
 #define TCPCHK_OPT_NONE            0x0000  /* no options specified, default */
