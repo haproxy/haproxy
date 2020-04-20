@@ -20,7 +20,7 @@ syslog S2 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded.+reason: Layer7 check passed.+code: 200.+info: \"OK\".+check duration: [[:digit:]]+ms.+status: 1/1 UP."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded.+reason: Layer7 check passed.+code: 200.+.+check duration: [[:digit:]]+ms.+status: 1/1 UP."
     barrier b sync
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 failed.+reason: Layer7 timeout.+check duration: [[:digit:]]+ms.+status: 0/1 DOWN"

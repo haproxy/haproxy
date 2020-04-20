@@ -29,7 +29,6 @@ server s3 {
     expect req.http.hdr == <undef>
     expect req.http.host == <undef>
     expect req.http.x-test == <undef>
-    expect req.http.content-length == <undef>
     expect req.bodylen == 0
     txresp
 } -start
@@ -50,9 +49,9 @@ server s4 {
 
 server s5 {
     rxreq
-    expect req.method == GET
-    expect req.url == /status
-    expect req.proto == HTTP/1.1
+    expect req.method == OPTIONS
+    expect req.url == /
+    expect req.proto == HTTP/1.0
     expect req.http.hdr == <undef>
     expect req.http.host == "other-www-host"
     expect req.http.x-test == <undef>
