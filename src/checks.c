@@ -79,8 +79,8 @@ struct data_cb check_conn_cb = {
 	.name = "CHCK",
 };
 
-/* Global list to share all tcp-checks */
-struct list tcpchecks_list = LIST_HEAD_INIT(tcpchecks_list);
+/* Global tree to share all tcp-checks */
+struct eb_root shared_tcpchecks = EB_ROOT;
 
 
 DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
@@ -899,10 +899,12 @@ int dup_tcpcheck_vars(struct list *dst, struct list *src)
 static struct tcpcheck_ruleset *find_tcpcheck_ruleset(const char *name)
 {
 	struct tcpcheck_ruleset *rs;
+	struct ebpt_node *node;
 
-	list_for_each_entry(rs, &tcpchecks_list, list) {
-		if (strcmp(rs->name, name) == 0)
-			return rs;
+	node = ebis_lookup_len(&shared_tcpchecks, name, strlen(name));
+	if (node) {
+		rs = container_of(node, typeof(*rs), node);
+		return rs;
 	}
 	return NULL;
 }
@@ -916,15 +918,14 @@ static struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name)
 	if (rs == NULL)
 		return NULL;
 
-	rs->name = strdup(name);
-	if (rs->name == NULL) {
+	rs->node.key = strdup(name);
+	if (rs->node.key == NULL) {
 		free(rs);
 		return NULL;
 	}
 
-	LIST_INIT(&rs->list);
 	LIST_INIT(&rs->rules);
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 	return rs;
 }
 
@@ -935,12 +936,12 @@ static void free_tcpcheck_ruleset(struct tcpcheck_ruleset *rs)
 	if (!rs)
 		return;
 
-	LIST_DEL(&rs->list);
+	ebpt_delete(&rs->node);
+	free(rs->node.key);
 	list_for_each_entry_safe(r, rb, &rs->rules, list) {
 		LIST_DEL(&r->list);
 		free_tcpcheck(r, 0);
 	}
-	free(rs->name);
 	free(rs);
 }
 
@@ -5044,17 +5045,22 @@ static void deinit_srv_agent_check(struct server *srv)
 
 static void deinit_tcpchecks()
 {
-	struct tcpcheck_ruleset *rs, *rsb;
+	struct tcpcheck_ruleset *rs;
 	struct tcpcheck_rule *r, *rb;
+	struct ebpt_node *node, *next;
 
-	list_for_each_entry_safe(rs, rsb, &tcpchecks_list, list) {
-		LIST_DEL(&rs->list);
+	node = ebpt_first(&shared_tcpchecks);
+	while (node) {
+		next = ebpt_next(node);
+		ebpt_delete(node);
+		free(node->key);
+		rs = container_of(node, typeof(*rs), node);
 		list_for_each_entry_safe(r, rb, &rs->rules, list) {
 			LIST_DEL(&r->list);
 			free_tcpcheck(r, 0);
 		}
-		free(rs->name);
 		free(rs);
+		node = next;
 	}
 }
 
@@ -5830,7 +5836,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -5931,7 +5937,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6069,7 +6075,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk->index = 4;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6216,7 +6222,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	chk->index = 3;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6442,7 +6448,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 		LIST_ADDQ(&rs->rules, &chk->list);
 	}
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6527,7 +6533,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	chk->index = 2;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6604,7 +6610,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6953,7 +6959,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	LIST_ADDQ(&tcpchecks_list, &rs->list);
+	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;

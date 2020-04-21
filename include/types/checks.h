@@ -329,9 +329,8 @@ struct tcpcheck_rules {
 
 /* A list of tcp-check rules with a name */
 struct tcpcheck_ruleset {
-	char *name;         /* the ruleset name */
-	struct list rules;  /* the list of tcpcheck_rule */
-	struct list list;   /* used to chain rulesets */
+	struct list rules;     /* the list of tcpcheck_rule */
+	struct ebpt_node node; /* node in the shared tree */
 };
 
 
