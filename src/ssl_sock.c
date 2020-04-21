@@ -11445,6 +11445,12 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
+	/* this is supposed to be a directory (EB_ROOT_UNIQUE), so no ssl_conf are allowed */
+	if ((entry->ssl_conf || entry->filters) && eb_gettag(crtlist->entries.b[EB_RGHT])) {
+		memprintf(&err, "this is a directory, SSL configuration and filters are not allowed");
+		goto error;
+	}
+
 	LIST_ADDQ(&crtlist->ord_entries, &entry->by_crtlist);
 	entry->crtlist = crtlist;
 	LIST_ADDQ(&store->crtlist_entry, &entry->by_ckch_store);
