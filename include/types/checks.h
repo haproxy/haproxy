@@ -191,7 +191,7 @@ struct check {
 	char *sni;				/* Server name */
 	char *alpn_str;                         /* ALPN to use for checks */
 	int alpn_len;                           /* ALPN string length */
-
+	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
 	int via_socks4;                         /* check the connection via socks4 proxy */
 };
 
@@ -223,6 +223,7 @@ struct tcpcheck_connect {
 	char *sni;                     /* server name to use for SSL connections */
 	char *alpn;                    /* ALPN to use for the SSL connection */
 	int alpn_len;                  /* ALPN string length */
+	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
 	uint16_t options;              /* options when setting up a new connection */
 	uint16_t port;                 /* port to connect to */
 	struct sample_expr *port_expr; /* sample expr to determine the port, may be NULL */
