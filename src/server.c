@@ -1758,11 +1758,13 @@ struct server *new_server(struct proxy *proxy)
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
 
+	srv->check.obj_type = OBJ_TYPE_CHECK;
 	srv->check.status = HCHK_STATUS_INI;
 	srv->check.server = srv;
 	srv->check.proxy = proxy;
 	srv->check.tcpcheck_rules = &proxy->tcpcheck_rules;
 
+	srv->agent.obj_type = OBJ_TYPE_CHECK;
 	srv->agent.status = HCHK_STATUS_INI;
 	srv->agent.server = srv;
 	srv->agent.proxy = proxy;

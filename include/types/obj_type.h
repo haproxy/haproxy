@@ -42,6 +42,7 @@ enum obj_type {
 	OBJ_TYPE_SRVRQ,        /* object is a struct dns_srvrq */
 	OBJ_TYPE_CS,           /* object is a struct conn_stream */
 	OBJ_TYPE_STREAM,       /* object is a struct stream */
+	OBJ_TYPE_CHECK,        /* object is a struct check */
 	OBJ_TYPE_ENTRIES       /* last one : number of entries */
 } __attribute__((packed)) ;
 

@@ -32,6 +32,7 @@
 #include <types/server.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
+#include <types/checks.h>
 
 static inline enum obj_type obj_type(const enum obj_type *t)
 {
@@ -53,6 +54,7 @@ static inline const char *obj_type_name(const enum obj_type *t)
 	case OBJ_TYPE_SRVRQ:    return "SRVRQ";
 	case OBJ_TYPE_CS:       return "CS";
 	case OBJ_TYPE_STREAM:   return "STREAM";
+	case OBJ_TYPE_CHECK:    return "CHECK";
 	default:                return "!INVAL!";
 	}
 }
@@ -172,6 +174,18 @@ static inline struct stream *objt_stream(enum obj_type *t)
 	return __objt_stream(t);
 }
 
+static inline struct check *__objt_check(enum obj_type *t)
+{
+	return container_of(t, struct check, obj_type);
+}
+
+static inline struct check *objt_check(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_CHECK)
+		return NULL;
+	return __objt_check(t);
+}
+
 static inline void *obj_base_ptr(enum obj_type *t)
 {
 	switch (obj_type(t)) {
@@ -184,6 +198,7 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	case OBJ_TYPE_CONN:     return __objt_conn(t);
 	case OBJ_TYPE_SRVRQ:    return __objt_dns_srvrq(t);
 	case OBJ_TYPE_CS:       return __objt_cs(t);
+	case OBJ_TYPE_CHECK:    return __objt_check(t);
 	default:                return t; // exact pointer for invalid case
 	}
 }

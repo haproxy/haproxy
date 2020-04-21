@@ -158,6 +158,7 @@ enum {
 };
 
 struct check {
+	enum obj_type obj_type;                 /* object type == OBJ_TYPE_CHECK */
 	struct session *sess;			/* Health check session. */
 	struct vars vars;			/* Health check dynamic variables. */
 	struct xprt_ops *xprt;			/* transport layer operations for health checks */
