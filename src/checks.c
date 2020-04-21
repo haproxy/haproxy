@@ -3364,7 +3364,7 @@ static int tcpcheck_main(struct check *check)
 		struct tcpcheck_var *var;
 
 		/* First evaluation, create a session */
-		check->sess = session_new(&checks_fe, NULL, (check->server ? &check->server->obj_type : NULL));
+		check->sess = session_new(&checks_fe, NULL, &check->obj_type);
 		if (!check->sess) {
 			chunk_printf(&trash, "TCPCHK error allocating check session");
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
@@ -4457,13 +4457,13 @@ smp_fetch_chk_payload(const struct arg *arg_p, struct sample *smp, const char *k
 {
 	unsigned int buf_offset = ((arg_p[0].type == ARGT_SINT) ? arg_p[0].data.sint : 0);
 	unsigned int buf_size = ((arg_p[1].type == ARGT_SINT) ? arg_p[1].data.sint : 0);
-	struct server *srv = (smp->sess ? objt_server(smp->sess->origin) : NULL);
+	struct check *check = (smp->sess ? objt_check(smp->sess->origin) : NULL);
 	struct buffer *buf;
 
-	if (!srv || !srv->do_check)
+	if (!check)
 		return 0;
 
-	buf = &srv->check.bi;
+	buf = &check->bi;
 	if (buf_offset > b_data(buf))
 		goto no_match;
 	if (buf_offset + buf_size > b_data(buf))

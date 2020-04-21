@@ -49,9 +49,9 @@ static inline struct vars *get_vars(struct session *sess, struct stream *strm, e
 	case SCOPE_SESS:
 		return &sess->vars;
 	case SCOPE_CHECK: {
-			struct server *srv = objt_server(sess->origin);
+			struct check *check = objt_check(sess->origin);
 
-			return srv ? &srv->check.vars : NULL;
+			return check ? &check->vars : NULL;
 		}
 	case SCOPE_TXN:
 		return strm ? &strm->vars_txn : NULL;
@@ -78,10 +78,10 @@ static void var_accounting_diff(struct vars *vars, struct session *sess, struct 
 			_HA_ATOMIC_ADD(&strm->vars_txn.size, size);
 		goto scope_sess;
 	case SCOPE_CHECK: {
-			struct server *srv = objt_server(sess->origin);
+			struct check *check = objt_check(sess->origin);
 
-			if (srv != NULL)
-				_HA_ATOMIC_ADD(&srv->check.vars.size, size);
+			if (check)
+				_HA_ATOMIC_ADD(&check->vars.size, size);
 		}
 		/* fall through */
 scope_sess:
@@ -114,10 +114,9 @@ static int var_accounting_add(struct vars *vars, struct session *sess, struct st
 			return 0;
 		goto scope_sess;
 	case SCOPE_CHECK: {
-			struct server *srv = objt_server(sess->origin);
+			struct check *check = objt_check(sess->origin);
 
-			if (var_check_limit && srv &&
-			    srv->check.vars.size + size > var_check_limit)
+			if (var_check_limit && check && check->vars.size + size > var_check_limit)
 				return 0;
 		}
 		/* fall through */
