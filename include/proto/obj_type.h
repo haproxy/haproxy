@@ -198,6 +198,7 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	case OBJ_TYPE_CONN:     return __objt_conn(t);
 	case OBJ_TYPE_SRVRQ:    return __objt_dns_srvrq(t);
 	case OBJ_TYPE_CS:       return __objt_cs(t);
+	case OBJ_TYPE_STREAM:   return __objt_stream(t);
 	case OBJ_TYPE_CHECK:    return __objt_check(t);
 	default:                return t; // exact pointer for invalid case
 	}
