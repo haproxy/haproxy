@@ -1983,10 +1983,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 	};
 
 	if (conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0) <= 0) {
-		ret = TCPCHK_EVAL_WAIT;
-		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))
+		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR)) {
 			ret = TCPCHK_EVAL_STOP;
-		goto out;
+			goto out;
+		}
 	}
 	if (b_data(&check->bo)) {
 		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
@@ -2388,7 +2388,6 @@ static int tcpcheck_main(struct check *check)
 			if (ret <= 0) {
 				if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 					goto out_end_tcpcheck;
-				goto out;
 			}
 			if (b_data(&check->bo)) {
 				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
