@@ -211,6 +211,12 @@ static inline char *ist0(struct ist ist)
 	return ist.ptr;
 }
 
+/* returns the pointer of the string */
+static inline char *istptr(const struct ist ist)
+{
+	return ist.ptr;
+}
+
 /* returns the length of the string */
 static inline size_t istlen(const struct ist ist)
 {
