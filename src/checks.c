@@ -1983,13 +1983,15 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		goto out;
 	};
 
-	if (conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0) <= 0) {
+
+	if (conn->mux->snd_buf(cs, &check->bo,
+			       (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0) <= 0) {
 		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR)) {
 			ret = TCPCHK_EVAL_STOP;
 			goto out;
 		}
 	}
-	if (b_data(&check->bo)) {
+	if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || b_data(&check->bo)) {
 		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 		ret = TCPCHK_EVAL_WAIT;
 		goto out;
@@ -2385,12 +2387,13 @@ static int tcpcheck_main(struct check *check)
 	 *    TCPCHK_ACT_SEND. */
 	else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
 		if (conn && b_data(&check->bo)) {
-			ret = conn->mux->snd_buf(cs, &check->bo, b_data(&check->bo), 0);
+			ret = conn->mux->snd_buf(cs, &check->bo,
+						 (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0);
 			if (ret <= 0) {
 				if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 					goto out_end_tcpcheck;
 			}
-			if (b_data(&check->bo)) {
+			if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || b_data(&check->bo)) {
 				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 				goto out;
 			}
