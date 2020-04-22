@@ -628,6 +628,7 @@ The following keywords are supported in the "global" section :
    - ssl-default-server-options
    - ssl-dh-param-file
    - ssl-server-verify
+   - ssl-skip-self-issued-ca
    - unix-bind
    - unsetenv
    - 51degrees-data-file
@@ -1369,6 +1370,16 @@ ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',
   servers certificates are not verified. The default is 'required' except if
   forced using cmdline option '-dV'.
+
+ssl-skip-self-issued-ca
+  Self issued CA, aka x509 root CA, is the enchor for chain validation: as a
+  server is useless to send it, client must have it. Standard configuration
+  need to not include such CA in PEM file. This option allows you to keep such
+  CA in PEM file without sending it to the client. Use case is to provide
+  issuer for ocsp without the need for '.issuer' file and be able to share it
+  with 'issuers-chain-path'. This concerns all certificates without intermediate
+  certificates. It's useless for BoringSSL, .issuer is ignored because ocsp
+  bits does not need it.
 
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.

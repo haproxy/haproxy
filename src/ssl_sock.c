@@ -167,6 +167,7 @@ static struct {
 	char *crt_base;             /* base directory path for certificates */
 	char *ca_base;              /* base directory path for CAs and CRLs */
 	char *issuers_chain_path;   /* from "issuers-chain-path" */
+	int  skip_self_issued_ca;
 
 	int  async;                 /* whether we use ssl async mode */
 
@@ -3823,7 +3824,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		for (i = 0; i < sk_X509_num(find_chain); i++) {
 			ca = sk_X509_value(find_chain, i);
 			/* skip self issued (Root CA) */
-			if (!X509_NAME_cmp(X509_get_subject_name(ca), X509_get_issuer_name(ca)))
+			if (global_ssl.skip_self_issued_ca && !X509_NAME_cmp(X509_get_subject_name(ca), X509_get_issuer_name(ca)))
 				continue;
 			/*
 			   SSL_CTX_add1_chain_cert could be used with openssl >= 1.0.2
@@ -10191,6 +10192,15 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* parse the "ssl-skip-self-issued-ca" keyword in global section.  */
+static int ssl_parse_skip_self_issued_ca(char **args, int section_type, struct proxy *curpx,
+					 struct proxy *defpx, const char *file, int line,
+					 char **err)
+{
+	global_ssl.skip_self_issued_ca = 1;
+	return 0;
+}
+
 /* "issuers-chain-path" load chain certificate in global */
 static int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 {
@@ -12997,6 +13007,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #ifndef OPENSSL_NO_ENGINE
 	{ CFG_GLOBAL, "ssl-engine",  ssl_parse_global_ssl_engine },
 #endif
+	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
 #ifndef OPENSSL_NO_DH
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
