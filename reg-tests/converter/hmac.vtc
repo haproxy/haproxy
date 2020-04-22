@@ -1,0 +1,55 @@
+varnishtest "HMAC converter Test"
+
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTION=OPENSSL
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.hash) req.hdr(hash)
+	http-request  set-var(txn.key) str(my_super_secret_long_key),base64
+
+	http-response set-header SHA1-short   "%[var(txn.hash),hmac(sha1,a2V5),hex,lower]"
+	http-response set-header SHA1-long   "%[var(txn.hash),hmac(sha1,txn.key),hex,lower]"
+	http-response set-header SHA256-short   "%[var(txn.hash),hmac(sha256,a2V5),hex,lower]"
+	http-response set-header SHA256-long   "%[var(txn.hash),hmac(sha256,txn.key),hex,lower]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "Hash: 1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.sha1-short == "e23feb105f9622241bf23db1638cd2b4208b1f53"
+	expect resp.http.sha1-long == "87b10ddcf39e26f6bd7c3b0e38e0125997b255be"
+	expect resp.http.sha256-short == "6da91fb91517be1f5cdcf3af91d7d40c717dd638a306157606fb2e584f7ae926"
+	expect resp.http.sha256-long == "2fb3de6a462c54d1803f946b52202f3a8cd46548ffb3f789b4ac11a4361ffef2"
+	txreq -url "/" \
+	  -hdr "Hash: 2"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.sha1-short == "311219c4a80c5ef81b1cee5505236c1d0ab1922c"
+	expect resp.http.sha1-long == "c5758af565ba4b87b3db49c8b32d4a94d430cb78"
+	expect resp.http.sha256-short == "ae7b3ee87b8c9214f714df1c2042c7a985b9d711e9938a063937ad1636775a88"
+	expect resp.http.sha256-long == "c073191a2ebf29f510444b92c187d62199d84b58f58dceeadb91994c170a9a16"
+} -run

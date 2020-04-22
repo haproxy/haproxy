@@ -14499,6 +14499,13 @@ debug([<prefix][,<destination>])
   Example:
     tcp-request connection track-sc0 src,debug(track-sc)
 
+digest(<algorithm>)
+  Converts a binary input sample to a message digest. The result is a binary
+  sample. The <algorithm> must be an OpenSSL message digest name (e.g. sha256).
+
+  Please note that this converter is only available when haproxy has been
+  compiled with USE_OPENSSL.
+
 div(<value>)
   Divides the input value of type signed integer by <value>, and returns the
   result as an signed integer. If <value> is null, the largest unsigned
@@ -14558,6 +14565,15 @@ htonl
   network byte order. Because sample fetches own signed 64-bit integer, when
   this converter is used, the input integer value is first casted to an
   unsigned 32-bit integer.
+
+hmac(<algorithm>, <key>)
+  Converts a binary input sample to a message authentication code with the given
+  key. The result is a binary sample. The <algorithm> must be one of the
+  registered OpenSSL message digest names (e.g. sha256). The <key> parameter must
+  be base64 encoded and can either be a string or a variable.
+
+  Please note that this converter is only available when haproxy has been
+  compiled with USE_OPENSSL.
 
 http_date([<offset],[<unit>])
   Converts an integer supposed to contain a date since epoch to a string

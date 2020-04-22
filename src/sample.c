@@ -1654,7 +1654,6 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
 	return 1;
 }
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
 static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 {
 	switch (arg->type) {
@@ -1675,6 +1674,7 @@ static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *
 	}
 }
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
 static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 						  const char *file, int line, char **err)
 {
@@ -1785,6 +1785,95 @@ err:
 	return 0;
 }
 #endif /* HA_OPENSSL_VERSION_NUMBER */
+
+static int check_crypto_digest(struct arg *args, struct sample_conv *conv,
+						  const char *file, int line, char **err)
+{
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+
+	if (evp)
+		return 1;
+
+	memprintf(err, "algorithm must be a valid OpenSSL message digest name.");
+	return 0;
+}
+
+static int sample_conv_crypto_digest(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	unsigned char *md = (unsigned char*) trash->area;
+	unsigned int md_len = trash->size;
+	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+
+	if (!ctx)
+		return 0;
+
+	if (!EVP_DigestInit_ex(ctx, evp, NULL) ||
+	    !EVP_DigestUpdate(ctx, smp->data.u.str.area, smp->data.u.str.data) ||
+	    !EVP_DigestFinal_ex(ctx, md, &md_len)) {
+		EVP_MD_CTX_free(ctx);
+		return 0;
+	}
+
+	EVP_MD_CTX_free(ctx);
+
+	trash->data = md_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+static int check_crypto_hmac(struct arg *args, struct sample_conv *conv,
+						  const char *file, int line, char **err)
+{
+	if (!check_crypto_digest(args, conv, file, line, err))
+		return 0;
+
+	vars_check_arg(&args[1], NULL);
+	return 1;
+}
+
+static int sample_conv_crypto_hmac(const struct arg *args, struct sample *smp, void *private)
+{
+	struct sample key;
+	struct buffer *trash, *key_trash;
+	unsigned char *md;
+	unsigned int md_len;
+	const EVP_MD *evp = EVP_get_digestbyname(args[0].data.str.area);
+	int dec_size;
+
+	smp_set_owner(&key, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[1], &key))
+		return 0;
+
+	trash = get_trash_chunk();
+	key_trash = alloc_trash_chunk();
+	if (!key_trash)
+		return 0;
+
+	dec_size = base64dec(key.data.u.str.area, key.data.u.str.data, key_trash->area, key_trash->size);
+	if (dec_size < 0)
+		goto err;
+
+	md = (unsigned char*) trash->area;
+	md_len = trash->size;
+	if (!HMAC(evp, key_trash->area, dec_size, (const unsigned char*) smp->data.u.str.area, smp->data.u.str.data, md, &md_len))
+		goto err;
+
+	free_trash_chunk(key_trash);
+
+	trash->data = md_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+
+err:
+	free_trash_chunk(key_trash);
+	return 0;
+}
 
 #endif /* USE_OPENSSL */
 
@@ -3632,6 +3721,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
 	{ "aes_gcm_dec", sample_conv_aes_gcm_dec,   ARG4(4,SINT,STR,STR,STR), check_aes_gcm,       SMP_T_BIN, SMP_T_BIN },
 #endif
+	{ "digest",      sample_conv_crypto_digest, ARG1(1,STR),              check_crypto_digest, SMP_T_BIN, SMP_T_BIN },
+	{ "hmac",        sample_conv_crypto_hmac,   ARG2(2,STR,STR),          check_crypto_hmac,   SMP_T_BIN, SMP_T_BIN },
 #endif
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
