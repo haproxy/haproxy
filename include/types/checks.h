@@ -247,7 +247,6 @@ enum tcpcheck_expect_type {
 
 /* tcp-check expect flags */
 #define TCPCHK_EXPT_FL_INV    0x0001 /* Matching is inversed */
-#define TCPCHK_EXPT_FL_CAP    0x0002 /* Regex matching with capture */
 
 struct tcpcheck_expect {
 	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */

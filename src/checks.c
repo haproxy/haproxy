@@ -1060,18 +1060,6 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 		break;
 	case TCPCHK_EXPECT_REGEX_BINARY:
 		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
-
-		/* If references to the matched text were made, divide the
-		 * offsets by 2 to match offset of the original response buffer.
-		 */
-		if (rule->expect.flags & TCPCHK_EXPT_FL_CAP) {
-			int i;
-
-			for (i = 1; i < MAX_MATCH && pmatch[i].rm_so != -1; i++) {
-				pmatch[i].rm_so /= 2; /* at first matched char. */
-				pmatch[i].rm_eo /= 2; /* at last matched char. */
-			}
-		}
 		break;
 	case TCPCHK_EXPECT_CUSTOM:
 		chunk_appendf(msg, " (custom function) at step %d", tcpcheck_get_step_id(check, rule));
@@ -1087,13 +1075,7 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	 */
 	if (rule->comment) {
 		chunk_strcat(msg, " comment: ");
-		if (rule->expect.flags & TCPCHK_EXPT_FL_CAP) {
-			int ret = exp_replace(b_tail(msg), b_room(msg), b_head(&check->bi), rule->comment, pmatch);
-			if (ret != -1) /* ignore comment if too large */
-				msg->data += ret;
-		}
-		else
-			chunk_strcat(msg, rule->comment);
+		chunk_strcat(msg, rule->comment);
 	}
 
 	/* Finally, the check status code is set if the failing expect rule
@@ -2271,21 +2253,13 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		match = my_memmem(b_head(&check->bi), b_data(&check->bi), istptr(expect->data), istlen(expect->data)) != NULL;
 		break;
 	case TCPCHK_EXPECT_REGEX:
-		if (expect->flags & TCPCHK_EXPT_FL_CAP)
-			match = regex_exec_match2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1),
-						  MAX_MATCH, pmatch, 0);
-		else
-			match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
+		match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
 		break;
 
 	case TCPCHK_EXPECT_REGEX_BINARY:
 		chunk_reset(&trash);
 		dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
-		if (expect->flags & TCPCHK_EXPT_FL_CAP)
-			match = regex_exec_match2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1),
-						  MAX_MATCH, pmatch, 0);
-		else
-			match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
+		match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
 		break;
 	case TCPCHK_EXPECT_CUSTOM:
 		if (expect->custom)
@@ -3935,7 +3909,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
 	enum healthcheck_status tout_st = HCHK_STATUS_L7TOUT;
 	long min_recv = -1;
-	int inverse = 0, with_capture = 0;
+	int inverse = 0;
 
 	str = on_success_msg = on_error_msg = comment = pattern = NULL;
 	if (!*(args[cur_arg+1])) {
@@ -4203,25 +4177,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		cur_arg++;
 	}
 
-	if (comment) {
-		char *p = comment;
-
-		while (*p) {
-			if (*p == '\\') {
-				p++;
-				if (!*p || !isdigit((unsigned char)*p) ||
-				    (*p == 'x' && (!*(p+1) || !*(p+2) || !ishex(*(p+1)) || !ishex(*(p+2))))) {
-					memprintf(errmsg, "invalid backreference in 'comment' argument");
-					goto error;
-				}
-				with_capture = 1;
-			}
-			p++;
-		}
-		if (with_capture && !inverse)
-			memprintf(errmsg, "using backreference in a positive expect comment is useless");
-	}
-
 	chk = calloc(1, sizeof(*chk));
 	if (!chk) {
 		memprintf(errmsg, "out of memory");
@@ -4234,7 +4189,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->expect.type = type;
 	chk->expect.min_recv = min_recv;
 	chk->expect.flags |= (inverse ? TCPCHK_EXPT_FL_INV : 0);
-	chk->expect.flags |= (with_capture ? TCPCHK_EXPT_FL_CAP : 0);
 	chk->expect.ok_status = ok_st;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
@@ -4278,7 +4232,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	case TCPCHK_EXPECT_REGEX_BINARY:
 	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
-		chk->expect.regex = regex_comp(pattern, 1, with_capture, errmsg);
+		chk->expect.regex = regex_comp(pattern, 1, 0, errmsg);
 		if (!chk->expect.regex)
 			goto error;
 		break;
