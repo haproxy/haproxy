@@ -10051,6 +10051,16 @@ static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct ser
 	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
 		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
 #endif
+	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
+	newsrv->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
+
+	if (!newsrv->ssl_ctx.methods.min)
+		newsrv->ssl_ctx.methods.min = global_ssl.connect_default_sslmethods.min;
+
+	if (!newsrv->ssl_ctx.methods.max)
+		newsrv->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
+
+
 	return 0;
 }
 
