@@ -1,0 +1,133 @@
+varnishtest "Health-checks: tcp-check health-check with ssl options"
+#REQUIRE_OPTION=OPENSSL
+#REQUIRE_VERSION=2.2
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+
+syslog S_ok -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
+
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+info: \"SSL handshake failure\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer6 invalid response.+info: \"SSL handshake failure at step 1 of tcp-check \\(connect\\)\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+
+haproxy htst -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    listen li1
+        bind "fd@${li1}"
+        tcp-request inspect-delay 100ms
+        tcp-request content reject if  { req.ssl_hello_type 0 }
+        tcp-request content accept if { req.ssl_sni check.haproxy.org }
+        tcp-request content accept if { req.ssl_sni connect.haproxy.org }
+        tcp-request content reject
+	server fe1 ${htst_fe1_addr}:${htst_fe1_port}
+
+    listen li2
+        bind "fd@${li2}"
+        tcp-request inspect-delay 100ms
+        tcp-request content reject if  { req.ssl_hello_type 0 }
+        tcp-request content accept if { req.ssl_alpn h2 }
+        tcp-request content accept if { req.ssl_alpn http/1.1 }
+        tcp-request content reject
+	server fe1 ${htst_fe1_addr}:${htst_fe1_port}
+
+    frontend fe1
+        bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    backend be1
+        log ${S_ok_addr}:${S_ok_port} daemon
+        option log-health-checks
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.haproxy.org inter 1s rise 1 fall 1 verify none
+
+    backend be2
+        log ${S_ok_addr}:${S_ok_port} daemon
+        option log-health-checks
+        option tcp-check
+	tcp-check connect ssl sni connect.haproxy.org
+        server srv ${htst_li1_addr}:${htst_li1_port} check inter 1s rise 1 fall 1 verify none
+
+    backend be3
+        log ${S3_addr}:${S3_port} daemon
+        option log-health-checks
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni bad.haproxy.org inter 1s rise 1 fall 1 verify none
+
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        option log-health-checks
+        option tcp-check
+	tcp-check connect ssl sni bad.haproxy.org
+        server srv ${htst_li1_addr}:${htst_li1_port} check inter 1s rise 1 fall 1 verify none
+
+    backend be5
+        log ${S_ok_addr}:${S_ok_port} daemon
+        option log-health-checks
+	option tcp-check
+	tcp-check connect default
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.haproxy.org inter 1s rise 1 fall 1 verify none
+
+   backend be6
+       log ${S_ok_addr}:${S_ok_port} daemon
+       option log-health-checks
+       server srv ${htst_li2_addr}:${htst_li2_port} check check-ssl check-alpn "h2,http/1.1" inter 1s rise 1 fall 1 verify none
+
+    backend be7
+        log ${S_ok_addr}:${S_ok_port} daemon
+        option log-health-checks
+        option tcp-check
+	tcp-check connect ssl alpn "h2,http/1.1"
+        server srv ${htst_li2_addr}:${htst_li2_port} check inter 1s rise 1 fall 1 verify none
+
+} -start
+
+syslog S_ok -wait
+syslog S3 -wait
+syslog S4 -wait

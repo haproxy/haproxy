@@ -1,0 +1,102 @@
+varnishtest "Health-checks: SPOP health-check"
+#REQUIRE_VERSION=2.2
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+
+# This scripts tests health-checks for SPOE agent, enabled using
+# "option spop-check" line. A intermediate listener is used to validate
+# the request because it is impossible with VTEST to read and match raw
+# text.
+
+server s1 {
+  recv 82
+  sendhex "00000036 65 00000001 0000 0776657273696F6E 0803322E30 0E6D61782D6672616D652D73697A65 03FCF0 060C6361706162696C6974696573 0800"
+} -start
+
+server s2 {
+  recv 82
+  sendhex "00000000"
+} -start
+
+server s3 {
+  recv 82
+  sendhex "00000007 65 00000000 0000"
+} -start
+
+server s4 {
+  recv 82
+  sendhex "00000014 65 00000001 0000 0776657273696F6E 0803312E30"
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"SPOA server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv failed, reason: Layer7 invalid response.+info: \"invalid frame received\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 invalid response.+info: \"fragmentation not supported\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer7 invalid response.+info: \"unsupported version\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    backend be1
+        log ${S1_addr}:${S1_port} daemon
+        option log-health-checks
+        option spop-check
+        server srv ${h1_spop1_addr}:${h1_spop1_port} check inter 1s rise 1 fall 1
+
+    backend be2
+        log ${S2_addr}:${S2_port} daemon
+        option log-health-checks
+        option spop-check
+        server srv ${s2_addr}:${s2_port} check inter 1s rise 1 fall 1
+
+    backend be3
+        log ${S3_addr}:${S3_port} daemon
+        option log-health-checks
+        option spop-check
+        server srv ${s3_addr}:${s3_port} check inter 1s rise 1 fall 1
+
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        option log-health-checks
+        option spop-check
+        server srv ${s4_addr}:${s4_port} check inter 1s rise 1 fall 1
+
+    listen spop1
+        bind "fd@${spop1}"
+        tcp-request inspect-delay 100ms
+        tcp-request content accept if { req.len eq 82 } { req.payload(0,4) -m bin "0000004E" } #{ req.payload(4,4) -m bin "00000001" } { req.payload(8,2) -m bin "0000" } { req.payload(12,17) -m str "supported-version" }
+        tcp-request content reject
+        server srv ${s1_addr}:${s1_port}
+
+} -start
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait
+syslog S4 -wait

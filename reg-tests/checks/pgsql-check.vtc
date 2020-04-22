@@ -1,0 +1,83 @@
+varnishtest "Health-checks: PostgreSQL health-check"
+#REQUIRE_VERSION=2.2
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+
+# This scripts tests health-checks for PostgreSQL application, enabled using
+# "option pgsql-check" line. A intermediate listener is used to validate
+# the request because it is impossible with VTEST to read and match raw
+# text.
+
+server s1 {
+  recv 23
+  sendhex "520000000800000000"
+} -start
+
+server s2 {
+  recv 23
+  sendhex "450000000B53464154414C00"
+} -start
+
+server s3 {
+  recv 23
+  send "Not a PostgreSQL response"
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"PostgreSQL server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv failed, reason: Layer7 invalid response.+info: \"FATAL\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 wrong status.+info: \"PostgreSQL unknown error\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    backend be1
+        log ${S1_addr}:${S1_port} daemon
+        option log-health-checks
+        option pgsql-check user postgres
+        server srv ${h1_pgsql_addr}:${h1_pgsql_port} check inter 1s rise 1 fall 1
+
+    backend be2
+        log ${S2_addr}:${S2_port} daemon
+        option log-health-checks
+        option pgsql-check user postgres
+        server srv ${s2_addr}:${s2_port} check inter 1s rise 1 fall 1
+
+    backend be3
+        log ${S3_addr}:${S3_port} daemon
+        option log-health-checks
+        option pgsql-check user postgres
+        server srv ${s3_addr}:${s3_port} check inter 1s rise 1 fall 1
+
+    listen pgsql1
+        bind "fd@${pgsql}"
+        tcp-request inspect-delay 100ms
+        tcp-request content accept if { req.len eq 23 } { req.payload(0,23) -m bin "00000017000300007573657200706f7374677265730000" }
+        tcp-request content reject
+        server srv ${s1_addr}:${s1_port}
+} -start
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait

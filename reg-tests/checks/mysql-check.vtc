@@ -1,0 +1,133 @@
+varnishtest "Health-checks: MySQL health-check"
+#REQUIRE_VERSION=2.2
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+
+# This scripts tests health-checks for MySQL application, enabled using
+# "option mysql-check" line. A intermediate listener is used to validate
+# the request because it is impossible with VTEST to read and match raw
+# text.
+
+server s1 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  expect_close
+} -start
+
+server s2 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 20
+  sendhex "03000002000000"
+} -start
+
+server s3 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 47
+  sendhex "0700000200000002000000"
+} -start
+
+server s4 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 21
+  sendhex "67000002FFE304436C69656E7420646F6573206E6F7420737570706F72742061757468656E7469636174696F6E2070726F746F636F6C20726571756573746564206279207365727665723B20636F6E736964657220757067726164696E67204D7953514C20636C69656E74"
+} -start
+
+server s5 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 48
+  sendhex "67000002FFE304436C69656E7420646F6573206E6F7420737570706F72742061757468656E7469636174696F6E2070726F746F636F6C20726571756573746564206279207365727665723B20636F6E736964657220757067726164696E67204D7953514C20636C69656E74"
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S3 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S4 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer7 wrong status.+code: 1251.+info: \"Client does not support authentication protocol requested by server; consider upgrading MySQL client\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S5 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be5 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv failed, reason: Layer7 wrong status.+code: 1251.+info: \"Client does not support authentication protocol requested by server; consider upgrading MySQL client\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    backend be1
+        log ${S1_addr}:${S1_port} daemon
+        option log-health-checks
+        option mysql-check
+        server srv ${s1_addr}:${s1_port} check inter 1s rise 1 fall 1
+
+    backend be2
+        log ${S2_addr}:${S2_port} daemon
+        option log-health-checks
+        option mysql-check user user
+        server srv ${h1_mysql1_addr}:${h1_mysql1_port} check inter 1s rise 1 fall 1
+
+    backend be3
+        log ${S3_addr}:${S3_port} daemon
+        option log-health-checks
+        option mysql-check user user post-41
+        server srv ${h1_mysql2_addr}:${h1_mysql2_port} check inter 1s rise 1 fall 1
+
+    backend be4
+        log ${S4_addr}:${S4_port} daemon
+        option log-health-checks
+        option mysql-check user pouet
+        server srv ${s4_addr}:${s4_port} check inter 1s rise 1 fall 1
+
+    backend be5
+        log ${S5_addr}:${S5_port} daemon
+        option log-health-checks
+        option mysql-check user pouet post-41
+        server srv ${s5_addr}:${s5_port} check inter 1s rise 1 fall 1
+
+    listen mysql1
+        bind "fd@${mysql1}"
+        tcp-request inspect-delay 100ms
+        tcp-request content accept if { req.len eq 20 } { req.payload(0,20) -m bin "0B00000100800000017573657200000100000001" }
+        tcp-request content reject
+        server srv ${s2_addr}:${s2_port}
+
+    listen mysql2
+        bind "fd@${mysql2}"
+        tcp-request inspect-delay 100ms
+        tcp-request content accept if { req.len eq 47 } { req.payload(0,47) -m bin "2600000100820000008000012100000000000000000000000000000000000000000000007573657200000100000001" }
+        tcp-request content reject
+        server srv ${s3_addr}:${s3_port}
+
+} -start
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait
+syslog S4 -wait
+syslog S5 -wait
