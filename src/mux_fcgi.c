@@ -3288,7 +3288,7 @@ static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct
 {
 	int ret;
 
-	TRACE_ENTER(FCGI_EV_RSP_DATA||FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){max});
 	ret = h1_parse_msg_eom(h1m, htx, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
