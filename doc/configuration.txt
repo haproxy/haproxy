@@ -2653,6 +2653,7 @@ fullconn                                  X          -         X         X
 grace                                     X          X         X         X
 hash-type                                 X          -         X         X
 http-after-response                       -          X         X         X
+http-check comment                        X          -         X         X
 http-check connect                        X          -         X         X
 http-check disable-on-404                 X          -         X         X
 http-check expect                         X          -         X         X
@@ -2759,6 +2760,7 @@ stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick store-response                      -          -         X         X
 stick-table                               -          X         X         X
+tcp-check comment                         X          -         X         X
 tcp-check connect                         X          -         X         X
 tcp-check expect                          X          -         X         X
 tcp-check send                            X          -         X         X
@@ -4389,6 +4391,24 @@ http-after-response unset-var(<var-name>) [ { if | unless } <condition> ]
   Example:
     http-after-response unset-var(sess.last_redir)
 
+
+http-check comment <string>
+  Defines a comment for the following the http-check rule, reported in logs if
+  it fails.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  It only works for connect, send and expect rules. It is useful to make
+  user-friendly error reporting.
+
+  Arguments :
+    <string>  is the comment message to add in logs if the following http-check
+              rule fails.
+
+  See also : "option httpchk", "http-check conncet", "http-check send" and
+             "http-check expect".
+
+
 http-check connect [params*]
   Opens a new connection to perform an HTTP health check
   May be used in sections :   defaults | frontend | listen | backend
@@ -4413,6 +4433,8 @@ http-check connect [params*]
   Parameters :
     They are optional and can be used to describe how HAProxy should open and
     use the HTTP connection.
+
+    comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
                  checks. The server options are used only if not redifined.
@@ -4477,7 +4499,7 @@ http-check disable-on-404
   See also : "option httpchk", "http-check expect"
 
 
-http-check expect [min-recv <int>]
+http-check expect [min-recv <int>] [comment <msg>]
                   [ok-status <st>] [error-status <st>] [tout-status <st>]
                   [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                   [!] <match> <pattern>
@@ -4486,6 +4508,8 @@ http-check expect [min-recv <int>]
                                  yes   |    no    |   yes  |   yes
 
   Arguments :
+    comment <msg>  defines a message to report if the rule evaluation fails.
+
     min-recv  is optional and can define the minimum amount of data required to
               evaluate the current expect rule. If the number of received bytes
               is under this limit, the check will wait for more data. This
@@ -4613,13 +4637,15 @@ http-check expect [min-recv <int>]
              and "http-check send"
 
 
-http-check send [meth <method>] [uri <uri>] [vsn <version>]
+http-check send [meth <method>] [uri <uri>] [vsn <version>] [comment <msg>]
                 [hdr <name> <fmt>]* [body <string>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
+    comment <msg>  defines a message to report if the rule evaluation fails.
+
     meth <method>  is the optional HTTP method used with the requests. When not
                    set, the "OPTIONS" method is used, as it generally requires
                    low server processing and is easy to filter out from the
@@ -9988,6 +10014,23 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
              extraction.
 
 
+tcp-check comment <string>
+  Defines a comment for the following the tcp-check rule, reported in logs if
+  it fails.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  It only works for connect, send and expect rules. It is useful to make
+  user-friendly error reporting.
+
+  Arguments :
+    <string>  is the comment message to add in logs if the following tcp-check
+              rule fails.
+
+  See also : "option tcp-check", "tcp-check connect", "tcp-check send" and
+             "tcp-check expect".
+
+
 tcp-check connect [params*]
   Opens a new connection
   May be used in sections:   defaults | frontend | listen | backend
@@ -10011,6 +10054,8 @@ tcp-check connect [params*]
   Parameters :
     They are optional and can be used to describe how HAProxy should open and
     use the TCP connection.
+
+    comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
                  checks. The server options are used only if not redifined.
@@ -10065,7 +10110,7 @@ tcp-check connect [params*]
   See also : "option tcp-check", "tcp-check send", "tcp-check expect"
 
 
-tcp-check expect [min-recv <int>]
+tcp-check expect [min-recv <int>] [comment <msg>]
                  [ok-status <st>] [error-status <st>] [tout-status <st>]
                  [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
                  [!] <match> <pattern>
@@ -10074,6 +10119,8 @@ tcp-check expect [min-recv <int>]
                                yes    |    no    |   yes  |   yes
 
   Arguments :
+    comment <msg>  defines a message to report if the rule evaluation fails.
+
     min-recv  is optional and can define the minimum amount of data required to
               evaluate the current expect rule. If the number of received bytes
               is under this limit, the check will wait for more data. This
@@ -10206,10 +10253,13 @@ tcp-check expect [min-recv <int>]
              "tcp-check send-binary", "http-check expect", tune.chksize
 
 
-tcp-check send <data>
+tcp-check send <data> [comment <msg>]
   Specify a string to be sent as a question during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
+
+  Arguments :
+    comment <msg>  defines a message to report if the rule evaluation fails.
 
     <data> : the data to be sent as a question during a generic health check
              session. For now, <data> must be a string.
@@ -10224,12 +10274,14 @@ tcp-check send <data>
              "tcp-check send-binary", tune.chksize
 
 
-tcp-check send-binary <hexstring>
+tcp-check send-binary <hexstring> [comment <msg>]
   Specify a hex digits string to be sent as a binary question during a raw
   tcp health check
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
+  Arguments :
+    comment <msg>  defines a message to report if the rule evaluation fails.
     <data> : the data to be sent as a question during a generic health check
              session. For now, <data> must be a string.
     <hexstring> : test the exact string in its hexadecimal form matches in the
