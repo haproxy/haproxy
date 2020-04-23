@@ -838,10 +838,10 @@ static inline unsigned int mul32hi(unsigned int a, unsigned int b)
  */
 static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
 {
-	unsigned int result;
+	unsigned long long result;
 #ifdef __i386__
 	asm("divl %2"
-	    : "=a" (result)
+	    : "=A" (result)
 	    : "A"(o1), "rm"(o2));
 #else
 	result = o1 / o2;
