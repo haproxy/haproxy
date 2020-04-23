@@ -3439,6 +3439,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	struct sockaddr_storage *sk = NULL;
 	char *comment = NULL, *sni = NULL, *alpn = NULL;
 	struct sample_expr *port_expr = NULL;
+	const struct mux_proto_list *mux_proto = NULL;
 	unsigned short conn_opts = 0;
 	long port = 0;
 	int alpn_len = 0;
@@ -3530,6 +3531,18 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 				goto error;
 			}
 		}
+		else if (strcmp(args[cur_arg], "proto") == 0) {
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a MUX protocol as argument.", args[cur_arg]);
+				goto error;
+			}
+			mux_proto = get_mux_proto(ist2(args[cur_arg+1], strlen(args[cur_arg+1])));
+			if (!mux_proto) {
+				memprintf(errmsg, "'%s' : unknown MUX protocol '%s'.", args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+			cur_arg++;
+		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
@@ -3607,6 +3620,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 	chk->connect.alpn    = alpn;
 	chk->connect.alpn_len= alpn_len;
 	chk->connect.port_expr= port_expr;
+	chk->connect.mux_proto= mux_proto;
 	if (sk)
 		chk->connect.addr = *sk;
 	return chk;
@@ -7117,6 +7131,31 @@ static int srv_parse_no_check_send_proxy(char **args, int *cur_arg, struct proxy
 	return 0;
 }
 
+/* parse the "check-proto" server keyword */
+static int srv_parse_check_proto(char **args, int *cur_arg,
+				 struct proxy *px, struct server *newsrv, char **err)
+{
+	int err_code = 0;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[*cur_arg]);
+		goto error;
+	}
+	newsrv->check.mux_proto = get_mux_proto(ist2(args[*cur_arg + 1], strlen(args[*cur_arg + 1])));
+	if (!newsrv->check.mux_proto) {
+		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[*cur_arg], args[*cur_arg+1]);
+		goto error;
+	}
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
 /* Parse the "rise" server keyword */
 static int srv_parse_check_rise(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
@@ -7346,6 +7385,7 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "agent-port",          srv_parse_agent_port,          1,  1 }, /* Set the TCP port used for agent checks. */
 	{ "agent-send",          srv_parse_agent_send,          1,  1 }, /* Set string to send to agent. */
 	{ "check",               srv_parse_check,               0,  1 }, /* Enable health checks */
+	{ "check-proto",         srv_parse_check_proto,         1,  1 }, /* Set the mux protocol for health checks  */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1 }, /* Enable PROXY protocol for health checks */
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */

@@ -4411,7 +4411,7 @@ http-check comment <string>
 
 http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
                    [via-socks4] [ssl] [sni <sni>] [alpn <alpn>] [linger]
-		   [comment <msg>]
+		   [proto <name>] [comment <msg>]
   Opens a new connection to perform an HTTP health check
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -4441,6 +4441,11 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
                  list consists in a comma-delimited list of protocol names,
                  for instance: "h2,http/1.1". If it is not set, the server ALPN
                  is used.
+
+    proto <name> forces the multiplexer's protocol to use for this connection.
+                 It must be an HTTP mux protocol and it must be usable on the
+                 backend side. The list of available protocols is reported in
+                 haproxy -vv.
 
     linger       cleanly close the connection instead of using a single RST.
 
@@ -10029,7 +10034,7 @@ tcp-check comment <string>
 
 tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
                   [ssl] [sni <sni>] [alpn <alpn>] [linger]
-                  [comment <msg>]
+                  [proto <name>] [comment <msg>]
   Opens a new connection
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -10059,6 +10064,11 @@ tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
                  list consists in a comma-delimited list of protocol names,
                  for instance: "http/1.1,http/1.0" (without quotes).
                  If it is not set, the server ALPN is used.
+
+    proto <name> forces the multiplexer's protocol to use for this connection.
+                 It must be a TCP mux protocol and it must be usable on the
+                 backend side. The list of available protocols is reported in
+                 haproxy -vv.
 
     linger       cleanly close the connection instead of using a single RST.
 
@@ -12535,6 +12545,15 @@ check-alpn <protocols>
   a comma-delimited list of protocol names, for instance: "http/1.1,http/1.0"
   (without quotes). If it is not set, the server ALPN is used.
 
+check-proto <name>
+  Forces the multiplexer's protocol to use for the server's health-check
+  connections. It must be compatible with the health-check type (TCP or
+  HTTP). It must also be usable on the backend side. The list of available
+  protocols is reported in haproxy -vv.
+  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  protocol for health-check connections established to this server.
+  If not defined, the server one will be used, if set.
+
 check-sni <sni>
   This option allows you to specify the SNI to be used when doing health checks
   over SSL. It is only possible to use a string to set <sni>. If you want to
@@ -12990,7 +13009,6 @@ port <port>
   set. See also the "addr" parameter.
 
 proto <name>
-
   Forces the multiplexer's protocol to use for the outgoing connections to this
   server. It must be compatible with the mode of the backend (TCP or HTTP). It
   must also be usable on the backend side. The list of available protocols is
