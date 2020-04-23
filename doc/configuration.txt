@@ -4398,42 +4398,25 @@ http-check comment <string>
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
-  It only works for connect, send and expect rules. It is useful to make
-  user-friendly error reporting.
-
   Arguments :
     <string>  is the comment message to add in logs if the following http-check
               rule fails.
+
+  It only works for connect, send and expect rules. It is useful to make
+  user-friendly error reporting.
 
   See also : "option httpchk", "http-check conncet", "http-check send" and
              "http-check expect".
 
 
-http-check connect [params*]
+http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
+                   [via-socks4] [ssl] [sni <sni>] [alpn <alpn>] [linger]
+		   [comment <msg>]
   Opens a new connection to perform an HTTP health check
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
-  Just like tcp-check health checks, it is possible to configure the connection
-  to use to perform HTTP health check. This directive should also be used to
-  describe a scenario involving several request/response exchanges, possibly on
-  different ports or with different servers.
-
-  When there are no TCP port configured on the server line neither server port
-  directive, then the first step of the http-check sequence must be to specify
-  the port with a "http-check connect".
-
-  In an http-check ruleset a 'connect' is required, it is also mandatory to start
-  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
-  do.
-
-  When a connect must start the ruleset, if may still be preceded by set-var,
-  unset-var or comment rules.
-
-  Parameters :
-    They are optional and can be used to describe how HAProxy should open and
-    use the HTTP connection.
-
+  Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
@@ -4461,7 +4444,23 @@ http-check connect [params*]
 
     linger       cleanly close the connection instead of using a single RST.
 
-    Examples:
+  Just like tcp-check health checks, it is possible to configure the connection
+  to use to perform HTTP health check. This directive should also be used to
+  describe a scenario involving several request/response exchanges, possibly on
+  different ports or with different servers.
+
+  When there are no TCP port configured on the server line neither server port
+  directive, then the first step of the http-check sequence must be to specify
+  the port with a "http-check connect".
+
+  In an http-check ruleset a 'connect' is required, it is also mandatory to start
+  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
+  do.
+
+  When a connect must start the ruleset, if may still be preceded by set-var,
+  unset-var or comment rules.
+
+  Examples :
          # check HTTP and HTTPs services on a server.
          # first open port 80 thanks to server line port directive, then
          # tcp-check opens port 443, ciphered and run a request on it:
@@ -4477,6 +4476,7 @@ http-check connect [params*]
          server www 10.0.0.1 check port 80
 
   See also : "option httpchk", "http-check send", "http-check expect"
+
 
 http-check disable-on-404
   Enable a maintenance mode upon HTTP/404 response to health-checks
@@ -4496,7 +4496,7 @@ http-check disable-on-404
   is used with "http-check expect", then it has precedence over it so that 404
   responses will still be considered as soft-stop.
 
-  See also : "option httpchk", "http-check expect"
+  See also : "option httpchk" and "http-check expect".
 
 
 http-check expect [min-recv <int>] [comment <msg>]
@@ -4634,7 +4634,7 @@ http-check expect [min-recv <int>] [comment <msg>]
          http-check expect rstring <!--tag:[0-9a-f]*--></html>
 
   See also : "option httpchk", "http-check connect", "http-check disable-on-404"
-             and "http-check send"
+             and "http-check send".
 
 
 http-check send [meth <method>] [uri <uri>] [vsn <version>] [comment <msg>]
@@ -4684,7 +4684,7 @@ http-check send [meth <method>] [uri <uri>] [vsn <version>] [comment <msg>]
   will automatically append a "Connection: close" header, meaning that this
   header should not be present in the request provided by "http-check send".
 
-  See also : "option httpchk", "http-check send-state" and "http-check expect"
+  See also : "option httpchk", "http-check send-state" and "http-check expect".
 
 
 http-check send-state
@@ -4735,17 +4735,16 @@ http-check send-state
     >>>  X-Haproxy-Server-State: UP 2/3; name=bck/srv2; node=lb1; weight=1/2; \
            scur=13/22; qcur=0
 
-  See also : "option httpchk", "http-check disable-on-404"
+  See also : "option httpchk", "http-check disable-on-404" and
+             "http-check send".
 
 
 http-check set-var(<var-name>) <expr>
-
   This operation sets the content of a variable. The variable is declared inline.
-
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  Arguments:
+  Arguments :
     <var-name>  The name of the variable starts with an indication about its
                 scope. The scopes allowed for http-check are:
                   "proc" : the variable is shared with the whole process.
@@ -4757,18 +4756,16 @@ http-check set-var(<var-name>) <expr>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
-  Example:
-    http-check set-var(check.port) int(1234)
+  Examples :
+        http-check set-var(check.port) int(1234)
 
 
 http-check unset-var(<var-name>)
-
   Free a reference to a variable within its scope.
-
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  Arguments:
+  Arguments :
     <var-name>  The name of the variable starts with an indication about its
                 scope. The scopes allowed for http-check are:
                   "proc" : the variable is shared with the whole process.
@@ -4778,8 +4775,8 @@ http-check unset-var(<var-name>)
                 The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
                 and '-'.
 
-  Example:
-    http-check unset-var(check.port)
+  Examples :
+        http-check unset-var(check.port)
 
 
 http-request <action> [options...] [ { if | unless } <condition> ]
@@ -7366,7 +7363,7 @@ option httpchk
 option httpchk <uri>
 option httpchk <method> <uri>
 option httpchk <method> <uri> <version>
-  Enable HTTP protocol to check on the servers health
+  Enables HTTP protocol to check on the servers health
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
@@ -7412,13 +7409,13 @@ option httpchk <method> <uri> <version>
 	 deprecated. The directive "http-check send" must be used instead.
 
   Examples :
-      # Relay HTTPS traffic to Apache instance and check service availability
-      # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
-      backend https_relay
-          mode tcp
-          option httpchk OPTIONS * HTTP/1.1
-          http-check send hdr Host www
-          server apache1 192.168.1.1:443 check port 80
+        # Relay HTTPS traffic to Apache instance and check service availability
+        # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
+        backend https_relay
+            mode tcp
+            option httpchk OPTIONS * HTTP/1.1
+            http-check send hdr Host www
+            server apache1 192.168.1.1:443 check port 80
 
   See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
              "option pgsql-check", "http-check" and the "check", "port" and
@@ -8200,17 +8197,16 @@ option tcp-check
       In this mode, many questions may be sent and many answers may be
       analyzed.
 
-    A fifth mode can be used to insert comments in different steps of the
-    script.
+  A fifth mode can be used to insert comments in different steps of the script.
 
-    For each tcp-check rule you create, you can add a "comment" directive,
-    followed by a string. This string will be reported in the log and stderr
-    in debug mode. It is useful to make user-friendly error reporting.
-    The "comment" is of course optional.
+  For each tcp-check rule you create, you can add a "comment" directive,
+  followed by a string. This string will be reported in the log and stderr in
+  debug mode. It is useful to make user-friendly error reporting.  The
+  "comment" is of course optional.
 
-    During the execution of a health check, a variable scope is made available
-    to store data samples, using the "tcp-check set-var" operation. Freeing
-    those variable is possible using "tcp-check unset-var".
+  During the execution of a health check, a variable scope is made available to
+  store data samples, using the "tcp-check set-var" operation. Freeing those
+  variable is possible using "tcp-check unset-var".
 
 
   Examples :
@@ -8247,7 +8243,7 @@ option tcp-check
          tcp-check expect rstring HTTP/1\..\ (2..|3..) comment check\ HTTP\ response
 
 
-  See also : "tcp-check expect", "tcp-check send"
+  See also : "tcp-check connect", "tcp-check expect" and "tcp-check send".
 
 
 option tcp-smart-accept
@@ -10020,41 +10016,25 @@ tcp-check comment <string>
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
-  It only works for connect, send and expect rules. It is useful to make
-  user-friendly error reporting.
-
   Arguments :
     <string>  is the comment message to add in logs if the following tcp-check
               rule fails.
+
+  It only works for connect, send and expect rules. It is useful to make
+  user-friendly error reporting.
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check send" and
              "tcp-check expect".
 
 
-tcp-check connect [params*]
+tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
+                  [ssl] [sni <sni>] [alpn <alpn>] [linger]
+                  [comment <msg>]
   Opens a new connection
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  When an application lies on more than a single TCP port or when HAProxy
-  load-balance many services in a single backend, it makes sense to probe all
-  the services individually before considering a server as operational.
-
-  When there are no TCP port configured on the server line neither server port
-  directive, then the 'tcp-check connect port <port>' must be the first step
-  of the sequence.
-
-  In a tcp-check ruleset a 'connect' is required, it is also mandatory to start
-  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
-  do.
-
-  When a connect must start the ruleset, if may still be preceded by set-var,
-  unset-var or comment rules.
-
-  Parameters :
-    They are optional and can be used to describe how HAProxy should open and
-    use the TCP connection.
-
+  Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
@@ -10082,7 +10062,22 @@ tcp-check connect [params*]
 
     linger       cleanly close the connection instead of using a single RST.
 
-    Examples:
+  When an application lies on more than a single TCP port or when HAProxy
+  load-balance many services in a single backend, it makes sense to probe all
+  the services individually before considering a server as operational.
+
+  When there are no TCP port configured on the server line neither server port
+  directive, then the 'tcp-check connect port <port>' must be the first step
+  of the sequence.
+
+  In a tcp-check ruleset a 'connect' is required, it is also mandatory to start
+  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
+  do.
+
+  When a connect must start the ruleset, if may still be preceded by set-var,
+  unset-var or comment rules.
+
+  Examples :
          # check HTTP and HTTPs services on a server.
          # first open port 80 thanks to server line port directive, then
          # tcp-check opens port 443, ciphered and run a request on it:
@@ -10184,7 +10179,6 @@ tcp-check expect [min-recv <int>] [comment <msg>]
               two digits will represent a byte. The hexadecimal digits may be
               used upper or lower case.
 
-
   The available matches are intentionally similar to their http-check cousins :
 
     string <string> : test the exact string matches in the response buffer.
@@ -10261,8 +10255,8 @@ tcp-check send <data> [comment <msg>]
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
-    <data> : the data to be sent as a question during a generic health check
-             session. For now, <data> must be a string.
+    <data>  the data to be sent as a question during a generic health check
+            session. For now, <data> must be a string.
 
   Examples :
          # look for the redis master server
@@ -10282,13 +10276,12 @@ tcp-check send-binary <hexstring> [comment <msg>]
 
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
-    <data> : the data to be sent as a question during a generic health check
-             session. For now, <data> must be a string.
-    <hexstring> : test the exact string in its hexadecimal form matches in the
-                   response buffer. A health check response will be considered
-                   valid if the response's buffer contains this exact
-                   hexadecimal string.
-                   Purpose is to send binary data to ask on binary protocols.
+
+    <hexstring>  test the exact string in its hexadecimal form matches in the
+                 response buffer. A health check response will be considered
+                 valid if the response's buffer contains this exact hexadecimal
+                 string. Purpose is to send binary data to ask on binary
+                 protocols.
 
   Examples :
          # redis check in binary
@@ -10302,13 +10295,11 @@ tcp-check send-binary <hexstring> [comment <msg>]
 
 
 tcp-check set-var(<var-name>) <expr>
-
   This operation sets the content of a variable. The variable is declared inline.
-
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  Arguments:
+  Arguments :
     <var-name>  The name of the variable starts with an indication about its
                 scope. The scopes allowed for tcp-check are:
                   "proc" : the variable is shared with the whole process.
@@ -10320,18 +10311,16 @@ tcp-check set-var(<var-name>) <expr>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
-  Example:
+  Examples :
     tcp-check set-var(check.port) int(1234)
 
 
 tcp-check unset-var(<var-name>)
-
   Free a reference to a variable within its scope.
-
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  Arguments:
+  Arguments :
     <var-name>  The name of the variable starts with an indication about its
                 scope. The scopes allowed for tcp-check are:
                   "proc" : the variable is shared with the whole process.
@@ -10341,7 +10330,7 @@ tcp-check unset-var(<var-name>)
                 The name may only contain characters 'a-z', 'A-Z', '0-9', '.',
                 and '-'.
 
-  Example:
+  Examples :
     tcp-check unset-var(check.port)
 
 
