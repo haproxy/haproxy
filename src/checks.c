@@ -1743,12 +1743,13 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	 * check (email alerts) or if there is a mux proto specified or if there
 	 * is no alpn.
 	 */
-	if (!s || connect->mux_proto || check->mux_proto || (!connect->alpn && !check->alpn_str)) {
+	if (!s || ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto) ||
+	    connect->mux_proto || (!connect->alpn && !check->alpn_str)) {
 		const struct mux_ops *mux_ops;
 
 		if (connect->mux_proto)
 			mux_ops = connect->mux_proto->mux;
-		else if (check->mux_proto)
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
 			mux_ops = check->mux_proto->mux;
 		else {
 			int mode = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
@@ -4723,6 +4724,12 @@ static int init_srv_check(struct server *srv)
 			srv->check.xprt = xprt_get(XPRT_SSL);
 		srv->check.send_proxy |= (srv->pp_opts);
 	}
+
+	/* Inherit the mux protocol from the server if not already defined for
+	 * the check
+	 */
+	if (srv->mux_proto && !srv->check.mux_proto)
+		srv->check.mux_proto = srv->mux_proto;
 
 	/* validate <srv> server health-check settings */
 
