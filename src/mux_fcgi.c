@@ -1306,7 +1306,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		chunk_memcat(params->p, path.ptr, path.len);
 		path.ptr = b_tail(params->p) - path.len;
 		path.ptr[path.len] = '\0';
-		len = url_decode(path.ptr);
+		len = url_decode(path.ptr, 0);
 		if (len < 0)
 			goto error;
 		path.len = len;

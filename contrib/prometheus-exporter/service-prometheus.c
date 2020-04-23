@@ -2292,7 +2292,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 			*(p++) = 0;
 		else if (*p == '#')
 			*p = 0;
-		len = url_decode(key);
+		len = url_decode(key, 1);
 		if (len == -1)
 			goto error;
 
@@ -2306,7 +2306,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 				*(p++) = 0;
 			else if (*p == '#')
 				*p = 0;
-			len = url_decode(value);
+			len = url_decode(value, 1);
 			if (len == -1)
 				goto error;
 		}

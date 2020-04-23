@@ -2902,7 +2902,7 @@ static int stats_process_http_post(struct stream_interface *si)
 				/* Ok, a value is found, we can mark the end of the key */
 				*value++ = '\0';
 			}
-			if (url_decode(key) < 0 || url_decode(value) < 0)
+			if (url_decode(key, 1) < 0 || url_decode(value, 1) < 0)
 				break;
 
 			/* Now we can check the key to see what to do */

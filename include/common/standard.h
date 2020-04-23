@@ -609,8 +609,12 @@ static inline const char *csv_enc(const char *str, int quote,
  * be shorter. If some forbidden characters are found, the conversion is
  * aborted, the string is truncated before the issue and non-zero is returned,
  * otherwise the operation returns non-zero indicating success.
+ * If the 'in_form' argument is non-nul the string is assumed to be part of
+ * an "application/x-www-form-urlencoded" encoded string, and the '+' will be
+ * turned to a space. If it's zero, this will only be done after a question
+ * mark ('?').
  */
-int url_decode(char *string);
+int url_decode(char *string, int in_form);
 
 /* This one is 6 times faster than strtoul() on athlon, but does
  * no check at all.

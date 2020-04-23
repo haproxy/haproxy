@@ -14540,9 +14540,13 @@ upper
   sample fetch function or after a transformation keyword returning a string
   type. The result is of type string.
 
-url_dec
-  Takes an url-encoded string provided as input and returns the decoded
-  version as output. The input and the output are of type string.
+url_dec([<in_form>])
+  Takes an url-encoded string provided as input and returns the decoded version
+  as output. The input and the output are of type string. If the <in_form>
+  argument is set to a non-zero integer value, the input string is assumed to
+  be part of a form or query string and the '+' character will be turned into a
+  space (' '). Otherwise this will only happen after a question mark indicating
+  a query string ('?').
 
 ungrpc(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
