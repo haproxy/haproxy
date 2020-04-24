@@ -1660,8 +1660,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	/* 3- release and replace the old one on success */
 	if (check->cs) {
 		if (check->wait_list.events)
-			cs->conn->xprt->unsubscribe(cs->conn, cs->conn->xprt_ctx,
-						    check->wait_list.events, &check->wait_list);
+			cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 
 		/* We may have been scheduled to run, and the I/O handler
 		 * expects to have a cs, so remove the tasklet
@@ -3270,10 +3269,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		task_set_affinity(t, MAX_THREADS_MASK);
 		if (cs) {
 			if (check->wait_list.events)
-				cs->conn->xprt->unsubscribe(cs->conn,
-				                            cs->conn->xprt_ctx,
-							    check->wait_list.events,
-							    &check->wait_list);
+				cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 			/* We may have been scheduled to run, and the
 			 * I/O handler expects to have a cs, so remove
 			 * the tasklet
@@ -3333,10 +3329,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 
 		if (cs) {
 			if (check->wait_list.events)
-				cs->conn->xprt->unsubscribe(cs->conn,
-							    cs->conn->xprt_ctx,
-							    check->wait_list.events,
-							    &check->wait_list);
+				cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
 			/* We may have been scheduled to run, and the
 			 * I/O handler expects to have a cs, so remove
 			 * the tasklet
