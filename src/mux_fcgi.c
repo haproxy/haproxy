@@ -1225,7 +1225,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_SRV_PORT)) {
 		char *end;
 		int port = 0;
-		if (conn_get_dst(cli_conn))
+		if (cli_conn && conn_get_dst(cli_conn))
 			port = get_host_port(cli_conn->dst);
 		end = ultoa_o(port, b_tail(params->p), b_room(params->p));
 		if (!end)
@@ -1239,7 +1239,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		if (!istlen(params->srv_name)) {
 			char *ptr = NULL;
 
-			if (conn_get_dst(cli_conn))
+			if (cli_conn && conn_get_dst(cli_conn))
 				if (addr_to_str(cli_conn->dst, b_tail(params->p), b_room(params->p)) != -1)
 					ptr = b_tail(params->p);
 			if (ptr) {
@@ -1251,7 +1251,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_REM_ADDR)) {
 		char *ptr = NULL;
 
-		if (conn_get_src(cli_conn))
+		if (cli_conn && conn_get_src(cli_conn))
 			if (addr_to_str(cli_conn->src, b_tail(params->p), b_room(params->p)) != -1)
 				ptr = b_tail(params->p);
 		if (ptr) {
@@ -1262,7 +1262,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	if (!(params->mask & FCGI_SP_REM_PORT)) {
 		char *end;
 		int port = 0;
-		if (conn_get_src(cli_conn))
+		if (cli_conn && conn_get_src(cli_conn))
 			port = get_host_port(cli_conn->src);
 		end = ultoa_o(port, b_tail(params->p), b_room(params->p));
 		if (!end)
@@ -1292,7 +1292,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 	}
 #ifdef USE_OPENSSL
 	if (!(params->mask & FCGI_SP_HTTPS)) {
-		params->https = ssl_sock_is_ssl(cli_conn);
+		if (cli_conn)
+			params->https = ssl_sock_is_ssl(cli_conn);
 	}
 #endif
 	if ((params->mask & FCGI_SP_URI_MASK) != FCGI_SP_URI_MASK) {
