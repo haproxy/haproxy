@@ -601,7 +601,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					chunk_appendf(chk, " (expect binary regex)");
 					break;
 				case TCPCHK_EXPECT_HTTP_STATUS:
-					chunk_appendf(chk, " (expect HTTP status '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
+					chunk_appendf(chk, " (expect HTTP status codes)");
 					break;
 				case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 					chunk_appendf(chk, " (expect HTTP status regex)");
@@ -781,9 +781,11 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		free_tcpcheck_fmt(&rule->expect.onsuccess_fmt);
 		release_sample_expr(rule->expect.status_expr);
 		switch (rule->expect.type) {
+		case TCPCHK_EXPECT_HTTP_STATUS:
+			free(rule->expect.codes.codes);
+			break;
 		case TCPCHK_EXPECT_STRING:
 		case TCPCHK_EXPECT_BINARY:
-		case TCPCHK_EXPECT_HTTP_STATUS:
 		case TCPCHK_EXPECT_HTTP_BODY:
 			istfree(&rule->expect.data);
 			break;
@@ -1044,8 +1046,10 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 
 	chunk_strcat(msg, (match ? "TCPCHK matched unwanted content" : "TCPCHK did not match content"));
 	switch (rule->expect.type) {
-	case TCPCHK_EXPECT_STRING:
 	case TCPCHK_EXPECT_HTTP_STATUS:
+		chunk_appendf(msg, "(status codes) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_STRING:
 	case TCPCHK_EXPECT_HTTP_BODY:
 		chunk_appendf(msg, " '%.*s' at step %d", (unsigned int)istlen(rule->expect.data), istptr(rule->expect.data),
 			      tcpcheck_get_step_id(check, rule));
@@ -2093,7 +2097,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 	struct buffer *msg = NULL;
 	enum healthcheck_status status;
 	struct ist desc = IST_NULL;
-	int match, inverse;
+	int i, match, inverse;
 
 	last_read |= (!htx_free_space(htx) || (htx_get_tail_type(htx) == HTX_BLK_EOM));
 
@@ -2127,7 +2131,14 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 	switch (expect->type) {
 	case TCPCHK_EXPECT_HTTP_STATUS:
-		match = isteq(htx_sl_res_code(sl), expect->data);
+		match = 0;
+		for (i = 0; i < expect->codes.num; i++) {
+			if (sl->info.res.status >= expect->codes.codes[i][0] &&
+			    sl->info.res.status <= expect->codes.codes[i][1]) {
+				match = 1;
+				break;
+			}
+		}
 
 		/* Set status and description in case of error */
 		status = HCHK_STATUS_L7STS;
@@ -3918,7 +3929,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
 	struct sample_expr *status_expr = NULL;
-	char *str, *on_success_msg, *on_error_msg, *comment, *pattern;
+	char *on_success_msg, *on_error_msg, *comment, *pattern;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
 	enum healthcheck_status ok_st = HCHK_STATUS_L7OKD;
 	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
@@ -3926,7 +3937,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	long min_recv = -1;
 	int inverse = 0;
 
-	str = on_success_msg = on_error_msg = comment = pattern = NULL;
+	on_success_msg = on_error_msg = comment = pattern = NULL;
 	if (!*(args[cur_arg+1])) {
 		memprintf(errmsg, "expects at least a matching pattern as arguments");
 		goto error;
@@ -4229,8 +4240,44 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	}
 
 	switch (chk->expect.type) {
+	case TCPCHK_EXPECT_HTTP_STATUS: {
+		const char *p = pattern;
+		unsigned int c1,c2;
+
+		chk->expect.codes.codes = NULL;
+		chk->expect.codes.num   = 0;
+		while (1) {
+			c1 = c2 = read_uint(&p, pattern + strlen(pattern));
+			if (*p == '-') {
+				p++;
+				c2 = read_uint(&p, pattern + strlen(pattern));
+			}
+			if (c1 > c2) {
+				memprintf(errmsg, "invalid range of status codes '%s'", pattern);
+				goto error;
+			}
+
+			chk->expect.codes.num++;
+			chk->expect.codes.codes = my_realloc2(chk->expect.codes.codes,
+							      chk->expect.codes.num * sizeof(*chk->expect.codes.codes));
+			if (!chk->expect.codes.codes) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+			chk->expect.codes.codes[chk->expect.codes.num-1][0] = c1;
+			chk->expect.codes.codes[chk->expect.codes.num-1][1] = c2;
+
+			if (*p == '\0')
+				break;
+			if (*p != ',') {
+				memprintf(errmsg, "invalid character '%c' in the list of status codes", *p);
+				goto error;
+			}
+			p++;
+		}
+		break;
+	}
 	case TCPCHK_EXPECT_STRING:
-	case TCPCHK_EXPECT_HTTP_STATUS:
 	case TCPCHK_EXPECT_HTTP_BODY:
 		chk->expect.data = ist2(strdup(pattern), strlen(pattern));
 		if (!isttest(chk->expect.data)) {
@@ -4277,7 +4324,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 
   error:
 	free_tcpcheck(chk, 0);
-	free(str);
 	free(comment);
 	free(on_success_msg);
 	free(on_error_msg);
@@ -4917,7 +4963,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		 */
 		chk = get_last_tcpcheck_rule(&px->tcpcheck_rules);
 		if (chk && chk->action == TCPCHK_ACT_SEND) {
-			next = parse_tcpcheck_expect((char *[]){"http-check", "expect", "rstatus", "^[23]", ""},
+			next = parse_tcpcheck_expect((char *[]){"http-check", "expect", "status", "200-399", ""},
 						     1, px, px->tcpcheck_rules.list, TCPCHK_RULES_HTTP_CHK,
 						     px->conf.file, px->conf.line, &errmsg);
 			if (!next) {

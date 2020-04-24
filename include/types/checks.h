@@ -200,6 +200,11 @@ struct tcpcheck_http_hdr {
 	struct list list;  /* header chained list */
 };
 
+struct tcpcheck_codes {
+	unsigned int (*codes)[2]; /* an array of roange of codes: [0]=min [1]=max */
+	size_t num;               /* number of entry in the array */
+};
+
 #define TCPCHK_SND_HTTP_FL_URI_FMT    0x0001 /* Use a log-format string for the uri */
 #define TCPCHK_SND_HTTP_FL_BODY_FMT   0x0002 /* Use a log-format string for the body */
 #define TCPCHK_SND_HTTP_FROM_OPT      0x0004 /* Send rule coming from "option httpck" directive */
@@ -252,8 +257,9 @@ struct tcpcheck_expect {
 	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */
 	unsigned int flags;               /* TCPCHK_EXPT_FL_* */
 	union {
-		struct ist data;          /* Matching a literal string / binary anywhere in the response. */
-		struct my_regex *regex;   /* Matching a regex pattern. */
+		struct ist data;             /* Matching a literal string / binary anywhere in the response. */
+		struct my_regex *regex;      /* Matching a regex pattern. */
+		struct tcpcheck_codes codes; /* Matching a list of codes */
 
 		/* custom function to eval epxect rule */
 		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);

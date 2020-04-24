@@ -4473,10 +4473,10 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
 
          http-check connect
          http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
-         http-check expect rstatus "^[23][0-9]{2}"
+         http-check expect status 200-399
          http-check connect port 443 ssl sni haproxy.1wt.eu
          http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
-         http-check expect rstatus "^[23][0-9]{2}"
+         http-check expect status 200-399
 
          server www 10.0.0.1 check port 80
 
@@ -4575,11 +4575,13 @@ http-check expect [min-recv <int>] [comment <msg>]
   statement is supported in a backend. If a server fails to respond or times
   out, the check obviously fails. The available matches are :
 
-    status <string> : test the exact string match for the HTTP status code.
-                      A health check response will be considered valid if the
-                      response's status code is exactly this string. If the
-                      "status" keyword is prefixed with "!", then the response
-                      will be considered invalid if the status code matches.
+    status <codes> :  test the status codes found parsing <codes> string. it
+                      must be a comma-separated list of status codes or range
+                      codes. A health check response will be considered as
+                      valid if the response's status code matches any status
+                      code or is inside any range of the list. If the "status"
+                      keyword is prefixed with "!", then the response will be
+                      considered invalid if the status code matches.
 
     rstatus <regex> : test a regular expression for the HTTP status code.
                       A health check response will be considered valid if the
@@ -4627,7 +4629,7 @@ http-check expect [min-recv <int>] [comment <msg>]
 
   Examples :
          # only accept status 200 as valid
-         http-check expect status 200
+         http-check expect status 200,201,300-310
 
          # consider SQL errors as errors
          http-check expect ! string SQL\ Error
