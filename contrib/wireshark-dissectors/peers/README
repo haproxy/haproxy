@@ -15,7 +15,7 @@ on Windows systems (could not be tested).
    packet-happp.c file DISSECTOR_SRC variable which list all wireshark
  - README: this file.
 
-2) To build wireshark with HAPPP dissection support
+2a) To build wireshark with HAPPP dissection support
 ---------------------------------------------------
  - Download wireshark sources:
    $ git clone https://code.wireshark.org/review/wireshark
@@ -25,3 +25,44 @@ on Windows systems (could not be tested).
    $ ./autogen.sh
    $ ./configure
    $ make
+
+2b) Alternative: build the HAPPP dissector as a wireshark plugin
+-----------------------------------------------------------------
+If you don't want to build completely wireshark, you can build the dissector as
+a plugin.
+
+You will need the development package of your distribution, which is
+"libwireshark-dev" for debian based distribution and "wireshark-dev" for
+redhat-based ones.
+
+$ make
+
+To install it in your home directory:
+
+$ make install
+
+The plugin will be installed in ~/.wireshark/plugins/ by default, but you can
+change this path by setting the "plugins" variable. If it didn't work, check
+the paths in "Help > About Wireshark > Folders > Personal Plugins" which should
+give you the right path to use.
+
+In some distribution it will be in ~/.local/lib/wireshark/ so you will need to
+install it this way:
+
+$ make install plugins=~/.local/lib/wireshark/plugins/3.2/epan/
+
+If you want to install it in the system directory you can do it this way, the
+righ path is also in the Folder window. Change the plugins variable this way:
+
+$ sudo make install plugins=/usr/lib64/wireshark/plugins/3.2/epan/
+
+Be careful to use the right version number in the path.
+
+3) Check if you have the dissector in wireshark
+-----------------------------------------------
+To verify if the protocol was well loaded by your wireshark, open the Supported
+Protocols window in "View > Internals > Supported Protocols" and look for
+"HAPPP".
+
+In the case of a plugin, you should see your plugin loaded in "Help > About
+Wireshark > Plugins".

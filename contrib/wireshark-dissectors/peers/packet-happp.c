@@ -27,12 +27,22 @@
 #include <arpa/inet.h>
 
 #include <config.h>
+
 #include <epan/to_str.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/conversation.h>
-#include "strutil.h"
-#include "packet-tcp.h"
+#include <epan/strutil.h>
+#include <epan/dissectors/packet-tcp.h>
+#include <epan/tvbuff.h>
+
+#include <ws_version.h>
+
+WS_DLL_PUBLIC_DEF const gchar plugin_version[] = "0.0.1";
+WS_DLL_PUBLIC_DEF const int plugin_want_major = WIRESHARK_VERSION_MAJOR;
+WS_DLL_PUBLIC_DEF const int plugin_want_minor = WIRESHARK_VERSION_MINOR;
+WS_DLL_PUBLIC void plugin_register(void);
+
 
 #define HAPPP_PROTOCOL                   "HAProxyS"
 #define HAPPP_MSG_MIN_LEN                2
@@ -49,7 +59,6 @@
 #include <ctype.h>
 #include <stdarg.h>
 
-#include "tvbuff.h"
 
 #ifdef DEBUG
 static unsigned char dbg_buf[16 << 10];
@@ -1630,3 +1639,13 @@ proto_reg_handoff_happp(void)
 	                   proto_happp, HEURISTIC_ENABLE);
 }
 
+
+void
+plugin_register(void)
+{
+    static proto_plugin plug;
+
+    plug.register_protoinfo = proto_register_happp;
+    plug.register_handoff = proto_reg_handoff_happp;
+    proto_register_plugin(&plug);
+}
