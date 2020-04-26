@@ -115,8 +115,8 @@ const struct extcheck_env extcheck_envs[EXTCHK_SIZE] = {
 	[EXTCHK_HAPROXY_PROXY_PORT]     = { "HAPROXY_PROXY_PORT",     EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_SERVER_NAME]    = { "HAPROXY_SERVER_NAME",    EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_SERVER_ID]      = { "HAPROXY_SERVER_ID",      EXTCHK_SIZE_EVAL_INIT },
-	[EXTCHK_HAPROXY_SERVER_ADDR]    = { "HAPROXY_SERVER_ADDR",    EXTCHK_SIZE_EVAL_INIT },
-	[EXTCHK_HAPROXY_SERVER_PORT]    = { "HAPROXY_SERVER_PORT",    EXTCHK_SIZE_EVAL_INIT },
+	[EXTCHK_HAPROXY_SERVER_ADDR]    = { "HAPROXY_SERVER_ADDR",    EXTCHK_SIZE_ADDR },
+	[EXTCHK_HAPROXY_SERVER_PORT]    = { "HAPROXY_SERVER_PORT",    EXTCHK_SIZE_UINT },
 	[EXTCHK_HAPROXY_SERVER_MAXCONN] = { "HAPROXY_SERVER_MAXCONN", EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_SERVER_CURCONN] = { "HAPROXY_SERVER_CURCONN", EXTCHK_SIZE_ULONG },
 };
@@ -1925,14 +1925,21 @@ static int prepare_external_check(struct check *check)
 		goto err;
 	}
 
-	addr_to_str(&s->addr, buf, sizeof(buf));
-	check->argv[3] = strdup(buf);
+	if (!check->argv[1] || !check->argv[2]) {
+		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		goto err;
+	}
 
+	check->argv[3] = calloc(EXTCHK_SIZE_ADDR, sizeof(*check->argv[3]));
+	check->argv[4] = calloc(EXTCHK_SIZE_UINT, sizeof(*check->argv[4]));
+	if (!check->argv[3] || !check->argv[4]) {
+		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+		goto err;
+	}
+
+	addr_to_str(&s->addr, check->argv[3], EXTCHK_SIZE_ADDR);
 	if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
-		snprintf(buf, sizeof(buf), "%u", s->svc_port);
-	else
-		*buf = 0;
-	check->argv[4] = strdup(buf);
+		snprintf(check->argv[4], EXTCHK_SIZE_UINT, "%u", s->svc_port);
 
 	for (i = 0; i < 5; i++) {
 		if (!check->argv[i]) {
@@ -2032,7 +2039,18 @@ static int connect_proc_chk(struct task *t)
 		}
 
 		environ = check->envp;
+
+		/* Update some environment variables and command args: curconn, server addr and server port */
 		extchk_setenv(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)));
+
+		addr_to_str(&s->addr, check->argv[3], EXTCHK_SIZE_ADDR);
+		extchk_setenv(check, EXTCHK_HAPROXY_SERVER_ADDR, check->argv[3]);
+
+		*check->argv[4] = 0;
+		if (s->addr.ss_family == AF_INET || s->addr.ss_family == AF_INET6)
+			snprintf(check->argv[4], EXTCHK_SIZE_UINT, "%u", s->svc_port);
+		extchk_setenv(check, EXTCHK_HAPROXY_SERVER_PORT, check->argv[4]);
+
 		haproxy_unblock_signals();
 		execvp(px->check_command, check->argv);
 		ha_alert("Failed to exec process for external health check: %s. Aborting.\n",

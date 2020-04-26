@@ -82,9 +82,11 @@ enum {
 };
 
 /* environment variables memory requirement for different types of data */
-#define EXTCHK_SIZE_EVAL_INIT 0		/* size determined during the init phase,
-					 * such environment variables are not updatable. */
-#define EXTCHK_SIZE_ULONG     20	/* max string length for an unsigned long value */
+#define EXTCHK_SIZE_EVAL_INIT 0                  /* size determined during the init phase,
+                                                  * such environment variables are not updatable. */
+#define EXTCHK_SIZE_ULONG     20                 /* max string length for an unsigned long value */
+#define EXTCHK_SIZE_UINT      11                 /* max string length for an unsigned int value */
+#define EXTCHK_SIZE_ADDR      INET6_ADDRSTRLEN+1 /* max string length for an address */
 
 /* external checks environment variables */
 enum {
