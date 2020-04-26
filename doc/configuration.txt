@@ -12520,18 +12520,55 @@ ca-file <cafile>
   server's certificate.
 
 check
-  This option enables health checks on the server. By default, a server is
-  always considered available. If "check" is set, the server is available when
-  accepting periodic TCP connections, to ensure that it is really able to serve
-  requests. The default address and port to send the tests to are those of the
-  server, and the default source is the same as the one defined in the
-  backend. It is possible to change the address using the "addr" parameter, the
-  port using the "port" parameter, the source address using the "source"
-  address, and the interval and timers using the "inter", "rise" and "fall"
-  parameters. The request method is define in the backend using the "httpchk",
-  "smtpchk", "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please
-  refer to those options and parameters for more information. See also
-  "no-check" option.
+  This option enables health checks on a server:
+    - when not set, no health checking is performed, and the server is always
+      considered available.
+    - when set and no other check method is configured, the server is considered
+      available when a connection can be established at the highest configured
+      transport layer. This means TCP by default, or SSL/TLS when "ssl" or
+      "check-ssl" are set, both possibly combined with connection prefixes such
+      as a PROXY protocol header when "send-proxy" or "check-send-proxy" are
+      set.
+    - when set and an application-level health check is defined, the
+      application-level exchanges are performed on top of the configured
+      transport layer and the server is considered available if all of the
+      exchanges succeed.
+
+  By default, health checks are performed on the same address and port as
+  configured on the server, using the same encapsulation parameters (SSL/TLS,
+  proxy-protocol header, etc... ). It is possible to change the destination
+  address using "addr" and the port using "port". When done, it is assumed the
+  server isn't checked on the service port, and configured encapsulation
+  parameters are not reused. One must explicitely set "check-send-proxy" to send
+  connection headers, "check-ssl" to use SSL/TLS.
+
+  When "sni" or "alpn" are set on the server line, their value is not used for
+  health checks and one must use "check-sni" or "check-alpn".
+
+  The default source address for health check traffic is the same as the one
+  defined in the backend. It can be changed with the "source" keyword.
+
+  The interval between checks can be set using the "inter" keyword, and the
+  "rise" and "fall" keywords can be used to define how many successful or
+  failed health checks are required to flag a server available or not
+  available.
+
+  Optional application-level health checks can be configured with "option
+  httpchk", "option mysql-check" "option smtpchk", "option pgsql-check",
+  "option ldap-check", or "option redis-check".
+
+  Example:
+      # simple tcp check
+      backend foo
+        server s1 192.168.0.1:80 check
+      # this does a tcp connect + tls handshake
+      backend foo
+        server s1 192.168.0.1:443 ssl check
+      # simple tcp check is enough for check success
+      backend foo
+        option tcp-check
+        tcp-check connect
+        server s1 192.168.0.1:443 ssl check
 
 check-send-proxy
   This option forces emission of a PROXY protocol line with outgoing health
