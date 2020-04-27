@@ -2350,7 +2350,7 @@ static int tcpcheck_main(struct check *check)
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
-		goto out_end_tcpcheck;
+		goto out;
 
 	/* 1- check for connection error, if any */
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
@@ -2526,13 +2526,6 @@ static int tcpcheck_main(struct check *check)
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 		chk_report_conn_err(check, errno, 0);
 
-	/* cleanup before leaving */
-	check->current_step = NULL;
-	if (check->sess != NULL) {
-		vars_prune(&check->vars, check->sess, NULL);
-		session_free(check->sess);
-		check->sess = NULL;
-	}
   out:
 	return retcode;
 }
@@ -3316,10 +3309,6 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		/* check complete or aborted */
 
 		check->current_step = NULL;
-		if (check->sess != NULL) {
-			session_free(check->sess);
-			check->sess = NULL;
-		}
 
 		if (conn && conn->xprt) {
 			/* The check was aborted and the connection was not yet closed.
@@ -3342,6 +3331,12 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			cs_destroy(cs);
 			cs = check->cs = NULL;
 			conn = NULL;
+		}
+
+		if (check->sess != NULL) {
+			vars_prune(&check->vars, check->sess, NULL);
+			session_free(check->sess);
+			check->sess = NULL;
 		}
 
 		if (check->server) {
