@@ -126,7 +126,7 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
 		conn->flags &= ~CO_FL_SESS_IDLE;
-		conn->mux->destroy(conn);
+		conn->mux->destroy(conn->ctx);
 		return -1;
 	} else {
 		conn->flags |= CO_FL_SESS_IDLE;
