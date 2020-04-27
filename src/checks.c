@@ -2511,8 +2511,11 @@ static int tcpcheck_main(struct check *check)
 		}
 		else if (rule->action == TCPCHK_ACT_CONNECT) {
 			const char *msg = ((rule->connect.options & TCPCHK_OPT_IMPLICIT) ? NULL : "(tcp-check)");
-			enum healthcheck_status status = ((conn && ssl_sock_is_ssl(conn)) ? HCHK_STATUS_L6OK : HCHK_STATUS_L4OK);
-
+			enum healthcheck_status status = HCHK_STATUS_L4OK;
+#ifdef USE_OPENSSL
+			if (conn && ssl_sock_is_ssl(conn))
+				status = HCHK_STATUS_L6OK;
+#endif
 			set_server_check_status(check, status, msg);
 		}
 	}
