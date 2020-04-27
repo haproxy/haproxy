@@ -201,7 +201,7 @@ struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
-	char use_ssl;			        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
+	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */
