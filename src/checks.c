@@ -1660,7 +1660,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	/* 3- release and replace the old one on success */
 	if (check->cs) {
 		if (check->wait_list.events)
-			cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+			check->cs->conn->mux->unsubscribe(check->cs, check->wait_list.events,
+							  &check->wait_list);
 
 		/* We may have been scheduled to run, and the I/O handler
 		 * expects to have a cs, so remove the tasklet
