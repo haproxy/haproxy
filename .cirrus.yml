@@ -26,6 +26,6 @@ centos_6_task:
     - make CC=cc V=1 TARGET=linux-glibc-legacy USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1
     - ./haproxy -vv
     - ldd haproxy
-    # remove alpn reg-test (CentOS 6 does not support alpn)
-    - rm reg-tests/connection/proxy_protocol_random_fail.vtc
+    # remove some reg-tests (CentOS 6 does not support alpn)
+    - rm reg-tests/connection/proxy_protocol_random_fail.vtc reg-tests/checks/tcp-check-ssl.vtc
     - env VTEST_PROGRAM=../vtest/vtest make reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
