@@ -1805,7 +1805,9 @@ static int server_sni_expr_init(const char *file, int linenum, char **args, int 
 static int server_finalize_init(const char *file, int linenum, char **args, int cur_arg,
                                 struct server *srv, struct proxy *px)
 {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	int ret;
+#endif
 
 	if (srv->do_check && srv->trackit) {
 		ha_alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
