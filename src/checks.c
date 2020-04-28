@@ -1202,7 +1202,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 
 
 	/* 3 Bytes for the packet length and 1 byte for the sequence id */
-	if (!last_read && b_data(&check->bi) < offset+4) {
+	if (b_data(&check->bi) < offset+4) {
 		if (!last_read)
 			goto wait_more_data;
 
