@@ -1888,7 +1888,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		if (!b_data(&check->bo))
 			goto out;
 		break;
-	case TCPCHK_SEND_BINARY_LF:
+	case TCPCHK_SEND_BINARY_LF: {
+		int len = 0;
+
 		tmp = alloc_trash_chunk();
 		if (!tmp)
 			goto error_lf;
@@ -1897,9 +1899,11 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 			goto out;
 		tmp->area[tmp->data] = '\0';
 		b_set_data(&check->bo, b_size(&check->bo));
-		if (parse_binary(b_orig(tmp),  &check->bo.area, (int *)&check->bo.data, NULL) == 0)
+		if (parse_binary(b_orig(tmp),  &check->bo.area, &len, NULL) == 0)
 			goto error_lf;
+		check->bo.data = len;
 		break;
+	}
 	case TCPCHK_SEND_HTTP: {
 		struct htx_sl *sl;
 		struct ist meth, uri, vsn, clen, body;
@@ -3698,12 +3702,15 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 			goto error;
 		}
 		break;
-	case TCPCHK_SEND_BINARY:
-		if (parse_binary(data, &chk->send.data.ptr, (int *)&chk->send.data.len, errmsg) == 0) {
+	case TCPCHK_SEND_BINARY: {
+		int len = 0;
+		if (parse_binary(data, &chk->send.data.ptr, &len, errmsg) == 0) {
 			memprintf(errmsg, "'%s' invalid binary string (%s).\n", data, *errmsg);
 			goto error;
 		}
+		chk->send.data.len = len;
 		break;
+	}
 	case TCPCHK_SEND_STRING_LF:
 	case TCPCHK_SEND_BINARY_LF:
 		LIST_INIT(&chk->send.fmt);
@@ -4276,11 +4283,16 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			goto error;
 		}
 		break;
-	case TCPCHK_EXPECT_BINARY:
-		if (parse_binary(pattern, &chk->expect.data.ptr, (int *)&chk->expect.data.len, errmsg) == 0) {
+	case TCPCHK_EXPECT_BINARY: {
+		int len = 0;
+
+		if (parse_binary(pattern, &chk->expect.data.ptr, &len, errmsg) == 0) {
 			memprintf(errmsg, "invalid binary string (%s)", *errmsg);
 			goto error;
 		}
+		chk->expect.data.len = len;
+		break;
+	}
 	case TCPCHK_EXPECT_REGEX:
 	case TCPCHK_EXPECT_REGEX_BINARY:
 	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
