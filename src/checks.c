@@ -1889,7 +1889,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 			goto out;
 		break;
 	case TCPCHK_SEND_BINARY_LF: {
-		int len = 0;
+		int len = b_size(&check->bo);
 
 		tmp = alloc_trash_chunk();
 		if (!tmp)
@@ -1898,7 +1898,6 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		if (!b_data(tmp))
 			goto out;
 		tmp->area[tmp->data] = '\0';
-		b_set_data(&check->bo, b_size(&check->bo));
 		if (parse_binary(b_orig(tmp),  &check->bo.area, &len, NULL) == 0)
 			goto error_lf;
 		check->bo.data = len;
@@ -3703,7 +3702,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 		}
 		break;
 	case TCPCHK_SEND_BINARY: {
-		int len = 0;
+		int len = chk->send.data.len;
 		if (parse_binary(data, &chk->send.data.ptr, &len, errmsg) == 0) {
 			memprintf(errmsg, "'%s' invalid binary string (%s).\n", data, *errmsg);
 			goto error;
@@ -4284,7 +4283,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		}
 		break;
 	case TCPCHK_EXPECT_BINARY: {
-		int len = 0;
+		int len = chk->expect.data.len;
 
 		if (parse_binary(pattern, &chk->expect.data.ptr, &len, errmsg) == 0) {
 			memprintf(errmsg, "invalid binary string (%s)", *errmsg);
