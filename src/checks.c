@@ -6340,7 +6340,6 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 	cur_arg += 2;
 	if (*args[cur_arg]) {
-		char *user;
 		int packetlen, userlen;
 
 		if (strcmp(args[cur_arg], "user") != 0) {
