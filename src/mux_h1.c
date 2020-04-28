@@ -2498,7 +2498,10 @@ static void h1_detach(struct conn_stream *cs)
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		if (h1c->task) {
 			h1c->task->expire = TICK_ETERNITY;
-			if (b_data(&h1c->obuf)) {
+			if ((!h1c->h1s && !conn_is_back(h1c->conn)) || b_data(&h1c->obuf)) {
+				/* front connections waiting for a stream, as well as any connection with
+				 * pending data, need a timeout.
+				 */
 				h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))
 								      ? h1c->shut_timeout
 								      : h1c->timeout));
