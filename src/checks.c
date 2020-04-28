@@ -1916,8 +1916,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		uri = (isttest(send->http.uri) ? send->http.uri : ist("/")); // TODO: handle uri_fmt
 		vsn = (isttest(send->http.vsn) ? send->http.vsn : ist("HTTP/1.0"));
 
-		if (istlen(vsn) == 8 &&
-		    (*(vsn.ptr+5) > '1' || (*(vsn.ptr+5) == '1' && *(vsn.ptr+7) >= '1')))
+		if ((istlen(vsn) == 6 && *(vsn.ptr+5) == '2') ||
+		    (istlen(vsn) == 8 && (*(vsn.ptr+5) > '1' || (*(vsn.ptr+5) == '1' && *(vsn.ptr+7) >= '1'))))
 			slflags |= HTX_SL_F_VER_11;
 		slflags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
 		if (!isttest(send->http.body))
