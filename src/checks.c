@@ -1353,10 +1353,6 @@ static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, 
 		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
 	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
 	goto out;
-
-  wait_more_data:
-	ret = TCPCHK_EVAL_WAIT;
-	goto out;
 }
 
 /* Custom tcp-check expect function to parse and validate the SPOP hello agent
