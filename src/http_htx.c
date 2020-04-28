@@ -53,9 +53,6 @@ struct conf_errors {
 	struct list list;                           /* next conf_errors */
 };
 
-static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
-static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);
-
 /* Returns the next unporocessed start line in the HTX message. It returns NULL
  * if the start-line is undefined (first == -1). Otherwise, it returns the
  * pointer on the htx_sl structure.
@@ -577,7 +574,7 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
  * contains an authority. Thus, if no authority is found in the uri, an error is
  * returned.
  */
-static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host)
+int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host)
 {
 	struct buffer *temp = get_trash_chunk();
 	struct ist meth, vsn, uri, authority;
@@ -614,7 +611,7 @@ static int http_update_authority(struct htx *htx, struct htx_sl *sl, const struc
  * authority is used to set the value of the header host. This function returns
  * 0 on failure and 1 on success.
 */
-static int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
+int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
 {
 	struct ist authority;
 	struct http_hdr_ctx ctx;
