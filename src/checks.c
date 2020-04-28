@@ -5566,7 +5566,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 		memprintf(errmsg, "'%s %s' : %s.", args[0], args[1], *errmsg);
 		goto error;
 	}
-	ret = (*errmsg != NULL); /* Handle warning */
+	ret = (ret || (*errmsg != NULL)); /* Handle warning */
 
 	/* No error: add the tcp-check rule in the list */
 	chk->index = index;
