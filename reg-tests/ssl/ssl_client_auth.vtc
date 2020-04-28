@@ -1,0 +1,85 @@
+#REGTEST_TYPE=devel
+
+# This reg-test tests the client auth feature of HAProxy for both the backend
+# and frontend section with a CRL list
+#
+# This reg-test uses 2 chained listeners because vtest does not handle the SSL.
+# Test the frontend client auth and the backend side at the same time.
+#
+# The sends 3 requests one with a correct certificate, one with an expired one and one which was revoked.
+# The client then check if we received the right one with the right error.
+#
+# Certificates, CA and CRL are expiring in 2050 so it should be fine for the CI.
+#
+# Detail about configuration is explained there:
+# https://www.haproxy.com/blog/ssl-client-certificate-management-at-application-level/
+
+varnishtest "Test the client auth"
+#REQUIRE_VERSION=1.6
+#REQUIRE_OPTIONS=OPENSSL
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        # crt: certificate sent for a client certificate request
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
+        server s2 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client2_expired.pem # expired
+        server s3 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client3_revoked.pem # revoked
+
+    listen ssl-lst
+        # crt: certificate of the server
+        # ca-file: CA used for client authentication request
+        # crl-file: revocation list for client auth: the client1 certificate is revoked
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+
+        acl cert_expired ssl_c_verify 10
+        acl cert_revoked ssl_c_verify 23
+        acl cert_ok ssl_c_verify 0
+
+        http-response add-header X-SSL Ok if cert_ok
+        http-response add-header X-SSL Expired if cert_expired
+        http-response add-header X-SSL Revoked if cert_revoked
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl == "Expired"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl == "Revoked"
+} -run
