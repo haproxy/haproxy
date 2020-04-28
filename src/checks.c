@@ -1683,7 +1683,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	}
 
 	/* connect to the connect rule addr if specified, otherwise the check
-	 * addr if specified on the server. otherwise, use the server addr
+	 * addr if specified on the server. otherwise, use the server addr (it
+	 * MUST exist at this step).
 	 */
 	*conn->dst = (is_addr(&connect->addr)
 		      ? connect->addr
@@ -1708,8 +1709,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		port = check->port;
 	if (!port && is_inet_addr(&check->addr))
 		port = get_host_port(&check->addr);
-	if (!port)
+	if (!port) {
+		/* The server MUST exist here */
 		port = s->svc_port;
+	}
 	set_host_port(conn->dst, port);
 
 	xprt = ((connect->options & TCPCHK_OPT_SSL)
@@ -1767,19 +1770,19 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 #ifdef USE_OPENSSL
 	if (connect->sni)
 		ssl_sock_set_servername(conn, connect->sni);
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.sni)
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.sni)
 		ssl_sock_set_servername(conn, s->check.sni);
 
 	if (connect->alpn)
 		ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.alpn_str)
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.alpn_str)
 		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 #endif
-	if ((connect->options & TCPCHK_OPT_SOCKS4) && (s->flags & SRV_F_SOCKS4_PROXY)) {
+	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SOCKS4;
 	}
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SOCKS4;
 	}
@@ -1788,7 +1791,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
 	}
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
+	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
 	}
