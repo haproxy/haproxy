@@ -4305,7 +4305,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		chk->expect.custom = NULL; /* Must be defined by the caller ! */
 		break;
 	case TCPCHK_EXPECT_UNDEF:
-		free(chk);
 		memprintf(errmsg, "pattern not found");
 		goto error;
 	}
