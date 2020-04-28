@@ -4644,7 +4644,7 @@ http-check expect [min-recv <int>] [comment <msg>]
              and "http-check send".
 
 
-http-check send [meth <method>] [uri <uri>] [vsn <version>] [comment <msg>]
+http-check send [meth <method>] [uri <uri>] [ver <version>] [comment <msg>]
                 [hdr <name> <fmt>]* [body <string>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
@@ -4664,7 +4664,7 @@ http-check send [meth <method>] [uri <uri>] [vsn <version>] [comment <msg>]
                    any server, but may be changed to any other URI. Query
                    strings are permitted.
 
-    vsn <version>  is the optional HTTP version string. It defaults to
+    ver <version>  is the optional HTTP version string. It defaults to
                    "HTTP/1.0" but some servers might behave incorrectly in HTTP
                    1.0, so turningit to HTTP/1.1 may sometimes help. Note that
                    the Host field is mandatory in HTTP/1.1, use "hdr" argument

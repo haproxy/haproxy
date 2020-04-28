@@ -3758,7 +3758,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 			uri = args[cur_arg];
 			// TODO: log-format uri
 		}
-		else if (strcmp(args[cur_arg], "vsn") == 0) {
+		else if (strcmp(args[cur_arg], "ver") == 0) {
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
 				goto error;
@@ -3799,7 +3799,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 			}
 		}
 		else {
-			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'hdr' and 'body' but got '%s' as argument.",
+			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'ver', 'hdr' and 'body' but got '%s' as argument.",
 				  args[cur_arg]);
 			goto error;
 		}

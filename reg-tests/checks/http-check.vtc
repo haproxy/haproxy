@@ -103,7 +103,7 @@ haproxy h1 -conf {
     backend be3
         log ${S1_addr}:${S1_port} len 2048 local0
         option httpchk
-        http-check send meth GET uri /status vsn HTTP/1.1
+        http-check send meth GET uri /status ver HTTP/1.1
         server srv ${s3_addr}:${s3_port} check inter 100ms rise 1 fall 1
 
     backend be4
@@ -113,11 +113,11 @@ haproxy h1 -conf {
         http-check send-state
         http-check connect addr ${s4_addr}:${s4_port}
         http-check set-var(check.server) "str(srv)"
-        http-check send meth GET uri /req1 vsn HTTP/1.1 hdr x-test "server=%[var(check.server)]"
+        http-check send meth GET uri /req1 ver HTTP/1.1 hdr x-test "server=%[var(check.server)]"
         http-check expect status 200
         http-check connect addr ${s4_addr} port ${s4_port}
         http-check unset-var(check.server)
-        http-check send meth GET uri /req2 vsn HTTP/1.1 hdr x-test "server=%[var(check.server)]" body "health-check body"
+        http-check send meth GET uri /req2 ver HTTP/1.1 hdr x-test "server=%[var(check.server)]" body "health-check body"
         http-check expect rstatus "^2[0-9]{2}"
         http-check connect addr ${s4_addr} port ${s4_port}
         http-check send meth GET uri /req3
