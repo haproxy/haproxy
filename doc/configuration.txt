@@ -18243,6 +18243,7 @@ Please refer to the table below for currently defined variables :
   | H | %Tr  | Tr (response time)                            | numeric     |
   |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
+  |   | %Tu  | Tu                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
   |   | %U   | bytes_uploaded       (from client to server)  | numeric     |
   |   | %ac  | actconn                                       | numeric     |
@@ -18410,6 +18411,7 @@ Timings events in HTTP mode:
       : Th   Ti   TR   Tw   Tc   Tr   Td : Ti   ...
       :<---- Tq ---->:                   :
       :<-------------- Tt -------------->:
+      :<--        -----Tu--------------->:
                 :<--------- Ta --------->:
 
 Timings events in TCP mode:
@@ -18505,6 +18507,15 @@ Timings events in TCP mode:
     Timers with "-1" values have to be excluded from this equation. In TCP
     mode, "Ti", "Tq" and "Tr" have to be excluded too. Note that "Tt" can never
     be negative and that for HTTP, Tt is simply equal to (Th+Ti+Ta).
+
+  - Tu: total estimated time as seen from client, between the moment the proxy
+    accepted it and the moment both ends were closed, without idle time.
+    This is useful to roughly measure end-to-end time as a user would see it,
+    without idle time pollution from keep-alive time between requests. This
+    timer in only an estimation of time seen by user as it assumes network
+    latency is the same in both directions. The exception is when the "logasap"
+    option is specified. In this case, it only equals (Th+TR+Tw+Tc+Tr), and is
+    prefixed with a '+' sign.
 
 These timers provide precious indications on trouble causes. Since the TCP
 protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
