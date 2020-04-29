@@ -88,6 +88,8 @@ REGISTER_PER_THREAD_FREE(free_raw_htx_chunk_per_thread);
  * searching again for something we are unable to find anyway. However, if
  * the result if valid, the cache is not reused because we would risk to
  * have the credentials overwritten by another stream in parallel.
+ * The caller is responsible for passing a sample with a valid stream/txn,
+ * and a valid htx.
  */
 
 static int get_http_auth(struct sample *smp, struct htx *htx)
@@ -166,7 +168,7 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
  *   NULL with SMP_F_MAY_CHANGE in the sample flags if some data is missing to
  *     decide whether or not an HTTP message is present ;
  *   NULL if the requested data cannot be fetched or if it is certain that
- *     we'll never have any HTTP message there ;
+ *     we'll never have any HTTP message there; this includes null strm or chn.
  *   The HTX message if ready
  */
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, int vol)
