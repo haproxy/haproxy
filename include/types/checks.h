@@ -13,15 +13,21 @@
 #ifndef _TYPES_CHECKS_H
 #define _TYPES_CHECKS_H
 
-#include <sys/time.h>
+#include <ebpttree.h>
 
+#include <common/standard.h>
 #include <common/config.h>
+#include <common/ist.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/buf.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>
+#include <types/proxy.h>
+#include <types/sample.h>
+#include <types/server.h>
+#include <types/session.h>
 #include <types/task.h>
 
 /* enum used by check->result. Must remain in this order, as some code uses

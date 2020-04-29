@@ -22,11 +22,9 @@
 #ifndef _PROTO_CHECKS_H
 #define _PROTO_CHECKS_H
 
-#include <types/task.h>
-#include <common/config.h>
-#include <types/mailers.h>
-
 #include <types/action.h>
+#include <types/mailers.h>
+#include <types/checks.h>
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
