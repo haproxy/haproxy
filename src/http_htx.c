@@ -1514,7 +1514,7 @@ smp_fetch_htx_nbblks(const struct arg *arg_p, struct sample *smp, const char *kw
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1536,7 +1536,7 @@ smp_fetch_htx_size(const struct arg *arg_p, struct sample *smp, const char *kw, 
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1558,7 +1558,7 @@ smp_fetch_htx_data(const struct arg *arg_p, struct sample *smp, const char *kw, 
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1580,7 +1580,7 @@ smp_fetch_htx_used(const struct arg *arg_p, struct sample *smp, const char *kw, 
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1602,7 +1602,7 @@ smp_fetch_htx_free(const struct arg *arg_p, struct sample *smp, const char *kw, 
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1624,7 +1624,7 @@ smp_fetch_htx_free_data(const struct arg *arg_p, struct sample *smp, const char 
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1647,7 +1647,7 @@ smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *k
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1673,7 +1673,7 @@ smp_fetch_htx_blk_type(const struct arg *arg_p, struct sample *smp, const char *
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1710,7 +1710,7 @@ smp_fetch_htx_blk_size(const struct arg *arg_p, struct sample *smp, const char *
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1748,7 +1748,7 @@ smp_fetch_htx_blk_stline(const struct arg *arg_p, struct sample *smp, const char
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1801,7 +1801,7 @@ smp_fetch_htx_blk_hdrname(const struct arg *arg_p, struct sample *smp, const cha
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1846,7 +1846,7 @@ smp_fetch_htx_blk_hdrval(const struct arg *arg_p, struct sample *smp, const char
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
@@ -1891,7 +1891,7 @@ smp_fetch_htx_blk_data(const struct arg *arg_p, struct sample *smp, const char *
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	htx = smp_prefetch_htx(smp, chn, 0);
+	htx = smp_prefetch_htx(smp, chn, NULL, 0);
 	if (!htx)
 		return 0;
 
