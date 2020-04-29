@@ -3742,7 +3742,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 	char *meth = NULL, *uri = NULL, *vsn = NULL;
 	char *body = NULL, *comment = NULL;
 	unsigned int flags = 0;
-	int i = 0;
+	int i = 0, host_hdr = -1;
 
 	cur_arg++;
 	while (*(args[cur_arg])) {
@@ -3776,6 +3776,16 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 				memprintf(errmsg, "'%s' expects <name> and <value> as arguments", args[cur_arg]);
 				goto error;
 			}
+
+			if (strcasecmp(args[cur_arg+1], "host") == 0) {
+				if (host_hdr >= 0) {
+					memprintf(errmsg, "'%s' header already defined (previous value is '%s')",
+						  args[cur_arg+1], istptr(hdrs[host_hdr].v));
+					goto error;
+				}
+				host_hdr = i;
+			}
+
 			hdrs[i].n = ist2(args[cur_arg+1], strlen(args[cur_arg+1]));
 			hdrs[i].v = ist2(args[cur_arg+2], strlen(args[cur_arg+2]));
 			i++;
