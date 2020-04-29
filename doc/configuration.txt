@@ -4681,15 +4681,27 @@ http-check send [meth <method>] [uri <uri>] [ver <version>] [comment <msg>]
   In addition to the request line defined by the "option httpchk" directive,
   this one is the valid way to add some headers and optionally a body to the
   request sent during HTTP health checks. If a body is defined, the associate
-  "Content-Length" header is automatically added. The old trick consisting to
-  add headers after the version string on the "option httpchk" line is now
+  "Content-Length" header is automatically added. Thus, this header or
+  "Transfer-encoding" header should not be present in the request provided by
+  "http-check send". If so, it will be ignored. The old trick consisting to add
+  headers after the version string on the "option httpchk" line is now
   deprecated. Note also the "Connection: close" header is still added if a
   "http-check expect" direcive is defined independently of this directive, just
   like the state header if the directive "http-check send-state" is defined.
 
   Also "http-check send" doesn't support HTTP keep-alive. Keep in mind that it
   will automatically append a "Connection: close" header, meaning that this
-  header should not be present in the request provided by "http-check send".
+  header should not be present in the request provided by "http-check send". If
+  so, it will be ignored.
+
+  Note that the Host header and the request authority, when both defined, are
+  automatically synchronized. It means when the HTTP request is sent, when a
+  Host is inserted in the request, the request authority is accordingly
+  updated. Thus, don't be surprised if the Host header value overwrites the
+  configured request authority.
+
+  Note also for now, no Host header is automatically added in HTTP/1.1 or above
+  requests. You should add it explicitly.
 
   See also : "option httpchk", "http-check send-state" and "http-check expect".
 
