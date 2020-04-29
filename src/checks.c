@@ -3785,10 +3785,15 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 				}
 				host_hdr = i;
 			}
+			else if (strcasecmp(args[cur_arg+1], "connection") == 0 ||
+				 strcasecmp(args[cur_arg+1], "content-length") == 0 ||
+				 strcasecmp(args[cur_arg+1], "transfer-encoding") == 0)
+				goto skip_hdr;
 
 			hdrs[i].n = ist2(args[cur_arg+1], strlen(args[cur_arg+1]));
 			hdrs[i].v = ist2(args[cur_arg+2], strlen(args[cur_arg+2]));
 			i++;
+		  skip_hdr:
 			cur_arg += 2;
 		}
 		else if (strcmp(args[cur_arg], "body") == 0) {
