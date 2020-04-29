@@ -1930,6 +1930,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		if (!sl)
 			goto error_htx;
 		sl->info.req.meth = send->http.meth.meth;
+		if (!http_update_host(htx, sl, uri))
+			goto error_htx;
 
 		body = send->http.body; // TODO: handle body_fmt
 		clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
@@ -1940,14 +1942,20 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 
 		if (!LIST_ISEMPTY(&send->http.hdrs)) {
 			struct tcpcheck_http_hdr *hdr;
+			struct ist hdr_value;
 
 			list_for_each_entry(hdr, &send->http.hdrs, list) {
 				chunk_reset(tmp);
                                 tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &hdr->value);
 				if (!b_data(tmp))
 					continue;
-				if (!htx_add_header(htx, hdr->name, ist2(b_orig(tmp), b_data(tmp))))
+				hdr_value = ist2(b_orig(tmp), b_data(tmp));
+				if (!htx_add_header(htx, hdr->name, hdr_value))
 					goto error_htx;
+				if ((sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(hdr->name, ist("host"))) {
+					if (!http_update_authority(htx, sl, hdr_value))
+						goto error_htx;
+				}
 			}
 
 		}
