@@ -4472,10 +4472,10 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
          option httpchk
 
          http-check connect
-         http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check send meth GET uri / ver HTTP/1.1 hdr host haproxy.1wt.eu
          http-check expect status 200-399
          http-check connect port 443 ssl sni haproxy.1wt.eu
-         http-check send GET / HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check send meth GET uri / ver HTTP/1.1 hdr host haproxy.1wt.eu
          http-check expect status 200-399
 
          server www 10.0.0.1 check port 80
