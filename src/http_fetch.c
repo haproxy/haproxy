@@ -414,6 +414,9 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
 	if (LIST_ISEMPTY(&smp->sess->fe->format_unique_id))
 		return 0;
 
+	if (!smp->strm)
+		return 0;
+
 	unique_id = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
 	if (!isttest(unique_id))
 		return 0;
