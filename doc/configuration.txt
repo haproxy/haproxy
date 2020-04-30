@@ -15648,11 +15648,13 @@ bc_http_major : integer
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
-  frontends with responses to check which backend processed the request.
+  frontends with responses to check which backend processed the request. It can
+  also be used in a tcp-check or an http-check ruleset.
 
 be_name : string
   Returns a string containing the current backend's name. It can be used in
-  frontends with responses to check which backend processed the request.
+  frontends with responses to check which backend processed the request. It can
+  also be used in a tcp-check or an http-check ruleset.
 
 dst : ip
   This is the destination IPv4 address of the connection on the client side,
@@ -16243,12 +16245,12 @@ src_updt_conn_cnt([<table>]) : integer
 srv_id : integer
   Returns an integer containing the server's id when processing the response.
   While it's almost only used with ACLs, it may be used for logging or
-  debugging.
+  debugging. It can also be used in a tcp-check or an http-check ruleset.
 
 srv_name : string
   Returns a string containing the server's name when processing the response.
   While it's almost only used with ACLs, it may be used for logging or
-  debugging.
+  debugging. It can also be used in a tcp-check or an http-check ruleset.
 
 7.3.4. Fetching samples at Layer 5
 ----------------------------------

@@ -2544,12 +2544,18 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 static int
 smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!smp->strm)
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
 		return 0;
 
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = smp->strm->be->uuid;
+	smp->data.u.sint = px->uuid;
 	return 1;
 }
 
@@ -2557,10 +2563,16 @@ smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!smp->strm)
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
 		return 0;
 
-	smp->data.u.str.area = (char *)smp->strm->be->id;
+	smp->data.u.str.area = (char *)px->id;
 	if (!smp->data.u.str.area)
 	        return 0;
 
@@ -2575,14 +2587,17 @@ smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, vo
 static int
 smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!smp->strm)
-		return 0;
+	struct server *srv = NULL;
 
-	if (!objt_server(smp->strm->target))
+	if (smp->strm)
+		srv = objt_server(smp->strm->target);
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		srv = __objt_check(smp->sess->origin)->server;
+	if (!srv)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = __objt_server(smp->strm->target)->puid;
+	smp->data.u.sint = srv->puid;
 
 	return 1;
 }
@@ -2591,13 +2606,16 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 static int
 smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!smp->strm)
+	struct server *srv = NULL;
+
+	if (smp->strm)
+		srv = objt_server(smp->strm->target);
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		srv = __objt_check(smp->sess->origin)->server;
+	if (!srv)
 		return 0;
 
-	if (!objt_server(smp->strm->target))
-		return 0;
-
-	smp->data.u.str.area = (char *)__objt_server(smp->strm->target)->id;
+	smp->data.u.str.area = srv->id;
 	if (!smp->data.u.str.area)
 	        return 0;
 
