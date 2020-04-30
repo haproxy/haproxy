@@ -16281,11 +16281,13 @@ future information. Those generally include the results of SSL negotiations.
 ssl_bc : boolean
   Returns true when the back connection was made via an SSL/TLS transport
   layer and is locally deciphered. This means the outgoing connection was made
-  other a server with the "ssl" option.
+  other a server with the "ssl" option. It can be used in a tcp-check or an
+  http-check ruleset.
 
 ssl_bc_alg_keysize : integer
   Returns the symmetric cipher key size supported in bits when the outgoing
-  connection was made over an SSL/TLS transport layer.
+  connection was made over an SSL/TLS transport layer. It can be used in a
+  tcp-check or an http-check ruleset.
 
 ssl_bc_alpn : string
   This extracts the Application Layer Protocol Negotiation field from an
@@ -16296,21 +16298,25 @@ ssl_bc_alpn : string
   not advertised unless the "alpn" keyword on the "server" line specifies a
   protocol list. Also, nothing forces the server to pick a protocol from this
   list, any other one may be requested. The TLS ALPN extension is meant to
-  replace the TLS NPN extension. See also "ssl_bc_npn".
+  replace the TLS NPN extension. See also "ssl_bc_npn". It can be used in a
+  tcp-check or an http-check ruleset.
 
 ssl_bc_cipher : string
   Returns the name of the used cipher when the outgoing connection was made
-  over an SSL/TLS transport layer.
+  over an SSL/TLS transport layer. It can be used in a tcp-check or an
+  http-check ruleset.
 
 ssl_bc_client_random : binary
   Returns the client random of the back connection when the incoming connection
   was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+  It can be used in a tcp-check or an http-check ruleset.
 
 ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
   layer and the newly created SSL session was resumed using a cached
-  session or a TLS ticket.
+  session or a TLS ticket. It can be used in a tcp-check or an http-check
+  ruleset.
 
 ssl_bc_npn : string
   This extracts the Next Protocol Negotiation field from an outgoing connection
@@ -16320,36 +16326,42 @@ ssl_bc_npn : string
   the TLS NPN extension is not advertised unless the "npn" keyword on the
   "server" line specifies a protocol list. Also, nothing forces the server to
   pick a protocol from this list, any other one may be used. Please note that
-  the TLS NPN extension was replaced with ALPN.
+  the TLS NPN extension was replaced with ALPN. It can be used in a tcp-check
+  or an http-check ruleset.
 
 ssl_bc_protocol : string
   Returns the name of the used protocol when the outgoing connection was made
-  over an SSL/TLS transport layer.
+  over an SSL/TLS transport layer. It can be used in a tcp-check or an
+  http-check ruleset.
 
 ssl_bc_unique_id : binary
   When the outgoing connection was made over an SSL/TLS transport layer,
   returns the TLS unique ID as defined in RFC5929 section 3. The unique id
-  can be encoded to base64 using the converter: "ssl_bc_unique_id,base64".
+  can be encoded to base64 using the converter: "ssl_bc_unique_id,base64". It
+  can be used in a tcp-check or an http-check ruleset.
 
 ssl_bc_server_random : binary
   Returns the server random of the back connection when the incoming connection
   was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+  It can be used in a tcp-check or an http-check ruleset.
 
 ssl_bc_session_id : binary
   Returns the SSL ID of the back connection when the outgoing connection was
   made over an SSL/TLS transport layer. It is useful to log if we want to know
-  if session was reused or not.
+  if session was reused or not. It can be used in a tcp-check or an http-check
+  ruleset.
 
 ssl_bc_session_key : binary
   Returns the SSL session master key of the back connection when the outgoing
   connection was made over an SSL/TLS transport layer. It is useful to decrypt
   traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
-  BoringSSL.
+  BoringSSL. It can be used in a tcp-check or an http-check ruleset.
 
 ssl_bc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the outgoing
-  connection was made over an SSL/TLS transport layer.
+  connection was made over an SSL/TLS transport layer. It can be used in a
+  tcp-check or an http-check ruleset.
 
 ssl_c_ca_err : integer
   When the incoming connection was made over an SSL/TLS transport layer,
