@@ -10271,13 +10271,15 @@ tcp-check expect [min-recv <int>] [comment <msg>]
              "tcp-check send-binary", "http-check expect", tune.chksize
 
 
-tcp-check send <data> [comment <msg>]
+tcp-check send <data> [comment <msg>] [log-format]
   Specify a string to be sent as a question during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
+
+    log-format     specifies <data> must be evaluated a log-format string.
 
     <data>  the data to be sent as a question during a generic health check
             session. For now, <data> must be a string.
@@ -10292,7 +10294,7 @@ tcp-check send <data> [comment <msg>]
              "tcp-check send-binary", tune.chksize
 
 
-tcp-check send-binary <hexstring> [comment <msg>]
+tcp-check send-binary <hexstring> [comment <msg>] [log-format]
   Specify a hex digits string to be sent as a binary question during a raw
   tcp health check
   May be used in sections:   defaults | frontend | listen | backend
@@ -10300,6 +10302,8 @@ tcp-check send-binary <hexstring> [comment <msg>]
 
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
+
+    log-format     specifies <hexstring> must be evaluated a log-format string.
 
     <hexstring>  test the exact string in its hexadecimal form matches in the
                  response buffer. A health check response will be considered
