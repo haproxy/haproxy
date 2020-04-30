@@ -19,6 +19,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
+#include <proto/connection.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/sample.h>
@@ -48,19 +49,23 @@ smp_fetch_wait_end(const struct arg *args, struct sample *smp, const char *kw, v
 static int
 smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct channel *chn;
-
-	if (!smp->strm)
-		return 0;
-
-	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	smp->data.type = SMP_T_SINT;
-	if (IS_HTX_STRM(smp->strm)) {
-		struct htx *htx = htxbuf(&chn->buf);
-		smp->data.u.sint = htx->data - co_data(chn);
+	if (smp->strm) {
+		struct channel *chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+		if (IS_HTX_STRM(smp->strm)) {
+			struct htx *htx = htxbuf(&chn->buf);
+			smp->data.u.sint = htx->data - co_data(chn);
+		}
+		else
+			smp->data.u.sint = ci_data(chn);
+	}
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+		struct check *check = __objt_check(smp->sess->origin);
+		smp->data.u.sint = ((check->cs && IS_HTX_CS(check->cs)) ? (htxbuf(&check->bi))->data: b_data(&check->bi));
 	}
 	else
-		smp->data.u.sint = ci_data(chn);
+		return 0;
+
+	smp->data.type = SMP_T_SINT;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -959,22 +964,35 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	unsigned int len_size = arg_p[1].data.sint;
 	unsigned int buf_offset;
 	unsigned int buf_size = 0;
-	struct channel *chn;
+	struct channel *chn = NULL;
+	char *head = NULL;
+	size_t max, data;
 	int i;
 
 	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
 	/* by default buf offset == len offset + len size */
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
 
-	if (!smp->strm)
+	if (smp->strm) {
+		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+		head = ci_head(chn);
+		data = ci_data(chn);
+		max  = global.tune.bufsize;
+	}
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
+		head = b_head(buf);
+		data = b_data(buf);
+		max  = global.tune.chksize;
+	}
+	if (!head)
 		return 0;
 
-	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	if (len_offset + len_size > ci_data(chn))
+	if (len_offset + len_size > data)
 		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)ci_head(chn))[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)head)[i + len_offset];
 	}
 
 	/* buf offset may be implicit, absolute or relative. If the LSB
@@ -988,19 +1006,19 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 			buf_offset = arg_p[2].data.sint >> 1;
 	}
 
-	if (!buf_size || buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
+	if (!buf_size || buf_size > max || buf_offset + buf_size > max) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > ci_data(chn))
+	if (buf_offset + buf_size > data)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.u.str, ci_head(chn) + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.u.str, head + buf_offset, 0, buf_size);
 	return 1;
 
  too_short:
@@ -1014,31 +1032,44 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 {
 	unsigned int buf_offset = arg_p[0].data.sint;
 	unsigned int buf_size = arg_p[1].data.sint;
-	struct channel *chn;
+	struct channel *chn = NULL;
+	char *head = NULL;
+	size_t max, data;
 
-	if (!smp->strm)
+	if (smp->strm) {
+		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+		head = ci_head(chn);
+		data = ci_data(chn);
+		max  = global.tune.bufsize;
+	}
+	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
+		head = b_head(buf);
+		data = b_data(buf);
+		max  = global.tune.chksize;
+	}
+	if (!head)
 		return 0;
 
-	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
-	if (buf_size > global.tune.bufsize || buf_offset + buf_size > global.tune.bufsize) {
+	if (buf_size > max || buf_offset + buf_size > max) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
-
-	if (buf_offset + buf_size > ci_data(chn))
+	if (buf_offset + buf_size > data)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->data.type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.u.str, ci_head(chn) + buf_offset, 0, buf_size ? buf_size : (ci_data(chn) - buf_offset));
-	if (!buf_size && channel_may_recv(chn) && !channel_input_closed(chn))
+	chunk_initlen(&smp->data.u.str, head + buf_offset, 0, buf_size ? buf_size : (data - buf_offset));
+
+	if (!buf_size && chn && channel_may_recv(chn) && !channel_input_closed(chn))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
 	return 1;
 
- too_short:
+  too_short:
 	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
 	return 0;
 }
@@ -1328,6 +1359,10 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },
+
+	{ "check.len",           smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_INTRN },
+	{ "check.payload",       smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_INTRN },
+	{ "check.payload_lv",    smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_INTRN },
 	{ /* END */ },
 }};
 

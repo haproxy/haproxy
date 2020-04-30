@@ -17506,14 +17506,31 @@ placed in the dedicated scope "check". Other sample fetches may also be called
 when an health-check is performed if it makes sense and if the sample fetch was
 adapted to be called in this context.
 
-check.payload(<offset>,<length>) : binary
-  This extracts a binary block of <length> bytes and starting at byte <offset>
-  in the check input buffer. As a special case, if the <length> argument is
-  zero, then the whole buffer from <offset> to the end is extracted. This can
-  be called from a tcp-check expect rule, or eventually from a set-var rule
-  after an expect rule and before a send rule (check input buffer is filled on
+check.len : integer
+  Returns an integer value corresponding to the number of bytes present in the
+  check input buffer, containing the data received from the server. This can be
+  called from a tcp-check expect rule, or eventually from a set-var rule after
+  an expect rule and before a send rule (check input buffer is filled on
   tcp-check expect rules and reset on tcp-check send rules).
 
+check.payload(<offset>,<length>) : binary
+  This extracts a binary block of <length> bytes and starting at byte <offset>
+  in the check input buffer, containing data received from the server. As a
+  special case, if the <length> argument is zero, then the whole buffer from
+  <offset> to the end is extracted. This can be called from a tcp-check expect
+  rule, or eventually from a set-var rule after an expect rule and before a
+  send rule (check input buffer is filled on tcp-check expect rules and reset
+  on tcp-check send rules).
+
+check.payload_lv(<offset1>,<length>[,<offset2>]) : binary
+  This extracts a binary block whose size is specified at <offset1> for
+  <length> bytes, and which starts at <offset2> if specified or just after the
+  length in the check input buffer, containing data received from the
+  server. The <offset2> parameter also supports relative offsets if prepended
+  with a '+' or '-' sign. This can be called from a tcp-check expect rule, or
+  eventually from a set-var rule after an expect rule and before a send rule
+  (check input buffer is filled on tcp-check expect rules and reset on
+  tcp-check send rules).
 
 7.3.8. Fetching samples for developers
 ---------------------------------------

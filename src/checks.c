@@ -1087,8 +1087,10 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	 */
 	if (rule->expect.status_expr) {
 		smp = sample_fetch_as_type(check->proxy, check->sess, NULL, SMP_OPT_DIR_RES | SMP_OPT_FINAL,
-					   rule->expect.status_expr, SMP_T_SINT);
-		if (smp)
+					   rule->expect.status_expr, SMP_T_STR);
+
+		if (smp && sample_casts[smp->data.type][SMP_T_SINT] &&
+                    sample_casts[smp->data.type][SMP_T_SINT](smp))
 			check->code = smp->data.u.sint;
 	}
 
@@ -1122,8 +1124,10 @@ static void tcpcheck_expect_onsuccess_message(struct buffer *msg, struct check *
 	 */
 	if (rule->expect.status_expr) {
 		smp = sample_fetch_as_type(check->proxy, check->sess, NULL, SMP_OPT_DIR_RES | SMP_OPT_FINAL,
-					   rule->expect.status_expr, SMP_T_SINT);
-		if (smp)
+					   rule->expect.status_expr, SMP_T_STR);
+
+		if (smp && sample_casts[smp->data.type][SMP_T_SINT] &&
+                    sample_casts[smp->data.type][SMP_T_SINT](smp))
 			check->code = smp->data.u.sint;
 	}
 
@@ -5489,38 +5493,8 @@ void send_email_alert(struct server *s, int level, const char *format, ...)
 /**************************************************************************/
 /************************** Check sample fetches **************************/
 /**************************************************************************/
-/* extracts check payload at a fixed position and length */
-static int
-smp_fetch_chk_payload(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
-{
-	unsigned int buf_offset = ((arg_p[0].type == ARGT_SINT) ? arg_p[0].data.sint : 0);
-	unsigned int buf_size = ((arg_p[1].type == ARGT_SINT) ? arg_p[1].data.sint : 0);
-	struct check *check = (smp->sess ? objt_check(smp->sess->origin) : NULL);
-	struct buffer *buf;
-
-	if (!check)
-		return 0;
-
-	buf = &check->bi;
-	if (buf_offset > b_data(buf))
-		goto no_match;
-	if (buf_offset + buf_size > b_data(buf))
-		buf_size = 0;
-
-	/* init chunk as read only */
-	smp->data.type = SMP_T_STR;
-	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
-	chunk_initlen(&smp->data.u.str, b_head(buf) + buf_offset, 0, (buf_size ? buf_size : (b_data(buf) - buf_offset)));
-
-	return 1;
-
- no_match:
-	smp->flags = 0;
-	return 0;
-}
 
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "check.payload", smp_fetch_chk_payload,   ARG2(0,SINT,SINT), NULL, SMP_T_STR,  SMP_USE_INTRN },
 	{ /* END */ },
 }};
 
@@ -5873,7 +5847,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "string", redis_res,
 				               "error-status", "L7STS",
-				               "on-error", "%[check.payload(),cut_crlf]",
+				               "on-error", "%[check.payload(0,0),cut_crlf]",
 				               "on-success", "Redis server is ok",
 				               ""},
 				    1, curpx, &rs->rules, TCPCHK_RULES_REDIS_CHK, file, line, &errmsg);
@@ -6075,7 +6049,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^[0-9]{3}[ \r]",
 				               "min-recv", "4",
 				               "error-status", "L7RSP",
-				               "on-error", "%[check.payload(),cut_crlf]",
+				               "on-error", "%[check.payload(0,0),cut_crlf]",
 				               ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
