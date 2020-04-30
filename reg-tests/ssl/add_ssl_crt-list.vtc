@@ -1,31 +1,57 @@
 #REGTEST_TYPE=devel
 
 # This reg-test uses the "add ssl crt-list" command to add a certificate over the CLI.
-# It requires socat and curl to upload and validate that the certificate was well updated
+# It requires socat to upload the certificate
+
+# this check does 2 requests, the first one will use "www.test1.com" as SNI, and
+# the second one will use "localhost". Since vtest can't do SSL, we use haproxy
+# as an SSL client with 2 chained listen section.
 
 # If this test does not work anymore:
-# - Check that you have socat and curl
-# - Check if haproxy and curl use the same ciphers
+# - Check that you have socat
 
 varnishtest "Test the 'add ssl crt-list' feature of the CLI"
 #REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
-#REQUIRE_BINARIES=socat,curl
+#REQUIRE_BINARIES=socat
 feature ignore_unknown_macro
 
+server s1 -repeat 2 {
+    rxreq
+    txresp
+} -start
 
 haproxy h1 -conf {
-  global
-    tune.ssl.default-dh-param 2048
-    tune.ssl.capture-cipherlist-size 1
-    crt-base ${testdir}
-    stats socket "${tmpdir}/h1/stats" level admin
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        crt-base ${testdir}
+        stats socket "${tmpdir}/h1/stats" level admin
 
-  listen frt
-    mode http
-    ${no-htx} option http-use-htx
-    bind "fd@${frt}" ssl strict-sni crt-list ${testdir}/localhost.crt-list
-    http-request redirect location /
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
+        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(localhost)
+
+
+    listen ssl-lst
+        mode http
+        ${no-htx} option http-use-htx
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
+
+        server s1 ${s1_addr}:${s1_port}
 } -start
 
 
@@ -34,23 +60,21 @@ haproxy h1 -cli {
     expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
 }
 
-shell {
-    HOST=${h1_frt_addr}
-    if [ "${h1_frt_addr}" = "::1" ] ; then
-        HOST="\[::1\]"
-    fi
-    curl -v -i -k --resolve www.test1.com:${h1_frt_port}:${h1_frt_addr} https://www.test1.com:${h1_frt_port}
-}
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
 
 shell {
-   echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
-   printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-   echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
-   printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
-   printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt]\n\n" | socat "${tmpdir}/h1/stats" -
-   printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
-   printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem\n\n" | socat "${tmpdir}/h1/stats" -
-   printf "add ssl crt-list ${testdir}/localhost.crt-list ${testdir}/ecdsa.pem\n" | socat "${tmpdir}/h1/stats" -
+    echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt]\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/localhost.crt-list ${testdir}/ecdsa.pem\n" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
@@ -64,10 +88,8 @@ haproxy h1 -cli {
     expect ~ ".*${testdir}/ecdsa.pem \\[(?=.*verify none)(?=.*allow-0rtt).*\\](?=.*!www.test1.com)(?=.*localhost).*"
 }
 
-shell {
-    HOST=${h1_frt_addr}
-    if [ "${h1_frt_addr}" = "::1" ] ; then
-        HOST="\[::1\]"
-    fi
-    curl -v -i -k --resolve localhost:${h1_frt_port}:${h1_frt_addr} https://localhost:${h1_frt_port}
-}
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
