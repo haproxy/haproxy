@@ -623,6 +623,7 @@ static int c_bin2str(struct sample *smp)
 			break;
 		}
 	}
+	smp->data.type = SMP_T_STR;
 	return 1;
 }
 
