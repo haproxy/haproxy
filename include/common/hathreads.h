@@ -170,7 +170,7 @@ static inline void ha_set_tid(unsigned int tid)
 	ti = &ha_thread_info[tid];
 }
 
-static inline unsigned long ha_get_pthread_id(unsigned int thr)
+static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 {
 	return 0;
 }

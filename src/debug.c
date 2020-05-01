@@ -58,7 +58,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	int stuck = !!(ha_thread_info[thr].flags & TI_FL_STUCK);
 
 	chunk_appendf(buf,
-	              "%c%cThread %-2u: id=0x%lx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
+	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "             stuck=%d prof=%d",
 	              (thr == calling_tid) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
 		      ha_get_pthread_id(thr),
