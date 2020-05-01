@@ -93,6 +93,8 @@ static inline void _shctx_wait4lock(unsigned int *count, unsigned int *uaddr, in
         for (i = 0; i < *count; i++) {
                 relax();
                 relax();
+		if (*uaddr != value)
+			return;
         }
         *count = *count << 1;
 }
