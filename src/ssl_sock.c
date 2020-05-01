@@ -12118,7 +12118,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-					struct bind_conf *bind_conf = ckchi->bind_conf;
+					struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
 
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
 					ckch_inst_free(ckchi);
