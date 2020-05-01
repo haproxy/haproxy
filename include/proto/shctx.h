@@ -96,7 +96,7 @@ static inline void _shctx_wait4lock(unsigned int *count, unsigned int *uaddr, in
 		if (*uaddr != value)
 			return;
         }
-        *count = *count << 1;
+        *count = (unsigned char)((*count << 1) + 1);
 }
 
 #define _shctx_awakelocker(a)
@@ -156,7 +156,7 @@ static inline unsigned char atomic_dec(unsigned int *ptr)
 static inline void _shctx_lock(struct shared_context *shctx)
 {
 	unsigned int x;
-	unsigned int count = 4;
+	unsigned int count = 3;
 
 	x = cmpxchg(&shctx->waiters, 0, 1);
 	if (x) {
