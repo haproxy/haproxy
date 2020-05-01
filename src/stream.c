@@ -2666,6 +2666,19 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 
 	chunk_reset(&trash);
 	stream_dump(&trash, s, "", ' ');
+
+	chunk_appendf(&trash, "filters={");
+	if (HAS_FILTERS(s)) {
+		struct filter *filter;
+
+		list_for_each_entry(filter, &s->strm_flt.filters, list) {
+			if (filter->list.p != &s->strm_flt.filters)
+				chunk_appendf(&trash, ", ");
+			chunk_appendf(&trash, "%p=\"%s\"", filter, FLT_ID(filter));
+		}
+	}
+	chunk_appendf(&trash, "}");
+
 	memprintf(&msg,
 	          "A bogus %s [%p] is spinning at %d calls per second and refuses to die, "
 	          "aborting now! Please report this error to developers "
