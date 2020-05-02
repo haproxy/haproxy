@@ -3542,6 +3542,7 @@ static void fcgi_detach(struct conn_stream *cs)
 					/* let's kill the connection right away */
 					fconn->conn->mux->destroy(fconn);
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
+					return;
 				}
 			}
 		}
