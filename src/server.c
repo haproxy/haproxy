@@ -55,6 +55,7 @@ static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
 static void srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
 static int srv_state_get_version(FILE *f);
+static void srv_cleanup_connections(struct server *srv);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -3669,8 +3670,11 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 	}
 
 out:
-	if (changed)
+	if (changed) {
+		/* force connection cleanup on the given server */
+		srv_cleanup_connections(s);
 		srv_set_dyncookie(s);
+	}
 	if (updater)
 		chunk_appendf(msg, " by '%s'", updater);
 	chunk_appendf(msg, "\n");
@@ -4832,6 +4836,8 @@ static void srv_update_status(struct server *s)
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);
 
+			/* force connection cleanup on the given server */
+			srv_cleanup_connections(s);
 			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
 			 * to another server or to the proxy itself.
@@ -5158,6 +5164,37 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 	}
 
 	return task;
+}
+
+/* cleanup connections for a given server
+ * might be useful when going on forced maintenance or live changing ip/port
+ */
+void srv_cleanup_connections(struct server *srv)
+{
+	struct connection *conn;
+	int did_remove;
+	int i;
+	int j;
+
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
+	for (i = 0; i < global.nbthread; i++) {
+		did_remove = 0;
+		HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[i]);
+		for (j = 0; j < srv->curr_idle_conns; j++) {
+			conn = MT_LIST_POP(&srv->idle_conns[i], struct connection *, list);
+			if (!conn)
+				conn = MT_LIST_POP(&srv->safe_conns[i],
+				                   struct connection *, list);
+			if (!conn)
+				break;
+			did_remove = 1;
+			MT_LIST_ADDQ(&toremove_connections[i], (struct mt_list *)&conn->list);
+		}
+		HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[i]);
+		if (did_remove)
+			task_wakeup(idle_conn_cleanup[i], TASK_WOKEN_OTHER);
+	}
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
 }
 
 struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsigned short state)
