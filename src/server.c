@@ -5169,7 +5169,7 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 /* cleanup connections for a given server
  * might be useful when going on forced maintenance or live changing ip/port
  */
-void srv_cleanup_connections(struct server *srv)
+static void srv_cleanup_connections(struct server *srv)
 {
 	struct connection *conn;
 	int did_remove;
