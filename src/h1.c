@@ -830,7 +830,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						break;
 					}
 				}
-				else if (!(h1m->flags & H1_MF_RESP) && isteqi(n, ist("host"))) {
+				else if (!(h1m->flags & (H1_MF_HDRS_ONLY|H1_MF_RESP)) && isteqi(n, ist("host"))) {
 					if (host_idx == -1) {
 						struct ist authority;
 
