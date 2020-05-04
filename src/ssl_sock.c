@@ -8706,7 +8706,7 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 		return 0;
 
 	smp->data.u.str.area = (char *)SSL_SESSION_get_id(ssl_sess, &len);
-	if (!smp->data.u.str.area || !smp->data.u.str.data)
+	if (!smp->data.u.str.area || !len)
 		return 0;
 
 	smp->data.u.str.data = len;
