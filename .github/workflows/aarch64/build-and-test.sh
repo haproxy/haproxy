@@ -10,15 +10,12 @@ export TMPDIR=/tmp
 export FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
 export DEBUG_OPTIONS="DEBUG_STRICT=1"
 export CC=clang-9
-export OPENSSL_VERSION="1.1.1f"
 
 git clone --depth=1 https://github.com/VTest/VTest.git /vtest
 
 pushd /haproxy
-echo "Target: $TARGET"
 make clean 
 make -C /vtest FLAGS="-O2 -s -Wall"
-bash ./scripts/build-ssl.sh
 
 if [ "${CC%-*}"  = "clang" ]; then 
     export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" 
