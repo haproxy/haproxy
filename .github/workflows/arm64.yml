@@ -1,8 +1,8 @@
 #
-# Test build of HAProxy on ARM64
+# Test build of HAProxy on aarch64
 # 
 
-name: ARM64 via QEMU
+name: aarch64 builder
 
 on: [push]
 
@@ -21,6 +21,6 @@ jobs:
     - name: Build ARM64 Docker container
       run: |
         docker build .github/workflows/aarch64/ -t haproxy-aarch64:latest
-    - name: Build and test on ARM64
+    - name: Build and test on AARCH64
       run: |
         docker run --rm -v$(pwd):/haproxy haproxy-aarch64:latest
