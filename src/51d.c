@@ -238,7 +238,7 @@ static void _51d_set_headers(struct sample *smp, fiftyoneDegreesWorkset *ws)
 
 	// No need to null check as this has already been carried out in the
 	// calling method
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 
 	for (i = 0; i < global_51degrees.header_count; i++) {
 		name.ptr = (global_51degrees.header_names + i)->area;
@@ -276,7 +276,7 @@ static void _51d_set_device_offsets(struct sample *smp, fiftyoneDegreesDeviceOff
 
 	// No need to null check as this has already been carried out in the
 	// calling method
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 
 	for (i = 0; i < global_51degrees.header_count; i++) {
 		name.ptr = (global_51degrees.header_names + i)->area;
@@ -424,7 +424,7 @@ static int _51d_fetch(const struct arg *args, struct sample *smp, const char *kw
 	struct htx *htx;
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	if (!htx)
 		return 0;
 
