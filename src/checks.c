@@ -2170,6 +2170,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 	inverse = !!(expect->flags & TCPCHK_EXPT_FL_INV);
 	/* Make GCC happy ; initialize match to a failure state. */
 	match = inverse;
+	status = expect->err_status;
 
 	switch (expect->type) {
 	case TCPCHK_EXPECT_HTTP_STATUS:
@@ -2183,7 +2184,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		}
 
 		/* Set status and description in case of error */
-		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7STS);
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = htx_sl_res_reason(sl);
 		break;
@@ -2191,7 +2192,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		match = regex_exec2(expect->regex, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 
 		/* Set status and description in case of error */
-		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7STS);
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = htx_sl_res_reason(sl);
 		break;
@@ -2203,9 +2204,17 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 		if (expect->flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT) {
 			nbuf = alloc_trash_chunk();
-			if (!nbuf)
+			if (!nbuf) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("Failed to allocate buffer to eval log-format string");
 				goto error;
+			}
 			nbuf->data = sess_build_logline(check->sess, NULL, b_orig(nbuf), b_size(nbuf), &expect->hdr.name_fmt);
+			if (!b_data(nbuf)) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("log-format string evaluated to an empty string");
+				goto error;
+			}
 			npat = ist2(b_orig(nbuf), b_data(nbuf));
 		}
 		else if (!(expect->flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG))
@@ -2213,9 +2222,17 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 		if (expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT) {
 			vbuf = alloc_trash_chunk();
-			if (!vbuf)
+			if (!vbuf) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("Failed to allocate buffer to eval log-format string");
 				goto error;
+			}
 			vbuf->data = sess_build_logline(check->sess, NULL, b_orig(vbuf), b_size(vbuf), &expect->hdr.value_fmt);
+			if (!b_data(vbuf)) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("log-format string evaluated to an empty string");
+				goto error;
+			}
 			vpat = ist2(b_orig(vbuf), b_data(vbuf));
 		}
 		else if (!(expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG))
@@ -2294,7 +2311,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		}
 
 	  end_of_match:
-		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7STS);
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = htx_sl_res_reason(sl);
 		break;
@@ -2317,7 +2334,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		if (!b_data(&trash)) {
 			if (!last_read)
 				goto wait_more_data;
-			status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+			status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 			if (LIST_ISEMPTY(&expect->onerror_fmt))
 				desc = ist("HTTP content check could not find a response body");
 			goto error;
@@ -2332,20 +2349,23 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 		if (expect->type ==TCPCHK_EXPECT_HTTP_BODY)
 			match = my_memmem(b_orig(&trash), b_data(&trash), istptr(expect->data), istlen(expect->data)) != NULL;
+		else if (expect->type ==TCPCHK_EXPECT_HTTP_BODY_LF)
+			match = my_memmem(b_orig(&trash), b_data(&trash), b_orig(tmp), b_data(tmp)) != NULL;
 		else
 			match = regex_exec2(expect->regex, b_orig(&trash), b_data(&trash));
 
 		/* Set status and description in case of error */
-		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = (inverse
 				? ist("HTTP check matched unwanted content")
 				: ist("HTTP content check did not match"));
 		break;
 
+
 	default:
 		/* should never happen */
-		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 		goto error;
 	}
 
@@ -2388,6 +2408,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
+	struct ist desc = IST_NULL;
 	enum healthcheck_status status;
 	int match, inverse;
 
@@ -2411,6 +2432,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	inverse = !!(expect->flags & TCPCHK_EXPT_FL_INV);
 	/* Make GCC happy ; initialize match to a failure state. */
 	match = inverse;
+	status = ((expect->err_status != HCHK_STATUS_UNKNOWN) ? expect->err_status : HCHK_STATUS_L7RSP);
 
 	switch (expect->type) {
 	case TCPCHK_EXPECT_STRING:
@@ -2454,12 +2476,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	ret = TCPCHK_EVAL_STOP;
 	msg = alloc_trash_chunk();
 	if (msg)
-		tcpcheck_expect_onerror_message(msg, check, rule, match, IST_NULL);
-
-	status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+		tcpcheck_expect_onerror_message(msg, check, rule, match, desc);
 	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
 	free_trash_chunk(msg);
-	ret = TCPCHK_EVAL_STOP;
 
   out:
 	return ret;
