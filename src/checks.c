@@ -4497,7 +4497,7 @@ static int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rul
 				  chk->index+1);
 			return 0;
 		}
-		else if (r->action != TCPCHK_ACT_SEND && chk->action == TCPCHK_ACT_EXPECT) {
+		else if (r->action != TCPCHK_ACT_SEND && r->action != TCPCHK_ACT_EXPECT && chk->action == TCPCHK_ACT_EXPECT) {
 			memprintf(errmsg, "unable to add http-check expect rule at step %d (missing send rule).",
 				  chk->index+1);
 			return 0;
