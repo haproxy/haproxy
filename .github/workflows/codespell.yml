@@ -14,4 +14,4 @@ jobs:
     - name: install prerequisites
       run: sudo pip install codespell
     - name: check
-      run: codespell -c -q 2 --ignore-words-list ist,hist,wan,ca,cas --skip CHANGELOG
+      run: codespell -c -q 2 --ignore-words-list ist,hist,wan,ca,cas,que,ans --skip="CHANGELOG,*.fig"
