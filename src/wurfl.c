@@ -436,7 +436,7 @@ static int ha_wurfl_get_all(const struct arg *args, struct sample *smp, const ch
 	ha_wurfl_log("WURFL: starting ha_wurfl_get_all\n");
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	if (!htx)
 		return 0;
 
@@ -522,7 +522,7 @@ static int ha_wurfl_get(const struct arg *args, struct sample *smp, const char *
 	ha_wurfl_log("WURFL: starting ha_wurfl_get\n");
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	if (!htx)
 		return 0;
 
@@ -739,7 +739,7 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	// We could skip this chek since ha_wurfl_retrieve_header is called from inside
 	// ha_wurfl_get()/ha_wurfl_get_all() that already perform the same check
 	// We choose to keep it in case ha_wurfl_retrieve_header will be called directly
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	if (!htx) {
 		return NULL;
 	}
