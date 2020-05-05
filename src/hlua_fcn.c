@@ -1034,13 +1034,18 @@ int hlua_server_set_addr(lua_State *L)
 {
 	struct server *srv;
 	const char *addr;
+	const char *port;
 	const char *err;
 
 	srv = hlua_check_server(L, 1);
 	addr = luaL_checkstring(L, 2);
+	if (lua_gettop(L) >= 3)
+		port = luaL_checkstring(L, 3);
+	else
+		port = NULL;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	err = server_parse_addr_change_request(srv, addr, "Lua script");
+	err = update_server_addr_port(srv, addr, port, "Lua script");
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (!err)
 		lua_pushnil(L);

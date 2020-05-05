@@ -976,7 +976,7 @@ Server class
     server.
   :returns: an integer.
 
-.. js:function:: Server.set_addr(sv, addr)
+.. js:function:: Server.set_addr(sv, addr[, port])
 
   Dynamically change the address of the server. See the management socket
   documentation for more information about the format of the string.
