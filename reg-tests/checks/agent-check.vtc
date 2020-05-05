@@ -9,6 +9,7 @@ server s1 {
   barrier b1 sync
   recv 5
   send "75%,max-conn:30,maint,down\n"
+  expect_close
   barrier b2 sync
 } -start
 
