@@ -15,6 +15,9 @@ jobs:
     - name: Register QEMU
       run: |
         sudo docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
-    - name: Check ARM64 Docker container
+    - name: Build ARM64 Docker container
       run: |
-        docker run --rm arm64v8/centos:8 uname -m
+        docker build aarch64/ -t haproxy-aarch64:latest
+    - name: Build and test on ARM64
+      run: |
+        docker run --rm haproxy-aarch64:latest
