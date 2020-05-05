@@ -289,16 +289,23 @@ HAProxy is :
 
   - a TCP proxy : it can accept a TCP connection from a listening socket,
     connect to a server and attach these sockets together allowing traffic to
-    flow in both directions;
+    flow in both directions; IPv4, IPv6 and even UNIX sockets are supported on
+    either side, so this can provide an easy way to translate addresses between
+    different families.
 
   - an HTTP reverse-proxy (called a "gateway" in HTTP terminology) : it presents
     itself as a server, receives HTTP requests over connections accepted on a
     listening TCP socket, and passes the requests from these connections to
-    servers using different connections.
+    servers using different connections. It may use any combination of HTTP/1.x
+    or HTTP/2 on any side and will even automatically detect the protocol
+    spoken on each side when ALPN is used over TLS.
 
   - an SSL terminator / initiator / offloader : SSL/TLS may be used on the
     connection coming from the client, on the connection going to the server,
-    or even on both connections.
+    or even on both connections. A lot of settings can be applied per name
+    (SNI), and may be updated at runtime without restarting. Such setups are
+    extremely scalable and deployments involving tens to hundreds of thousands
+    of certificates were reported.
 
   - a TCP normalizer : since connections are locally terminated by the operating
     system, there is no relation between both sides, so abnormal traffic such as
@@ -344,6 +351,23 @@ HAProxy is :
     compressed by the server, thus reducing the page load time for clients with
     poor connectivity or using high-latency, mobile networks.
 
+  - a caching proxy : it may cache responses in RAM so that subsequent requests
+    for the same object avoid the cost of another network transfer from the
+    server as long as the object remains present and valid. It will however not
+    store objects to any persistent storage. Please note that this caching
+    feature is designed to be maintenance free and focuses solely on saving
+    haproxy's precious resources and not on save the server's resources. Caches
+    designed to optimize servers require much more tuning and flexibility. If
+    you instead need such an advanced cache, please use Varnish Cache, which
+    integrates perfectly with haproxy, especially when SSL/TLS is needed on any
+    side.
+
+  - a FastCGI gateway : FastCGI can be seen as a different representation of
+    HTTP, and as such, HAProxy can directly load-balance a farm comprising any
+    combination of FastCGI application servers without requiring to insert
+    another level of gateway between them. This results in resource savings and
+    a reduction of maintenance costs.
+
 HAProxy is not :
 
   - an explicit HTTP proxy, i.e. the proxy that browsers use to reach the
@@ -351,20 +375,15 @@ HAProxy is not :
     such as Squid. However HAProxy can be installed in front of such a proxy to
     provide load balancing and high availability.
 
-  - a caching proxy : it will return the contents received from the server as-is
-    and will not interfere with any caching policy. There are excellent
-    open-source software for this task such as Varnish. HAProxy can be installed
-    in front of such a cache to provide SSL offloading, and scalability through
-    smart load balancing.
-
   - a data scrubber : it will not modify the body of requests nor responses.
 
-  - a web server : during startup, it isolates itself inside a chroot jail and
-    drops its privileges, so that it will not perform any single file-system
-    access once started. As such it cannot be turned into a web server. There
-    are excellent open-source software for this such as Apache or Nginx, and
-    HAProxy can be installed in front of them to provide load balancing and
-    high availability.
+  - a static web server : during startup, it isolates itself inside a chroot
+    jail and drops its privileges, so that it will not perform any single file-
+    system access once started. As such it cannot be turned into a static web
+    server (dynamic servers are supported through FastCGI however). There are
+    excellent open-source software for this such as Apache or Nginx, and
+    HAProxy can be easily installed in front of them to provide load balancing,
+    high availability and acceleration.
 
   - a packet-based load balancer : it will not see IP packets nor UDP datagrams,
     will not perform NAT or even less DSR. These are tasks for lower layers.
@@ -375,33 +394,42 @@ HAProxy is not :
 3.2. How HAProxy works
 ----------------------
 
-HAProxy is a single-threaded, event-driven, non-blocking engine combining a very
-fast I/O layer with a priority-based scheduler. As it is designed with a data
+HAProxy is an event-driven, non-blocking engine combining a very fast I/O layer
+with a priority-based, multi-threaded scheduler. As it is designed with a data
 forwarding goal in mind, its architecture is optimized to move data as fast as
-possible with the least possible operations. As such it implements a layered
-model offering bypass mechanisms at each level ensuring data doesn't reach
-higher levels unless needed. Most of the processing is performed in the kernel,
-and HAProxy does its best to help the kernel do the work as fast as possible by
-giving some hints or by avoiding certain operation when it guesses they could
-be grouped later. As a result, typical figures show 15% of the processing time
-spent in HAProxy versus 85% in the kernel in TCP or HTTP close mode, and about
-30% for HAProxy versus 70% for the kernel in HTTP keep-alive mode.
+possible with the least possible operations. It focuses on optimizing the CPU
+cache's efficiency by sticking connections to the same CPU as long as possible.
+As such it implements a layered model offering bypass mechanisms at each level
+ensuring data doesn't reach higher levels unless needed. Most of the processing
+is performed in the kernel, and HAProxy does its best to help the kernel do the
+work as fast as possible by giving some hints or by avoiding certain operation
+when it guesses they could be grouped later. As a result, typical figures show
+15% of the processing time spent in HAProxy versus 85% in the kernel in TCP or
+HTTP close mode, and about 30% for HAProxy versus 70% for the kernel in HTTP
+keep-alive mode.
 
 A single process can run many proxy instances; configurations as large as
-300000 distinct proxies in a single process were reported to run fine. Thus
-there is usually no need to start more than one process for all instances.
+300000 distinct proxies in a single process were reported to run fine. A single
+core, single CPU setup is far more than enough for more than 99% users, and as
+such, users of containers and virtual machines are encouraged to use the
+absolute smallest images they can get to save on operational costs and simplify
+troubleshooting. However the machine HAProxy runs on must never ever swap, and
+its CPU must not be artificially throttled (sub-CPU allocation in hypervisors)
+nor be shared with compute-intensive processes which would induce a very high
+context-switch latency.
 
-It is possible to make HAProxy run over multiple processes, but it comes with
-a few limitations. In general it doesn't make sense in HTTP close or TCP modes
-because the kernel-side doesn't scale very well with some operations such as
-connect(). It scales pretty well for HTTP keep-alive mode but the performance
-that can be achieved out of a single process generally outperforms common needs
-by an order of magnitude. It does however make sense when used as an SSL
-offloader, and this feature is well supported in multi-process mode.
+Threading allows to exploit all available processing capacity by using one
+thread per CPU core. This is mostly useful for SSL or when data forwarding
+rates above 40 Gbps are needed. In such cases it is critically important to
+avoid communications between multiple physical CPUs, which can cause strong
+bottlenecks in the network stack and in HAProxy itself. While counter-intuitive
+to some, the first thing to do when facing some performance issues is often to
+reduce the number of CPUs HAProxy runs on.
 
 HAProxy only requires the haproxy executable and a configuration file to run.
 For logging it is highly recommended to have a properly configured syslog daemon
-and log rotations in place. The configuration files are parsed before starting,
+and log rotations in place. Logs may also be sent to stdout/stderr, which can be
+useful inside containers. The configuration files are parsed before starting,
 then HAProxy tries to bind all listening sockets, and refuses to start if
 anything fails. Past this point it cannot fail anymore. This means that there
 are no runtime failures and that if it accepts to start, it will work until it
@@ -651,7 +679,7 @@ ensure the best global service continuity :
 HAProxy offers a fairly complete set of load balancing features, most of which
 are unfortunately not available in a number of other load balancing products :
 
-  - no less than 9 load balancing algorithms are supported, some of which apply
+  - no less than 10 load balancing algorithms are supported, some of which apply
     to input data to offer an infinite list of possibilities. The most common
     ones are round-robin (for short connections, pick each server in turn),
     leastconn (for long connections, pick the least recently used of the servers
@@ -947,10 +975,10 @@ for logging purposes, which explains why it's still called "log-format". These
 strings contain escape characters allowing to introduce various dynamic data
 including variables and sample fetch expressions into strings, and even to
 adjust the encoding while the result is being turned into a string (for example,
-adding quotes). This provides a powerful way to build header contents or to
-customize log lines. Additionally, in order to remain simple to build most
-common strings, about 50 special tags are provided as shortcuts for information
-commonly used in logs.
+adding quotes). This provides a powerful way to build header contents, to build
+response data or even response templates, or to customize log lines.
+Additionally, in order to remain simple to build most common strings, about 50
+special tags are provided as shortcuts for information commonly used in logs.
 
 
 3.3.13. Basic features : HTTP rewriting and redirection
@@ -993,6 +1021,9 @@ redirects, among which :
   - HTTP redirects also support some extra options such as setting or clearing
     a specific cookie, dropping the query string, appending a slash if missing,
     and so on;
+
+  - a powerful "return" directive allows to customize every part of a response
+    like status, headers, body using dynamic contents or even template files.
 
   - all operations support ACL-based conditions;
 
@@ -1088,7 +1119,10 @@ server for example.
 
 Each frontend and backend may use multiple independent log outputs, which eases
 multi-tenancy. Logs are preferably sent over UDP, maybe JSON-encoded, and are
-truncated after a configurable line length in order to guarantee delivery.
+truncated after a configurable line length in order to guarantee delivery. But
+it is also possible to sned them to stdout/stderr or any file descriptor, as
+well as to a ring buffer that a client can subscribe to in order to retrieve
+them.
 
 
 3.3.16. Basic features : Statistics
@@ -1105,6 +1139,9 @@ change duration, etc), which are also accessible as a CSV table that other tools
 may import to draw graphs. The page may self-refresh to be used as a monitoring
 page on a large display. In administration mode, the page also allows to change
 server state to ease maintenance operations.
+
+A Prometheus exporter is also provided so that the statistics can be consumed
+in a different format depending on the deployment.
 
 
 3.4. Advanced features
@@ -1158,6 +1195,8 @@ entries from ACLs and maps, update TLS shared secrets, apply connection limits
 and rate limits on the fly to arbitrary frontends (useful in shared hosting
 environments), and disable a specific frontend to release a listening port
 (useful when daytime operations are forbidden and a fix is needed nonetheless).
+Updating certificates and their configuration on the fly is permitted, as well
+as enabling and consulting traces of every processing step of the traffic.
 
 For environments where SNMP is mandatory, at least two agents exist, one is
 provided with the HAProxy sources and relies on the Net-SNMP Perl module.
@@ -1233,6 +1272,10 @@ The common effects are spurious timeouts or application freezes. Thus if this
 behavior is detected on a system, it must be fixed, regardless of the fact that
 HAProxy protects itself against it.
 
+On Linux, a new starting process may communicate with the previous one to reuse
+its listening file descriptors so that the listening sockets are never
+interrupted during the process' replacement.
+
 
 3.4.3. Advanced features : Scripting
 ------------------------------------
@@ -1244,6 +1287,18 @@ even possible to establish parallel connections to other servers to exchange
 information. This way it becomes possible (though complex) to develop an
 authentication system for example. Please refer to the documentation in the file
 "doc/lua-api/index.rst" for more information on how to use Lua.
+
+
+3.4.4. Advanced features: Tracing
+---------------------------------
+
+At any moment an administrator may connect over the CLI and enable tracing in
+various internal subsystems. Various levels of details are provided by default
+so that in practice anything between one line per request to 500 lines per
+request can be retrieved. Filters as well as an automatic capture on/off/pause
+mechanism are available so that it really is possible to wait for a certain
+event and watch it in detail. This is extremely convenient to diagnose protocol
+violations from faulty servers and clients, or denial of service attacks.
 
 
 3.5. Sizing
@@ -1386,7 +1441,11 @@ discover it was already fixed. This process also ensures that regressions in a
 stable branch are extremely rare, so there is never any excuse for not upgrading
 to the latest version in your current branch.
 
-Branches are numbered with two digits delimited with a dot, such as "1.6". A
+Branches are numbered with two digits delimited with a dot, such as "1.6".
+Since 1.9, branches with an odd second digit are mostly focused on sensitive
+technical updates and more aimed at advanced users because they are likely to
+trigger more bugs than the other ones. They are maintained for about a year
+only and must not be deployed where they cannot be rolled back in emergency. A
 complete version includes one or two sub-version numbers indicating the level of
 fix. For example, version 1.5.14 is the 14th fix release in branch 1.5 after
 version 1.5.0 was issued. It contains 126 fixes for individual bugs, 24 updates
@@ -1404,6 +1463,11 @@ HAProxy is available from multiple sources, at different release rhythms :
     Very old versions are still supported there. Everything is provided as
     sources only, so whatever comes from there needs to be rebuilt and/or
     repackaged;
+
+  - GitHub : https://github.com/haproxy/haproxy/ : this is the mirror for the
+    development branch only, which provides integration with the issue tracker,
+    continuous integration and code coverage tools. This is exclusively for
+    contributors;
 
   - A number of operating systems such as Linux distributions and BSD ports.
     These systems generally provide long-term maintained versions which do not
@@ -1450,6 +1514,10 @@ branch, you need to proceed this way :
     following format (<branch>-<latest commit>-<revision>) :
 
       HA-Proxy version 1.5.0-994126-357 2015/07/02
+
+    In addition, versions 2.1 and above will include a "Status" line indicating
+    whether the version is safe for production or not, and if so, till when, as
+    well as a link to the list of known bugs affecting this version.
 
   - for system-specific packages, you have to check with your vendor's package
     repository or update system to ensure that your system is still supported,
@@ -1531,7 +1599,15 @@ unless the traffic is low.
 When building large caching farms across multiple nodes, HAProxy can make use of
 consistent URL hashing to intelligently distribute the load to the caching nodes
 and avoid cache duplication, resulting in a total cache size which is the sum of
-all caching nodes.
+all caching nodes. In addition, caching of very small dumb objects for a short
+duration on HAProxy can sometimes save network round trips and reduce the CPU
+load on both the HAProxy and the Varnish nodes. This is only possible is no
+processing is done on these objects on Varnish (this is often referred to as
+the notion of "favicon cache", by which a sizeable percentage of useless
+downstream requests can sometimes be avoided). However do not enable HAProxy
+caching for a long time (more than a few seconds) in front of any other cache,
+that would significantly complicate troubleshooting without providing really
+significant savings.
 
 
 4.4. Alternatives
