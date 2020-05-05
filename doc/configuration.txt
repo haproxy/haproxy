@@ -4629,6 +4629,13 @@ http-check expect [min-recv <int>] [comment <msg>]
                       of a dynamic page, or to detect a failure when a specific
                       error appears on the check page (e.g. a stack trace).
 
+    string-lf <fmt> : test a log-format string match in the HTTP response body.
+                      A health check response will be considered valid if the
+                      response's body contains the  string resulting of the
+                      evaluation of <fmt>, which follows the log-format rules.
+                      If prefixed with "!", then the response will be
+                      considered invalid if the body contains the string.
+
   It is important to note that the responses will be limited to a certain size
   defined by the global "tune.chksize" option, which defaults to 16384 bytes.
   Thus, too large responses may not contain the mandatory pattern when using
@@ -10244,6 +10251,13 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                       will be considered invalid if the body matches the
                       expression.
 
+    string-lf <fmt> : test a log-format string match in the response's buffer.
+                      A health check response will be considered valid if the
+                      response's buffer contains the  string resulting of the
+                      evaluation of <fmt>, which follows the log-format rules.
+                      If prefixed with "!", then the response will be
+                      considered invalid if the buffer contains the string.
+
     binary <hexstring> : test the exact string in its hexadecimal form matches
                          in the response buffer. A health check response will
                          be considered valid if the response's buffer contains
@@ -10258,6 +10272,17 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                       size of the original response. As such, the expected
                       pattern should work on at-most half the response buffer
                       size.
+
+    binary-lf <hexfmt> : test a log-format string in its hexadecimal form
+                         match in the response's buffer. A health check response
+                         will be considered valid if the response's buffer
+                         contains the hexadecimal string resulting of the
+                         evaluation of <fmt>, which follows the log-format
+                         rules. If prefixed with "!", then the response will be
+                         considered invalid if the buffer contains the
+                         hexadecimal string. The hexadecimal string is converted
+                         in a binary string before matching the response's
+                         buffer.
 
   It is important to note that the responses will be limited to a certain size
   defined by the global "tune.chksize" option, which defaults to 16384 bytes.

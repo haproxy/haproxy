@@ -600,6 +600,12 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_REGEX_BINARY:
 					chunk_appendf(chk, " (expect binary regex)");
 					break;
+				case TCPCHK_EXPECT_STRING_LF:
+					chunk_appendf(chk, " (expect log-format string)");
+					break;
+				case TCPCHK_EXPECT_BINARY_LF:
+					chunk_appendf(chk, " (expect log-format binary)");
+					break;
 				case TCPCHK_EXPECT_HTTP_STATUS:
 					chunk_appendf(chk, " (expect HTTP status codes)");
 					break;
@@ -614,6 +620,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					break;
 				case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 					chunk_appendf(chk, " (expect HTTP body regex)");
+					break;
+				case TCPCHK_EXPECT_HTTP_BODY_LF:
+					chunk_appendf(chk, " (expect log-format HTTP body)");
 					break;
 				case TCPCHK_EXPECT_CUSTOM:
 					chunk_appendf(chk, " (expect custom function)");
@@ -798,6 +807,11 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 		case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 			regex_free(rule->expect.regex);
+			break;
+		case TCPCHK_EXPECT_STRING_LF:
+		case TCPCHK_EXPECT_BINARY_LF:
+		case TCPCHK_EXPECT_HTTP_BODY_LF:
+			free_tcpcheck_fmt(&rule->expect.fmt);
 			break;
 		case TCPCHK_EXPECT_HTTP_HEADER:
 			if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG)
@@ -1083,6 +1097,13 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 		break;
 	case TCPCHK_EXPECT_REGEX_BINARY:
 		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_STRING_LF:
+	case TCPCHK_EXPECT_HTTP_BODY_LF:
+		chunk_appendf(msg, " (log-format string) at step %d", tcpcheck_get_step_id(check, rule));
+		break;
+	case TCPCHK_EXPECT_BINARY_LF:
+		chunk_appendf(msg, " (log-format binary) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_CUSTOM:
 		chunk_appendf(msg, " (custom function) at step %d", tcpcheck_get_step_id(check, rule));
@@ -2136,7 +2157,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 	struct htx_blk *blk;
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
-	struct buffer *msg = NULL, *nbuf = NULL, *vbuf = NULL;
+	struct buffer *msg = NULL, *tmp = NULL, *nbuf = NULL, *vbuf = NULL;
 	enum healthcheck_status status = HCHK_STATUS_L7RSP;
 	struct ist desc = IST_NULL;
 	int i, match, inverse;
@@ -2319,6 +2340,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 
 	case TCPCHK_EXPECT_HTTP_BODY:
 	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+	case TCPCHK_EXPECT_HTTP_BODY_LF:
+		match = 0;
 		chunk_reset(&trash);
 		for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
@@ -2340,8 +2363,24 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 			goto error;
 		}
 
+		if (expect->type == TCPCHK_EXPECT_HTTP_BODY_LF) {
+			tmp = alloc_trash_chunk();
+			if (!tmp) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("Failed to allocate buffer to eval log-format string");
+				goto error;
+			}
+			tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &expect->fmt);
+			if (!b_data(tmp)) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("log-format string evaluated to an empty string");
+				goto error;
+			}
+		}
+
 		if (!last_read &&
 		    ((expect->type == TCPCHK_EXPECT_HTTP_BODY && b_data(&trash) < istlen(expect->data)) ||
+		     ((expect->type == TCPCHK_EXPECT_HTTP_BODY_LF && b_data(&trash) < b_data(tmp))) ||
 		     (expect->min_recv > 0 && b_data(&trash) < expect->min_recv))) {
 			ret = TCPCHK_EVAL_WAIT;
 			goto out;
@@ -2381,6 +2420,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		goto error;
 
   out:
+	free_trash_chunk(tmp);
 	free_trash_chunk(nbuf);
 	free_trash_chunk(vbuf);
 	free_trash_chunk(msg);
@@ -2407,7 +2447,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
-	struct buffer *msg = NULL;
+	struct buffer *msg = NULL, *tmp = NULL;
 	struct ist desc = IST_NULL;
 	enum healthcheck_status status;
 	int match, inverse;
@@ -2448,6 +2488,41 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 		dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
 		match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
 		break;
+
+	case TCPCHK_EXPECT_STRING_LF:
+	case TCPCHK_EXPECT_BINARY_LF:
+		match = 0;
+		tmp = alloc_trash_chunk();
+		if (!tmp) {
+			status = HCHK_STATUS_L7RSP;
+			desc = ist("Failed to allocate buffer to eval format string");
+			goto error;
+		}
+		tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &expect->fmt);
+		if (!b_data(tmp)) {
+			status = HCHK_STATUS_L7RSP;
+			desc = ist("log-format string evaluated to an empty string");
+			goto error;
+		}
+		if (expect->type == TCPCHK_EXPECT_BINARY_LF) {
+			int len = tmp->data;
+			if (parse_binary(b_orig(tmp),  &tmp->area, &len, NULL) == 0) {
+				status = HCHK_STATUS_L7RSP;
+				desc = ist("Failed to parse hexastring resulting of eval of a log-format string");
+				goto error;
+			}
+			tmp->data = len;
+		}
+		if (b_data(&check->bi) < tmp->data) {
+			if (!last_read) {
+				ret = TCPCHK_EVAL_WAIT;
+				goto out;
+			}
+			break;
+		}
+		match = my_memmem(b_head(&check->bi), b_data(&check->bi), b_orig(tmp), b_data(tmp)) != NULL;
+		break;
+
 	case TCPCHK_EXPECT_CUSTOM:
 		if (expect->custom)
 			ret = expect->custom(check, rule, last_read);
@@ -2471,7 +2546,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	if (match ^ inverse)
 		goto out;
 
-
+  error:
 	/* From this point on, we matched something we did not want, this is an error state. */
 	ret = TCPCHK_EVAL_STOP;
 	msg = alloc_trash_chunk();
@@ -2481,6 +2556,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	free_trash_chunk(msg);
 
   out:
+	free_trash_chunk(tmp);
 	return ret;
 }
 
@@ -4194,6 +4270,26 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			cur_arg++;
 			pattern = args[cur_arg];
 		}
+		else if (strcmp(args[cur_arg], "string-lf") == 0 || strcmp(args[cur_arg], "binary-lf") == 0) {
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			if (proto != TCPCHK_RULES_HTTP_CHK)
+				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING_LF : TCPCHK_EXPECT_BINARY_LF);
+			else {
+				if (*(args[cur_arg]) != 's')
+					goto bad_http_kw;
+				type = TCPCHK_EXPECT_HTTP_BODY_LF;
+			}
+
+			if (!*(args[cur_arg+1])) {
+				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
+				goto error;
+			}
+			cur_arg++;
+			pattern = args[cur_arg];
+		}
 		else if (strcmp(args[cur_arg], "status") == 0 || strcmp(args[cur_arg], "rstatus") == 0) {
 			if (proto != TCPCHK_RULES_HTTP_CHK)
 				goto bad_tcp_kw;
@@ -4475,13 +4571,13 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		else {
 			if (proto == TCPCHK_RULES_HTTP_CHK) {
 			  bad_http_kw:
-				memprintf(errmsg, "'only supports min-recv, [!]string', '[!]rstring', '[!]status', '[!]rstatus'"
-					  "[!]header or comment but got '%s' as argument.", args[cur_arg]);
+				memprintf(errmsg, "'only supports min-recv, [!]string', '[!]rstring', '[!]string-lf', '[!]status', "
+					  "'[!]rstatus', [!]header or comment but got '%s' as argument.", args[cur_arg]);
 			}
 			else {
 			  bad_tcp_kw:
-				memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]rbinary'"
-					  " or comment but got '%s' as argument.", args[cur_arg]);
+				memprintf(errmsg, "'only supports min-recv, '[!]binary', '[!]string', '[!]rstring', '[!]string-lf'"
+					  "'[!]rbinary', '[!]binary-lf' or comment but got '%s' as argument.", args[cur_arg]);
 			}
 			goto error;
 		}
@@ -4585,6 +4681,18 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		if (!chk->expect.regex)
 			goto error;
 		break;
+
+	case TCPCHK_EXPECT_STRING_LF:
+	case TCPCHK_EXPECT_BINARY_LF:
+	case TCPCHK_EXPECT_HTTP_BODY_LF:
+		LIST_INIT(&chk->expect.fmt);
+		px->conf.args.ctx = ARGC_SRV;
+		if (!parse_logformat_string(pattern, px, &chk->expect.fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", pattern, *errmsg);
+			goto error;
+		}
+		break;
+
 	case TCPCHK_EXPECT_HTTP_HEADER:
 		if (!npat) {
 			memprintf(errmsg, "unexpected error, undefined header name pattern");

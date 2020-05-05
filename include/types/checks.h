@@ -247,14 +247,17 @@ enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_UNDEF = 0,         /* Match is not used. */
 	TCPCHK_EXPECT_STRING,            /* Matches a string. */
 	TCPCHK_EXPECT_REGEX,             /* Matches a regular pattern. */
+	TCPCHK_EXPECT_STRING_LF,         /* Matches a log-format string. */
 	TCPCHK_EXPECT_REGEX_BINARY,      /* Matches a regular pattern on a hex-encoded text. */
 	TCPCHK_EXPECT_BINARY,            /* Matches a binary sequence on a hex-encoded text. */
+	TCPCHK_EXPECT_BINARY_LF,         /* Matches a log-format binary sequence on a hex-encoded text. */
 	TCPCHK_EXPECT_CUSTOM,            /* Execute a custom function. */
 	TCPCHK_EXPECT_HTTP_STATUS,       /* Matches a list of codes on the HTTP status */
 	TCPCHK_EXPECT_HTTP_REGEX_STATUS, /* Matches a regular pattern on the HTTP status */
 	TCPCHK_EXPECT_HTTP_HEADER,       /* Matches on HTTP headers */
 	TCPCHK_EXPECT_HTTP_BODY,         /* Matches a string oa the HTTP payload */
 	TCPCHK_EXPECT_HTTP_REGEX_BODY,   /* Matches a regular pattern on a HTTP payload */
+	TCPCHK_EXPECT_HTTP_BODY_LF,      /* Matches a log-format string on the HTTP payload */
 };
 
 /* tcp-check expect flags */
@@ -276,6 +279,7 @@ enum tcpcheck_expect_type {
 
 #define TCPCHK_EXPT_FL_HTTP_HNAME_TYPE 0x003E /* Mask to get matching method on header name */
 #define TCPCHK_EXPT_FL_HTTP_HVAL_TYPE  0x1F00 /* Mask to get matching method on header value */
+
 struct tcpcheck_expect {
 	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */
 	unsigned int flags;               /* TCPCHK_EXPT_FL_* */
@@ -283,6 +287,7 @@ struct tcpcheck_expect {
 		struct ist data;             /* Matching a literal string / binary anywhere in the response. */
 		struct my_regex *regex;      /* Matching a regex pattern. */
 		struct tcpcheck_codes codes; /* Matching a list of codes */
+		struct list fmt;             /* Matching a log-format string / binary */
 		struct {
 			union {
 				struct ist name;
