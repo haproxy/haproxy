@@ -17090,10 +17090,9 @@ capture.res.ver : string
   persistent flag.
 
 req.body : binary
-  This returns the HTTP request's available body as a block of data. It
-  requires that the request body has been buffered made available using
-  "option http-buffer-request". In case of chunked-encoded body, currently only
-  the first chunk is analyzed.
+  This returns the HTTP request's available body as a block of data. It is
+  recommended to use "option http-buffer-request" to be sure to wait, as much
+  as possible, for the request's body.
 
 req.body_param([<name>) : string
   This fetch assumes that the body of the POST request is url-encoded. The user
@@ -17110,15 +17109,13 @@ req.body_param([<name>) : string
 req.body_len : integer
   This returns the length of the HTTP request's available body in bytes. It may
   be lower than the advertised length if the body is larger than the buffer. It
-  requires that the request body has been buffered made available using
-  "option http-buffer-request".
+  is recommended to use "option http-buffer-request" to be sure to wait, as
+  much as possible, for the request's body.
 
 req.body_size : integer
   This returns the advertised length of the HTTP request's body in bytes. It
-  will represent the advertised Content-Length header, or the size of the first
-  chunk in case of chunked encoding. In order to parse the chunks, it requires
-  that the request body has been buffered made available using
-  "option http-buffer-request".
+  will represent the advertised Content-Length header, or the size of the
+  available data in case of chunked encoding.
 
 req.cook([<name>]) : string
 cook([<name>]) : string (deprecated)
