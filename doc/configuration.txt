@@ -4565,9 +4565,10 @@ http-check expect [min-recv <int>] [comment <msg>]
               between the exclamation mark and the keyword. See below for more
               details on the supported keywords.
 
-    <pattern> is the pattern to look for. It may be a string or a regular
-              expression. If the pattern contains spaces, they must be escaped
-              with the usual backslash ('\').
+    <pattern> is the pattern to look for. It may be a string, a regular
+              expression or a more complex pattern with several arguments. If
+              the string pattern contains spaces, they must be escaped with the
+              usual backslash ('\').
 
   By default, "option httpchk" considers that response statuses 2xx and 3xx
   are valid, and that others are invalid. When "http-check expect" is used,
@@ -4589,6 +4590,25 @@ http-check expect [min-recv <int>] [comment <msg>]
                       "rstatus" keyword is prefixed with "!", then the response
                       will be considered invalid if the status code matches.
                       This is mostly used to check for multiple codes.
+
+    header name [ -m <meth> ] <name> [log-format]
+           [ value [ -m <meth> ] <value> [log-format] [full] ] :
+                      test the specified header pattern on the HTTP response
+                      headers. The name pattern is mandatory but the value
+                      pattern is optional. If not specified, only the header
+                      presence is verified. <meth> is the matching method,
+                      applied on the header name or the header value. Supported
+                      matching methods are "str" (exact match), "beg" (prefix
+                      match), "end" (suffix match), "sub" (substring match) or
+                      "reg" (regex match). If not specified, exact matching
+                      method is used. If the "log-format" option is used, the
+                      pattern (<name> or <value>) is evaluated as a log-format
+                      string. This option cannot be used with the regex
+                      matching method. Finally, by default, the header value is
+                      considered as comma-separated list. Each part may be
+                      tested. The "full" option may be used to test the full
+                      header line. Note that matchings are case insensitive on
+                      the header names.
 
     string <string> : test the exact string match in the HTTP response body.
                       A health check response will be considered valid if the
@@ -4630,6 +4650,9 @@ http-check expect [min-recv <int>] [comment <msg>]
   Examples :
          # only accept status 200 as valid
          http-check expect status 200,201,300-310
+
+         # be sure a sessid coookie is set
+         http-check expect header name "set-cookie" value -m beg "sessid="
 
          # consider SQL errors as errors
          http-check expect ! string SQL\ Error

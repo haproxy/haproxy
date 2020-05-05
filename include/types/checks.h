@@ -248,17 +248,34 @@ enum tcpcheck_expect_type {
 	TCPCHK_EXPECT_STRING,            /* Matches a string. */
 	TCPCHK_EXPECT_REGEX,             /* Matches a regular pattern. */
 	TCPCHK_EXPECT_REGEX_BINARY,      /* Matches a regular pattern on a hex-encoded text. */
-	TCPCHK_EXPECT_BINARY,            /* Matches a binary sequence. */
+	TCPCHK_EXPECT_BINARY,            /* Matches a binary sequence on a hex-encoded text. */
 	TCPCHK_EXPECT_CUSTOM,            /* Execute a custom function. */
-	TCPCHK_EXPECT_HTTP_STATUS,       /* Matches a string */
-	TCPCHK_EXPECT_HTTP_REGEX_STATUS, /* Matches a regular pattern */
-	TCPCHK_EXPECT_HTTP_BODY,         /* Matches a string */
-	TCPCHK_EXPECT_HTTP_REGEX_BODY,   /* Matches a regular pattern */
+	TCPCHK_EXPECT_HTTP_STATUS,       /* Matches a list of codes on the HTTP status */
+	TCPCHK_EXPECT_HTTP_REGEX_STATUS, /* Matches a regular pattern on the HTTP status */
+	TCPCHK_EXPECT_HTTP_HEADER,       /* Matches on HTTP headers */
+	TCPCHK_EXPECT_HTTP_BODY,         /* Matches a string oa the HTTP payload */
+	TCPCHK_EXPECT_HTTP_REGEX_BODY,   /* Matches a regular pattern on a HTTP payload */
 };
 
 /* tcp-check expect flags */
-#define TCPCHK_EXPT_FL_INV    0x0001 /* Matching is inversed */
+#define TCPCHK_EXPT_FL_INV             0x0001 /* Matching is inversed */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_STR  0x0002 /* Exact match on the HTTP header name */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_BEG  0x0004 /* Prefix match on the HTTP header name */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_END  0x0008 /* Suffix match on the HTTP header name */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_SUB  0x0010 /* Substring match on the HTTP header name */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_REG  0x0020 /* Regex match on the HTTP header name */
+#define TCPCHK_EXPT_FL_HTTP_HNAME_FMT  0x0040 /* The HTTP header name is a log-format string */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_NONE  0x0080 /* No match on the HTTP header value */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_STR   0x0100 /* Exact match on the HTTP header value */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_BEG   0x0200 /* Prefix match on the HTTP header value */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_END   0x0400 /* Suffix match on the HTTP header value */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_SUB   0x0800 /* Substring match on the HTTP header value */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_REG   0x1000 /* Regex match on the HTTP header value*/
+#define TCPCHK_EXPT_FL_HTTP_HVAL_FMT   0x2000 /* The HTTP header value is a log-format string */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_FULL  0x4000 /* Match the full header value ( no stop on commas ) */
 
+#define TCPCHK_EXPT_FL_HTTP_HNAME_TYPE 0x003E /* Mask to get matching method on header name */
+#define TCPCHK_EXPT_FL_HTTP_HVAL_TYPE  0x1F00 /* Mask to get matching method on header value */
 struct tcpcheck_expect {
 	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */
 	unsigned int flags;               /* TCPCHK_EXPT_FL_* */
@@ -266,6 +283,19 @@ struct tcpcheck_expect {
 		struct ist data;             /* Matching a literal string / binary anywhere in the response. */
 		struct my_regex *regex;      /* Matching a regex pattern. */
 		struct tcpcheck_codes codes; /* Matching a list of codes */
+		struct {
+			union {
+				struct ist name;
+				struct list name_fmt;
+				struct my_regex *name_re;
+			};
+			union {
+				struct ist value;
+				struct list value_fmt;
+				struct my_regex *value_re;
+			};
+		} hdr;                       /* Matching a header pattern */
+
 
 		/* custom function to eval epxect rule */
 		enum tcpcheck_eval_ret (*custom)(struct check *, struct tcpcheck_rule *, int);

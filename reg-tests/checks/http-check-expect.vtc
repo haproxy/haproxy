@@ -1,0 +1,66 @@
+varnishtest "Health-checks: some http-check expect tests"
+feature ignore_unknown_macro
+#REQUIRE_VERSION=2.2
+#REGTEST_TYPE=slow
+# This script tests http-check expect rules.
+
+server s1 {
+    rxreq
+    expect req.method == OPTIONS
+    expect req.url == /
+    expect req.proto == HTTP/1.0
+    txresp -status 202 \
+      -hdr "x-test1: true, next value" \
+      -hdr "x-test2: true, begin-value, value-end, value-sub-string, value-reg-123ABC" \
+      -hdr "x-begin-test: 1" \
+      -hdr "x-test-end: 1" \
+      -hdr "x-sub-test: 1" \
+      -hdr "x-reg-test1: 1" \
+      -hdr "x-hdr-name: x-test1"
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded.*code: 202"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+        option log-health-checks
+
+    backend be1
+        log ${S1_addr}:${S1_port} len 2048 local0
+        option httpchk
+	http-check expect status 200-399
+
+	http-check expect header name "x-test1"
+	http-check expect header name -m str "X-Test2"
+	http-check expect header name -m beg "X-Begin-"
+	http-check expect header name -m end "-End"
+	http-check expect header name -m sub "-Sub-"
+	http-check expect header name -m reg "^[a-z]+-Reg-[a-z]+[0-9]\$"
+	http-check set-var(check.hdr_name) check.fhdr(x-hdr-name)
+	http-check expect header name -m str "%[var(check.hdr_name)]" log-format
+	http-check expect header name -m str "%[check.fhdr(x-hdr-name)]" log-format
+
+	http-check expect header name "x-test1" value "true, next value" full
+	http-check expect header name "x-test2" value -m str "true"
+	http-check expect header name -m beg "x-test" value -m beg "begin-"
+	http-check expect header name -m beg "x-test" value -m end "-end"
+	http-check expect header name -m beg "x-test" value -m sub "-sub-"
+	http-check expect header name -m beg "x-test" value -m reg "^value-reg-[A-Z0-9]+\$"
+	http-check expect header name -m beg "x-test" value -m reg "value-reg-[A-Z0-9]+" full
+	http-check set-var(check.hdr_value) str(x-test1)
+	http-check expect header name -m beg "x-" value -m str "%[var(check.hdr_value)]" log-format
+	http-check expect header name -m beg "x-" value -m str "%[check.fhdr(x-hdr-name)]" log-format full
+
+        server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
+} -start
+
+syslog S1 -wait

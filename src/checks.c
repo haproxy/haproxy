@@ -606,6 +606,9 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 					chunk_appendf(chk, " (expect HTTP status regex)");
 					break;
+				case TCPCHK_EXPECT_HTTP_HEADER:
+					chunk_appendf(chk, " (expect HTTP header pattern)");
+					break;
 				case TCPCHK_EXPECT_HTTP_BODY:
 					chunk_appendf(chk, " (expect HTTP body content '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
 					break;
@@ -795,6 +798,21 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 		case TCPCHK_EXPECT_HTTP_REGEX_BODY:
 			regex_free(rule->expect.regex);
+			break;
+		case TCPCHK_EXPECT_HTTP_HEADER:
+			if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG)
+				regex_free(rule->expect.hdr.name_re);
+			else if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT)
+				free_tcpcheck_fmt(&rule->expect.hdr.name_fmt);
+			else
+				istfree(&rule->expect.hdr.name);
+
+			if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG)
+				regex_free(rule->expect.hdr.value_re);
+			else if (rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT)
+				free_tcpcheck_fmt(&rule->expect.hdr.value_fmt);
+			else if (!(rule->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_NONE))
+				istfree(&rule->expect.hdr.value);
 			break;
 		case TCPCHK_EXPECT_CUSTOM:
 		case TCPCHK_EXPECT_UNDEF:
@@ -1069,6 +1087,8 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	case TCPCHK_EXPECT_CUSTOM:
 		chunk_appendf(msg, " (custom function) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
+	case TCPCHK_EXPECT_HTTP_HEADER:
+		chunk_appendf(msg, " (header pattern) at step %d", tcpcheck_get_step_id(check, rule));
 	case TCPCHK_EXPECT_UNDEF:
 		/* Should never happen. */
 		return;
@@ -2116,8 +2136,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 	struct htx_blk *blk;
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
-	struct buffer *msg = NULL;
-	enum healthcheck_status status;
+	struct buffer *msg = NULL, *nbuf = NULL, *vbuf = NULL;
+	enum healthcheck_status status = HCHK_STATUS_L7RSP;
 	struct ist desc = IST_NULL;
 	int i, match, inverse;
 
@@ -2175,6 +2195,110 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = htx_sl_res_reason(sl);
 		break;
+
+	case TCPCHK_EXPECT_HTTP_HEADER: {
+		struct http_hdr_ctx ctx;
+		struct ist npat, vpat, value;
+		int full = (expect->flags & (TCPCHK_EXPT_FL_HTTP_HVAL_NONE|TCPCHK_EXPT_FL_HTTP_HVAL_FULL));
+
+		if (expect->flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT) {
+			nbuf = alloc_trash_chunk();
+			if (!nbuf)
+				goto error;
+			nbuf->data = sess_build_logline(check->sess, NULL, b_orig(nbuf), b_size(nbuf), &expect->hdr.name_fmt);
+			npat = ist2(b_orig(nbuf), b_data(nbuf));
+		}
+		else if (!(expect->flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG))
+			npat = expect->hdr.name;
+
+		if (expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT) {
+			vbuf = alloc_trash_chunk();
+			if (!vbuf)
+				goto error;
+			vbuf->data = sess_build_logline(check->sess, NULL, b_orig(vbuf), b_size(vbuf), &expect->hdr.value_fmt);
+			vpat = ist2(b_orig(vbuf), b_data(vbuf));
+		}
+		else if (!(expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG))
+			vpat = expect->hdr.value;
+
+		match = 0;
+		ctx.blk = NULL;
+		while (1) {
+			switch (expect->flags & TCPCHK_EXPT_FL_HTTP_HNAME_TYPE) {
+			case TCPCHK_EXPT_FL_HTTP_HNAME_STR:
+				if (!http_find_str_header(htx, npat, &ctx, full))
+					goto end_of_match;
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HNAME_BEG:
+				if (!http_find_pfx_header(htx, npat, &ctx, full))
+					goto end_of_match;
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HNAME_END:
+				if (!http_find_sfx_header(htx, npat, &ctx, full))
+					goto end_of_match;
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HNAME_SUB:
+				if (!http_find_sub_header(htx, npat, &ctx, full))
+					goto end_of_match;
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HNAME_REG:
+				if (!http_match_header(htx, expect->hdr.name_re, &ctx, full))
+					goto end_of_match;
+				break;
+			}
+
+			if (expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_NONE) {
+				match = 1;
+				goto end_of_match;
+			}
+
+			value = ctx.value;
+			switch (expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_TYPE) {
+			case TCPCHK_EXPT_FL_HTTP_HVAL_STR:
+				if (isteq(value, vpat)) {
+					match = 1;
+					goto end_of_match;
+				}
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HVAL_BEG:
+				if (istlen(value) < istlen(vpat))
+					break;
+				value = ist2(istptr(value), istlen(vpat));
+				if (isteq(value, vpat)) {
+					match = 1;
+					goto end_of_match;
+				}
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HVAL_END:
+				if (istlen(value) < istlen(vpat))
+					break;
+				value = ist2(istptr(value) + istlen(value) - istlen(vpat), istlen(vpat));
+				if (isteq(value, vpat)) {
+					match = 1;
+					goto end_of_match;
+				}
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HVAL_SUB:
+				if (isttest(istist(value, vpat))) {
+					match = 1;
+					goto end_of_match;
+				}
+				break;
+			case TCPCHK_EXPT_FL_HTTP_HVAL_REG:
+				if (regex_exec2(expect->hdr.value_re, istptr(value), istlen(value))) {
+					match = 1;
+					goto end_of_match;
+				}
+				break;
+			}
+		}
+
+	  end_of_match:
+		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		if (LIST_ISEMPTY(&expect->onerror_fmt))
+			desc = htx_sl_res_reason(sl);
+		break;
+	}
 
 	case TCPCHK_EXPECT_HTTP_BODY:
 	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
@@ -2237,6 +2361,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		goto error;
 
   out:
+	free_trash_chunk(nbuf);
+	free_trash_chunk(vbuf);
 	free_trash_chunk(msg);
 	return ret;
 
@@ -3969,15 +4095,16 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 {
 	struct tcpcheck_rule *prev_check, *chk = NULL;
 	struct sample_expr *status_expr = NULL;
-	char *on_success_msg, *on_error_msg, *comment, *pattern;
+	char *on_success_msg, *on_error_msg, *comment, *pattern, *npat, *vpat;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
 	enum healthcheck_status ok_st = HCHK_STATUS_UNKNOWN;
 	enum healthcheck_status err_st = HCHK_STATUS_UNKNOWN;
 	enum healthcheck_status tout_st = HCHK_STATUS_UNKNOWN;
+	unsigned int flags = 0;
 	long min_recv = -1;
 	int inverse = 0;
 
-	on_success_msg = on_error_msg = comment = pattern = NULL;
+	on_success_msg = on_error_msg = comment = pattern = npat = vpat = NULL;
 	if (!*(args[cur_arg+1])) {
 		memprintf(errmsg, "expects at least a matching pattern as arguments");
 		goto error;
@@ -4074,6 +4201,116 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 			type = TCPCHK_EXPECT_CUSTOM;
+		}
+		else if (strcmp(args[cur_arg], "header") == 0) {
+			int orig_arg = cur_arg;
+
+			if (proto != TCPCHK_RULES_HTTP_CHK)
+				goto bad_tcp_kw;
+			if (type != TCPCHK_EXPECT_UNDEF) {
+				memprintf(errmsg, "only on pattern expected");
+				goto error;
+			}
+			type = TCPCHK_EXPECT_HTTP_HEADER;
+
+			/* Parse the name pattern, mandatory */
+			if (!*(args[cur_arg+1]) || !*(args[cur_arg+2]) || strcmp(args[cur_arg+1], "name") != 0) {
+				memprintf(errmsg, "'%s' expects at the keyword name as first argument followed by a pattern",
+					  args[orig_arg]);
+				goto error;
+			}
+			cur_arg += 2;
+			if (strcmp(args[cur_arg], "-m") == 0) {
+				if  (!*(args[cur_arg+1])) {
+					memprintf(errmsg, "'%s' : '%s' expects at a matching pattern ('str', 'beg', 'end', 'sub' or 'reg')",
+						  args[orig_arg], args[cur_arg]);
+					goto error;
+				}
+				if (strcmp(args[cur_arg+1], "str") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_STR;
+				else if (strcmp(args[cur_arg+1], "beg") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_BEG;
+				else if (strcmp(args[cur_arg+1], "end") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_END;
+				else if (strcmp(args[cur_arg+1], "sub") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_SUB;
+				else if (strcmp(args[cur_arg+1], "reg") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_REG;
+				else {
+					memprintf(errmsg, "'%s' : '%s' only supports 'str', 'beg', 'end', 'sub' or 'reg' (got '%s')",
+						  args[orig_arg], args[cur_arg], args[cur_arg+1]);
+					goto error;
+				}
+				cur_arg += 2;
+			}
+			else
+				flags |= TCPCHK_EXPT_FL_HTTP_HNAME_STR;
+			npat = args[cur_arg];
+
+			if (!(*args[cur_arg+1])) {
+				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_NONE;
+				goto next;
+			}
+
+			if (strcmp(args[cur_arg+1], "log-format") == 0) {
+				if (flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG) {
+					memprintf(errmsg, "'%s': '%s' cannot be used with a regex matching pattern",
+						  args[orig_arg], args[cur_arg+1]);
+					goto error;
+				}
+				flags |= TCPCHK_EXPT_FL_HTTP_HNAME_FMT;
+				cur_arg++;
+			}
+
+			if (!(*args[cur_arg+1]) || strcmp(args[cur_arg+1], "value") != 0) {
+				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_NONE;
+				goto next;
+			}
+
+			/* Parse the value pattern, optionnal */
+			cur_arg += 2;
+			if (strcmp(args[cur_arg], "-m") == 0) {
+				if  (!*(args[cur_arg+1])) {
+					memprintf(errmsg, "'%s' : '%s' expects at a matching pattern ('str', 'beg', 'end', 'sub' or 'reg')",
+						  args[orig_arg], args[cur_arg]);
+					goto error;
+				}
+				if (strcmp(args[cur_arg+1], "str") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_STR;
+				else if (strcmp(args[cur_arg+1], "beg") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_BEG;
+				else if (strcmp(args[cur_arg+1], "end") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_END;
+				else if (strcmp(args[cur_arg+1], "sub") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_SUB;
+				else if (strcmp(args[cur_arg+1], "reg") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_REG;
+				else {
+					memprintf(errmsg, "'%s' : '%s' only supports 'str', 'beg', 'end', 'sub' or 'reg' (got '%s')",
+						  args[orig_arg], args[cur_arg], args[cur_arg+1]);
+					goto error;
+				}
+				cur_arg += 2;
+			}
+			else
+				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_STR;
+			vpat = args[cur_arg];
+
+			while (*args[cur_arg+1]) {
+				if (strcmp(args[cur_arg+1], "log-format") == 0) {
+					if (flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG) {
+						memprintf(errmsg, "'%s': '%s' cannot be used with a regex matching pattern",
+							  args[orig_arg], args[cur_arg+1]);
+						goto error;
+					}
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FMT;
+				}
+				else if (strcmp(args[cur_arg+1], "full") == 0)
+					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FULL;
+				else
+					break;
+				cur_arg++;
+			}
 		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
 			if (in_pattern) {
@@ -4220,7 +4457,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			if (proto == TCPCHK_RULES_HTTP_CHK) {
 			  bad_http_kw:
 				memprintf(errmsg, "'only supports min-recv, [!]string', '[!]rstring', '[!]status', '[!]rstatus'"
-					  " or comment but got '%s' as argument.", args[cur_arg]);
+					  "[!]header or comment but got '%s' as argument.", args[cur_arg]);
 			}
 			else {
 			  bad_tcp_kw:
@@ -4229,7 +4466,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			}
 			goto error;
 		}
-
+	  next:
 		cur_arg++;
 	}
 
@@ -4244,7 +4481,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	chk->comment = comment; comment = NULL;
 	chk->expect.type = type;
 	chk->expect.min_recv = min_recv;
-	chk->expect.flags |= (inverse ? TCPCHK_EXPT_FL_INV : 0);
+	chk->expect.flags = flags | (inverse ? TCPCHK_EXPT_FL_INV : 0);
 	chk->expect.ok_status = ok_st;
 	chk->expect.err_status = err_st;
 	chk->expect.tout_status = tout_st;
@@ -4328,6 +4565,63 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		chk->expect.regex = regex_comp(pattern, 1, 0, errmsg);
 		if (!chk->expect.regex)
 			goto error;
+		break;
+	case TCPCHK_EXPECT_HTTP_HEADER:
+		if (!npat) {
+			memprintf(errmsg, "unexpected error, undefined header name pattern");
+			goto error;
+		}
+		if (chk->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG) {
+			chk->expect.hdr.name_re = regex_comp(npat, 0, 0, errmsg);
+			if (!chk->expect.hdr.name_re)
+				goto error;
+		}
+		else if (chk->expect.flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT) {
+			px->conf.args.ctx = ARGC_SRV;
+			LIST_INIT(&chk->expect.hdr.name_fmt);
+			if (!parse_logformat_string(npat, px, &chk->expect.hdr.name_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", npat, *errmsg);
+				goto error;
+			}
+		}
+		else {
+			chk->expect.hdr.name = ist2(strdup(npat), strlen(npat));
+			if (!isttest(chk->expect.hdr.name)) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+
+		if (chk->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_NONE) {
+			chk->expect.hdr.value = IST_NULL;
+			break;
+		}
+
+		if (!vpat) {
+			memprintf(errmsg, "unexpected error, undefined header value pattern");
+			goto error;
+		}
+		else if (chk->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG) {
+			chk->expect.hdr.value_re = regex_comp(vpat, 1, 0, errmsg);
+			if (!chk->expect.hdr.value_re)
+				goto error;
+		}
+		else if (chk->expect.flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT) {
+			px->conf.args.ctx = ARGC_SRV;
+			LIST_INIT(&chk->expect.hdr.value_fmt);
+			if (!parse_logformat_string(vpat, px, &chk->expect.hdr.value_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", npat, *errmsg);
+				goto error;
+			}
+		}
+		else {
+			chk->expect.hdr.value = ist2(strdup(vpat), strlen(vpat));
+			if (!isttest(chk->expect.hdr.value)) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
+		}
+
 		break;
 	case TCPCHK_EXPECT_CUSTOM:
 		chk->expect.custom = NULL; /* Must be defined by the caller ! */
