@@ -12,6 +12,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/cache@v1
+      id: cache
+      with:
+        path: $HOME/cache
+        key: ${{ runner.os }}-opt-${{ hashFiles('**/*.tar.gz') }}
+        restore-keys: |
+          ${{ runner.os }}-opt-
     - name: Register QEMU
       run: |
         sudo docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
@@ -21,4 +28,4 @@ jobs:
         docker build .github/workflows/aarch64/ -t haproxy-aarch64:latest
     - name: Build and test on AARCH64
       run: |
-        docker run --rm -v$(pwd):/haproxy haproxy-aarch64:latest
+        docker run --rm -v$(pwd):/haproxy -v$HOME/cache:/root/opt haproxy-aarch64:latest

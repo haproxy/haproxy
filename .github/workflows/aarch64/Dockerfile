@@ -7,10 +7,10 @@ ENV DEBCONF_NONINTERACTIVE_SEEN=true
 RUN apt-get update -y
 
 # general build dependencies
-RUN apt-get install -y gcc git make 
+RUN apt-get install -y gcc git make wget
 
 # for HAProxy
-RUN apt-get install -y clang-9 liblua5.3-dev libpcre2-dev libsystemd-dev socat 
+RUN apt-get install -y clang-9 liblua5.3-dev libpcre3-dev libsystemd-dev socat 
 
 # for VTest
 RUN apt-get install -y zlib1g-dev 
