@@ -9,7 +9,7 @@ export SSL_INC=${HOME}/opt/include
 export TMPDIR=/tmp
 export FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
 export DEBUG_OPTIONS="DEBUG_STRICT=1"
-
+export CC=clang-9
 
 pushd /haproxy
 echo "Target: $TARGET"
@@ -17,7 +17,7 @@ make clean
 make -C ./vtest FLAGS="-O2 -s -Wall"
 bash ./scripts/build-ssl.sh
 make -C contrib/wurfl
-make -j3 CC=clang-9 ERR=1 DEBUG_STRICT=1 V=0 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS -L$SSL_LIB -Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" LUA_INC=/usr/include/lua5.3/
+make -j3 ERR=1 DEBUG_STRICT=1 V=0 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS -L$SSL_LIB -Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" LUA_INC=/usr/include/lua5.3/
 
 ./haproxy -vv
 ldd haproxy
