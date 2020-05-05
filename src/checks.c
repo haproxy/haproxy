@@ -594,10 +594,10 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_BINARY:
 					chunk_appendf(chk, " (expect binary '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
 					break;
-				case TCPCHK_EXPECT_REGEX:
+				case TCPCHK_EXPECT_STRING_REGEX:
 					chunk_appendf(chk, " (expect regex)");
 					break;
-				case TCPCHK_EXPECT_REGEX_BINARY:
+				case TCPCHK_EXPECT_BINARY_REGEX:
 					chunk_appendf(chk, " (expect binary regex)");
 					break;
 				case TCPCHK_EXPECT_STRING_LF:
@@ -609,7 +609,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_HTTP_STATUS:
 					chunk_appendf(chk, " (expect HTTP status codes)");
 					break;
-				case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+				case TCPCHK_EXPECT_HTTP_STATUS_REGEX:
 					chunk_appendf(chk, " (expect HTTP status regex)");
 					break;
 				case TCPCHK_EXPECT_HTTP_HEADER:
@@ -618,7 +618,7 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 				case TCPCHK_EXPECT_HTTP_BODY:
 					chunk_appendf(chk, " (expect HTTP body content '%.*s')", (unsigned int)istlen(expect->data), istptr(expect->data));
 					break;
-				case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+				case TCPCHK_EXPECT_HTTP_BODY_REGEX:
 					chunk_appendf(chk, " (expect HTTP body regex)");
 					break;
 				case TCPCHK_EXPECT_HTTP_BODY_LF:
@@ -802,10 +802,10 @@ static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 		case TCPCHK_EXPECT_HTTP_BODY:
 			istfree(&rule->expect.data);
 			break;
-		case TCPCHK_EXPECT_REGEX:
-		case TCPCHK_EXPECT_REGEX_BINARY:
-		case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
-		case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+		case TCPCHK_EXPECT_STRING_REGEX:
+		case TCPCHK_EXPECT_BINARY_REGEX:
+		case TCPCHK_EXPECT_HTTP_STATUS_REGEX:
+		case TCPCHK_EXPECT_HTTP_BODY_REGEX:
 			regex_free(rule->expect.regex);
 			break;
 		case TCPCHK_EXPECT_STRING_LF:
@@ -1090,12 +1090,12 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	case TCPCHK_EXPECT_BINARY:
 		chunk_appendf(msg, " (binary) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
-	case TCPCHK_EXPECT_REGEX:
-	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
-	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+	case TCPCHK_EXPECT_STRING_REGEX:
+	case TCPCHK_EXPECT_HTTP_STATUS_REGEX:
+	case TCPCHK_EXPECT_HTTP_BODY_REGEX:
 		chunk_appendf(msg, " (regex) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
-	case TCPCHK_EXPECT_REGEX_BINARY:
+	case TCPCHK_EXPECT_BINARY_REGEX:
 		chunk_appendf(msg, " (binary regex) at step %d", tcpcheck_get_step_id(check, rule));
 		break;
 	case TCPCHK_EXPECT_STRING_LF:
@@ -2209,7 +2209,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
 			desc = htx_sl_res_reason(sl);
 		break;
-	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
+	case TCPCHK_EXPECT_HTTP_STATUS_REGEX:
 		match = regex_exec2(expect->regex, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 
 		/* Set status and description in case of error */
@@ -2339,7 +2339,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 	}
 
 	case TCPCHK_EXPECT_HTTP_BODY:
-	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+	case TCPCHK_EXPECT_HTTP_BODY_REGEX:
 	case TCPCHK_EXPECT_HTTP_BODY_LF:
 		match = 0;
 		chunk_reset(&trash);
@@ -2479,11 +2479,11 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	case TCPCHK_EXPECT_BINARY:
 		match = my_memmem(b_head(&check->bi), b_data(&check->bi), istptr(expect->data), istlen(expect->data)) != NULL;
 		break;
-	case TCPCHK_EXPECT_REGEX:
+	case TCPCHK_EXPECT_STRING_REGEX:
 		match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
 		break;
 
-	case TCPCHK_EXPECT_REGEX_BINARY:
+	case TCPCHK_EXPECT_BINARY_REGEX:
 		chunk_reset(&trash);
 		dump_binary(&trash, b_head(&check->bi), b_data(&check->bi));
 		match = regex_exec2(expect->regex, b_head(&trash), MIN(b_data(&trash), b_size(&trash)-1));
@@ -4243,9 +4243,9 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 			if (proto != TCPCHK_RULES_HTTP_CHK)
-				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING : TCPCHK_EXPECT_REGEX);
+				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_STRING : TCPCHK_EXPECT_STRING_REGEX);
 			else
-				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_BODY : TCPCHK_EXPECT_HTTP_REGEX_BODY);
+				type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_BODY : TCPCHK_EXPECT_HTTP_BODY_REGEX);
 
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
@@ -4261,7 +4261,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				memprintf(errmsg, "only on pattern expected");
 				goto error;
 			}
-			type = ((*(args[cur_arg]) == 'b') ?  TCPCHK_EXPECT_BINARY : TCPCHK_EXPECT_REGEX_BINARY);
+			type = ((*(args[cur_arg]) == 'b') ?  TCPCHK_EXPECT_BINARY : TCPCHK_EXPECT_BINARY_REGEX);
 
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
@@ -4297,7 +4297,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				memprintf(errmsg, "only on pattern expected");
 				goto error;
 			}
-			type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_STATUS : TCPCHK_EXPECT_HTTP_REGEX_STATUS);
+			type = ((*(args[cur_arg]) == 's') ? TCPCHK_EXPECT_HTTP_STATUS : TCPCHK_EXPECT_HTTP_STATUS_REGEX);
 
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a <pattern> as argument", args[cur_arg]);
@@ -4673,10 +4673,10 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 		chk->expect.data.len = len;
 		break;
 	}
-	case TCPCHK_EXPECT_REGEX:
-	case TCPCHK_EXPECT_REGEX_BINARY:
-	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
-	case TCPCHK_EXPECT_HTTP_REGEX_BODY:
+	case TCPCHK_EXPECT_STRING_REGEX:
+	case TCPCHK_EXPECT_BINARY_REGEX:
+	case TCPCHK_EXPECT_HTTP_STATUS_REGEX:
+	case TCPCHK_EXPECT_HTTP_BODY_REGEX:
 		chk->expect.regex = regex_comp(pattern, 1, 0, errmsg);
 		if (!chk->expect.regex)
 			goto error;
