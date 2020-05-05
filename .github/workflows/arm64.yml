@@ -15,9 +15,10 @@ jobs:
     - name: Register QEMU
       run: |
         sudo docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+    - uses: actions/checkout@v1
     - name: Build ARM64 Docker container
       run: |
-        docker build aarch64/ -t haproxy-aarch64:latest
+        docker build .github/workflows/aarch64/ -t haproxy-aarch64:latest
     - name: Build and test on ARM64
       run: |
         docker run --rm haproxy-aarch64:latest
