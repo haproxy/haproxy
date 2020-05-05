@@ -135,20 +135,22 @@ extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current threa
 #define HA_ATOMIC_STORE(val, new)    ({*(val) = new;})
 #define HA_ATOMIC_UPDATE_MAX(val, new)					\
 	({								\
+		typeof(val) __val = (val);                              \
 		typeof(*(val)) __new_max = (new);			\
 									\
-		if (*(val) < __new_max)					\
-			*(val) = __new_max;				\
-		*(val);							\
+		if (*__val < __new_max)					\
+			*__val = __new_max;				\
+		*__val;							\
 	})
 
 #define HA_ATOMIC_UPDATE_MIN(val, new)					\
 	({								\
+		typeof(val) __val = (val);                              \
 		typeof(*(val)) __new_min = (new);			\
 									\
-		if (*(val) > __new_min)					\
-			*(val) = __new_min;				\
-		*(val);							\
+		if (*__val > __new_min)					\
+			*__val = __new_min;				\
+		*__val;							\
 	})
 
 #define HA_BARRIER() do { } while (0)
@@ -410,21 +412,23 @@ static inline unsigned long thread_isolated()
 
 #define HA_ATOMIC_UPDATE_MAX(val, new)					\
 	({								\
-		typeof(*(val)) __old_max = *(val);			\
+		typeof(val) __val = (val);                              \
+		typeof(*(val)) __old_max = *__val;			\
 		typeof(*(val)) __new_max = (new);			\
 									\
 		while (__old_max < __new_max &&				\
-		       !HA_ATOMIC_CAS(val, &__old_max, __new_max));	\
-		*(val);							\
+		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max));	\
+		*__val;							\
 	})
 #define HA_ATOMIC_UPDATE_MIN(val, new)					\
 	({								\
-		typeof(*(val)) __old_min = *(val);			\
+		typeof(val) __val = (val);                              \
+		typeof(*(val)) __old_min = *__val;			\
 		typeof(*(val)) __new_min = (new);			\
 									\
 		while (__old_min > __new_min &&				\
-		       !HA_ATOMIC_CAS(val, &__old_min, __new_min));	\
-		*(val);							\
+		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min));	\
+		*__val;							\
 	})
 
 #define HA_BARRIER() pl_barrier()
