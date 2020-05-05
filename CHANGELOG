@@ -1,6 +1,213 @@
 ChangeLog :
 ===========
 
+2020/05/05 : 2.2-dev7
+    - MINOR: version: Show uname output in display_version()
+    - CI: run weekly OpenSSL "no-deprecated" builds
+    - CLEANUP: log: fix comment of parse_logformat_string()
+    - DOC: Improve documentation on http-request set-src
+    - MINOR: ssl/cli: disallow SSL options for directory in 'add ssl crt-list'
+    - MINOR: ssl/cli: restrain certificate path when inserting into a directory
+    - MINOR: ssl: add ssl-skip-self-issued-ca global option
+    - BUG/MINOR: ssl: default settings for ssl server options are not used
+    - MINOR: config: add a global directive to set default SSL curves
+    - BUG/MEDIUM: http-ana: Handle NTLM messages correctly.
+    - DOC: internals: update the SSL architecture schema
+    - BUG/MINOR: tools: fix the i386 version of the div64_32 function
+    - BUG/MINOR: mux-fcgi/trace: fix wrong set of trace flags in fcgi_strm_add_eom()
+    - BUG/MINOR: http: make url_decode() optionally convert '+' to SP
+    - DOC: option logasap does not depend on mode
+    - MEDIUM: memory: make pool_gc() run under thread isolation
+    - MINOR: contrib: make the peers wireshark dissector a plugin
+    - BUG/MINOR: http-ana: Throw a 500 error if after-response ruleset fails on errors
+    - BUG/MINOR: check: Update server address and port to execute an external check
+    - MINOR: mini-clist: Add functions to iterate backward on a list
+    - MINOR: checks: Add a way to send custom headers and payload during http chekcs
+    - MINOR: server: respect warning and alert semantic
+    - BUG/MINOR: checks: Respect the no-check-ssl option
+    - BUG/MEDIUM: server/checks: Init server check during config validity check
+    - CLEANUP: checks: Don't export anymore init_check and srv_check_healthcheck_port
+    - BUG/MINOR: checks: chained expect will not properly wait for enough data
+    - BUG/MINOR: checks: Forbid tcp-check lines in default section as documented
+    - MINOR: checks: Use an enum to describe the tcp-check rule type
+    - MINOR: checks: Simplify connection flag parsing in tcp-check connect
+    - MEDIUM: checks: rewind to the first inverse expect rule of a chain on new data
+    - MINOR: checks: simplify tcp expect config parser
+    - MINOR: checks: add min-recv tcp-check expect option
+    - MINOR: checks: add linger option to tcp connect
+    - MINOR: checks: define a tcp expect type
+    - MEDIUM: checks: rewrite tcp-check expect block
+    - MINOR: checks: Stop xform buffers to null-terminated string for tcp-check rules
+    - MINOR: checks: add rbinary expect match type
+    - MINOR: checks: Simplify functions to get step id and comment
+    - MEDIUM: checks: capture groups in expect regexes
+    - MINOR: checks: Don't use a static tcp rule list head
+    - MEDIUM: checks: Use a non-comment rule iterator to get next rule
+    - MEDIUM: proxy/checks: Register a keyword to parse tcp-check rules
+    - MINOR: checks: Set the tcp-check rule index during parsing
+    - MINOR: checks: define tcp-check send type
+    - MINOR: checks: define a tcp-check connect type
+    - MEDIUM: checks: Add implicit tcp-check connect rule
+    - MAJOR: checks: Refactor and simplify the tcp-check loop
+    - MEDIUM: checks: Associate a session to each tcp-check healthcheck
+    - MINOR: checks/vars: Add a check scope for variables
+    - MEDIUM: checks: Parse custom action rules in tcp-checks
+    - MINOR: checks: Add support to set-var and unset-var rules in tcp-checks
+    - MINOR: checks: Add the sni option for tcp-check connect rules
+    - MINOR: checks: Add the via-socks4 option for tcp-check connect rules
+    - MINOR: checks: Add the alpn option for tcp-check connect rules
+    - MINOR: ssl: Export a generic function to parse an alpn string
+    - MINOR: checks: Add the default option for tcp-check connect rules
+    - MINOR: checks: Add the addr option for tcp-check connect rule
+    - MEDIUM: checks: Support expression to set the port
+    - MEDIUM: checks: Support log-format strings for tcp-check send rules
+    - MINOR: log: Don't depends on a stream to process samples in log-format string
+    - MINOR: log: Don't systematically set LW_REQ when a sample expr is added
+    - MEDIUM: checks: Add a shared list of tcp-check rules
+    - MINOR: sample: add htonl converter
+    - MINOR: sample: add cut_crlf converter
+    - MINOR: sample: add ltrim converter
+    - MINOR: sample: add rtrim converter
+    - MINOR: checks: Use a name for the healthcheck status enum
+    - MINOR: checks: Add option to tcp-check expect rules to customize error status
+    - MINOR: checks: Merge tcp-check comment rules with the others at config parsing
+    - MINOR: checks: Add a sample fetch to extract a block from the input check buffer
+    - MEDIUM: checks: Add on-error/on-success option on tcp-check expect rules
+    - MEDIUM: checks: Add status-code sample expression on tcp-check expect rules
+    - MINOR: checks: Relax the default option for tcp-check connect rules
+    - MEDIUM: checks: Add a list of vars to set before executing a tpc-check ruleset
+    - MINOR: checks: Export the tcpcheck_eval_ret enum
+    - MINOR: checks: Use dedicated function to handle onsuccess/onerror messages
+    - MINOR: checks: Support custom functions to eval a tcp-check expect rules
+    - MEDIUM: checks: Implement redis check using tcp-check rules
+    - MEDIUM: checks: Implement ssl-hello check using tcp-check rules
+    - MEDIUM: checks: Implement smtp check using tcp-check rules
+    - MEDIUM: checks: Implement postgres check using tcp-check rules
+    - MEDIUM: checks: Implement MySQL check using tcp-check rules
+    - MEDIUM: checks: Implement LDAP check using tcp-check rules
+    - MEDIUM: checks: Implement SPOP check using tcp-check rules
+    - MINOR: server/checks: Move parsing of agent keywords in checks.c
+    - MINOR: server/checks: Move parsing of server check keywords in checks.c
+    - MEDIUM: checks: Implement agent check using tcp-check rules
+    - REGTEST: Adapt regtests about checks to recent changes
+    - MINOR: Produce tcp-check info message for pure tcp-check rules only
+    - MINOR: checks: Add an option to set success status of tcp-check expect rules
+    - MINOR: checks: Improve log message of tcp-checks on success
+    - MINOR: proxy/checks: Move parsing of httpchk option in checks.c
+    - MINOR: proxy/checks: Move parsing of tcp-check option in checks.c
+    - MINOR: proxy/checks: Register a keyword to parse http-check rules
+    - MINOR: proxy/checks: Move parsing of external-check option in checks.c
+    - MINOR: proxy/checks: Register a keyword to parse external-check rules
+    - MEDIUM: checks: Use a shared ruleset to store tcp-check rules
+    - MINOR: checks: Use an indirect string to represent the expect matching string
+    - MINOR: checks: Introduce flags to configure in tcp-check expect rules
+    - MINOR: standard: Add my_memspn and my_memcspn
+    - MINOR: checks: Add a reverse non-comment rule iterator to get last rule
+    - MAJOR: checks: Implement HTTP check using tcp-check rules
+    - MINOR: checks: Make resume conditions more explicit in tcpcheck_main()
+    - MINOR: connection: Add macros to know if a conn or a cs uses an HTX mux
+    - MEDIUM: checks: Refactor how data are received in tcpcheck_main()
+    - MINOR: checks/obj_type: Add a new object type for checks
+    - BUG/MINOR: obj_type: Handle stream object in obj_base_ptr() function
+    - MINOR: checks: Use the check as origin when a session is created
+    - MINOR: checks: Add a mux proto to health-check and tcp-check connect rule
+    - MINOR: connection: Add a function to install a mux for a health-check
+    - MAJOR: checks: Use the best mux depending on the protocol for health checks
+    - MEDIUM: checks: Implement default TCP check using tcp-check rules
+    - MINOR: checks: Remove unused code about pure TCP checks
+    - CLEANUP: checks: Reorg checks.c file to be more readable
+    - REGTEST: Fix reg-tests about health-checks to adapt them to recent changes
+    - MINOR: ist: Add a function to retrieve the ist pointer
+    - MINOR: checks: Use ist API as far as possible
+    - BUG/MEDIUM: checks: Be sure to subscribe for sends if outgoing data remains
+    - MINOR: checks: Use a tree instead of a list to store tcp-check rulesets
+    - BUG/MINOR: checks: Send the right amount of outgoing data for HTTP checks
+    - REGTEST: Add scripts to test based tcp-check health-checks
+    - Revert "MEDIUM: checks: capture groups in expect regexes"
+    - DOC: Add documentation about comments for tcp-check and http-check directives
+    - DOC: Fix the tcp-check and http-check directives layout
+    - BUG/MEDIUM: checks: Use the mux protocol specified on the server line
+    - MINOR: checks: Support mux protocol definition for tcp and http health checks
+    - BUG/MINOR: mux-fcgi: Be sure to have a connection as session's origin to use it
+    - MINOR: checks: Support list of status codes on http-check expect rules
+    - BUG/MEDIUM: checks: Unsubscribe to mux events when a conn-stream is destroyed
+    - REGTEST: Add a script to validate agent checks
+    - BUG/MINOR: server: Fix server_finalize_init() to avoid unused variable
+    - BUG/MEDIUM: checks: unsubscribe for events on the old conn-stream on connect
+    - BUG/MINOR: checks: Only use ssl_sock_is_ssl() if compiled with SSL support
+    - BUG/MINOR: checks/server: use_ssl member must be signed
+    - BUG/MEDIUM: sessions: Always pass the mux context as argument to destroy a mux
+    - BUG/MEDIUM: checks: Destroy the conn-stream before the session
+    - BUG/MINOR: checks: Fix PostgreSQL regex on the authentication packet
+    - CI: cirrus-ci: remove reg-tests/checks/tcp-check-ssl.vtc on CentOS 6
+    - MINOR: checks: Support HTTP/2 version (without '.0') for http-check send rules
+    - MINOR: checks: Use ver keyword to specify the HTTP version for http checks
+    - BUG/MINOR: checks: Remove wrong variable redeclaration
+    - BUG/MINOR: checks: Properly handle truncated mysql server messages
+    - CLEANUP: checks: Remove unused code when ldap server message is parsed
+    - MINOR: checks: Make the use of the check's server more explicit on connect
+    - BUG/MINOR: checks: Avoid incompatible cast when a binary string is parsed
+    - BUG/MINOR: checks: Remove bad call to free() when an expect rule is parsed
+    - BUG/MINOR: checks: Don't lose warning on proxy capability
+    - MINOR: log: Add "Tu" timer
+    - BUG/MINOR: checks: Set the output buffer length before calling parse_binary()
+    - BUG/MEDIUM: mux-h1: make sure we always have a timeout on front connections
+    - REGTEST: ssl: test the client certificate authentication
+    - DOC: give a more accurate description of what check does
+    - BUG/MEDIUM: capture: capture-req/capture-res converters crash without a stream
+    - BUG/MEDIUM: capture: capture.{req,res}.* crash without a stream
+    - BUG/MEDIUM: http: the "http_first_req" sample fetch could crash without a steeam
+    - BUG/MEDIUM: http: the "unique-id" sample fetch could crash without a steeam
+    - CLEANUP: http: add a few comments on certain functions' assumptions about streams
+    - BUG/MEDIUM: sample: make the CPU and latency sample fetches check for a stream
+    - MINOR: http-htx: Export functions to update message authority and host
+    - MINOR: checks: Don't support multiple host header for http-check send rule
+    - MINOR: checks: Skip some headers for http-check send rules
+    - MINOR: checks: Keep the Host header and the request uri synchronized
+    - CLEANUP: checks: Fix checks includes
+    - DOC: Fix send rules in the http-check connect example
+    - DOC: Add more info about request formatting in http-check send description
+    - REGTEST: http-rules: Require PCRE or PCRE2 option to run map_redirect script
+    - REGTEST: ssl: remove curl from the "add ssl crt-list" test
+    - REGTEST: ssl: improve the "set ssl cert" test
+    - CLEANUP: ssl: silence a build warning when threads are disabled
+    - BUG/MEDIUM: listener: mark the thread as not stuck inside the loop
+    - MINOR: threads: export the POSIX thread ID in panic dumps
+    - BUG/MINOR: debug: properly use long long instead of long for the thread ID
+    - BUG/MEDIUM: shctx: really check the lock's value while waiting
+    - BUG/MEDIUM: shctx: bound the number of loops that can happen around the lock
+    - MINOR: stream: report the list of active filters on stream crashes
+    - BUG/MEDIUM: mux-fcgi: Return from detach if server don't keep the connection
+    - BUG/MEDIUM: mux_fcgi: Free the FCGI connection at the end of fcgi_release()
+    - BUG/MEDIUM: mux-fcgi: Fix wrong test on FCGI_CF_KEEP_CONN in fcgi_detach()
+    - BUG/MEDIUM: connections: force connections cleanup on server changes
+    - BUG/MEDIUM: h1: Don't compare host and authority if only h1 headers are parsed
+    - BUG/MEDIUM: ssl: fix the id length check within smp_fetch_ssl_fc_session_id()
+    - CLEANUP: connections: align function declaration
+    - BUG/MINOR: sample: Set the correct type when a binary is converted to a string
+    - MEDIUM: checks/http-fetch: Support htx prefetch from a check for HTTP samples
+    - DOC: Document the log-format parameter for tcp-check send/send-binary rules
+    - MINOR: checks: Add support of payload-based sample fetches
+    - MINOR: checks: Add support of be_id, be_name, srv_id and srv_name sample fetches
+    - MINOR: checks: Add support of server side ssl sample fetches
+    - MINOR: checks: Add support of HTTP response sample fetches
+    - MINOR: http-htx: Support different methods to look for header names
+    - MINOR: checks: Set by default expect rule status to UNKNOWN during parsing
+    - BUG/MINOR: checks: Support multiple HTTP expect rules
+    - REGTEST: checks: Fix sync condition for agent-check
+    - MEDIUM: checks: Support matching on headers for http-check expect rules
+    - MINOR: lua: allow changing port with set_addr
+    - BUG/MINOR: da: Fix HTX message prefetch
+    - BUG/MINOR: wurfl: Fix HTX message prefetch
+    - BUG/MINOR: 51d: Fix HTX message prefetch
+    - MINOR: ist: add istadv() function
+    - MINOR: ist: add istissame() function
+    - MINOR: istbuf: add ist2buf() function
+    - BUG/MINOR: threads: fix multiple use of argument inside HA_ATOMIC_CAS()
+    - BUG/MINOR: threads: fix multiple use of argument inside HA_ATOMIC_UPDATE_{MIN,MAX}()
+    - DOC: update intro.txt for 2.2
+    - DOC: intro: add a contacts section
+
 2020/04/17 : 2.2-dev6
     - BUG/MINOR: ssl: memory leak when find_chain is NULL
     - CLEANUP: ssl: rename ssl_get_issuer_chain to ssl_get0_issuer_chain
