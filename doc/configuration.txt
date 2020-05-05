@@ -2763,7 +2763,9 @@ tcp-check comment                         X          -         X         X
 tcp-check connect                         X          -         X         X
 tcp-check expect                          X          -         X         X
 tcp-check send                            X          -         X         X
+tcp-check send-lf                         X          -         X         X
 tcp-check send-binary                     X          -         X         X
+tcp-check send-binary-lf                  X          -         X         X
 tcp-check set-var                         X          -         X         X
 tcp-check unset-var                       X          -         X         X
 tcp-request connection                    -          X         X         -
@@ -10318,18 +10320,21 @@ tcp-check expect [min-recv <int>] [comment <msg>]
              "tcp-check send-binary", "http-check expect", tune.chksize
 
 
-tcp-check send <data> [comment <msg>] [log-format]
-  Specify a string to be sent as a question during a generic health check
+tcp-check send <data> [comment <msg>]
+tcp-check send-lf <fmt> [comment <msg>]
+  Specify a string or a log-format string to be sent as a question during a
+  generic health check
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
-    log-format     specifies <data> must be evaluated a log-format string.
+    <data>         is the string that will be sent during a generic health
+                   check session.
 
-    <data>  the data to be sent as a question during a generic health check
-            session. For now, <data> must be a string.
+    <fmt>          is the log-format string that will be sent, once evaluated,
+                   during a generic health check session.
 
   Examples :
          # look for the redis master server
@@ -10341,22 +10346,22 @@ tcp-check send <data> [comment <msg>] [log-format]
              "tcp-check send-binary", tune.chksize
 
 
-tcp-check send-binary <hexstring> [comment <msg>] [log-format]
-  Specify a hex digits string to be sent as a binary question during a raw
-  tcp health check
+tcp-check send-binary <hexstring> [comment <msg>]
+tcp-check send-binary-lf <hexfmt> [comment <msg>]
+  Specify an hex digits string or an hex digits log-format string to be sent as
+  a binary question during a raw tcp health check
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
   Arguments :
     comment <msg>  defines a message to report if the rule evaluation fails.
 
-    log-format     specifies <hexstring> must be evaluated a log-format string.
+    <hexstring>    is the hexadecimal string that will be send, once converted
+                   to binary, during a generic health check session.
 
-    <hexstring>  test the exact string in its hexadecimal form matches in the
-                 response buffer. A health check response will be considered
-                 valid if the response's buffer contains this exact hexadecimal
-                 string. Purpose is to send binary data to ask on binary
-                 protocols.
+    <hexfmt>       is the hexadecimal log-format string that will be send, once
+                   evaluated and converted to binary, during a generic health
+                   check session.
 
   Examples :
          # redis check in binary

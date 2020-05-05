@@ -3895,7 +3895,15 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 	char *comment = NULL, *data = NULL;
 	enum tcpcheck_send_type type = TCPCHK_SEND_UNDEF;
 
-	type = ((strcmp(args[cur_arg], "send-binary") == 0) ? TCPCHK_SEND_BINARY : TCPCHK_SEND_STRING);
+	if (strcmp(args[cur_arg], "send-binary-lf") == 0)
+		type = TCPCHK_SEND_BINARY_LF;
+	else if (strcmp(args[cur_arg], "send-binary") == 0)
+		type = TCPCHK_SEND_BINARY;
+	else if (strcmp(args[cur_arg], "send-lf") == 0)
+		type = TCPCHK_SEND_STRING_LF;
+	else if (strcmp(args[cur_arg], "send") == 0)
+		type = TCPCHK_SEND_STRING;
+
 	if (!*(args[cur_arg+1])) {
 		memprintf(errmsg, "'%s' expects a %s as argument",
 			  (type == TCPCHK_SEND_BINARY ? "binary string": "string"), args[cur_arg]);
@@ -3919,14 +3927,8 @@ static struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struc
 				goto error;
 			}
 		}
-		else if (strcmp(args[cur_arg], "log-format") == 0) {
-			if (type == TCPCHK_SEND_BINARY)
-				type = TCPCHK_SEND_BINARY_LF;
-			else if (type == TCPCHK_SEND_STRING)
-				type = TCPCHK_SEND_STRING_LF;
-		}
 		else {
-			memprintf(errmsg, "expects 'comment', 'log-format' but got '%s' as argument.",
+			memprintf(errmsg, "expects 'comment' but got '%s' as argument.",
 				  args[cur_arg]);
 			goto error;
 		}
@@ -5960,7 +5962,8 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	cur_arg = 1;
 	if (strcmp(args[cur_arg], "connect") == 0)
 		chk = parse_tcpcheck_connect(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
-	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0)
+	else if (strcmp(args[cur_arg], "send") == 0 || strcmp(args[cur_arg], "send-binary") == 0 ||
+		 strcmp(args[cur_arg], "send-lf") == 0 || strcmp(args[cur_arg], "send-binary-lf") == 0)
 		chk = parse_tcpcheck_send(args, cur_arg, curpx, &rs->rules, file, line, errmsg);
 	else if (strcmp(args[cur_arg], "expect") == 0)
 		chk = parse_tcpcheck_expect(args, cur_arg, curpx, &rs->rules, 0, file, line, errmsg);
@@ -6359,7 +6362,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 		goto error;
 	}
 
-	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", sslv3_client_hello, "log-format", ""},
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", sslv3_client_hello, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
@@ -6494,7 +6497,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk->index = 2;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", smtp_req, "log-format", ""},
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-lf", smtp_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
@@ -6629,7 +6632,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	chk->index = 0;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", pgsql_req, "log-format", ""},
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", pgsql_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
 	if (!chk) {
 		ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
@@ -6858,7 +6861,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	LIST_ADDQ(&rs->rules, &chk->list);
 
 	if (mysql_req) {
-		chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", mysql_req, "log-format", ""},
+		chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", mysql_req, ""},
 					  1, curpx, &rs->rules, file, line, &errmsg);
 		if (!chk) {
 			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
@@ -7381,7 +7384,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 		goto error;
 	}
 
-	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", "%[var(check.agent_string)]", "log-format", ""},
+	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-lf", "%[var(check.agent_string)]", ""},
 				  1, curpx, &rs->rules, srv->conf.file, srv->conf.line, errmsg);
 	if (!chk) {
 		memprintf(errmsg, "'%s': %s", args[*cur_arg], *errmsg);
