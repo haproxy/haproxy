@@ -5,8 +5,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
 RUN apt-get update -y
-RUN apt-get install -y liblua5.3-dev libsystemd-dev libpcre3-dev zlib1g-dev clang-9 socat
-RUN apt-get install -y make
+
+# general build dependencies
+RUN apt-get install -y gcc git make 
+
+# for HAProxy
+RUN apt-get install -y clang-9 liblua5.3-dev libpcre2-dev libsystemd-dev socat 
+
+# for VTest
+RUN apt-get install -y zlib1g-dev 
 
 ADD build-and-test.sh /usr/bin
 

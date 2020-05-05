@@ -16,8 +16,6 @@ jobs:
       run: |
         sudo docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
     - uses: actions/checkout@v1
-    - name: Checkout VTest
-      run: git clone --depth=1 https://github.com/VTest/VTest.git vtest
     - name: Build ARM64 Docker container
       run: |
         docker build .github/workflows/aarch64/ -t haproxy-aarch64:latest
