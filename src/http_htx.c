@@ -87,19 +87,42 @@ size_t http_get_hdrs_size(struct htx *htx)
 	return sz;
 }
 
-/* Finds the first or next occurrence of header <name> in the HTX message <htx>
- * using the context <ctx>. This structure holds everything necessary to use the
- * header and find next occurrence. If its <blk> member is NULL, the header is
- * searched from the beginning. Otherwise, the next occurrence is returned. The
- * function returns 1 when it finds a value, and 0 when there is no more. It is
- * designed to work with headers defined as comma-separated lists. If <full> is
- * set, it works on full-line headers in whose comma is not a delimiter but is
- * part of the syntax. A special case, if ctx->value is NULL when searching for
- * a new values of a header, the current header is rescanned. This allows
- * rescanning after a header deletion.
+/* Finds the first or next occurrence of header matching <pattern> in the HTX
+ * message <htx> using the context <ctx>. This structure holds everything
+ * necessary to use the header and find next occurrence. If its <blk> member is
+ * NULL, the header is searched from the beginning. Otherwise, the next
+ * occurrence is returned. The function returns 1 when it finds a value, and 0
+ * when there is no more. It is designed to work with headers defined as
+ * comma-separated lists. If HTTP_FIND_FL_FULL flag is set, it works on
+ * full-line headers in whose comma is not a delimiter but is part of the
+ * syntax. A special case, if ctx->value is NULL when searching for a new values
+ * of a header, the current header is rescanned. This allows rescanning after a
+ * header deletion.
+ *
+ * The matching method is chosen by checking the flags :
+ *
+ *     * HTTP_FIND_FL_MATCH_REG : <pattern> is a regex. header names matching
+ *                                the regex are evaluated.
+ *     * HTTP_FIND_FL_MATCH_STR : <pattern> is a string. The header names equal
+ *                                to the string are evaluated.
+ *     * HTTP_FIND_FL_MATCH_PFX : <pattern> is a string. The header names
+ *                                starting by the string are evaluated.
+ *     * HTTP_FIND_FL_MATCH_SFX : <pattern> is a string. The header names
+ *                                ending by the string are evaluated.
+ *     * HTTP_FIND_FL_MATCH_SUB : <pattern> is a string. The header names
+ *                                containing the string are evaluated.
  */
-int http_find_header(const struct htx *htx, const struct ist name,
-		    struct http_hdr_ctx *ctx, int full)
+
+#define HTTP_FIND_FL_MATCH_STR  0x0001
+#define HTTP_FIND_FL_MATCH_PFX  0x0002
+#define HTTP_FIND_FL_MATCH_SFX  0x0003
+#define HTTP_FIND_FL_MATCH_SUB  0x0004
+#define HTTP_FIND_FL_MATCH_REG  0x0005
+/* 0x0006..0x000f: for other matching methods */
+#define HTTP_FIND_FL_MATCH_TYPE 0x000F
+#define HTTP_FIND_FL_FULL 0x0010
+
+static int __http_find_header(const struct htx *htx, const void *pattern, struct http_hdr_ctx *ctx, int flags)
 {
 	struct htx_blk *blk = ctx->blk;
 	struct ist n, v;
@@ -110,7 +133,7 @@ int http_find_header(const struct htx *htx, const struct ist name,
 
 		if (!isttest(ctx->value))
 			goto rescan_hdr;
-		if (full)
+		if (flags & HTTP_FIND_FL_FULL)
 			goto next_blk;
 		v = htx_get_blk_value(htx, blk);
 		p = ctx->value.ptr + ctx->value.len + ctx->lws_after;
@@ -137,12 +160,53 @@ int http_find_header(const struct htx *htx, const struct ist name,
 			break;
 		if (type != HTX_BLK_HDR)
 			continue;
-		if (name.len) {
-			/* If no name was passed, we want any header. So skip the comparison */
+
+		if ((flags & HTTP_FIND_FL_MATCH_TYPE) == HTTP_FIND_FL_MATCH_REG) {
+			const struct my_regex *re = pattern;
+
 			n = htx_get_blk_name(htx, blk);
-			if (!isteqi(n, name))
+			if (!regex_exec2(re, n.ptr, n.len))
 				goto next_blk;
 		}
+		else {
+			const struct ist name = *(const struct ist *)(pattern);
+
+			/* If no name was passed, we want any header. So skip the comparison */
+			if (!istlen(name))
+				goto match;
+
+			n = htx_get_blk_name(htx, blk);
+			switch (flags & HTTP_FIND_FL_MATCH_TYPE) {
+			case HTTP_FIND_FL_MATCH_STR:
+				if (!isteqi(n, name))
+					goto next_blk;
+				break;
+			case HTTP_FIND_FL_MATCH_PFX:
+				if (istlen(n) < istlen(name))
+					goto next_blk;
+
+				n = ist2(istptr(n), istlen(name));
+				if (!isteqi(n, name))
+					goto next_blk;
+				break;
+			case HTTP_FIND_FL_MATCH_SFX:
+				if (istlen(n) < istlen(name))
+					goto next_blk;
+
+				n = ist2(istptr(n) + istlen(n) - istlen(name), istlen(name));
+				if (!isteqi(n, name))
+					goto next_blk;
+				break;
+			case HTTP_FIND_FL_MATCH_SUB:
+				if (strnistr(n.ptr, n.len, name.ptr, n.len) != NULL)
+					goto next_blk;
+				break;
+			default:
+				goto next_blk;
+				break;
+			}
+		}
+	  match:
 		v = htx_get_blk_value(htx, blk);
 
 	  return_hdr:
@@ -153,7 +217,7 @@ int http_find_header(const struct htx *htx, const struct ist name,
 			v.len--;
 			ctx->lws_before++;
 		}
-		if (!full)
+		if (!(flags & HTTP_FIND_FL_FULL))
 			v.len = http_find_hdr_value_end(v.ptr, v.ptr + v.len) - v.ptr;
 		while (v.len && HTTP_IS_LWS(*(v.ptr + v.len - 1))) {
 			v.len--;
@@ -172,6 +236,44 @@ int http_find_header(const struct htx *htx, const struct ist name,
 	ctx->lws_before = ctx->lws_after = 0;
 	return 0;
 }
+
+
+/* Header names must match <name> */
+int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, &name, ctx, HTTP_FIND_FL_MATCH_STR | (full ? HTTP_FIND_FL_FULL : 0));
+}
+
+/* Header names must match <name>. Same than http_find_header */
+int http_find_str_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, &name, ctx, HTTP_FIND_FL_MATCH_STR | (full ? HTTP_FIND_FL_FULL : 0));
+}
+
+
+/* Header names must start with <prefix> */
+int http_find_pfx_header(const struct htx *htx, const struct ist prefix, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, &prefix, ctx, HTTP_FIND_FL_MATCH_PFX | (full ? HTTP_FIND_FL_FULL : 0));
+}
+
+/* Header names must end with <suffix> */
+int http_find_sfx_header(const struct htx *htx, const struct ist suffix, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, &suffix, ctx, HTTP_FIND_FL_MATCH_SFX | (full ? HTTP_FIND_FL_FULL : 0));
+}
+/* Header names must contain <sub> */
+int http_find_sub_header(const struct htx *htx, const struct ist sub, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, &sub, ctx, HTTP_FIND_FL_MATCH_SUB | (full ? HTTP_FIND_FL_FULL : 0));
+}
+
+/* Header names must match <re> regex*/
+int http_match_header(const struct htx *htx, const struct my_regex *re, struct http_hdr_ctx *ctx, int full)
+{
+	return __http_find_header(htx, re, ctx, HTTP_FIND_FL_MATCH_REG | (full ? HTTP_FIND_FL_FULL : 0));
+}
+
 
 /* Adds a header block int the HTX message <htx>, just before the EOH block. It
  * returns 1 on success, otherwise it returns 0.

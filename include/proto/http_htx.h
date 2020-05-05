@@ -25,6 +25,7 @@
 
 #include <common/buf.h>
 #include <common/ist.h>
+#include <common/regex.h>
 
 #include <types/http_htx.h>
 
@@ -34,6 +35,11 @@ extern struct list http_errors_list;
 struct htx_sl *http_get_stline(struct htx *htx);
 size_t http_get_hdrs_size(struct htx *htx);
 int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);
+int http_find_str_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);
+int http_find_pfx_header(const struct htx *htx, const struct ist prefix, struct http_hdr_ctx *ctx, int full);
+int http_find_sfx_header(const struct htx *htx, const struct ist suffix, struct http_hdr_ctx *ctx, int full);
+int http_find_sub_header(const struct htx *htx, const struct ist sub, struct http_hdr_ctx *ctx, int full);
+int http_match_header(const struct htx *htx, const struct my_regex *re, struct http_hdr_ctx *ctx, int full);
 int http_add_header(struct htx *htx, const struct ist n, const struct ist v);
 int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3);
 int http_replace_req_meth(struct htx *htx, const struct ist meth);
