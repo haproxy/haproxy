@@ -4560,8 +4560,8 @@ http-check expect [min-recv <int>] [comment <msg>]
                        log-format string.
 
     <match>   is a keyword indicating how to look for a specific pattern in the
-              response. The keyword may be one of "status", "rstatus",
-              "string", or "rstring". The keyword may be preceded by an
+              response. The keyword may be one of "status", "rstatus", "hdr",
+              "fhdr", "string", or "rstring". The keyword may be preceded by an
               exclamation mark ("!") to negate the match. Spaces are allowed
               between the exclamation mark and the keyword. See below for more
               details on the supported keywords.
@@ -4592,8 +4592,8 @@ http-check expect [min-recv <int>] [comment <msg>]
                       will be considered invalid if the status code matches.
                       This is mostly used to check for multiple codes.
 
-    header name [ -m <meth> ] <name> [log-format]
-           [ value [ -m <meth> ] <value> [log-format] [full] ] :
+    hdr  { name | name-lf } [ -m <meth> ] <name>
+         [ { value | value-lf } [ -m <meth> ] <value> :
                       test the specified header pattern on the HTTP response
                       headers. The name pattern is mandatory but the value
                       pattern is optional. If not specified, only the header
@@ -4602,14 +4602,20 @@ http-check expect [min-recv <int>] [comment <msg>]
                       matching methods are "str" (exact match), "beg" (prefix
                       match), "end" (suffix match), "sub" (substring match) or
                       "reg" (regex match). If not specified, exact matching
-                      method is used. If the "log-format" option is used, the
-                      pattern (<name> or <value>) is evaluated as a log-format
-                      string. This option cannot be used with the regex
-                      matching method. Finally, by default, the header value is
-                      considered as comma-separated list. Each part may be
-                      tested. The "full" option may be used to test the full
-                      header line. Note that matchings are case insensitive on
-                      the header names.
+                      method is used. If the "name-lf" parameter is used,
+                      <name> is evaluated as a log-format string. If "value-lf"
+                      parameter is used, <value> is evaluated as a log-format
+                      string. These parameters cannot be used with the regex
+                      matching method. Finally, the header value is considered
+                      as comma-separated list. Note that matchings are case
+                      insensitive on the header names.
+
+    fhdr { name | name-lf } [ -m <meth> ] <name>
+         [ { value | value-lf } [ -m <meth> ] <value> :
+                      test the specified full header pattern on the HTTP
+                      response headers. It does exactly the same than "hdr"
+                      keyword, except the full header value is tested, commas
+                      are not considered as delimiters.
 
     string <string> : test the exact string match in the HTTP response body.
                       A health check response will be considered valid if the

@@ -4319,7 +4319,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			}
 			type = TCPCHK_EXPECT_CUSTOM;
 		}
-		else if (strcmp(args[cur_arg], "header") == 0) {
+		else if (strcmp(args[cur_arg], "hdr") == 0 || strcmp(args[cur_arg], "fhdr") == 0) {
 			int orig_arg = cur_arg;
 
 			if (proto != TCPCHK_RULES_HTTP_CHK)
@@ -4330,12 +4330,20 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			}
 			type = TCPCHK_EXPECT_HTTP_HEADER;
 
+			if (strcmp(args[cur_arg], "fhdr") == 0)
+				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FULL;
+
 			/* Parse the name pattern, mandatory */
-			if (!*(args[cur_arg+1]) || !*(args[cur_arg+2]) || strcmp(args[cur_arg+1], "name") != 0) {
-				memprintf(errmsg, "'%s' expects at the keyword name as first argument followed by a pattern",
+			if (!*(args[cur_arg+1]) || !*(args[cur_arg+2]) ||
+			    (strcmp(args[cur_arg+1], "name") != 0 && strcmp(args[cur_arg+1], "name-lf") != 0)) {
+				memprintf(errmsg, "'%s' expects at the name keyword as first argument followed by a pattern",
 					  args[orig_arg]);
 				goto error;
 			}
+
+			if (strcmp(args[cur_arg+1], "name-lf") == 0)
+				flags |= TCPCHK_EXPT_FL_HTTP_HNAME_FMT;
+
 			cur_arg += 2;
 			if (strcmp(args[cur_arg], "-m") == 0) {
 				if  (!*(args[cur_arg+1])) {
@@ -4351,8 +4359,14 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_END;
 				else if (strcmp(args[cur_arg+1], "sub") == 0)
 					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_SUB;
-				else if (strcmp(args[cur_arg+1], "reg") == 0)
+				else if (strcmp(args[cur_arg+1], "reg") == 0) {
+					if (flags & TCPCHK_EXPT_FL_HTTP_HNAME_FMT) {
+						memprintf(errmsg, "'%s': log-format string is not supported with a regex matching method",
+							  args[orig_arg]);
+						goto error;
+					}
 					flags |= TCPCHK_EXPT_FL_HTTP_HNAME_REG;
+				}
 				else {
 					memprintf(errmsg, "'%s' : '%s' only supports 'str', 'beg', 'end', 'sub' or 'reg' (got '%s')",
 						  args[orig_arg], args[cur_arg], args[cur_arg+1]);
@@ -4364,29 +4378,17 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				flags |= TCPCHK_EXPT_FL_HTTP_HNAME_STR;
 			npat = args[cur_arg];
 
-			if (!(*args[cur_arg+1])) {
+			if (!*(args[cur_arg+1]) ||
+			    (strcmp(args[cur_arg+1], "value") != 0 && strcmp(args[cur_arg+1], "value-lf") != 0)) {
 				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_NONE;
 				goto next;
 			}
-
-			if (strcmp(args[cur_arg+1], "log-format") == 0) {
-				if (flags & TCPCHK_EXPT_FL_HTTP_HNAME_REG) {
-					memprintf(errmsg, "'%s': '%s' cannot be used with a regex matching pattern",
-						  args[orig_arg], args[cur_arg+1]);
-					goto error;
-				}
-				flags |= TCPCHK_EXPT_FL_HTTP_HNAME_FMT;
-				cur_arg++;
-			}
-
-			if (!(*args[cur_arg+1]) || strcmp(args[cur_arg+1], "value") != 0) {
-				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_NONE;
-				goto next;
-			}
+			if (strcmp(args[cur_arg+1], "value-lf") == 0)
+				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FMT;
 
 			/* Parse the value pattern, optionnal */
-			cur_arg += 2;
-			if (strcmp(args[cur_arg], "-m") == 0) {
+			if (strcmp(args[cur_arg+2], "-m") == 0) {
+				cur_arg += 2;
 				if  (!*(args[cur_arg+1])) {
 					memprintf(errmsg, "'%s' : '%s' expects at a matching pattern ('str', 'beg', 'end', 'sub' or 'reg')",
 						  args[orig_arg], args[cur_arg]);
@@ -4400,34 +4402,29 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_END;
 				else if (strcmp(args[cur_arg+1], "sub") == 0)
 					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_SUB;
-				else if (strcmp(args[cur_arg+1], "reg") == 0)
+				else if (strcmp(args[cur_arg+1], "reg") == 0) {
+					if (flags & TCPCHK_EXPT_FL_HTTP_HVAL_FMT) {
+						memprintf(errmsg, "'%s': log-format string is not supported with a regex matching method",
+							  args[orig_arg]);
+						goto error;
+					}
 					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_REG;
+				}
 				else {
 					memprintf(errmsg, "'%s' : '%s' only supports 'str', 'beg', 'end', 'sub' or 'reg' (got '%s')",
 						  args[orig_arg], args[cur_arg], args[cur_arg+1]);
 					goto error;
 				}
-				cur_arg += 2;
 			}
 			else
 				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_STR;
-			vpat = args[cur_arg];
 
-			while (*args[cur_arg+1]) {
-				if (strcmp(args[cur_arg+1], "log-format") == 0) {
-					if (flags & TCPCHK_EXPT_FL_HTTP_HVAL_REG) {
-						memprintf(errmsg, "'%s': '%s' cannot be used with a regex matching pattern",
-							  args[orig_arg], args[cur_arg+1]);
-						goto error;
-					}
-					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FMT;
-				}
-				else if (strcmp(args[cur_arg+1], "full") == 0)
-					flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FULL;
-				else
-					break;
-				cur_arg++;
+			if (!*(args[cur_arg+2])) {
+				memprintf(errmsg, "'%s' expect a pattern with the value keyword", args[orig_arg]);
+				goto error;
 			}
+			vpat = args[cur_arg+2];
+			cur_arg += 2;
 		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
 			if (in_pattern) {
@@ -4574,7 +4571,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			if (proto == TCPCHK_RULES_HTTP_CHK) {
 			  bad_http_kw:
 				memprintf(errmsg, "'only supports min-recv, [!]string', '[!]rstring', '[!]string-lf', '[!]status', "
-					  "'[!]rstatus', [!]header or comment but got '%s' as argument.", args[cur_arg]);
+					  "'[!]rstatus', [!]hdr, [!]fhdr or comment but got '%s' as argument.", args[cur_arg]);
 			}
 			else {
 			  bad_tcp_kw:
