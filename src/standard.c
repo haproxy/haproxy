@@ -2292,7 +2292,7 @@ const void *my_memmem(const void *haystack, size_t haystacklen, const void *need
 	return NULL;
 }
 
-/* get length of the initial segment consiting entirely of bytes in <accept> */
+/* get length of the initial segment consisting entirely of bytes in <accept> */
 size_t my_memspn(const void *str, size_t len, const void *accept, size_t acceptlen)
 {
 	size_t ret = 0;
@@ -2304,7 +2304,7 @@ size_t my_memspn(const void *str, size_t len, const void *accept, size_t acceptl
 	return ret;
 }
 
-/* get length of the initial segment consiting entirely of bytes not in <rejcet> */
+/* get length of the initial segment consisting entirely of bytes not in <rejcet> */
 size_t my_memcspn(const void *str, size_t len, const void *reject, size_t rejectlen)
 {
 	size_t ret = 0;

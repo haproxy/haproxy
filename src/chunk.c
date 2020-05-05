@@ -172,7 +172,7 @@ int chunk_appendf(struct buffer *chk, const char *fmt, ...)
 
 /*
  * Encode chunk <src> into chunk <dst>, respecting the limit of at most
- * chk->size chars. Replace non-printable or special chracters with "&#%d;".
+ * chk->size chars. Replace non-printable or special characters with "&#%d;".
  * If the chk->len is over, nothing is added. Returns the new chunk size.
  */
 int chunk_htmlencode(struct buffer *dst, struct buffer *src)

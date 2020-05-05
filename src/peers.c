@@ -159,7 +159,7 @@ struct peer_prep_params {
 /*******************************/
 /* stick table sync mesg types */
 /* Note: ids >= 128 contains   */
-/* id message cotains data     */
+/* id message contains data     */
 /*******************************/
 #define PEER_MSG_STKT_UPDATE           0x80
 #define PEER_MSG_STKT_INCUPDATE        0x81
@@ -280,7 +280,7 @@ static const char *statuscode_str(int statuscode)
 
 /* This function encode an uint64 to 'dynamic' length format.
    The encoded value is written at address *str, and the
-   caller must assure that size after *str is large enought.
+   caller must assure that size after *str is large enough.
    At return, the *str is set at the next Byte after then
    encoded integer. The function returns then length of the
    encoded integer in Bytes */
@@ -449,7 +449,7 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 
 	/* construct message */
 
-	/* check if we need to send the update identifer */
+	/* check if we need to send the update identifier */
 	if (!st->last_pushed || updateid < st->last_pushed || ((updateid - st->last_pushed) != 1)) {
 		use_identifier = 1;
 	}
@@ -1302,7 +1302,7 @@ static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer
  * was encountered.
  * <exp> must be set if the stick-table entry expires.
  * <updt> must be set for  PEER_MSG_STKT_UPDATE or PEER_MSG_STKT_UPDATE_TIMED stick-table
- * messages, in this case the stick-table udpate message is received with a stick-table
+ * messages, in this case the stick-table update message is received with a stick-table
  * update ID.
  * <totl> is the length of the stick-table update message computed upon receipt.
  */
@@ -1778,7 +1778,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			struct shared_table *st;
 			/* Reset message: remote need resync */
 
-			/* prepare tables fot a global push */
+			/* prepare tables for a global push */
 			for (st = peer->tables; st; st = st->next) {
 				st->teaching_origin = st->last_pushed = st->table->update;
 				st->flags = 0;
@@ -1871,7 +1871,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 /*
  * Send any message to <peer> peer.
  * Returns 1 if succeeded, or -1 or 0 if failed.
- * -1 means an internal error occured, 0 is for a peer protocol error leading
+ * -1 means an internal error occurred, 0 is for a peer protocol error leading
  * to a peer state change (from the peer I/O handler point of view).
  */
 static inline int peer_send_msgs(struct appctx *appctx, struct peer *peer)
@@ -2855,7 +2855,7 @@ static struct dcache_tx *new_dcache_tx(size_t max_entries)
 /*
  * Allocate a cache of dictionary entries with <name> as name and <max_entries>
  * as maximum of entries.
- * Return the dictionay cache if succeeded, NULL if not.
+ * Return the dictionary cache if succeeded, NULL if not.
  * Must be deallocated calling free_dcache().
  */
 static struct dcache *new_dcache(size_t max_entries)

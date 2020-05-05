@@ -1061,7 +1061,7 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	 *     1. if info field is already provided, copy it
 	 *     2. if the expect rule provides an onerror log-format string,
 	 *        use it to produce the message
-	 *     3. the expect rule is part of a protcol check (http, redis, mysql...), do nothing
+	 *     3. the expect rule is part of a protocol check (http, redis, mysql...), do nothing
 	 *     4. Otherwise produce the generic tcp-check info message
 	 */
 	if (istlen(info)) {
@@ -1149,7 +1149,7 @@ static void tcpcheck_expect_onsuccess_message(struct buffer *msg, struct check *
 	 *     1. if info field is already provided, copy it
 	 *     2. if the expect rule provides an onsucces log-format string,
 	 *        use it to produce the message
-	 *     3. the expect rule is part of a protcol check (http, redis, mysql...), do nothing
+	 *     3. the expect rule is part of a protocol check (http, redis, mysql...), do nothing
 	 *     4. Otherwise produce the generic tcp-check info message
 	 */
 	if (istlen(info))
@@ -2080,8 +2080,8 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 
 }
 
-/* Try to reveice data before evaluting a tcp-check expect rule. Returns
- * TCPCHK_EVAL_WAIT if it is already subcribed on receive events or if nothing
+/* Try to receive data before evaluating a tcp-check expect rule. Returns
+ * TCPCHK_EVAL_WAIT if it is already subscribed on receive events or if nothing
  * was received, TCPCHK_EVAL_CONTINUE to evaluate the expect rule or
  * TCPCHK_EVAL_STOP if an error occurred.
  */
@@ -2582,7 +2582,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 }
 
 /* Evaluates a TCPCHK_ACT_ACTION_KW rule. Returns TCPCHK_EVAL_CONTINUE to
- * evaluate the next rule or TCPCHK_EVAL_STOP if an error occurred. It nevers
+ * evaluate the next rule or TCPCHK_EVAL_STOP if an error occurred. It never
  * waits.
  */
 static enum tcpcheck_eval_ret tcpcheck_eval_action_kw(struct check *check, struct tcpcheck_rule *rule)
@@ -3728,7 +3728,7 @@ static struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, st
 			continue;
 
 		memprintf(errmsg, "first step MUST also be a 'connect', "
-			  "optionnaly preceded by a 'set-var', an 'unset-var' or a 'comment', "
+			  "optionally preceded by a 'set-var', an 'unset-var' or a 'comment', "
 			  "when there is a 'connect' step in the tcp-check ruleset");
 		goto error;
 	}
@@ -4431,7 +4431,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			if (strcmp(args[cur_arg+1], "value-lf") == 0)
 				flags |= TCPCHK_EXPT_FL_HTTP_HVAL_FMT;
 
-			/* Parse the value pattern, optionnal */
+			/* Parse the value pattern, optional */
 			if (strcmp(args[cur_arg+2], "-m") == 0) {
 				cur_arg += 2;
 				if  (!*(args[cur_arg+1])) {
@@ -4919,7 +4919,7 @@ static int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rul
 	 */
 
 	if (chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
-		/* Tries to add an implcit http-check send rule from an "option httpchk" line.
+		/* Tries to add an implicit http-check send rule from an "option httpchk" line.
 		 * First, the first rule is retrieved, skipping the first CONNECT, if any, and
 		 * following tests are performed :
 		 *
@@ -4929,7 +4929,7 @@ static int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rul
 		 *  2- If it is another implicit send rule, it is replaced with the new one.
 		 *
 		 *  3- Otherwise, it means it is an explicit send rule. In this case we merge
-		 *     both, overwritting the old send rule (the explicit one) with info of the
+		 *     both, overwriting the old send rule (the explicit one) with info of the
 		 *     new send rule (the implicit one).
 		 */
 		r = get_first_tcpcheck_rule(rules);
@@ -5372,7 +5372,7 @@ static int init_srv_agent_check(struct server *srv)
 	if (!srv->do_agent)
 		goto out;
 
-	/* If there is no connect rule preceeding all send / expect rules, an
+	/* If there is no connect rule preceding all send / expect rules, an
 	 * implicit one is inserted before all others.
 	 */
 	chk = get_first_tcpcheck_rule(srv->agent.tcpcheck_rules);
@@ -5473,7 +5473,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 
 	/* For all ruleset: */
 
-	/* If there is no connect rule preceeding all send / expect rules, an
+	/* If there is no connect rule preceding all send / expect rules, an
 	 * implicit one is inserted before all others.
 	 */
 	chk = get_first_tcpcheck_rule(&px->tcpcheck_rules);
@@ -6351,7 +6351,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	 * Check RFC 2246 (TLSv1.0) sections A.3 and A.4 for details.
 	 */
 	static char sslv3_client_hello[] = {
-		"16"                        /* ContentType         : 0x16 = Hanshake           */
+		"16"                        /* ContentType         : 0x16 = Handshake          */
 		"0300"                      /* ProtocolVersion     : 0x0300 = SSLv3            */
 		"0079"                      /* ContentLength       : 0x79 bytes after this one */
 		"01"                        /* HanshakeType        : 0x01 = CLIENT HELLO       */

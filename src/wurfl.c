@@ -294,7 +294,7 @@ static int ha_wurfl_init(void)
 		// ebtree initialization
 		global_wurfl.btree = EB_ROOT;
 
-		// checking if informations are valid WURFL data ( cap, vcaps, properties )
+		// checking if information is valid WURFL data ( cap, vcaps, properties )
 		list_for_each_entry(wi, &global_wurfl.information_list, list) {
 			// check if information is already loaded looking into btree
 			if (ebst_lookup(&global_wurfl.btree, wi->data.name) == NULL) {
@@ -736,7 +736,7 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 	//the header is searched from the beginning
 	ctx.blk = NULL;
 
-	// We could skip this chek since ha_wurfl_retrieve_header is called from inside
+	// We could skip this check since ha_wurfl_retrieve_header is called from inside
 	// ha_wurfl_get()/ha_wurfl_get_all() that already perform the same check
 	// We choose to keep it in case ha_wurfl_retrieve_header will be called directly
 	htx = smp_prefetch_htx(smp, chn, NULL, 1);

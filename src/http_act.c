@@ -71,7 +71,7 @@ static void release_http_action(struct act_rule *rule)
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
  * the action to be performed in <.action>, previously filled by function
- * parse_set_req_line(). The replacement action is excuted by the function
+ * parse_set_req_line(). The replacement action is executed by the function
  * http_action_set_req_line(). On success, it returns ACT_RET_CONT. If an error
  * occurs while soft rewrites are enabled, the action is canceled, but the rule
  * processing continue. Otherwsize ACT_RET_ERR is returned.
@@ -1071,7 +1071,7 @@ static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_
 /* This function executes a early-hint action. It adds an HTTP Early Hint HTTP
  * 103 response header with <.arg.http.str> name and with a value built
  * according to <.arg.http.fmt> log line format. If it is the first early-hint
- * rule of a serie, the 103 response start-line is added first. At the end, if
+ * rule of series, the 103 response start-line is added first. At the end, if
  * the next rule is not an early-hint rule or if it is the last rule, the EOH
  * block is added to terminate the response. On success, it returns
  * ACT_RET_CONT. If an error occurs while soft rewrites are enabled, the action
@@ -1148,7 +1148,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 /* This function executes a set-header or add-header actions. It builds a string
  * in the trash from the specified format string. It finds the action to be
  * performed in <.action>, previously filled by function parse_set_header(). The
- * replacement action is excuted by the function http_action_set_header(). On
+ * replacement action is executed by the function http_action_set_header(). On
  * success, it returns ACT_RET_CONT. If an error occurs while soft rewrites are
  * enabled, the action is canceled, but the rule processing continue. Otherwsize
  * ACT_RET_ERR is returned.
@@ -1271,7 +1271,7 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 /* This function executes a replace-header or replace-value actions. It
  * builds a string in the trash from the specified format string. It finds
  * the action to be performed in <.action>, previously filled by function
- * parse_replace_header(). The replacement action is excuted by the function
+ * parse_replace_header(). The replacement action is executed by the function
  * http_action_replace_header(). On success, it returns ACT_RET_CONT. If an error
  * occurs while soft rewrites are enabled, the action is canceled, but the rule
  * processing continue. Otherwsize ACT_RET_ERR is returned.
@@ -2019,7 +2019,7 @@ static int check_http_return_action(struct act_rule *rule, struct proxy *px, cha
  *
  *   - action 0  : dummy response, no payload
  *   - action 1  : implicit error message depending on the status code or explicit one
- *   - action 2  : explicit file oject ('file' argument)
+ *   - action 2  : explicit file object ('file' argument)
  *   - action 3  : explicit log-format string ('content' argument)
  *
  * The content-type must be defined for non-empty payload. It is ignored for

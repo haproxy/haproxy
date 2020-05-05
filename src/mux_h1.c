@@ -356,7 +356,7 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
  *   - if the input buffer failed to be allocated or is full , we must not try
  *     to receive
  *   - if he input processing is busy waiting for the output side, we may
- *     attemp to receive
+ *     attempt to receive
  *   - otherwise must may not attempt to receive
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
@@ -845,7 +845,7 @@ static void h1_set_cli_conn_mode(struct h1s *h1s, struct h1m *h1m)
 			}
 			else if (!(h1m->flags & H1_MF_CONN_KAL) &&
 				 (fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO) {
-				/* no explict keep-alive and option httpclose => close */
+				/* no explicit keep-alive and option httpclose => close */
 				h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 				TRACE_STATE("force close mode (resp)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 			}
@@ -1136,7 +1136,7 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
 
 /*
  * Switch the response to tunnel mode. This function must only be called on
- * successfull replies to CONNECT requests or on protocol switching. In this
+ * successful replies to CONNECT requests or on protocol switching. In this
  * last case, this function takes care to switch the request to tunnel mode if
  * possible. On the server side, if the request is not finished, the mux is mark
  * as busy on input.
@@ -1779,7 +1779,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status == 200) || h1s->status == 101)) {
-					/* a successfull reply to a CONNECT or a protocol switching is sent
+					/* a successful reply to a CONNECT or a protocol switching is sent
 					 * to the client. Switch the response to tunnel mode.
 					 */
 					h1_set_res_tunnel_mode(h1s);
@@ -3104,7 +3104,7 @@ REGISTER_CONFIG_POSTPARSER("h1-headers-map", cfg_h1_headers_case_adjust_postpars
 
 
 /****************************************/
-/* MUX initialization and instanciation */
+/* MUX initialization and instantiation */
 /****************************************/
 
 /* The mux operations */

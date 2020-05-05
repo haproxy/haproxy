@@ -970,7 +970,7 @@ static void sess_set_term_flags(struct stream *s)
 /* This function parses the use-service action ruleset. It executes
  * the associated ACL and set an applet as a stream or txn final node.
  * it returns ACT_RET_ERR if an error occurs, the proxy left in
- * consistent state. It returns ACT_RET_STOP in succes case because
+ * consistent state. It returns ACT_RET_STOP in success case because
  * use-service must be a terminal action. Returns ACT_RET_YIELD
  * if the initialisation function require more data.
  */
@@ -995,7 +995,7 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	else
 		appctx = si_appctx(&s->si[1]);
 
-	/* Stops the applet sheduling, in case of the init function miss
+	/* Stops the applet scheduling, in case of the init function miss
 	 * some data.
 	 */
 	si_stop_get(&s->si[1]);

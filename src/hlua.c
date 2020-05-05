@@ -343,7 +343,7 @@ __LJMP static const char *hlua_traceback(lua_State *L)
 
 /* This function check the number of arguments available in the
  * stack. If the number of arguments available is not the same
- * then <nb> an error is throwed.
+ * then <nb> an error is thrown.
  */
 __LJMP static inline void check_args(lua_State *L, int nb, char *fcn)
 {
@@ -403,7 +403,7 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 	return 1;
 }
 
-/* This function take one entrie in an LUA stack at the index "ud",
+/* This function take one entry in an LUA stack at the index "ud",
  * and try to convert it in an HAProxy argument entry. This is useful
  * with sample fetch wrappers. The input arguments are given to the
  * lua wrapper and converted as arg list by the function.
@@ -588,7 +588,7 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
  * is in accord with the expected argp defined by the "mask". The function
  * returns true or false. It can be adjust the types if there compatibles.
  *
- * This function assumes thant the argp argument contains ARGM_NBARGS + 1
+ * This function assumes that the argp argument contains ARGM_NBARGS + 1
  * entries.
  */
 __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
@@ -802,7 +802,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 }
 
 /*
- * The following functions are used to make correspondance between the the
+ * The following functions are used to make correspondence between the the
  * executed lua pointer and the "struct hlua *" that contain the context.
  *
  *  - hlua_gethlua : return the hlua context associated with an lua_State.
@@ -1337,7 +1337,7 @@ static int hlua_set_map(lua_State *L)
 
 /* A class is a lot of memory that contain data. This data can be a table,
  * an integer or user data. This data is associated with a metatable. This
- * metatable have an original version registred in the global context with
+ * metatable have an original version registered in the global context with
  * the name of the object (_G[<name>] = <metable> ).
  *
  * A metable is a table that modify the standard behavior of a standard
