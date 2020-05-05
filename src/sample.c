@@ -185,7 +185,7 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL),
 
 	[SMP_SRC_HRSHV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -193,7 +193,7 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL),
 
 	[SMP_SRC_HRSHP] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -201,7 +201,7 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL),
 
 	[SMP_SRC_HRSBO] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -209,7 +209,7 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL),
 
 	[SMP_SRC_RQFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |

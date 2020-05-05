@@ -45,9 +45,9 @@ haproxy h1 -conf {
 	http-check expect header name -m end "-End"
 	http-check expect header name -m sub "-Sub-"
 	http-check expect header name -m reg "^[a-z]+-Reg-[a-z]+[0-9]\$"
-	http-check set-var(check.hdr_name) check.fhdr(x-hdr-name)
+	http-check set-var(check.hdr_name) res.fhdr(x-hdr-name)
 	http-check expect header name -m str "%[var(check.hdr_name)]" log-format
-	http-check expect header name -m str "%[check.fhdr(x-hdr-name)]" log-format
+	http-check expect header name -m str "%[res.fhdr(x-hdr-name)]" log-format
 
 	http-check expect header name "x-test1" value "true, next value" full
 	http-check expect header name "x-test2" value -m str "true"
@@ -58,7 +58,7 @@ haproxy h1 -conf {
 	http-check expect header name -m beg "x-test" value -m reg "value-reg-[A-Z0-9]+" full
 	http-check set-var(check.hdr_value) str(x-test1)
 	http-check expect header name -m beg "x-" value -m str "%[var(check.hdr_value)]" log-format
-	http-check expect header name -m beg "x-" value -m str "%[check.fhdr(x-hdr-name)]" log-format full
+	http-check expect header name -m beg "x-" value -m str "%[res.fhdr(x-hdr-name)]" log-format full
 
         server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
 } -start

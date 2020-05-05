@@ -6268,7 +6268,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "string", redis_res,
 				               "error-status", "L7STS",
-				               "on-error", "%[check.payload(0,0),cut_crlf]",
+				               "on-error", "%[res.payload(0,0),cut_crlf]",
 				               "on-success", "Redis server is ok",
 				               ""},
 				    1, curpx, &rs->rules, TCPCHK_RULES_REDIS_CHK, file, line, &errmsg);
@@ -6470,7 +6470,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^[0-9]{3}[ \r]",
 				               "min-recv", "4",
 				               "error-status", "L7RSP",
-				               "on-error", "%[check.payload(0,0),cut_crlf]",
+				               "on-error", "%[res.payload(0,0),cut_crlf]",
 				               ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
@@ -6483,8 +6483,8 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[ \r]",
 				               "min-recv", "4",
 				               "error-status", "L7STS",
-				               "on-error", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
-				               "status-code", "check.payload(0,3)",
+				               "on-error", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
+				               "status-code", "res.payload(0,3)",
 				               ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
@@ -6506,9 +6506,9 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[- \r]",
 				               "min-recv", "4",
 				               "error-status", "L7STS",
-				               "on-error", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
-				               "on-success", "%[check.payload(4,0),ltrim(' '),cut_crlf]",
-				               "status-code", "check.payload(0,3)",
+				               "on-error", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
+				               "on-success", "%[res.payload(4,0),ltrim(' '),cut_crlf]",
+				               "status-code", "res.payload(0,3)",
 				               ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_SMTP_CHK, file, line, &errmsg);
 	if (!chk) {
@@ -6641,7 +6641,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "!rstring", "^E",
 				               "min-recv", "5",
 				               "error-status", "L7RSP",
-				               "on-error", "%[check.payload(6,0)]",
+				               "on-error", "%[res.payload(6,0)]",
 				               ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_PGSQL_CHK, file, line, &errmsg);
 	if (!chk) {

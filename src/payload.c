@@ -1359,10 +1359,6 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },
-
-	{ "check.len",           smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_INTRN },
-	{ "check.payload",       smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_INTRN },
-	{ "check.payload_lv",    smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_INTRN },
 	{ /* END */ },
 }};
 
