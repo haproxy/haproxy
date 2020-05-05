@@ -1,0 +1,20 @@
+#
+# Test build of HAProxy on ARM64
+# 
+
+name: ARM64 via QEMU
+
+on: [push]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Register QEMU
+      run: |
+      sudo docker run -it --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+    - name: Check ARM64 Docker container
+      run: |
+      docker run -it --rm arm64v8/centos:8 uname -m

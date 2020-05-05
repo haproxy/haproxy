@@ -2,7 +2,7 @@
 
 name: windows-latest
 
-on: [push]
+#on: [push]
 
 jobs:
   cygwin:
