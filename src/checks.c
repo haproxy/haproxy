@@ -689,7 +689,8 @@ static void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		enum healthcheck_status tout = HCHK_STATUS_L7TOUT;
 
 		/* connection established but expired check */
-		if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT)
+		if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT &&
+		    check->current_step->expect.tout_status != HCHK_STATUS_UNKNOWN)
 			tout = check->current_step->expect.tout_status;
 		set_server_check_status(check, tout, err_msg);
 	}
@@ -1246,7 +1247,8 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	 * FIXME : it can be cool to use MySQL Version for other purpose,
 	 * like mark as down old MySQL server.
 	 */
-	set_server_check_status(check, rule->expect.ok_status, b_peek(&check->bi, 5));
+	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+	set_server_check_status(check, status, b_peek(&check->bi, 5));
 
   out:
 	free_trash_chunk(msg);
@@ -1344,7 +1346,8 @@ static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, 
 		goto error;
 	}
 
-	set_server_check_status(check, rule->expect.ok_status, "Success");
+	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+	set_server_check_status(check, status, "Success");
 
   out:
 	free_trash_chunk(msg);
@@ -1385,7 +1388,8 @@ static enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *chec
 		goto error;
 	}
 
-	set_server_check_status(check, rule->expect.ok_status, "SPOA server is ok");
+	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+	set_server_check_status(check, status, "SPOA server is ok");
 
   out:
 	free_trash_chunk(msg);
@@ -2075,11 +2079,15 @@ static enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcp
 			goto wait_more_data;
 		}
 		if (is_empty) {
+			int status;
+
 			chunk_printf(&trash, "TCPCHK got an empty response at step %d",
 				     tcpcheck_get_step_id(check, rule));
 			if (rule->comment)
 				chunk_appendf(&trash, " comment: '%s'", rule->comment);
-			set_server_check_status(check, rule->expect.err_status, trash.area);
+
+			status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+			set_server_check_status(check, status, trash.area);
 			goto stop;
 		}
 	}
@@ -2155,15 +2163,17 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		}
 
 		/* Set status and description in case of error */
-		status = HCHK_STATUS_L7STS;
-		desc   = htx_sl_res_reason(sl);
+		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		if (LIST_ISEMPTY(&expect->onerror_fmt))
+			desc = htx_sl_res_reason(sl);
 		break;
 	case TCPCHK_EXPECT_HTTP_REGEX_STATUS:
 		match = regex_exec2(expect->regex, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl));
 
 		/* Set status and description in case of error */
-		status = HCHK_STATUS_L7STS;
-		desc   = htx_sl_res_reason(sl);
+		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7STS);
+		if (LIST_ISEMPTY(&expect->onerror_fmt))
+			desc = htx_sl_res_reason(sl);
 		break;
 
 	case TCPCHK_EXPECT_HTTP_BODY:
@@ -2183,8 +2193,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 		if (!b_data(&trash)) {
 			if (!last_read)
 				goto wait_more_data;
-			status = HCHK_STATUS_L7RSP;
-			desc = ist("HTTP content check could not find a response body");
+			status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+			if (LIST_ISEMPTY(&expect->onerror_fmt))
+				desc = ist("HTTP content check could not find a response body");
 			goto error;
 		}
 
@@ -2201,15 +2212,16 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 			match = regex_exec2(expect->regex, b_orig(&trash), b_data(&trash));
 
 		/* Set status and description in case of error */
-		status = HCHK_STATUS_L7RSP;
-		desc = (inverse
-			? ist("HTTP check matched unwanted content")
-			: ist("HTTP content check did not match"));
+		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+		if (LIST_ISEMPTY(&expect->onerror_fmt))
+			desc = (inverse
+				? ist("HTTP check matched unwanted content")
+				: ist("HTTP content check did not match"));
 		break;
 
 	default:
 		/* should never happen */
-		status = HCHK_STATUS_L7RSP;
+		status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
 		goto error;
 	}
 
@@ -2250,6 +2262,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	struct tcpcheck_expect *expect = &rule->expect;
 	struct buffer *msg = NULL;
+	enum healthcheck_status status;
 	int match, inverse;
 
 	last_read |= b_full(&check->bi);
@@ -2316,7 +2329,9 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct t
 	msg = alloc_trash_chunk();
 	if (msg)
 		tcpcheck_expect_onerror_message(msg, check, rule, match, IST_NULL);
-	set_server_check_status(check, expect->err_status, (msg ? b_head(msg) : NULL));
+
+	status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
 	free_trash_chunk(msg);
 	ret = TCPCHK_EVAL_STOP;
 
@@ -2507,6 +2522,7 @@ static int tcpcheck_main(struct check *check)
 
 		if (rule->action == TCPCHK_ACT_EXPECT) {
 			struct buffer *msg;
+			enum healthcheck_status status;
 
 			if (check->server &&
 			    (check->server->proxy->options & PR_O_DISABLE404) &&
@@ -2519,8 +2535,8 @@ static int tcpcheck_main(struct check *check)
 			msg = alloc_trash_chunk();
 			if (msg)
 				tcpcheck_expect_onsuccess_message(msg, check, rule, IST_NULL);
-			set_server_check_status(check, rule->expect.ok_status,
-						(msg ? b_head(msg) : "(tcp-check)"));
+			status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+			set_server_check_status(check, status, (msg ? b_head(msg) : "(tcp-check)"));
 			free_trash_chunk(msg);
 		}
 		else if (rule->action == TCPCHK_ACT_CONNECT) {
@@ -3955,9 +3971,9 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 	struct sample_expr *status_expr = NULL;
 	char *on_success_msg, *on_error_msg, *comment, *pattern;
 	enum tcpcheck_expect_type type = TCPCHK_EXPECT_UNDEF;
-	enum healthcheck_status ok_st = HCHK_STATUS_L7OKD;
-	enum healthcheck_status err_st = HCHK_STATUS_L7RSP;
-	enum healthcheck_status tout_st = HCHK_STATUS_L7TOUT;
+	enum healthcheck_status ok_st = HCHK_STATUS_UNKNOWN;
+	enum healthcheck_status err_st = HCHK_STATUS_UNKNOWN;
+	enum healthcheck_status tout_st = HCHK_STATUS_UNKNOWN;
 	long min_recv = -1;
 	int inverse = 0;
 
@@ -4086,12 +4102,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 			cur_arg++;
-			free(on_success_msg);
-			on_success_msg = strdup(args[cur_arg]);
-			if (!on_success_msg) {
-				memprintf(errmsg, "out of memory");
-				goto error;
-			}
+			on_success_msg = args[cur_arg];
 		}
 		else if (strcmp(args[cur_arg], "on-error") == 0) {
 			if (in_pattern) {
@@ -4103,12 +4114,7 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 				goto error;
 			}
 			cur_arg++;
-			free(on_error_msg);
-			on_error_msg = strdup(args[cur_arg]);
-			if (!on_error_msg) {
-				memprintf(errmsg, "out of memory");
-				goto error;
-			}
+			on_error_msg = args[cur_arg];
 		}
 		else if (strcmp(args[cur_arg], "ok-status") == 0) {
 			if (in_pattern) {
@@ -4250,8 +4256,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", on_success_msg, *errmsg);
 			goto error;
 		}
-		free(on_success_msg);
-		on_success_msg = NULL;
 	}
 	if (on_error_msg) {
 		px->conf.args.ctx = ARGC_SRV;
@@ -4259,8 +4263,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
 			memprintf(errmsg, "'%s' invalid log-format string (%s).\n", on_error_msg, *errmsg);
 			goto error;
 		}
-		free(on_error_msg);
-		on_error_msg = NULL;
 	}
 
 	switch (chk->expect.type) {
@@ -4353,8 +4355,6 @@ static struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, str
   error:
 	free_tcpcheck(chk, 0);
 	free(comment);
-	free(on_success_msg);
-	free(on_error_msg);
 	release_sample_expr(status_expr);
 	return NULL;
 }
