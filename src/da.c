@@ -301,7 +301,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	}
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
-	htx = smp_prefetch_htx(smp, chn, 1);
+	htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	if (!htx)
 		return 0;
 
