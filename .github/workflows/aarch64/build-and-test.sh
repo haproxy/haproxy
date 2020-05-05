@@ -22,8 +22,12 @@ bash ./scripts/build-ssl.sh
 
 if [ "${CC%-*}"  = "clang" ]; then 
     export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" 
-    export DEBUG_CFLAGS="-g -fsanitize=address" 
-    export LDFLAGS="-fsanitize=address"
+    export DEBUG_CFLAGS="-g" # -fsanitize=address"  # 
+    # Sanitizer fails with:
+    # ==26239==LeakSanitizer has encountered a fatal error.
+    # ==26239==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+    # ==26239==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+    # export LDFLAGS="-fsanitize=address"
 fi
 
 make -C contrib/wurfl
