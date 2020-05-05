@@ -77,7 +77,12 @@ extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current threa
 #define __decl_rwlock(lock)
 #define __decl_aligned_rwlock(lock)
 
-#define HA_ATOMIC_CAS(val, old, new) ({((*val) == (*old)) ? (*(val) = (new) , 1) : (*(old) = *(val), 0);})
+#define HA_ATOMIC_CAS(val, old, new)                                    \
+	({                                                              \
+		typeof(val) _v = (val);                                 \
+		typeof(old) _o = (old);                                 \
+		(*_v == *_o) ? ((*_v = (new)), 1) : ((*_o = *_v), 0);   \
+	})
 
 /* warning, n is a pointer to the double value for dwcas */
 #define HA_ATOMIC_DWCAS(val, o, n)				       \
