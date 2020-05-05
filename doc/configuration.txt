@@ -7722,12 +7722,12 @@ no option logasap
   Using "option logasap", the log message is created as soon as the server
   connection is established in mode tcp, or as soon as the server sends the
   complete headers in mode http. Missing information in the logs will be the
-  total number of bytes which will only indicate the amount of data transfered
+  total number of bytes which will only indicate the amount of data transferred
   before the message was created and the total time which will not take the
   remainder of the connection life or transfer time into account. For the case
   of HTTP, it is good practice to capture the Content-Length response header
   so that the logs at least indicate how many bytes are expected to be
-  transfered.
+  transferred.
 
   Examples :
       listen http_proxy 0.0.0.0:80
@@ -12636,7 +12636,7 @@ check
   proxy-protocol header, etc... ). It is possible to change the destination
   address using "addr" and the port using "port". When done, it is assumed the
   server isn't checked on the service port, and configured encapsulation
-  parameters are not reused. One must explicitely set "check-send-proxy" to send
+  parameters are not reused. One must explicitly set "check-send-proxy" to send
   connection headers, "check-ssl" to use SSL/TLS.
 
   When "sni" or "alpn" are set on the server line, their value is not used for
