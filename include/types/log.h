@@ -211,7 +211,7 @@ struct logsrv {
 	struct list list;
 	struct sockaddr_storage addr;
 	struct smp_info lb;
-	struct ring *ring;
+	struct sink *sink;
 	enum log_tgt type;
 	int format;
 	int facility;

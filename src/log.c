@@ -1048,7 +1048,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 
 		logsrv->addr.ss_family = AF_UNSPEC;
 		logsrv->type = LOG_TARGET_BUFFER;
-		logsrv->ring = sink->ctx.ring;
+		logsrv->sink = sink;
 		goto done;
 	}
 
@@ -1563,7 +1563,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
 	static THREAD_LOCAL char *dataptr = NULL;
 	time_t time = date.tv_sec;
-	char *hdr, *hdr_ptr;
+	char *hdr, *hdr_ptr = NULL;
 	size_t hdr_size;
 	int fac_level;
 	int *plogfd;
@@ -1593,6 +1593,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 	}
 	else if (logsrv->type == LOG_TARGET_BUFFER) {
 		plogfd = NULL;
+		goto send;
 	}
 	else if (logsrv->addr.ss_family == AF_UNIX)
 		plogfd = &logfdunix;
@@ -1739,18 +1740,23 @@ send:
 		/* the target is a file descriptor or a ring buffer */
 		struct ist msg[7];
 
-		msg[0].ptr = hdr_ptr;  msg[0].len = hdr_max;
-		msg[1].ptr = tag_str;  msg[1].len = tag_max;
-		msg[2].ptr = pid_sep1; msg[2].len = pid_sep1_max;
-		msg[3].ptr = pid_str;  msg[3].len = pid_max;
-		msg[4].ptr = pid_sep2; msg[4].len = pid_sep2_max;
-		msg[5].ptr = sd;       msg[5].len = sd_max;
-		msg[6].ptr = dataptr;  msg[6].len = max;
-
-		if (logsrv->type == LOG_TARGET_BUFFER)
-			sent = ring_write(logsrv->ring, ~0, NULL, 0, msg, 7);
-		else /* LOG_TARGET_FD */
+		if (logsrv->type == LOG_TARGET_BUFFER) {
+			msg[0] = ist2(message, MIN(size, logsrv->maxlen));
+			msg[1] = ist2(tag_str, tag_size);
+			msg[2] = ist2(pid_str, pid_size);
+			msg[3] = ist2(sd, sd_size);
+			sent = sink_write(logsrv->sink, msg, 1, level, logsrv->facility, &msg[1], &msg[2], &msg[3]);
+		}
+		else /* LOG_TARGET_FD */ {
+			msg[0] = ist2(hdr_ptr, hdr_max);
+			msg[1] = ist2(tag_str, tag_max);
+			msg[2] = ist2(pid_sep1, pid_sep1_max);
+			msg[3] = ist2(pid_str, pid_max);
+			msg[4] = ist2(pid_sep2, pid_sep2_max);
+			msg[5] = ist2(sd, sd_max);
+			msg[6] = ist2(dataptr, max);
 			sent = fd_write_frag_line(*plogfd, ~0, NULL, 0, msg, 7, 1);
+		}
 	}
 	else {
 		iovec[0].iov_base = hdr_ptr;

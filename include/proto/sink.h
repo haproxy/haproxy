@@ -39,8 +39,10 @@ int sink_announce_dropped(struct sink *sink, int facility, struct ist *pid);
  * array <msg> to sink <sink>. Formatting according to the sink's preference is
  * done here. Lost messages are accounted for in the sink's counter. If there
  * were lost messages, an attempt is first made to indicate it.
+ * The function returns the number of Bytes effectively sent or announced.
+ * or <= 0 in other cases.
  */
-static inline void sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
+static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
                               int level, int facility, struct ist * tag,
                               struct ist *pid, struct ist *sd)
 {
@@ -72,6 +74,8 @@ static inline void sink_write(struct sink *sink, const struct ist msg[], size_t 
  fail:
 	if (unlikely(sent <= 0))
 		HA_ATOMIC_ADD(&sink->ctx.dropped, 1);
+
+	return sent;
 }
 
 #endif /* _PROTO_SINK_H */
