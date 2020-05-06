@@ -12,17 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Create the cache folder for OpenSSL
+      run: mkdir -p $HOME/cache
     - uses: actions/cache@v1
       id: cache
       with:
         path: $HOME/cache
-        key: ${{ runner.os }}-opt-${{ hashFiles('**/.openssl-version') }}
+        key: ${{ runner.os }}-opt-${{ hashFiles('**/.github/workflows/aarch64.yml') }}
         restore-keys: |
           ${{ runner.os }}-opt-
     - name: Register QEMU
       run: |
         sudo docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Build AARCH64 Docker container
       run: |
         docker build .github/workflows/aarch64/ -t haproxy-aarch64:latest
