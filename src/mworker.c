@@ -290,8 +290,12 @@ restart_wait:
 		} else {
 			/* check if exited child is a current child */
 			if (!(child->options & PROC_O_LEAVING)) {
-				if (child->options & PROC_O_TYPE_WORKER)
-					ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+				if (child->options & PROC_O_TYPE_WORKER) {
+					if (status < 128)
+						ha_warning("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, "Exit");
+					else
+						ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, strsignal(status - 128));
+				}
 				else if (child->options & PROC_O_TYPE_PROG)
 					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 
