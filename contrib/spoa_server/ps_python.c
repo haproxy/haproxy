@@ -1,13 +1,25 @@
 /* spoa-server: processing Python
  *
  * Copyright 2018 OZON / Thierry Fournier <thierry.fournier@ozon.io>
+ * Copyright (C) 2020  Gilchrist Dadaglo <gilchrist@dadaglo.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
+ * This program is provided in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
+
+/*
+ *	Define PY_SSIZE_T_CLEAN before including Python.h
+ *	as per https://docs.python.org/3/c-api/arg.html and https://docs.python.org/2/c-api/arg.html
+ */
+#define PY_SSIZE_T_CLEAN
 
 #include <Python.h>
 
@@ -15,8 +27,10 @@
 
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 
 #include "spoa.h"
+#include "ps_python.h"
 
 /* Embedding python documentation:
  *
@@ -43,6 +57,28 @@ static struct ps ps_python_bindings = {
 	.ext = ".py",
 };
 
+static int ps_python_check_overflow(Py_ssize_t len)
+{
+	/* There might be an overflow when converting from Py_ssize_t to int.
+	 * This function will catch those cases.
+	 * Also, spoa "struct chunk" is limited to int size.
+	 * We should not send data bigger than it can handle.
+	 */
+	if (len >= (Py_ssize_t)INT_MAX) {
+		PyErr_Format(spoa_error,
+				"%d is over 2GB. Please split in smaller pieces.", \
+				len);
+		return -1;
+	} else {
+		return Py_SAFE_DOWNCAST(len, Py_ssize_t, int);
+	}
+}
+
+#if IS_PYTHON_3K
+static PyObject *module_spoa;
+static PyObject *PyInit_spoa_module(void);
+#endif /* IS_PYTHON_3K */
+
 static PyObject *ps_python_register_message(PyObject *self, PyObject *args)
 {
 	const char *name;
@@ -60,12 +96,16 @@ static PyObject *ps_python_register_message(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_null(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
+	int name_len_i;
 	int scope;
 
 	if (!PyArg_ParseTuple(args, "s#i", &name, &name_len, &scope))
 		return NULL;
-	if (!set_var_null(worker, name, name_len, scope)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_null(worker, name, name_len_i, scope)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -75,13 +115,17 @@ static PyObject *ps_python_set_var_null(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_boolean(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	int value;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#ii", &name, &name_len, &scope, &value))
 		return NULL;
-	if (!set_var_bool(worker, name, name_len, scope, value)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_bool(worker, name, name_len_i, scope, value)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -91,13 +135,17 @@ static PyObject *ps_python_set_var_boolean(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_int32(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	int32_t value;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#ii", &name, &name_len, &scope, &value))
 		return NULL;
-	if (!set_var_int32(worker, name, name_len, scope, value)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_int32(worker, name, name_len_i, scope, value)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -107,13 +155,17 @@ static PyObject *ps_python_set_var_int32(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_uint32(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	uint32_t value;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#iI", &name, &name_len, &scope, &value))
 		return NULL;
-	if (!set_var_uint32(worker, name, name_len, scope, value)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_uint32(worker, name, name_len_i, scope, value)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -123,13 +175,17 @@ static PyObject *ps_python_set_var_uint32(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_int64(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	int64_t value;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#il", &name, &name_len, &scope, &value))
 		return NULL;
-	if (!set_var_int64(worker, name, name_len, scope, value)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_int64(worker, name, name_len_i, scope, value)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -139,13 +195,17 @@ static PyObject *ps_python_set_var_int64(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_uint64(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	uint64_t value;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#ik", &name, &name_len, &scope, &value))
 		return NULL;
-	if (!set_var_uint64(worker, name, name_len, scope, value)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
+		return NULL;
+	if (!set_var_uint64(worker, name, name_len_i, scope, value)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -155,13 +215,17 @@ static PyObject *ps_python_set_var_uint64(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_ipv4(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	PyObject *ipv4;
 	PyObject *value;
 	struct in_addr ip;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#iO", &name, &name_len, &scope, &ipv4))
+		return NULL;
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
 		return NULL;
 	if (!PyObject_IsInstance(ipv4, ipv4_address)) {
 		PyErr_Format(spoa_error, "must be 'IPv4Address', not '%s'", ipv4->ob_type->tp_name);
@@ -171,12 +235,12 @@ static PyObject *ps_python_set_var_ipv4(PyObject *self, PyObject *args)
 	value = PyObject_GetAttrString(ipv4, "packed");
 	if (value == NULL)
 		return NULL;
-	if (PyString_GET_SIZE(value) != sizeof(ip)) {
+	if (PY_STRING_GET_SIZE(value) != sizeof(ip)) {
 		PyErr_Format(spoa_error, "UPv6 manipulation internal error");
 		return NULL;
 	}
-	memcpy(&ip, PyString_AS_STRING(value), PyString_GET_SIZE(value));
-	if (!set_var_ipv4(worker, name, name_len, scope, &ip)) {
+	memcpy(&ip, PY_STRING_AS_STRING(value), PY_STRING_GET_SIZE(value));
+	if (!set_var_ipv4(worker, name, name_len_i, scope, &ip)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -186,13 +250,17 @@ static PyObject *ps_python_set_var_ipv4(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_ipv6(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	PyObject *ipv6;
 	PyObject *value;
 	struct in6_addr ip;
+	int name_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#iO", &name, &name_len, &scope, &ipv6))
+		return NULL;
+	name_len_i = ps_python_check_overflow(name_len);
+	if (name_len_i == -1)
 		return NULL;
 	if (!PyObject_IsInstance(ipv6, ipv6_address)) {
 		PyErr_Format(spoa_error, "must be 'IPv6Address', not '%s'", ipv6->ob_type->tp_name);
@@ -202,12 +270,12 @@ static PyObject *ps_python_set_var_ipv6(PyObject *self, PyObject *args)
 	value = PyObject_GetAttrString(ipv6, "packed");
 	if (value == NULL)
 		return NULL;
-	if (PyString_GET_SIZE(value) != sizeof(ip)) {
+	if (PY_STRING_GET_SIZE(value) != sizeof(ip)) {
 		PyErr_Format(spoa_error, "UPv6 manipulation internal error");
 		return NULL;
 	}
-	memcpy(&ip, PyString_AS_STRING(value), PyString_GET_SIZE(value));
-	if (!set_var_ipv6(worker, name, name_len, scope, &ip)) {
+	memcpy(&ip, PY_STRING_AS_STRING(value), PY_STRING_GET_SIZE(value));
+	if (!set_var_ipv6(worker, name, name_len_i, scope, &ip)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -217,14 +285,20 @@ static PyObject *ps_python_set_var_ipv6(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_str(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	const char *value;
-	int value_len;
+	Py_ssize_t value_len;
+	int name_len_i;
+	int value_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#is#", &name, &name_len, &scope, &value, &value_len))
 		return NULL;
-	if (!set_var_string(worker, name, name_len, scope, value, value_len)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	value_len_i = ps_python_check_overflow(value_len);
+	if (name_len_i == -1 || value_len_i == -1)
+		return NULL;
+	if (!set_var_string(worker, name, name_len_i, scope, value, value_len_i)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -234,14 +308,20 @@ static PyObject *ps_python_set_var_str(PyObject *self, PyObject *args)
 static PyObject *ps_python_set_var_bin(PyObject *self, PyObject *args)
 {
 	const char *name;
-	int name_len;
+	Py_ssize_t name_len;
 	int scope;
 	const char *value;
-	int value_len;
+	Py_ssize_t value_len;
+	int name_len_i;
+	int value_len_i;
 
 	if (!PyArg_ParseTuple(args, "s#is#", &name, &name_len, &scope, &value, &value_len))
 		return NULL;
-	if (!set_var_bin(worker, name, name_len, scope, value, value_len)) {
+	name_len_i = ps_python_check_overflow(name_len);
+	value_len_i = ps_python_check_overflow(value_len);
+	if (name_len_i == -1 || value_len_i == -1)
+		return NULL;
+	if (!set_var_bin(worker, name, name_len_i, scope, value, value_len_i)) {
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
@@ -275,6 +355,25 @@ static PyMethodDef spoa_methods[] = {
 	{ /* end */ }
 };
 
+#if IS_PYTHON_3K
+static struct PyModuleDef spoa_module_definition = {
+	PyModuleDef_HEAD_INIT,                  /* m_base     */
+	"spoa",                                 /* m_name     */
+	"HAProxy SPOA module for python",       /* m_doc      */
+	-1,                                     /* m_size     */
+	spoa_methods,                           /* m_methods  */
+	NULL,                                   /* m_slots    */
+	NULL,                                   /* m_traverse */
+	NULL,                                   /* m_clear    */
+	NULL                                    /* m_free     */
+};
+
+static PyObject *PyInit_spoa_module(void)
+{
+	return module_spoa;
+}
+#endif /* IS_PYTHON_3K */
+
 static int ps_python_start_worker(struct worker *w)
 {
 	PyObject *m;
@@ -282,10 +381,17 @@ static int ps_python_start_worker(struct worker *w)
 	PyObject *value;
 	int ret;
 
+#if IS_PYTHON_27
 	Py_SetProgramName("spoa-server");
+#endif /* IS_PYTHON_27 */
+#if IS_PYTHON_3K
+	Py_SetProgramName(Py_DecodeLocale("spoa-server", NULL));
+	PyImport_AppendInittab("spoa", &PyInit_spoa_module);
+#endif /* IS_PYTHON_3K */
+
 	Py_Initialize();
 
-	module_name = PyString_FromString("ipaddress");
+	module_name = PY_STRING_FROM_STRING("ipaddress");
 	if (module_name == NULL) {
 		PyErr_Print();
 		return 0;
@@ -310,7 +416,7 @@ static int ps_python_start_worker(struct worker *w)
 		return 0;
 	}
 
-	m = Py_InitModule("spoa", spoa_methods);
+	PY_INIT_MODULE(m, "spoa", spoa_methods, &spoa_module_definition);
 	if (m == NULL) {
 		PyErr_Print();
 		return 0;
@@ -387,6 +493,9 @@ static int ps_python_start_worker(struct worker *w)
 		return 0;
 	}
 
+#if IS_PYTHON_3K
+	module_spoa = m;
+#endif /* IS_PYTHON_3K */
 	worker = w;
 	return 1;
 }
@@ -452,14 +561,14 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 
 		/* Create the name entry */
 
-		key = PyString_FromString("name");
+		key = PY_STRING_FROM_STRING("name");
 		if (key == NULL) {
 			Py_DECREF(kw_args);
 			PyErr_Print();
 			return 0;
 		}
 
-		value = PyString_FromStringAndSize(args[i].name.str, args[i].name.len);
+		value = PY_STRING_FROM_STRING_AND_SIZE(args[i].name.str, args[i].name.len);
 		if (value == NULL) {
 			Py_DECREF(kw_args);
 			Py_DECREF(ent);
@@ -480,7 +589,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 
 		/* Create th value entry */
 
-		key = PyString_FromString("value");
+		key = PY_STRING_FROM_STRING("value");
 		if (key == NULL) {
 			Py_DECREF(kw_args);
 			Py_DECREF(ent);
@@ -531,7 +640,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 				PyErr_Print();
 				return 0;
 			}
-			ip_name = PyString_FromString("address");
+			ip_name = PY_STRING_FROM_STRING("address");
 			if (ip_name == NULL) {
 				Py_DECREF(kw_args);
 				Py_DECREF(ent);
@@ -564,10 +673,10 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			break;
 
 		case SPOE_DATA_T_STR:
-			value = PyString_FromStringAndSize(args[i].value.u.buffer.str, args[i].value.u.buffer.len);
+			value = PY_STRING_FROM_STRING_AND_SIZE(args[i].value.u.buffer.str, args[i].value.u.buffer.len);
 			break;
 		case SPOE_DATA_T_BIN:
-			value = PyString_FromStringAndSize(args[i].value.u.buffer.str, args[i].value.u.buffer.len);
+			value = PY_BYTES_FROM_STRING_AND_SIZE(args[i].value.u.buffer.str, args[i].value.u.buffer.len);
 			break;
 		default:
 			value = Py_None;
@@ -611,7 +720,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		return 0;
 	}
 
-	key = PyString_FromString("args");
+	key = PY_STRING_FROM_STRING("args");
 	if (key == NULL) {
 		Py_DECREF(kw_args);
 		Py_DECREF(fkw);
