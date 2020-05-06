@@ -3,7 +3,8 @@
 set -eox
 
 export TARGET="linux-glibc"
-export FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_SYSTEMD=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1"
+export FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1"
+export OPENSSL_VERSION="1.1.1f"
 export SSL_LIB=${HOME}/opt/lib
 export SSL_INC=${HOME}/opt/include
 export TMPDIR=/tmp
@@ -16,6 +17,7 @@ git clone --depth=1 https://github.com/VTest/VTest.git /vtest
 pushd /haproxy
 make clean 
 make -C /vtest FLAGS="-O2 -s -Wall"
+bash ./scripts/build-ssl.sh
 
 if [ "${CC%-*}"  = "clang" ]; then 
     export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" 
@@ -27,11 +29,16 @@ if [ "${CC%-*}"  = "clang" ]; then
     # export LDFLAGS="-fsanitize=address"
 fi
 
-make -j3 CC=$CC V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="-Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
+make -j3 CC=$CC V=0 DEBUG_STRICT=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="-Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
 
 ./haproxy -vv
 ldd haproxy
 
- make reg-tests VTEST_PROGRAM=/vtest/vtest REGTESTS_TYPES=default,bug,devel
+make reg-tests VTEST_PROGRAM=/vtest/vtest REGTESTS_TYPES=default,bug,devel
+
+for folder in ${TMPDIR}/*regtest*/vtc.*; do
+    cat $folder/INFO
+    cat $folder/LOG
+done
 
 popd
