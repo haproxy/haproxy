@@ -4681,8 +4681,8 @@ http-check expect [min-recv <int>] [comment <msg>]
              and "http-check send".
 
 
-http-check send [meth <method>] [uri <uri>] [ver <version>] [comment <msg>]
-                [hdr <name> <fmt>]* [body <string>]
+http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
+                [hdr <name> <fmt>]* [body <string>] [comment <msg>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
   May be used in sections :   defaults | frontend | listen | backend
@@ -4696,10 +4696,15 @@ http-check send [meth <method>] [uri <uri>] [ver <version>] [comment <msg>]
                    logs. Any method may be used, though it is not recommended
                    to invent non-standard ones.
 
-    uri <uri>      is optional and set the URI referenced in the HTTP requests.
-                   it defaults to " / " which is accessible by default on almost
-                   any server, but may be changed to any other URI. Query
-                   strings are permitted.
+    uri <uri>      is optional and set the URI referenced in the HTTP requests
+                   to the string <uri>. It defaults to "/" which is accessible
+                   by default on almost any server, but may be changed to any
+                   other URI. Query strings are permitted.
+
+    uri-lf <fmt>   is optional and set the URI referenced in the HTTP requests
+                   using the log-format string <fmt>. It defaults to "/" which
+                   is accessible by default on almost any server, but may be
+                   changed to any other URI. Query strings are permitted.
 
     ver <version>  is the optional HTTP version string. It defaults to
                    "HTTP/1.0" but some servers might behave incorrectly in HTTP

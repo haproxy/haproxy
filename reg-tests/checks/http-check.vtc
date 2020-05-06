@@ -60,6 +60,16 @@ server s4 {
     expect req.bodylen == 0
     txresp
 
+    accept
+    rxreq
+    expect req.method == GET
+    expect req.url == /
+    expect req.proto == HTTP/1.0
+    expect req.http.x-test == <undef>
+    expect req.http.x-haproxy-server-state ~ "UP.+name=be4/srv"
+    expect req.bodylen == 0
+    txresp
+
 } -start
 
 syslog S1 -level notice {
@@ -113,14 +123,21 @@ haproxy h1 -conf {
         http-check send-state
         http-check connect addr ${s4_addr}:${s4_port}
         http-check set-var(check.server) "str(srv)"
-        http-check send meth GET uri /req1 ver HTTP/1.1 hdr x-test "server=%[var(check.server)]"
+        http-check set-var(check.path) "str(/req1)"
+        http-check send meth GET uri-lf "%[var(check.path)]" ver HTTP/1.1 hdr x-test "server=%[var(check.server)]"
         http-check expect status 200
         http-check connect addr ${s4_addr} port ${s4_port}
         http-check unset-var(check.server)
-        http-check send meth GET uri /req2 ver HTTP/1.1 hdr x-test "server=%[var(check.server)]" body "health-check body"
+        http-check set-var(check.path) "str(/req2)"
+        http-check send meth GET uri-lf "%[var(check.path)]" ver HTTP/1.1 hdr x-test "server=%[var(check.server)]" body "health-check body"
         http-check expect rstatus "^2[0-9]{2}"
         http-check connect addr ${s4_addr} port ${s4_port}
-        http-check send meth GET uri /req3
+        http-check set-var(check.path) "str(/req3)"
+        http-check send meth GET uri-lf "%[var(check.path)]"
+        http-check expect rstatus "^2[0-9]{2}"
+        http-check connect addr ${s4_addr} port ${s4_port}
+        http-check unset-var(check.path)
+        http-check send meth GET uri-lf "%[var(check.path)]" # default to "/"
         ## implicit expect rule
         server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
 

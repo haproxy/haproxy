@@ -1964,7 +1964,12 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		meth = ((send->http.meth.meth == HTTP_METH_OTHER)
 			? ist2(send->http.meth.str.area, send->http.meth.str.data)
 			: http_known_methods[send->http.meth.meth]);
-		uri = (isttest(send->http.uri) ? send->http.uri : ist("/")); // TODO: handle uri_fmt
+		if (send->http.flags & TCPCHK_SND_HTTP_FL_URI_FMT) {
+			tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &send->http.uri_fmt);
+			uri = (b_data(tmp) ? ist2(b_orig(tmp), b_data(tmp)) : ist("/"));
+		}
+		else
+			uri = (isttest(send->http.uri) ? send->http.uri : ist("/"));
 		vsn = (isttest(send->http.vsn) ? send->http.vsn : ist("HTTP/1.0"));
 
 		if ((istlen(vsn) == 6 && *(vsn.ptr+5) == '2') ||
@@ -4005,14 +4010,16 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 			cur_arg++;
 			meth = args[cur_arg];
 		}
-		else if (strcmp(args[cur_arg], "uri") == 0) {
+		else if (strcmp(args[cur_arg], "uri") == 0 || strcmp(args[cur_arg], "uri-lf") == 0) {
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
 				goto error;
 			}
+			flags &= ~TCPCHK_SND_HTTP_FL_URI_FMT;
+			if (strcmp(args[cur_arg], "uri-lf") == 0)
+				flags |= TCPCHK_SND_HTTP_FL_URI_FMT;
 			cur_arg++;
 			uri = args[cur_arg];
-			// TODO: log-format uri
 		}
 		else if (strcmp(args[cur_arg], "ver") == 0) {
 			if (!*(args[cur_arg+1])) {
@@ -4070,8 +4077,8 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 			}
 		}
 		else {
-			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'ver', 'hdr' and 'body' but got '%s' as argument.",
-				  args[cur_arg]);
+			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'uri-lf', 'ver', 'hdr' and 'body'"
+				  " but got '%s' as argument.", args[cur_arg]);
 			goto error;
 		}
 		cur_arg++;
@@ -4100,10 +4107,20 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 		}
 	}
 	if (uri) {
-		chk->send.http.uri = ist2(strdup(uri), strlen(uri));
-		if (!isttest(chk->send.http.uri)) {
-			memprintf(errmsg, "out of memory");
-			goto error;
+		if (chk->send.http.flags & TCPCHK_SND_HTTP_FL_URI_FMT) {
+			LIST_INIT(&chk->send.http.uri_fmt);
+			px->conf.args.ctx = ARGC_SRV;
+			if (!parse_logformat_string(uri, px, &chk->send.http.uri_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", uri, *errmsg);
+				goto error;
+			}
+		}
+		else {
+			chk->send.http.uri = ist2(strdup(uri), strlen(uri));
+			if (!isttest(chk->send.http.uri)) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
 		}
 	}
 	if (vsn) {
