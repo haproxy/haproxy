@@ -67,7 +67,8 @@ server s4 {
     expect req.proto == HTTP/1.0
     expect req.http.x-test == <undef>
     expect req.http.x-haproxy-server-state ~ "UP.+name=be4/srv"
-    expect req.bodylen == 0
+    expect req.bodylen == 23
+    expect req.body == "health-check on be4-srv"
     txresp
 
 } -start
@@ -137,7 +138,7 @@ haproxy h1 -conf {
         http-check expect rstatus "^2[0-9]{2}"
         http-check connect addr ${s4_addr} port ${s4_port}
         http-check unset-var(check.path)
-        http-check send meth GET uri-lf "%[var(check.path)]" # default to "/"
+        http-check send meth GET uri-lf "%[var(check.path)]" body-lf "health-check on %[be_name]-%[srv_name]"
         ## implicit expect rule
         server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
 

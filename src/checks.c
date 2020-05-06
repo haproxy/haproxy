@@ -1987,13 +1987,6 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 		if (!http_update_host(htx, sl, uri))
 			goto error_htx;
 
-		body = send->http.body; // TODO: handle body_fmt
-		clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
-
-		if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
-		    !htx_add_header(htx, ist("Content-length"), clen))
-			goto error_htx;
-
 		if (!LIST_ISEMPTY(&send->http.hdrs)) {
 			struct tcpcheck_http_hdr *hdr;
 			struct ist hdr_value;
@@ -2020,8 +2013,23 @@ static enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcp
 				goto error_htx;
 		}
 
+
+		if (send->http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) {
+			chunk_reset(tmp);
+			tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &send->http.body_fmt);
+			body = ist2(b_orig(tmp), b_data(tmp));
+		}
+		else
+			body = send->http.body;
+		clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
+
+		if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
+		    !htx_add_header(htx, ist("Content-length"), clen))
+			goto error_htx;
+
+
 		if (!htx_add_endof(htx, HTX_BLK_EOH) ||
-		    (istlen(body) && !htx_add_data_atonce(htx, send->http.body)) ||
+		    (istlen(body) && !htx_add_data_atonce(htx, body)) ||
 		    !htx_add_endof(htx, HTX_BLK_EOM))
 			goto error_htx;
 
@@ -4054,14 +4062,16 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 		  skip_hdr:
 			cur_arg += 2;
 		}
-		else if (strcmp(args[cur_arg], "body") == 0) {
+		else if (strcmp(args[cur_arg], "body") == 0 || strcmp(args[cur_arg], "body-lf") == 0) {
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects a string as argument.", args[cur_arg]);
 				goto error;
 			}
+			flags &= ~TCPCHK_SND_HTTP_FL_BODY_FMT;
+			if (strcmp(args[cur_arg], "body-lf") == 0)
+				flags |= TCPCHK_SND_HTTP_FL_BODY_FMT;
 			cur_arg++;
 			body = args[cur_arg];
-			// TODO: log-format body
 		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
 			if (!*(args[cur_arg+1])) {
@@ -4077,7 +4087,7 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 			}
 		}
 		else {
-			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'uri-lf', 'ver', 'hdr' and 'body'"
+			memprintf(errmsg, "expects 'comment', 'meth', 'uri', 'uri-lf', 'ver', 'hdr', 'body' or 'body-lf'"
 				  " but got '%s' as argument.", args[cur_arg]);
 			goto error;
 		}
@@ -4151,10 +4161,20 @@ static struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, 
 	}
 
 	if (body) {
-		chk->send.http.body = ist2(strdup(body), strlen(body));
-		if (!isttest(chk->send.http.body)) {
-			memprintf(errmsg, "out of memory");
-			goto error;
+		if (chk->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) {
+			LIST_INIT(&chk->send.http.body_fmt);
+			px->conf.args.ctx = ARGC_SRV;
+			if (!parse_logformat_string(body, px, &chk->send.http.body_fmt, 0, SMP_VAL_BE_CHK_RUL, errmsg)) {
+				memprintf(errmsg, "'%s' invalid log-format string (%s).\n", body, *errmsg);
+				goto error;
+			}
+		}
+		else {
+			chk->send.http.body = ist2(strdup(body), strlen(body));
+			if (!isttest(chk->send.http.body)) {
+				memprintf(errmsg, "out of memory");
+				goto error;
+			}
 		}
 	}
 

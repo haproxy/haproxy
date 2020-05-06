@@ -4682,7 +4682,8 @@ http-check expect [min-recv <int>] [comment <msg>]
 
 
 http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
-                [hdr <name> <fmt>]* [body <string>] [comment <msg>]
+                [hdr <name> <fmt>]* [{ body <string> | body-lf <fmt> }]
+                [comment <msg>]
   Add a possible list of headers and/or a body to the request sent during HTTP
   health checks.
   May be used in sections :   defaults | frontend | listen | backend
@@ -4719,6 +4720,11 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
     body <string>  add the body defined by <string> to the request sent during
                    HTTP health checks. If defined, the "Content-Length" header
                    is thus automatically added to the request.
+
+    body-lf <fmt>  add the body defined by the log-format string <fmt> to the
+                   request sent during HTTP health checks. If defined, the
+                   "Content-Length" header is thus automatically added to the
+                   request.
 
   In addition to the request line defined by the "option httpchk" directive,
   this one is the valid way to add some headers and optionally a body to the
