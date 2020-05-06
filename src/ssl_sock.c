@@ -8470,7 +8470,7 @@ smp_fetch_ssl_fc(const struct arg *args, struct sample *smp, const char *kw, voi
 {
 	struct connection *conn;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8509,7 +8509,7 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8534,7 +8534,7 @@ smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8568,7 +8568,7 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 	struct ssl_sock_ctx *ctx;
 	int sint;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8598,7 +8598,7 @@ smp_fetch_ssl_fc_use_keysize(const struct arg *args, struct sample *smp, const c
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8629,7 +8629,7 @@ smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw,
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8663,7 +8663,7 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8696,7 +8696,7 @@ smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8734,7 +8734,7 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 	smp->flags = SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8766,7 +8766,7 @@ smp_fetch_ssl_fc_random(const struct arg *args, struct sample *smp, const char *
 	struct buffer *data;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8803,7 +8803,7 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 	struct buffer *data;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
@@ -8961,7 +8961,7 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 	struct buffer *finished_trash;
 	struct ssl_sock_ctx *ctx;
 
-	if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		conn = (kw[4] != 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
 	else
 		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :

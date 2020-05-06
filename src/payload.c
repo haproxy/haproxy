@@ -58,7 +58,7 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 		else
 			smp->data.u.sint = ci_data(chn);
 	}
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct check *check = __objt_check(smp->sess->origin);
 		smp->data.u.sint = ((check->cs && IS_HTX_CS(check->cs)) ? (htxbuf(&check->bi))->data: b_data(&check->bi));
 	}
@@ -979,7 +979,7 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 		data = ci_data(chn);
 		max  = global.tune.bufsize;
 	}
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
 		head = b_head(buf);
 		data = b_data(buf);
@@ -1042,7 +1042,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 		data = ci_data(chn);
 		max  = global.tune.bufsize;
 	}
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
 		head = b_head(buf);
 		data = b_data(buf);

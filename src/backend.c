@@ -2548,7 +2548,7 @@ smp_fetch_be_id(const struct arg *args, struct sample *smp, const char *kw, void
 
 	if (smp->strm)
 		px = smp->strm->be;
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		px = __objt_check(smp->sess->origin)->proxy;
 	if (!px)
 		return 0;
@@ -2567,7 +2567,7 @@ smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, vo
 
 	if (smp->strm)
 		px = smp->strm->be;
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		px = __objt_check(smp->sess->origin)->proxy;
 	if (!px)
 		return 0;
@@ -2591,7 +2591,7 @@ smp_fetch_srv_id(const struct arg *args, struct sample *smp, const char *kw, voi
 
 	if (smp->strm)
 		srv = objt_server(smp->strm->target);
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		srv = __objt_check(smp->sess->origin)->server;
 	if (!srv)
 		return 0;
@@ -2610,7 +2610,7 @@ smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, v
 
 	if (smp->strm)
 		srv = objt_server(smp->strm->target);
-	else if (smp->sess && obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
 		srv = __objt_check(smp->sess->origin)->server;
 	if (!srv)
 		return 0;
