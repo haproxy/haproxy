@@ -486,7 +486,7 @@ void dump_pools_to_trash()
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 #endif
-		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d failures, %d users, @%p=%02d%s\n",
+		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, %u failures, %u users, @%p=%02d%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used, entry->failed,
 			 entry->users, entry, (int)pool_get_index(entry),
