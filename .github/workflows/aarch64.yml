@@ -7,7 +7,7 @@ name: aarch64 builder
 on: [push]
 
 jobs:
-  test:
+  build:
 
     runs-on: ubuntu-latest
 
