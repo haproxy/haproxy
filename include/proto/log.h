@@ -183,6 +183,14 @@ char *lf_ip(char *dst, const struct sockaddr *sockaddr, size_t size, const struc
 char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const struct logformat_node *node);
 
 
+/*
+ * Function to handle log header building (exported for sinks)
+ */
+char *update_log_hdr_rfc5424(const time_t time);
+char *update_log_hdr(const time_t time);
+char * get_format_pid_sep1(int format, size_t *len);
+char * get_format_pid_sep2(int format, size_t *len);
+
 #endif /* _PROTO_LOG_H */
 
 /*

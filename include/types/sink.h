@@ -56,8 +56,6 @@ struct sink {
 	const char *desc;          // sink description
 	enum sink_fmt fmt;         // format expected by the sink
 	enum sink_type type;       // type of storage
-	uint8_t syslog_facility;   // used by syslog format
-	uint8_t syslog_minlvl;     // used by syslog & short formats
 	uint32_t maxlen;           // max message length (truncated above)
 	struct {
 		__decl_hathreads(HA_RWLOCK_T lock); // shared/excl for dropped

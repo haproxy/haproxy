@@ -86,6 +86,18 @@ static const struct log_fmt log_formats[LOG_FORMATS] = {
 	},
 };
 
+char *get_format_pid_sep1(int format, size_t *len)
+{
+	*len = log_formats[format].pid.sep1.data;
+	return log_formats[format].pid.sep1.area;
+}
+
+char *get_format_pid_sep2(int format, size_t *len)
+{
+	*len = log_formats[format].pid.sep2.data;
+	return log_formats[format].pid.sep2.area;
+}
+
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
  * is set or not. Each bit represents an ACSII code. ha_bit_set() sets those
@@ -1429,7 +1441,7 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
  * the beginning of logheader once a second and return the pointer to the
  * first character after it.
  */
-static char *update_log_hdr(const time_t time)
+char *update_log_hdr(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
 	static THREAD_LOCAL struct buffer host = { };
@@ -1473,7 +1485,7 @@ static char *update_log_hdr(const time_t time)
  * the beginning of logheader_rfc5424 once a second and return the pointer
  * to the first character after it.
  */
-static char *update_log_hdr_rfc5424(const time_t time)
+char *update_log_hdr_rfc5424(const time_t time)
 {
 	static THREAD_LOCAL long tvsec;
 	const char *gmt_offset;

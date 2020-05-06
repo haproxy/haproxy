@@ -62,9 +62,6 @@ static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt
 	sink->desc = desc;
 	sink->fmt  = fmt;
 	sink->type = SINK_TYPE_NEW;
-	/* set defaults for syslog ones */
-	sink->syslog_facility = 0;
-	sink->syslog_minlvl   = 0;
 	sink->maxlen = BUFSIZE;
 	/* address will be filled by the caller if needed */
 	sink->ctx.fd = -1;
@@ -144,28 +141,89 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt,
  * messages when there are any. It returns >0 if it could write anything,
  * <=0 otherwise.
  */
-ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
+ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
+	             int level, int facility, struct ist *tag,
+		     struct ist *pid, struct ist *sd)
 {
+	int log_format;
 	char short_hdr[4];
-	struct ist pfx[4];
+	struct ist pfx[6];
 	size_t npfx = 0;
+	char *hdr_ptr;
+	int fac_level;
+
+	if (sink->fmt == SINK_FMT_RAW)
+		goto send;
 
 	if (sink->fmt == SINK_FMT_SHORT || sink->fmt == SINK_FMT_TIMED) {
 		short_hdr[0] = '<';
-		short_hdr[1] = '0' + sink->syslog_minlvl;
+		short_hdr[1] = '0' + level;
 		short_hdr[2] = '>';
 
 		pfx[npfx].ptr = short_hdr;
 		pfx[npfx].len = 3;
 		npfx++;
+		if (sink->fmt == SINK_FMT_SHORT)
+			goto send;
         }
+
 
 	if (sink->fmt == SINK_FMT_ISO || sink->fmt == SINK_FMT_TIMED) {
 		pfx[npfx].ptr = timeofday_as_iso_us(1);
 		pfx[npfx].len = 27;
 		npfx++;
+		goto send;
         }
+	else if (sink->fmt == SINK_FMT_RFC5424) {
+		pfx[npfx].ptr = logheader_rfc5424;
+                pfx[npfx].len = update_log_hdr_rfc5424(date.tv_sec) - pfx[npfx].ptr;
+		log_format = LOG_FORMAT_RFC5424;
+	}
+	else {
+		pfx[npfx].ptr = logheader;
+                pfx[npfx].len = update_log_hdr(date.tv_sec) - pfx[npfx].ptr;
+		log_format = LOG_FORMAT_RFC3164;
+		sd = NULL;
+	}
 
+	fac_level = (facility << 3) + level;
+	hdr_ptr = pfx[npfx].ptr + 3; /* last digit of the log level */
+        do {
+		*hdr_ptr = '0' + fac_level % 10;
+		fac_level /= 10;
+                hdr_ptr--;
+	} while (fac_level && hdr_ptr > pfx[npfx].ptr);
+	*hdr_ptr = '<';
+	pfx[npfx].len -= hdr_ptr - pfx[npfx].ptr;
+	pfx[npfx].ptr = hdr_ptr;
+	npfx++;
+
+	if (tag && tag->len) {
+		pfx[npfx].ptr = tag->ptr;
+		pfx[npfx].len = tag->len;
+		npfx++;
+	}
+	pfx[npfx].ptr = get_format_pid_sep1(log_format, &pfx[npfx].len);
+	if (pfx[npfx].len)
+		npfx++;
+
+	if (pid && pid->len) {
+		pfx[npfx].ptr = pid->ptr;
+		pfx[npfx].len = pid->len;
+		npfx++;
+	}
+
+	pfx[npfx].ptr = get_format_pid_sep2(log_format, &pfx[npfx].len);
+	if (pfx[npfx].len)
+		npfx++;
+
+	if (sd && sd->len) {
+		pfx[npfx].ptr = sd->ptr;
+		pfx[npfx].len = sd->len;
+		npfx++;
+	}
+
+send:
 	if (sink->type == SINK_TYPE_FD) {
 		return fd_write_frag_line(sink->ctx.fd, sink->maxlen, pfx, npfx, msg, nmsg, 1);
 	}
@@ -180,18 +238,25 @@ ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg)
  * called under an exclusive lock on the sink to avoid multiple produces doing
  * the same. On success, >0 is returned, otherwise <=0 on failure.
  */
-int sink_announce_dropped(struct sink *sink)
+int sink_announce_dropped(struct sink *sink, int facility, struct ist *pid)
 {
 	unsigned int dropped;
 	struct buffer msg;
 	struct ist msgvec[1];
 	char logbuf[64];
+	struct ist sd;
+	struct ist tag;
 
 	while (unlikely((dropped = sink->ctx.dropped) > 0)) {
 		chunk_init(&msg, logbuf, sizeof(logbuf));
 		chunk_printf(&msg, "%u event%s dropped", dropped, dropped > 1 ? "s" : "");
 		msgvec[0] = ist2(msg.area, msg.data);
-		if (__sink_write(sink, msgvec, 1) <= 0)
+
+		sd.ptr = default_rfc5424_sd_log_format;
+		sd.len = 2;
+		tag.ptr = global.log_tag.area;
+		tag.len = global.log_tag.data;
+		if (__sink_write(sink, msgvec, 1, LOG_NOTICE, facility, &tag, pid, &sd) <= 0)
 			return 0;
 		/* success! */
 		HA_ATOMIC_SUB(&sink->ctx.dropped, dropped);
