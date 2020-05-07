@@ -100,61 +100,6 @@
  * to conditionally define it in openssl-compat.h than using lots of ifdefs.
  */
 
-/* Warning, these are bits, not integers! */
-#define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
-#define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
-#define SSL_SOCK_SEND_UNLIMITED     0x00000004
-#define SSL_SOCK_RECV_HEARTBEAT     0x00000008
-
-/* bits 0xFFFF0000 are reserved to store verify errors */
-
-/* Verify errors macros */
-#define SSL_SOCK_CA_ERROR_TO_ST(e) (((e > 63) ? 63 : e) << (16))
-#define SSL_SOCK_CAEDEPTH_TO_ST(d) (((d > 15) ? 15 : d) << (6+16))
-#define SSL_SOCK_CRTERROR_TO_ST(e) (((e > 63) ? 63 : e) << (4+6+16))
-
-#define SSL_SOCK_ST_TO_CA_ERROR(s) ((s >> (16)) & 63)
-#define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (6+16)) & 15)
-#define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+6+16)) & 63)
-
-/* ssl_methods flags for ssl options */
-#define MC_SSL_O_ALL            0x0000
-#define MC_SSL_O_NO_SSLV3       0x0001	/* disable SSLv3 */
-#define MC_SSL_O_NO_TLSV10      0x0002	/* disable TLSv10 */
-#define MC_SSL_O_NO_TLSV11      0x0004	/* disable TLSv11 */
-#define MC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
-#define MC_SSL_O_NO_TLSV13      0x0010	/* disable TLSv13 */
-
-/* file to guess during file loading */
-#define SSL_GF_NONE         0x00000000   /* Don't guess any file, only open the files specified in the configuration files */
-#define SSL_GF_BUNDLE       0x00000001   /* try to open the bundles */
-#define SSL_GF_SCTL         0x00000002   /* try to open the .sctl file */
-#define SSL_GF_OCSP         0x00000004   /* try to open the .ocsp file */
-#define SSL_GF_OCSP_ISSUER  0x00000008   /* try to open the .issuer file if an OCSP file was loaded */
-#define SSL_GF_KEY          0x00000010   /* try to open the .key file to load a private key */
-
-#define SSL_GF_ALL          (SSL_GF_BUNDLE|SSL_GF_SCTL|SSL_GF_OCSP|SSL_GF_OCSP_ISSUER|SSL_GF_KEY)
-
-/* ssl_methods versions */
-enum {
-	CONF_TLSV_NONE = 0,
-	CONF_TLSV_MIN  = 1,
-	CONF_SSLV3     = 1,
-	CONF_TLSV10    = 2,
-	CONF_TLSV11    = 3,
-	CONF_TLSV12    = 4,
-	CONF_TLSV13    = 5,
-	CONF_TLSV_MAX  = 5,
-};
-
-/* server and bind verify method, it uses a global value as default */
-enum {
-	SSL_SOCK_VERIFY_DEFAULT  = 0,
-	SSL_SOCK_VERIFY_REQUIRED = 1,
-	SSL_SOCK_VERIFY_OPTIONAL = 2,
-	SSL_SOCK_VERIFY_NONE     = 3,
-};
-
 int sslconns = 0;
 int totalsslconns = 0;
 static struct xprt_ops ssl_sock;
@@ -163,36 +108,7 @@ int nb_engines = 0;
 static struct eb_root cert_issuer_tree = EB_ROOT; /* issuers tree from "issuers-chain-path" */
 static struct issuer_chain* ssl_get0_issuer_chain(X509 *cert);
 
-static struct {
-	char *crt_base;             /* base directory path for certificates */
-	char *ca_base;              /* base directory path for CAs and CRLs */
-	char *issuers_chain_path;   /* from "issuers-chain-path" */
-	int  skip_self_issued_ca;
-
-	int  async;                 /* whether we use ssl async mode */
-
-	char *listen_default_ciphers;
-	char *connect_default_ciphers;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-	char *listen_default_ciphersuites;
-	char *connect_default_ciphersuites;
-#endif
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
-	char *listen_default_curves;
-#endif
-	int listen_default_ssloptions;
-	int connect_default_ssloptions;
-	struct tls_version_filter listen_default_sslmethods;
-	struct tls_version_filter connect_default_sslmethods;
-
-	int private_cache; /* Force to use a private session cache even if nbproc > 1 */
-	unsigned int life_time;   /* SSL session lifetime in seconds */
-	unsigned int max_record; /* SSL max record size */
-	unsigned int default_dh_param; /* SSL maximum DH parameter size */
-	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
-	int capture_cipherlist; /* Size of the cipherlist buffer. */
-	int extra_files; /* which files not defined in the configuration file are we looking for */
-} global_ssl = {
+struct global_ssl global_ssl = {
 #ifdef LISTEN_DEFAULT_CIPHERS
 	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
 #endif
@@ -545,12 +461,6 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 	return ca_e->ca_list;
 }
 
-/* This memory pool is used for capturing clienthello parameters. */
-struct ssl_capture {
-	unsigned long long int xxh64;
-	unsigned char ciphersuite_len;
-	char ciphersuite[0];
-};
 struct pool_head *pool_head_ssl_capture = NULL;
 static int ssl_capture_ptr_index = -1;
 static int ssl_app_data_index = -1;
@@ -2335,7 +2245,6 @@ ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 #endif /* !defined SSL_NO_GENERATE_CERTIFICATES */
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
-typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c)
 {
@@ -2369,7 +2278,6 @@ static void ssl_set_TLSv11_func(SSL *ssl, set_context_func c) {}
 static void ssl_set_TLSv12_func(SSL *ssl, set_context_func c) {}
 static void ssl_set_TLSv13_func(SSL *ssl, set_context_func c) {}
 #else /* openssl >= 1.1.0 */
-typedef enum { SET_MIN, SET_MAX } set_context_func;
 
 static void ctx_set_SSLv3_func(SSL_CTX *ctx, set_context_func c) {
 	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, SSL3_VERSION)
@@ -2419,13 +2327,7 @@ static void ssl_set_TLSv13_func(SSL *ssl, set_context_func c) {
 static void ctx_set_None_func(SSL_CTX *ctx, set_context_func c) { }
 static void ssl_set_None_func(SSL *ssl, set_context_func c) { }
 
-static struct {
-	int      option;
-	uint16_t flag;
-	void   (*ctx_set_version)(SSL_CTX *, set_context_func);
-	void   (*ssl_set_version)(SSL *, set_context_func);
-	const char *name;
-} methodVersions[] = {
+struct methodVersions methodVersions[] = {
 	{0, 0, ctx_set_None_func, ssl_set_None_func, "NONE"},   /* CONF_TLSV_NONE */
 	{SSL_OP_NO_SSLv3,   MC_SSL_O_NO_SSLV3,  ctx_set_SSLv3_func, ssl_set_SSLv3_func, "SSLv3"},    /* CONF_SSLV3 */
 	{SSL_OP_NO_TLSv1,   MC_SSL_O_NO_TLSV10, ctx_set_TLSv10_func, ssl_set_TLSv10_func, "TLSv1.0"}, /* CONF_TLSV10 */
