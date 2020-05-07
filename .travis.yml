@@ -43,13 +43,11 @@ matrix:
     if: type == push
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
-##################
-## temporarily disabled, until arm64 runners become stable
-#  - os: linux
-#    arch: arm64
-#    if: type == push
-#    compiler: clang
-#    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
+  - os: linux
+    arch: arm64
+    if: type == push
+    compiler: clang
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
   - os: linux
     arch: s390x
     if: type == push
@@ -101,6 +99,11 @@ matrix:
     before_script:
       - git clone http://git.1wt.eu/git/libslz.git/
       - cd libslz && make && make PREFIX=${HOME}/opt install && cd ..
+  allow_failures:
+  - os: linux
+    arch: arm64
+    if: type == push
+    compiler: clang
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
