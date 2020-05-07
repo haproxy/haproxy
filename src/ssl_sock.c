@@ -531,14 +531,6 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 static struct shared_context *ssl_shctx = NULL; /* ssl shared session cache */
 static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
 
-#define sh_ssl_sess_tree_delete(s)	ebmb_delete(&(s)->key);
-
-#define sh_ssl_sess_tree_insert(s)	(struct sh_ssl_sess_hdr *)ebmb_insert(sh_ssl_sess_tree, \
-								     &(s)->key, SSL_MAX_SSL_SESSION_ID_LENGTH);
-
-#define sh_ssl_sess_tree_lookup(k)	(struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
-								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
-
 /* Dedicated callback functions for heartbeat and clienthello.
  */
 #ifdef TLS1_RT_HEARTBEAT
@@ -612,7 +604,6 @@ SSL *ssl_sock_get_ssl_object(struct connection *conn)
 
 	return ((struct ssl_sock_ctx *)(conn->xprt_ctx))->ssl;
 }
-
 /*
  * This function gives the detail of the SSL error. It is used only
  * if the debug mode and the verbose mode are activated. It dump all
