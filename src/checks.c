@@ -2296,7 +2296,15 @@ static enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, str
 				if (!http_match_header(htx, expect->hdr.name_re, &ctx, full))
 					goto end_of_match;
 				break;
+			default:
+				/* should never happen */
+				goto end_of_match;
 			}
+
+			/* A header has matched the name pattern, let's test its
+			 * value now (always defined from there). If there is no
+			 * value pattern, it is a good match.
+			 */
 
 			if (expect->flags & TCPCHK_EXPT_FL_HTTP_HVAL_NONE) {
 				match = 1;
