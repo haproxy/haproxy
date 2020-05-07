@@ -1965,7 +1965,7 @@ next_line:
 						skip = 3;
 					}
 					else {
-						ha_alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence in '%s'.\n", file, linenum, args[0]);
+						ha_alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence '%.*s' in '%s'.\n", file, linenum, 4, line, args[0]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto next_line;
 					}
