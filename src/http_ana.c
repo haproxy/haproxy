@@ -1823,10 +1823,17 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		ctx.blk = NULL;
 		while (http_find_header(htx, hdr, &ctx, 0)) {
-			if ((ctx.value.len >= 9 && word_match(ctx.value.ptr, ctx.value.len, "Negotiate", 9)) ||
+			/* If www-authenticate contains "Negotiate", "Nego2", or "NTLM",
+			 * possibly followed by blanks and a base64 string, the connection
+			 * is private. Since it's a mess to deal with, we only check for
+			 * values starting with "NTLM" or "Nego". Note that often multiple
+			 * headers are sent by the server there.
+			 */
+			if ((ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "Nego", 4) == 0) ||
 			    (ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "NTLM", 4) == 0)) {
 				sess->flags |= SESS_FL_PREFER_LAST;
 				srv_conn->flags |= CO_FL_PRIVATE;
+				break;
 			}
 		}
 	}
