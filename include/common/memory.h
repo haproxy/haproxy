@@ -220,6 +220,13 @@ static inline unsigned int pool_avg(unsigned int sum)
 	return (sum + n - 1) / n;
 }
 
+/* returns true if the pool is considered to have too many free objects */
+static inline int pool_is_crowded(const struct pool_head *pool)
+{
+	return pool->allocated >= pool_avg(pool->needed_avg + pool->needed_avg / 4) &&
+	       (int)(pool->allocated - pool->used) >= pool->minavail;
+}
+
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
@@ -333,12 +340,18 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 {
 	void **free_list = pool->free_list;
 
-	do {
-		*POOL_LINK(pool, ptr) = (void *)free_list;
-		__ha_barrier_store();
-	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
-	__ha_barrier_atomic_store();
 	_HA_ATOMIC_SUB(&pool->used, 1);
+
+	if (unlikely(pool_is_crowded(pool))) {
+		free(ptr);
+		_HA_ATOMIC_SUB(&pool->allocated, 1);
+	} else {
+		do {
+			*POOL_LINK(pool, ptr) = (void *)free_list;
+			__ha_barrier_store();
+		} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
+		__ha_barrier_atomic_store();
+	}
 	pool_avg_add(&pool->needed_avg, pool->used);
 }
 
@@ -546,9 +559,14 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 
 #ifndef DEBUG_UAF /* normal pool behaviour */
 		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
-		pool->free_list = (void *)ptr;
 		pool->used--;
+		if (pool_is_crowded(pool)) {
+			free(ptr);
+			pool->allocated--;
+		} else {
+			*POOL_LINK(pool, ptr) = (void *)pool->free_list;
+			pool->free_list = (void *)ptr;
+		}
 		pool_avg_add(&pool->needed_avg, pool->used);
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #else  /* release the entry for real to detect use after free */
