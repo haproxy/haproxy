@@ -5615,46 +5615,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	    global_dh == NULL &&
 	    (ssl_dh_ptr_index == -1 ||
 	     SSL_CTX_get_ex_data(ctx, ssl_dh_ptr_index) == NULL)) {
-		STACK_OF(SSL_CIPHER) * ciphers = NULL;
-		const SSL_CIPHER * cipher = NULL;
-		char cipher_description[128];
-		/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
-		   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
-		   which is not ephemeral DH. */
-		const char dhe_description[] = " Kx=DH ";
-		const char dhe_export_description[] = " Kx=DH(";
-		int idx = 0;
-		int dhe_found = 0;
-		SSL *ssl = NULL;
-
-		ssl = SSL_new(ctx);
-
-		if (ssl) {
-			ciphers = SSL_get_ciphers(ssl);
-
-			if (ciphers) {
-				for (idx = 0; idx < sk_SSL_CIPHER_num(ciphers); idx++) {
-					cipher = sk_SSL_CIPHER_value(ciphers, idx);
-					if (SSL_CIPHER_description(cipher, cipher_description, sizeof (cipher_description)) == cipher_description) {
-						if (strstr(cipher_description, dhe_description) != NULL ||
-						    strstr(cipher_description, dhe_export_description) != NULL) {
-							dhe_found = 1;
-							break;
-						}
-					}
-				}
-			}
-			SSL_free(ssl);
-			ssl = NULL;
-		}
-
-		if (dhe_found) {
-			memprintf(err, "%sSetting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n",
-			          err && *err ? *err : "");
-			cfgerr |= ERR_WARN;
-		}
-
-		global_ssl.default_dh_param = 1024;
+		/* default to dh-param 2048 */
+		global_ssl.default_dh_param = 2048;
 	}
 
 	if (global_ssl.default_dh_param >= 1024) {
