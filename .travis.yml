@@ -48,6 +48,10 @@ matrix:
     if: type == push
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
+    addons:
+      apt:
+        update: true
+        packages: [ liblua5.3-dev, libsystemd-dev, clang-9, socat ]
   - os: linux
     arch: s390x
     if: type == push
