@@ -90,6 +90,7 @@ struct pool_head {
 	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
 #endif
 	unsigned int used;	/* how many chunks are currently in use */
+	unsigned int needed_avg;/* floating indicator between used and allocated */
 	unsigned int allocated;	/* how many chunks have been allocated */
 	unsigned int limit;	/* hard limit on the number of chunks */
 	unsigned int minavail;	/* how many chunks are expected to be used */
@@ -179,6 +180,44 @@ static inline ssize_t pool_get_index(const struct pool_head *pool)
 	if (idx >= MAX_BASE_POOLS)
 		return -1;
 	return idx;
+}
+
+/* The two functions below were copied from freq_ctr.h's swrate_add, impossible
+ * to use here due to include dependency hell again!
+ */
+#define POOL_AVG_SAMPLES 1024
+
+static inline unsigned int pool_avg_add(unsigned int *sum, unsigned int v)
+{
+	unsigned int new_sum, old_sum;
+	unsigned int n = POOL_AVG_SAMPLES;
+
+	old_sum = *sum;
+	do {
+		new_sum = old_sum - (old_sum + n - 1) / n + v;
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	return new_sum;
+}
+
+/* make the new value <v> count for 1/4 of the total sum */
+static inline unsigned int pool_avg_bump(unsigned int *sum, unsigned int v)
+{
+	unsigned int new_sum, old_sum;
+	unsigned int n = POOL_AVG_SAMPLES;
+
+	old_sum = *sum;
+	do {
+		new_sum = old_sum - (old_sum + 3) / 4;
+		new_sum += (n * v + 3) / 4;
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	return new_sum;
+}
+
+static inline unsigned int pool_avg(unsigned int sum)
+{
+	unsigned int n = POOL_AVG_SAMPLES;
+
+	return (sum + n - 1) / n;
 }
 
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
@@ -300,6 +339,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
 	__ha_barrier_atomic_store();
 	_HA_ATOMIC_SUB(&pool->used, 1);
+	pool_avg_add(&pool->needed_avg, pool->used);
 }
 
 /* frees an object to the local cache, possibly pushing oldest objects to the
@@ -509,6 +549,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
 		pool->free_list = (void *)ptr;
 		pool->used--;
+		pool_avg_add(&pool->needed_avg, pool->used);
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #else  /* release the entry for real to detect use after free */
 		/* ensure we crash on double free or free of a const area*/
@@ -517,6 +558,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		pool->allocated--;
 		pool->used--;
+		pool_avg_add(&pool->needed_avg, pool->used);
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif /* DEBUG_UAF */
 	}
