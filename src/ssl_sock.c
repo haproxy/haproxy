@@ -629,6 +629,46 @@ static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
 #define sh_ssl_sess_tree_lookup(k)	(struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
 								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
 
+/* List head of all registered SSL/TLS protocol message callbacks. */
+struct list ssl_sock_msg_callbacks = LIST_HEAD_INIT(ssl_sock_msg_callbacks);
+
+/* Registers the function <func> in order to be called on SSL/TLS protocol
+ * message processing. It will return 0 if the function <func> is not set
+ * or if it fails to allocate memory.
+ */
+int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func)
+{
+	struct ssl_sock_msg_callback *cbk;
+
+	if (!func)
+		return 0;
+
+	cbk = calloc(1, sizeof(*cbk));
+	if (!cbk) {
+		ha_alert("out of memory in ssl_sock_register_msg_callback().\n");
+		return 0;
+	}
+
+	cbk->func = func;
+
+	LIST_ADDQ(&ssl_sock_msg_callbacks, &cbk->list);
+
+	return 1;
+}
+
+/* Used to free all SSL/TLS protocol message callbacks that were
+ * registered by using ssl_sock_register_msg_callback().
+ */
+static void ssl_sock_unregister_msg_callbacks(void)
+{
+	struct ssl_sock_msg_callback *cbk, *cbkback;
+
+	list_for_each_entry_safe(cbk, cbkback, &ssl_sock_msg_callbacks, list) {
+		LIST_DEL(&cbk->list);
+		free(cbk);
+	}
+}
+
 /*
  * This function gives the detail of the SSL error. It is used only
  * if the debug mode and the verbose mode are activated. It dump all
@@ -1887,11 +1927,13 @@ void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
+	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct ssl_sock_msg_callback *cbk;
+
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
-		struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 		struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 		const unsigned char *p = buf;
 		unsigned int payload;
@@ -1928,6 +1970,13 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 #endif
 	if (global_ssl.capture_cipherlist > 0)
 		ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, ssl);
+
+	/* Try to call all callback functions that were registered by using
+	 * ssl_sock_register_msg_callback().
+	 */
+	list_for_each_entry(cbk, &ssl_sock_msg_callbacks, list) {
+		cbk->func(conn, write_p, version, content_type, buf, len, ssl);
+	}
 }
 
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
@@ -13100,6 +13149,11 @@ static void __ssl_sock_init(void)
 	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
 
 	HA_SPIN_INIT(&ckch_lock);
+
+	/* Try to free all callbacks that were registered by using
+	 * ssl_sock_register_msg_callback().
+	 */
+	hap_register_post_deinit(ssl_sock_unregister_msg_callbacks);
 }
 
 /* Compute and register the version string */

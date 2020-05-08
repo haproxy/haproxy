@@ -31,6 +31,8 @@
 #include <common/mini-clist.h>
 #include <common/openssl-compat.h>
 
+struct connection;
+
 struct pkey_info {
 	uint8_t sig;          /* TLSEXT_signature_[rsa,ecdsa,...] */
 	uint16_t bits;        /* key size in bits */
@@ -202,6 +204,18 @@ struct issuer_chain {
 	char *path;
 };
 
+typedef void (*ssl_sock_msg_callback_func)(struct connection *conn,
+	int write_p, int version, int content_type,
+	const void *buf, size_t len, SSL *ssl);
+
+/* This structure contains a function pointer <func> that is called
+ * when observing received or sent SSL/TLS protocol messages, such as
+ * handshake messages or other events that can occur during processing.
+ */
+struct ssl_sock_msg_callback {
+	ssl_sock_msg_callback_func func;
+	struct list list;    /* list of registered callbacks */
+};
 
 #endif /* USE_OPENSSL */
 #endif /* _TYPES_SSL_SOCK_H */

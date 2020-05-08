@@ -103,6 +103,12 @@ void ssl_async_fd_free(int fd);
 
 #define sh_ssl_sess_tree_lookup(k)     (struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
                                                                     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
+
+/* Registers the function <func> in order to be called on SSL/TLS protocol
+ * message processing.
+ */
+int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func);
+
 #endif /* USE_OPENSSL */
 #endif /* _PROTO_SSL_SOCK_H */
 
