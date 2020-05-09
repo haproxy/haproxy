@@ -2633,18 +2633,21 @@ static int tcpcheck_main(struct check *check)
 	/* 2- check if we are waiting for the connection establishment. It only
 	 *    happens during TCPCHK_ACT_CONNECT. */
 	if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
-		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 		if (conn && (conn->flags & CO_FL_WAIT_XPRT)) {
-			if (rule->action == TCPCHK_ACT_SEND) {
+			struct tcpcheck_rule *next;
+
+			next = get_next_tcpcheck_rule(check->tcpcheck_rules, check->current_step);
+			if (next && next->action == TCPCHK_ACT_SEND) {
 				if (!(check->wait_list.events & SUB_RETRY_SEND))
 					conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 			}
-			else if (rule->action == TCPCHK_ACT_EXPECT) {
+			else {
 				if (!(check->wait_list.events & SUB_RETRY_RECV))
 					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			}
 			goto out;
 		}
+		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 	}
 
 	/* 3- check for pending outgoing data. It only happens during
