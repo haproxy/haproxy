@@ -307,6 +307,11 @@
 #define MEM_USABLE_RATIO 0.97
 #endif
 
+/* default per-thread pool cache size when enabled */
+#ifndef CONFIG_HAP_POOL_CACHE_SIZE
+#define CONFIG_HAP_POOL_CACHE_SIZE 524288
+#endif
+
 /* Number of samples used to compute the times reported in stats. A power of
  * two is highly recommended, and this value multiplied by the largest response
  * time must not overflow and unsigned int. See freq_ctr.h for more information.
