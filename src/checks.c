@@ -1679,6 +1679,7 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	struct connection *conn = NULL;
 	struct protocol *proto;
 	struct xprt_ops *xprt;
+	struct tcpcheck_rule *next;
 	int status, port;
 
 	/* For a connect action we'll create a new connection. We may also have
@@ -1772,14 +1773,12 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 	cs_attach(cs, check, &check_conn_cb);
 
 	status = SF_ERR_INTERNAL;
+	next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
 	if (proto && proto->connect) {
-		struct tcpcheck_rule *next;
 		int flags = 0;
 
 		if (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK)
 			flags |= CONNECT_HAS_DATA;
-
-		next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
 		if (!next || next->action != TCPCHK_ACT_EXPECT)
 			flags |= CONNECT_DELACK_ALWAYS;
 		status = proto->connect(conn, flags);
@@ -1892,6 +1891,10 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 
 	/* don't do anything until the connection is established */
 	if (conn->flags & CO_FL_WAIT_XPRT) {
+		if (next && next->action == TCPCHK_ACT_SEND)
+			conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+		else
+			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 		ret = TCPCHK_EVAL_WAIT;
 		goto out;
 	}
