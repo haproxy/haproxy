@@ -26,10 +26,4 @@
 #include <common/compat.h>
 #include <common/defaults.h>
 
-#ifdef USE_THREAD
-#define THREAD_LOCAL __thread
-#else
-#define THREAD_LOCAL
-#endif
-
 #endif /* _COMMON_CONFIG_H */

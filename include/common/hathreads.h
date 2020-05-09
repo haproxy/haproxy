@@ -44,6 +44,7 @@
 
 #ifndef USE_THREAD
 
+#define THREAD_LOCAL  /* empty */
 #define MAX_THREADS 1
 #define MAX_THREADS_MASK 1
 
@@ -257,6 +258,8 @@ static inline unsigned long thread_isolated()
 #include <string.h>
 #include <pthread.h>
 #include <import/plock.h>
+
+#define THREAD_LOCAL __thread
 
 #ifndef MAX_THREADS
 #define MAX_THREADS LONGBITS

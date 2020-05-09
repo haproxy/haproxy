@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include <common/config.h>
+#include <common/hathreads.h>
 
 #ifdef USE_PCRE
 #include <pcre.h>
