@@ -2635,10 +2635,14 @@ static int tcpcheck_main(struct check *check)
 	if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
 		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 		if (conn && (conn->flags & CO_FL_WAIT_XPRT)) {
-			if (rule->action == TCPCHK_ACT_SEND)
-				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-			else if (rule->action == TCPCHK_ACT_EXPECT)
-				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+			if (rule->action == TCPCHK_ACT_SEND) {
+				if (!(check->wait_list.events & SUB_RETRY_SEND))
+					conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+			}
+			else if (rule->action == TCPCHK_ACT_EXPECT) {
+				if (!(check->wait_list.events & SUB_RETRY_RECV))
+					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+			}
 			goto out;
 		}
 	}
@@ -2736,7 +2740,8 @@ static int tcpcheck_main(struct check *check)
 
 			if (eval_ret == TCPCHK_EVAL_WAIT) {
 				check->current_step = rule->expect.head;
-				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+				if (!(check->wait_list.events & SUB_RETRY_RECV))
+					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 			}
 			break;
 		case TCPCHK_ACT_ACTION_KW:
