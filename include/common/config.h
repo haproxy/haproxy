@@ -26,14 +26,6 @@
 #include <common/compat.h>
 #include <common/defaults.h>
 
-/* CONFIG_HAP_MEM_OPTIM
- * This enables use of memory pools instead of malloc()/free(). There
- * is no reason to disable it, except perhaps for rare debugging.
- */
-#ifndef   CONFIG_HAP_NO_MEM_OPTIM
-#  define CONFIG_HAP_MEM_OPTIM
-#endif /* CONFIG_HAP_NO_MEM_OPTIM */
-
 #ifdef USE_THREAD
 #define THREAD_LOCAL __thread
 #else
