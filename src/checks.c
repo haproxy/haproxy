@@ -2654,6 +2654,10 @@ static int tcpcheck_main(struct check *check)
 	 *    TCPCHK_ACT_SEND. */
 	else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
 		if (conn && b_data(&check->bo)) {
+			/* We're already waiting to be able to send, give up */
+			if (check->wait_list.events & SUB_RETRY_SEND)
+				goto out;
+
 			ret = conn->mux->snd_buf(cs, &check->bo,
 						 (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0);
 			if (ret <= 0) {
