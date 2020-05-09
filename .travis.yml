@@ -74,16 +74,16 @@ matrix:
   - os: linux
     if: type == push
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
+    env: TARGET=linux-glibc LIBRESSL_VERSION=3.1.1 CC=clang-9
   - os: linux
     env: DEBUG_OPTIONS=""
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2 CC=clang-9
+    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.8.3 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o" CC=clang-9
+    env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o" CC=clang-9
   - os: linux
     if: type == cron
     compiler: clang
