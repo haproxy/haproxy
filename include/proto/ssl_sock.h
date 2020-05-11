@@ -109,6 +109,8 @@ void ssl_async_fd_free(int fd);
  */
 int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func);
 
+SSL *ssl_sock_get_ssl_object(struct connection *conn);
+
 #endif /* USE_OPENSSL */
 #endif /* _PROTO_SSL_SOCK_H */
 

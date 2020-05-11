@@ -695,6 +695,14 @@ static void ssl_sock_unregister_msg_callbacks(void)
 	}
 }
 
+SSL *ssl_sock_get_ssl_object(struct connection *conn)
+{
+	if (!ssl_sock_is_ssl(conn))
+		return NULL;
+
+	return ((struct ssl_sock_ctx *)(conn->xprt_ctx))->ssl;
+}
+
 /*
  * This function gives the detail of the SSL error. It is used only
  * if the debug mode and the verbose mode are activated. It dump all
