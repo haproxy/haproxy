@@ -286,7 +286,6 @@ static int _do_init(struct poller *p)
  fail_swevt:
 	free(fd_evts[DIR_RD]);
  fail_srevt:
-	free(poll_events);
 	p->pref = 0;
 	return 0;
 }
