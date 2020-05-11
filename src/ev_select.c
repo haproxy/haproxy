@@ -225,9 +225,11 @@ static int init_select_per_thread()
 	int fd_set_bytes;
 
 	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
-	if ((tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes);
+	if (tmp_evts[DIR_RD] == NULL)
 		goto fail;
-	if ((tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes);
+	if (tmp_evts[DIR_WR] == NULL)
 		goto fail;
 	return 1;
   fail:
@@ -238,8 +240,10 @@ static int init_select_per_thread()
 
 static void deinit_select_per_thread()
 {
-	free(tmp_evts[DIR_WR]); tmp_evts[DIR_WR] = NULL;
-	free(tmp_evts[DIR_RD]); tmp_evts[DIR_RD] = NULL;
+	free(tmp_evts[DIR_WR]);
+	tmp_evts[DIR_WR] = NULL;
+	free(tmp_evts[DIR_RD]);
+	tmp_evts[DIR_RD] = NULL;
 }
 
 /*
