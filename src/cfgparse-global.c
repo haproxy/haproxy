@@ -905,6 +905,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		free(global.log_send_hostname);
 		global.log_send_hostname = strdup(name);
 	}
+	else if (!strcmp(args[0], "ring")) {
+		if (!parse_sinkbuf(args, &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "server-state-base")) { /* path base where HAProxy can find server state files */
 		if (global.server_state_base != NULL) {
 			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);

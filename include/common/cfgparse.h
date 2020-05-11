@@ -28,6 +28,7 @@
 #include <common/mini-clist.h>
 
 #include <proto/log.h>
+#include <proto/sink.h>
 #include <proto/proxy.h>
 
 /* configuration sections */

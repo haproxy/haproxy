@@ -78,6 +78,9 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 	return sent;
 }
 
+
+int parse_sinkbuf(char **args, char **err);
+
 #endif /* _PROTO_SINK_H */
 
 /*

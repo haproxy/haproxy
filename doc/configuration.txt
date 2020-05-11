@@ -614,6 +614,7 @@ The following keywords are supported in the "global" section :
    - pidfile
    - presetenv
    - resetenv
+   - ring
    - uid
    - ulimit-n
    - user
@@ -1192,6 +1193,51 @@ resetenv [<name> ...]
   after complete validation. The changes immediately take effect so that the
   next line in the configuration file sees the new environment. See also
   "setenv", "presetenv", and "unsetenv".
+
+ring <name> [desc <desc>] [format <format>] [size <size>] [maxlen <length>]
+  Creates a named ring buffer which could be used on log line for instance.
+
+  <desc> is an optionnal description string of the ring. It will appear on
+         CLI. By default, <name> is reused to fill this field.
+
+  <format> is the log format used when generating syslog messages. It may be
+           one of the following :
+
+    iso       A message containing only the ISO date, followed by the text.
+              The PID, process name and system name are omitted. This is
+              designed to be used with a local log server.
+
+    raw       A message containing only the text. The level, PID, date, time,
+              process name and system name are omitted. This is designed to be
+              used in containers or during development, where the severity only
+              depends on the file descriptor used (stdout/stderr). This is
+              the default.
+
+    rfc3164   The RFC3164 syslog message format. This is the default.
+              (https://tools.ietf.org/html/rfc3164)
+
+    rfc5424   The RFC5424 syslog message format.
+              (https://tools.ietf.org/html/rfc5424)
+
+    short     A message containing only a level between angle brackets such as
+              '<3>', followed by the text. The PID, date, time, process name
+              and system name are omitted. This is designed to be used with a
+              local log server. This format is compatible with what the systemd
+              logger consumes.
+
+    timed     A message containing only a level between angle brackets such as
+              '<3>', followed by ISO date and by the text. The PID, process
+              name and system name are omitted. This is designed to be
+              used with a local log server.
+
+  <length> is the maximum length of an event message stored into the ring,
+           including formatted header. If an event message is longer than
+           <length>, it will be truncated to this length.
+
+  <name> is the ring identifier, which follows the same naming convention as
+         proxies and servers.
+
+  <size> is the optionnal size in bytes. Default value is set to BUFSIZE.
 
 stats bind-process [ all | odd | even | <process_num>[-[process_num>]] ] ...
   Limits the stats socket to a certain set of processes numbers. By default the
