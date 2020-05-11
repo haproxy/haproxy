@@ -629,6 +629,17 @@ static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
 #define sh_ssl_sess_tree_lookup(k)	(struct sh_ssl_sess_hdr *)ebmb_lookup(sh_ssl_sess_tree, \
 								     (k), SSL_MAX_SSL_SESSION_ID_LENGTH);
 
+/* Dedicated callback functions for heartbeat and clienthello.
+ */
+#ifdef TLS1_RT_HEARTBEAT
+static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int version,
+                                     int content_type, const void *buf, size_t len,
+                                     SSL *ssl);
+#endif
+static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int version,
+                                       int content_type, const void *buf, size_t len,
+                                       SSL *ssl);
+
 /* List head of all registered SSL/TLS protocol message callbacks. */
 struct list ssl_sock_msg_callbacks = LIST_HEAD_INIT(ssl_sock_msg_callbacks);
 
@@ -654,6 +665,21 @@ int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func)
 	LIST_ADDQ(&ssl_sock_msg_callbacks, &cbk->list);
 
 	return 1;
+}
+
+/* Used to register dedicated SSL/TLS protocol message callbacks.
+ */
+static int ssl_sock_register_msg_callbacks(void)
+{
+#ifdef TLS1_RT_HEARTBEAT
+	if (!ssl_sock_register_msg_callback(ssl_sock_parse_heartbeat))
+		return ERR_ABORT;
+#endif
+	if (global_ssl.capture_cipherlist > 0) {
+		if (!ssl_sock_register_msg_callback(ssl_sock_parse_clienthello))
+			return ERR_ABORT;
+	}
+	return 0;
 }
 
 /* Used to free all SSL/TLS protocol message callbacks that were
@@ -1815,9 +1841,52 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	return 0;
 }
 
-static inline
-void ssl_sock_parse_clienthello(int write_p, int version, int content_type,
-                                const void *buf, size_t len, SSL *ssl)
+#ifdef TLS1_RT_HEARTBEAT
+static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int version,
+                                     int content_type, const void *buf, size_t len,
+                                     SSL *ssl)
+{
+	/* test heartbeat received (write_p is set to 0
+	   for a received record) */
+	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
+		struct ssl_sock_ctx *ctx = conn->xprt_ctx;
+		const unsigned char *p = buf;
+		unsigned int payload;
+
+		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+
+		/* Check if this is a CVE-2014-0160 exploitation attempt. */
+		if (*p != TLS1_HB_REQUEST)
+			return;
+
+		if (len < 1 + 2 + 16) /* 1 type + 2 size + 0 payload + 16 padding */
+			goto kill_it;
+
+		payload = (p[1] * 256) + p[2];
+		if (3 + payload + 16 <= len)
+			return; /* OK no problem */
+	kill_it:
+		/* We have a clear heartbleed attack (CVE-2014-0160), the
+		 * advertised payload is larger than the advertised packet
+		 * length, so we have garbage in the buffer between the
+		 * payload and the end of the buffer (p+len). We can't know
+		 * if the SSL stack is patched, and we don't know if we can
+		 * safely wipe out the area between p+3+len and payload.
+		 * So instead, we prevent the response from being sent by
+		 * setting the max_send_fragment to 0 and we report an SSL
+		 * error, which will kill this connection. It will be reported
+		 * above as SSL_ERROR_SSL while an other handshake failure with
+		 * a heartbeat message will be reported as SSL_ERROR_SYSCALL.
+		 */
+		ssl->max_send_fragment = 0;
+		SSLerr(SSL_F_TLS1_HEARTBEAT, SSL_R_SSL_HANDSHAKE_FAILURE);
+	}
+}
+#endif
+
+static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int version,
+                                       int content_type, const void *buf, size_t len,
+                                       SSL *ssl)
 {
 	struct ssl_capture *capture;
 	unsigned char *msg;
@@ -1929,47 +1998,6 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	struct ssl_sock_msg_callback *cbk;
-
-#ifdef TLS1_RT_HEARTBEAT
-	/* test heartbeat received (write_p is set to 0
-	   for a received record) */
-	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
-		struct ssl_sock_ctx *ctx = conn->xprt_ctx;
-		const unsigned char *p = buf;
-		unsigned int payload;
-
-		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
-
-		/* Check if this is a CVE-2014-0160 exploitation attempt. */
-		if (*p != TLS1_HB_REQUEST)
-			return;
-
-		if (len < 1 + 2 + 16) /* 1 type + 2 size + 0 payload + 16 padding */
-			goto kill_it;
-
-		payload = (p[1] * 256) + p[2];
-		if (3 + payload + 16 <= len)
-			return; /* OK no problem */
-	kill_it:
-		/* We have a clear heartbleed attack (CVE-2014-0160), the
-		 * advertised payload is larger than the advertised packet
-		 * length, so we have garbage in the buffer between the
-		 * payload and the end of the buffer (p+len). We can't know
-		 * if the SSL stack is patched, and we don't know if we can
-		 * safely wipe out the area between p+3+len and payload.
-		 * So instead, we prevent the response from being sent by
-		 * setting the max_send_fragment to 0 and we report an SSL
-		 * error, which will kill this connection. It will be reported
-		 * above as SSL_ERROR_SSL while an other handshake failure with
-		 * a heartbeat message will be reported as SSL_ERROR_SYSCALL.
-		 */
-		ssl->max_send_fragment = 0;
-		SSLerr(SSL_F_TLS1_HEARTBEAT, SSL_R_SSL_HANDSHAKE_FAILURE);
-		return;
-	}
-#endif
-	if (global_ssl.capture_cipherlist > 0)
-		ssl_sock_parse_clienthello(write_p, version, content_type, buf, len, ssl);
 
 	/* Try to call all callback functions that were registered by using
 	 * ssl_sock_register_msg_callback().
@@ -13149,6 +13177,11 @@ static void __ssl_sock_init(void)
 	BIO_meth_set_gets(ha_meth, ha_ssl_gets);
 
 	HA_SPIN_INIT(&ckch_lock);
+
+	/* Try to register dedicated SSL/TLS protocol message callbacks for
+	 * heartbleed attack (CVE-2014-0160) and clienthello.
+	 */
+	hap_register_post_check(ssl_sock_register_msg_callbacks);
 
 	/* Try to free all callbacks that were registered by using
 	 * ssl_sock_register_msg_callback().
