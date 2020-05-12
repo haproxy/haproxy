@@ -542,7 +542,7 @@ OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
-OPTIONS_OBJS  += src/ssl_sock.o
+OPTIONS_OBJS  += src/ssl_sock.o src/ssl_crtlist.o
 endif
 
 # The private cache option affect the way the shctx is built
