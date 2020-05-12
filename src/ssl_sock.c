@@ -512,8 +512,6 @@ __decl_rwlock(ssl_ctx_lru_rwlock);
 
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 
-static struct ssl_bind_kw ssl_bind_kws[];
-
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* The order here matters for picking a default context,
  * keep the most common keytype at the bottom of the list
@@ -523,9 +521,6 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 	"ecdsa",
 	"rsa"
 };
-#define SSL_SOCK_NUM_KEYTYPES 3
-#else
-#define SSL_SOCK_NUM_KEYTYPES 1
 #endif
 
 static struct shared_context *ssl_shctx = NULL; /* ssl shared session cache */
@@ -12772,7 +12767,7 @@ INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 
 /* the <ssl_bind_kws> keywords are used for crt-list parsing, they *MUST* be safe
  * with their proxy argument NULL and must only fill the ssl_bind_conf */
-static struct ssl_bind_kw ssl_bind_kws[] = {
+struct ssl_bind_kw ssl_bind_kws[] = {
 	{ "allow-0rtt",            ssl_bind_parse_allow_0rtt,       0 }, /* allow 0-RTT */
 	{ "alpn",                  ssl_bind_parse_alpn,             1 }, /* set ALPN supported protocols */
 	{ "ca-file",               ssl_bind_parse_ca_file,          1 }, /* set CAfile to process ca-names and verify on client cert */

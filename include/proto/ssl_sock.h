@@ -34,6 +34,8 @@
 
 extern int sslconns;
 extern int totalsslconns;
+extern struct global_ssl global_ssl;
+extern struct ssl_bind_kw ssl_bind_kws[];
 
 /* boolean, returns true if connection is over SSL */
 static inline

@@ -27,6 +27,7 @@
 #include <ebmbtree.h>
 #include <eb64tree.h>
 
+#include <types/ssl_ckch.h>
 #include <types/ssl_crtlist.h>
 
 #include <common/hathreads.h>
@@ -181,53 +182,6 @@ enum {
 	SETCERT_ST_FIN,
 };
 
-/* This is used to preload the certificate, private key
- * and Cert Chain of a file passed in via the crt
- * argument
- *
- * This way, we do not have to read the file multiple times
- */
-struct cert_key_and_chain {
-	X509 *cert;
-	EVP_PKEY *key;
-	STACK_OF(X509) *chain;
-	DH *dh;
-	struct buffer *sctl;
-	struct buffer *ocsp_response;
-	X509 *ocsp_issuer;
-};
-
-/*
- * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
- * metadata.
- */
-struct ckch_store {
-	struct cert_key_and_chain *ckch;
-	unsigned int multi:1;  /* is it a multi-cert bundle ? */
-	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
-	struct list crtlist_entry; /* list of entries which use this store */
-	struct ebmb_node node;
-	char path[0];
-};
-
-/*
- * This structure describe a ckch instance. An instance is generated for each
- * bind_conf.  The instance contains a linked list of the sni ctx which uses
- * the ckch in this bind_conf.
- */
-struct ckch_inst {
-	struct bind_conf *bind_conf; /* pointer to the bind_conf that uses this ckch_inst */
-	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
-	struct ckch_store *ckch_store; /* pointer to the store used to generate this inst */
-	struct crtlist_entry *crtlist_entry; /* pointer to the crtlist_entry used, or NULL */
-	unsigned int is_default:1;      /* This instance is used as the default ctx for this bind_conf */
-	/* space for more flag there */
-	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
-	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
-	struct list by_crtlist_entry; /* chained in crtlist_entry list of inst */
-};
-
-
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
 #define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
@@ -309,6 +263,17 @@ struct global_ssl {
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 };
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+/* The order here matters for picking a default context,
+ * keep the most common keytype at the bottom of the list
+ */
+extern const char *SSL_SOCK_KEYTYPE_NAMES[];
+
+#define SSL_SOCK_NUM_KEYTYPES 3
+#else
+#define SSL_SOCK_NUM_KEYTYPES 1
+#endif
 
 #endif /* USE_OPENSSL */
 #endif /* _TYPES_SSL_SOCK_H */
