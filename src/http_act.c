@@ -1804,44 +1804,10 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 	return ACT_RET_PRS_OK;
 }
 
-/* Release <.arg.http_return> */
+/* Release <.arg.http_reply> */
 static void release_http_return(struct act_rule *rule)
 {
-	struct logformat_node *lf, *lfb;
-	struct http_reply_hdr *hdr, *hdrb;
-
-	if (!rule->arg.http_reply)
-		return;
-
-	free(rule->arg.http_reply->ctype);
-	rule->arg.http_reply->ctype = NULL;
-	list_for_each_entry_safe(hdr, hdrb, &rule->arg.http_reply->hdrs, list) {
-		LIST_DEL(&hdr->list);
-		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-		istfree(&hdr->name);
-		free(hdr);
-	}
-
-	if (rule->arg.http_reply->type == HTTP_REPLY_ERRFILES) {
-		free(rule->arg.http_reply->body.http_errors);
-		rule->arg.http_reply->body.http_errors = NULL;
-	}
-	else if (rule->arg.http_reply->type == HTTP_REPLY_RAW)
-		chunk_destroy(&rule->arg.http_reply->body.obj);
-	else if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT) {
-		list_for_each_entry_safe(lf, lfb, &rule->arg.http_reply->body.fmt, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-	}
-
+	release_http_reply(rule->arg.http_reply);
 	rule->arg.http_reply = NULL;
 }
 
@@ -2387,8 +2353,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 	free(obj);
 	if (fd >= 0)
 		close(fd);
-	rule->arg.http_reply = reply; /* Set reply to release it */
-	release_http_return(rule);
+	release_http_reply(reply);
 	return ACT_RET_PRS_ERR;
 }
 

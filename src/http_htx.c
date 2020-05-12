@@ -954,6 +954,44 @@ error:
 	return 0;
 }
 
+void release_http_reply(struct http_reply *http_reply)
+{
+	struct logformat_node *lf, *lfb;
+	struct http_reply_hdr *hdr, *hdrb;
+
+	if (!http_reply)
+		return;
+
+	free(http_reply->ctype);
+	http_reply->ctype = NULL;
+	list_for_each_entry_safe(hdr, hdrb, &http_reply->hdrs, list) {
+		LIST_DEL(&hdr->list);
+		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+		istfree(&hdr->name);
+		free(hdr);
+	}
+
+	if (http_reply->type == HTTP_REPLY_ERRFILES) {
+		free(http_reply->body.http_errors);
+		http_reply->body.http_errors = NULL;
+	}
+	else if (http_reply->type == HTTP_REPLY_RAW)
+		chunk_destroy(&http_reply->body.obj);
+	else if (http_reply->type == HTTP_REPLY_LOGFMT) {
+		list_for_each_entry_safe(lf, lfb, &http_reply->body.fmt, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+	}
+}
+
 static int http_htx_init(void)
 {
 	struct buffer chk;

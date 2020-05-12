@@ -60,6 +60,8 @@ unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 			       int occ, struct http_hdr_ctx *ctx, char **vptr, size_t *vlen);
 int http_str_to_htx(struct buffer *buf, struct ist raw);
 
+void release_http_reply(struct http_reply *http_reply);
+
 struct buffer *http_load_errorfile(const char *file, char **errmsg);
 struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);
 struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg);
