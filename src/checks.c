@@ -1891,10 +1891,12 @@ static enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct 
 
 	/* don't do anything until the connection is established */
 	if (conn->flags & CO_FL_WAIT_XPRT) {
-		if (next && next->action == TCPCHK_ACT_SEND)
-			conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-		else
-			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+		if (conn->mux) {
+			if (next && next->action == TCPCHK_ACT_SEND)
+				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+			else
+				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+		}
 		ret = TCPCHK_EVAL_WAIT;
 		goto out;
 	}
