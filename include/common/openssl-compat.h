@@ -370,5 +370,13 @@ static inline void SSL_CTX_up_ref(SSL_CTX *ctx)
 #define SSL_CTX_set_ecdh_auto(dummy, onoff)      ((onoff) != 0)
 #endif
 
+/* The EVP_MD_CTX_create() and EVP_MD_CTX_destroy() functions were renamed to
+ * EVP_MD_CTX_new() and EVP_MD_CTX_free() in OpenSSL 1.1.0, respectively.
+ */
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _COMMON_OPENSSL_COMPAT_H */
