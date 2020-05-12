@@ -84,6 +84,7 @@
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/shctx.h>
+#include <proto/ssl_ckch.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/task.h>
@@ -2908,7 +2909,7 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 
 /* unlink a ckch_inst, free all SNIs, free the ckch_inst */
 /* The caller must use the lock of the bind_conf if used with inserted SNIs */
-static void ckch_inst_free(struct ckch_inst *inst)
+void ckch_inst_free(struct ckch_inst *inst)
 {
 	struct sni_ctx *sni, *sni_s;
 
@@ -2927,7 +2928,7 @@ static void ckch_inst_free(struct ckch_inst *inst)
 }
 
 /* Alloc and init a ckch_inst */
-static struct ckch_inst *ckch_inst_new()
+struct ckch_inst *ckch_inst_new()
 {
 	struct ckch_inst *ckch_inst;
 
@@ -4005,7 +4006,7 @@ error:
 /*
  * lookup a path into the ckchs tree.
  */
-static inline struct ckch_store *ckchs_lookup(char *path)
+struct ckch_store *ckchs_lookup(char *path)
 {
 	struct ebmb_node *eb;
 
@@ -4019,7 +4020,7 @@ static inline struct ckch_store *ckchs_lookup(char *path)
 /*
  * This function allocate a ckch_store and populate it with certificates from files.
  */
-static struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err)
+struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err)
 {
 	struct ckch_store *ckchs;
 
