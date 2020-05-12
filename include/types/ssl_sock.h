@@ -27,6 +27,8 @@
 #include <ebmbtree.h>
 #include <eb64tree.h>
 
+#include <types/ssl_crtlist.h>
+
 #include <common/hathreads.h>
 #include <common/mini-clist.h>
 #include <common/openssl-compat.h>
@@ -225,33 +227,6 @@ struct ckch_inst {
 	struct list by_crtlist_entry; /* chained in crtlist_entry list of inst */
 };
 
-/* list of bind conf used by struct crtlist */
-struct bind_conf_list {
-	struct bind_conf *bind_conf;
-	struct bind_conf_list *next;
-};
-
-/* This structure is basically a crt-list or a directory */
-struct crtlist {
-	struct bind_conf_list *bind_conf; /* list of bind_conf which use this crtlist */
-	unsigned int linecount; /* number of lines */
-	struct eb_root entries;
-	struct list ord_entries; /* list to keep the line order of the crt-list file */
-	struct ebmb_node node; /* key is the filename or directory */
-};
-
-/* a file in a directory or a line in a crt-list */
-struct crtlist_entry {
-	struct ssl_bind_conf *ssl_conf; /* SSL conf in crt-list */
-	unsigned int linenum;
-	unsigned int fcount; /* filters count */
-	char **filters;
-	struct crtlist *crtlist; /* ptr to the parent crtlist */
-	struct list ckch_inst; /* list of instances of this entry, there is 1 ckch_inst per instance of the crt-list */
-	struct list by_crtlist; /* ordered entries */
-	struct list by_ckch_store; /* linked in ckch_store list of crtlist_entries */
-	struct ebpt_node node; /* key is a ptr to a ckch_store */
-};
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 
