@@ -26,6 +26,7 @@
 
 #include <types/applet.h>
 #include <types/stick_table.h>
+#include <types/http_htx.h>
 
 enum act_from {
 	ACT_F_TCP_REQ_CON, /* tcp-request connection */
@@ -128,16 +129,7 @@ struct act_rule {
 			int status;            /* status code */
 			struct buffer *errmsg; /* HTTP error message, may be NULL */
 		} http_deny;                   /* args used by HTTP deny rules */
-		struct {
-			int status;
-			char *ctype;
-			struct list *hdrs;
-			union {
-				struct list   fmt;
-				struct buffer obj;
-				struct buffer *errmsg;
-			} body;
-		} http_return;
+		struct http_reply *http_reply; /* HTTP response to be used by return rules */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		struct {
 			char *ref;             /* MAP or ACL file name to update */

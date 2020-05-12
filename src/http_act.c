@@ -42,13 +42,6 @@
 #include <proto/pattern.h>
 #include <proto/stream_interface.h>
 
-/* Structure used to build the header list of an HTTP return action */
-struct http_ret_hdr {
-	struct ist  name;  /* the header name */
-	struct list value; /* the log-format string value */
-	struct list list;  /* header chained list */
-};
-
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.
  */
@@ -1815,36 +1808,41 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 static void release_http_return(struct act_rule *rule)
 {
 	struct logformat_node *lf, *lfb;
-	struct http_ret_hdr *hdr, *hdrb;
+	struct http_reply_hdr *hdr, *hdrb;
 
-	free(rule->arg.http_return.ctype);
+	if (!rule->arg.http_reply)
+		return;
 
-	if (rule->arg.http_return.hdrs) {
-		list_for_each_entry_safe(hdr, hdrb, rule->arg.http_return.hdrs, list) {
-			LIST_DEL(&hdr->list);
-			list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-				LIST_DEL(&lf->list);
-				release_sample_expr(lf->expr);
-				free(lf->arg);
-				free(lf);
-			}
-			istfree(&hdr->name);
-			free(hdr);
+	free(rule->arg.http_reply->ctype);
+	rule->arg.http_reply->ctype = NULL;
+	list_for_each_entry_safe(hdr, hdrb, &rule->arg.http_reply->hdrs, list) {
+		LIST_DEL(&hdr->list);
+		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
 		}
-		free(rule->arg.http_return.hdrs);
+		istfree(&hdr->name);
+		free(hdr);
 	}
 
-	if (rule->action == 2) {
-		chunk_destroy(&rule->arg.http_return.body.obj);
+	if (rule->arg.http_reply->type == HTTP_REPLY_ERRFILES) {
+		free(rule->arg.http_reply->body.http_errors);
+		rule->arg.http_reply->body.http_errors = NULL;
 	}
-	else if (rule->action == 3) {
-		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
+	else if (rule->arg.http_reply->type == HTTP_REPLY_RAW)
+		chunk_destroy(&rule->arg.http_reply->body.obj);
+	else if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT) {
+		list_for_each_entry_safe(lf, lfb, &rule->arg.http_reply->body.fmt, list) {
 			LIST_DEL(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);
 		}
 	}
+
+	rule->arg.http_reply = NULL;
 }
 
 /* This function executes a return action. It builds an HTX message from an
@@ -1865,12 +1863,14 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	unsigned int slflags;
 	enum act_return ret = ACT_RET_ABRT;
 
-	s->txn->status = rule->arg.http_return.status;
+	s->txn->status = rule->arg.http_reply->status;
 	channel_htx_truncate(res, htx);
 
-	if (rule->action == 1) {
+	/* HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so */
+
+	if (rule->arg.http_reply->type == HTTP_REPLY_ERRMSG) {
 		/* implicit or explicit error message*/
-		errmsg = rule->arg.http_return.body.errmsg;
+		errmsg = rule->arg.http_reply->body.errmsg;
 		if (!errmsg) {
 			/* get default error message */
 			errmsg = http_error_message(s);
@@ -1882,40 +1882,40 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	}
 	else {
 		/* no payload, file or log-format string */
-		if (rule->action == 2) {
+		if (rule->arg.http_reply->type == HTTP_REPLY_RAW) {
 			/* file */
-			body = &rule->arg.http_return.body.obj;
+			body = &rule->arg.http_reply->body.obj;
 		}
-		else if (rule->action == 3) {
+		else if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT) {
 			/* log-format string */
 			body = alloc_trash_chunk();
 			if (!body)
 				goto fail_alloc;
-			body->data = build_logline(s, body->area, body->size, &rule->arg.http_return.body.fmt);
+			body->data = build_logline(s, body->area, body->size, &rule->arg.http_reply->body.fmt);
 		}
 		/* else no payload */
 
-		status = ultoa(rule->arg.http_return.status);
-		reason = http_get_reason(rule->arg.http_return.status);
+		status = ultoa(rule->arg.http_reply->status);
+		reason = http_get_reason(rule->arg.http_reply->status);
 		slflags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
 		if (!body || !b_data(body))
 			slflags |= HTX_SL_F_BODYLESS;
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, slflags, ist("HTTP/1.1"), ist(status), ist(reason));
 		if (!sl)
 			goto fail;
-		sl->info.res.status = rule->arg.http_return.status;
+		sl->info.res.status = rule->arg.http_reply->status;
 
 		clen = (body ? ultoa(b_data(body)) : "0");
-		ctype = rule->arg.http_return.ctype;
+		ctype = rule->arg.http_reply->ctype;
 
-		if (rule->arg.http_return.hdrs) {
-			struct http_ret_hdr *hdr;
+		if (!LIST_ISEMPTY(&rule->arg.http_reply->hdrs)) {
+			struct http_reply_hdr *hdr;
 			struct buffer *value = alloc_trash_chunk();
 
 			if (!value)
 				goto fail;
 
-			list_for_each_entry(hdr, rule->arg.http_return.hdrs, list) {
+			list_for_each_entry(hdr, &rule->arg.http_reply->hdrs, list) {
 				chunk_reset(value);
 				value->data = build_logline(s, value->area, value->size, &hdr->value);
 				if (b_data(value) && !htx_add_header(htx, hdr->name, ist2(b_head(value), b_data(value)))) {
@@ -1955,7 +1955,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 		s->flags |= ((rule->from == ACT_F_HTTP_REQ) ? SF_FINST_R : SF_FINST_H);
 
   leave:
-	if (rule->action == 3)
+	if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT)
 		free_trash_chunk(body);
 	return ret;
 
@@ -1982,45 +1982,46 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
  */
 static int check_http_return_action(struct act_rule *rule, struct proxy *px, char **err)
 {
+	struct http_reply *reply = rule->arg.http_reply;
 	struct http_errors *http_errs;
-	int status = (intptr_t)(rule->arg.act.p[0]);
 	int ret = 1;
 
-	list_for_each_entry(http_errs, &http_errors_list, list) {
-		if (strcmp(http_errs->id, (char *)rule->arg.act.p[1]) == 0) {
-			free(rule->arg.act.p[1]);
-			rule->arg.http_return.status = status;
-			rule->arg.http_return.ctype = NULL;
-			rule->action = 1;
-			rule->arg.http_return.body.errmsg = http_errs->errmsg[http_get_status_idx(status)];
-			rule->action_ptr = http_action_return;
-			rule->release_ptr = release_http_return;
+	if (reply->type != HTTP_REPLY_ERRFILES)
+		goto end;
 
-			if (!rule->arg.http_return.body.errmsg)
+	list_for_each_entry(http_errs, &http_errors_list, list) {
+		if (strcmp(http_errs->id, reply->body.http_errors) == 0) {
+			reply->type = HTTP_REPLY_ERRMSG;
+			free(reply->body.http_errors);
+			reply->body.errmsg = http_errs->errmsg[http_get_status_idx(reply->status)];
+			if (!reply->body.errmsg)
 				ha_warning("Proxy '%s': status '%d' referenced by http return rule "
 					   "not declared in http-errors section '%s'.\n",
-					   px->id, status, http_errs->id);
+					   px->id, reply->status, http_errs->id);
 			break;
 		}
 	}
 
 	if (&http_errs->list == &http_errors_list) {
 		memprintf(err, "unknown http-errors section '%s' referenced by http return rule",
-			  (char *)rule->arg.act.p[1]);
-		free(rule->arg.act.p[1]);
+			  reply->body.http_errors);
+		release_http_return(rule);
 		ret = 0;
 	}
 
+  end:
 	return ret;
 }
 
 /* Parse a "return" action. It returns ACT_RET_PRS_OK on success,
- * ACT_RET_PRS_ERR on error. This function creates 4 action types:
+ * ACT_RET_PRS_ERR on error. This function creates one of the following http
+ * replies :
  *
- *   - action 0  : dummy response, no payload
- *   - action 1  : implicit error message depending on the status code or explicit one
- *   - action 2  : explicit file object ('file' argument)
- *   - action 3  : explicit log-format string ('content' argument)
+ *   - HTTP_REPLY_EMPTY    : dummy response, no payload
+ *   - HTTP_REPLY_ERRMSG   : implicit error message depending on the status code or explicit one
+ *   - HTTP_REPLY_ERRFILES : points on an http-errors section (resolved during post-parsing)
+ *   - HTTP_REPLY_RAW      : explicit file object ('file' argument)
+ *   - HTTP_REPLY_LOGFMT   : explicit log-format string ('content' argument)
  *
  * The content-type must be defined for non-empty payload. It is ignored for
  * error messages (implicit or explicit). When an http-errors section is
@@ -2031,19 +2032,21 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 					    struct act_rule *rule, char **err)
 {
 	struct logformat_node *lf, *lfb;
-	struct http_ret_hdr *hdr, *hdrb;
-	struct list *hdrs = NULL;
+	struct http_reply *reply = NULL;
+	struct http_reply_hdr *hdr, *hdrb;
 	struct stat stat;
-	const char *file = NULL, *act_arg = NULL;
-	char *obj = NULL, *ctype = NULL, *name = NULL;
-	int cur_arg, cap, objlen = 0, action = 0, status = 200, fd = -1;
+	const char *act_arg = NULL;
+	char *obj = NULL;
+	int cur_arg, cap, objlen = 0, fd = -1;
 
-	hdrs = calloc(1, sizeof(*hdrs));
-	if (!hdrs) {
+	reply = calloc(1, sizeof(*reply));
+	if (!reply) {
 		memprintf(err, "out of memory");
 		goto error;
 	}
-	LIST_INIT(hdrs);
+	LIST_INIT(&reply->hdrs);
+	reply->type = HTTP_REPLY_EMPTY;
+	reply->status = 200;
 
 	cur_arg = *orig_arg;
 	while (*args[cur_arg]) {
@@ -2053,9 +2056,9 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <status_code> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			status = atol(args[cur_arg]);
-			if (status < 200 || status > 599) {
-				memprintf(err, "Unexpected status code '%d'", status);
+			reply->status = atol(args[cur_arg]);
+			if (reply->status < 200 || reply->status > 599) {
+				memprintf(err, "Unexpected status code '%d'", reply->status);
 				goto error;
 			}
 			cur_arg++;
@@ -2066,12 +2069,12 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <ctype> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			free(ctype);
-			ctype = strdup(args[cur_arg]);
+			free(reply->ctype);
+			reply->ctype = strdup(args[cur_arg]);
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "errorfiles") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2081,22 +2084,25 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <name> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			/* Must be resolved during the config validity check */
-			name = strdup(args[cur_arg]);
-			action = -1;
+			reply->body.http_errors = strdup(args[cur_arg]);
+			if (!reply->body.http_errors) {
+				memprintf(err, "out of memory");
+				goto error;
+			}
+			reply->type = HTTP_REPLY_ERRFILES;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "default-errorfiles") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
 			act_arg = args[cur_arg];
-			action = 1;
+			reply->type = HTTP_REPLY_ERRMSG;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "errorfile") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2106,16 +2112,15 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <fmt> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			file = args[cur_arg];
-			rule->arg.http_return.body.errmsg = http_load_errorfile(args[cur_arg], err);
-			if (!rule->arg.http_return.body.errmsg) {
+			reply->body.errmsg = http_load_errorfile(args[cur_arg], err);
+			if (!reply->body.errmsg) {
 				goto error;
 			}
-			action = 1;
+			reply->type = HTTP_REPLY_ERRMSG;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "file") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2125,7 +2130,6 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <file> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			file = args[cur_arg];
 			fd = open(args[cur_arg], O_RDONLY);
 			if ((fd < 0) || (fstat(fd, &stat) < 0)) {
 				memprintf(err, "error opening file '%s'", args[cur_arg]);
@@ -2144,11 +2148,13 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			}
 			close(fd);
 			fd = -1;
-			action = 2;
+			reply->type = HTTP_REPLY_RAW;
+			chunk_initlen(&reply->body.obj, obj, global.tune.bufsize, objlen);
+			obj = NULL;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "string") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2160,11 +2166,17 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			}
 			obj = strdup(args[cur_arg]);
 			objlen = strlen(args[cur_arg]);
-			action = 2;
+			if (!obj) {
+				memprintf(err, "out of memory");
+				goto error;
+			}
+			reply->type = HTTP_REPLY_RAW;
+			chunk_initlen(&reply->body.obj, obj, global.tune.bufsize, objlen);
+			obj = NULL;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "lf-file") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2174,7 +2186,6 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				memprintf(err, "'%s' expects <file> as argument", args[cur_arg-1]);
 				goto error;
 			}
-			file = args[cur_arg];
 			fd = open(args[cur_arg], O_RDONLY);
 			if ((fd < 0) || (fstat(fd, &stat) < 0)) {
 				memprintf(err, "error opening file '%s'", args[cur_arg]);
@@ -2194,11 +2205,11 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			close(fd);
 			fd = -1;
 			obj[objlen] = '\0';
-			action = 3;
+			reply->type = HTTP_REPLY_LOGFMT;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "lf-string") == 0) {
-			if (action != 0) {
+			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(err, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
 			}
@@ -2210,7 +2221,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			}
 			obj = strdup(args[cur_arg]);
 			objlen = strlen(args[cur_arg]);
-			action = 3;
+			reply->type = HTTP_REPLY_LOGFMT;
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "hdr") == 0) {
@@ -2236,7 +2247,11 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			}
 			LIST_INIT(&hdr->value);
 			hdr->name = ist(strdup(args[cur_arg]));
-			LIST_ADDQ(hdrs, &hdr->list);
+			if (!isttest(hdr->name)) {
+				memprintf(err, "out of memory");
+				goto error;
+			}
+			LIST_ADDQ(&reply->hdrs, &hdr->list);
 
 			if (rule->from == ACT_F_HTTP_REQ) {
 				px->conf.args.ctx = ARGC_HRQ;
@@ -2258,106 +2273,50 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			break;
 	}
 
-
-	if (action == -1) { /* errorfiles */
-		int rc;
-
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (http_err_codes[rc] == status)
-				break;
-		}
-
-		if (rc >= HTTP_ERR_SIZE) {
-			memprintf(err, "status code '%d' not handled by default with '%s' argument.",
-				  status, act_arg);
-			goto error;
-		}
-		if (ctype) {
-			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
-				   "returned response is an erorrfile.\n",
-				   px->conf.args.file, px->conf.args.line,
-				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
-				   ctype);
-			free(ctype);
-			ctype = NULL;
-		}
-		if (!LIST_ISEMPTY(hdrs)) {
-			ha_warning("parsing [%s:%d] : 'http-%s return' : hdr parameters ignored when the "
-				   "returned response is an erorrfile.\n",
-				   px->conf.args.file, px->conf.args.line,
-				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
-			list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
-				LIST_DEL(&hdr->list);
-				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-					LIST_DEL(&lf->list);
-					release_sample_expr(lf->expr);
-					free(lf->arg);
-					free(lf);
-				}
-				istfree(&hdr->name);
-				free(hdr);
-			}
-		}
-		free(hdrs);
-		hdrs = NULL;
-
-		rule->arg.act.p[0] = (void *)((intptr_t)status);
-		rule->arg.act.p[1] = name;
-		rule->check_ptr    = check_http_return_action;
-		goto out;
-	}
-	else if (action == 0) { /* no payload */
-		if (ctype) {
+	if (reply->type == HTTP_REPLY_EMPTY) { /* no payload */
+		if (reply->ctype) {
 			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored because"
 				   " neither errorfile nor payload defined.\n",
 				   px->conf.args.file, px->conf.args.line,
 				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
-				   ctype);
-			free(ctype);
-			ctype = NULL;
+				   reply->ctype);
+			free(reply->ctype);
+			reply->ctype = NULL;
 		}
 	}
-	else if (action == 1) { /* errorfile */
-		if (!rule->arg.http_return.body.errmsg) { /* default errorfile */
+	else if (reply->type == HTTP_REPLY_ERRFILES || reply->type == HTTP_REPLY_ERRMSG) { /* errorfiles or errorfile */
+
+		if (reply->type != HTTP_REPLY_ERRMSG || !reply->body.errmsg) {
+			/* default errorfile or errorfiles: check the status */
 			int rc;
 
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-				if (http_err_codes[rc] == status)
+				if (http_err_codes[rc] == reply->status)
 					break;
 			}
 
 			if (rc >= HTTP_ERR_SIZE) {
-				memprintf(err, "status code '%d' not handled by default with '%s' argument",
-					  status, act_arg);
+				memprintf(err, "status code '%d' not handled by default with '%s' argument.",
+					  reply->status, act_arg);
 				goto error;
 			}
-			if (ctype) {
-				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
-					   "returned response is an erorrfile.\n",
-					   px->conf.args.file, px->conf.args.line,
-					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
-					   ctype);
-				free(ctype);
-				ctype = NULL;
-			}
 		}
-		else { /* explicit payload using 'errorfile' parameter */
-			if (ctype) {
-				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored because"
-					   " the errorfile '%s' is used.\n",
-					   px->conf.args.file, px->conf.args.line,
-					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
-					   ctype, file);
-				free(ctype);
-				ctype = NULL;
-			}
+
+		if (reply->ctype) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
+				   "returned response is an erorrfile.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+				   reply->ctype);
+			free(reply->ctype);
+			reply->ctype = NULL;
 		}
-		if (!LIST_ISEMPTY(hdrs)) {
+		if (!LIST_ISEMPTY(&reply->hdrs)) {
 			ha_warning("parsing [%s:%d] : 'http-%s return' : hdr parameters ignored when the "
 				   "returned response is an erorrfile.\n",
 				   px->conf.args.file, px->conf.args.line,
 				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
-			list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
+			list_for_each_entry_safe(hdr, hdrb, &reply->hdrs, list) {
 				LIST_DEL(&hdr->list);
 				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
 					LIST_DEL(&lf->list);
@@ -2369,34 +2328,31 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 				free(hdr);
 			}
 		}
-		free(hdrs);
-		hdrs = NULL;
 	}
-	else if (action == 2) { /* explicit parameter using 'file' parameter*/
-		if (!ctype && objlen) {
+	else if (reply->type == HTTP_REPLY_RAW) { /* explicit parameter using 'file' parameter*/
+		if (!reply->ctype && objlen) {
 			memprintf(err, "a content type must be defined when non-empty payload is configured");
 			goto error;
 		}
-		if (ctype && !objlen) {
-				ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
-					   "configured payload is empty.\n",
-					   px->conf.args.file, px->conf.args.line,
-					   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
-					   ctype);
-			free(ctype);
-			ctype = NULL;
+		if (reply->ctype && !b_data(&reply->body.obj)) {
+			ha_warning("parsing [%s:%d] : 'http-%s return' : content-type '%s' ignored when the "
+				   "configured payload is empty.\n",
+				   px->conf.args.file, px->conf.args.line,
+				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"),
+				   reply->ctype);
+			free(reply->ctype);
+			reply->ctype = NULL;
 		}
-		if (global.tune.bufsize - objlen < global.tune.maxrewrite) {
+		if (b_room(&reply->body.obj) < global.tune.maxrewrite) {
 			ha_warning("parsing [%s:%d] : 'http-%s return' : the payload runs over the buffer space reserved to headers rewriting."
 				   " It may lead to internal errors if strict rewriting mode is enabled.\n",
 				   px->conf.args.file, px->conf.args.line,
 				   (rule->from == ACT_F_HTTP_REQ ? "request" : "response"));
 		}
-		chunk_initlen(&rule->arg.http_return.body.obj, obj, global.tune.bufsize, objlen);
 	}
-	else if (action == 3) { /* log-format payload using 'lf-file' of 'lf-string' parameter */
-		LIST_INIT(&rule->arg.http_return.body.fmt);
-		if (!ctype) {
+	else if (reply->type == HTTP_REPLY_LOGFMT) { /* log-format payload using 'lf-file' of 'lf-string' parameter */
+		LIST_INIT(&reply->body.fmt);
+		if (!reply->ctype) {
 			memprintf(err, "a content type must be defined with a log-format payload");
 			goto error;
 		}
@@ -2408,56 +2364,31 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 			px->conf.args.ctx =  ARGC_HRS;
 			cap = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
 		}
-		if (!parse_logformat_string(obj, px, &rule->arg.http_return.body.fmt, LOG_OPT_HTTP, cap, err))
+		if (!parse_logformat_string(obj, px, &reply->body.fmt, LOG_OPT_HTTP, cap, err))
 			goto error;
 
 		free(px->conf.lfs_file);
 		px->conf.lfs_file = strdup(px->conf.args.file);
 		px->conf.lfs_line = px->conf.args.line;
-		free(obj);
 	}
 
+	rule->arg.http_reply = reply;
 	rule->flags |= ACT_FLAG_FINAL;
-	rule->arg.http_return.status = status;
-	rule->arg.http_return.ctype = ctype;
-	rule->arg.http_return.hdrs = hdrs;
-	rule->action = action;
+	rule->action = ACT_CUSTOM;
+	rule->check_ptr = check_http_return_action;
 	rule->action_ptr = http_action_return;
 	rule->release_ptr = release_http_return;
 
-  out:
+	free(obj);
 	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 
   error:
 	free(obj);
-	free(ctype);
-	free(name);
 	if (fd >= 0)
 		close(fd);
-	if (hdrs) {
-		list_for_each_entry_safe(hdr, hdrb, hdrs, list) {
-			LIST_DEL(&hdr->list);
-			list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-				LIST_DEL(&lf->list);
-				release_sample_expr(lf->expr);
-				free(lf->arg);
-				free(lf);
-			}
-			istfree(&hdr->name);
-			free(hdr);
-		}
-		free(hdrs);
-	}
-	if (action == 3) {
-		list_for_each_entry_safe(lf, lfb, &rule->arg.http_return.body.fmt, list) {
-			LIST_DEL(&lf->list);
-			release_sample_expr(lf->expr);
-			free(lf->arg);
-			free(lf);
-		}
-	}
-	free(rule->arg.http_return.ctype);
+	rule->arg.http_reply = reply; /* Set reply to release it */
+	release_http_return(rule);
 	return ACT_RET_PRS_ERR;
 }
 
