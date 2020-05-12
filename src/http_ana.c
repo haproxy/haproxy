@@ -1424,6 +1424,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers = 0;
 	si->flags &= ~(SI_FL_ERR | SI_FL_EXP | SI_FL_RXBLK_SHUT);
+	s->flags &= ~SF_ADDR_SET;
 	stream_choose_redispatch(s);
 	si->exp = TICK_ETERNITY;
 	res->rex = TICK_ETERNITY;
