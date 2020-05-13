@@ -23,9 +23,14 @@
 #define _TYPES_SSL_CRTLIST_H
 #ifdef USE_OPENSSL
 
+#include <ebmbtree.h>
+
 #include <common/mini-clist.h>
 
-#include <types/listener.h>
+/* forward declarations for structures below */
+struct bind_conf;
+struct ssl_bind_conf;
+struct proxy;
 
 /* list of bind conf used by struct crtlist */
 struct bind_conf_list {
