@@ -2832,13 +2832,25 @@ void run_poll_loop()
 		}
 
 		if (!wake) {
-			if (stopping)
+			int i;
+
+			if (stopping) {
 				_HA_ATOMIC_OR(&stopping_thread_mask, tid_bit);
+				/* notify all threads that stopping was just set */
+				for (i = 0; i < global.nbthread; i++)
+					if (((all_threads_mask & ~stopping_thread_mask) >> i) & 1)
+						wake_thread(i);
+			}
 
 			/* stop when there's nothing left to do */
 			if ((jobs - unstoppable_jobs) == 0 &&
-			    (stopping_thread_mask & all_threads_mask) == all_threads_mask)
+			    (stopping_thread_mask & all_threads_mask) == all_threads_mask) {
+				/* wake all threads waiting on jobs==0 */
+				for (i = 0; i < global.nbthread; i++)
+					if (((all_threads_mask & ~tid_bit) >> i) & 1)
+						wake_thread(i);
 				break;
+			}
 		}
 
 		/* If we have to sleep, measure how long */
