@@ -2886,7 +2886,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					rule_ret = HTTP_RULE_RES_DONE;
 					goto end;
 				case ACT_RET_DENY:
-					txn->flags |= TX_CLDENY;
 					if (txn->status == -1)
 						txn->status = 403;
 					rule_ret = HTTP_RULE_RES_DENY;
@@ -2908,7 +2907,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				goto end;
 
 			case ACT_ACTION_DENY:
-				txn->flags |= TX_CLDENY;
 				txn->status = rule->arg.http_deny.status;
 				if (rule->arg.http_deny.errmsg)
 					txn->errmsg = rule->arg.http_deny.errmsg;
@@ -2992,9 +2990,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
  * is returned, the process can continue the evaluation of next rule list. If
  * *STOP or *DONE is returned, the process must stop the evaluation. If *BADREQ
  * is returned, it means the operation could not be processed and a server error
- * must be returned. It may set the TX_SVDENY on txn->flags if it encounters a
- * deny rule. If *YIELD is returned, the caller must call again the function
- * with the same context.
+ * must be returned. If *YIELD is returned, the caller must call again the
+ * function with the same context.
  */
 static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct list *rules,
 						    struct stream *s)
@@ -3067,7 +3064,6 @@ resume_execution:
 					rule_ret = HTTP_RULE_RES_DONE;
 					goto end;
 				case ACT_RET_DENY:
-					txn->flags |= TX_CLDENY;
 					if (txn->status == -1)
 						txn->status = 502;
 					rule_ret = HTTP_RULE_RES_DENY;
@@ -3089,7 +3085,6 @@ resume_execution:
 				goto end;
 
 			case ACT_ACTION_DENY:
-				txn->flags |= TX_CLDENY;
 				txn->status = rule->arg.http_deny.status;
 				if (rule->arg.http_deny.errmsg)
 					txn->errmsg = rule->arg.http_deny.errmsg;

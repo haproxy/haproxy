@@ -323,10 +323,6 @@ void show_txn_flags(unsigned int f)
 	}
 
 	SHOW_FLAG(f, TX_CLTARPIT);
-	SHOW_FLAG(f, TX_SVALLOW);
-	SHOW_FLAG(f, TX_SVDENY);
-	SHOW_FLAG(f, TX_CLALLOW);
-	SHOW_FLAG(f, TX_CLDENY);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);

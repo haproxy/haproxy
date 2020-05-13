@@ -30,10 +30,7 @@
 /* These are the flags that are found in txn->flags */
 
 /* action flags */
-#define TX_CLDENY	0x00000001	/* a client header matches a deny regex */
-#define TX_CLALLOW	0x00000002	/* a client header matches an allow regex */
-#define TX_SVDENY	0x00000004	/* a server header matches a deny regex */
-#define TX_SVALLOW	0x00000008	/* a server header matches an allow regex */
+/* Unusued: 0x00000001..0x00000008 */
 #define TX_CLTARPIT	0x00000010	/* the transaction is tarpitted (anti-dos) */
 
 /* transaction flags dedicated to cookies : bits values 0x20 to 0x80 (0-7 shift 5) */
