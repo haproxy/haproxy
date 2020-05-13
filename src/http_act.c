@@ -1818,92 +1818,10 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 					  struct session *sess, struct stream *s, int flags)
 {
 	struct channel *req = &s->req;
-	struct channel *res = &s->res;
-	struct buffer *errmsg;
-	struct htx *htx = htx_from_buf(&res->buf);
-	struct htx_sl *sl;
-	struct buffer *body = NULL;
-	const char *status, *reason, *clen, *ctype;
-	unsigned int slflags;
-	enum act_return ret = ACT_RET_ABRT;
 
-	s->txn->status = rule->arg.http_reply->status;
-	channel_htx_truncate(res, htx);
+	if (http_reply_message(s, rule->arg.http_reply) == -1)
+		return ACT_RET_ERR;
 
-	/* HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so */
-
-	if (rule->arg.http_reply->type == HTTP_REPLY_ERRMSG) {
-		/* implicit or explicit error message*/
-		errmsg = rule->arg.http_reply->body.errmsg;
-		if (!errmsg) {
-			/* get default error message */
-			errmsg = http_error_message(s);
-		}
-		if (b_is_null(errmsg))
-			goto end;
-		if (!channel_htx_copy_msg(res, htx, errmsg))
-			goto fail;
-	}
-	else {
-		/* no payload, file or log-format string */
-		if (rule->arg.http_reply->type == HTTP_REPLY_RAW) {
-			/* file */
-			body = &rule->arg.http_reply->body.obj;
-		}
-		else if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT) {
-			/* log-format string */
-			body = alloc_trash_chunk();
-			if (!body)
-				goto fail_alloc;
-			body->data = build_logline(s, body->area, body->size, &rule->arg.http_reply->body.fmt);
-		}
-		/* else no payload */
-
-		status = ultoa(rule->arg.http_reply->status);
-		reason = http_get_reason(rule->arg.http_reply->status);
-		slflags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
-		if (!body || !b_data(body))
-			slflags |= HTX_SL_F_BODYLESS;
-		sl = htx_add_stline(htx, HTX_BLK_RES_SL, slflags, ist("HTTP/1.1"), ist(status), ist(reason));
-		if (!sl)
-			goto fail;
-		sl->info.res.status = rule->arg.http_reply->status;
-
-		clen = (body ? ultoa(b_data(body)) : "0");
-		ctype = rule->arg.http_reply->ctype;
-
-		if (!LIST_ISEMPTY(&rule->arg.http_reply->hdrs)) {
-			struct http_reply_hdr *hdr;
-			struct buffer *value = alloc_trash_chunk();
-
-			if (!value)
-				goto fail;
-
-			list_for_each_entry(hdr, &rule->arg.http_reply->hdrs, list) {
-				chunk_reset(value);
-				value->data = build_logline(s, value->area, value->size, &hdr->value);
-				if (b_data(value) && !htx_add_header(htx, hdr->name, ist2(b_head(value), b_data(value)))) {
-					free_trash_chunk(value);
-					goto fail;
-				}
-				chunk_reset(value);
-			}
-			free_trash_chunk(value);
-		}
-
-		if (!htx_add_header(htx, ist("content-length"), ist(clen)) ||
-		    (body && b_data(body) && ctype && !htx_add_header(htx, ist("content-type"), ist(ctype))) ||
-		    !htx_add_endof(htx, HTX_BLK_EOH) ||
-		    (body && b_data(body) && !htx_add_data_atonce(htx, ist2(b_head(body), b_data(body)))) ||
-		    !htx_add_endof(htx, HTX_BLK_EOM))
-			goto fail;
-	}
-
-	htx_to_buf(htx, &s->res.buf);
-	if (!http_forward_proxy_resp(s, 1))
-		goto fail;
-
-  end:
 	if (rule->from == ACT_F_HTTP_REQ) {
 		/* let's log the request time */
 		s->logs.tv_request = now;
@@ -1918,25 +1836,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= ((rule->from == ACT_F_HTTP_REQ) ? SF_FINST_R : SF_FINST_H);
 
-  leave:
-	if (rule->arg.http_reply->type == HTTP_REPLY_LOGFMT)
-		free_trash_chunk(body);
-	return ret;
-
-  fail_alloc:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_RESOURCE;
-	ret = ACT_RET_ERR;
-	goto leave;
-
-  fail:
-	/* If an error occurred, remove the incomplete HTTP response from the
-	 * buffer */
-	channel_htx_truncate(res, htx);
-	ret = ACT_RET_ERR;
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_PRXCOND;
-	goto leave;
+	return ACT_RET_ABRT;
 }
 
 /* Check an "http-request return" action. The function returns 1 in success

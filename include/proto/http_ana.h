@@ -52,6 +52,7 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err, i
 void http_reply_and_close(struct stream *s, short status, const struct buffer *msg);
 void http_return_srv_error(struct stream *s, struct stream_interface *si);
 struct buffer *http_error_message(struct stream *s);
+int http_reply_message(struct stream *s, struct http_reply *reply);
 int http_forward_proxy_resp(struct stream *s, int final);
 
 struct http_txn *http_alloc_txn(struct stream *s);

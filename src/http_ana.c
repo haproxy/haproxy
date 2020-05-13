@@ -4661,6 +4661,118 @@ struct buffer *http_error_message(struct stream *s)
 		return &http_err_chunks[msgnum];
 }
 
+/* Produces a response from an http reply. Depending on the http reply type, a,
+ * errorfile, an raw file or a log-format string is used. On success, it returns
+ * 0. If an error occurs -1 is returned.
+ */
+int http_reply_message(struct stream *s, struct http_reply *reply)
+{
+	struct channel *res = &s->res;
+	struct buffer *errmsg;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct htx_sl *sl;
+	struct buffer *body = NULL;
+	const char *status, *reason, *clen, *ctype;
+	unsigned int slflags;
+	int ret = 0;
+
+	s->txn->status = reply->status;
+	channel_htx_truncate(res, htx);
+
+	/* HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so */
+
+	if (reply->type == HTTP_REPLY_ERRMSG) {
+		/* implicit or explicit error message*/
+		errmsg = reply->body.errmsg;
+		if (!errmsg) {
+			/* get default error message */
+			errmsg = http_error_message(s);
+		}
+		if (b_is_null(errmsg))
+			goto leave;
+		if (!channel_htx_copy_msg(res, htx, errmsg))
+			goto fail;
+	}
+	else {
+		/* no payload, file or log-format string */
+		if (reply->type == HTTP_REPLY_RAW) {
+			/* file */
+			body = &reply->body.obj;
+		}
+		else if (reply->type == HTTP_REPLY_LOGFMT) {
+			/* log-format string */
+			body = alloc_trash_chunk();
+			if (!body)
+				goto fail_alloc;
+			body->data = build_logline(s, body->area, body->size, &reply->body.fmt);
+		}
+		/* else no payload */
+
+		status = ultoa(reply->status);
+		reason = http_get_reason(reply->status);
+		slflags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+		if (!body || !b_data(body))
+			slflags |= HTX_SL_F_BODYLESS;
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, slflags, ist("HTTP/1.1"), ist(status), ist(reason));
+		if (!sl)
+			goto fail;
+		sl->info.res.status = reply->status;
+
+		clen = (body ? ultoa(b_data(body)) : "0");
+		ctype = reply->ctype;
+
+		if (!LIST_ISEMPTY(&reply->hdrs)) {
+			struct http_reply_hdr *hdr;
+			struct buffer *value = alloc_trash_chunk();
+
+			if (!value)
+				goto fail;
+
+			list_for_each_entry(hdr, &reply->hdrs, list) {
+				chunk_reset(value);
+				value->data = build_logline(s, value->area, value->size, &hdr->value);
+				if (b_data(value) && !htx_add_header(htx, hdr->name, ist2(b_head(value), b_data(value)))) {
+					free_trash_chunk(value);
+					goto fail;
+				}
+				chunk_reset(value);
+			}
+			free_trash_chunk(value);
+		}
+
+		if (!htx_add_header(htx, ist("content-length"), ist(clen)) ||
+		    (body && b_data(body) && ctype && !htx_add_header(htx, ist("content-type"), ist(ctype))) ||
+		    !htx_add_endof(htx, HTX_BLK_EOH) ||
+		    (body && b_data(body) && !htx_add_data_atonce(htx, ist2(b_head(body), b_data(body)))) ||
+		    !htx_add_endof(htx, HTX_BLK_EOM))
+			goto fail;
+	}
+
+	htx_to_buf(htx, &s->res.buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
+
+  leave:
+	if (reply->type == HTTP_REPLY_LOGFMT)
+		free_trash_chunk(body);
+	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = -1;
+	goto leave;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_htx_truncate(res, htx);
+	ret = -1;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	goto leave;
+}
+
 /* Return the error message corresponding to si->err_type. It is assumed
  * that the server side is closed. Note that err_type is actually a
  * bitmask, where almost only aborts may be cumulated with other
