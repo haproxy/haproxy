@@ -871,3 +871,42 @@ end:
 	return NULL;
 }
 
+
+/********************  ckch_inst functions ******************************/
+
+/* unlink a ckch_inst, free all SNIs, free the ckch_inst */
+/* The caller must use the lock of the bind_conf if used with inserted SNIs */
+void ckch_inst_free(struct ckch_inst *inst)
+{
+	struct sni_ctx *sni, *sni_s;
+
+	if (inst == NULL)
+		return;
+
+	list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
+		SSL_CTX_free(sni->ctx);
+		LIST_DEL(&sni->by_ckch_inst);
+		ebmb_delete(&sni->name);
+		free(sni);
+	}
+	LIST_DEL(&inst->by_ckchs);
+	LIST_DEL(&inst->by_crtlist_entry);
+	free(inst);
+}
+
+/* Alloc and init a ckch_inst */
+struct ckch_inst *ckch_inst_new()
+{
+	struct ckch_inst *ckch_inst;
+
+	ckch_inst = calloc(1, sizeof *ckch_inst);
+	if (!ckch_inst)
+		return NULL;
+
+	LIST_INIT(&ckch_inst->sni_ctx);
+	LIST_INIT(&ckch_inst->by_ckchs);
+	LIST_INIT(&ckch_inst->by_crtlist_entry);
+
+	return ckch_inst;
+}
+
