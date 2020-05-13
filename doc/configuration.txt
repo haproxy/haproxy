@@ -8749,7 +8749,9 @@ retries <value>
 
 
 retry-on [list of keywords]
-  Specify when to attempt to automatically retry a failed request
+  Specify when to attempt to automatically retry a failed request.
+  This setting is only valid when "mode" is set to http and is silently ignored
+  otherwise.
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
