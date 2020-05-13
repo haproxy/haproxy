@@ -19419,10 +19419,6 @@ the Stream Processing Offload Protocol (SPOP).
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
-Important note:
-    The SPOE filter is highly experimental for now and was not heavily
-    tested. It is really not production ready. So use it carefully.
-
 9.4. Cache
 ----------
 

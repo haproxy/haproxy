@@ -1,7 +1,7 @@
                 -----------------------------------------------
                    Stream Processing Offload Engine (SPOE)
                                   Version 1.2
-                          ( Last update: 2017-09-22 )
+                          ( Last update: 2020-06-13 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -70,13 +70,12 @@ implement Single Sign On solution (SSO) in HAProxy. The SPOE will ease this
 kind of processing, or we hope so.
 
 Now, the aim of SPOE is to allow any kind of offloading on the streams. First
-releases, besides being experimental, won't do lot of things. As we will see,
-there are few handled events and even less actions supported. Actually, for
-now, the SPOE can offload the processing before "tcp-request content",
-"tcp-response content", "http-request" and "http-response" rules. And it only
-supports variables definition. But, in spite of these limited features, we can
-easily imagine to implement SSO solution, ip reputation or ip geolocation
-services.
+releases won't do lot of things. As we will see, there are few handled events
+and even less actions supported. Actually, for now, the SPOE can offload the
+processing before "tcp-request content", "tcp-response content", "http-request"
+and "http-response" rules. And it only supports variables definition. But, in
+spite of these limited features, we can easily imagine to implement SSO
+solution, ip reputation or ip geolocation services.
 
 
 2. SPOE configuration
