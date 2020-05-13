@@ -1939,42 +1939,18 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	goto leave;
 }
 
-/* Check an "http-request return" action when an http-errors section is referenced.
- *
- * The function returns 1 in success case, otherwise, it returns 0 and err is
- * filled.
+/* Check an "http-request return" action. The function returns 1 in success
+ * case, otherwise, it returns 0 and err is filled.
  */
 static int check_http_return_action(struct act_rule *rule, struct proxy *px, char **err)
 {
 	struct http_reply *reply = rule->arg.http_reply;
-	struct http_errors *http_errs;
-	int ret = 1;
 
-	if (reply->type != HTTP_REPLY_ERRFILES)
-		goto end;
-
-	list_for_each_entry(http_errs, &http_errors_list, list) {
-		if (strcmp(http_errs->id, reply->body.http_errors) == 0) {
-			reply->type = HTTP_REPLY_ERRMSG;
-			free(reply->body.http_errors);
-			reply->body.errmsg = http_errs->errmsg[http_get_status_idx(reply->status)];
-			if (!reply->body.errmsg)
-				ha_warning("Proxy '%s': status '%d' referenced by http return rule "
-					   "not declared in http-errors section '%s'.\n",
-					   px->id, reply->status, http_errs->id);
-			break;
-		}
-	}
-
-	if (&http_errs->list == &http_errors_list) {
-		memprintf(err, "unknown http-errors section '%s' referenced by http return rule",
-			  reply->body.http_errors);
+	if (!http_check_http_reply(reply, px, err)) {
 		release_http_return(rule);
-		ret = 0;
+		return 0;
 	}
-
-  end:
-	return ret;
+	return 1;
 }
 
 /* Parse a "return" action. It returns ACT_RET_PRS_OK on success,

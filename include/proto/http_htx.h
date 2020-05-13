@@ -61,6 +61,7 @@ unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 int http_str_to_htx(struct buffer *buf, struct ist raw);
 
 void release_http_reply(struct http_reply *http_reply);
+int http_check_http_reply(struct http_reply *reply, struct proxy*px, char **errmsg);
 struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struct proxy *px,
 					 int default_status, char **errmsg);
 

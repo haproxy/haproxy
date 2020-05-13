@@ -1241,6 +1241,46 @@ out:
 	return buf;
 }
 
+/* Check an "http reply" and, for replies referencing an http-errors section,
+ * try to find the right section and the right error message in this section. If
+ * found, the reply is updated. If the http-errors section exists but the error
+ * message is not found, no error message is set to fallback on the default
+ * ones.  Otherwise (unknown section) an error is returned.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and errmsg is
+ * filled.
+ */
+int http_check_http_reply(struct http_reply *reply, struct proxy *px, char **errmsg)
+{
+	struct http_errors *http_errs;
+	int ret = 1;
+
+	if (reply->type != HTTP_REPLY_ERRFILES)
+		goto end;
+
+	list_for_each_entry(http_errs, &http_errors_list, list) {
+		if (strcmp(http_errs->id, reply->body.http_errors) == 0) {
+			reply->type = HTTP_REPLY_ERRMSG;
+			free(reply->body.http_errors);
+			reply->body.errmsg = http_errs->errmsg[http_get_status_idx(reply->status)];
+			if (!reply->body.errmsg)
+				ha_warning("Proxy '%s': status '%d' referenced by an http reply "
+					   "not declared in http-errors section '%s'.\n",
+					   px->id, reply->status, http_errs->id);
+			break;
+		}
+	}
+
+	if (&http_errs->list == &http_errors_list) {
+		memprintf(errmsg, "unknown http-errors section '%s' referenced by an http reply ",
+			  reply->body.http_errors);
+		ret = 0;
+	}
+
+  end:
+	return ret;
+}
+
 /* Parse an "http reply". It returns the reply on success or NULL on error. This
  * function creates one of the following http replies :
  *
