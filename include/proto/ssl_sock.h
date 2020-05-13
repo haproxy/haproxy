@@ -34,6 +34,8 @@
 
 extern int sslconns;
 extern int totalsslconns;
+extern struct eb_root ckchs_tree;
+extern int sctl_ex_index;
 extern struct global_ssl global_ssl;
 extern struct ssl_bind_kw ssl_bind_kws[];
 

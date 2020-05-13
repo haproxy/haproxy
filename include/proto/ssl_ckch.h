@@ -23,11 +23,32 @@
 #define _PROTO_SSL_CKCH_H
 #ifdef USE_OPENSSL
 
-#include <types/ssl_ckch.h>
+/* cert_key_and_chain functions */
+
+int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err);
+int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err);
+void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch);
+
+int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch , char **err);
+int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct cert_key_and_chain *ckch, char **err);
+int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_key_and_chain *ckch, char **err);
+int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch, char **err);
+
+/* checks if a key and cert exists in the ckch */
+#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
+static inline int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
+{
+	return (ckch->cert != NULL && ckch->key != NULL);
+}
+#endif
 
 /* ckch_store functions */
 struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err);
 struct ckch_store *ckchs_lookup(char *path);
+struct ckch_store *ckchs_dup(const struct ckch_store *src);
+struct ckch_store *ckch_store_new(const char *filename, int nmemb);
+void ckch_store_free(struct ckch_store *store);
+
 
 /* ckch_inst functions */
 void ckch_inst_free(struct ckch_inst *inst);

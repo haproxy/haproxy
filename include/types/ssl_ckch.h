@@ -71,6 +71,10 @@ struct ckch_store {
 	char path[0];
 };
 
+/* forward declarations for ckch_inst */
+struct ssl_bind_conf;
+struct crtlist_entry;
+
 /*
  * This structure describe a ckch instance. An instance is generated for each
  * bind_conf.  The instance contains a linked list of the sni ctx which uses
