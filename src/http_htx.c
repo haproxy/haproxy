@@ -984,16 +984,16 @@ static void http_htx_deinit(void)
 {
 	struct http_errors *http_errs, *http_errsb;
 	struct ebpt_node *node, *next;
-	struct http_error *http_err;
+	struct http_error_msg *http_errmsg;
 
 	node = ebpt_first(&http_error_messages);
 	while (node) {
 		next = ebpt_next(node);
 		ebpt_delete(node);
-		http_err = container_of(node, typeof(*http_err), node);
-		chunk_destroy(&http_err->msg);
+		http_errmsg = container_of(node, typeof(*http_errmsg), node);
+		chunk_destroy(&http_errmsg->msg);
 		free(node->key);
-		free(http_err);
+		free(http_errmsg);
 		node = next;
 	}
 
@@ -1017,7 +1017,7 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	struct buffer *buf = NULL;
 	struct buffer chk;
 	struct ebpt_node *node;
-	struct http_error *http_err;
+	struct http_error_msg *http_errmsg;
 	struct stat stat;
 	char *err = NULL;
 	int errnum, errlen;
@@ -1026,8 +1026,8 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	/* already loaded */
 	node = ebis_lookup_len(&http_error_messages, file, strlen(file));
 	if (node) {
-		http_err = container_of(node,  typeof(*http_err), node);
-		buf = &http_err->msg;
+		http_errmsg = container_of(node,  typeof(*http_errmsg), node);
+		buf = &http_errmsg->msg;
 		goto out;
 	}
 
@@ -1059,30 +1059,30 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	}
 
 	/* Create the node corresponding to the error file */
-	http_err = calloc(1, sizeof(*http_err));
-	if (!http_err) {
+	http_errmsg = calloc(1, sizeof(*http_errmsg));
+	if (!http_errmsg) {
 		memprintf(errmsg, "out of memory.");
 		goto out;
 	}
-	http_err->node.key = strdup(file);
-	if (!http_err->node.key) {
+	http_errmsg->node.key = strdup(file);
+	if (!http_errmsg->node.key) {
 		memprintf(errmsg, "out of memory.");
-		free(http_err);
+		free(http_errmsg);
 		goto out;
 	}
 
 	/* Convert the error file into an HTX message */
 	if (!http_str_to_htx(&chk, ist2(err, errlen))) {
 		memprintf(errmsg, "unable to convert custom error message file '%s' in HTX.", file);
-		free(http_err->node.key);
-		free(http_err);
+		free(http_errmsg->node.key);
+		free(http_errmsg);
 		goto out;
 	}
 
 	/* Insert the node in the tree and return the HTX message */
-	http_err->msg = chk;
-	ebis_insert(&http_error_messages, &http_err->node);
-	buf = &http_err->msg;
+	http_errmsg->msg = chk;
+	ebis_insert(&http_error_messages, &http_errmsg->node);
+	buf = &http_errmsg->msg;
 
   out:
 	if (fd >= 0)
@@ -1100,40 +1100,40 @@ struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **
 	struct buffer *buf = NULL;
 	struct buffer chk;
 	struct ebpt_node *node;
-	struct http_error *http_err;
+	struct http_error_msg *http_errmsg;
 
 	/* already loaded */
 	node = ebis_lookup_len(&http_error_messages, key, strlen(key));
 	if (node) {
-		http_err = container_of(node,  typeof(*http_err), node);
-		buf = &http_err->msg;
+		http_errmsg = container_of(node,  typeof(*http_errmsg), node);
+		buf = &http_errmsg->msg;
 		goto out;
 	}
 	/* Create the node corresponding to the error file */
-	http_err = calloc(1, sizeof(*http_err));
-	if (!http_err) {
+	http_errmsg = calloc(1, sizeof(*http_errmsg));
+	if (!http_errmsg) {
 		memprintf(errmsg, "out of memory.");
 		goto out;
 	}
-	http_err->node.key = strdup(key);
-	if (!http_err->node.key) {
+	http_errmsg->node.key = strdup(key);
+	if (!http_errmsg->node.key) {
 		memprintf(errmsg, "out of memory.");
-		free(http_err);
+		free(http_errmsg);
 		goto out;
 	}
 
 	/* Convert the error file into an HTX message */
 	if (!http_str_to_htx(&chk, msg)) {
 		memprintf(errmsg, "unable to convert message in HTX.");
-		free(http_err->node.key);
-		free(http_err);
+		free(http_errmsg->node.key);
+		free(http_errmsg);
 		goto out;
 	}
 
 	/* Insert the node in the tree and return the HTX message */
-	http_err->msg = chk;
-	ebis_insert(&http_error_messages, &http_err->node);
-	buf = &http_err->msg;
+	http_errmsg->msg = chk;
+	ebis_insert(&http_error_messages, &http_errmsg->node);
+	buf = &http_errmsg->msg;
   out:
 	return buf;
 }
@@ -1416,16 +1416,16 @@ static int proxy_check_errors(struct proxy *px)
 static int post_check_errors()
 {
 	struct ebpt_node *node;
-	struct http_error *http_err;
+	struct http_error_msg *http_errmsg;
 	struct htx *htx;
 	int err_code = 0;
 
 	node = ebpt_first(&http_error_messages);
 	while (node) {
-		http_err = container_of(node, typeof(*http_err), node);
-		if (b_is_null(&http_err->msg))
+		http_errmsg = container_of(node, typeof(*http_errmsg), node);
+		if (b_is_null(&http_errmsg->msg))
 			goto next;
-		htx = htxbuf(&http_err->msg);
+		htx = htxbuf(&http_errmsg->msg);
 		if (htx_free_data_space(htx) < global.tune.maxrewrite) {
 			ha_warning("config: errorfile '%s' runs over the buffer space"
 				   " reserved to headers rewritting. It may lead to internal errors if "

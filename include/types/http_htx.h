@@ -71,7 +71,7 @@ struct http_reply {
 /* A custom HTTP error message load from a row file and converted in HTX. The
  * node key is the file path.
  */
-struct http_error {
+struct http_error_msg {
 	struct buffer msg;
 	struct ebpt_node node;
 };
