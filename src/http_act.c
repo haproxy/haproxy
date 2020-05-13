@@ -2417,6 +2417,7 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 		free(obj);
 	}
 
+	rule->flags |= ACT_FLAG_FINAL;
 	rule->arg.http_return.status = status;
 	rule->arg.http_return.ctype = ctype;
 	rule->arg.http_return.hdrs = hdrs;
