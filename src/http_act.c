@@ -58,6 +58,30 @@ static void release_http_action(struct act_rule *rule)
 	}
 }
 
+/* Release memory allocated by HTTP actions relying on an http reply. Concretly,
+ * it releases <.arg.http_reply>
+ */
+static void release_act_http_reply(struct act_rule *rule)
+{
+	release_http_reply(rule->arg.http_reply);
+	rule->arg.http_reply = NULL;
+}
+
+
+/* Check function for HTTP actions relying on an http reply. The function
+ * returns 1 in success case, otherwise, it returns 0 and err is filled.
+ */
+static int check_act_http_reply(struct act_rule *rule, struct proxy *px, char **err)
+{
+	struct http_reply *reply = rule->arg.http_reply;
+
+	if (!http_check_http_reply(reply, px, err)) {
+		release_act_http_reply(rule);
+		return 0;
+	}
+	return 1;
+}
+
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * builds a string in the trash from the specified format string. It finds
@@ -797,119 +821,66 @@ static enum act_parse_ret parse_http_allow(const char **args, int *orig_arg, str
 	return ACT_RET_PRS_OK;
 }
 
-/* Check an "http-request deny" action when an http-errors section is referenced.
- *
- * The function returns 1 in success case, otherwise, it returns 0 and err is
- * filled.
- */
-static int check_http_deny_action(struct act_rule *rule, struct proxy *px, char **err)
-{
-	struct http_errors *http_errs;
-	int status = (intptr_t)(rule->arg.act.p[0]);
-	int ret = 1;
-
-	list_for_each_entry(http_errs, &http_errors_list, list) {
-		if (strcmp(http_errs->id, (char *)rule->arg.act.p[1]) == 0) {
-			free(rule->arg.act.p[1]);
-			rule->arg.http_deny.status = status;
-			rule->arg.http_deny.errmsg = http_errs->errmsg[http_get_status_idx(status)];
-			if (!rule->arg.http_deny.errmsg)
-				ha_warning("Proxy '%s': status '%d' referenced by http deny rule "
-					   "not declared in http-errors section '%s'.\n",
-					   px->id, status, http_errs->id);
-			break;
-		}
-	}
-
-	if (&http_errs->list == &http_errors_list) {
-		memprintf(err, "unknown http-errors section '%s' referenced by http deny rule",
-			  (char *)rule->arg.act.p[1]);
-		free(rule->arg.act.p[1]);
-		ret = 0;
-	}
-
-	return ret;
-}
-
 /* Parse "deny" or "tarpit" actions for a request rule or "deny" action for a
- * response rule. It may take optional arguments to define the status code, the
- * error file or the http-errors section to use. It returns ACT_RET_PRS_OK on
- * success, ACT_RET_PRS_ERR on error.
+ * response rule. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on
+ * error. It relies on http_parse_http_reply() to set
+ * <.arg.http_reply>.
  */
 static enum act_parse_ret parse_http_deny(const char **args, int *orig_arg, struct proxy *px,
 					  struct act_rule *rule, char **err)
 {
-	int default_status, status, hc, cur_arg;
-
+	int default_status;
+	int cur_arg, arg = 0;
 
 	cur_arg = *orig_arg;
 	if (rule->from == ACT_F_HTTP_REQ) {
 		if (!strcmp(args[cur_arg-1], "tarpit")) {
 			rule->action = ACT_HTTP_REQ_TARPIT;
-			default_status = status = 500;
+			default_status = 500;
 		}
 		else {
 			rule->action = ACT_ACTION_DENY;
-			default_status = status = 403;
+			default_status = 403;
 		}
 	}
 	else {
 		rule->action = ACT_ACTION_DENY;
-		default_status = status = 502;
+		default_status = 502;
 	}
-	rule->flags |= ACT_FLAG_FINAL;
+
+	/* If no args or only a deny_status specified, fallback on the legacy
+	 * mode and use default error files despite the fact that
+	 * default-errorfiles is not used. Otherwise, parse an http reply.
+	 */
+
+	/* Prepare parsing of log-format strings */
+	px->conf.args.ctx = ((rule->from == ACT_F_HTTP_REQ) ? ARGC_HRQ : ARGC_HRS);
+
+	if (!*(args[cur_arg])) {
+		rule->arg.http_reply = http_parse_http_reply((const char *[]){"default-errorfiles", ""}, &arg, px, default_status, err);
+		goto end;
+	}
 
 	if (strcmp(args[cur_arg], "deny_status") == 0) {
-		cur_arg++;
-		if (!*args[cur_arg]) {
-			memprintf(err, "'%s' expects <status_code> as argument", args[cur_arg-1]);
-			return ACT_RET_PRS_ERR;
+		if (!*(args[cur_arg+2]) ||
+		    (strcmp(args[cur_arg+2], "errorfile") != 0 && strcmp(args[cur_arg+2], "errorfiles") != 0)) {
+			rule->arg.http_reply = http_parse_http_reply((const char *[]){"status", args[cur_arg+1], "default-errorfiles", ""},
+								     &arg, px, default_status, err);
+			*orig_arg += 2;
+			goto end;
 		}
-
-		status = atol(args[cur_arg]);
-		cur_arg++;
-		for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
-			if (http_err_codes[hc] == status)
-				break;
-		}
-		if (hc >= HTTP_ERR_SIZE) {
-			memprintf(err, "status code '%d' not handled, using default code '%d'",
-				  status, default_status);
-			status = default_status;
-			hc = http_get_status_idx(status);
-		}
+		args[cur_arg] += 5; /* skip "deny_" for the parsing */
 	}
 
-	if (strcmp(args[cur_arg], "errorfile") == 0) {
-		cur_arg++;
-		if (!*args[cur_arg]) {
-			memprintf(err, "'%s' expects <file> as argument", args[cur_arg-1]);
-			return ACT_RET_PRS_ERR;
-		}
+	rule->arg.http_reply = http_parse_http_reply(args, orig_arg, px, default_status, err);
 
-		rule->arg.http_deny.errmsg = http_load_errorfile(args[cur_arg], err);
-		if (!rule->arg.http_deny.errmsg)
-			return ACT_RET_PRS_ERR;
-		cur_arg++;
-	}
-	else if (strcmp(args[cur_arg], "errorfiles") == 0) {
-		cur_arg++;
-		if (!*args[cur_arg]) {
-			memprintf(err, "'%s' expects <http_errors_name> as argument", args[cur_arg-1]);
-			return ACT_RET_PRS_ERR;
-		}
-		/* Must be resolved during the config validity check */
-		rule->arg.act.p[0] = (void *)((intptr_t)status);
-		rule->arg.act.p[1] = strdup(args[cur_arg]);
-		rule->check_ptr = check_http_deny_action;
-		cur_arg++;
-		goto out;
-	}
+  end:
+	if (!rule->arg.http_reply)
+		return ACT_RET_PRS_ERR;
 
-	rule->arg.http_deny.status = status;
-
-  out:
-	*orig_arg = cur_arg;
+	rule->flags |= ACT_FLAG_FINAL;
+	rule->check_ptr = check_act_http_reply;
+	rule->release_ptr = release_act_http_reply;
 	return ACT_RET_PRS_OK;
 }
 
@@ -1802,13 +1773,6 @@ static enum act_parse_ret parse_http_strict_mode(const char **args, int *orig_ar
 	return ACT_RET_PRS_OK;
 }
 
-/* Release <.arg.http_reply> */
-static void release_http_return(struct act_rule *rule)
-{
-	release_http_reply(rule->arg.http_reply);
-	rule->arg.http_reply = NULL;
-}
-
 /* This function executes a return action. It builds an HTX message from an
  * errorfile, an raw file or a log-format string, depending on <.action>
  * value. On success, it returns ACT_RET_ABRT. If an error occurs ACT_RET_ERR is
@@ -1839,20 +1803,6 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 	return ACT_RET_ABRT;
 }
 
-/* Check an "http-request return" action. The function returns 1 in success
- * case, otherwise, it returns 0 and err is filled.
- */
-static int check_http_return_action(struct act_rule *rule, struct proxy *px, char **err)
-{
-	struct http_reply *reply = rule->arg.http_reply;
-
-	if (!http_check_http_reply(reply, px, err)) {
-		release_http_return(rule);
-		return 0;
-	}
-	return 1;
-}
-
 /* Parse a "return" action. It returns ACT_RET_PRS_OK on success,
  * ACT_RET_PRS_ERR on error. It relies on http_parse_http_reply() to set
  * <.arg.http_reply>.
@@ -1868,9 +1818,9 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 
 	rule->flags |= ACT_FLAG_FINAL;
 	rule->action = ACT_CUSTOM;
-	rule->check_ptr = check_http_return_action;
+	rule->check_ptr = check_act_http_reply;
 	rule->action_ptr = http_action_return;
-	rule->release_ptr = release_http_return;
+	rule->release_ptr = release_act_http_reply;
 	return ACT_RET_PRS_OK;
 }
 

@@ -672,6 +672,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+
+	if (txn->http_reply) {
+		if (http_reply_message(s, txn->http_reply) == -1)
+			goto return_int_err;
+		goto return_prx_cond;
+	}
 	goto return_prx_err;
 
  return_int_err:
@@ -1002,8 +1008,28 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	http_reply_and_close(s, txn->status, (!(req->flags & CF_READ_ERROR) ? http_error_message(s) : NULL));
+	if (req->flags & CF_READ_ERROR) {
+		http_reply_and_close(s, txn->status, NULL);
+		goto end;
+	}
 
+	if (txn->http_reply) {
+		if (!http_reply_message(s, txn->http_reply))
+			goto end;
+
+		txn->status = 500;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_INTERNAL;
+		_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.internal_errors, 1);
+		if (s->flags & SF_BE_ASSIGNED)
+			_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+		if (s->sess->listener->counters)
+			_HA_ATOMIC_ADD(&s->sess->listener->counters->internal_errors, 1);
+	}
+
+	http_reply_and_close(s, txn->status, http_error_message(s));
+
+  end:
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 
@@ -2159,6 +2185,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
+
+	if (txn->http_reply) {
+		if (http_reply_message(s, txn->http_reply) == -1)
+			goto return_int_err;
+		goto return_prx_cond;
+	}
 	goto return_prx_err;
 
  return_int_err:
@@ -2907,17 +2939,15 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				goto end;
 
 			case ACT_ACTION_DENY:
-				txn->status = rule->arg.http_deny.status;
-				if (rule->arg.http_deny.errmsg)
-					txn->errmsg = rule->arg.http_deny.errmsg;
+				txn->status = rule->arg.http_reply->status;
+				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
 			case ACT_HTTP_REQ_TARPIT:
 				txn->flags |= TX_CLTARPIT;
-				txn->status = rule->arg.http_deny.status;
-				if (rule->arg.http_deny.errmsg)
-					txn->errmsg = rule->arg.http_deny.errmsg;
+				txn->status = rule->arg.http_reply->status;
+				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
@@ -3085,9 +3115,8 @@ resume_execution:
 				goto end;
 
 			case ACT_ACTION_DENY:
-				txn->status = rule->arg.http_deny.status;
-				if (rule->arg.http_deny.errmsg)
-					txn->errmsg = rule->arg.http_deny.errmsg;
+				txn->status = rule->arg.http_reply->status;
+				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
@@ -4688,9 +4717,7 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 			/* get default error message */
 			errmsg = http_error_message(s);
 		}
-		if (b_is_null(errmsg))
-			goto leave;
-		if (!channel_htx_copy_msg(res, htx, errmsg))
+		if (!b_is_null(errmsg) && !channel_htx_copy_msg(res, htx, errmsg))
 			goto fail;
 	}
 	else {
@@ -5178,6 +5205,7 @@ void http_init_txn(struct stream *s)
 		      : 0);
 	txn->status = -1;
 	txn->errmsg = NULL;
+	txn->http_reply = NULL;
 	write_u32(txn->cache_hash, 0);
 
 	txn->cookie_first_date = 0;

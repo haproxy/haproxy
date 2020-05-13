@@ -27,6 +27,9 @@ haproxy h1 -conf {
         http-request deny deny_status 500 errorfile  /dev/null if { path /500-1 }
         http-request deny deny_status 500 errorfiles errors-1 if { path /500-2 }
 
+        http-request deny status 500 hdr x-err-info "path=%[path]" content-type "text/plain" string "Internal Error" if { path /int-err }
+        http-request deny status 403 hdr x-err-info "path=%[path]" content-type "text/plain" lf-file ${testdir}/errors/lf-403.txt if { path /forbidden }
+
 } -start
 
 client c1r1  -connect ${h1_fe1_sock} {
@@ -54,4 +57,21 @@ client c1r4  -connect ${h1_fe1_sock} {
 client c1r5  -connect ${h1_fe1_sock} {
         txreq -req GET -url /500-2
         expect_close
+} -run
+client c1r6  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /int-err
+	rxresp
+	expect resp.status == 500
+	expect resp.http.x-err-info == "path=/int-err"
+	expect resp.http.content-type == "text/plain"
+        expect resp.http.content-length == 14
+	expect resp.body == "Internal Error"
+} -run
+client c1r7  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /forbidden
+	rxresp
+	expect resp.status == 403
+	expect resp.http.x-err-info == "path=/forbidden"
+	expect resp.http.content-type == "text/plain"
+	expect resp.body == "The path \"/forbidden\" is forbidden\n"
 } -run

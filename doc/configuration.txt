@@ -4991,18 +4991,22 @@ http-request del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
   It takes one argument: "file name" It is the equivalent of the "del map"
   command from the stats socket, but can be triggered by an HTTP request.
 
-http-request deny [deny_status <status>] [ { errorfile | errorfiles } <err> ]
-                           [ { if | unless } <condition> ]
+http-request deny [deny_status <status>] [ { if | unless } <condition> ]
+http-request deny [ { status | deny_status } <code>] [content-type <type>]
+          [ { default-errorfiles | errorfile <file> | errorfiles <name> |
+              file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+          [ hdr <name> <fmt> ]*
+          [ { if | unless } <condition> ]
 
-  This stops the evaluation of the rules and immediately rejects the request
-  and emits an HTTP 403 error, or optionally the status code specified as an
-  argument to "deny_status". The list of permitted status codes is limited to
-  those that can be overridden by the "errorfile" directive. A specific error
-  message may be specified. It may be an error file, using the "errorfile"
-  keyword followed by the file containing the full HTTP response. It may also
-  be an error from an http-errors section, using the "errorfiles" keyword
-  followed by the section name.
+  This stops the evaluation of the rules and immediately rejects the request.
+  By default an HTTP 403 error is returned. But the response may be customized
+  using same syntax than "http-request return" rules. Thus, see "http-request
+  return" for details. For compatiblity purpose, when no argument is defined,
+  or only "deny_status", the argument "default-errorfiles" is implied. It means
+  "http-request deny [deny_status <status>]" is an alias of
+  "http-request deny [status <status>] default-errorfiles".
   No further "http-request" rules are evaluated.
+  See also "http-request return".
 
 http-request disable-l7-retry [ { if | unless } <condition> ]
   This disables any attempt to retry the request if it fails for any other
@@ -5576,26 +5580,32 @@ http-request strict-mode { on | off }
   the frontend, the default mode is restored when HAProxy starts the backend
   rules evaluation.
 
-http-request tarpit [deny_status <status>] [ { errorfile | errorfiles } <err> ]
-                           [ { if | unless } <condition> ]
+http-request tarpit [deny_status <status>] [ { if | unless } <condition> ]
+http-request tarpit [ { status | deny_status } <code>] [content-type <type>]
+          [ { default-errorfiles | errorfile <file> | errorfiles <name> |
+              file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+          [ hdr <name> <fmt> ]*
+          [ { if | unless } <condition> ]
 
   This stops the evaluation of the rules and immediately blocks the request
   without responding for a delay specified by "timeout tarpit" or
   "timeout connect" if the former is not set. After that delay, if the client
-  is still connected, an HTTP error 500 (or optionally the status code
-  specified as an argument to "deny_status") is returned so that the client
-  does not suspect it has been tarpitted. Logs will report the flags "PT".
-  The goal of the tarpit rule is to slow down robots during an attack when
-  they're limited on the number of concurrent requests. It can be very
-  efficient against very dumb robots, and will significantly reduce the load
-  on firewalls compared to a "deny" rule. But when facing "correctly"
-  developed robots, it can make things worse by forcing haproxy and the front
-  firewall to support insane number of concurrent connections. A specific error
-  message may be specified. It may be an error file, using the "errorfile"
-  keyword followed by the file containing the full HTTP response. It may also
-  be an error from an http-errors section, using the "errorfiles" keyword
-  followed by the section name.
-  See also the "silent-drop" action.
+  is still connected, a response is returned so that the client does not
+  suspect it has been tarpitted. Logs will report the flags "PT". The goal of
+  the tarpit rule is to slow down robots during an attack when they're limited
+  on the number of concurrent requests. It can be very efficient against very
+  dumb robots, and will significantly reduce the load on firewalls compared to
+  a "deny" rule. But when facing "correctly" developed robots, it can make
+  things worse by forcing haproxy and the front firewall to support insane
+  number of concurrent connections. By default an HTTP error 500 is returned.
+  But the response may be customized using same syntax than
+  "http-request return" rules. Thus, see "http-request return" for details.
+  For compatiblity purpose, when no argument is defined, or only "deny_status",
+  the argument "default-errorfiles" is implied. It means
+  "http-request tarpit [deny_status <status>]" is an alias of
+  "http-request tarpit [status <status>] default-errorfiles".
+  No further "http-request" rules are evaluated.
+  See also "http-request return" and "http-request silent-drop".
 
 http-request track-sc0 <key> [table <table>] [ { if | unless } <condition> ]
 http-request track-sc1 <key> [table <table>] [ { if | unless } <condition> ]
@@ -5779,18 +5789,22 @@ http-response del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
   It takes one argument: "file name" It is the equivalent of the "del map"
   command from the stats socket, but can be triggered by an HTTP response.
 
-http-response deny [deny_status <status>] [ { errorfile | errorfiles } <err> ]
-                           [ { if | unless } <condition> ]
+http-response deny [deny_status <status>] [ { if | unless } <condition> ]
+http-response deny [ { status | deny_status } <code>] [content-type <type>]
+          [ { default-errorfiles | errorfile <file> | errorfiles <name> |
+              file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
+          [ hdr <name> <fmt> ]*
+          [ { if | unless } <condition> ]
 
-  This stops the evaluation of the rules and immediately rejects the response
-  and emits an HTTP 502 error, or optionally the status code specified as an
-  argument to "deny_status". The list of permitted status codes is limited to
-  those that can be overridden by the "errorfile" directive. A specific error
-  message may be specified. It may be an error file, using the "errorfile"
-  keyword followed by the file containing the full HTTP response. It may also
-  be an error from an http-errors section, using the "errorfiles" keyword
-  followed by the section name.
+  This stops the evaluation of the rules and immediately rejects the response.
+  By default an HTTP 502 error is returned. But the response may be customized
+  using same syntax than "http-response return" rules. Thus, see
+  "http-response return" for details. For compatiblity purpose, when no
+  argument is defined, or only "deny_status", the argument "default-errorfiles"
+  is implied. It means "http-response deny [deny_status <status>]" is an alias
+  of "http-response deny [status <status>] default-errorfiles".
   No further "http-response" rules are evaluated.
+  See also "http-response return".
 
 http-response redirect <rule> [ { if | unless } <condition> ]
 
