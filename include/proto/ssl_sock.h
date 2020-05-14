@@ -46,6 +46,7 @@ extern struct pool_head *pool_head_ssl_capture;
 extern unsigned int openssl_engines_initialized;
 extern int nb_engines;
 extern struct xprt_ops ssl_sock;
+extern int ssl_capture_ptr_index;
 
 /* boolean, returns true if connection is over SSL */
 static inline
