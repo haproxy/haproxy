@@ -33,6 +33,7 @@ struct http_reply http_err_replies[HTTP_ERR_SIZE];
 
 struct eb_root http_error_messages = EB_ROOT;
 struct list http_errors_list = LIST_HEAD_INIT(http_errors_list);
+struct list http_replies_list = LIST_HEAD_INIT(http_replies_list);
 
 /* The declaration of an errorfiles/errorfile directives. Used during config
  * parsing only. */
@@ -42,6 +43,7 @@ struct conf_errors {
 		struct {
 			int status;                 /* the status code associated to this error */
 			struct buffer *msg;         /* the HTX error message */
+			struct http_reply *reply;   /* the http reply for the errorfile */
 		} errorfile;                        /* describe an "errorfile" directive */
 		struct {
 			char *name;                 /* the http-errors section name */
@@ -1028,6 +1030,7 @@ end:
 static void http_htx_deinit(void)
 {
 	struct http_errors *http_errs, *http_errsb;
+	struct http_reply *http_rep, *http_repb;
 	struct ebpt_node *node, *next;
 	struct http_error_msg *http_errmsg;
 	int rc;
@@ -1050,6 +1053,11 @@ static void http_htx_deinit(void)
 			release_http_reply(http_errs->replies[rc]);
 		LIST_DEL(&http_errs->list);
 		free(http_errs);
+	}
+
+	list_for_each_entry_safe(http_rep, http_repb, &http_replies_list, list) {
+		LIST_DEL(&http_rep->list);
+		release_http_reply(http_rep);
 	}
 }
 
@@ -1647,6 +1655,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 				  char **errmsg)
 {
 	struct conf_errors *conf_err;
+	struct http_reply *reply;
 	struct buffer *msg;
 	int errloc, status;
 	int ret = 0;
@@ -1671,15 +1680,31 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
+	reply = calloc(1, sizeof(*reply));
+	if (!reply) {
+		memprintf(errmsg, "%s : out of memory.", args[0]);
+		ret = -1;
+		goto out;
+	}
+	reply->type = HTTP_REPLY_ERRMSG;
+	reply->status = status;
+	reply->ctype = NULL;
+	LIST_INIT(&reply->hdrs);
+	reply->body.errmsg = msg;
+	LIST_ADDQ(&http_replies_list, &reply->list);
+
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
 		memprintf(errmsg, "%s : out of memory.", args[0]);
+		free(reply);
 		ret = -1;
 		goto out;
 	}
 	conf_err->type = 1;
 	conf_err->info.errorfile.status = status;
 	conf_err->info.errorfile.msg = msg;
+	conf_err->info.errorfile.reply = reply;
+
 	conf_err->file = strdup(file);
 	conf_err->line = line;
 	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
@@ -1695,6 +1720,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 				 char **errmsg)
 {
 	struct conf_errors *conf_err;
+	struct http_reply *reply;
 	struct buffer *msg;
 	int status;
 	int ret = 0;
@@ -1718,15 +1744,30 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 		goto out;
 	}
 
+	reply = calloc(1, sizeof(*reply));
+	if (!reply) {
+		memprintf(errmsg, "%s : out of memory.", args[0]);
+		ret = -1;
+		goto out;
+	}
+	reply->type = HTTP_REPLY_ERRMSG;
+	reply->status = status;
+	reply->ctype = NULL;
+	LIST_INIT(&reply->hdrs);
+	reply->body.errmsg = msg;
+	LIST_ADDQ(&http_replies_list, &reply->list);
+
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
 		memprintf(errmsg, "%s : out of memory.", args[0]);
+		free(reply);
 		ret = -1;
 		goto out;
 	}
 	conf_err->type = 1;
 	conf_err->info.errorfile.status = status;
 	conf_err->info.errorfile.msg = msg;
+	conf_err->info.errorfile.reply = reply;
 	conf_err->file = strdup(file);
 	conf_err->line = line;
 	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);

@@ -66,6 +66,8 @@ struct http_reply {
 		char          *http_errors;   /* The http-errors section to use (type = HTTP_REPLY_ERRFILES).
 					       * Should be resolved during post-check */
 	} body;
+	struct list list;  /* next http_reply in the global list.
+			    * Only used for replies defined in a proxy section */
 };
 
 /* A custom HTTP error message load from a row file and converted in HTX. The
