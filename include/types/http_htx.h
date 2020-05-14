@@ -85,6 +85,7 @@ struct http_errors {
 	} conf;                               /* config information */
 
 	struct buffer *errmsg[HTTP_ERR_SIZE]; /* customized error messages for known errors */
+	struct http_reply *replies[HTTP_ERR_SIZE]; /* HTTP replies for known errors */
 	struct list list;                     /* http-errors list */
 };
 

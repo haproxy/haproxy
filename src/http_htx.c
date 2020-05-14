@@ -1030,6 +1030,7 @@ static void http_htx_deinit(void)
 	struct http_errors *http_errs, *http_errsb;
 	struct ebpt_node *node, *next;
 	struct http_error_msg *http_errmsg;
+	int rc;
 
 	node = ebpt_first(&http_error_messages);
 	while (node) {
@@ -1045,6 +1046,8 @@ static void http_htx_deinit(void)
 	list_for_each_entry_safe(http_errs, http_errsb, &http_errors_list, list) {
 		free(http_errs->conf.file);
 		free(http_errs->id);
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+			release_http_reply(http_errs->replies[rc]);
 		LIST_DEL(&http_errs->list);
 		free(http_errs);
 	}
@@ -1977,6 +1980,7 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 		curr_errs->conf.line = linenum;
 	}
 	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
+		struct http_reply *reply;
 		struct buffer *msg;
 		int status, rc;
 
@@ -1994,8 +1998,22 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		reply = calloc(1, sizeof(*reply));
+		if (!reply) {
+			ha_alert("parsing [%s:%d] : %s : out of memory.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		reply->type = HTTP_REPLY_ERRMSG;
+		reply->status = status;
+		reply->ctype = NULL;
+		LIST_INIT(&reply->hdrs);
+		reply->body.errmsg = msg;
+
 		rc = http_get_status_idx(status);
 		curr_errs->errmsg[rc] = msg;
+		curr_errs->replies[rc] = reply;
 	}
 	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
