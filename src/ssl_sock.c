@@ -143,20 +143,6 @@ struct global_ssl global_ssl = {
 
 static BIO_METHOD *ha_meth;
 
-struct ssl_sock_ctx {
-	struct connection *conn;
-	SSL *ssl;
-	BIO *bio;
-	const struct xprt_ops *xprt;
-	void *xprt_ctx;
-	struct wait_event wait_event;
-	struct wait_event *subs;
-	int xprt_st;                  /* transport layer state, initialized to zero */
-	struct buffer early_buf;      /* buffer to store the early data received */
-	int sent_early_data;          /* Amount of early data we sent so far */
-
-};
-
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
 
 static struct task *ssl_sock_io_cb(struct task *, void *, unsigned short);

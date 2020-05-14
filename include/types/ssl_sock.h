@@ -27,6 +27,7 @@
 #include <ebmbtree.h>
 #include <eb64tree.h>
 
+#include <types/connection.h> /* struct wait_event */
 #include <types/ssl_ckch.h>
 #include <types/ssl_crtlist.h>
 
@@ -131,12 +132,6 @@ struct sni_ctx {
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
-struct tls_version_filter {
-	uint16_t flags;     /* ssl options */
-	uint8_t  min;      /* min TLS version */
-	uint8_t  max;      /* max TLS version */
-};
-
 extern struct list tlskeys_reference;
 
 struct tls_sess_key_128 {
@@ -231,6 +226,20 @@ struct ssl_capture {
 	unsigned long long int xxh64;
 	unsigned char ciphersuite_len;
 	char ciphersuite[0];
+};
+
+struct ssl_sock_ctx {
+	struct connection *conn;
+	SSL *ssl;
+	BIO *bio;
+	const struct xprt_ops *xprt;
+	void *xprt_ctx;
+	struct wait_event wait_event;
+	struct wait_event *subs;
+	int xprt_st;                  /* transport layer state, initialized to zero */
+	struct buffer early_buf;      /* buffer to store the early data received */
+	int sent_early_data;          /* Amount of early data we sent so far */
+
 };
 
 struct global_ssl {
