@@ -4708,7 +4708,18 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 	s->txn->status = reply->status;
 	channel_htx_truncate(res, htx);
 
-	/* HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so */
+	/*
+	 * - HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so
+	 *
+	 * - HTTP_REPLY_INDIRECT: switch on another reply if defined or handled
+	 *   as no payload if NULL. the TXN status code is set with the status
+	 *   of the original reply.
+	 */
+
+	if (reply->type == HTTP_REPLY_INDIRECT) {
+		if (reply->body.reply)
+			reply = reply->body.reply;
+	}
 
 	if (reply->type == HTTP_REPLY_ERRMSG) {
 		/* implicit or explicit error message*/

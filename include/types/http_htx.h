@@ -47,10 +47,11 @@ struct http_reply_hdr {
 };
 
 #define HTTP_REPLY_EMPTY    0x00 /* the reply has no payload */
-#define HTTP_REPLY_ERRMSG   0x01 /* the reply is an error message */
+#define HTTP_REPLY_ERRMSG   0x01 /* the reply is an error message (may be NULL) */
 #define HTTP_REPLY_ERRFILES 0x02 /* the reply references an http-errors section */
 #define HTTP_REPLY_RAW      0x03 /* the reply use a raw payload */
 #define HTTP_REPLY_LOGFMT   0x04 /* the reply use a log-format payload */
+#define HTTP_REPLY_INDIRECT 0x05 /* the reply references another http-reply (may be NULL) */
 
 /* Uses by HAProxy to generate internal responses */
 struct http_reply {
@@ -63,7 +64,8 @@ struct http_reply {
 		struct buffer obj;            /* A raw string (type = HTTP_REPLY_RAW) */
 		struct buffer *errmsg;        /* The error message to use as response (type = HTTP_REPLY_ERRMSG).
 					       * may be NULL, if so rely on the proxy error messages */
-		char          *http_errors;   /* The http-errors section to use (type = HTTP_REPLY_ERRFILES).
+		struct http_reply *reply;     /* The HTTP reply to use as response (type = HTTP_REPLY_INDIRECT) */
+		char *http_errors;            /* The http-errors section to use (type = HTTP_REPLY_ERRFILES).
 					       * Should be resolved during post-check */
 	} body;
 	struct list list;  /* next http_reply in the global list.

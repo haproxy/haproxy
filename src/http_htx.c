@@ -1278,10 +1278,10 @@ int http_check_http_reply(struct http_reply *reply, struct proxy *px, char **err
 
 	list_for_each_entry(http_errs, &http_errors_list, list) {
 		if (strcmp(http_errs->id, reply->body.http_errors) == 0) {
-			reply->type = HTTP_REPLY_ERRMSG;
+			reply->type = HTTP_REPLY_INDIRECT;
 			free(reply->body.http_errors);
-			reply->body.errmsg = http_errs->errmsg[http_get_status_idx(reply->status)];
-			if (!reply->body.errmsg)
+			reply->body.reply = http_errs->replies[http_get_status_idx(reply->status)];
+			if (!reply->body.reply)
 				ha_warning("Proxy '%s': status '%d' referenced by an http reply "
 					   "not declared in http-errors section '%s'.\n",
 					   px->id, reply->status, http_errs->id);
