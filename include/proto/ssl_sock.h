@@ -100,6 +100,10 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 void ssl_async_fd_handler(int fd);
 void ssl_async_fd_free(int fd);
 #endif
+struct issuer_chain* ssl_get0_issuer_chain(X509 *cert);
+int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
+int ssl_sock_get_serial(X509 *crt, struct buffer *out);
+int cert_get_pkey_algo(X509 *crt, struct buffer *out);
 
 /* ssl shctx macro */
 
