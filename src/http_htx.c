@@ -1852,6 +1852,7 @@ static int proxy_check_errors(struct proxy *px)
 			/* errorfile */
 			rc = http_get_status_idx(conf_err->info.errorfile.status);
 			px->errmsg[rc] = conf_err->info.errorfile.msg;
+			px->replies[rc] = conf_err->info.errorfile.reply;
 		}
 		else {
 			/* errorfiles */
@@ -1872,8 +1873,10 @@ static int proxy_check_errors(struct proxy *px)
 			free(conf_err->info.errorfiles.name);
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 				if (conf_err->info.errorfiles.status[rc] > 0) {
-					if (http_errs->errmsg[rc])
+					if (http_errs->errmsg[rc]) {
 						px->errmsg[rc] = http_errs->errmsg[rc];
+						px->replies[rc] = http_errs->replies[rc];
+					}
 					else if (conf_err->info.errorfiles.status[rc] == 2)
 						ha_warning("config: proxy '%s' : status '%d' not declared in"
 							   " http-errors section '%s' (at %s:%d).\n",
@@ -1934,6 +1937,7 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char
 		if (conf_err->type == 1) {
 			new_conf_err->info.errorfile.status = conf_err->info.errorfile.status;
 			new_conf_err->info.errorfile.msg    = conf_err->info.errorfile.msg;
+			new_conf_err->info.errorfile.reply  = conf_err->info.errorfile.reply;
 		}
 		else {
 			new_conf_err->info.errorfiles.name = strdup(conf_err->info.errorfiles.name);

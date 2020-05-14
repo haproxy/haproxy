@@ -409,6 +409,7 @@ struct proxy {
 	char *check_command;			/* Command to use for external agent checks */
 	char *check_path;			/* PATH environment to use for external agent checks */
 	struct buffer *errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
+	struct http_reply *replies[HTTP_ERR_SIZE]; /* HTTP replies for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned long bind_proc;		/* bitmask of processes using this proxy */
