@@ -29,6 +29,8 @@
 #include <proto/sample.h>
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
+struct http_reply http_err_replies[HTTP_ERR_SIZE];
+
 struct eb_root http_error_messages = EB_ROOT;
 struct list http_errors_list = LIST_HEAD_INIT(http_errors_list);
 
@@ -1013,6 +1015,11 @@ static int http_htx_init(void)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 		http_err_chunks[rc] = chk;
+		http_err_replies[rc].type = HTTP_REPLY_ERRMSG;
+		http_err_replies[rc].status = http_err_codes[rc];
+		http_err_replies[rc].ctype = NULL;
+		LIST_INIT(&http_err_replies[rc].hdrs);
+		http_err_replies[rc].body.errmsg = &http_err_chunks[rc];
 	}
 end:
 	return err_code;

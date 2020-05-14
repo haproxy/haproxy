@@ -30,6 +30,7 @@
 #include <types/http_htx.h>
 
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
+extern struct http_reply http_err_replies[HTTP_ERR_SIZE];
 extern struct list http_errors_list;
 
 struct htx_sl *http_get_stline(struct htx *htx);
