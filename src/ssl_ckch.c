@@ -35,6 +35,7 @@
 #include <proto/channel.h>
 #include <proto/ssl_ckch.h>
 #include <proto/ssl_sock.h>
+#include <proto/ssl_utils.h>
 #include <proto/stream_interface.h>
 
 /* Uncommitted CKCH transaction */

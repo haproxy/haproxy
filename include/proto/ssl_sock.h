@@ -107,20 +107,12 @@ void ssl_async_fd_handler(int fd);
 void ssl_async_fd_free(int fd);
 #endif
 struct issuer_chain* ssl_get0_issuer_chain(X509 *cert);
-int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
-int ssl_sock_get_serial(X509 *crt, struct buffer *out);
-int cert_get_pkey_algo(X509 *crt, struct buffer *out);
 int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err);
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err);
 void ssl_free_global_issuers(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
 int ssl_store_load_locations_file(char *path);
-int ssl_sock_crt2der(X509 *crt, struct buffer *out);
-int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out);
-int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
-int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
-                          struct buffer *out);
 
 /* ssl shctx macro */
 

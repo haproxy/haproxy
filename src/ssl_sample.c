@@ -32,6 +32,7 @@
 #include <proto/arg.h>
 #include <proto/obj_type.h>
 #include <proto/ssl_sock.h>
+#include <proto/ssl_utils.h>
 #include <proto/sample.h>
 
 
