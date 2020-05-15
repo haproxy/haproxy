@@ -672,12 +672,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_ADD(&s->be->be_counters.denied_req, 1);
 	if (sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
-
-	if (txn->http_reply) {
-		if (http_reply_message(s, txn->http_reply) == -1)
-			goto return_int_err;
-		goto return_prx_cond;
-	}
 	goto return_prx_err;
 
  return_int_err:
@@ -1008,26 +1002,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-	if (req->flags & CF_READ_ERROR) {
-		http_reply_and_close(s, txn->status, NULL);
-		goto end;
-	}
-
-	if (txn->http_reply) {
-		if (!http_reply_message(s, txn->http_reply))
-			goto end;
-
-		txn->status = 500;
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_INTERNAL;
-		_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.internal_errors, 1);
-		if (s->flags & SF_BE_ASSIGNED)
-			_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
-		if (s->sess->listener->counters)
-			_HA_ATOMIC_ADD(&s->sess->listener->counters->internal_errors, 1);
-	}
-
-	http_reply_and_close(s, txn->status, http_error_message(s));
+	http_reply_and_close(s, txn->status, (!(req->flags & CF_READ_ERROR) ? http_error_message(s) : NULL));
 
   end:
 	req->analysers &= AN_REQ_FLT_END;
@@ -2185,12 +2160,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		_HA_ATOMIC_ADD(&sess->listener->counters->denied_resp, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
-
-	if (txn->http_reply) {
-		if (http_reply_message(s, txn->http_reply) == -1)
-			goto return_int_err;
-		goto return_prx_cond;
-	}
 	goto return_prx_err;
 
  return_int_err:
@@ -4631,7 +4600,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 }
 
 void http_server_error(struct stream *s, struct stream_interface *si, int err,
-		       int finst, const struct buffer *msg)
+		       int finst, struct http_reply *msg)
 {
 	http_reply_and_close(s, s->txn->status, msg);
 	if (!(s->flags & SF_ERR_MASK))
@@ -4640,56 +4609,49 @@ void http_server_error(struct stream *s, struct stream_interface *si, int err,
 		s->flags |= finst;
 }
 
-void http_reply_and_close(struct stream *s, short status, const struct buffer *msg)
+void http_reply_and_close(struct stream *s, short status, struct http_reply *msg)
 {
+	if (!msg) {
+		channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
+		goto end;
+	}
+
+	if (http_reply_message(s, msg) == -1) {
+		/* On error, return a 500 error message, but don't rewrite it if
+		 * it is already an internal error.
+		 */
+		if (s->txn->status == 500)
+			s->txn->flags |= TX_CONST_REPLY;
+		s->txn->status = 500;
+		s->txn->http_reply = NULL;
+		return http_reply_and_close(s, s->txn->status, http_error_message(s));
+	}
+
+end:
+	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
+	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
+
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
 	channel_auto_close(&s->req);
 	channel_htx_erase(&s->req, htxbuf(&s->req.buf));
-	channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
 	channel_auto_read(&s->res);
 	channel_auto_close(&s->res);
 	channel_shutr_now(&s->res);
-
-	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
-	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
-
-	/* <msg> is an HTX structure. So we copy it in the response's
-	 * channel */
-	if (msg && !b_is_null(msg)) {
-		struct channel *chn = &s->res;
-		struct htx *htx;
-
-		FLT_STRM_CB(s, flt_http_reply(s, s->txn->status, msg));
-		htx = htx_from_buf(&chn->buf);
-		if (channel_htx_copy_msg(chn, htx, msg)) {
-			if (!http_forward_proxy_resp(s,  1)) {
-				/* On error, return a 500 error message, but
-				 * don't rewrite it if it is already an internal
-				 * error.
-				 */
-				if (s->txn->status == 500)
-					s->txn->flags |= TX_CONST_REPLY;
-				s->txn->status = 500;
-				s->txn->errmsg = NULL;
-				return http_reply_and_close(s, s->txn->status, http_error_message(s));
-                       }
-		}
-	}
 }
 
-struct buffer *http_error_message(struct stream *s)
+struct http_reply *http_error_message(struct stream *s)
 {
 	const int msgnum = http_get_status_idx(s->txn->status);
 
-	if (s->txn->errmsg)
-		return s->txn->errmsg;
-	else if (s->be->errmsg[msgnum])
-		return s->be->errmsg[msgnum];
-	else if (strm_fe(s)->errmsg[msgnum])
-		return strm_fe(s)->errmsg[msgnum];
+	if (s->txn->http_reply)
+		return s->txn->http_reply;
+	else if (s->be->replies[msgnum])
+		return s->be->replies[msgnum];
+	else if (strm_fe(s)->replies[msgnum])
+		return strm_fe(s)->replies[msgnum];
 	else
-		return &http_err_chunks[msgnum];
+		return &http_err_replies[msgnum];
 }
 
 /* Produces a response from an http reply. Depending on the http reply type, a,
@@ -4707,7 +4669,8 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 	unsigned int slflags;
 	int ret = 0;
 
-	s->txn->status = reply->status;
+	if (s->txn->status == -1)
+		s->txn->status = reply->status;
 	channel_htx_truncate(res, htx);
 
 	/*
@@ -4722,16 +4685,24 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 		if (reply->body.reply)
 			reply = reply->body.reply;
 	}
+	if (reply->type == HTTP_REPLY_ERRMSG && !reply->body.errmsg)  {
+		/* get default error message */
+		if (reply == s->txn->http_reply)
+			s->txn->http_reply = NULL;
+		reply = http_error_message(s);
+		if (reply->type == HTTP_REPLY_INDIRECT) {
+			if (reply->body.reply)
+				reply = reply->body.reply;
+		}
+	}
 
 	if (reply->type == HTTP_REPLY_ERRMSG) {
 		/* implicit or explicit error message*/
 		errmsg = reply->body.errmsg;
-		if (!errmsg) {
-			/* get default error message */
-			errmsg = http_error_message(s);
+		if (errmsg && !b_is_null(errmsg)) {
+			if (!channel_htx_copy_msg(res, htx, errmsg))
+				goto fail;
 		}
-		if (!b_is_null(errmsg) && !channel_htx_copy_msg(res, htx, errmsg))
-			goto fail;
 	}
 	else {
 		/* no payload, file or log-format string */
