@@ -6005,8 +6005,7 @@ int ssl_sock_get_serial(X509 *crt, struct buffer *out)
  * Returns 1 if the cert is found and copied, 0 on der conversion failure
  * and -1 if the output is not large enough.
  */
-static int
-ssl_sock_crt2der(X509 *crt, struct buffer *out)
+int ssl_sock_crt2der(X509 *crt, struct buffer *out)
 {
 	int len;
 	unsigned char *p = (unsigned char *) out->area;;
@@ -6028,8 +6027,7 @@ ssl_sock_crt2der(X509 *crt, struct buffer *out)
  * Returns 1 if serial is found and copied, 0 if no valid time found
  * and -1 if output is not large enough.
  */
-static int
-ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
+int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 {
 	if (tm->type == V_ASN1_GENERALIZEDTIME) {
 		ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
@@ -6066,9 +6064,8 @@ ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 /* Extract an entry from a X509_NAME and copy its value to an output chunk.
  * Returns 1 if entry found, 0 if entry not found, or -1 if output not large enough.
  */
-static int
-ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
-		      struct buffer *out)
+int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+                          struct buffer *out)
 {
 	X509_NAME_ENTRY *ne;
 	ASN1_OBJECT *obj;
@@ -6129,8 +6126,7 @@ ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
  * Currently supports rfc2253 for returning LDAP V3 DNs.
  * Returns 1 if dn entries exist, 0 if no dn entry was found.
  */
-static int
-ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out)
+int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out)
 {
 	BIO *bio = NULL;
 	int ret = 0;

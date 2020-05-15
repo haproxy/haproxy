@@ -114,6 +114,12 @@ void ssl_free_global_issuers(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
 int ssl_store_load_locations_file(char *path);
+int ssl_sock_crt2der(X509 *crt, struct buffer *out);
+int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out);
+int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
+int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+                          struct buffer *out);
+
 /* ssl shctx macro */
 
 #define sh_ssl_sess_tree_delete(s)     ebmb_delete(&(s)->key);
