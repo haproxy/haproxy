@@ -31,8 +31,8 @@ Maintainer: Baptiste Assmann <bedis9@gmail.com>
 Files: src/dns.c, include/*/dns.h
 
 SSL
-Maintainer: Emeric Brun <ebrun@haproxy.com>
-Files: src/ssl_sock.c, include/*/ssl_sock.h
+Maintainer: Emeric Brun <ebrun@haproxy.com>, William Lallemand <wlallemand@haproxy.com>
+Files: src/cfgparse-ssl.c, src/ssl_*.c, include/*/ssl_*.h
 
 Peers
 Maintainer: Emeric Brun <ebrun@haproxy.com>
