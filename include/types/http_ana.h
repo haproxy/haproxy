@@ -31,7 +31,8 @@
 /* These are the flags that are found in txn->flags */
 
 /* action flags */
-/* Unusued: 0x00000001..0x00000008 */
+/* Unusued: 0x00000001..0x00000004 */
+#define TX_CONST_REPLY  0x00000008      /* The http reply must not be rewritten (don't eval after-response ruleset) */
 #define TX_CLTARPIT	0x00000010	/* the transaction is tarpitted (anti-dos) */
 
 /* transaction flags dedicated to cookies : bits values 0x20 to 0x80 (0-7 shift 5) */
