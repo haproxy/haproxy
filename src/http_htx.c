@@ -42,7 +42,6 @@ struct conf_errors {
 	union {
 		struct {
 			int status;                 /* the status code associated to this error */
-			struct buffer *msg;         /* the HTX error message */
 			struct http_reply *reply;   /* the http reply for the errorfile */
 		} errorfile;                        /* describe an "errorfile" directive */
 		struct {
@@ -1702,7 +1701,6 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 	}
 	conf_err->type = 1;
 	conf_err->info.errorfile.status = status;
-	conf_err->info.errorfile.msg = msg;
 	conf_err->info.errorfile.reply = reply;
 
 	conf_err->file = strdup(file);
@@ -1766,7 +1764,6 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 	}
 	conf_err->type = 1;
 	conf_err->info.errorfile.status = status;
-	conf_err->info.errorfile.msg = msg;
 	conf_err->info.errorfile.reply = reply;
 	conf_err->file = strdup(file);
 	conf_err->line = line;
@@ -1851,7 +1848,6 @@ static int proxy_check_errors(struct proxy *px)
 		if (conf_err->type == 1) {
 			/* errorfile */
 			rc = http_get_status_idx(conf_err->info.errorfile.status);
-			px->errmsg[rc] = conf_err->info.errorfile.msg;
 			px->replies[rc] = conf_err->info.errorfile.reply;
 		}
 		else {
@@ -1873,10 +1869,8 @@ static int proxy_check_errors(struct proxy *px)
 			free(conf_err->info.errorfiles.name);
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 				if (conf_err->info.errorfiles.status[rc] > 0) {
-					if (http_errs->errmsg[rc]) {
-						px->errmsg[rc] = http_errs->errmsg[rc];
+					if (http_errs->replies[rc])
 						px->replies[rc] = http_errs->replies[rc];
-					}
 					else if (conf_err->info.errorfiles.status[rc] == 2)
 						ha_warning("config: proxy '%s' : status '%d' not declared in"
 							   " http-errors section '%s' (at %s:%d).\n",
@@ -1936,7 +1930,6 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char
 		new_conf_err->type = conf_err->type;
 		if (conf_err->type == 1) {
 			new_conf_err->info.errorfile.status = conf_err->info.errorfile.status;
-			new_conf_err->info.errorfile.msg    = conf_err->info.errorfile.msg;
 			new_conf_err->info.errorfile.reply  = conf_err->info.errorfile.reply;
 		}
 		else {
@@ -2057,7 +2050,6 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 		reply->body.errmsg = msg;
 
 		rc = http_get_status_idx(status);
-		curr_errs->errmsg[rc] = msg;
 		curr_errs->replies[rc] = reply;
 	}
 	else if (*args[0] != 0) {

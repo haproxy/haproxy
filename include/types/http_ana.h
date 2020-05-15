@@ -175,7 +175,6 @@ struct http_txn {
 	enum http_meth_t meth;          /* HTTP method */
 	/* 1 unused byte here */
 	short status;                   /* HTTP status from the server, negative if from proxy */
-	struct buffer *errmsg;          /* custom HTTP error message to use as reply */
 	struct http_reply *http_reply;  /* The HTTP reply to use as reply */
 
 	char cache_hash[20];               /* Store the cache hash  */

@@ -5188,7 +5188,6 @@ void http_init_txn(struct stream *s)
 		      ? (TX_NOT_FIRST|TX_WAIT_NEXT_RQ)
 		      : 0);
 	txn->status = -1;
-	txn->errmsg = NULL;
 	txn->http_reply = NULL;
 	write_u32(txn->cache_hash, 0);
 
