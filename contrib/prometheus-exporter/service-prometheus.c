@@ -2061,6 +2061,11 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					case ST_F_LBTOT:
 						metric = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
 						break;
+					case ST_F_REQ_TOT:
+						if (px->mode != PR_MODE_HTTP)
+							goto next_px;
+						metric = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
+						break;
 					case ST_F_HRSP_1XX:
 						if (px->mode != PR_MODE_HTTP)
 							goto next_px;

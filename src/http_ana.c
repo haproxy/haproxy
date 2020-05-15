@@ -1721,8 +1721,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	if (n == 4)
 		stream_inc_http_err_ctr(s);
 
-	if (objt_server(s->target))
+	if (objt_server(s->target)) {
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.p.http.rsp[n], 1);
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.p.http.cum_req, 1);
+	}
 
 	/* Adjust server's health based on status code. Note: status codes 501
 	 * and 505 are triggered on demand by client request, so we must not
