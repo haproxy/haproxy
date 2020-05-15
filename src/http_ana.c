@@ -4654,24 +4654,18 @@ struct http_reply *http_error_message(struct stream *s)
 		return &http_err_replies[msgnum];
 }
 
-/* Produces a response from an http reply. Depending on the http reply type, a,
+/* Produces an HTX message from an http reply. Depending on the http reply type, a,
  * errorfile, an raw file or a log-format string is used. On success, it returns
  * 0. If an error occurs -1 is returned.
  */
-int http_reply_message(struct stream *s, struct http_reply *reply)
+static int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *reply)
 {
-	struct channel *res = &s->res;
 	struct buffer *errmsg;
-	struct htx *htx = htx_from_buf(&res->buf);
 	struct htx_sl *sl;
 	struct buffer *body = NULL;
 	const char *status, *reason, *clen, *ctype;
 	unsigned int slflags;
 	int ret = 0;
-
-	if (s->txn->status == -1)
-		s->txn->status = reply->status;
-	channel_htx_truncate(res, htx);
 
 	/*
 	 * - HTTP_REPLY_ERRFILES unexpected here. handled as no payload if so
@@ -4759,10 +4753,6 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 			goto fail;
 	}
 
-	htx_to_buf(htx, &s->res.buf);
-	if (!http_forward_proxy_resp(s, 1))
-		goto fail;
-
   leave:
 	if (reply->type == HTTP_REPLY_LOGFMT)
 		free_trash_chunk(body);
@@ -4771,17 +4761,37 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
   fail_alloc:
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_RESOURCE;
+	/* fall through */
+  fail:
 	ret = -1;
 	goto leave;
+}
+
+/* Send an http reply to the client. On success, it returns 0. If an error
+ * occurs -1 is returned.
+ */
+int http_reply_message(struct stream *s, struct http_reply *reply)
+{
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+
+	if (s->txn->status == -1)
+		s->txn->status = reply->status;
+	channel_htx_truncate(res, htx);
+
+	if (http_reply_to_htx(s, htx, reply) == -1)
+		goto fail;
+
+	htx_to_buf(htx, &s->res.buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
+	return 0;
 
   fail:
-	/* If an error occurred, remove the incomplete HTTP response from the
-	 * buffer */
 	channel_htx_truncate(res, htx);
-	ret = -1;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
-	goto leave;
+	return -1;
 }
 
 /* Return the error message corresponding to si->err_type. It is assumed
