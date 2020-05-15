@@ -190,6 +190,7 @@ void help()
 	       " -cc   output number of requests per cookie code (2 chars)\n"
 	       " -tc   output number of requests per termination code (2 chars)\n"
 	       " -srv  output statistics per server (time, requests, errors)\n"
+	       " -ic   output statistics per ip count (time, requests, errors)\n"
 	       " -u*   output statistics per URL (time, requests, errors)\n"
 	       "       Additional characters indicate the output sorting key :\n"
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
