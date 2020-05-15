@@ -4700,7 +4700,7 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 		/* implicit or explicit error message*/
 		errmsg = reply->body.errmsg;
 		if (errmsg && !b_is_null(errmsg)) {
-			if (!channel_htx_copy_msg(res, htx, errmsg))
+			if (!htx_copy_msg(htx, errmsg))
 				goto fail;
 		}
 	}
