@@ -2441,6 +2441,7 @@ void stream_update_time_stats(struct stream *s)
 	int t_data;
 	int t_close;
 	struct server *srv;
+	unsigned int samples_window;
 
 	t_request = 0;
 	t_queue   = s->logs.t_queue;
@@ -2463,19 +2464,23 @@ void stream_update_time_stats(struct stream *s)
 
 	srv = objt_server(s->target);
 	if (srv) {
-		swrate_add(&srv->counters.q_time, TIME_STATS_SAMPLES, t_queue);
-		swrate_add(&srv->counters.c_time, TIME_STATS_SAMPLES, t_connect);
-		swrate_add(&srv->counters.d_time, TIME_STATS_SAMPLES, t_data);
-		swrate_add(&srv->counters.t_time, TIME_STATS_SAMPLES, t_close);
+		samples_window = (((s->be->mode == PR_MODE_HTTP) ?
+			srv->counters.p.http.cum_req : srv->counters.cum_lbconn) > TIME_STATS_SAMPLES) ? TIME_STATS_SAMPLES : 0;
+		swrate_add_dynamic(&srv->counters.q_time, samples_window, t_queue);
+		swrate_add_dynamic(&srv->counters.c_time, samples_window, t_connect);
+		swrate_add_dynamic(&srv->counters.d_time, samples_window, t_data);
+		swrate_add_dynamic(&srv->counters.t_time, samples_window, t_close);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.qtime_max, t_queue);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.ctime_max, t_connect);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.dtime_max, t_data);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.ttime_max, t_close);
 	}
-	swrate_add(&s->be->be_counters.q_time, TIME_STATS_SAMPLES, t_queue);
-	swrate_add(&s->be->be_counters.c_time, TIME_STATS_SAMPLES, t_connect);
-	swrate_add(&s->be->be_counters.d_time, TIME_STATS_SAMPLES, t_data);
-	swrate_add(&s->be->be_counters.t_time, TIME_STATS_SAMPLES, t_close);
+	samples_window = (((s->be->mode == PR_MODE_HTTP) ?
+		s->be->be_counters.p.http.cum_req : s->be->be_counters.cum_lbconn) > TIME_STATS_SAMPLES) ? TIME_STATS_SAMPLES : 0;
+	swrate_add_dynamic(&s->be->be_counters.q_time, samples_window, t_queue);
+	swrate_add_dynamic(&s->be->be_counters.c_time, samples_window, t_connect);
+	swrate_add_dynamic(&s->be->be_counters.d_time, samples_window, t_data);
+	swrate_add_dynamic(&s->be->be_counters.t_time, samples_window, t_close);
 	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.qtime_max, t_queue);
 	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.ctime_max, t_connect);
 	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.dtime_max, t_data);
