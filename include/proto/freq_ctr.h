@@ -263,6 +263,24 @@ static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigne
 	return new_sum;
 }
 
+/* Adds sample value <v> to sliding window sum <sum> configured for <n> samples.
+ * The sample is returned. Better if <n> is a power of two. This function is
+ * thread-safe.
+ * This function should give better accuracy than swrate_add when number of
+ * samples collected is lower than nominal window size. In such circumstances
+ * <n> should be set to 0.
+ */
+static inline unsigned int swrate_add_dynamic(unsigned int *sum, unsigned int n, unsigned int v)
+{
+	unsigned int new_sum, old_sum;
+
+	old_sum = *sum;
+	do {
+		new_sum = old_sum - (n ? (old_sum + n - 1) / n : 0) + v;
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	return new_sum;
+}
+
 /* Adds sample value <v> spanning <s> samples to sliding window sum <sum>
  * configured for <n> samples, where <n> is supposed to be "much larger" than
  * <s>. The sample is returned. Better if <n> is a power of two. Note that this
