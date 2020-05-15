@@ -1,0 +1,75 @@
+varnishtest "Test the http-error directive"
+#REQUIRE_VERSION=2.2
+
+# This config tests the http-error directive.
+
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+    http-errors errors-1
+        errorfile 400  ${testdir}/errors/400-1.http
+        errorfile 403  ${testdir}/errors/403-1.http
+        errorfile 404  ${testdir}/errors/404-1.http
+        errorfile 500  ${testdir}/errors/500-1.http
+
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+        errorfile 400  ${testdir}/errors/400.http
+        errorfile 404  ${testdir}/errors/404.http
+
+    frontend fe1
+        bind "fd@${fe1}"
+
+        http-error status 400
+        http-error status 403 default-errorfiles
+        http-error status 404 errorfiles errors-1
+        http-error status 500 errorfile ${testdir}/errors/500.http
+        http-error status 200 content-type "text/plain" hdr x-path "path=%[path]" lf-string "The path is \"%[path]\""
+
+        http-request return status 200 default-errorfiles if { path /200 }
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 if { path /403 }
+        http-request deny deny_status 404 if { path /404 }
+        http-request deny deny_status 500 if { path /500 }
+
+} -start
+
+client c1r1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /200
+        rxresp
+        expect resp.status == 200
+        expect resp.http.x-path == "path=/200"
+        expect resp.http.content-type == "text/plain"
+        expect resp.body == "The path is \"/200\""
+} -run
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+        expect resp.http.x-err-type == <undef>
+        expect resp.http.content-length == 0
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+        expect resp.http.x-err-type == <undef>
+        expect resp.http.content-length == 93
+        expect resp.http.content-type == "text/html"
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /404
+        rxresp
+        expect resp.status == 404
+        expect resp.http.x-err-type == "errors-1"
+} -run
+client c1r4  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /500
+        rxresp
+        expect resp.status == 500
+        expect resp.http.x-err-type == "default"
+} -run

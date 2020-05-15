@@ -1335,9 +1335,12 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 	reply->type = HTTP_REPLY_EMPTY;
 	reply->status = default_status;
 
-	cap = ((px->conf.args.ctx == ARGC_HRQ)
-	       ? ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)
-	       : ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR));
+	if (px->conf.args.ctx == ARGC_HERR)
+		cap = (SMP_VAL_REQUEST | SMP_VAL_RESPONSE);
+	else
+		cap = ((px->conf.args.ctx == ARGC_HRQ)
+		       ? ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR)
+		       : ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR));
 
 	cur_arg = *orig_arg;
 	while (*args[cur_arg]) {
@@ -1837,6 +1840,80 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 	goto out;
 }
 
+/* Parses the "http-error" proxy keyword */
+static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
+				  struct proxy *defpx, const char *file, int line,
+				  char **errmsg)
+{
+	struct conf_errors *conf_err;
+	struct http_reply *reply = NULL;
+	int rc, cur_arg, ret = 0;
+
+	if (warnifnotcap(curpx, PR_CAP_FE | PR_CAP_BE, file, line, args[0], NULL)) {
+		ret = 1;
+		goto out;
+	}
+
+	cur_arg = 1;
+	curpx->conf.args.ctx = ARGC_HERR;
+	reply = http_parse_http_reply((const char **)args, &cur_arg, curpx, 0, errmsg);
+	if (!reply) {
+		memprintf(errmsg, "%s : %s", args[0], *errmsg);
+		goto error;
+	}
+	else if (!reply->status) {
+		memprintf(errmsg, "%s : expects at least a <status> as arguments.\n", args[0]);
+		goto error;
+	}
+
+	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+		if (http_err_codes[rc] == reply->status)
+			break;
+	}
+
+	if (rc >= HTTP_ERR_SIZE) {
+		memprintf(errmsg, "%s: status code '%d' not handled.", args[0], reply->status);
+		goto error;
+	}
+	if (*args[cur_arg]) {
+		memprintf(errmsg, "%s : unknown keyword '%s'.", args[0], args[cur_arg]);
+		goto error;
+	}
+
+	conf_err = calloc(1, sizeof(*conf_err));
+	if (!conf_err) {
+		memprintf(errmsg, "%s : out of memory.", args[0]);
+		goto error;
+	}
+	if (reply->type == HTTP_REPLY_ERRFILES) {
+		int rc = http_get_status_idx(reply->status);
+
+		conf_err->type = 2;
+		conf_err->info.errorfiles.name = reply->body.http_errors;
+		conf_err->info.errorfiles.status[rc] = 2;
+		reply->body.http_errors = NULL;
+		release_http_reply(reply);
+	}
+	else {
+		conf_err->type = 1;
+		conf_err->info.errorfile.status = reply->status;
+		conf_err->info.errorfile.reply = reply;
+		LIST_ADDQ(&http_replies_list, &reply->list);
+	}
+	conf_err->file = strdup(file);
+	conf_err->line = line;
+	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+
+  out:
+	return ret;
+
+  error:
+	release_http_reply(reply);
+	ret = -1;
+	goto out;
+
+}
+
 /* Check "errorfiles" proxy keyword */
 static int proxy_check_errors(struct proxy *px)
 {
@@ -1849,6 +1926,10 @@ static int proxy_check_errors(struct proxy *px)
 			/* errorfile */
 			rc = http_get_status_idx(conf_err->info.errorfile.status);
 			px->replies[rc] = conf_err->info.errorfile.reply;
+
+			/* For proxy, to rely on default replies, just don't reference a reply */
+			if (px->replies[rc]->type == HTTP_REPLY_ERRMSG && !px->replies[rc]->body.errmsg)
+				px->replies[rc] = NULL;
 		}
 		else {
 			/* errorfiles */
@@ -2069,6 +2150,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "errorloc303",  proxy_parse_errorloc },
         { CFG_LISTEN, "errorfile",    proxy_parse_errorfile },
         { CFG_LISTEN, "errorfiles",   proxy_parse_errorfiles },
+        { CFG_LISTEN, "http-error",   proxy_parse_http_error },
         { 0, NULL, NULL },
 }};
 

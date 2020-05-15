@@ -1132,6 +1132,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGC_ACL:   ctx = "ACL keyword"; break;
 		case ARGC_SRV:   where = "in server directive in"; break;
 		case ARGC_SPOE:  where = "in spoe-message directive in"; break;
+		case ARGC_HERR:  where = "in http-error directive in"; break;
 		}
 
 		/* set a few default settings */
