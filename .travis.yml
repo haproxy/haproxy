@@ -44,14 +44,15 @@ matrix:
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
   - os: linux
+    # The ARM64 build uses openssl and libssl-dev from Ubuntu repository. They come preinstalled by TravisCI!
     arch: arm64
     if: type == push
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
-    addons:
-      apt:
-        update: true
-        packages: [ liblua5.3-dev, libsystemd-dev, clang-9, socat ]
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9 SSL_LIB=/usr/lib SSL_INC=/usr/include
+    install:
+      - git clone https://github.com/VTest/VTest.git ../vtest
+      # Special flags due to: https://github.com/vtest/VTest/issues/12
+      - make -C ../vtest FLAGS="-O2 -s -Wall"
   - os: linux
     arch: s390x
     if: type == push
@@ -113,7 +114,7 @@ install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
-  - travis_wait 60 bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
+  - travis_wait bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
 
 script:
   - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
