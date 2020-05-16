@@ -955,7 +955,6 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 				/* note that parse_acl() must have filled <err> here */
 				goto out_free_suite;
 			}
-			word = args[arg + 1];
 			arg = arg_end;
 		}
 		else {
