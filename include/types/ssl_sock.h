@@ -31,6 +31,7 @@
 #include <types/ssl_ckch.h>
 #include <types/ssl_crtlist.h>
 
+#include <common/buffer.h>
 #include <common/hathreads.h>
 #include <common/mini-clist.h>
 #include <common/openssl-compat.h>
