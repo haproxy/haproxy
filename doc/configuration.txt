@@ -3793,17 +3793,15 @@ errorfile <code> <file>
 
   Code 200 is emitted in response to requests matching a "monitor-uri" rule.
 
-  The files are returned verbatim on the TCP socket. This allows any trick such
-  as redirections to another URL or site, as well as tricks to clean cookies,
-  force enable or disable caching, etc... The package provides default error
-  files returning the same contents as default errors.
-
-  The files should not exceed the configured buffer size (BUFSIZE), which
-  generally is 8 or 16 kB, otherwise they will be truncated. It is also wise
-  not to put any reference to local contents (e.g. images) in order to avoid
-  loops between the client and HAProxy when all servers are down, causing an
-  error to be returned instead of an image. For better HTTP compliance, it is
-  recommended that all header lines end with CR-LF and not LF alone.
+  The files are parsed when HAProxy starts and must be valid according to the
+  HTTP specification. They should not exceed the configured buffer size
+  (BUFSIZE), which generally is 16 kB, otherwise an internal error will be
+  returned. It is also wise not to put any reference to local contents
+  (e.g. images) in order to avoid loops between the client and HAProxy when all
+  servers are down, causing an error to be returned instead of an
+  image. Finally, The response cannot exceed (tune.bufsize - tune.maxrewrite)
+  so that "http-after-response" rules still have room to operate (see
+  "tune.maxrewrite").
 
   The files are read at the same time as the configuration and kept in memory.
   For this reason, the errors continue to be returned even when the process is
