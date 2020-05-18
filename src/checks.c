@@ -6852,20 +6852,20 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 			goto error;
 		}
 
-		if (*args[cur_arg+2]) {
-			if (strcmp(args[cur_arg+2], "post-41") != 0) {
-				ha_alert("parsing [%s:%d] : keyword '%s' only supports option 'post-41' (got '%s').\n",
-					 file, line, args[cur_arg], args[cur_arg+2]);
-				goto error;
-			}
+		if (!*args[cur_arg+2] || strcmp(args[cur_arg+2], "post-41") == 0) {
 			packetlen = userlen + 7 + 27;
 			mysql_req = mysql41_req;
 			mysql_rsname  = mysql41_rsname;
 		}
-		else {
+		else if (strcmp(args[cur_arg+2], "pre-41") == 0) {
 			packetlen = userlen + 7;
 			mysql_req = mysql40_req;
 			mysql_rsname  = mysql40_rsname;
+		}
+		else  {
+			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41' and 'pre-41' (got '%s').\n",
+				 file, line, args[cur_arg], args[cur_arg+2]);
+			goto error;
 		}
 
 		hdr[0] = (unsigned char)(packetlen & 0xff);

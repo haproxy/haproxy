@@ -89,13 +89,13 @@ haproxy h1 -conf {
     backend be2
         log ${S2_addr}:${S2_port} daemon
         option log-health-checks
-        option mysql-check user user
+        option mysql-check user user pre-41
         server srv ${h1_mysql1_addr}:${h1_mysql1_port} check inter 1s rise 1 fall 1
 
     backend be3
         log ${S3_addr}:${S3_port} daemon
         option log-health-checks
-        option mysql-check user user post-41
+        option mysql-check user user
         server srv ${h1_mysql2_addr}:${h1_mysql2_port} check inter 1s rise 1 fall 1
 
     backend be4
