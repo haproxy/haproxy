@@ -102,7 +102,7 @@ matrix:
     compiler: clang
     env: TARGET=linux-glibc FLAGS="USE_SLZ=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_51DEGREES=1" CC=clang-9
     before_script:
-      - git clone http://git.1wt.eu/git/libslz.git/
+      - git clone https://github.com/wtarreau/libslz
       - cd libslz && make && make PREFIX=${HOME}/opt install && cd ..
   allow_failures:
   - os: linux
