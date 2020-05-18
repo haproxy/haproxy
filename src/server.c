@@ -247,6 +247,9 @@ void srv_dump_kws(char **out)
 	struct srv_kw_list *kwl;
 	int index;
 
+	if (!out)
+		return;
+
 	*out = NULL;
 	list_for_each_entry(kwl, &srv_keywords.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {

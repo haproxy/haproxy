@@ -1255,6 +1255,9 @@ void bind_dump_kws(char **out)
 	struct bind_kw_list *kwl;
 	int index;
 
+	if (!out)
+		return;
+
 	*out = NULL;
 	list_for_each_entry(kwl, &bind_keywords.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
