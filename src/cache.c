@@ -1411,19 +1411,17 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	char *name = NULL;
 	int pos = *cur_arg;
 
-	/* Get the cache filter name*/
-	if (!strcmp(args[pos], "cache")) {
-		if (!*args[pos + 1]) {
-			memprintf(err, "%s : expects an <id> argument", args[pos]);
-			goto error;
-		}
-		name = strdup(args[pos + 1]);
-		if (!name) {
-			memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
-			goto error;
-		}
-		pos += 2;
+	/* Get the cache filter name. <pos> point on "cache" keyword */
+	if (!*args[pos + 1]) {
+		memprintf(err, "%s : expects an <id> argument", args[pos]);
+		goto error;
 	}
+	name = strdup(args[pos + 1]);
+	if (!name) {
+		memprintf(err, "%s '%s' : out of memory", args[pos], args[pos + 1]);
+		goto error;
+	}
+	pos += 2;
 
 	/* Check if an implicit filter with the same name already exists. If so,
 	 * we remove the implicit filter to use the explicit one. */
