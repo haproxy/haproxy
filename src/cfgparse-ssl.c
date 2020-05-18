@@ -121,7 +121,6 @@ static int ssl_load_global_issuers_from_path(char **args, int section_type, stru
 	return 0;
 }
 
-#ifndef OPENSSL_NO_ENGINE
 /* parse the "ssl-mode-async" keyword in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -139,6 +138,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
 #endif
 }
 
+#ifndef OPENSSL_NO_ENGINE
 /* parse the "ssl-engine" keyword in global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
