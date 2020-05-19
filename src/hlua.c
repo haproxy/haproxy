@@ -3512,7 +3512,7 @@ __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_unset_by_name(name, len, &smp);
+	vars_unset_by_name_ifexist(name, len, &smp);
 	return 0;
 }
 
@@ -3990,7 +3990,7 @@ __LJMP static int hlua_applet_http_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_unset_by_name(name, len, &smp);
+	vars_unset_by_name_ifexist(name, len, &smp);
 	return 0;
 }
 
@@ -5074,7 +5074,7 @@ __LJMP static int hlua_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	vars_unset_by_name(name, len, &smp);
+	vars_unset_by_name_ifexist(name, len, &smp);
 	return 0;
 }
 
