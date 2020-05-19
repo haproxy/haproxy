@@ -199,6 +199,44 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	return sent;
 }
 
+/* Tries to attach appctx <appctx> as a new reader on ring <ring>. This is
+ * meant to be used by low level appctx code such as CLI or ring forwarding.
+ * For higher level functions, please see the relevant parts in appctx or CLI.
+ * It returns non-zero on success or zero on failure if too many users are
+ * already attached. On success, the caller MUST call ring_detach_appctx()
+ * to detach itself, even if it was never woken up.
+ */
+int ring_attach_appctx(struct ring *ring, struct appctx *appctx)
+{
+	int users = ring->readers_count;
+
+	do {
+		if (users >= 255)
+			return 0;
+	} while (!_HA_ATOMIC_CAS(&ring->readers_count, &users, users + 1));
+	return 1;
+}
+
+/* detach an appctx from a ring. The appctx is expected to be waiting at
+ * offset <ofs>. Nothing is done if <ring> is NULL.
+ */
+void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
+{
+	if (!ring)
+		return;
+
+	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
+	if (ofs != ~0) {
+		/* reader was still attached */
+		ofs -= ring->ofs;
+		BUG_ON(ofs >= b_size(&ring->buf));
+		LIST_DEL_INIT(&appctx->wait_entry);
+		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
+	}
+	HA_ATOMIC_SUB(&ring->readers_count, 1);
+	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+}
+
 /* Tries to attach CLI handler <appctx> as a new reader on ring <ring>. This is
  * meant to be used when registering a CLI function to dump a buffer, so it
  * returns zero on success, or non-zero on failure with a message in the appctx
@@ -207,15 +245,10 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
  */
 int ring_attach_cli(struct ring *ring, struct appctx *appctx)
 {
-	int users = ring->readers_count;
-
-	do {
-		if (users >= 255)
-			return cli_err(appctx,
-				       "Sorry, too many watchers (255) on this ring buffer. "
-				       "What could it have so interesting to attract so many watchers ?");
-
-	} while (!_HA_ATOMIC_CAS(&ring->readers_count, &users, users + 1));
+	if (!ring_attach_appctx(ring, appctx))
+		return cli_err(appctx,
+		               "Sorry, too many watchers (255) on this ring buffer. "
+		               "What could it have so interesting to attract so many watchers ?");
 
 	if (!appctx->io_handler)
 		appctx->io_handler = cli_io_handler_show_ring;
@@ -341,19 +374,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 	struct ring *ring = appctx->ctx.cli.p0;
 	size_t ofs = appctx->ctx.cli.o0;
 
-	if (!ring)
-		return;
-
-	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-	if (ofs != ~0) {
-		/* reader was still attached */
-		ofs -= ring->ofs;
-		BUG_ON(ofs >= b_size(&ring->buf));
-		LIST_DEL_INIT(&appctx->wait_entry);
-		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
-	}
-	HA_ATOMIC_SUB(&ring->readers_count, 1);
-	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+	ring_detach_appctx(ring, appctx, ofs);
 }
 
 
