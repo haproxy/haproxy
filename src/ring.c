@@ -248,9 +248,11 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
-
+	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 	LIST_DEL_INIT(&appctx->ctx.cli.l0);
+	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
+
+	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
 
 	/* explanation for the initialization below: it would be better to do
 	 * this in the parsing function but this would occasionally result in
@@ -321,7 +323,9 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		 */
 		if (!si_oc(si)->output && !(si_oc(si)->flags & CF_SHUTW)) {
 			/* let's be woken up once new data arrive */
+			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 			LIST_ADDQ(&ring->waiters, &appctx->ctx.cli.l0);
+			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 			si_rx_endp_done(si);
 			ret = 0;
 		}
@@ -340,7 +344,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 	if (!ring)
 		return;
 
-	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
 	if (ofs != ~0) {
 		/* reader was still attached */
 		ofs -= ring->ofs;
@@ -349,7 +353,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
 	}
 	HA_ATOMIC_SUB(&ring->readers_count, 1);
-	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);
+	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 }
 
 
