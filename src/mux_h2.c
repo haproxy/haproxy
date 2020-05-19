@@ -823,7 +823,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->wait_event.tasklet->context = h2c;
 	h2c->wait_event.events = 0;
 
-	h2c->ddht = hpack_dht_alloc(h2_settings_header_table_size);
+	h2c->ddht = hpack_dht_alloc();
 	if (!h2c->ddht)
 		goto fail;
 
@@ -6195,3 +6195,18 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+/* initialize internal structs after the config is parsed.
+ * Returns zero on success, non-zero on error.
+ */
+static int init_h2()
+{
+	pool_head_hpack_tbl = create_pool("hpack_tbl",
+	                                  h2_settings_header_table_size,
+	                                  MEM_F_SHARED|MEM_F_EXACT);
+	if (!pool_head_hpack_tbl)
+		return -1;
+	return 0;
+}
+
+REGISTER_POST_CHECK(init_h2);

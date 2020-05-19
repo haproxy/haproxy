@@ -101,6 +101,8 @@ const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {
 	[61] = { .n = IST("www-authenticate"),             .v = IST("")              },
 };
 
+struct pool_head *pool_head_hpack_tbl = NULL;
+
 /* returns the slot number of the oldest entry (tail). Must not be used on an
  * empty table.
  */
@@ -173,7 +175,7 @@ static struct hpack_dht *hpack_dht_defrag(struct hpack_dht *dht)
 	/* Note: for small tables we could use alloca() instead but
 	 * portability especially for large tables can be problematic.
 	 */
-	alt_dht = hpack_dht_alloc(dht->size);
+	alt_dht = hpack_dht_alloc();
 	if (!alt_dht)
 		return NULL;
 
