@@ -500,7 +500,6 @@ static int cli_parse_request(struct appctx *appctx)
 
 	appctx->st2 = 0;
 	memset(&appctx->ctx.cli, 0, sizeof(appctx->ctx.cli));
-	LIST_INIT(&appctx->ctx.cli.l0);
 
 	p = appctx->chunk->area;
 	end = p + appctx->chunk->data;

@@ -191,7 +191,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	sent = lenlen + totlen + 1;
 
 	/* notify potential readers */
-	list_for_each_entry(appctx, &ring->waiters, ctx.cli.l0)
+	list_for_each_entry(appctx, &ring->waiters, wait_entry)
 		appctx_wakeup(appctx);
 
  done_buf:
@@ -249,7 +249,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		return 1;
 
 	HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-	LIST_DEL_INIT(&appctx->ctx.cli.l0);
+	LIST_DEL_INIT(&appctx->wait_entry);
 	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 
 	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &ring->lock);
@@ -324,7 +324,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		if (!si_oc(si)->output && !(si_oc(si)->flags & CF_SHUTW)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-			LIST_ADDQ(&ring->waiters, &appctx->ctx.cli.l0);
+			LIST_ADDQ(&ring->waiters, &appctx->wait_entry);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 			si_rx_endp_done(si);
 			ret = 0;
@@ -349,7 +349,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 		/* reader was still attached */
 		ofs -= ring->ofs;
 		BUG_ON(ofs >= b_size(&ring->buf));
-		LIST_DEL_INIT(&appctx->ctx.cli.l0);
+		LIST_DEL_INIT(&appctx->wait_entry);
 		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
 	}
 	HA_ATOMIC_SUB(&ring->readers_count, 1);

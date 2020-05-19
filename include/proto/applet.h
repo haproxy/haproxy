@@ -53,6 +53,7 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 	appctx->call_rate.curr_ctr = 0;
 	appctx->call_rate.prev_ctr = 0;
 	appctx->state = 0;
+	LIST_INIT(&appctx->wait_entry);
 }
 
 /* Tries to allocate a new appctx and initialize its main fields. The appctx
