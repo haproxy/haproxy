@@ -1710,7 +1710,7 @@ TXN class
   :param class_txn txn: The class txn object containing the data.
   :param opaque data: The data which is stored in the transaction.
 
-.. js:function:: TXN.set_var(TXN, var, value)
+.. js:function:: TXN.set_var(TXN, var, value[, ifexist])
 
   Converts a Lua type in a HAProxy type and store it in a variable <var>.
 
@@ -1718,6 +1718,10 @@ TXN class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type can be string or
                      integer.
+  :param boolean ifexist: If this parameter is set to a truthy value the variable
+                          will only be set if it was defined elsewhere (i.e. used
+                          within the configuration). It is highly recommended to
+                          always set this to true.
 
 .. js:function:: TXN.unset_var(TXN, var)
 
@@ -2513,7 +2517,7 @@ AppletHTTP class
   :param opaque data: The data which is stored in the transaction.
   :see: :js:func:`AppletHTTP.get_priv`
 
-.. js:function:: AppletHTTP.set_var(applet, var, value)
+.. js:function:: AppletHTTP.set_var(applet, var, value[, ifexist])
 
   Converts a Lua type in a HAProxy type and store it in a variable <var>.
 
@@ -2521,6 +2525,10 @@ AppletHTTP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type ca be string or
                      integer.
+  :param boolean ifexist: If this parameter is set to a truthy value the variable
+                          will only be set if it was defined elsewhere (i.e. used
+                          within the configuration). It is highly recommended to
+                          always set this to true.
   :see: :js:func:`AppletHTTP.unset_var`
   :see: :js:func:`AppletHTTP.get_var`
 
@@ -2624,7 +2632,7 @@ AppletTCP class
   :param opaque data: The data which is stored in the transaction.
   :see: :js:func:`AppletTCP.get_priv`
 
-.. js:function:: AppletTCP.set_var(applet, var, value)
+.. js:function:: AppletTCP.set_var(applet, var, value[, ifexist])
 
   Converts a Lua type in a HAProxy type and stores it in a variable <var>.
 
@@ -2632,6 +2640,10 @@ AppletTCP class
   :param string var: The variable name according with the HAProxy variable syntax.
   :param type value: The value associated to the variable. The type can be string or
                      integer.
+  :param boolean ifexist: If this parameter is set to a truthy value the variable
+                          will only be set if it was defined elsewhere (i.e. used
+                          within the configuration). It is highly recommended to
+                          always set this to true.
   :see: :js:func:`AppletTCP.unset_var`
   :see: :js:func:`AppletTCP.get_var`
 

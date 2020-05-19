@@ -3475,7 +3475,8 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 	size_t len;
 	struct sample smp;
 
-	MAY_LJMP(check_args(L, 3, "set_var"));
+	if (lua_gettop(L) < 3 || lua_gettop(L) > 4)
+		WILL_LJMP(luaL_error(L, "'set_var' needs between 3 and 4 arguments"));
 
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
@@ -3489,7 +3490,12 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
+	if (lua_gettop(L) == 4 && lua_toboolean(L, 4))
+		lua_pushboolean(L, vars_set_by_name_ifexist(name, len, &smp) != 0);
+	else
+		lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
 	return 1;
 }
 
@@ -3953,7 +3959,8 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 	size_t len;
 	struct sample smp;
 
-	MAY_LJMP(check_args(L, 3, "set_var"));
+	if (lua_gettop(L) < 3 || lua_gettop(L) > 4)
+		WILL_LJMP(luaL_error(L, "'set_var' needs between 3 and 4 arguments"));
 
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
@@ -3967,7 +3974,12 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
+	if (lua_gettop(L) == 4 && lua_toboolean(L, 4))
+		lua_pushboolean(L, vars_set_by_name_ifexist(name, len, &smp) != 0);
+	else
+		lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
 	return 1;
 }
 
@@ -5040,7 +5052,8 @@ __LJMP static int hlua_set_var(lua_State *L)
 	size_t len;
 	struct sample smp;
 
-	MAY_LJMP(check_args(L, 3, "set_var"));
+	if (lua_gettop(L) < 3 || lua_gettop(L) > 4)
+		WILL_LJMP(luaL_error(L, "'set_var' needs between 3 and 4 arguments"));
 
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
@@ -5053,7 +5066,12 @@ __LJMP static int hlua_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
+	if (lua_gettop(L) == 4 && lua_toboolean(L, 4))
+		lua_pushboolean(L, vars_set_by_name_ifexist(name, len, &smp) != 0);
+	else
+		lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+
 	return 1;
 }
 
