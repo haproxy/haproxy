@@ -1,0 +1,29 @@
+varnishtest "Lua: set_var"
+#REQUIRE_OPTIONS=LUA
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        lua-load ${testdir}/set_var.lua
+
+    frontend fe1
+        mode http
+        ${no-htx} option http-use-htx
+        bind "fd@${fe1}"
+
+        http-request use-service lua.set_var
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq -url "/" \
+        -hdr "Var: txn.foo"
+    rxresp
+    expect resp.status == 202
+    expect resp.http.echo == "value"
+    txreq -url "/" \
+        -hdr "Var: invalid.var"
+    rxresp
+    expect resp.status == 400
+    expect resp.http.echo == "(nil)"
+} -run

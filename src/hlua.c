@@ -3489,8 +3489,8 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_set_by_name(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
@@ -3512,8 +3512,8 @@ __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_unset_by_name_ifexist(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_unset_by_name_ifexist(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
@@ -3967,8 +3967,8 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_set_by_name(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_applet_http_unset_var(lua_State *L)
@@ -3990,8 +3990,8 @@ __LJMP static int hlua_applet_http_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	vars_unset_by_name_ifexist(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_unset_by_name_ifexist(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_applet_http_get_var(lua_State *L)
@@ -5053,8 +5053,8 @@ __LJMP static int hlua_set_var(lua_State *L)
 
 	/* Store the sample in a variable. */
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	vars_set_by_name(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_set_by_name(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_unset_var(lua_State *L)
@@ -5074,8 +5074,8 @@ __LJMP static int hlua_unset_var(lua_State *L)
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	vars_unset_by_name_ifexist(name, len, &smp);
-	return 0;
+	lua_pushboolean(L, vars_unset_by_name_ifexist(name, len, &smp) != 0);
+	return 1;
 }
 
 __LJMP static int hlua_get_var(lua_State *L)
