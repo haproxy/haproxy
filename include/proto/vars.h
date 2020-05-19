@@ -10,7 +10,6 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp);
 void vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp);
 void vars_set_by_name(const char *name, size_t len, struct sample *smp);
 void vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp);
-void vars_unset_by_name(const char *name, size_t len, struct sample *smp);
 int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp);
 int vars_check_arg(struct arg *arg, char **err);
 

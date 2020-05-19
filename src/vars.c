@@ -584,21 +584,6 @@ void vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp
 }
 
 
-/* This function unset a variable.
- * In error case, it fails silently.
- */
-void vars_unset_by_name(const char *name, size_t len, struct sample *smp)
-{
-	enum vars_scope scope;
-
-	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 1, NULL);
-	if (!name)
-		return;
-
-	sample_clear_stream(name, scope, smp);
-}
-
 /* this function fills a sample with the
  * variable content. Returns 1 if the sample
  * is filled, otherwise it returns 0.
