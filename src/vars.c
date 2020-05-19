@@ -538,49 +538,50 @@ int vars_check_arg(struct arg *arg, char **err)
 }
 
 /* This function store a sample in a variable if it was already defined.
- * In error case, it fails silently.
+ * Returns zero on failure and non-zero otherwise. The variable not being
+ * defined is treated as a failure.
  */
-void vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
+int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
 	name = register_name(name, len, &scope, 0, NULL);
 	if (!name)
-		return;
+		return 0;
 
-	sample_store_stream(name, scope, smp);
+	return sample_store_stream(name, scope, smp);
 }
 
 
 /* This function store a sample in a variable.
- * In error case, it fails silently.
+ * Returns zero on failure and non-zero otherwise.
  */
-void vars_set_by_name(const char *name, size_t len, struct sample *smp)
+int vars_set_by_name(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
 	name = register_name(name, len, &scope, 1, NULL);
 	if (!name)
-		return;
+		return 0;
 
-	sample_store_stream(name, scope, smp);
+	return sample_store_stream(name, scope, smp);
 }
 
 /* This function unset a variable if it was already defined.
- * In error case, it fails silently.
+ * Returns zero on failure and non-zero otherwise.
  */
-void vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
+int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
 	name = register_name(name, len, &scope, 0, NULL);
 	if (!name)
-		return;
+		return 0;
 
-	sample_clear_stream(name, scope, smp);
+	return sample_clear_stream(name, scope, smp);
 }
 
 
