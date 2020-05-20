@@ -12520,7 +12520,7 @@ agent-check
     MAINT mode, thus it will not accept any new connections at all, and health
     checks will be stopped.
 
-  - The words "down", "failed", or "stopped", optionally followed by a
+  - The words "down", "fail", or "stopped", optionally followed by a
     description string after a sharp ('#'). All of these mark the server's
     operating state as DOWN, but since the word itself is reported on the stats
     page, the difference allows an administrator to know if the situation was
