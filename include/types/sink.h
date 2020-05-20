@@ -52,8 +52,8 @@ enum sink_fmt {
 /* describes the configuration and current state of an event sink */
 struct sink {
 	struct list sink_list;     // position in the sink list
-	char *name;                // sink name
-	char *desc;                // sink description
+	const char *name;          // sink name
+	const char *desc;          // sink description
 	enum sink_fmt fmt;         // format expected by the sink
 	enum sink_type type;       // type of storage
 	uint32_t maxlen;           // max message length (truncated above)

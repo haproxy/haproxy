@@ -58,8 +58,8 @@ static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt
 	if (!sink)
 		goto end;
 
-	sink->name = strdup(name);
-	sink->desc = strdup(desc);
+	sink->name = name;
+	sink->desc = desc;
 	sink->fmt  = fmt;
 	sink->type = SINK_TYPE_NEW;
 	sink->maxlen = BUFSIZE;
@@ -123,8 +123,6 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt,
 	sink->ctx.ring = ring_new(size);
 	if (!sink->ctx.ring) {
 		LIST_DEL(&sink->sink_list);
-		free(sink->name);
-		free(sink->desc);
 		free(sink);
 		goto fail;
 	}
@@ -328,128 +326,8 @@ static void sink_deinit()
 		if (sink->type == SINK_TYPE_BUFFER)
 			ring_free(sink->ctx.ring);
 		LIST_DEL(&sink->sink_list);
-		free(sink->name);
-		free(sink->desc);
 		free(sink);
 	}
-}
-
-/*
- * Parse "ring" keyword and create corresponding sink buffer.
- *
- * The function returns 1 in success case, otherwise, it returns 0 and err is
- * filled.
- */
-
-int parse_sinkbuf(char **args, char **err)
-{
-	int myidx = 2;
-	size_t size = BUFSIZE;
-	size_t maxlen = size;
-	int format = SINK_FMT_RAW;
-	struct sink *sink = NULL;
-	char *desc, *name = args[1];
-	const char *inv;
-
-	if (!*name) {
-		memprintf(err, "missing sink name");
-		goto error;
-	}
-
-	inv = invalid_char(name);
-	if (inv) {
-		memprintf(err, "invalid sink name '%s' (character '%c' is not permitted)", name, *inv);
-		goto error;
-	}
-
-	desc = name;
-
-	while (*args[myidx]) {
-		if (!strcmp(args[myidx], "size")) {
-			myidx++;
-			size = atol(args[myidx]);
-			if (!size) {
-				memprintf(err, "invalid size '%s' for new sink buffer for ring '%s'", args[myidx], name);
-				goto error;
-			}
-		}
-		else if (!strcmp(args[myidx], "maxlen")) {
-			myidx++;
-			maxlen = atol(args[myidx]);
-			if (!maxlen) {
-				memprintf(err, "invalid size '%s' for new sink buffer for ring '%s'", args[myidx], name);
-				goto error;
-			}
-		}
-		else if (!strcmp(args[myidx], "maxlen")) {
-			myidx++;
-			maxlen = atol(args[myidx]);
-			if (!maxlen) {
-				memprintf(err, "invalid size '%s' for new sink buffer for ring '%s'", args[myidx], name);
-				goto error;
-			}
-		}
-		else if (!strcmp(args[myidx], "desc")) {
-			myidx++;
-			desc = args[myidx];
-		}
-		else if (!strcmp(args[myidx],"format")) {
-			myidx++;
-			if (!strcmp(args[myidx], "raw")) {
-				format = SINK_FMT_RAW;
-			}
-			else if (!strcmp(args[myidx], "short")) {
-				format = SINK_FMT_SHORT;
-			}
-			else if (!strcmp(args[myidx], "iso")) {
-				format = SINK_FMT_ISO;
-			}
-			else if (!strcmp(args[myidx], "timed")) {
-				format = SINK_FMT_TIMED;
-			}
-			else if (!strcmp(args[myidx], "rfc3164")) {
-				format = SINK_FMT_RFC3164;
-			}
-			else if (!strcmp(args[myidx], "rfc5424")) {
-				format = SINK_FMT_RFC5424;
-			}
-			else {
-				memprintf(err, "unknown format '%s' for new sink buffer for ring '%s'", args[myidx], name);
-				goto error;
-			}
-		}
-		else {
-			memprintf(err, "unknown parameter '%s' for new sink buffer for ring '%s'", args[myidx], name);
-			goto error;
-		}
-		myidx++;
-	}
-
-	if (maxlen > size) {
-		memprintf(err, "maxlen '%lu' exceeds size of the new sink buffer for ring '%s'", maxlen, name);
-		goto error;
-	}
-
-	sink = sink_new_buf(name, desc, format, size);
-	if (!sink || sink->type != SINK_TYPE_BUFFER) {
-		memprintf(err, "failed to create a new sink buffer for ring '%s'", name);
-		goto error;
-	}
-
-	sink->maxlen = maxlen;
-
-	return 1;
-error:
-	if (sink) {
-		if (sink->type == SINK_TYPE_BUFFER)
-			ring_free(sink->ctx.ring);
-		LIST_DEL(&sink->sink_list);
-		free(sink->name);
-		free(sink->desc);
-		free(sink);
-	}
-	return 0;
-
 }
 
 INITCALL0(STG_REGISTER, sink_init);
