@@ -809,12 +809,20 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 
 static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
+	int ret;
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL)
 	ha_warning("crt-list: ssl-min-ver and ssl-max-ver are not supported with this Openssl version (skipped).\n");
 #endif
-	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods, err);
-}
+	ret = parse_tls_method_minmax(args, cur_arg, &conf->ssl_methods_cfg, err);
+	if (ret != ERR_NONE)
+		return ret;
 
+	conf->ssl_methods.min = conf->ssl_methods_cfg.min;
+	conf->ssl_methods.max = conf->ssl_methods_cfg.max;
+
+	return ret;
+}
 static int bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	return parse_tls_method_minmax(args, cur_arg, &conf->ssl_conf.ssl_methods, err);
