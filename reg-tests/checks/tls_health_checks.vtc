@@ -19,13 +19,19 @@ server s1 {
 server s2 {
 } -start
 
+server s3 {
+    rxreq
+    expect req.method == OPTIONS
+    expect req.url == *
+    expect req.proto == HTTP/1.1
+    txresp
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy fe1 started."
     recv info
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 200 [[:digit:]]+ - - ---- .* \"OPTIONS \\* HTTP/1.1\""
-    recv info
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 504 [[:digit:]]+ - - sH-- .* \"OPTIONS \\* HTTP/1.1\""
 } -start
 
 haproxy h1 -conf {
@@ -44,6 +50,9 @@ haproxy h1 -conf {
     backend be2
         server srv2 ${s2_addr}:${s2_port}
 
+    backend be3
+        server srv3 ${s3_addr}:${s3_port}
+
     frontend fe1
         option httplog
         log ${S1_addr}:${S1_port} len 2048 local0 debug err
@@ -54,6 +63,11 @@ haproxy h1 -conf {
         option tcplog
         bind "fd@${fe2}" ssl crt ${testdir}/common.pem
         use_backend be2
+
+    frontend fe3
+        option httplog
+        bind "fd@${fe3}" ssl crt ${testdir}/common.pem
+        use_backend be3
 } -start
 
 syslog S2 -level notice {
@@ -61,8 +75,6 @@ syslog S2 -level notice {
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be2 started."
     recv
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be2/srv1 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
-    recv
-    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be2/srv1 failed, reason: Layer7 wrong status.+code: 504.+info: \"Gateway Time-out\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
@@ -70,6 +82,13 @@ syslog S4 -level notice {
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be4 started."
     recv
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be4/srv2 succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S6 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be6 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be6/srv3 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 haproxy h2 -conf {
@@ -92,10 +111,16 @@ haproxy h2 -conf {
         option log-health-checks
         log ${S4_addr}:${S4_port} daemon
         server srv2 ${h1_fe2_addr}:${h1_fe2_port} ssl crt ${testdir}/common.pem verify none check-ssl check
+
+    backend be6
+        option log-health-checks
+        option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+        log ${S6_addr}:${S6_port} daemon
+        server srv3 127.0.0.1:80 crt ${testdir}/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}
 } -start
 
 syslog S1 -wait
 
 syslog S2 -wait
 syslog S4 -wait
-
+syslog S6 -wait

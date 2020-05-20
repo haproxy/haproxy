@@ -5294,6 +5294,8 @@ static int init_srv_check(struct server *srv)
 			srv->check.xprt = xprt_get(XPRT_SSL);
 		srv->check.send_proxy |= (srv->pp_opts);
 	}
+	else if (srv->check.use_ssl == 1)
+		srv->check.xprt = xprt_get(XPRT_SSL);
 
 	/* Inherit the mux protocol from the server if not already defined for
 	 * the check
