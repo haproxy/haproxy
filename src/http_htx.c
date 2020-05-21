@@ -993,6 +993,7 @@ void release_http_reply(struct http_reply *http_reply)
 			free(lf);
 		}
 	}
+	free(http_reply);
 }
 
 static int http_htx_init(void)
