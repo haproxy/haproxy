@@ -1538,13 +1538,13 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				memprintf(errmsg, "'%s' : out of memory", args[cur_arg-1]);
 				goto error;
 			}
+			LIST_ADDQ(&reply->hdrs, &hdr->list);
 			LIST_INIT(&hdr->value);
 			hdr->name = ist(strdup(args[cur_arg]));
 			if (!isttest(hdr->name)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
 			}
-			LIST_ADDQ(&reply->hdrs, &hdr->list);
 			if (!parse_logformat_string(args[cur_arg+1], px, &hdr->value, LOG_OPT_HTTP, cap, errmsg))
 				goto error;
 
