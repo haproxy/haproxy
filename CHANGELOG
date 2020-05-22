@@ -1,6 +1,132 @@
 ChangeLog :
 ===========
 
+2020/05/22 : 2.2-dev8
+    - MINOR: checks: Improve report of unexpected errors for expect rules
+    - MEDIUM: checks: Add matching on log-format string for expect rules
+    - DOC: Fix req.body and co documentation to be accurate
+    - MEDIUM: checks: Remove dedicated sample fetches and use response ones instead
+    - CLEANUP: checks: sort and rename tcpcheck_expect_type types
+    - MINOR: checks: Use dedicated actions to send log-format strings in send rules
+    - MINOR: checks: Simplify matching on HTTP headers in HTTP expect rules
+    - MINOR: checks/sample: Remove unnecessary tests on the sample session
+    - REGTEST: checks: Adapt SSL error message reported when connection is rejected
+    - MINOR: mworker: replace ha_alert by ha_warning when exiting successfuly
+    - MINOR: checks: Support log-format string to set the URI for HTTP send rules
+    - MINOR: checks: Support log-format string to set the body for HTTP send rules
+    - DOC: Be more explicit about configurable check ok/error/timeout status
+    - MINOR: checks: Make matching on HTTP headers for expect rules less obscure
+    - BUG/MEDIUM: lua: Fix dumping of stick table entries for STD_T_DICT
+    - BUG/MINOR: config: Make use_backend and use-server post-parsing less obscur
+    - REGTESTS: make the http-check-send test require version 2.2
+    - BUG/MINOR: http-ana: fix NTLM response parsing again
+    - BUG/MEDIUM: http_ana: make the detection of NTLM variants safer
+    - BUG/MINOR: cfgparse: Abort parsing the current line if an invalid \x sequence is encountered
+    - MINOR: cfgparse: Improve error message for invalid \x sequences
+    - CI: travis-ci: enable arm64 builds again
+    - MEDIUM: ssl: increase default-dh-param to 2048
+    - CI: travis-ci: skip pcre2 on arm64 build
+    - CI: travis-ci: extend the build time for SSL to 60 minutes
+    - CLEANUP: config: drop unused setting CONFIG_HAP_MEM_OPTIM
+    - CLEANUP: config: drop unused setting CONFIG_HAP_INLINE_FD_SET
+    - CLENAUP: config: move CONFIG_HAP_LOCKLESS_POOLS out of config.h
+    - CLEANUP: remove THREAD_LOCAL from config.h
+    - CI: travis-ci: upgrade LibreSSL versions
+    - DOC: assorted typo fixes in the documentation
+    - CI: extend spellchecker whitelist
+    - CLEANUP: assorted typo fixes in the code and comments
+    - MAJOR: contrib: porting spoa_server to support python3
+    - BUG/MEDIUM: checks: Subscribe to I/O events on an unfinished connect
+    - BUG/MINOR: checks: Don't subscribe to I/O events if it is already done
+    - BUG/MINOR: checks: Rely on next I/O oriented rule when waiting for a connection
+    - MINOR: checks: Don't try to send outgoing data if waiting to be able to send
+    - MINOR: sample: Move aes_gcm_dec implementation into sample.c
+    - MINOR: sample: Add digest and hmac converters
+    - BUG/MEDIUM: checks: Subscribe to I/O events only if a mux was installed
+    - BUG/MINOR: sample/ssl: Fix digest converter for openssl < 1.1.0
+    - BUG/MINOR: pools: use %u not %d to report pool stats in "show pools"
+    - BUG/MINOR: pollers: remove uneeded free in global init
+    - CLEANUP: select: enhance readability in init
+    - BUG/MINOR: soft-stop: always wake up waiting threads on stopping
+    - MINOR: soft-stop: let the first stopper only signal other threads
+    - BUILD: select: only declare existing local labels to appease clang
+    - BUG/MEDIUM: streams: Remove SF_ADDR_SET if we're retrying due to L7 retry.
+    - BUG/MEDIUM: stream: Only allow L7 retries when using HTTP.
+    - DOC: retry-on can only be used with mode http
+    - MEDIUM: ssl: allow to register callbacks for SSL/TLS protocol messages
+    - MEDIUM: ssl: split ssl_sock_msgcbk() and use a new callback mechanism
+    - MINOR: ssl: add a new function ssl_sock_get_ssl_object()
+    - MEDIUM: ssl: use ssl_sock_get_ssl_object() in fetchers where appropriate
+    - REORG: ssl: move macros and structure definitions to ssl_sock.h
+    - CLEANUP: ssl: remove the shsess_* macros
+    - REORG: move the crt-list structures in their own .h
+    - REORG: ssl: move the ckch structures to types/ssl_ckch.h
+    - CLEANUP: ssl: add ckch prototypes in proto/ssl_ckch.h
+    - REORG: ssl: move crtlist functions to src/ssl_crtlist.c
+    - CLEANUP: ssl: avoid circular dependencies in ssl_crtlist.h
+    - REORG: ssl: move the ckch_store related functions to src/ssl_ckch.c
+    - REORG: ssl: move ckch_inst functions to src/ssl_ckch.c
+    - REORG: ssl: move the crt-list CLI functions in src/ssl_crtlist.c
+    - REORG: ssl: move the CLI 'cert' functions to src/ssl_ckch.c
+    - REORG: ssl: move ssl configuration to cfgparse-ssl.c
+    - MINOR: ssl: remove static keyword in some SSL utility functions
+    - REORG: ssl: move ssl_sock_ctx and fix cross-dependencies issues
+    - REORG: ssl: move sample fetches to src/ssl_sample.c
+    - REORG: ssl: move utility functions to src/ssl_utils.c
+    - DOC: ssl: update MAINTAINERS file
+    - CI: travis-ci: switch arm64 builds to use openssl from distro
+    - MINOR: stats: Prepare for more accurate moving averages
+    - MINOR: stats: Expose native cum_req metric for a server
+    - MEDIUM: stats: Enable more accurate moving average calculation for stats
+    - BUILD: ssl: include buffer common headers for ssl_sock_ctx
+    - BUILD: ssl: include errno.h in ssl_crtlist.c
+    - CLEANUP: acl: remove unused assignment
+    - DOC/MINOR: halog: Add long help info for ic flag
+    - BUILD: ssl: fix build without OPENSSL_NO_ENGINE
+    - DOC: SPOE is no longer experimental
+    - BUG/MINOR: cache: Don't needlessly test "cache" keyword in parse_cache_flt()
+    - MINOR: config: Don't dump keywords if argument is NULL
+    - MEDIUM: checks: Make post-41 the default mode for mysql checks
+    - BUG/MINOR: logs: prevent double line returns in some events.
+    - MEDIUM: sink: build header in sink_write for log formats
+    - MEDIUM: logs: buffer targets now rely on new sink_write
+    - MEDIUM: sink: add global statement to create a new ring (sink buffer)
+    - MEDIUM: hpack: use a pool for the hpack table
+    - BUG/MAJOR: mux-fcgi: Stop sending loop if FCGI stream is blocked for any reason
+    - BUG/MEDIUM: ring: write-lock the ring while attaching/detaching
+    - MINOR: applet: adopt the wait list entry from the CLI
+    - MINOR: ring: make the applet code not depend on the CLI
+    - Revert "MEDIUM: sink: add global statement to create a new ring (sink buffer)"
+    - CI: travis-ci: fix libslz download URL
+    - MINOR: ssl: split config and runtime variable for ssl-{min,max}-ver
+    - CLEANUP: http_ana: Remove unused TXN flags
+    - BUG/MINOR: http-rules: Mark http return rules as final
+    - MINOR: http-htx: Add http_reply type based on what is used for http return rules
+    - CLEANUP: http-htx: Rename http_error structure into http_error_msg
+    - MINOR: http-rules: Use http_reply structure for http return rules
+    - MINOR: http-htx: Use a dedicated function to release http_reply objects
+    - MINOR: http-htx: Use a dedicated function to parse http reply arguments
+    - MINOR: http-htx: Use a dedicated function to check http reply validity
+    - MINOR: http-ana: Use a dedicated function to send a response from an http reply
+    - MEDIUM: http-rules: Rely on http reply for http deny/tarpit rules
+    - MINOR: http-htx: Store default error messages in a global http reply array
+    - MINOR: http-htx: Store messages of an http-errors section in a http reply array
+    - MINOR: http-htx: Store errorloc/errorfile messages in http replies
+    - MINOR: proxy: Add references on http replies for proxy error messages
+    - MINOR: http-htx: Use http reply from the http-errors section
+    - MINOR: http-ana: Use a TXN flag to prevent after-response ruleset evaluation
+    - MEDIUM: http-ana: Use http replies for HTTP error messages
+    - CLEANUP: http-htx: Remove unused storage of error messages in buffers
+    - MINOR: htx: Add a function to copy a buffer in an HTX message
+    - CLEANUP: channel: Remove channel_htx_copy_msg() function
+    - MINOR: http-ana: Add a function to write an http reply in an HTX message
+    - MINOR: http-htx/proxy: Add http-error directive using http return syntax
+    - DOC: Fix "errorfile" description in the configuration manual
+    - BUG/MINOR: checks: Respect check-ssl param when a port or an addr is specified
+    - BUILD: hpack: make sure the hpack table can still be built standalone
+    - CONTRIB: hpack: make use of the simplified standalone HPACK API
+    - MINOR: connection: add pp2-never-send-local to support old PP2 behavior
+
 2020/05/05 : 2.2-dev7
     - MINOR: version: Show uname output in display_version()
     - CI: run weekly OpenSSL "no-deprecated" builds
