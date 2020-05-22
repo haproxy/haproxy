@@ -7,6 +7,8 @@
  * Build like this :
  *    gcc -I../../include -I../../ebtree -o gen-enc gen-enc.c
  */
+#define HPACK_STANDALONE
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>

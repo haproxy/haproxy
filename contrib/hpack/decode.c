@@ -10,6 +10,9 @@
  *    gcc -I../../include -I../../ebtree -O0 -g -fno-strict-aliasing -fwrapv \
  *        -o decode decode.c
  */
+
+#define HPACK_STANDALONE
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -153,6 +156,7 @@ int main(int argc, char **argv)
 {
 	struct hpack_dht *dht;
 	struct http_hdr list[MAX_HDR_NUM];
+	struct pool_head pool;
 	int outlen;
 	int dht_size = 4096;
 	int len, idx;
@@ -164,7 +168,9 @@ int main(int argc, char **argv)
 		argv++;	argc--;
 	}
 
-	dht = hpack_dht_alloc(dht_size);
+	pool.size = dht_size;
+	pool_head_hpack_tbl = &pool;
+	dht = hpack_dht_alloc();
 	if (!dht) {
 		die(1, "cannot initialize dht\n");
 		return 1;
