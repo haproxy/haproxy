@@ -12,6 +12,7 @@
 
 #include <errno.h>
 
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/initcall.h>
@@ -40,6 +41,9 @@ struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 struct mux_proto_list mux_proto_list = {
         .list = LIST_HEAD_INIT(mux_proto_list.list)
 };
+
+/* disables sending of proxy-protocol-v2's LOCAL command */
+static int pp2_never_send_local;
 
 int conn_create_mux(struct connection *conn)
 {
@@ -1383,7 +1387,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	/* At least one of src or dst is not of AF_INET or AF_INET6 */
 	if (  !src
 	   || !dst
-	   || conn_is_back(remote)
+	   || (!pp2_never_send_local && conn_is_back(remote)) // locally initiated connection
 	   || (src->ss_family != AF_INET && src->ss_family != AF_INET6)
 	   || (dst->ss_family != AF_INET && dst->ss_family != AF_INET6)) {
 		if (buf_len < PP2_HDR_LEN_UNSPEC)
@@ -1558,6 +1562,17 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	return ret;
 }
 
+/* returns 0 on success */
+static int cfg_parse_pp2_never_send_local(char **args, int section_type, struct proxy *curpx,
+                                          struct proxy *defpx, const char *file, int line,
+                                          char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+	pp2_never_send_local = 1;
+	return 0;
+}
+
 /* return the major HTTP version as 1 or 2 depending on how the request arrived
  * before being processed.
  */
@@ -1658,3 +1673,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "pp2-never-send-local", cfg_parse_pp2_never_send_local },
+	{ /* END */ },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);

@@ -612,6 +612,7 @@ The following keywords are supported in the "global" section :
    - nbthread
    - node
    - pidfile
+   - pp2-never-send-local
    - presetenv
    - resetenv
    - uid
@@ -1176,6 +1177,19 @@ pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile>. This option is equivalent to
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
+
+pp2-never-send-local
+  A bug in the PROXY protocol v2 implementation was present in HAProxy up to
+  version 2.1, causing it to emit a PROXY command instead of a LOCAL command
+  for health checks. This is particularly minor but confuses some servers'
+  logs. Sadly, the bug was discovered very late and revealed that some servers
+  which possibly only tested their PROXY protocol implementation against
+  HAProxy fail to properly handle the LOCAL command, and permanently remain in
+  the "down" state when HAProxy checks them. When this happens, it is possible
+  to enable this global option to revert to the older (bogus) behavior for the
+  time it takes to contact the affected components' vendors and get them fixed.
+  This option is disabled by default and acts on all servers having the
+  "send-proxy-v2" statement.
 
 presetenv <name> <value>
   Sets environment variable <name> to value <value>. If the variable exists, it
