@@ -25,9 +25,9 @@ ifneq ($(USE_PYTHON),)
 OBJS += ps_python.o
 
 # "--embed" flag is supported (and required) only from python 3.8+
-check_python_config := $(shell if python3-config --embed; then echo "python3.8+"; \
-elif hash python3-config; then echo "python3"; \
-elif hash python-config; then echo "python2"; fi)
+check_python_config := $(shell if python3-config --embed > /dev/null 2>&1 ; then echo "python3.8+"; \
+elif hash python3-config > /dev/null 2>&1 ; then echo "python3"; \
+elif hash python-config > /dev/null 2>&1 ; then echo "python2"; fi)
 
 ifeq ($(check_python_config), python3.8+)
 PYTHON_DEFAULT_INC := $(shell python3-config --includes)
