@@ -1041,16 +1041,10 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	/* now, back to the address */
 	logsrv->type = LOG_TARGET_DGRAM;
 	if (strncmp(args[1], "ring@", 5) == 0) {
-		struct sink *sink = sink_find(args[1] + 5);
-
-		if (!sink || sink->type != SINK_TYPE_BUFFER) {
-			memprintf(err, "cannot find ring buffer '%s'", args[1] + 5);
-			goto error;
-		}
-
 		logsrv->addr.ss_family = AF_UNSPEC;
 		logsrv->type = LOG_TARGET_BUFFER;
-		logsrv->sink = sink;
+		logsrv->sink = NULL;
+		logsrv->ring_name = strdup(args[1] + 5);
 		goto done;
 	}
 

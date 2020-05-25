@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/ist.h>
@@ -30,6 +31,8 @@
 #include <proto/stream_interface.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
+
+struct sink *cfg_sink;
 
 struct sink *sink_find(const char *name)
 {
@@ -58,8 +61,8 @@ static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt
 	if (!sink)
 		goto end;
 
-	sink->name = name;
-	sink->desc = desc;
+	sink->name = strdup(name);
+	sink->desc = strdup(desc);
 	sink->fmt  = fmt;
 	sink->type = SINK_TYPE_NEW;
 	sink->maxlen = BUFSIZE;
@@ -123,6 +126,8 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt,
 	sink->ctx.ring = ring_new(size);
 	if (!sink->ctx.ring) {
 		LIST_DEL(&sink->sink_list);
+		free(sink->name);
+		free(sink->desc);
 		free(sink);
 		goto fail;
 	}
@@ -311,6 +316,193 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 	return ring_attach_cli(sink->ctx.ring, appctx);
 }
 
+/*
+ * Parse "ring" section and create corresponding sink buffer.
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
+{
+	int err_code = 0;
+	const char *inv;
+	size_t size = BUFSIZE;
+
+	if (strcmp(args[0], "ring") == 0) { /* new peers section */
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing ring name.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		inv = invalid_char(args[1]);
+		if (inv) {
+			ha_alert("parsing [%s:%d] : invalid ring name '%s' (character '%c' is not permitted).\n", file, linenum, args[1], *inv);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		if (sink_find(args[1])) {
+			ha_alert("parsing [%s:%d] : sink named '%s' already exists.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		cfg_sink = sink_new_buf(args[1], args[1] , SINK_FMT_RAW, size);
+		if (!cfg_sink || cfg_sink->type != SINK_TYPE_BUFFER) {
+			ha_alert("parsing [%s:%d] : unable to create a new sink buffer for ring '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+	}
+	else if (strcmp(args[0], "size") == 0) {
+		size = atol(args[1]);
+		if (!size) {
+			ha_alert("parsing [%s:%d] : invalid size '%s' for new sink buffer.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		if (!cfg_sink || (cfg_sink->type != SINK_TYPE_BUFFER)
+		              || !ring_resize(cfg_sink->ctx.ring, size)) {
+			ha_alert("parsing [%s:%d] : fail to set sink buffer size '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+	}
+	else if (strcmp(args[0],"format") == 0) {
+		if (!cfg_sink) {
+			ha_alert("parsing [%s:%d] : unable to set format '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		if (strcmp(args[1], "raw") == 0) {
+			cfg_sink->fmt = SINK_FMT_RAW;
+		}
+		else if (strcmp(args[1], "short") == 0) {
+			cfg_sink->fmt = SINK_FMT_SHORT;
+		}
+		else if (strcmp(args[1], "iso") == 0) {
+			cfg_sink->fmt = SINK_FMT_ISO;
+		}
+		else if (strcmp(args[1], "timed") == 0) {
+			cfg_sink->fmt = SINK_FMT_TIMED;
+		}
+		else if (strcmp(args[1], "rfc3164") == 0) {
+			cfg_sink->fmt = SINK_FMT_RFC3164;
+		}
+		else if (strcmp(args[1], "rfc5424") == 0) {
+			cfg_sink->fmt = SINK_FMT_RFC5424;
+		}
+		else {
+			ha_alert("parsing [%s:%d] : unknown format '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+	}
+	else if (strcmp(args[0],"maxlen") == 0) {
+		if (!cfg_sink) {
+			ha_alert("parsing [%s:%d] : unable to set event max length '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		cfg_sink->maxlen = atol(args[1]);
+		if (!cfg_sink->maxlen) {
+			ha_alert("parsing [%s:%d] : invalid size '%s' for new sink buffer.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+	}
+	else if (strcmp(args[0],"description") == 0) {
+		if (!cfg_sink) {
+			ha_alert("parsing [%s:%d] : unable to set description '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing ring description text.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+
+		free(cfg_sink->desc);
+
+		cfg_sink->desc = strdup(args[1]);
+		if (!cfg_sink->desc) {
+			ha_alert("parsing [%s:%d] : fail to set description '%s'.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto err;
+		}
+	}
+
+err:
+	return err_code;
+}
+
+/*
+ * Post parsing "ring" section.
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+int cfg_post_parse_ring()
+{
+	int err_code = 0;
+
+	if (cfg_sink && (cfg_sink->type == SINK_TYPE_BUFFER)) {
+		if (cfg_sink->maxlen > b_size(&cfg_sink->ctx.ring->buf)) {
+			ha_warning("ring '%s' event max length '%u' exceeds size, forced to size '%lu'.\n",
+			           cfg_sink->name, cfg_sink->maxlen, b_size(&cfg_sink->ctx.ring->buf));
+			cfg_sink->maxlen = b_size(&cfg_sink->ctx.ring->buf);
+			err_code |= ERR_ALERT;
+		}
+	}
+
+	cfg_sink = NULL;
+
+	return err_code;
+}
+
+/* resolve sink names at end of config. Returns 0 on success otherwise error
+ * flags.
+*/
+int post_sink_resolve()
+{
+	int err_code = 0;
+	struct logsrv *logsrv, *logb;
+	struct sink *sink;
+	struct proxy *px;
+
+	list_for_each_entry_safe(logsrv, logb, &global.logsrvs, list) {
+		if (logsrv->type == LOG_TARGET_BUFFER) {
+			sink = sink_find(logsrv->ring_name);
+			if (!sink || sink->type != SINK_TYPE_BUFFER) {
+				ha_alert("global log server uses unkown ring named '%s'.\n", logsrv->ring_name);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+			logsrv->sink = sink;
+		}
+	}
+
+	for (px = proxies_list; px; px = px->next) {
+		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
+			if (logsrv->type == LOG_TARGET_BUFFER) {
+				sink = sink_find(logsrv->ring_name);
+				if (!sink || sink->type != SINK_TYPE_BUFFER) {
+					ha_alert("proxy '%s' log server uses unkown ring named '%s'.\n", px->id, logsrv->ring_name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+				}
+				logsrv->sink = sink;
+			}
+		}
+	}
+	return err_code;
+}
+
+
 static void sink_init()
 {
 	sink_new_fd("stdout", "standard output (fd#1)", SINK_FMT_RAW, 1);
@@ -326,6 +518,8 @@ static void sink_deinit()
 		if (sink->type == SINK_TYPE_BUFFER)
 			ring_free(sink->ctx.ring);
 		LIST_DEL(&sink->sink_list);
+		free(sink->name);
+		free(sink->desc);
 		free(sink);
 	}
 }
@@ -339,6 +533,10 @@ static struct cli_kw_list cli_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+/* config parsers for this section */
+REGISTER_CONFIG_SECTION("ring", cfg_parse_ring, cfg_post_parse_ring);
+REGISTER_POST_CHECK(post_sink_resolve);
 
 /*
  * Local variables:

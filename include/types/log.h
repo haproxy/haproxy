@@ -212,6 +212,7 @@ struct logsrv {
 	struct sockaddr_storage addr;
 	struct smp_info lb;
 	struct sink *sink;
+	char *ring_name;
 	enum log_tgt type;
 	int format;
 	int facility;
