@@ -116,7 +116,7 @@ haproxy h2 -conf {
         option log-health-checks
         option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
         log ${S6_addr}:${S6_port} daemon
-        server srv3 127.0.0.1:80 crt ${testdir}/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}
+        server srv3 127.0.0.1:80 crt ${testdir}/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}:80
 } -start
 
 syslog S1 -wait
