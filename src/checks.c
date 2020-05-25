@@ -3540,47 +3540,10 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		b_reset(&check->bo);
 
 		task_set_affinity(t, tid_bit);
-		cs = check->cs;
-		conn = cs_conn(cs);
-		if (!conn) {
-			check->current_step = NULL;
-			tcpcheck_main(check);
-			goto out_unlock;
-		}
 
-		conn->flags |= CO_FL_ERROR;
-		chk_report_conn_err(check, 0, 0);
-
-		/* here, we have seen a synchronous error, no fd was allocated */
-		task_set_affinity(t, MAX_THREADS_MASK);
-		if (cs) {
-			if (check->wait_list.events)
-				cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
-			/* We may have been scheduled to run, and the
-			 * I/O handler expects to have a cs, so remove
-			 * the tasklet
-			 */
-			tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-			cs_destroy(cs);
-			cs = check->cs = NULL;
-			conn = NULL;
-		}
-
-		check->state &= ~CHK_ST_INPROGRESS;
-		check_notify_failure(check);
-
-		/* we allow up to min(inter, timeout.connect) for a connection
-		 * to establish but only when timeout.check is set
-		 * as it may be to short for a full check otherwise
-		 */
-		while (tick_is_expired(t->expire, now_ms)) {
-			int t_con;
-
-			t_con = tick_add(t->expire, proxy->timeout.connect);
-			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
-			if (proxy->timeout.check)
-				t->expire = tick_first(t->expire, t_con);
-		}
+		check->current_step = NULL;
+		tcpcheck_main(check);
+		goto out_unlock;
 	}
 	else {
 		/* there was a test running.
