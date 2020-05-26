@@ -1,4 +1,5 @@
 varnishtest "Lua: set_var"
+#REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=LUA
 
 feature ignore_unknown_macro
