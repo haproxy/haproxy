@@ -2721,6 +2721,10 @@ static int tcpcheck_main(struct check *check)
 				retcode = -1; /* do not reuse the fd in the caller! */
 			}
 			eval_ret = tcpcheck_eval_connect(check, rule);
+
+			/* Refresh conn-stream and connection */
+			cs = check->cs;
+			conn = cs_conn(cs);
 			must_read = 1; last_read = 0;
 			break;
 		case TCPCHK_ACT_SEND:
