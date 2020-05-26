@@ -1473,7 +1473,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		}
 	}
 
-	if (srv->pp_opts & SRV_PP_V2_UNIQUE_ID) {
+	if (strm && (srv->pp_opts & SRV_PP_V2_UNIQUE_ID)) {
 		struct session* sess = strm_sess(strm);
 		struct ist unique_id = stream_generate_unique_id(strm, &sess->fe->format_unique_id);
 
