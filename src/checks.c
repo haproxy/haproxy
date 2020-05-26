@@ -2628,6 +2628,11 @@ static int tcpcheck_main(struct check *check)
 	if (check->result != CHK_RES_UNKNOWN)
 		goto out;
 
+	/* Note: the conn-stream and the connection may only be undefined before
+	 * the first rule evaluation (it is always a connect rule) or when the
+	 * conn-stream allocation failed on the first connect.
+	 */
+
 	/* 1- check for connection error, if any */
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 		goto out_end_tcpcheck;
@@ -2635,7 +2640,7 @@ static int tcpcheck_main(struct check *check)
 	/* 2- check if we are waiting for the connection establishment. It only
 	 *    happens during TCPCHK_ACT_CONNECT. */
 	if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
-		if (conn && (conn->flags & CO_FL_WAIT_XPRT)) {
+		if (conn->flags & CO_FL_WAIT_XPRT) {
 			struct tcpcheck_rule *next;
 
 			next = get_next_tcpcheck_rule(check->tcpcheck_rules, check->current_step);
@@ -2655,7 +2660,7 @@ static int tcpcheck_main(struct check *check)
 	/* 3- check for pending outgoing data. It only happens during
 	 *    TCPCHK_ACT_SEND. */
 	else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
-		if (conn && b_data(&check->bo)) {
+		if (b_data(&check->bo)) {
 			/* We're already waiting to be able to send, give up */
 			if (check->wait_list.events & SUB_RETRY_SEND)
 				goto out;
@@ -2663,11 +2668,11 @@ static int tcpcheck_main(struct check *check)
 			ret = conn->mux->snd_buf(cs, &check->bo,
 						 (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0);
 			if (ret <= 0) {
-				if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
+				if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))
 					goto out_end_tcpcheck;
 			}
 			if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || b_data(&check->bo)) {
-				cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 				goto out;
 			}
 		}
@@ -2806,7 +2811,7 @@ static int tcpcheck_main(struct check *check)
 			const char *msg = ((rule->connect.options & TCPCHK_OPT_IMPLICIT) ? NULL : "(tcp-check)");
 			enum healthcheck_status status = HCHK_STATUS_L4OK;
 #ifdef USE_OPENSSL
-			if (conn && ssl_sock_is_ssl(conn))
+			if (ssl_sock_is_ssl(conn))
 				status = HCHK_STATUS_L6OK;
 #endif
 			set_server_check_status(check, status, msg);
