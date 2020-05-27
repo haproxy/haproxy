@@ -155,63 +155,6 @@ const unsigned char http_char_classes[256] = {
 	[127] = HTTP_FLG_CTL,
 };
 
-const struct ist HTTP_100 = IST("HTTP/1.1 100 Continue\r\n\r\n");
-
-const struct ist HTTP_103 = IST("HTTP/1.1 103 Early Hints\r\n");
-
-/* Warning: no "connection" header is provided with the 3xx messages below */
-const char *HTTP_301 =
-	"HTTP/1.1 301 Moved Permanently\r\n"
-	"Content-length: 0\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-const char *HTTP_302 =
-	"HTTP/1.1 302 Found\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Content-length: 0\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-/* same as 302 except that the browser MUST retry with the GET method */
-const char *HTTP_303 =
-	"HTTP/1.1 303 See Other\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Content-length: 0\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-/* same as 302 except that the browser MUST retry with the same method */
-const char *HTTP_307 =
-	"HTTP/1.1 307 Temporary Redirect\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Content-length: 0\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-/* same as 301 except that the browser MUST retry with the same method */
-const char *HTTP_308 =
-	"HTTP/1.1 308 Permanent Redirect\r\n"
-	"Content-length: 0\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-/* Warning: this one is an sprintf() fmt string, with <realm> as its only argument */
-const char *HTTP_401_fmt =
-	"HTTP/1.1 401 Unauthorized\r\n"
-	"Content-length: 112\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"WWW-Authenticate: Basic realm=\"%s\"\r\n"
-	"\r\n"
-	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
-
-const char *HTTP_407_fmt =
-	"HTTP/1.1 407 Unauthorized\r\n"
-	"Content-length: 112\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"Proxy-Authenticate: Basic realm=\"%s\"\r\n"
-	"\r\n"
-	"<html><body><h1>407 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
-
 const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
 	[HTTP_ERR_400] = 400,

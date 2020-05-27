@@ -1223,6 +1223,17 @@ struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg)
  */
 struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char **errmsg)
 {
+	static const char *HTTP_302 =
+		"HTTP/1.1 302 Found\r\n"
+		"Cache-Control: no-cache\r\n"
+		"Content-length: 0\r\n"
+		"Location: "; /* not terminated since it will be concatenated with the URL */
+	static const char *HTTP_303 =
+		"HTTP/1.1 303 See Other\r\n"
+		"Cache-Control: no-cache\r\n"
+		"Content-length: 0\r\n"
+		"Location: "; /* not terminated since it will be concatenated with the URL */
+
 	struct buffer *buf = NULL;
 	const char *msg;
 	char *key = NULL, *err = NULL;
