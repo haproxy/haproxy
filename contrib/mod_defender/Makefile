@@ -28,7 +28,7 @@ EVENT_INC := /usr/include
 endif
 
 CFLAGS  += -g -Wall -pthread
-INCS += -I../../include -I../../ebtree -I$(MOD_DEFENDER_SRC) -I$(APACHE2_INC) -I$(APR_INC) -I$(EVENT_INC)
+INCS += -I../../include -I$(MOD_DEFENDER_SRC) -I$(APACHE2_INC) -I$(APR_INC) -I$(EVENT_INC)
 LIBS += -lpthread  $(EVENT_LIB) -levent_pthreads -lapr-1 -laprutil-1 -lstdc++ -lm
 
 CXXFLAGS = -g -std=gnu++11

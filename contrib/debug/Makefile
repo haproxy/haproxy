@@ -1,4 +1,4 @@
-INCLUDE  = -I../../include -I../../ebtree
+INCLUDE  = -I../../include
 
 CC       = gcc
 OPTIMIZE = -O2

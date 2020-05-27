@@ -715,12 +715,9 @@ endif
 endif
 endif
 
-# This one can be changed to look for ebtree files in an external directory
-EBTREE_DIR := ebtree
-
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
-COPTS  = -Iinclude -I$(EBTREE_DIR)
+COPTS  = -Iinclude
 
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
@@ -827,7 +824,7 @@ OBJS += $(EXTRA_OBJS)
 endif
 
 # Used only for forced dependency checking. May be cleared during development.
-INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
+INCLUDES = $(wildcard include/*/*.h)
 DEP = $(INCLUDES) .build_opts
 
 help:
@@ -919,7 +916,7 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
-	$(Q)for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
+	$(Q)for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
 

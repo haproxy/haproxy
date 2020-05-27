@@ -34,7 +34,7 @@ EVENT_INC := /usr/include
 endif
 
 CFLAGS  += -g -Wall -pthread
-INCS += -I../../include -I../../ebtree -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC) -I$(EVENT_INC)
+INCS += -I../../include -I$(MODSEC_INC) -I$(APACHE2_INC) -I$(APR_INC) -I$(LIBXML_INC) -I$(EVENT_INC)
 LIBS += -lpthread  $(EVENT_LIB) -levent_pthreads -lcurl -lapr-1 -laprutil-1 -lxml2 -lpcre -lyajl
 
 OBJS = spoa.o modsec_wrapper.o

@@ -7,7 +7,7 @@
  * The DHT size may optionally be changed in argv[1].
  *
  * Build like this :
- *    gcc -I../../include -I../../ebtree -O0 -g -fno-strict-aliasing -fwrapv \
+ *    gcc -I../../include -O0 -g -fno-strict-aliasing -fwrapv \
  *        -o decode decode.c
  */
 

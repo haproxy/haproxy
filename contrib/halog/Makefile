@@ -1,5 +1,4 @@
-EBTREE_DIR = ../../ebtree
-INCLUDE  = -I../../include -I$(EBTREE_DIR)
+INCLUDE  = -I../../include
 SRC      = ../../src
 
 CC       = gcc

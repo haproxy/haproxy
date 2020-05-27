@@ -5,7 +5,7 @@
  * table is built to access the first entry of each length.
  *
  * Build like this :
- *    gcc -I../../include -I../../ebtree -o gen-enc gen-enc.c
+ *    gcc -I../../include -o gen-enc gen-enc.c
  */
 #define HPACK_STANDALONE
 
