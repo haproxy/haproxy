@@ -1,0 +1,33 @@
+varnishtest "Check that the unique ID TLV is properly sent for servers with ALPN option"
+
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTIONS=OPENSSL
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        log global
+        unique-id-format %{+X}o\ TEST-%[req.hdr(in)]
+
+    listen sender
+        bind "fd@${feS}"
+
+        server example ${h1_feR_addr}:${h1_feR_port} send-proxy-v2 proxy-v2-options unique-id ssl alpn XXX verify none
+
+    listen receiver
+        bind "fd@${feR}" ssl crt ${testdir}/common.pem accept-proxy
+
+        http-request set-var(txn.proxy_unique_id) fc_pp_unique_id
+        http-after-response set-header proxy_unique_id %[var(txn.proxy_unique_id)]
+        http-request return status 200
+} -start
+
+# Validate that a correct header passes
+client c1 -connect ${h1_feS_sock} {
+    txreq -url "/" \
+        -hdr "in: foo"
+    rxresp
+    expect resp.http.proxy_unique_id == "TEST-foo"
+} -run
