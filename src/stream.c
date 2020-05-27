@@ -17,7 +17,6 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/buffer.h>
-#include <common/debug.h>
 #include <common/hathreads.h>
 #include <common/htx.h>
 #include <common/memory.h>

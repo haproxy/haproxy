@@ -21,7 +21,6 @@
 
 #include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/debug.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>

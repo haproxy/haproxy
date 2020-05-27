@@ -19,7 +19,6 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
-#include <common/debug.h>
 #include <common/http.h>
 #include <common/memory.h>
 #include <common/standard.h>

@@ -26,7 +26,6 @@
 #include <proto/sample.h>
 #include <proto/ssl_sock.h>
 
-#include <common/debug.h>
 
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));

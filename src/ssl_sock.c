@@ -46,7 +46,6 @@
 
 #include <common/buffer.h>
 #include <common/chunk.h>
-#include <common/debug.h>
 #include <haproxy/errors.h>
 #include <haproxy/openssl-compat.h>
 #include <common/standard.h>

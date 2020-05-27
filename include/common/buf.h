@@ -28,11 +28,9 @@
 #ifndef _COMMON_BUF_H
 #define _COMMON_BUF_H
 
-#include <inttypes.h>
 #include <string.h>
 #include <unistd.h>
-
-#include <common/debug.h>
+#include <haproxy/api.h>
 
 /* Structure defining a buffer's head */
 struct buffer {

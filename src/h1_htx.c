@@ -11,7 +11,6 @@
  */
 
 #include <haproxy/api.h>
-#include <common/debug.h>
 #include <common/cfgparse.h>
 #include <common/h1.h>
 #include <common/http.h>

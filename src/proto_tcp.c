@@ -31,7 +31,6 @@
 #include <netinet/in.h>
 
 #include <haproxy/api.h>
-#include <common/debug.h>
 #include <haproxy/errors.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>

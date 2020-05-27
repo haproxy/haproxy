@@ -28,7 +28,6 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/debug.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
