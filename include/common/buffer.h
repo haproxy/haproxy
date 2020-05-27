@@ -30,7 +30,7 @@
 #include <haproxy/buf.h>
 #include <common/chunk.h>
 #include <import/ist.h>
-#include <common/istbuf.h>
+#include <haproxy/istbuf.h>
 #include <common/memory.h>
 
 #include <proto/activity.h>

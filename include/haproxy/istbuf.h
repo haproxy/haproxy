@@ -1,8 +1,8 @@
 /*
- * include/common/istbuf.h
+ * include/haproxy/istbuf.h
  * Functions used to manipulate indirect strings with wrapping buffers.
  *
- * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -25,12 +25,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _COMMON_ISTBUF_H
-#define _COMMON_ISTBUF_H
+#ifndef _HAPROXY_ISTBUF_H
+#define _HAPROXY_ISTBUF_H
 
-#include <inttypes.h>
-#include <haproxy/buf.h>
+#include <sys/types.h>
 #include <import/ist.h>
+#include <haproxy/buf.h>
 
 
 /* b_isteq() : returns > 0 if the first <n> characters of buffer <b> starting
@@ -152,7 +152,7 @@ static inline struct buffer ist2buf(const struct ist ist)
 	return buf;
 }
 
-#endif /* _COMMON_ISTBUF_H */
+#endif /* _HAPROXY_ISTBUF_H */
 
 /*
  * Local variables:
