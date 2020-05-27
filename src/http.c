@@ -215,9 +215,11 @@ const char *HTTP_407_fmt =
 const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
 	[HTTP_ERR_400] = 400,
+	[HTTP_ERR_401] = 401,
 	[HTTP_ERR_403] = 403,
 	[HTTP_ERR_404] = 404,
 	[HTTP_ERR_405] = 405,
+	[HTTP_ERR_407] = 407,
 	[HTTP_ERR_408] = 408,
 	[HTTP_ERR_410] = 410,
 	[HTTP_ERR_421] = 421,
@@ -248,6 +250,15 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"\r\n"
 	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n",
 
+	[HTTP_ERR_401] =
+	"HTTP/1.1 401 Unauthorized\r\n"
+	"Content-length: 112\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n",
+
 	[HTTP_ERR_403] =
 	"HTTP/1.1 403 Forbidden\r\n"
 	"Content-length: 93\r\n"
@@ -274,6 +285,15 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>405 Method Not Allowed</h1>\nA request was made of a resource using a request method not supported by that resource\n</body></html>\n",
+
+	[HTTP_ERR_407] =
+	"HTTP/1.1 407 Unauthorized\r\n"
+	"Content-length: 112\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>407 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n",
 
 	[HTTP_ERR_408] =
 	"HTTP/1.1 408 Request Time-out\r\n"
@@ -396,9 +416,11 @@ int http_get_status_idx(unsigned int status)
 	switch (status) {
 	case 200: return HTTP_ERR_200;
 	case 400: return HTTP_ERR_400;
+	case 401: return HTTP_ERR_401;
 	case 403: return HTTP_ERR_403;
 	case 404: return HTTP_ERR_404;
 	case 405: return HTTP_ERR_405;
+	case 407: return HTTP_ERR_407;
 	case 408: return HTTP_ERR_408;
 	case 410: return HTTP_ERR_410;
 	case 421: return HTTP_ERR_421;

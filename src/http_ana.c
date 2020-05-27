@@ -4910,61 +4910,54 @@ static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
 {
 	struct channel *res = &s->res;
 	struct htx *htx = htx_from_buf(&res->buf);
-	struct htx_sl *sl;
-	struct ist code, body;
-	int status;
-	unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
+	struct http_reply *reply;
+	struct http_hdr_ctx ctx;
+	struct ist hdr;
 
 	if (!(s->txn->flags & TX_USE_PX_CONN)) {
-		status = 401;
-		code = ist("401");
-		body = ist("<html><body><h1>401 Unauthorized</h1>\n"
-			   "You need a valid user and password to access this content.\n"
-			   "</body></html>\n");
+		s->txn->status = 401;
+		hdr = ist("WWW-Authenticate");
 	}
 	else {
-		status = 407;
-		code = ist("407");
-		body = ist("<html><body><h1>407 Unauthorized</h1>\n"
-			   "You need a valid user and password to access this content.\n"
-			   "</body></html>\n");
+		s->txn->status = 407;
+		hdr = ist("Proxy-Authenticate");
 	}
-
-	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
-			    ist("HTTP/1.1"), code, ist("Unauthorized"));
-	if (!sl)
-		goto fail;
-	sl->info.res.status = status;
-	s->txn->status = status;
+	reply = http_error_message(s);
+	channel_htx_truncate(res, htx);
 
 	if (chunk_printf(&trash, "Basic realm=\"%s\"", auth_realm) == -1)
 		goto fail;
 
-        if (!htx_add_header(htx, ist("Content-length"), ist("112")) ||
-	    !htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
-	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
-	    !htx_add_header(htx, ist("Content-Type"), ist("text/html")))
-		goto fail;
-	if (status == 401 && !htx_add_header(htx, ist("WWW-Authenticate"), ist2(trash.area, trash.data)))
-		goto fail;
-	if (status == 407 && !htx_add_header(htx, ist("Proxy-Authenticate"), ist2(trash.area, trash.data)))
-		goto fail;
-	if (!htx_add_endof(htx, HTX_BLK_EOH))
+	/* Write the generic 40x message */
+	if (http_reply_to_htx(s, htx, reply) == -1)
 		goto fail;
 
-	while (body.len) {
-		size_t sent = htx_add_data(htx, body);
-		if (!sent)
-			goto fail;
-		body.ptr += sent;
-		body.len -= sent;
-	}
+	/* Remove all existing occurrences of the XXX-Authenticate header */
+	ctx.blk = NULL;
+	while (http_find_header(htx, hdr, &ctx, 1))
+		http_remove_header(htx, &ctx);
 
-	if (!htx_add_endof(htx, HTX_BLK_EOM))
+	/* Now a the right XXX-Authenticate header */
+	if (!http_add_header(htx, hdr, ist2(b_orig(&trash), b_data(&trash))))
 		goto fail;
 
+	/* Finally forward the reply */
+	htx_to_buf(htx, &res->buf);
 	if (!http_forward_proxy_resp(s, 1))
 		goto fail;
+
+	/* Note: Only eval on the request */
+	s->logs.tv_request = now;
+	s->req.analysers &= AN_REQ_FLT_END;
+
+	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+		_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+
 	return 0;
 
   fail:
