@@ -89,7 +89,7 @@
 #include <common/mini-clist.h>
 #include <common/namespace.h>
 #include <common/net_helper.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <common/time.h>

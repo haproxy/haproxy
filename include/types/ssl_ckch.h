@@ -34,7 +34,7 @@
 #ifdef USE_OPENSSL
 
 #include <common/mini-clist.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 
 /* This is used to preload the certificate, private key
  * and Cert Chain of a file passed in via the crt

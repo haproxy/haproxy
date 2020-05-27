@@ -23,7 +23,7 @@
 #define _PROTO_SSL_SOCK_H
 #ifdef USE_OPENSSL
 
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 
 #include <types/connection.h>
 #include <types/listener.h>

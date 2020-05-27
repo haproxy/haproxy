@@ -1,5 +1,5 @@
-#ifndef _COMMON_OPENSSL_COMPAT_H
-#define _COMMON_OPENSSL_COMPAT_H
+#ifndef _HAPROXY_OPENSSL_COMPAT_H
+#define _HAPROXY_OPENSSL_COMPAT_H
 #ifdef USE_OPENSSL
 
 #include <openssl/bn.h>
@@ -379,4 +379,4 @@ static inline void SSL_CTX_up_ref(SSL_CTX *ctx)
 #endif
 
 #endif /* USE_OPENSSL */
-#endif /* _COMMON_OPENSSL_COMPAT_H */
+#endif /* _HAPROXY_OPENSSL_COMPAT_H */

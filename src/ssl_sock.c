@@ -48,7 +48,7 @@
 #include <common/chunk.h>
 #include <common/debug.h>
 #include <haproxy/errors.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>

@@ -27,7 +27,7 @@
 
 #ifdef USE_OPENSSL
 #include <haproxy/api-t.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 #endif
 
 #include <common/mini-clist.h>

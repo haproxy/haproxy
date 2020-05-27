@@ -22,7 +22,7 @@
 
 #include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 #include <common/standard.h>
 
 #include <types/sample.h>

@@ -13,7 +13,7 @@
 
 
 #include <common/buffer.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 
 #include <proto/ssl_sock.h>
 

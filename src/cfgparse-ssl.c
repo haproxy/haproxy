@@ -34,7 +34,7 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <common/cfgparse.h>
-#include <common/openssl-compat.h>
+#include <haproxy/openssl-compat.h>
 
 #include <types/ssl_sock.h>
 
