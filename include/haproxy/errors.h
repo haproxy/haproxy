@@ -1,8 +1,8 @@
 /*
- * include/common/errors.h
+ * include/haproxy/errors.h
  * Global error macros and constants
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_ERRORS_H
-#define _COMMON_ERRORS_H
+#ifndef _HAPROXY_ERRORS_H
+#define _HAPROXY_ERRORS_H
 
 /* These flags may be used in various functions which are called from within
  * loops (eg: to start all listeners from all proxies). They provide enough
@@ -56,7 +56,7 @@ enum {
 	PE_ARG_NOT_FOUND, /* argument references something not found */
 };
 
-#endif /* _COMMON_ERRORS_H */
+#endif /* _HAPROXY_ERRORS_H */
 
 /*
  * Local variables:

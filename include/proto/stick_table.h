@@ -23,7 +23,7 @@
 #ifndef _PROTO_STICK_TABLE_H
 #define _PROTO_STICK_TABLE_H
 
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <types/stick_table.h>

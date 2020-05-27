@@ -47,12 +47,12 @@
 #include <common/buffer.h>
 #include <common/chunk.h>
 #include <common/debug.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/openssl-compat.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
-#include <common/base64.h>
+#include <haproxy/base64.h>
 
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>

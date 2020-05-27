@@ -1,8 +1,8 @@
 /*
- * include/common/hash.h
+ * include/haproxy/hash.h
  * Macros for different hashing function.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_HASH_H_
-#define _COMMON_HASH_H_
+#ifndef _HAPROXY_HASH_H_
+#define _HAPROXY_HASH_H_
 
 #include <inttypes.h>
 
@@ -30,4 +30,4 @@ unsigned int hash_sdbm(const void *input, int len);
 unsigned int hash_crc32(const void *input, int len);
 uint32_t hash_crc32c(const void *input, int len);
 
-#endif /* _COMMON_HASH_H_ */
+#endif /* _HAPROXY_HASH_H_ */

@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/base64.h>
+#include <haproxy/base64.h>
 #include <common/debug.h>
 #include <common/htx.h>
 #include <common/net_helper.h>

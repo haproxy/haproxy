@@ -14,7 +14,7 @@
  */
 
 
-#include <common/hash.h>
+#include <haproxy/hash.h>
 
 
 unsigned int hash_wt6(const void *input, int len)

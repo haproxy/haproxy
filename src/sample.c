@@ -20,12 +20,12 @@
 #include <types/global.h>
 
 #include <common/chunk.h>
-#include <common/hash.h>
+#include <haproxy/hash.h>
 #include <common/http.h>
 #include <common/net_helper.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
-#include <common/base64.h>
+#include <haproxy/base64.h>
 
 #include <proto/arg.h>
 #include <proto/auth.h>

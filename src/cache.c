@@ -34,7 +34,7 @@
 
 
 #include <common/cfgparse.h>
-#include <common/hash.h>
+#include <haproxy/hash.h>
 #include <common/htx.h>
 #include <common/net_helper.h>
 

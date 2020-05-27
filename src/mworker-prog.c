@@ -22,7 +22,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 
 #include <proto/log.h>
 #include <proto/mworker.h>

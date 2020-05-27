@@ -14,7 +14,7 @@
 #include <common/buffer.h>
 #include <common/debug.h>
 #include <common/cfgparse.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/htx.h>
 #include <common/namespace.h>
 #include <common/standard.h>

@@ -15,7 +15,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/standard.h>
 
 #include <dirent.h>

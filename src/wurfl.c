@@ -5,7 +5,7 @@
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/buffer.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <types/global.h>
 #include <proto/arg.h>
 #include <proto/log.h>

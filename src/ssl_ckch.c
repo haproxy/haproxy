@@ -21,8 +21,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <common/base64.h>
-#include <common/errors.h>
+#include <haproxy/base64.h>
+#include <haproxy/errors.h>
 #include <common/standard.h>
 
 #include <import/ebsttree.h>

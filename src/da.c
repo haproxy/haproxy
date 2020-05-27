@@ -2,7 +2,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/http.h>
 #include <types/global.h>
 #include <proto/arg.h>

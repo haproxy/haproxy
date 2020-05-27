@@ -17,7 +17,7 @@
 #include <time.h>
 
 #include <haproxy/api.h>
-#include <common/base64.h>
+#include <haproxy/base64.h>
 #include <common/chunk.h>
 #include <common/debug.h>
 #include <common/h1.h>

@@ -36,7 +36,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
-#include <common/base64.h>
+#include <haproxy/base64.h>
 
 #include <types/applet.h>
 #include <types/cli.h>

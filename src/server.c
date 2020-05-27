@@ -18,7 +18,7 @@
 #include <import/xxhash.h>
 
 #include <common/cfgparse.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/namespace.h>
 #include <common/time.h>
 

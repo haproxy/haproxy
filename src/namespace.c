@@ -12,8 +12,8 @@
 
 #include <haproxy/api.h>
 #include <common/namespace.h>
-#include <common/hash.h>
-#include <common/errors.h>
+#include <haproxy/hash.h>
+#include <haproxy/errors.h>
 #include <proto/log.h>
 #include <proto/signal.h>
 #include <types/global.h>

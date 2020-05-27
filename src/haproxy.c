@@ -81,10 +81,10 @@
 #include <haproxy/api.h>
 #include <import/sha1.h>
 
-#include <common/base64.h>
+#include <haproxy/base64.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
-#include <common/errors.h>
+#include <haproxy/errors.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/namespace.h>
