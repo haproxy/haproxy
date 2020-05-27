@@ -24,7 +24,7 @@
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
-#include <common/version.h>
+#include <haproxy/version.h>
 
 #include <types/capture.h>
 #include <types/global.h>

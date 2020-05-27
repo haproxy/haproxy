@@ -197,7 +197,7 @@ sed -e "s:Copyright 2000-[0-9]*\s*Willy Tarreau.*>:Copyright 2000-$YEAR Willy Ta
 
 echo "Updating version.h ..."
 sed -e "s:^\(#define\s*PRODUCT_BRANCH\s*\)\"[^\"]*\":\1\"$BRANCH\":" \
-    -i include/common/version.h
+    -i include/haproxy/version.h
 
 if [ -n "$INTERACTIVE" ]; then
 	vi CHANGELOG VERSION VERDATE \

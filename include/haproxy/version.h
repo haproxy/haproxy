@@ -1,8 +1,8 @@
 /*
- * include/common/version.h
+ * include/haproxy/version.h
  * This file serves as a template for future include files.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_VERSION_H
-#define _COMMON_VERSION_H
+#ifndef _HAPROXY_VERSION_H
+#define _HAPROXY_VERSION_H
 
 #include <haproxy/api.h>
 
@@ -82,5 +82,5 @@ extern char haproxy_version[];
 extern char haproxy_date[];
 extern char stats_version_string[];
 
-#endif /* _COMMON_VERSION_H */
+#endif /* _HAPROXY_VERSION_H */
 

@@ -22,7 +22,7 @@
 #include <common/http.h>
 #include <common/memory.h>
 #include <common/standard.h>
-#include <common/version.h>
+#include <haproxy/version.h>
 
 #include <types/capture.h>
 #include <types/global.h>

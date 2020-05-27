@@ -4,7 +4,7 @@
  * code version.
  */
 
-#include <common/version.h>
+#include <haproxy/version.h>
 
 /* These ones are made variables and not constants so that they are stored into
  * the data region and prominently appear in core files.

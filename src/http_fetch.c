@@ -25,7 +25,7 @@
 #include <common/htx.h>
 #include <common/memory.h>
 #include <common/standard.h>
-#include <common/version.h>
+#include <haproxy/version.h>
 
 #include <types/global.h>
 

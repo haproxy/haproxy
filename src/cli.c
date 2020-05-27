@@ -35,7 +35,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 #include <common/uri_auth.h>
-#include <common/version.h>
+#include <haproxy/version.h>
 #include <common/base64.h>
 
 #include <types/applet.h>
