@@ -25,7 +25,7 @@
 #include <sys/time.h>
 
 #include <common/buffer.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/hathreads.h>
 
 #include <types/filters.h>

@@ -21,7 +21,7 @@
 #include <haproxy/api.h>
 #include <common/buffer.h>
 #include <import/ist.h>
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/sink.h>

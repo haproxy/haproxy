@@ -23,7 +23,7 @@
 #define _TYPES_QUEUE_H
 
 #include <haproxy/api-t.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/hathreads.h>
 
 #include <types/server.h>

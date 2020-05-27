@@ -14,7 +14,7 @@
 #define _TYPES_AUTH_H
 
 #include <haproxy/api-t.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 
 #include <types/auth.h>
 

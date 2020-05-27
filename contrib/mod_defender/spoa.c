@@ -31,7 +31,7 @@
 #include <event2/event_struct.h>
 #include <event2/thread.h>
 
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 #include <common/chunk.h>
 
 #include <proto/spoe.h>

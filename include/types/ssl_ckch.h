@@ -33,7 +33,7 @@
 #define _TYPES_SSL_CKCH_H
 #ifdef USE_OPENSSL
 
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 
 /* This is used to preload the certificate, private key

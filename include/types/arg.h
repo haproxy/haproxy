@@ -26,7 +26,7 @@
 #include <netinet/in.h>
 
 #include <common/chunk.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 
 #include <types/vars.h>
 #include <types/protocol_buffers.h>

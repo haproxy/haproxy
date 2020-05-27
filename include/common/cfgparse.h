@@ -23,7 +23,7 @@
 #define _COMMON_CFGPARSE_H
 
 #include <haproxy/api.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 
 #include <proto/log.h>
 #include <proto/proxy.h>

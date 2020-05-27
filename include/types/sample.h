@@ -28,7 +28,7 @@
 
 #include <haproxy/buf-t.h>
 #include <common/http.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 
 struct arg;
 

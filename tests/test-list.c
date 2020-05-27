@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define USE_THREAD
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 
 /* Stress test the mt_lists.
  * Compile from the haproxy directory with :

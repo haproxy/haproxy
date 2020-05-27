@@ -14,7 +14,7 @@
 #ifndef SHCTX_H
 #define SHCTX_H
 
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 #include <types/shctx.h>
 
 #include <inttypes.h>

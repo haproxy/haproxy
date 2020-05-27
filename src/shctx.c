@@ -15,7 +15,7 @@
 #include <arpa/inet.h>
 #include <import/ebmbtree.h>
 #include <types/global.h>
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 #include "proto/shctx.h"
 
 #if !defined (USE_PRIVATE_CACHE)

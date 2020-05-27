@@ -24,7 +24,6 @@
 
 #include <haproxy/api.h>
 #include <common/memory.h>
-#include <common/mini-clist.h>
 
 #include <types/proxy.h>
 #include <types/queue.h>

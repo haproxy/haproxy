@@ -18,7 +18,7 @@
 
 #include <common/standard.h>
 #include <import/ist.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/regex.h>
 #include <haproxy/buf-t.h>
 

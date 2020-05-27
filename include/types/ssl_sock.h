@@ -33,7 +33,7 @@
 
 #include <common/buffer.h>
 #include <common/hathreads.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 
 /* ***** READ THIS before adding code here! *****

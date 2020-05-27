@@ -1,7 +1,7 @@
 #ifndef _TYPES_VARS_H
 #define _TYPES_VARS_H
 
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/hathreads.h>
 
 #include <types/sample.h>

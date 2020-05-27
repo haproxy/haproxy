@@ -18,7 +18,7 @@
 #include <common/buffer.h>
 #include <common/htx.h>
 #include <common/memory.h>
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 
 #include <types/global.h>
 

@@ -24,7 +24,7 @@
 
 #include <import/eb32tree.h>
 
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/hathreads.h>
 
 #include <types/connection.h>

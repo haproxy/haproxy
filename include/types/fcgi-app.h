@@ -25,7 +25,7 @@
 #include <haproxy/api-t.h>
 #include <import/ist.h>
 #include <common/fcgi.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/regex.h>
 
 #include <import/ebistree.h>

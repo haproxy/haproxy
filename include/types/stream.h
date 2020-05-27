@@ -29,7 +29,7 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 
 #include <types/channel.h>
 #include <types/filters.h>

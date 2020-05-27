@@ -30,7 +30,7 @@
 #include <haproxy/api-t.h>
 #include <common/chunk.h>
 #include <common/http.h>
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <common/regex.h>
 #include <common/hathreads.h>
 

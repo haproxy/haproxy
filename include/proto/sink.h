@@ -22,7 +22,7 @@
 #ifndef _PROTO_SINK_H
 #define _PROTO_SINK_H
 
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <types/sink.h>
 
 extern struct list sink_list;

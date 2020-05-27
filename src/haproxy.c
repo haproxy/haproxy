@@ -86,7 +86,7 @@
 #include <common/chunk.h>
 #include <haproxy/errors.h>
 #include <common/memory.h>
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 #include <common/namespace.h>
 #include <common/net_helper.h>
 #include <haproxy/openssl-compat.h>

@@ -20,7 +20,7 @@
 #ifndef _TYPES_CLI_H
 #define _TYPES_CLI_H
 
-#include <common/mini-clist.h>
+#include <haproxy/list-t.h>
 #include <types/applet.h>
 
 /* Access level for a stats socket */

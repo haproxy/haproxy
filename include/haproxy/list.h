@@ -1,8 +1,8 @@
 /*
- * include/common/mini-clist.h
- * Circular list manipulation macros and structures.
+ * include/haproxy/list.h
+ * Circular list manipulation macros and functions.
  *
- * Copyright (C) 2002-2014 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2002-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,56 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_MINI_CLIST_H
-#define _COMMON_MINI_CLIST_H
+#ifndef _HAPROXY_LIST_H
+#define _HAPROXY_LIST_H
 
-
-/* these are circular or bidirectionnal lists only. Each list pointer points to
- * another list pointer in a structure, and not the structure itself. The
- * pointer to the next element MUST be the first one so that the list is easily
- * cast as a single linked list or pointer.
- */
-struct list {
-    struct list *n;	/* next */
-    struct list *p;	/* prev */
-};
-
-/* This is similar to struct list, but we want to be sure the compiler will
- * yell at you if you use macroes for one when you're using the other. You have
- * to expicitely cast if that's really what you want to do.
- */
-struct mt_list {
-    struct mt_list *next;
-    struct mt_list *prev;
-};
-
-
-/* a back-ref is a pointer to a target list entry. It is used to detect when an
- * element being deleted is currently being tracked by another user. The best
- * example is a user dumping the session table. The table does not fit in the
- * output buffer so we have to set a mark on a session and go on later. But if
- * that marked session gets deleted, we don't want the user's pointer to go in
- * the wild. So we can simply link this user's request to the list of this
- * session's users, and put a pointer to the list element in ref, that will be
- * used as the mark for next iteration.
- */
-struct bref {
-	struct list users;
-	struct list *ref; /* pointer to the target's list entry */
-};
-
-/* a word list is a generic list with a pointer to a string in each element. */
-struct wordlist {
-	struct list list;
-	char *s;
-};
-
-/* this is the same as above with an additional pointer to a condition. */
-struct cond_wordlist {
-	struct list list;
-	void *cond;
-	char *s;
-};
+#include <haproxy/api.h>
+#include <haproxy/list-t.h>
+#include <common/hathreads.h>
 
 /* First undefine some macros which happen to also be defined on OpenBSD,
  * in sys/queue.h, used by sys/event.h
@@ -257,15 +213,13 @@ struct cond_wordlist {
 	     &item->member != (list_head);                               \
 	     item = back, back = LIST_ELEM(back->member.p, typeof(back), member))
 
-#include <haproxy/api.h>
-#include <common/hathreads.h>
-#define MT_LIST_BUSY ((struct mt_list *)1)
 
 /*
  * Locked version of list manipulation macros.
  * It is OK to use those concurrently from multiple threads, as long as the
  * list is only used with the locked variants.
  */
+#define MT_LIST_BUSY ((struct mt_list *)1)
 
 /*
  * Add an item at the beginning of a list.
@@ -733,4 +687,4 @@ static __inline struct mt_list *list_to_mt_list(struct list *list)
 
 }
 
-#endif /* _COMMON_MINI_CLIST_H */
+#endif /* _HAPROXY_LIST_H */

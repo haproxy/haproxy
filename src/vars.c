@@ -3,7 +3,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/http.h>
-#include <common/mini-clist.h>
+#include <haproxy/list.h>
 
 #include <types/vars.h>
 
