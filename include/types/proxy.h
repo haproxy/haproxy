@@ -35,8 +35,8 @@
 #include <common/tools.h>
 #include <common/hathreads.h>
 
-#include <eb32tree.h>
-#include <ebistree.h>
+#include <import/eb32tree.h>
+#include <import/ebistree.h>
 
 #include <types/acl.h>
 #include <types/backend.h>

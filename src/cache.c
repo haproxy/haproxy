@@ -10,7 +10,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 #include <import/sha1.h>
 
 #include <types/action.h>

@@ -19,8 +19,8 @@
 #include <common/standard.h>
 
 #include <dirent.h>
-#include <ebpttree.h>
-#include <ebsttree.h>
+#include <import/ebpttree.h>
+#include <import/ebsttree.h>
 
 #include <types/cli.h>
 #include <types/ssl_crtlist.h>

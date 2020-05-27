@@ -30,7 +30,7 @@
 #include <common/hathreads.h>
 #include <common/openssl-compat.h>
 
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 #include <types/connection.h>
 #include <types/counters.h>

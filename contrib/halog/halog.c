@@ -20,10 +20,10 @@
 #include <ctype.h>
 #include <time.h>
 
-#include <eb32tree.h>
-#include <eb64tree.h>
-#include <ebistree.h>
-#include <ebsttree.h>
+#include <import/eb32tree.h>
+#include <import/eb64tree.h>
+#include <import/ebistree.h>
+#include <import/ebsttree.h>
 
 #define SOURCE_FIELD 5
 #define ACCEPT_FIELD 6

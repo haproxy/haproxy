@@ -32,8 +32,8 @@
 #include <common/ticks.h>
 #include <common/hathreads.h>
 
-#include <eb32sctree.h>
-#include <eb32tree.h>
+#include <import/eb32sctree.h>
+#include <import/eb32tree.h>
 
 #include <types/global.h>
 #include <types/task.h>

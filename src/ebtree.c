@@ -18,7 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "ebtree.h"
+#include <import/ebtree.h>
 
 void eb_delete(struct eb_node *node)
 {

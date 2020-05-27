@@ -34,7 +34,7 @@
 #include <common/hathreads.h>
 
 #include <types/obj_type.h>
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 /* Some pointer types reference below */
 struct task;

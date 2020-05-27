@@ -23,7 +23,7 @@
 #define _TYPES_LB_FAS_H
 
 #include <common/config.h>
-#include <ebtree.h>
+#include <import/ebtree.h>
 
 struct lb_fas {
 	struct eb_root act;	/* weighted least conns on the active servers */

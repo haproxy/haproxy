@@ -16,7 +16,7 @@
 #include <common/htx.h>
 #include <common/initcall.h>
 
-#include <ebistree.h>
+#include <import/ebistree.h>
 
 #include <types/pipe.h>
 #include <types/proxy.h>

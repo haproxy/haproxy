@@ -25,7 +25,7 @@
 #include <common/errors.h>
 #include <common/standard.h>
 
-#include <ebsttree.h>
+#include <import/ebsttree.h>
 
 #include <types/cli.h>
 #include <types/ssl_ckch.h>

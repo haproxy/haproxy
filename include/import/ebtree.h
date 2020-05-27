@@ -247,7 +247,7 @@
 #define _EBTREE_H
 
 #include <stdlib.h>
-#include "compiler.h"
+#include <common/compiler.h>
 
 static inline int flsnz8_generic(unsigned int x)
 {

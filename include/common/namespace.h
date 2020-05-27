@@ -2,7 +2,7 @@
 #define _NAMESPACE_H
 
 #include <stdlib.h>
-#include <ebistree.h>
+#include <import/ebistree.h>
 
 #ifdef USE_NS
 

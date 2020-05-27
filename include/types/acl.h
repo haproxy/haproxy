@@ -32,7 +32,7 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
-#include <ebmbtree.h>
+#include <import/ebmbtree.h>
 
 /* ACL test result.
  *

@@ -20,7 +20,7 @@
 
 /* Consult eb32sctree.h for more details about those functions */
 
-#include "eb32sctree.h"
+#include <import/eb32sctree.h>
 
 
 /* This function is used to build a tree of duplicates by adding a new node to

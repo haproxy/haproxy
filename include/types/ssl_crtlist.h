@@ -23,7 +23,7 @@
 #define _TYPES_SSL_CRTLIST_H
 #ifdef USE_OPENSSL
 
-#include <ebmbtree.h>
+#include <import/ebmbtree.h>
 
 #include <common/mini-clist.h>
 

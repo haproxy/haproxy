@@ -2,7 +2,7 @@
 #define _TYPES_DICT_H
 
 #include <common/hathreads.h>
-#include <ebpttree.h>
+#include <import/ebpttree.h>
 
 struct dict_entry {
 	struct ebpt_node value;

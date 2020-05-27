@@ -20,8 +20,8 @@
 
 /* Consult ebimtree.h for more details about those functions */
 
-#include "ebpttree.h"
-#include "ebimtree.h"
+#include <import/ebpttree.h>
+#include <import/ebimtree.h>
 
 /* Find the first occurrence of a key of <len> bytes in the tree <root>.
  * If none can be found, return NULL.

@@ -27,7 +27,7 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 /* some pointer types referenced below */
 struct listener;

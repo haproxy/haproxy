@@ -25,7 +25,7 @@
 #include <proto/pattern.h>
 #include <proto/sample.h>
 
-#include <ebsttree.h>
+#include <import/ebsttree.h>
 #include <import/lru.h>
 #include <import/xxhash.h>
 

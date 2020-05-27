@@ -41,8 +41,8 @@
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/namespace.h>
-#include <eb32tree.h>
-#include <eb32sctree.h>
+#include <import/eb32tree.h>
+#include <import/eb32sctree.h>
 #include <types/protocol.h>
 
 /* size used for max length of decimal representation of long long int. */

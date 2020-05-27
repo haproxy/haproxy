@@ -20,7 +20,7 @@
 
 /* Consult ebmbtree.h for more details about those functions */
 
-#include "ebmbtree.h"
+#include <import/ebmbtree.h>
 
 /* Find the first occurrence of a key of <len> bytes in the tree <root>.
  * If none can be found, return NULL.

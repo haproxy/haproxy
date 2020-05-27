@@ -31,8 +31,10 @@
 #define EB32_TREE_HEAD	EB_TREE_HEAD
 
 /* These types may sometimes already be defined */
+#ifndef _EB32SCTREE_H
 typedef unsigned int u32;
 typedef   signed int s32;
+#endif
 
 /* This structure carries a node, a leaf, and a key. It must start with the
  * eb_node so that it can be cast into an eb_node. We could also have put some

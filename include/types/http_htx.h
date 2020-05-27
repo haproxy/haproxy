@@ -23,7 +23,7 @@
 #ifndef _TYPES_HTTP_HTX_H
 #define _TYPES_HTTP_HTX_H
 
-#include <ebistree.h>
+#include <import/ebistree.h>
 
 #include <common/buf.h>
 #include <common/http.h>

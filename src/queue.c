@@ -74,7 +74,7 @@
 #include <common/memory.h>
 #include <common/time.h>
 #include <common/hathreads.h>
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 #include <proto/http_rules.h>
 #include <proto/http_ana.h>

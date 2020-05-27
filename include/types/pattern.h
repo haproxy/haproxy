@@ -29,7 +29,7 @@
 
 #include <types/sample.h>
 
-#include <ebmbtree.h>
+#include <import/ebmbtree.h>
 
 /* Pattern matching function result.
  *

@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "eb32tree.h"
+#include <import/eb32tree.h>
 
 struct srv {
 	struct eb32_node node;

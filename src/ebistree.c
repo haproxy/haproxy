@@ -20,7 +20,7 @@
 
 /* Consult ebistree.h for more details about those functions */
 
-#include "ebistree.h"
+#include <import/ebistree.h>
 
 /* Find the first occurrence of a zero-terminated string <x> in the tree <root>.
  * It's the caller's responsibility to use this function only on trees which

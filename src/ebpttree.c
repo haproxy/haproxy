@@ -20,7 +20,7 @@
 
 /* Consult ebpttree.h for more details about those functions */
 
-#include "ebpttree.h"
+#include <import/ebpttree.h>
 
 struct ebpt_node *ebpt_insert(struct eb_root *root, struct ebpt_node *new)
 {

@@ -26,9 +26,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <ebtree.h>
-#include <ebmbtree.h>
-#include <eb32tree.h>
+#include <import/ebtree.h>
+#include <import/ebmbtree.h>
+#include <import/eb32tree.h>
 #include <common/memory.h>
 #include <types/dict.h>
 #include <types/freq_ctr.h>

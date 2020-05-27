@@ -22,7 +22,7 @@
 #error "Requires Lua 5.3 or later."
 #endif
 
-#include <ebpttree.h>
+#include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
 #include <common/compiler.h>

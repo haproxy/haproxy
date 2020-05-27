@@ -56,8 +56,8 @@
 #include <common/time.h>
 #include <common/base64.h>
 
-#include <ebpttree.h>
-#include <ebsttree.h>
+#include <import/ebpttree.h>
+#include <import/ebsttree.h>
 
 #include <types/applet.h>
 #include <types/cli.h>

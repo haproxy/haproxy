@@ -32,7 +32,7 @@
 #include <proto/sample.h>
 #include <proto/stick_table.h>
 
-#include <ebsttree.h>
+#include <import/ebsttree.h>
 
 /* List head of all known ACL keywords */
 static struct acl_kw_list acl_keywords = {

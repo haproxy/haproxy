@@ -26,8 +26,8 @@
 #include <common/memory.h>
 #include <common/time.h>
 
-#include <eb32tree.h>
-#include <ebistree.h>
+#include <import/eb32tree.h>
+#include <import/ebistree.h>
 
 #include <types/capture.h>
 #include <types/cli.h>

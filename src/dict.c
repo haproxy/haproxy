@@ -2,8 +2,8 @@
 
 #include <proto/dict.h>
 
-#include <eb32tree.h>
-#include <ebistree.h>
+#include <import/eb32tree.h>
+#include <import/ebistree.h>
 
 struct dict *new_dict(const char *name)
 {

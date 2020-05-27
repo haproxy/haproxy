@@ -17,8 +17,8 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
-#include <eb32sctree.h>
-#include <eb32tree.h>
+#include <import/eb32sctree.h>
+#include <import/eb32tree.h>
 
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>

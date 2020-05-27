@@ -23,9 +23,9 @@
 #define _TYPES_SSL_SOCK_H
 #ifdef USE_OPENSSL
 
-#include <ebpttree.h>
-#include <ebmbtree.h>
-#include <eb64tree.h>
+#include <import/ebpttree.h>
+#include <import/ebmbtree.h>
+#include <import/eb64tree.h>
 
 #include <types/connection.h> /* struct wait_event */
 #include <types/ssl_ckch.h>

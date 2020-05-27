@@ -13,8 +13,8 @@
 #include <proto/http_fetch.h>
 #include <proto/http_htx.h>
 #include <proto/sample.h>
-#include <ebsttree.h>
-#include <ebmbtree.h>
+#include <import/ebsttree.h>
+#include <import/ebmbtree.h>
 
 #include <wurfl/wurfl.h>
 

@@ -28,7 +28,7 @@
 #include <common/mini-clist.h>
 #include <common/regex.h>
 
-#include <ebistree.h>
+#include <import/ebistree.h>
 
 #include <types/acl.h>
 #include <types/filters.h>

@@ -22,7 +22,7 @@
 #ifndef _TYPES_DNS_H
 #define _TYPES_DNS_H
 
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 #include <common/mini-clist.h>
 #include <common/hathreads.h>

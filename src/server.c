@@ -47,7 +47,7 @@
 #include <proto/dns.h>
 #include <netinet/tcp.h>
 
-#include <ebsttree.h>
+#include <import/ebsttree.h>
 
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);

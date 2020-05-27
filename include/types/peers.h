@@ -31,7 +31,7 @@
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/tools.h>
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 #include <types/dict.h>
 

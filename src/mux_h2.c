@@ -27,7 +27,7 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <types/session.h>
-#include <eb32tree.h>
+#include <import/eb32tree.h>
 
 
 /* dummy streams returned for closed, error, refused, idle and states */

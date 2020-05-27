@@ -50,8 +50,8 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-#include <eb32tree.h>
-#include <eb32sctree.h>
+#include <import/eb32tree.h>
+#include <import/eb32sctree.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing

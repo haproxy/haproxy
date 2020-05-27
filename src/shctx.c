@@ -13,7 +13,7 @@
 
 #include <sys/mman.h>
 #include <arpa/inet.h>
-#include <ebmbtree.h>
+#include <import/ebmbtree.h>
 #include <types/global.h>
 #include <common/mini-clist.h>
 #include "proto/shctx.h"
