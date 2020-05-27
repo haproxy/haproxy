@@ -4658,7 +4658,7 @@ struct http_reply *http_error_message(struct stream *s)
  * errorfile, an raw file or a log-format string is used. On success, it returns
  * 0. If an error occurs -1 is returned.
  */
-static int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *reply)
+int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *reply)
 {
 	struct buffer *errmsg;
 	struct htx_sl *sl;
