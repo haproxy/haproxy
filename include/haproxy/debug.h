@@ -22,9 +22,6 @@
 #ifndef _HAPROXY_DEBUG_H
 #define _HAPROXY_DEBUG_H
 
-#include <haproxy/api.h>
-#include <common/memory.h>
-
 struct task;
 struct buffer;
 extern volatile unsigned long threads_to_dump;
@@ -33,17 +30,5 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx);
 void ha_thread_dump(struct buffer *buf, int thr, int calling_tid);
 void ha_thread_dump_all_to_trash();
 void ha_panic();
-
-/* This one is useful to automatically apply poisonning on an area returned
- * by malloc(). Only "p_" is required to make it work, and to define a poison
- * byte using -dM.
- */
-static inline void *p_malloc(size_t size)
-{
-	void *ret = malloc(size);
-	if (mem_poison_byte >= 0 && ret)
-		memset(ret, mem_poison_byte, size);
-	return ret;
-}
 
 #endif /* _HAPROXY_DEBUG_H */
