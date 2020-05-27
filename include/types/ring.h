@@ -23,7 +23,7 @@
 #define _TYPES_RING_H
 
 #include <haproxy/api-t.h>
-#include <common/buf.h>
+#include <haproxy/buf-t.h>
 #include <import/ist.h>
 
 /* The code below handles circular buffers with single-producer and multiple

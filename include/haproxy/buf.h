@@ -1,8 +1,8 @@
 /*
- * include/common/buf.h
- * Simple buffer handling.
+ * include/haproxy/buf.h
+ * Simple buffer handling - functions definitions.
  *
- * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -25,35 +25,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _COMMON_BUF_H
-#define _COMMON_BUF_H
+#ifndef _HAPROXY_BUF_H
+#define _HAPROXY_BUF_H
 
+#include <sys/types.h>
 #include <string.h>
-#include <unistd.h>
 #include <haproxy/api.h>
-
-/* Structure defining a buffer's head */
-struct buffer {
-	size_t size;                /* buffer size in bytes */
-	char  *area;                /* points to <size> bytes */
-	size_t data;                /* amount of data after head including wrapping */
-	size_t head;                /* start offset of remaining data relative to area */
-};
-
-/* A buffer may be in 3 different states :
- *   - unallocated : size == 0, area == 0  (b_is_null() is true)
- *   - waiting     : size == 0, area != 0  (b_is_null() is true)
- *   - allocated   : size  > 0, area  > 0  (b_is_null() is false)
- */
-
-/* initializers for certain buffer states. It is important that the NULL buffer
- * remains the one with all fields initialized to zero so that a calloc() or a
- * memset() on a struct automatically sets a NULL buffer.
- */
-#define BUF_NULL   ((struct buffer){ })
-#define BUF_WANTED ((struct buffer){ .area = (char *)1 })
-#define BUF_RING   ((struct buffer){ .area = (char *)2 })
-
+#include <haproxy/buf-t.h>
 
 /***************************************************************************/
 /* Functions used to compute offsets and pointers. Most of them exist in   */
@@ -1034,7 +1012,7 @@ static inline struct buffer *br_del_head(struct buffer *r)
 	return br_head(r);
 }
 
-#endif /* _COMMON_BUF_H */
+#endif /* _HAPROXY_BUF_H */
 
 /*
  * Local variables:

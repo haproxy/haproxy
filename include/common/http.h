@@ -23,7 +23,7 @@
 #ifndef _COMMON_HTTP_H
 #define _COMMON_HTTP_H
 
-#include <common/buf.h>
+#include <haproxy/buf-t.h>
 #include <import/ist.h>
 
 /*

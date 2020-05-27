@@ -26,7 +26,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <common/buf.h>
+#include <haproxy/buf-t.h>
 #include <common/http.h>
 #include <common/mini-clist.h>
 

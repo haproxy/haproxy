@@ -23,7 +23,7 @@
 #ifndef _PROTO_HTTP_HTX_H
 #define _PROTO_HTTP_HTX_H
 
-#include <common/buf.h>
+#include <haproxy/buf.h>
 #include <import/ist.h>
 #include <common/regex.h>
 

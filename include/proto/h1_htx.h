@@ -23,7 +23,7 @@
 #ifndef _PROTO_H1_HTX_H
 #define _PROTO_H1_HTX_H
 
-#include <common/buf.h>
+#include <haproxy/buf.h>
 #include <import/ist.h>
 #include <common/h1.h>
 

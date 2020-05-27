@@ -29,7 +29,7 @@
 #define _COMMON_ISTBUF_H
 
 #include <inttypes.h>
-#include <common/buf.h>
+#include <haproxy/buf.h>
 #include <import/ist.h>
 
 

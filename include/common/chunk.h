@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/buf.h>
+#include <haproxy/buf-t.h>
 #include <import/ist.h>
 #include <common/memory.h>
 

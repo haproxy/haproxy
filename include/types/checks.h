@@ -20,7 +20,7 @@
 #include <import/ist.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/buf.h>
+#include <haproxy/buf-t.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>

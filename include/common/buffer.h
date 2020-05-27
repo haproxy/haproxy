@@ -27,7 +27,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/buf.h>
+#include <haproxy/buf.h>
 #include <common/chunk.h>
 #include <import/ist.h>
 #include <common/istbuf.h>

@@ -20,7 +20,7 @@
 #include <sys/wait.h>
 
 #include <haproxy/api.h>
-#include <common/buf.h>
+#include <haproxy/buf.h>
 #include <haproxy/debug.h>
 #include <common/hathreads.h>
 #include <import/ist.h>
