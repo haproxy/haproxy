@@ -32,8 +32,8 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#include <common/compat.h>
-#include <common/compiler.h>
-#include <common/defaults.h>
+#include <haproxy/compat.h>
+#include <haproxy/compiler.h>
+#include <haproxy/defaults.h>
 
 #endif /* _HAPROXY_TYPES_H */

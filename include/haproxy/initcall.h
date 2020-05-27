@@ -1,9 +1,9 @@
 /*
- * include/common/initcall.h
+ * include/haproxy/initcall.h
  *
  * Initcall management.
  *
- * Copyright (C) 2018 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2018-2020 Willy Tarreau - w@1wt.eu
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -26,8 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _COMMON_INIT_H
-#define _COMMON_INIT_H
+#ifndef _HAPROXY_INITCALL_H
+#define _HAPROXY_INITCALL_H
 
 /* List of known init stages. If others are added, please declare their
  * section at the end of the file below.
@@ -258,7 +258,7 @@ extern struct initcall *__initstg[STG_SIZE];
 
 #endif // USE_OBSOLETE_LINKER
 
-#endif /* _COMMON_INIT_H */
+#endif /* _HAPROXY_INITCALL_H */
 
 /*
  * Local variables:

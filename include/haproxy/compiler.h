@@ -1,8 +1,8 @@
 /*
- * include/common/compiler.h
+ * include/haproxy/compiler.h
  * This files contains some compiler-specific settings.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _COMMON_COMPILER_H
-#define _COMMON_COMPILER_H
+#ifndef _HAPROXY_COMPILER_H
+#define _HAPROXY_COMPILER_H
 
 
 /*
@@ -200,4 +200,4 @@
 #endif
 #endif
 
-#endif /* _COMMON_COMPILER_H */
+#endif /* _HAPROXY_COMPILER_H */

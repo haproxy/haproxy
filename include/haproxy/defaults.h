@@ -1,8 +1,8 @@
 /*
- * include/common/defaults.h
+ * include/haproxy/defaults.h
  * Miscellaneous default values.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_DEFAULTS_H
-#define _COMMON_DEFAULTS_H
+#ifndef _HAPROXY_DEFAULTS_H
+#define _HAPROXY_DEFAULTS_H
 
 /* MAX_PROCS defines the highest limit for the global "nbproc" value. It
  * defaults to the number of bits in a long integer but may be lowered to save
@@ -347,4 +347,4 @@
 #define DEFAULT_PAT_LRU_SIZE 10000
 #endif
 
-#endif /* _COMMON_DEFAULTS_H */
+#endif /* _HAPROXY_DEFAULTS_H */

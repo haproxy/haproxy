@@ -30,7 +30,7 @@
 #ifndef _HAPROXY_BASE_H
 #define _HAPROXY_BASE_H
 
-#include <common/initcall.h>
+#include <haproxy/initcall.h>
 #include <haproxy/api-t.h>
 
 #endif
