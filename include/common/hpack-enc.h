@@ -32,7 +32,7 @@
 #include <haproxy/api.h>
 #include <common/buf.h>
 #include <common/http.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 int hpack_encode_header(struct buffer *out, const struct ist n,
 			const struct ist v);

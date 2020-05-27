@@ -15,7 +15,7 @@
 #include <common/fcgi.h>
 #include <common/h1.h>
 #include <common/htx.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/mini-clist.h>
 #include <common/net_helper.h>
 

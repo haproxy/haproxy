@@ -26,7 +26,7 @@
 #include <common/buffer.h>
 #include <common/http.h>
 #include <common/http-hdr.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/standard.h>
 
 

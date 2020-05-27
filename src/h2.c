@@ -29,7 +29,7 @@
 #include <haproxy/api.h>
 #include <common/h2.h>
 #include <common/http-hdr.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <types/global.h>
 
 struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES] =	{

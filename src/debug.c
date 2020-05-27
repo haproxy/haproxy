@@ -23,7 +23,7 @@
 #include <common/buf.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/net_helper.h>
 #include <common/standard.h>
 

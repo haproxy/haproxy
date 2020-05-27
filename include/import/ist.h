@@ -1,8 +1,8 @@
 /*
- * include/common/ist.h
+ * include/import/ist.h
  * Very simple indirect string manipulation functions.
  *
- * Copyright (C) 2014-2017 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2014-2020 Willy Tarreau - w@1wt.eu
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -25,18 +25,17 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _COMMON_IST_H
-#define _COMMON_IST_H
+#ifndef _IMPORT_IST_H
+#define _IMPORT_IST_H
 
+#include <sys/types.h>
 #include <ctype.h>
+#include <stddef.h>
 #include <string.h>
-#include <unistd.h>
 
 #ifndef IST_FREESTANDING
 #include <stdlib.h>
 #endif
-
-#include <haproxy/api.h>
 
 /* ASCII to lower case conversion table */
 #define _IST_LC ((const unsigned char[256]){            \
@@ -658,7 +657,7 @@ static inline const char *ist_find_ctl(const struct ist ist)
 	last += sizeof(long);
 	if (__builtin_expect(curr < last, 0)) {
 		do {
-			if ((uint8_t)*curr < 0x20)
+			if ((unsigned char)*curr < 0x20)
 				return curr;
 			curr++;
 		} while (curr < last);
@@ -794,7 +793,7 @@ static inline struct ist istdup(const struct ist src)
 	/* Allocate at least 1 byte to allow duplicating an empty string with
 	 * malloc implementations that return NULL for a 0-size allocation.
 	 */
-	struct ist dst = istalloc(MAX(src_size, 1));
+	struct ist dst = istalloc(src_size ? src_size : 1);
 
 	if (isttest(dst)) {
 		istcpy(&dst, src, src_size);

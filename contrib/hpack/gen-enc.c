@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/hpack-tbl.h>
 #include "../../src/hpack-tbl.c"
 

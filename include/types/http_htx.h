@@ -28,7 +28,7 @@
 #include <common/buf.h>
 #include <common/http.h>
 #include <common/htx.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 /* Context used to find/remove an HTTP header. */
 struct http_hdr_ctx {

@@ -24,7 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 /* The code below handles circular buffers with single-producer and multiple
  * readers (up to 255). The buffer storage area must remain always allocated.

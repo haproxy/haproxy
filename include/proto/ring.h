@@ -23,7 +23,7 @@
 #define _PROTO_RING_H
 
 #include <stdlib.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <types/ring.h>
 
 struct ring *ring_new(size_t size);

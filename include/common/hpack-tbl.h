@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <haproxy/api.h>
 #include <common/http-hdr.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/memory.h>
 
 /* Dynamic Headers Table, usable for tables up to 4GB long and values of 64kB-1.

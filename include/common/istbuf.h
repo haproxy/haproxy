@@ -30,7 +30,7 @@
 
 #include <inttypes.h>
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 
 /* b_isteq() : returns > 0 if the first <n> characters of buffer <b> starting

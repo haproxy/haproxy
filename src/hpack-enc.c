@@ -32,7 +32,7 @@
 
 #include <common/hpack-enc.h>
 #include <common/http-hdr.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 #include <types/global.h>
 

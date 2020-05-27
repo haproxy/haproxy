@@ -24,7 +24,7 @@
 #define _COMMON_HTTP_H
 
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 /*
  * some macros mainly used when parsing header fields.

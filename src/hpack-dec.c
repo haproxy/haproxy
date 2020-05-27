@@ -36,7 +36,7 @@
 #include <common/hpack-tbl.h>
 #include <common/chunk.h>
 #include <common/h2.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 #include <types/global.h>
 

@@ -28,7 +28,7 @@
 #define _COMMON_HTTP_HDR_H
 
 #include <inttypes.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 /* a header field made of a name and a value. Such structure stores 4 longs so
  * it takes 16 bytes on 32-bit systems and 32 bytes on 64-bit systems.

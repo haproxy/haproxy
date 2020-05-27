@@ -32,7 +32,7 @@
 #include <haproxy/api.h>
 #include <common/http-hdr.h>
 #include <common/htx.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 
 /* indexes of most important pseudo headers can be simplified to an almost

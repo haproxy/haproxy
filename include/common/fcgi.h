@@ -26,7 +26,7 @@
 #include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 /* FCGI protocol version */
 #define FCGI_VERSION    0x1

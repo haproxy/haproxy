@@ -17,7 +17,7 @@
 #include <import/ebpttree.h>
 
 #include <common/standard.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/buf.h>

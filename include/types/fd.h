@@ -24,7 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <common/hathreads.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <types/port_range.h>
 
 /* Direction for each FD event update */

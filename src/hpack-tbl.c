@@ -32,7 +32,7 @@
 
 #include <common/hpack-huff.h>
 #include <common/hpack-tbl.h>
-#include <common/ist.h>
+#include <import/ist.h>
 
 #include <types/global.h>
 

@@ -24,7 +24,7 @@
 #define _PROTO_H1_HTX_H
 
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/h1.h>
 
 int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,

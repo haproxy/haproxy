@@ -23,7 +23,7 @@
 #define _PROTO_CONNECTION_H
 
 #include <haproxy/api.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/memory.h>
 #include <types/connection.h>
 #include <types/listener.h>

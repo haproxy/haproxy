@@ -24,7 +24,7 @@
 #define _PROTO_HTTP_HTX_H
 
 #include <common/buf.h>
-#include <common/ist.h>
+#include <import/ist.h>
 #include <common/regex.h>
 
 #include <types/http_htx.h>
