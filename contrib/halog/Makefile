@@ -1,5 +1,6 @@
 EBTREE_DIR = ../../ebtree
 INCLUDE  = -I../../include -I$(EBTREE_DIR)
+SRC      = ../../src
 
 CC       = gcc
 
@@ -16,7 +17,7 @@ DEFINE   =
 OBJS     = halog
 
 halog: halog.c fgets2.c
-	$(CC) $(OPTIMIZE) $(DEFINE) -o $@ $(INCLUDE) $(EBTREE_DIR)/ebtree.c $(EBTREE_DIR)/eb32tree.c $(EBTREE_DIR)/eb64tree.c $(EBTREE_DIR)/ebmbtree.c $(EBTREE_DIR)/ebsttree.c $(EBTREE_DIR)/ebistree.c $(EBTREE_DIR)/ebimtree.c $^
+	$(CC) $(OPTIMIZE) $(DEFINE) -o $@ $(INCLUDE) $(SRC)/ebtree.c $(SRC)/eb32tree.c $(SRC)/eb64tree.c $(SRC)/ebmbtree.c $(SRC)/ebsttree.c $(SRC)/ebistree.c $(SRC)/ebimtree.c $^
 
 clean:
 	rm -f $(OBJS) *.[oas]

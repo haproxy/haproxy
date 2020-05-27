@@ -814,12 +814,9 @@ OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
        src/pipe.o src/shctx.o src/hpack-tbl.o src/http_acl.o src/sha1.o       \
        src/time.o src/hpack-enc.o src/fcgi.o src/arg.o src/base64.o           \
        src/protocol.o src/freq_ctr.o src/lru.o src/hpack-huff.o src/dict.o    \
+       src/eb32sctree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o          \
+       src/ebsttree.o src/ebimtree.o src/ebistree.o src/ebtree.o              \
        src/hash.o src/mailers.o src/version.o
-
-EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o $(EBTREE_DIR)/eb32sctree.o \
-              $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
-              $(EBTREE_DIR)/ebmbtree.o $(EBTREE_DIR)/ebsttree.o \
-              $(EBTREE_DIR)/ebimtree.o $(EBTREE_DIR)/ebistree.o
 
 ifneq ($(TRACE),)
 OBJS += src/calltrace.o
@@ -828,9 +825,6 @@ endif
 ifneq ($(EXTRA_OBJS),)
 OBJS += $(EXTRA_OBJS)
 endif
-
-# Not used right now
-LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
 
 # Used only for forced dependency checking. May be cleared during development.
 INCLUDES = $(wildcard include/*/*.h ebtree/*.h)
@@ -864,11 +858,8 @@ else
 .build_opts:
 endif
 
-haproxy: $(OPTIONS_OBJS) $(OBJS) $(EBTREE_OBJS)
+haproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
-
-$(LIB_EBTREE): $(EBTREE_OBJS)
-	$(cmd_AR) rv $@ $^
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -927,7 +918,7 @@ uninstall:
 	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
 
 clean:
-	$(Q)rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test .build_opts .build_opts.new
+	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
 	$(Q)for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
