@@ -22,7 +22,7 @@
 #ifndef _PROTO_PROXY_H
 #define _PROTO_PROXY_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <types/applet.h>

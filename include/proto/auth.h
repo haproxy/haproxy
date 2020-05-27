@@ -13,7 +13,7 @@
 #ifndef _PROTO_AUTH_H
 #define _PROTO_AUTH_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/auth.h>
 
 extern struct userlist *userlist;

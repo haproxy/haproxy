@@ -27,9 +27,8 @@
 #ifndef _COMMON_HPACK_TBL_H
 #define _COMMON_HPACK_TBL_H
 
-#include <inttypes.h>
 #include <stdlib.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/http-hdr.h>
 #include <common/ist.h>
 #include <common/memory.h>

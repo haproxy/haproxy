@@ -22,7 +22,6 @@
 #ifndef _COMMON_MINI_CLIST_H
 #define _COMMON_MINI_CLIST_H
 
-#include <common/config.h>
 
 /* these are circular or bidirectionnal lists only. Each list pointer points to
  * another list pointer in a structure, and not the structure itself. The
@@ -258,6 +257,7 @@ struct cond_wordlist {
 	     &item->member != (list_head);                               \
 	     item = back, back = LIST_ELEM(back->member.p, typeof(back), member))
 
+#include <haproxy/api.h>
 #include <common/hathreads.h>
 #define MT_LIST_BUSY ((struct mt_list *)1)
 

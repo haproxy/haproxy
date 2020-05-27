@@ -22,7 +22,7 @@
 #ifndef _TYPES_CAPTURE_H
 #define _TYPES_CAPTURE_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/memory.h>
 
 struct cap_hdr {

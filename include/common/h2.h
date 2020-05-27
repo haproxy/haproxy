@@ -29,7 +29,7 @@
 #ifndef _COMMON_H2_H
 #define _COMMON_H2_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/http-hdr.h>
 #include <common/htx.h>
 #include <common/ist.h>

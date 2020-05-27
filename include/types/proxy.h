@@ -27,12 +27,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/api-t.h>
 #include <common/chunk.h>
-#include <common/config.h>
 #include <common/http.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/tools.h>
 #include <common/hathreads.h>
 
 #include <import/eb32tree.h>

@@ -19,9 +19,8 @@
  */
 
 #include <stdlib.h>
+#include <haproxy/api.h>
 #include <common/buf.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/hathreads.h>
 #include <types/applet.h>
 #include <proto/cli.h>

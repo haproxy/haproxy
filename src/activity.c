@@ -10,11 +10,10 @@
  *
  */
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/config.h>
 #include <common/standard.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <types/activity.h>
 #include <proto/channel.h>
 #include <proto/cli.h>

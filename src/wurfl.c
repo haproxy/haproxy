@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/buffer.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <types/global.h>
 #include <proto/arg.h>
 #include <proto/log.h>

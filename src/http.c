@@ -11,7 +11,7 @@
  */
 
 #include <ctype.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/http.h>
 #include <common/standard.h>
 

@@ -22,9 +22,8 @@
 #ifndef _TYPES_SINK_H
 #define _TYPES_SINK_H
 
+#include <haproxy/api-t.h>
 #include <common/buffer.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/ist.h>
 
 /* A sink may be of 4 distinct types :

@@ -27,7 +27,6 @@
 #include <execinfo.h>
 #endif
 
-#include <limits.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -38,8 +37,8 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <haproxy/api.h>
 #include <common/chunk.h>
-#include <common/config.h>
 #include <common/namespace.h>
 #include <import/eb32tree.h>
 #include <import/eb32sctree.h>

@@ -22,7 +22,7 @@
 #ifndef _TYPES_LB_FAS_H
 #define _TYPES_LB_FAS_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 
 struct lb_fas {

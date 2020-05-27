@@ -10,8 +10,7 @@
  *
  */
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/debug.h>
 #include <import/eb32tree.h>
 

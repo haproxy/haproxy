@@ -18,9 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
 #include <common/time.h>

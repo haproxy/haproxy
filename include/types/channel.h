@@ -22,7 +22,7 @@
 #ifndef _TYPES_CHANNEL_H
 #define _TYPES_CHANNEL_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/buffer.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field

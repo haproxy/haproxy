@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
 #include <proto/applet.h>

@@ -22,7 +22,7 @@
 #ifndef _TYPES_LB_CHASH_H
 #define _TYPES_LB_CHASH_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 #include <import/eb32tree.h>
 

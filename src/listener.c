@@ -18,10 +18,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/config.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>

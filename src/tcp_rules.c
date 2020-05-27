@@ -9,11 +9,9 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
-#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/ticks.h>

@@ -22,7 +22,7 @@
 #ifndef _PROTO_FREQ_CTR_H
 #define _PROTO_FREQ_CTR_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/hathreads.h>

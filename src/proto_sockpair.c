@@ -26,11 +26,9 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/debug.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>

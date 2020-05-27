@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/chunk.h>
 #include <common/htx.h>
 #include <common/ticks.h>

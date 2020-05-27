@@ -28,7 +28,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 
 #include <types/obj_type.h>

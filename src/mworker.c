@@ -17,8 +17,8 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/initcall.h>
 #include <common/mini-clist.h>
 #include <common/version.h>
 

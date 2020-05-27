@@ -19,9 +19,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/standard.h>
 #include <common/ticks.h>

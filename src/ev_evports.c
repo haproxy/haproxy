@@ -18,12 +18,10 @@
 #include <errno.h>
 #include <syslog.h>
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/hathreads.h>
 #include <common/ticks.h>
 #include <common/time.h>
-#include <common/tools.h>
 
 #include <types/global.h>
 

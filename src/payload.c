@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/initcall.h>
+#include <haproxy/api.h>
 #include <common/net_helper.h>
 #include <common/htx.h>
 #include <proto/acl.h>

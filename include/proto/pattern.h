@@ -24,7 +24,7 @@
 
 #include <string.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <types/pattern.h>
 

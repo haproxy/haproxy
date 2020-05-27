@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/mini-clist.h>
 #include <proto/applet.h>
 #include <proto/channel.h>

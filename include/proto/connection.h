@@ -22,7 +22,7 @@
 #ifndef _PROTO_CONNECTION_H
 #define _PROTO_CONNECTION_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/ist.h>
 #include <common/memory.h>
 #include <types/connection.h>

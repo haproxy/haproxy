@@ -1,11 +1,11 @@
 #include <stdio.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/buffer.h>
 #include <common/errors.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <types/global.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>

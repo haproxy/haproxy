@@ -22,9 +22,8 @@
 #ifndef _COMMON_FCGI_H
 #define _COMMON_FCGI_H
 
-#include <inttypes.h>
 #include <stdio.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/buf.h>
 #include <common/ist.h>

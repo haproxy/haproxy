@@ -10,8 +10,7 @@
  *
  */
 
-#include <common/config.h>
-#include <common/initcall.h>
+#include <haproxy/api.h>
 #include <proto/connection.h>
 #include <proto/stream.h>
 #include <proto/task.h>

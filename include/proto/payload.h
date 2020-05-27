@@ -22,7 +22,7 @@
 #ifndef _PROTO_PROTO_PAYLOAD_H
 #define _PROTO_PROTO_PAYLOAD_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/sample.h>
 #include <types/stream.h>
 

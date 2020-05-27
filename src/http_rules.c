@@ -16,10 +16,9 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/http.h>
 #include <common/memory.h>

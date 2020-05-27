@@ -13,8 +13,8 @@
 #ifndef _COMMON_URI_AUTH_H
 #define _COMMON_URI_AUTH_H
 
-#include <common/config.h>
 
+#include <haproxy/api.h>
 #include <types/auth.h>
 
 /* This is a list of proxies we are allowed to see. Later, it should go in the

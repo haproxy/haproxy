@@ -19,13 +19,11 @@
 #include <ctype.h>
 #include <sys/types.h>
 
+#include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/hash.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <common/namespace.h>

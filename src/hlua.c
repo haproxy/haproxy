@@ -11,7 +11,6 @@
  */
 
 #include <ctype.h>
-#include <limits.h>
 #include <setjmp.h>
 
 #include <lauxlib.h>
@@ -22,12 +21,11 @@
 #error "Requires Lua 5.3 or later."
 #endif
 
+#include <haproxy/api.h>
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
-#include <common/compiler.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <common/xref.h>
 #include <common/h1.h>
 

@@ -13,7 +13,7 @@
 #ifndef _TYPES_AUTH_H
 #define _TYPES_AUTH_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 
 #include <types/auth.h>

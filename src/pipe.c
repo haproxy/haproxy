@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/hathreads.h>
 #include <common/memory.h>
 

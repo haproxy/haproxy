@@ -22,9 +22,8 @@
 #ifndef _TYPES_RING_H
 #define _TYPES_RING_H
 
+#include <haproxy/api-t.h>
 #include <common/buf.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/ist.h>
 
 /* The code below handles circular buffers with single-producer and multiple

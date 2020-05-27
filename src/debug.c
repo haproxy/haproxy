@@ -19,11 +19,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <haproxy/api.h>
 #include <common/buf.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <common/ist.h>
 #include <common/net_helper.h>
 #include <common/standard.h>

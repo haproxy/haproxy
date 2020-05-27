@@ -22,7 +22,7 @@
 #ifndef _PROTO_BACKEND_H
 #define _PROTO_BACKEND_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/time.h>
 
 #include <types/backend.h>

@@ -22,7 +22,7 @@
 #ifndef _TYPES_ACTIVITY_H
 #define _TYPES_ACTIVITY_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <types/freq_ctr.h>
 
 /* per-thread activity reports. It's important that it's aligned on cache lines

@@ -22,7 +22,7 @@
 #ifndef _PROTO_SESSION_H
 #define _PROTO_SESSION_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/buffer.h>
 #include <common/debug.h>
 #include <common/memory.h>

@@ -10,8 +10,8 @@
 
 #include <string.h>
 
+#include <haproxy/api.h>
 #include <common/namespace.h>
-#include <common/compiler.h>
 #include <common/hash.h>
 #include <common/errors.h>
 #include <proto/log.h>

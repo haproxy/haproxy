@@ -10,14 +10,12 @@
  *
  */
 
+#include <haproxy/api.h>
 #include <common/buffer.h>
 #include <common/debug.h>
 #include <common/cfgparse.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/errors.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/standard.h>
 #include <common/hathreads.h>

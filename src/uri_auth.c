@@ -13,8 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <haproxy/api.h>
 #include <common/base64.h>
-#include <common/config.h>
 #include <common/uri_auth.h>
 
 #include <types/stats.h>

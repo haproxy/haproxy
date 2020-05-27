@@ -22,7 +22,7 @@
 #ifndef _TYPES_FD_H
 #define _TYPES_FD_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/hathreads.h>
 #include <common/ist.h>
 #include <types/port_range.h>

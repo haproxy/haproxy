@@ -13,10 +13,10 @@
 #ifndef _TYPES_CHECKS_H
 #define _TYPES_CHECKS_H
 
+#include <haproxy/api-t.h>
 #include <import/ebpttree.h>
 
 #include <common/standard.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>

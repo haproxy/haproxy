@@ -22,7 +22,7 @@
 #ifndef _COMMON_VERSION_H
 #define _COMMON_VERSION_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 
 #ifdef  CONFIG_PRODUCT_NAME
 #define PRODUCT_NAME    CONFIG_PRODUCT_NAME

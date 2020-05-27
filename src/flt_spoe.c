@@ -12,12 +12,10 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/time.h>
 

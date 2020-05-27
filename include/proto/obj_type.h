@@ -22,7 +22,7 @@
 #ifndef _PROTO_OBJ_TYPE_H
 #define _PROTO_OBJ_TYPE_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/memory.h>
 #include <types/applet.h>
 #include <types/connection.h>

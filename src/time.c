@@ -10,11 +10,10 @@
  *
  */
 
-#include <inttypes.h>
 #include <unistd.h>
 #include <sys/time.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/hathreads.h>

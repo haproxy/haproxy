@@ -69,8 +69,7 @@
  *   - a pendconn doesn't switch between queues, it stays where it is.
  */
 
-#include <common/config.h>
-#include <common/initcall.h>
+#include <haproxy/api.h>
 #include <common/memory.h>
 #include <common/time.h>
 #include <common/hathreads.h>

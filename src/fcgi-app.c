@@ -10,11 +10,10 @@
  *
  */
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/chunk.h>
 #include <common/cfgparse.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/standard.h>
 
 #include <types/global.h>

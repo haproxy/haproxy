@@ -24,7 +24,7 @@
 
 #include <unistd.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/time.h>
 #include <types/applet.h>
 #include <types/dns.h>

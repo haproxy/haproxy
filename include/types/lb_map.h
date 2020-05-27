@@ -22,7 +22,7 @@
 #ifndef _TYPES_LB_MAP_H
 #define _TYPES_LB_MAP_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <types/server.h>
 
 struct lb_map {

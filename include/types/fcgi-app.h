@@ -22,7 +22,7 @@
 #ifndef _TYPES_HTTP_FCGI_H
 #define _TYPES_HTTP_FCGI_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/ist.h>
 #include <common/fcgi.h>
 #include <common/mini-clist.h>

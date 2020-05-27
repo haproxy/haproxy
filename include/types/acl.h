@@ -22,8 +22,7 @@
 #ifndef _TYPES_ACL_H
 #define _TYPES_ACL_H
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 
 #include <types/arg.h>

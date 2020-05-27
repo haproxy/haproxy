@@ -22,6 +22,7 @@
 #ifndef _TYPES_APPLET_H
 #define _TYPES_APPLET_H
 
+#include <haproxy/api-t.h>
 #include <types/freq_ctr.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
@@ -29,7 +30,6 @@
 #include <types/stream.h>
 #include <common/buffer.h>
 #include <common/chunk.h>
-#include <common/config.h>
 #include <common/xref.h>
 
 struct appctx;

@@ -12,10 +12,9 @@
 #include <signal.h>
 #include <time.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <common/standard.h>
 #include <types/global.h>
 #include <types/signal.h>

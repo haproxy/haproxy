@@ -22,9 +22,8 @@
 #ifndef _TYPES_TRACE_H
 #define _TYPES_TRACE_H
 
+#include <haproxy/api-t.h>
 #include <common/buffer.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
 #include <types/sink.h>

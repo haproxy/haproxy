@@ -19,9 +19,9 @@
 
 #include <sys/types.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/time.h>
 #include <common/ticks.h>
 #include <common/net_helper.h>

@@ -11,16 +11,15 @@
  */
 #include <errno.h>
 
+#include <haproxy/api.h>
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/global.h>
 #include <types/stats.h>
 
 #include <common/cfgparse.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>

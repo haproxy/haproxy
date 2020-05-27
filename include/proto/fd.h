@@ -27,7 +27,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <types/fd.h>

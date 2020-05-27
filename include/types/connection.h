@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/ist.h>
 
 #include <types/listener.h>

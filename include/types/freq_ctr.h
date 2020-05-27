@@ -22,7 +22,7 @@
 #ifndef _TYPES_FREQ_CTR_H
 #define _TYPES_FREQ_CTR_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 
 /* The implicit freq_ctr counter counts a rate of events per second. It is the
  * preferred form to count rates over a one-second period, because it does not

@@ -22,7 +22,7 @@
 #ifndef _PROTO_ACL_H
 #define _PROTO_ACL_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/acl.h>
 #include <proto/sample.h>
 

@@ -22,7 +22,7 @@
 #ifndef _PROTO_TEMPLATE_H
 #define _PROTO_TEMPLATE_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/template.h>
 
 

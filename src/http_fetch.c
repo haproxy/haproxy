@@ -16,15 +16,13 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/api.h>
 #include <common/base64.h>
 #include <common/chunk.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/h1.h>
 #include <common/http.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/version.h>

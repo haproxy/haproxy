@@ -27,10 +27,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
-#include <common/tools.h>
 #include <import/eb32tree.h>
 
 #include <types/dict.h>

@@ -22,9 +22,8 @@
 #ifndef _COMMON_H1_H
 #define _COMMON_H1_H
 
+#include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/compiler.h>
-#include <common/config.h>
 #include <common/http.h>
 #include <common/http-hdr.h>
 #include <common/ist.h>

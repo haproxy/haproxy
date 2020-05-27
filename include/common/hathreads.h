@@ -27,9 +27,8 @@
 #ifdef _POSIX_PRIORITY_SCHEDULING
 #include <sched.h>
 #endif
+#include <haproxy/api.h>
 
-#include <common/config.h>
-#include <common/initcall.h>
 
 /* Note about all_threads_mask :
  *    - this variable is comprised between 1 and LONGBITS.

@@ -22,8 +22,7 @@
 #ifndef _TYPES_PATTERN_H
 #define _TYPES_PATTERN_H
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 

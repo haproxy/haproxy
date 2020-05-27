@@ -25,11 +25,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <haproxy/api.h>
 #include <types/global.h>
-#include <common/config.h>
 #include <common/errors.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 
 #include <proto/acl.h>
 #include <proto/log.h>

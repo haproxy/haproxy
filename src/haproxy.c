@@ -78,16 +78,13 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#include <haproxy/api.h>
 #include <import/sha1.h>
 
 #include <common/base64.h>
 #include <common/cfgparse.h>
 #include <common/chunk.h>
-#include <common/compat.h>
-#include <common/config.h>
-#include <common/defaults.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/namespace.h>

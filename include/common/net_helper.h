@@ -27,7 +27,7 @@
 #ifndef _COMMON_NET_HELPER_H
 #define _COMMON_NET_HELPER_H
 
-#include <common/compiler.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <arpa/inet.h>
 

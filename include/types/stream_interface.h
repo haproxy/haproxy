@@ -22,8 +22,8 @@
 #ifndef _TYPES_STREAM_INTERFACE_H
 #define _TYPES_STREAM_INTERFACE_H
 
+#include <haproxy/api-t.h>
 #include <types/obj_type.h>
-#include <common/config.h>
 
 /* A stream interface must have its own errors independently of the buffer's,
  * so that applications can rely on what the buffer reports while the stream

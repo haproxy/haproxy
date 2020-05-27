@@ -10,10 +10,9 @@
  *
  */
 
-#include <limits.h>
 #include <stdio.h>
 
-#include <common/initcall.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 
 #include <types/applet.h>

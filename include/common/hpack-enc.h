@@ -28,10 +28,9 @@
 #ifndef _COMMON_HPACK_ENC_H
 #define _COMMON_HPACK_ENC_H
 
-#include <inttypes.h>
 #include <string.h>
+#include <haproxy/api.h>
 #include <common/buf.h>
-#include <common/config.h>
 #include <common/http.h>
 #include <common/ist.h>
 

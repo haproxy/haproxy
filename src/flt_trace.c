@@ -12,12 +12,11 @@
 
 #include <ctype.h>
 
+#include <haproxy/api.h>
 #include <common/hathreads.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 #include <common/standard.h>
 #include <common/time.h>
-#include <common/tools.h>
 
 #include <types/channel.h>
 #include <types/filters.h>

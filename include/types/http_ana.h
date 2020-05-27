@@ -22,7 +22,7 @@
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/http.h>
 
 #include <types/channel.h>

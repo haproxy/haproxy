@@ -40,16 +40,14 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <haproxy/api.h>
 #include <import/lru.h>
 #include <import/xxhash.h>
 
 #include <common/buffer.h>
 #include <common/chunk.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
-#include <common/initcall.h>
 #include <common/openssl-compat.h>
 #include <common/standard.h>
 #include <common/ticks.h>

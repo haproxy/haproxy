@@ -23,7 +23,6 @@
 #define _COMMON_TOOLS_H
 
 #include <sys/param.h>
-#include <common/config.h>
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

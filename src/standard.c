@@ -36,10 +36,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/api.h>
 #include <common/chunk.h>
-#include <common/config.h>
 #include <common/standard.h>
-#include <common/tools.h>
 #include <types/global.h>
 #include <proto/applet.h>
 #include <proto/dns.h>

@@ -31,9 +31,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/api.h>
 #include <common/base64.h>
 #include <common/cfgparse.h>
-#include <common/initcall.h>
 #include <common/openssl-compat.h>
 
 #include <types/ssl_sock.h>

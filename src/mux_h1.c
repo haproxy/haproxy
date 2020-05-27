@@ -9,12 +9,11 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/config.h>
 #include <common/h1.h>
 #include <common/h2.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 
 #include <import/ebistree.h>
 

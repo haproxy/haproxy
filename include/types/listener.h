@@ -26,10 +26,10 @@
 #include <sys/socket.h>
 
 #ifdef USE_OPENSSL
+#include <haproxy/api-t.h>
 #include <common/openssl-compat.h>
 #endif
 
-#include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
 

@@ -23,8 +23,8 @@
 #define _COMMON_HTX_H
 
 #include <stdio.h>
+#include <haproxy/api.h>
 #include <common/buf.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/http.h>
 #include <common/http-hdr.h>

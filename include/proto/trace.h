@@ -22,9 +22,8 @@
 #ifndef _PROTO_TRACE_H
 #define _PROTO_TRACE_H
 
+#include <haproxy/api.h>
 #include <common/buffer.h>
-#include <common/compat.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/mini-clist.h>
 #include <types/log.h>

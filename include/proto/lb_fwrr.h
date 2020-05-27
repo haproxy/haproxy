@@ -22,7 +22,7 @@
 #ifndef _PROTO_LB_FWRR_H
 #define _PROTO_LB_FWRR_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/proxy.h>
 #include <types/server.h>
 

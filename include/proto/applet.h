@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <types/applet.h>

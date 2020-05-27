@@ -10,10 +10,9 @@
  *
  */
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/time.h>
-#include <common/tools.h>
 #include <proto/freq_ctr.h>
 
 /* Read a frequency counter taking history into account for missing time in

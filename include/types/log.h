@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/hathreads.h>
 #include <common/mini-clist.h>
 #include <types/ring.h>

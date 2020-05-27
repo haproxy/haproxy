@@ -22,7 +22,7 @@
 #ifndef _COMMON_TEMPLATE_H
 #define _COMMON_TEMPLATE_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 
 #endif /* _COMMON_TEMPLATE_H */
 

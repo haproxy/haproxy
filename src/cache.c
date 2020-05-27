@@ -10,6 +10,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <haproxy/api.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
@@ -35,7 +36,6 @@
 #include <common/cfgparse.h>
 #include <common/hash.h>
 #include <common/htx.h>
-#include <common/initcall.h>
 #include <common/net_helper.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without

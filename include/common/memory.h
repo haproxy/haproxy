@@ -26,13 +26,11 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
 #include <unistd.h>
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/mini-clist.h>
 #include <common/hathreads.h>
-#include <common/initcall.h>
 
 /* On architectures supporting threads and double-word CAS, we can implement
  * lock-less memory pools. This isn't supported for debugging modes however.

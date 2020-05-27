@@ -22,7 +22,7 @@
 #ifndef _PROTO_TCP_RULES_H
 #define _PROTO_TCP_RULES_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/action.h>
 #include <types/task.h>
 #include <proto/stick_table.h>

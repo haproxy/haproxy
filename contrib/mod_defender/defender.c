@@ -15,11 +15,10 @@
  * 3 of the License, or (at your option) any later version.
  *
  */
-#include <limits.h>
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <common/defaults.h>
+#include <haproxy/api.h>
 #include <common/standard.h>
 #include <common/chunk.h>
 #include <common/time.h>

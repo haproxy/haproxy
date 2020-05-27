@@ -22,7 +22,7 @@
 #ifndef _TYPES_PIPE_H
 #define _TYPES_PIPE_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 
 /* A pipe is described by its read and write FDs, and the data remaining in it.
  * The FDs are valid if there are data pending. The user is not allowed to

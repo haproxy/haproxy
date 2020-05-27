@@ -24,7 +24,7 @@
 
 #include <sys/time.h>
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <common/mini-clist.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>

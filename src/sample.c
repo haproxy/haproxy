@@ -16,12 +16,12 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 
+#include <haproxy/api.h>
 #include <types/global.h>
 
 #include <common/chunk.h>
 #include <common/hash.h>
 #include <common/http.h>
-#include <common/initcall.h>
 #include <common/net_helper.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>

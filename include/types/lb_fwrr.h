@@ -22,7 +22,7 @@
 #ifndef _TYPES_LB_FWRR_H
 #define _TYPES_LB_FWRR_H
 
-#include <common/config.h>
+#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 
 /* This structure is used to apply fast weighted round robin on a server group */

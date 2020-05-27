@@ -12,10 +12,8 @@
 
 #include <errno.h>
 
+#include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/compat.h>
-#include <common/config.h>
-#include <common/initcall.h>
 #include <common/namespace.h>
 #include <common/hash.h>
 #include <common/net_helper.h>

@@ -22,7 +22,7 @@
 #ifndef _PROTO_MUX_PT_H
 #define _PROTO_MUX_PT_H
 
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <types/connection.h>
 
 extern const struct mux_ops mux_pt_ops;

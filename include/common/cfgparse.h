@@ -22,9 +22,7 @@
 #ifndef _COMMON_CFGPARSE_H
 #define _COMMON_CFGPARSE_H
 
-#include <common/compat.h>
-#include <common/config.h>
-#include <common/initcall.h>
+#include <haproxy/api.h>
 #include <common/mini-clist.h>
 
 #include <proto/log.h>

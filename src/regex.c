@@ -14,9 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <haproxy/api.h>
 #include <types/global.h>
-#include <common/config.h>
-#include <common/defaults.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <proto/log.h>

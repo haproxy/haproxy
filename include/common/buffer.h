@@ -26,9 +26,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <haproxy/api.h>
 #include <common/buf.h>
 #include <common/chunk.h>
-#include <common/config.h>
 #include <common/ist.h>
 #include <common/istbuf.h>
 #include <common/memory.h>

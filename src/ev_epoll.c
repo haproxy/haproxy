@@ -14,14 +14,12 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include <common/compat.h>
-#include <common/config.h>
+#include <haproxy/api.h>
 #include <common/debug.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
-#include <common/tools.h>
 
 #include <types/global.h>
 
