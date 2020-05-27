@@ -25,6 +25,7 @@
 #include <common/initcall.h>
 #include <common/memory.h>
 #include <common/standard.h>
+#include <common/uri_auth.h>
 #include <common/version.h>
 
 #include <types/capture.h>
@@ -884,6 +885,85 @@ static enum act_parse_ret parse_http_deny(const char **args, int *orig_arg, stru
 	return ACT_RET_PRS_OK;
 }
 
+
+/* This function executes a auth action. It builds an 401/407 HTX message using
+ * the corresponding proxy's error message. On success, it returns
+ * ACT_RET_ABRT. If an error occurs ACT_RET_ERR is returned.
+ */
+static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
+					struct session *sess, struct stream *s, int flags)
+{
+	struct channel *req = &s->req;
+	struct channel *res = &s->res;
+	struct htx *htx = htx_from_buf(&res->buf);
+	struct http_reply *reply;
+	const char *auth_realm;
+	struct http_hdr_ctx ctx;
+	struct ist hdr;
+
+	/* Auth might be performed on regular http-req rules as well as on stats */
+	auth_realm = rule->arg.http.str.ptr;
+	if (!auth_realm) {
+		if (px->uri_auth && s->current_rule_list == &px->uri_auth->http_req_rules)
+			auth_realm = STATS_DEFAULT_REALM;
+		else
+			auth_realm = px->id;
+	}
+
+	if (!(s->txn->flags & TX_USE_PX_CONN)) {
+		s->txn->status = 401;
+		hdr = ist("WWW-Authenticate");
+	}
+	else {
+		s->txn->status = 407;
+		hdr = ist("Proxy-Authenticate");
+	}
+	reply = http_error_message(s);
+	channel_htx_truncate(res, htx);
+
+	if (chunk_printf(&trash, "Basic realm=\"%s\"", auth_realm) == -1)
+		goto fail;
+
+	/* Write the generic 40x message */
+	if (http_reply_to_htx(s, htx, reply) == -1)
+		goto fail;
+
+	/* Remove all existing occurrences of the XXX-Authenticate header */
+	ctx.blk = NULL;
+	while (http_find_header(htx, hdr, &ctx, 1))
+		http_remove_header(htx, &ctx);
+
+	/* Now a the right XXX-Authenticate header */
+	if (!http_add_header(htx, hdr, ist2(b_orig(&trash), b_data(&trash))))
+		goto fail;
+
+	/* Finally forward the reply */
+	htx_to_buf(htx, &res->buf);
+	if (!http_forward_proxy_resp(s, 1))
+		goto fail;
+
+	/* Note: Only eval on the request */
+	s->logs.tv_request = now;
+	req->analysers &= AN_REQ_FLT_END;
+
+	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+		_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
+
+	stream_inc_http_err_ctr(s);
+	return ACT_RET_ABRT;
+
+  fail:
+	/* If an error occurred, remove the incomplete HTTP response from the
+	 * buffer */
+	channel_htx_truncate(res, htx);
+	return ACT_RET_ERR;
+}
+
 /* Parse a "auth" action. It may take 2 optional arguments to define a "realm"
  * parameter. It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
@@ -892,8 +972,9 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 {
 	int cur_arg;
 
-	rule->action = ACT_HTTP_REQ_AUTH;
+	rule->action = ACT_CUSTOM;
 	rule->flags |= ACT_FLAG_FINAL;
+	rule->action_ptr = http_action_auth;
 	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;

@@ -89,7 +89,6 @@ enum act_name {
 
 	/* http request actions. */
 	ACT_HTTP_REQ_TARPIT,
-	ACT_HTTP_REQ_AUTH,
 
 	/* tcp actions */
 	ACT_TCP_EXPECT_PX,

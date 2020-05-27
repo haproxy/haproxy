@@ -63,7 +63,6 @@ static int http_handle_stats(struct stream *s, struct channel *req);
 
 static int http_handle_expect_hdr(struct stream *s, struct htx *htx, struct http_msg *msg);
 static int http_reply_100_continue(struct stream *s);
-static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm);
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -2824,7 +2823,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	struct htx *htx;
 	struct act_rule *rule;
 	struct http_hdr_ctx ctx;
-	const char *auth_realm;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_opts = 0;
 
@@ -2918,25 +2916,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				txn->status = rule->arg.http_reply->status;
 				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
-				goto end;
-
-			case ACT_HTTP_REQ_AUTH:
-				/* Auth might be performed on regular http-req rules as well as on stats */
-				auth_realm = rule->arg.http.str.ptr;
-				if (!auth_realm) {
-					if (px->uri_auth && rules == &px->uri_auth->http_req_rules)
-						auth_realm = STATS_DEFAULT_REALM;
-					else
-						auth_realm = px->id;
-				}
-				/* send 401/407 depending on whether we use a proxy or not. We still
-				 * count one error, because normal browsing won't significantly
-				 * increase the counter but brute force attempts will.
-				 */
-				rule_ret = HTTP_RULE_RES_ABRT;
-				if (http_reply_40x_unauthorized(s, auth_realm) == -1)
-					rule_ret = HTTP_RULE_RES_ERROR;
-				stream_inc_http_err_ctr(s);
 				goto end;
 
 			case ACT_HTTP_REDIR:
@@ -4901,71 +4880,6 @@ static int http_reply_100_continue(struct stream *s)
 	return -1;
 }
 
-
-/* Send a 401-Unauthorized or 407-Unauthorized response to the client, depending
- * ont whether we use a proxy or not. It returns 0 on success and -1 on
- * error. The response channel is updated accordingly.
- */
-static int http_reply_40x_unauthorized(struct stream *s, const char *auth_realm)
-{
-	struct channel *res = &s->res;
-	struct htx *htx = htx_from_buf(&res->buf);
-	struct http_reply *reply;
-	struct http_hdr_ctx ctx;
-	struct ist hdr;
-
-	if (!(s->txn->flags & TX_USE_PX_CONN)) {
-		s->txn->status = 401;
-		hdr = ist("WWW-Authenticate");
-	}
-	else {
-		s->txn->status = 407;
-		hdr = ist("Proxy-Authenticate");
-	}
-	reply = http_error_message(s);
-	channel_htx_truncate(res, htx);
-
-	if (chunk_printf(&trash, "Basic realm=\"%s\"", auth_realm) == -1)
-		goto fail;
-
-	/* Write the generic 40x message */
-	if (http_reply_to_htx(s, htx, reply) == -1)
-		goto fail;
-
-	/* Remove all existing occurrences of the XXX-Authenticate header */
-	ctx.blk = NULL;
-	while (http_find_header(htx, hdr, &ctx, 1))
-		http_remove_header(htx, &ctx);
-
-	/* Now a the right XXX-Authenticate header */
-	if (!http_add_header(htx, hdr, ist2(b_orig(&trash), b_data(&trash))))
-		goto fail;
-
-	/* Finally forward the reply */
-	htx_to_buf(htx, &res->buf);
-	if (!http_forward_proxy_resp(s, 1))
-		goto fail;
-
-	/* Note: Only eval on the request */
-	s->logs.tv_request = now;
-	s->req.analysers &= AN_REQ_FLT_END;
-
-	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-		_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
-
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_LOCAL;
-	if (!(s->flags & SF_FINST_MASK))
-		s->flags |= SF_FINST_R;
-
-	return 0;
-
-  fail:
-	/* If an error occurred, remove the incomplete HTTP response from the
-	 * buffer */
-	channel_htx_truncate(res, htx);
-	return -1;
-}
 
 /*
  * Capture headers from message <htx> according to header list <cap_hdr>, and
