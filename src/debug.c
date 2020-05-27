@@ -21,7 +21,7 @@
 
 #include <haproxy/api.h>
 #include <common/buf.h>
-#include <common/debug.h>
+#include <haproxy/debug.h>
 #include <common/hathreads.h>
 #include <import/ist.h>
 #include <common/net_helper.h>

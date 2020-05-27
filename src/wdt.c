@@ -13,7 +13,7 @@
 #include <time.h>
 
 #include <haproxy/api.h>
-#include <common/debug.h>
+#include <haproxy/debug.h>
 #include <common/hathreads.h>
 #include <common/standard.h>
 #include <types/global.h>
