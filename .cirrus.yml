@@ -27,5 +27,5 @@ centos_6_task:
     - ./haproxy -vv
     - ldd haproxy
     # remove some reg-tests (CentOS 6 does not support alpn)
-    - rm reg-tests/connection/proxy_protocol_random_fail.vtc reg-tests/checks/tcp-check-ssl.vtc
+    - rm reg-tests/{connection/proxy_protocol_random_fail,checks/tcp-check-ssl,connection/proxy_protocol_send_unique_id_alpn}.vtc
     - env VTEST_PROGRAM=../vtest/vtest make reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
