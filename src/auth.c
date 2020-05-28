@@ -28,7 +28,7 @@
 #include <haproxy/api.h>
 #include <types/global.h>
 #include <haproxy/errors.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <proto/acl.h>
 #include <proto/log.h>

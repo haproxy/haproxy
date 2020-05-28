@@ -805,7 +805,7 @@ OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
        src/htx.o src/memory.o src/applet.o src/channel.o src/signal.o         \
        src/lb_fwrr.o src/ev_select.o src/sink.o src/http_conv.o               \
        src/proto_sockpair.o src/mworker-prog.o src/activity.o src/lb_fwlc.o   \
-       src/http.o src/lb_fas.o src/uri_auth.o src/hathreads.o src/regex.o     \
+       src/http.o src/lb_fas.o src/uri_auth.o src/thread.o src/regex.o        \
        src/auth.o src/buffer.o src/compression.o src/proto_udp.o src/lb_map.o \
        src/chunk.o src/wdt.o src/hpack-dec.o src/action.o src/xxhash.o        \
        src/pipe.o src/shctx.o src/hpack-tbl.o src/http_acl.o src/sha1.o       \

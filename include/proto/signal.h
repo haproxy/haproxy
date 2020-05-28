@@ -13,7 +13,7 @@
 
 #include <signal.h>
 #include <common/standard.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/signal.h>
 #include <types/task.h>

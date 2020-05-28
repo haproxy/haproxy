@@ -1,7 +1,7 @@
 #ifndef _TYPES_DICT_H
 #define _TYPES_DICT_H
 
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <import/ebpttree.h>
 
 struct dict_entry {

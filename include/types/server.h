@@ -26,8 +26,8 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
-#include <haproxy/api.h>
-#include <common/hathreads.h>
+#include <haproxy/list-t.h>
+#include <haproxy/thread.h>
 #include <haproxy/openssl-compat.h>
 
 #include <import/eb32tree.h>

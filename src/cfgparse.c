@@ -42,7 +42,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <common/namespace.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/capture.h>
 #include <types/filters.h>

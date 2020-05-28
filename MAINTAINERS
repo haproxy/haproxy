@@ -77,7 +77,7 @@ Files: src/flt_spoe.c, include/*/spoe.h, contrib/spoa_example, doc/SPOE.txt
 Multi-threading
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>
 Maintainer: Emeric Brun <ebrun@haproxy.com>
-Files: src/hathreads.c, include/*/hathreads.h
+Files: src/thread.c, include/*/thread.h
 Note: every change around the locking or synchronization point will require
       approval from one of these maintainers. Problems which only appear when
       nbthread is greater than 1 and which disappear otherwise are also

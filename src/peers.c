@@ -24,7 +24,7 @@
 #include <common/net_helper.h>
 #include <common/time.h>
 #include <common/standard.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/global.h>
 #include <types/listener.h>

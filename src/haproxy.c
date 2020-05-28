@@ -95,7 +95,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/capture.h>
 #include <types/cli.h>

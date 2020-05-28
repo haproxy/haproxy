@@ -36,7 +36,7 @@
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/time.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <common/http.h>
 #include <common/h1.h>
 #include <common/htx.h>

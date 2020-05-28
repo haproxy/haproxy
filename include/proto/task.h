@@ -30,7 +30,7 @@
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/ticks.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>

@@ -32,7 +32,7 @@
 #include <types/ssl_crtlist.h>
 
 #include <common/buffer.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 

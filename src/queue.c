@@ -72,7 +72,7 @@
 #include <haproxy/api.h>
 #include <common/memory.h>
 #include <common/time.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <import/eb32tree.h>
 
 #include <proto/http_rules.h>

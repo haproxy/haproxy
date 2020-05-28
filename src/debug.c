@@ -22,7 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/debug.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <import/ist.h>
 #include <common/net_helper.h>
 #include <common/standard.h>

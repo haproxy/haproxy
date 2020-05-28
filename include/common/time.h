@@ -26,7 +26,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <haproxy/api.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <common/standard.h>
 
 /* eternity when exprimed in timeval */

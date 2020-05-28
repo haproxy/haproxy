@@ -23,7 +23,7 @@
 #define _PROTO_PROTOCOL_H
 
 #include <sys/socket.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <types/protocol.h>
 
 extern struct protocol *__protocol_by_family[AF_CUST_MAX];

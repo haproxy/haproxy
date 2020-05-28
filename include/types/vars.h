@@ -2,7 +2,7 @@
 #define _TYPES_VARS_H
 
 #include <haproxy/list-t.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/sample.h>
 

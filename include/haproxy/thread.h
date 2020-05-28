@@ -1,8 +1,9 @@
 /*
- * include/common/hathreads.h
- * definitions, macros and inline functions about threads.
+ * include/haproxy/thread.h
+ * definitions, macros and inline functions used by threads.
  *
- * Copyright (C) 2017 Christopher Fauet - cfaulet@haproxy.com
+ * Copyright (C) 2017 Christopher Faulet - cfaulet@haproxy.com
+ * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,79 +20,66 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_HATHREADS_H
-#define _COMMON_HATHREADS_H
+#ifndef _HAPROXY_THREAD_H
+#define _HAPROXY_THREAD_H
 
 #include <signal.h>
 #include <unistd.h>
 #ifdef _POSIX_PRIORITY_SCHEDULING
 #include <sched.h>
 #endif
+
 #include <haproxy/atomic.h>
 #include <haproxy/api.h>
+#include <haproxy/thread-t.h>
 
 
-/* Note about all_threads_mask :
- *    - this variable is comprised between 1 and LONGBITS.
- *    - with threads support disabled, this symbol is defined as constant 1UL.
- *    - with threads enabled, it contains the mask of enabled threads. Thus if
- *      only one thread is enabled, it equals 1.
+/* Note: this file mainly contains 5 sections:
+ *   - a small common part, which also corresponds to the common API
+ *   - one used solely when USE_THREAD is *not* set
+ *   - one used solely when USE_THREAD is set
+ *   - one used solely when USE_THREAD is set WITHOUT debugging
+ *   - one used solely when USE_THREAD is set WITH debugging
+ *
  */
 
-/* thread info flags, for ha_thread_info[].flags */
-#define TI_FL_STUCK             0x00000001
+
+/* Generic exports */
+int parse_nbthread(const char *arg, char **err);
+int thread_get_default_count();
+extern int thread_cpus_enabled_at_boot;
+extern struct thread_info ha_thread_info[MAX_THREADS];
+extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
 
 
 #ifndef USE_THREAD
 
-#define THREAD_LOCAL  /* empty */
-#define MAX_THREADS 1
-#define MAX_THREADS_MASK 1
+/********************** THREADS DISABLED ************************/
 
 /* Only way found to replace variables with constants that are optimized away
  * at build time.
  */
 enum { all_threads_mask = 1UL };
 enum { threads_harmless_mask = 0 };
-enum { threads_want_rdv_mask = 0 };
 enum { threads_sync_mask = 0 };
+enum { threads_want_rdv_mask = 0 };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 
-extern struct thread_info {
-	clockid_t clock_id;
-	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
-	uint64_t prev_cpu_time;    /* previous per thread CPU time */
-	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
-	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
-	unsigned int flags;        /* thread info flags, TI_FL_* */
-	/* pad to cache line (64B) */
-	char __pad[0];            /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
-} ha_thread_info[MAX_THREADS];
+#define HA_SPIN_INIT(l)               do { /* do nothing */ } while(0)
+#define HA_SPIN_DESTROY(l)            do { /* do nothing */ } while(0)
+#define HA_SPIN_LOCK(lbl, l)          do { /* do nothing */ } while(0)
+#define HA_SPIN_TRYLOCK(lbl, l)       ({ 0; })
+#define HA_SPIN_UNLOCK(lbl, l)        do { /* do nothing */ } while(0)
 
-extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
-
-#define __decl_hathreads(decl)
-#define __decl_spinlock(lock)
-#define __decl_aligned_spinlock(lock)
-#define __decl_rwlock(lock)
-#define __decl_aligned_rwlock(lock)
-
-#define HA_SPIN_INIT(l)         do { /* do nothing */ } while(0)
-#define HA_SPIN_DESTROY(l)      do { /* do nothing */ } while(0)
-#define HA_SPIN_LOCK(lbl, l)    do { /* do nothing */ } while(0)
-#define HA_SPIN_TRYLOCK(lbl, l) ({ 0; })
-#define HA_SPIN_UNLOCK(lbl, l)  do { /* do nothing */ } while(0)
-
-#define HA_RWLOCK_INIT(l)          do { /* do nothing */ } while(0)
-#define HA_RWLOCK_DESTROY(l)       do { /* do nothing */ } while(0)
-#define HA_RWLOCK_WRLOCK(lbl, l)   do { /* do nothing */ } while(0)
+#define HA_RWLOCK_INIT(l)             do { /* do nothing */ } while(0)
+#define HA_RWLOCK_DESTROY(l)          do { /* do nothing */ } while(0)
+#define HA_RWLOCK_WRLOCK(lbl, l)      do { /* do nothing */ } while(0)
 #define HA_RWLOCK_TRYWRLOCK(lbl, l)   ({ 0; })
-#define HA_RWLOCK_WRUNLOCK(lbl, l) do { /* do nothing */ } while(0)
-#define HA_RWLOCK_RDLOCK(lbl, l)   do { /* do nothing */ } while(0)
+#define HA_RWLOCK_WRUNLOCK(lbl, l)    do { /* do nothing */ } while(0)
+#define HA_RWLOCK_RDLOCK(lbl, l)      do { /* do nothing */ } while(0)
 #define HA_RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
-#define HA_RWLOCK_RDUNLOCK(lbl, l) do { /* do nothing */ } while(0)
+#define HA_RWLOCK_RDUNLOCK(lbl, l)    do { /* do nothing */ } while(0)
 
 #define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
 
@@ -149,43 +137,14 @@ static inline unsigned long thread_isolated()
 	return 1;
 }
 
-#else /* USE_THREAD */
+#else /* !USE_THREAD */
+
+/********************** THREADS ENABLED ************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <import/plock.h>
-
-#define THREAD_LOCAL __thread
-
-#ifndef MAX_THREADS
-#define MAX_THREADS LONGBITS
-#endif
-
-#define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
-
-#define __decl_hathreads(decl) decl
-
-/* declare a self-initializing spinlock */
-#define __decl_spinlock(lock)                               \
-	HA_SPINLOCK_T (lock);                               \
-	INITCALL1(STG_LOCK, ha_spin_init, &(lock))
-
-/* declare a self-initializing spinlock, aligned on a cache line */
-#define __decl_aligned_spinlock(lock)                       \
-	HA_SPINLOCK_T (lock) __attribute__((aligned(64)));  \
-	INITCALL1(STG_LOCK, ha_spin_init, &(lock))
-
-/* declare a self-initializing rwlock */
-#define __decl_rwlock(lock)                                 \
-	HA_RWLOCK_T   (lock);                               \
-	INITCALL1(STG_LOCK, ha_rwlock_init, &(lock))
-
-/* declare a self-initializing rwlock, aligned on a cache line */
-#define __decl_aligned_rwlock(lock)                         \
-	HA_RWLOCK_T   (lock) __attribute__((aligned(64)));  \
-	INITCALL1(STG_LOCK, ha_rwlock_init, &(lock))
 
 void thread_harmless_till_end();
 void thread_isolate();
@@ -193,27 +152,15 @@ void thread_release();
 void thread_sync_release();
 void ha_tkill(unsigned int thr, int sig);
 void ha_tkillall(int sig);
+void ha_spin_init(HA_SPINLOCK_T *l);
+void ha_rwlock_init(HA_RWLOCK_T *l);
 
-extern struct thread_info {
-	pthread_t pthread;
-	clockid_t clock_id;
-	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
-	uint64_t prev_cpu_time;    /* previous per thread CPU time */
-	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
-	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
-	unsigned int flags;        /* thread info flags, TI_FL_* */
-	/* pad to cache line (64B) */
-	char __pad[0];            /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
-} ha_thread_info[MAX_THREADS];
-
-extern THREAD_LOCAL unsigned int tid;     /* The thread id */
-extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
-extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
 extern volatile unsigned long all_threads_mask;
-extern volatile unsigned long threads_want_rdv_mask;
 extern volatile unsigned long threads_harmless_mask;
 extern volatile unsigned long threads_sync_mask;
+extern volatile unsigned long threads_want_rdv_mask;
+extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
+extern THREAD_LOCAL unsigned int tid;      /* The thread id */
 
 /* explanation for threads_want_rdv_mask, threads_harmless_mask, and
  * threads_sync_mask :
@@ -324,9 +271,63 @@ static inline unsigned long thread_isolated()
 }
 
 
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+#if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
 
-/* WARNING!!! if you update this enum, please also keep lock_label() up to date below */
+/* Thread debugging is DISABLED, these are the regular locking functions */
+
+#define HA_SPIN_INIT(l)            ({ (*l) = 0; })
+#define HA_SPIN_DESTROY(l)         ({ (*l) = 0; })
+#define HA_SPIN_LOCK(lbl, l)       pl_take_s(l)
+#define HA_SPIN_TRYLOCK(lbl, l)    !pl_try_s(l)
+#define HA_SPIN_UNLOCK(lbl, l)     pl_drop_s(l)
+
+#define HA_RWLOCK_INIT(l)          ({ (*l) = 0; })
+#define HA_RWLOCK_DESTROY(l)       ({ (*l) = 0; })
+#define HA_RWLOCK_WRLOCK(lbl,l)    pl_take_w(l)
+#define HA_RWLOCK_TRYWRLOCK(lbl,l) !pl_try_w(l)
+#define HA_RWLOCK_WRUNLOCK(lbl,l)  pl_drop_w(l)
+#define HA_RWLOCK_RDLOCK(lbl,l)    pl_take_r(l)
+#define HA_RWLOCK_TRYRDLOCK(lbl,l) !pl_try_r(l)
+#define HA_RWLOCK_RDUNLOCK(lbl,l)  pl_drop_r(l)
+
+#else /* !defined(DEBUG_THREAD) && !defined(DEBUG_FULL) */
+
+/* Thread debugging is ENABLED, these are the instrumented functions */
+
+#define __SPIN_INIT(l)             ({ (*l) = 0; })
+#define __SPIN_DESTROY(l)          ({ (*l) = 0; })
+#define __SPIN_LOCK(l)             pl_take_s(l)
+#define __SPIN_TRYLOCK(l)          !pl_try_s(l)
+#define __SPIN_UNLOCK(l)           pl_drop_s(l)
+
+#define __RWLOCK_INIT(l)           ({ (*l) = 0; })
+#define __RWLOCK_DESTROY(l)        ({ (*l) = 0; })
+#define __RWLOCK_WRLOCK(l)         pl_take_w(l)
+#define __RWLOCK_TRYWRLOCK(l)      !pl_try_w(l)
+#define __RWLOCK_WRUNLOCK(l)       pl_drop_w(l)
+#define __RWLOCK_RDLOCK(l)         pl_take_r(l)
+#define __RWLOCK_TRYRDLOCK(l)      !pl_try_r(l)
+#define __RWLOCK_RDUNLOCK(l)       pl_drop_r(l)
+
+#define HA_SPIN_INIT(l)            __spin_init(l)
+#define HA_SPIN_DESTROY(l)         __spin_destroy(l)
+
+#define HA_SPIN_LOCK(lbl, l)       __spin_lock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_SPIN_TRYLOCK(lbl, l)    __spin_trylock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_SPIN_UNLOCK(lbl, l)     __spin_unlock(lbl, l, __func__, __FILE__, __LINE__)
+
+#define HA_RWLOCK_INIT(l)          __ha_rwlock_init((l))
+#define HA_RWLOCK_DESTROY(l)       __ha_rwlock_destroy((l))
+#define HA_RWLOCK_WRLOCK(lbl,l)    __ha_rwlock_wrlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_TRYWRLOCK(lbl,l) __ha_rwlock_trywrlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_WRUNLOCK(lbl,l)  __ha_rwlock_wrunlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_RDLOCK(lbl,l)    __ha_rwlock_rdlock(lbl, l)
+#define HA_RWLOCK_TRYRDLOCK(lbl,l) __ha_rwlock_tryrdlock(lbl, l)
+#define HA_RWLOCK_RDUNLOCK(lbl,l)  __ha_rwlock_rdunlock(lbl, l)
+
+/* WARNING!!! if you update this enum, please also keep lock_label() up to date
+ * below.
+ */
 enum lock_label {
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
@@ -365,83 +366,8 @@ enum lock_label {
 	OTHER_LOCK,
 	LOCK_LABELS
 };
-struct lock_stat {
-	uint64_t nsec_wait_for_write;
-	uint64_t nsec_wait_for_read;
-	uint64_t num_write_locked;
-	uint64_t num_write_unlocked;
-	uint64_t num_read_locked;
-	uint64_t num_read_unlocked;
-};
 
 extern struct lock_stat lock_stats[LOCK_LABELS];
-
-#define __HA_SPINLOCK_T      unsigned long
-
-#define __SPIN_INIT(l)         ({ (*l) = 0; })
-#define __SPIN_DESTROY(l)      ({ (*l) = 0; })
-#define __SPIN_LOCK(l)         pl_take_s(l)
-#define __SPIN_TRYLOCK(l)      !pl_try_s(l)
-#define __SPIN_UNLOCK(l)       pl_drop_s(l)
-
-#define __HA_RWLOCK_T		unsigned long
-
-#define __RWLOCK_INIT(l)          ({ (*l) = 0; })
-#define __RWLOCK_DESTROY(l)       ({ (*l) = 0; })
-#define __RWLOCK_WRLOCK(l)        pl_take_w(l)
-#define __RWLOCK_TRYWRLOCK(l)     !pl_try_w(l)
-#define __RWLOCK_WRUNLOCK(l)      pl_drop_w(l)
-#define __RWLOCK_RDLOCK(l)        pl_take_r(l)
-#define __RWLOCK_TRYRDLOCK(l)     !pl_try_r(l)
-#define __RWLOCK_RDUNLOCK(l)      pl_drop_r(l)
-
-#define HA_SPINLOCK_T       struct ha_spinlock
-
-#define HA_SPIN_INIT(l)        __spin_init(l)
-#define HA_SPIN_DESTROY(l)      __spin_destroy(l)
-
-#define HA_SPIN_LOCK(lbl, l)    __spin_lock(lbl, l, __func__, __FILE__, __LINE__)
-#define HA_SPIN_TRYLOCK(lbl, l) __spin_trylock(lbl, l, __func__, __FILE__, __LINE__)
-#define HA_SPIN_UNLOCK(lbl, l)  __spin_unlock(lbl, l, __func__, __FILE__, __LINE__)
-
-#define HA_RWLOCK_T         struct ha_rwlock
-
-#define HA_RWLOCK_INIT(l)          __ha_rwlock_init((l))
-#define HA_RWLOCK_DESTROY(l)       __ha_rwlock_destroy((l))
-#define HA_RWLOCK_WRLOCK(lbl,l)    __ha_rwlock_wrlock(lbl, l, __func__, __FILE__, __LINE__)
-#define HA_RWLOCK_TRYWRLOCK(lbl,l) __ha_rwlock_trywrlock(lbl, l, __func__, __FILE__, __LINE__)
-#define HA_RWLOCK_WRUNLOCK(lbl,l)  __ha_rwlock_wrunlock(lbl, l, __func__, __FILE__, __LINE__)
-#define HA_RWLOCK_RDLOCK(lbl,l)    __ha_rwlock_rdlock(lbl, l)
-#define HA_RWLOCK_TRYRDLOCK(lbl,l) __ha_rwlock_tryrdlock(lbl, l)
-#define HA_RWLOCK_RDUNLOCK(lbl,l)  __ha_rwlock_rdunlock(lbl, l)
-
-struct ha_spinlock {
-	__HA_SPINLOCK_T lock;
-	struct {
-		unsigned long owner; /* a bit is set to 1 << tid for the lock owner */
-		unsigned long waiters; /* a bit is set to 1 << tid for waiting threads  */
-		struct {
-			const char *function;
-			const char *file;
-			int line;
-		} last_location; /* location of the last owner */
-	} info;
-};
-
-struct ha_rwlock {
-	__HA_RWLOCK_T lock;
-	struct {
-		unsigned long cur_writer; /* a bit is set to 1 << tid for the lock owner */
-		unsigned long wait_writers; /* a bit is set to 1 << tid for waiting writers */
-		unsigned long cur_readers; /* a bit is set to 1 << tid for current readers */
-		unsigned long wait_readers; /* a bit is set to 1 << tid for waiting waiters */
-		struct {
-			const char *function;
-			const char *file;
-			int line;
-		} last_location; /* location of the last write owner */
-	} info;
-};
 
 static inline const char *lock_label(enum lock_label label)
 {
@@ -519,7 +445,8 @@ static inline void show_lock_stats()
 /* Following functions are used to collect some stats about locks. We wrap
  * pthread functions to known how much time we wait in a lock. */
 
-static uint64_t nsec_now(void) {
+static uint64_t nsec_now(void)
+{
         struct timespec ts;
 
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -772,38 +699,8 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_unlocked, 1);
 }
 
-#else /* DEBUG_THREAD */
-
-#define HA_SPINLOCK_T        unsigned long
-
-#define HA_SPIN_INIT(l)         ({ (*l) = 0; })
-#define HA_SPIN_DESTROY(l)      ({ (*l) = 0; })
-#define HA_SPIN_LOCK(lbl, l)    pl_take_s(l)
-#define HA_SPIN_TRYLOCK(lbl, l) !pl_try_s(l)
-#define HA_SPIN_UNLOCK(lbl, l)  pl_drop_s(l)
-
-#define HA_RWLOCK_T		unsigned long
-
-#define HA_RWLOCK_INIT(l)          ({ (*l) = 0; })
-#define HA_RWLOCK_DESTROY(l)       ({ (*l) = 0; })
-#define HA_RWLOCK_WRLOCK(lbl,l)    pl_take_w(l)
-#define HA_RWLOCK_TRYWRLOCK(lbl,l) !pl_try_w(l)
-#define HA_RWLOCK_WRUNLOCK(lbl,l)  pl_drop_w(l)
-#define HA_RWLOCK_RDLOCK(lbl,l)    pl_take_r(l)
-#define HA_RWLOCK_TRYRDLOCK(lbl,l) !pl_try_r(l)
-#define HA_RWLOCK_RDUNLOCK(lbl,l)  pl_drop_r(l)
-
 #endif  /* DEBUG_THREAD */
-
-
-void ha_spin_init(HA_SPINLOCK_T *l);
-void ha_rwlock_init(HA_RWLOCK_T *l);
 
 #endif /* USE_THREAD */
 
-extern int thread_cpus_enabled_at_boot;
-
-int parse_nbthread(const char *arg, char **err);
-int thread_get_default_count();
-
-#endif /* _COMMON_HATHREADS_H */
+#endif /* _HAPROXY_THREAD_H */

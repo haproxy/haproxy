@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/list-t.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 /* First undefine some macros which happen to also be defined on OpenBSD,
  * in sys/queue.h, used by sys/event.h

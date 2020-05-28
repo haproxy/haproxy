@@ -25,7 +25,7 @@
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <common/xref.h>
 #include <common/h1.h>
 

@@ -25,7 +25,7 @@
 #include <import/eb32tree.h>
 
 #include <haproxy/list-t.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 
 #include <types/connection.h>
 #include <types/obj_type.h>

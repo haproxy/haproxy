@@ -19,7 +19,7 @@
 #include <syslog.h>
 
 #include <haproxy/api.h>
-#include <common/hathreads.h>
+#include <haproxy/thread-t.h>
 #include <common/ticks.h>
 #include <common/time.h>
 

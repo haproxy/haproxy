@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <types/applet.h>
 #include <proto/cli.h>
 #include <proto/ring.h>

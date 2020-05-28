@@ -28,7 +28,7 @@
 
 #include <haproxy/api.h>
 #include <common/memory.h>
-#include <common/hathreads.h>
+#include <haproxy/thread-t.h>
 
 #include <types/log.h>
 #include <types/proxy.h>

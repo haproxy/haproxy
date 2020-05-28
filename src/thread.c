@@ -24,7 +24,7 @@
 #endif
 
 #include <common/cfgparse.h>
-#include <common/hathreads.h>
+#include <haproxy/thread.h>
 #include <common/standard.h>
 #include <types/global.h>
 #include <proto/fd.h>
@@ -190,7 +190,7 @@ static int thread_cpus_enabled()
 }
 
 __attribute__((constructor))
-static void __hathreads_init(void)
+static void __thread_init(void)
 {
 	char *ptr = NULL;
 
