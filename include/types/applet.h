@@ -178,6 +178,10 @@ struct appctx {
 			struct ckch_store *new_ckchs;
 			struct ckch_inst *next_ckchi;
 		} ssl;
+		struct {
+			void *ptr;
+		} sft; /* sink forward target */
+
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
 		 */

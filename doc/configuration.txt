@@ -2596,9 +2596,37 @@ maxlen <length>
   including formatted header. If an event message is longer than
   <length>, it will be truncated to this length.
 
+server <name> <address> [param*]
+  Used to configure a syslog tcp server to forward messages from ring buffer.
+  This supports for all "server" parameters found in 5.2 paragraph. Some of
+  these parameters are irrelevant for "ring" sections. Important point: there
+  is little reason to add more than one server to a ring, because all servers
+  will receive the exact same copy of the ring contents, and as such the ring
+  will progress at the speed of the slowest server. If one server does not
+  respond, it will prevent old messages from being purged and may block new
+  messages from being inserted into the ring. The proper way to send messages
+  to multiple servers is to use one distinct ring per log server, not to
+  attach multiple servers to the same ring.
+
 size <size>
   This is the optional size in bytes for the ring-buffer. Default value is
   set to BUFSIZE.
+
+timeout connect <timeout>
+  Set the maximum time to wait for a connection attempt to a server to succeed.
+
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+timeout server <timeout>
+  Set the maximum time for pending data staying into output buffer.
+
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
 
   Example:
     global
@@ -2609,6 +2637,9 @@ size <size>
         format rfc3164
         maxlen 1200
         size 32764
+        timeout connect 5s
+        timeout server 10s
+        server mysyslogsrv 127.0.0.1:6514
 
 
 4. Proxies

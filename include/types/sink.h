@@ -49,6 +49,14 @@ enum sink_fmt {
 	SINK_FMT_RFC5424,   // extended syslog
 };
 
+struct sink_forward_target {
+	struct server *srv;    // used server
+	struct appctx *appctx; // appctx of current session
+	size_t ofs;            // ring buffer reader offset
+	__decl_hathreads(HA_SPINLOCK_T lock); // lock to protect current struct
+	struct sink_forward_target *next;
+};
+
 /* describes the configuration and current state of an event sink */
 struct sink {
 	struct list sink_list;     // position in the sink list
@@ -57,6 +65,10 @@ struct sink {
 	enum sink_fmt fmt;         // format expected by the sink
 	enum sink_type type;       // type of storage
 	uint32_t maxlen;           // max message length (truncated above)
+	struct proxy* forward_px;  // proxy used to forward
+	struct sink_forward_target *sft; // sink forward targets
+	struct task *forward_task; // task to handle forward targets conns
+	struct sig_handler *forward_sighandler; /* signal handler */
 	struct {
 		__decl_hathreads(HA_RWLOCK_T lock); // shared/excl for dropped
 		struct ring *ring;    // used by ring buffer and STRM sender
