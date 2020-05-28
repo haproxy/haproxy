@@ -3467,51 +3467,8 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
 {
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
-	struct email_alertq *q = container_of(check, typeof(*q), check);
-	int ret = 0;
 
-	if (!(check->wait_list.events & SUB_RETRY_SEND))
-		ret = wake_srv_chk(cs);
-	if (ret == 0 && !(check->wait_list.events & SUB_RETRY_RECV)) {
-		if (check->server)
-			HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-		else
-			HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
-
-		if (unlikely(check->result == CHK_RES_FAILED)) {
-			/* collect possible new errors */
-			if (cs->conn->flags & CO_FL_ERROR || cs->flags & CS_FL_ERROR)
-				chk_report_conn_err(check, 0, 0);
-
-			/* Reset the check buffer... */
-			b_reset(&check->bi);
-
-			/* Close the connection... We still attempt to nicely close if,
-			 * for instance, SSL needs to send a "close notify." Later, we perform
-			 * a hard close and reset the connection if some data are pending,
-			 * otherwise we end up with many TIME_WAITs and eat all the source port
-			 * range quickly.  To avoid sending RSTs all the time, we first try to
-			 * drain pending data.
-			 */
-			/* Call cs_shutr() first, to add the CO_FL_SOCK_RD_SH flag on the
-			 * connection, to make sure cs_shutw() will not lead to a shutdown()
-			 * that would provoke TIME_WAITs.
-			 */
-			cs_shutr(cs, CS_SHR_DRAIN);
-			cs_shutw(cs, CS_SHW_NORMAL);
-
-			/* OK, let's not stay here forever */
-			if (check->result == CHK_RES_FAILED)
-				cs->conn->flags |= CO_FL_ERROR;
-
-			task_wakeup(t, TASK_WOKEN_IO);
-		}
-
-		if (check->server)
-			HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-		else
-			HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
-	}
+	wake_srv_chk(cs);
 	return NULL;
 }
 
