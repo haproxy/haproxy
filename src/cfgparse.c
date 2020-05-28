@@ -1130,9 +1130,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				continue;
 
 			memset(sk, 0, sizeof(*sk));
-			sk = str2ip2(address, sk, 1);
-			if (!sk) {
-				ha_warning("parsing [/etc/resolv.conf:%d] : address '%s' could not be recognized, namerserver will be excluded.\n",
+			if (!str2ip2(address, sk, 1)) {
+				ha_warning("parsing [/etc/resolv.conf:%d] : address '%s' could not be recognized, nameserver will be excluded.\n",
 					   resolv_linenum, address);
 				err_code |= ERR_WARN;
 				continue;
