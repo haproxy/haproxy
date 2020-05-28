@@ -17,7 +17,6 @@
 #include <common/htx.h>
 #include <common/namespace.h>
 #include <common/standard.h>
-#include <common/hathreads.h>
 
 #include <types/filters.h>
 #include <types/http_ana.h>

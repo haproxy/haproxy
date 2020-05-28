@@ -1,7 +1,7 @@
 #ifndef __XREF_H__
 #define __XREF_H__
 
-#include <common/hathreads.h>
+#include <haproxy/atomic.h>
 
 /* xref is used to create relation between two elements.
  * Once an element is released, it breaks the relation. If the

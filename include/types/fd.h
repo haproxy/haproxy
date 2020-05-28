@@ -23,7 +23,6 @@
 #define _TYPES_FD_H
 
 #include <haproxy/api-t.h>
-#include <common/hathreads.h>
 #include <import/ist.h>
 #include <types/port_range.h>
 

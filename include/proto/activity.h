@@ -22,8 +22,8 @@
 #ifndef _PROTO_ACTIVITY_H
 #define _PROTO_ACTIVITY_H
 
+#include <haproxy/atomic.h>
 #include <haproxy/api.h>
-#include <common/hathreads.h>
 #include <common/time.h>
 #include <types/activity.h>
 #include <proto/freq_ctr.h>

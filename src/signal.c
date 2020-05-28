@@ -13,8 +13,6 @@
 #include <signal.h>
 #include <string.h>
 
-#include <common/hathreads.h>
-
 #include <proto/signal.h>
 #include <proto/log.h>
 #include <proto/task.h>
