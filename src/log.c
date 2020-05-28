@@ -1579,8 +1579,10 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 
 	dataptr = message;
 
-	/* historically some messages used to already contain the trailing LF */
-	if (size && (dataptr[size-1] == '\n'))
+	/* historically some messages used to already contain the trailing LF
+	 * or Zero. Let's remove all trailing LF or Zero
+	 */
+	while (size && ((dataptr[size-1] == '\n' || (dataptr[size-1] == 0))))
 		size--;
 
 	if (logsrv->type == LOG_TARGET_FD) {
