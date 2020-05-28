@@ -2623,6 +2623,7 @@ static int tcpcheck_main(struct check *check)
 	struct connection *conn = cs_conn(cs);
 	int must_read = 1, last_read = 0;
 	int ret, retcode = 0;
+	enum tcpcheck_eval_ret eval_ret;
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
@@ -2647,12 +2648,17 @@ static int tcpcheck_main(struct check *check)
 			if (next && next->action == TCPCHK_ACT_SEND) {
 				if (!(check->wait_list.events & SUB_RETRY_SEND))
 					conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
+				goto out;
 			}
 			else {
-				if (!(check->wait_list.events & SUB_RETRY_RECV))
-					conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+				eval_ret = tcpcheck_eval_recv(check, check->current_step);
+				if (eval_ret == TCPCHK_EVAL_STOP)
+					goto out_end_tcpcheck;
+				else if (eval_ret == TCPCHK_EVAL_WAIT)
+					goto out;
+				last_read = ((conn->flags & CO_FL_ERROR) || (cs->flags & (CS_FL_ERROR|CS_FL_EOS)));
+				must_read = 0;
 			}
-			goto out;
 		}
 		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 	}
@@ -2713,8 +2719,6 @@ static int tcpcheck_main(struct check *check)
 	/* Now evaluate the tcp-check rules */
 
 	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
-		enum tcpcheck_eval_ret eval_ret;
-
 		check->code = 0;
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
