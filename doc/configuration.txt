@@ -2606,7 +2606,8 @@ server <name> <address> [param*]
   respond, it will prevent old messages from being purged and may block new
   messages from being inserted into the ring. The proper way to send messages
   to multiple servers is to use one distinct ring per log server, not to
-  attach multiple servers to the same ring.
+  attach multiple servers to the same ring. Note that specific server directive
+  "log-proto" is used to set the protocol used to send messages.
 
 size <size>
   This is the optional size in bytes for the ring-buffer. Default value is
@@ -2639,7 +2640,7 @@ timeout server <timeout>
         size 32764
         timeout connect 5s
         timeout server 10s
-        server mysyslogsrv 127.0.0.1:6514
+        server mysyslogsrv 127.0.0.1:6514 log-proto octet-count
 
 
 4. Proxies
@@ -13079,6 +13080,12 @@ downinter <delay>
   add some random noise in the agent and health checks interval using the
   global "spread-checks" keyword. This makes sense for instance when a lot
   of backends use the same servers.
+
+log-proto <logproto>
+  The "log-proto" specifies the protocol used to forward event messages to
+  a server configured in a ring section. Possible values are "legacy"
+  and "octet-count" corresponding respectively to "Non-transparent-framing"
+  and "Octet counting" in rfc6587. "legacy" is the default.
 
 maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent

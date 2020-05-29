@@ -2275,6 +2275,20 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->uweight = newsrv->iweight = w;
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "log-proto")) {
+				if (!strcmp(args[cur_arg + 1], "legacy"))
+					newsrv->log_proto = SRV_LOG_PROTO_LEGACY;
+				else if (!strcmp(args[cur_arg + 1], "octet-count"))
+					newsrv->log_proto = SRV_LOG_PROTO_OCTET_COUNTING;
+				else {
+					ha_alert("parsing [%s:%d]: '%s' expects one of 'legacy' or "
+						"'octet-count' but got '%s'\n",
+						file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				cur_arg += 2;
+			}
 			else if (!strcmp(args[cur_arg], "minconn")) {
 				newsrv->minconn = atol(args[cur_arg + 1]);
 				cur_arg += 2;
