@@ -139,11 +139,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			for (thr = 0; thr < MAX_THREADS; thr++)
 				pool_cache[thr][idx].size = size;
 		}
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_INIT(&pool->lock);
-#else
-		HA_SPIN_INIT(&pool->flush_lock);
-#endif
 	}
 	pool->users++;
 	return pool;
@@ -227,7 +223,7 @@ void pool_flush(struct pool_head *pool)
 
 	if (!pool)
 		return;
-	HA_SPIN_LOCK(POOL_LOCK, &pool->flush_lock);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	do {
 		cmp.free_list = pool->free_list;
 		cmp.seq = pool->seq;
@@ -235,7 +231,7 @@ void pool_flush(struct pool_head *pool)
 		new.seq = cmp.seq + 1;
 	} while (!_HA_ATOMIC_DWCAS(&pool->free_list, &cmp, &new));
 	__ha_barrier_atomic_store();
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->flush_lock);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 	next = cmp.free_list;
 	while (next) {
 		temp = next;

@@ -81,14 +81,15 @@ struct pool_free_list {
 };
 #endif
 
+/* Note below, in case of lockless pools, we still need the lock only for
+ * the flush() operation.
+ */
 struct pool_head {
 	void **free_list;
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 	uintptr_t seq;
-	HA_SPINLOCK_T flush_lock;
-#else
-	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
 #endif
+	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int needed_avg;/* floating indicator between used and allocated */
 	unsigned int allocated;	/* how many chunks have been allocated */
