@@ -3663,9 +3663,9 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 	min = conf_ssl_methods->min;
 	max = conf_ssl_methods->max;
-	/* start with TLSv10 to remove SSLv3 per default */
-	if (!min && (!max || max >= CONF_TLSV10))
-		min = CONF_TLSV10;
+	/* start with TLSv12 to remove SSLv3,TLSv10,TLSv11 per default */
+	if (!min && (!max || max >= CONF_TLSV12))
+		min = CONF_TLSV12;
 	/* Real min and max should be determinate with configuration and openssl's capabilities */
 	if (min)
 		flags |= (methodVersions[min].flag - 1);
