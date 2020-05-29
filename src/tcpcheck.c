@@ -3565,7 +3565,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		case TCPCHK_ACT_CONNECT:
 			if (!chk->comment && comment)
 				chk->comment = strdup(comment);
-			/* fall though */
+			/* fall through */
 		case TCPCHK_ACT_ACTION_KW:
 			free(comment);
 			comment = NULL;

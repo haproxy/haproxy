@@ -1191,6 +1191,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 				return 0;
 			}
 			appctx->st2 = STAT_ST_LIST;
+			/* fall through */
 
 		case STAT_ST_LIST:
 			if (global.stats_fe) {
@@ -1267,6 +1268,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 					appctx->ctx.cli.p0 = &bind_conf->by_fe; /* store the latest list node dumped */
 				}
 			}
+			/* fall through */
 		default:
 			appctx->st2 = STAT_ST_FIN;
 			return 1;

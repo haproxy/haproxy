@@ -2281,8 +2281,8 @@ switchstate:
 				appctx->ctx.peers.ptr = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
 				_HA_ATOMIC_ADD(&active_peers, 1);
-				/* fall through */
 			}
+			/* fall through */
 			case PEER_SESS_ST_SENDSUCCESS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
@@ -2328,8 +2328,8 @@ switchstate:
 
 				/* switch to the waiting statuscode state */
 				appctx->st0 = PEER_SESS_ST_GETSTATUS;
-				/* fall through */
 			}
+			/* fall through */
 			case PEER_SESS_ST_GETSTATUS: {
 				prev_state = appctx->st0;
 				if (!curpeer) {
@@ -2370,8 +2370,8 @@ switchstate:
 				}
 				_HA_ATOMIC_ADD(&connected_peers, 1);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
-				/* fall through */
 			}
+			/* fall through */
 			case PEER_SESS_ST_WAITMSG: {
 				uint32_t msg_len = 0;
 				char *msg_cur = trash.area;
@@ -2456,8 +2456,8 @@ send_msgs:
 					goto out;
 				appctx->st0 = PEER_SESS_ST_END;
 				prev_state = appctx->st0;
-				/* fall through */
 			}
+			/* fall through */
 			case PEER_SESS_ST_END: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
 					_HA_ATOMIC_SUB(&connected_peers, 1);

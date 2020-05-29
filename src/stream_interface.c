@@ -232,6 +232,7 @@ static void stream_int_shutw(struct stream_interface *si)
 	case SI_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
+		/* fall through */
 	default:
 		si->flags &= ~SI_FL_NOLINGER;
 		si_rx_shut_blk(si);
@@ -1667,6 +1668,7 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		/* Note that none of these states may happen with applets */
 		si_applet_release(si);
 		si->state = SI_ST_DIS;
+		/* fall through */
 	default:
 		si->flags &= ~SI_FL_NOLINGER;
 		si_rx_shut_blk(si);
