@@ -944,7 +944,9 @@ static struct tcpcheck_ruleset *find_tcpcheck_ruleset(const char *name)
 	return NULL;
 }
 
-/* Creates a new shared tcp-check ruleset  */
+/* Creates a new shared tcp-check ruleset and insert it in shared_tcpchecks
+ * tree.
+ */
 static struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name)
 {
 	struct tcpcheck_ruleset *rs;
@@ -6276,8 +6278,6 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	ebis_insert(&shared_tcpchecks, &rs->node);
-
   ruleset_found:
 	rules->list = &rs->rules;
 	rules->flags |= TCPCHK_RULES_REDIS_CHK;
@@ -6376,8 +6376,6 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	}
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
-
-	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6514,8 +6512,6 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	}
 	chk->index = 4;
 	LIST_ADDQ(&rs->rules, &chk->list);
-
-	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6661,8 +6657,6 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	}
 	chk->index = 3;
 	LIST_ADDQ(&rs->rules, &chk->list);
-
-	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -6887,8 +6881,6 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 		LIST_ADDQ(&rs->rules, &chk->list);
 	}
 
-	ebis_insert(&shared_tcpchecks, &rs->node);
-
   ruleset_found:
 	rules->list = &rs->rules;
 	rules->flags |= TCPCHK_RULES_MYSQL_CHK;
@@ -6972,8 +6964,6 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	chk->index = 2;
 	LIST_ADDQ(&rs->rules, &chk->list);
 
-	ebis_insert(&shared_tcpchecks, &rs->node);
-
   ruleset_found:
 	rules->list = &rs->rules;
 	rules->flags |= TCPCHK_RULES_LDAP_CHK;
@@ -7048,8 +7038,6 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	chk->expect.custom = tcpcheck_spop_expect_agenthello;
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
-
-	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -7397,8 +7385,6 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	chk->expect.custom = tcpcheck_agent_expect_reply;
 	chk->index = 1;
 	LIST_ADDQ(&rs->rules, &chk->list);
-
-	ebis_insert(&shared_tcpchecks, &rs->node);
 
   ruleset_found:
 	rules->list = &rs->rules;
