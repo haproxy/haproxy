@@ -437,6 +437,11 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 	}
+	else {
+		ha_alert("parsing [%s:%d] : unknown statement '%s'.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
 
 err:
 	return err_code;
