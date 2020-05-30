@@ -28,7 +28,6 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/memory.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/ticks.h>
