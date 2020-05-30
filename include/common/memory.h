@@ -22,15 +22,12 @@
 #ifndef _COMMON_MEMORY_H
 #define _COMMON_MEMORY_H
 
-#include <sys/mman.h>
-
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/list.h>
+#include <haproxy/pool-os.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/thread.h>
 
@@ -239,7 +236,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	_HA_ATOMIC_SUB(&pool->used, 1);
 
 	if (unlikely(pool_is_crowded(pool))) {
-		free(ptr);
+		pool_free_area(ptr, pool->size + POOL_EXTRA);
 		_HA_ATOMIC_SUB(&pool->allocated, 1);
 	} else {
 		do {
@@ -342,82 +339,6 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 	return p;
 }
 
-#ifndef DEBUG_UAF /* normal allocator */
-
-/* allocates an area of size <size> and returns it. The semantics are similar
- * to those of malloc().
- */
-static inline void *pool_alloc_area(size_t size)
-{
-	return malloc(size);
-}
-
-/* frees an area <area> of size <size> allocated by pool_alloc_area(). The
- * semantics are identical to free() except that the size is specified and
- * may be ignored.
- */
-static inline void pool_free_area(void *area, size_t __maybe_unused size)
-{
-	free(area);
-}
-
-#else  /* use-after-free detector */
-
-/* allocates an area of size <size> and returns it. The semantics are similar
- * to those of malloc(). However the allocation is rounded up to 4kB so that a
- * full page is allocated. This ensures the object can be freed alone so that
- * future dereferences are easily detected. The returned object is always
- * 16-bytes aligned to avoid issues with unaligned structure objects. In case
- * some padding is added, the area's start address is copied at the end of the
- * padding to help detect underflows.
- */
-#include <errno.h>
-static inline void *pool_alloc_area(size_t size)
-{
-	size_t pad = (4096 - size) & 0xFF0;
-	int isolated;
-	void *ret;
-
-	isolated = thread_isolated();
-	if (!isolated)
-		thread_harmless_now();
-	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-	if (ret != MAP_FAILED) {
-		/* let's dereference the page before returning so that the real
-		 * allocation in the system is performed without holding the lock.
-		 */
-		*(int *)ret = 0;
-		if (pad >= sizeof(void *))
-			*(void **)(ret + pad - sizeof(void *)) = ret + pad;
-		ret += pad;
-	} else {
-		ret = NULL;
-	}
-	if (!isolated)
-		thread_harmless_end();
-	return ret;
-}
-
-/* frees an area <area> of size <size> allocated by pool_alloc_area(). The
- * semantics are identical to free() except that the size must absolutely match
- * the one passed to pool_alloc_area(). In case some padding is added, the
- * area's start address is compared to the one at the end of the padding, and
- * a segfault is triggered if they don't match, indicating an underflow.
- */
-static inline void pool_free_area(void *area, size_t size)
-{
-	size_t pad = (4096 - size) & 0xFF0;
-
-	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
-		*DISGUISE((volatile int *)0) = 0;
-
-	thread_harmless_now();
-	munmap(area - pad, (size + 4095) & -4096);
-	thread_harmless_end();
-}
-
-#endif /* DEBUG_UAF */
-
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
@@ -457,7 +378,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 		pool->used--;
 		if (pool_is_crowded(pool)) {
-			free(ptr);
+			pool_free_area(ptr, pool->size + POOL_EXTRA);
 			pool->allocated--;
 		} else {
 			*POOL_LINK(pool, ptr) = (void *)pool->free_list;

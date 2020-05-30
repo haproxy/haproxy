@@ -172,7 +172,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 
 		swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
 
-		ptr = malloc(size + POOL_EXTRA);
+		ptr = pool_alloc_area(size + POOL_EXTRA);
 		if (!ptr) {
 			_HA_ATOMIC_ADD(&pool->failed, 1);
 			if (failed) {
@@ -235,7 +235,7 @@ void pool_flush(struct pool_head *pool)
 		temp = next;
 		next = *POOL_LINK(pool, temp);
 		removed++;
-		free(temp);
+		pool_free_area(temp, pool->size + POOL_EXTRA);
 	}
 	pool->free_list = next;
 	_HA_ATOMIC_SUB(&pool->allocated, removed);
@@ -269,7 +269,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			new.seq = cmp.seq + 1;
 			if (HA_ATOMIC_DWCAS(&entry->free_list, &cmp, &new) == 0)
 				continue;
-			free(cmp.free_list);
+			pool_free_area(cmp.free_list, entry->size + POOL_EXTRA);
 			_HA_ATOMIC_SUB(&entry->allocated, 1);
 		}
 	}
