@@ -9,6 +9,7 @@
 #   - shows a listing of the final file
 
 USAGE="Usage: ${0##*/} [-a] [-q] [-y] [-b branch] [-n newver] DIR"
+CMD_GZIP="${CMD_GZIP:-gzip -nc9}"
 TARGET_DIR=
 OUTPUT=
 SAYYES=
@@ -161,7 +162,7 @@ fi
 echo "Archiving sources for version $NEW ..."
 rm -f "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"{,.md5,.sha256}
 if ! git archive --format=tar --prefix="haproxy-${NEW}/" "v$NEW" | \
-     gzip -9 > "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"; then
+     $CMD_GZIP > "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"; then
 	die "Failed to produce the tar.gz archive"
 fi
 
@@ -174,7 +175,7 @@ git show "v$NEW:CHANGELOG" > "$TARGET_DIR/src/CHANGELOG"
 
 for i in "${DOC[@]}"; do
 	git show "v$NEW:$i" > "$TARGET_DIR/doc/${i#doc/}"
-	gzip -c9 < "$TARGET_DIR/doc/${i#doc/}" > "$TARGET_DIR/doc/${i#doc/}.gz"
+	$CMD_GZIP < "$TARGET_DIR/doc/${i#doc/}" > "$TARGET_DIR/doc/${i#doc/}.gz"
 done
 
 echo "Done : ls -l ${TARGET_DIR}"
