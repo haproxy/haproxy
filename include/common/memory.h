@@ -160,10 +160,6 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 static inline void *__pool_get_first(struct pool_head *pool)
 {
 	struct pool_free_list cmp, new;
-	void *ret = __pool_get_from_cache(pool);
-
-	if (ret)
-		return ret;
 
 	cmp.seq = pool->seq;
 	__ha_barrier_load();
@@ -190,6 +186,9 @@ static inline void *pool_get_first(struct pool_head *pool)
 {
 	void *ret;
 
+	if (likely(ret = __pool_get_from_cache(pool)))
+		return ret;
+
 	ret = __pool_get_first(pool);
 	return ret;
 }
@@ -202,6 +201,9 @@ static inline void *pool_get_first(struct pool_head *pool)
 static inline void *pool_alloc_dirty(struct pool_head *pool)
 {
 	void *p;
+
+	if (likely(p = __pool_get_from_cache(pool)))
+		return p;
 
 	if ((p = __pool_get_first(pool)) == NULL)
 		p = __pool_refill_alloc(pool, 0);
