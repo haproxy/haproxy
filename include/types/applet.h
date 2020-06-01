@@ -23,7 +23,7 @@
 #define _TYPES_APPLET_H
 
 #include <haproxy/api-t.h>
-#include <types/freq_ctr.h>
+#include <haproxy/freq_ctr-t.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>

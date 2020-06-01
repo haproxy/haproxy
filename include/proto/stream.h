@@ -27,7 +27,7 @@
 #include <types/action.h>
 #include <types/stream.h>
 #include <proto/fd.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/obj_type.h>
 #include <proto/queue.h>
 #include <proto/stick_table.h>

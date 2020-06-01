@@ -34,7 +34,7 @@
 
 #include <proto/queue.h>
 #include <proto/log.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 
 
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);

@@ -23,7 +23,7 @@
 #define _TYPES_ACTIVITY_H
 
 #include <haproxy/api-t.h>
-#include <types/freq_ctr.h>
+#include <haproxy/freq_ctr-t.h>
 
 /* per-thread activity reports. It's important that it's aligned on cache lines
  * because some elements will be updated very often. Most counters are OK on

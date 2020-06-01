@@ -50,7 +50,7 @@
 #include <proto/compression.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>

@@ -17,7 +17,7 @@
 #include <types/activity.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/stream_interface.h>
 
 

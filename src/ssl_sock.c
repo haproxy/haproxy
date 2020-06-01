@@ -68,7 +68,7 @@
 #include <proto/connection.h>
 #include <proto/cli.h>
 #include <proto/fd.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>

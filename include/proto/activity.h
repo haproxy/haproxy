@@ -26,7 +26,7 @@
 #include <haproxy/api.h>
 #include <haproxy/time.h>
 #include <types/activity.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 
 /* bit fields for "profiling" */
 #define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */

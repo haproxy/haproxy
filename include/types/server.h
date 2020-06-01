@@ -35,7 +35,7 @@
 #include <types/connection.h>
 #include <types/counters.h>
 #include <types/dns.h>
-#include <types/freq_ctr.h>
+#include <haproxy/freq_ctr-t.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/queue.h>

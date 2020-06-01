@@ -27,7 +27,7 @@
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/filters.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>

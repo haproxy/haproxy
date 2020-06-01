@@ -21,7 +21,7 @@
 #include <import/eb32tree.h>
 
 #include <proto/fd.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/task.h>

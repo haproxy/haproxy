@@ -42,7 +42,7 @@
 #include <proto/stats.h>
 #include <proto/fd.h>
 #include <proto/filters.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>

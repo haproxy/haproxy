@@ -42,7 +42,7 @@
 #include <types/checks.h>
 #include <types/counters.h>
 #include <types/filters.h>
-#include <types/freq_ctr.h>
+#include <haproxy/freq_ctr-t.h>
 #include <types/listener.h>
 #include <types/log.h>
 #include <types/obj_type.h>

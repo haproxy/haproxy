@@ -29,7 +29,7 @@
 #include <types/global.h>
 #include <types/proxy.h>
 #include <types/listener.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 
 extern struct proxy *proxies_list;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */

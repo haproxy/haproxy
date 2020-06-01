@@ -13,7 +13,7 @@
 #include <haproxy/api.h>
 #include <common/standard.h>
 #include <haproxy/time.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 
 /* Read a frequency counter taking history into account for missing time in
  * current period. Current second is sub-divided in 1000 chunks of one ms,

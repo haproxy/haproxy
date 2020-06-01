@@ -1,8 +1,8 @@
 /*
- * include/proto/freq_ctr.h
+ * include/haproxy/freq_ctr.h
  * This file contains macros and inline functions for frequency counters.
  *
- * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,14 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_FREQ_CTR_H
-#define _PROTO_FREQ_CTR_H
+#ifndef _HAPROXY_FREQ_CTR_H
+#define _HAPROXY_FREQ_CTR_H
 
 #include <haproxy/atomic.h>
 #include <haproxy/api.h>
+#include <haproxy/freq_ctr-t.h>
 #include <haproxy/intops.h>
 #include <haproxy/time.h>
-#include <types/freq_ctr.h>
 
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
@@ -324,7 +324,7 @@ static inline unsigned int swrate_avg(unsigned int sum, unsigned int n)
 	return (sum + n - 1) / n;
 }
 
-#endif /* _PROTO_FREQ_CTR_H */
+#endif /* _HAPROXY_FREQ_CTR_H */
 
 /*
  * Local variables:

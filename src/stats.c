@@ -52,7 +52,7 @@
 #include <proto/dns.h>
 #include <proto/stats.h>
 #include <proto/fd.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>

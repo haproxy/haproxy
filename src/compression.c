@@ -36,7 +36,7 @@
 
 #include <proto/acl.h>
 #include <proto/compression.h>
-#include <proto/freq_ctr.h>
+#include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 
 
