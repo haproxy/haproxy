@@ -145,16 +145,18 @@ static inline void b_free(struct buffer *buf)
 static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 {
 	char *area;
-	ssize_t idx;
+	ssize_t idx __maybe_unused;
 	unsigned int cached;
 
 	if (buf->size)
 		return buf;
 
 	cached = 0;
+#ifdef CONFIG_HAP_LOCAL_POOLS
 	idx = pool_get_index(pool_head_buffer);
 	if (idx >= 0)
 		cached = pool_cache[tid][idx].count;
+#endif
 
 	*buf = BUF_WANTED;
 

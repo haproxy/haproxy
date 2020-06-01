@@ -31,12 +31,14 @@
 #include <haproxy/pool-t.h>
 #include <haproxy/thread.h>
 
+#ifdef CONFIG_HAP_LOCAL_POOLS
+extern struct pool_head pool_base_start[MAX_BASE_POOLS];
+extern unsigned int pool_base_count;
 extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
 extern struct list pool_lru_head[MAX_THREADS];
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
-extern struct pool_head pool_base_start[MAX_BASE_POOLS];
-extern unsigned int pool_base_count;
+#endif
 
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
@@ -106,12 +108,14 @@ void pool_destroy_all();
 /* returns the pool index for pool <pool>, or -1 if this pool has no index */
 static inline ssize_t pool_get_index(const struct pool_head *pool)
 {
+#ifdef CONFIG_HAP_LOCAL_POOLS
 	size_t idx;
 
 	idx = pool - pool_base_start;
-	if (idx >= MAX_BASE_POOLS)
-		return -1;
-	return idx;
+	if (idx < MAX_BASE_POOLS)
+		return idx;
+#endif
+	return -1;
 }
 
 /* returns true if the pool is considered to have too many free objects */
@@ -121,7 +125,8 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 	       (int)(pool->allocated - pool->used) >= pool->minavail;
 }
 
-#ifdef CONFIG_HAP_LOCKLESS_POOLS
+#ifdef CONFIG_HAP_LOCAL_POOLS
+void pool_evict_from_cache();
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. Returns NULL if none is available.
@@ -153,6 +158,26 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 	return item;
 }
 
+/* Frees an object to the local cache, possibly pushing oldest objects to the
+ * global pool.
+ */
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
+{
+	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
+	struct pool_cache_head *ph = &pool_cache[tid][idx];
+
+	LIST_ADD(&ph->list, &item->by_pool);
+	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
+	ph->count++;
+	pool_cache_count++;
+	pool_cache_bytes += ph->size;
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
+		pool_evict_from_cache(pool, ptr, idx);
+}
+#endif // CONFIG_HAP_LOCAL_POOLS
+
+#ifdef CONFIG_HAP_LOCKLESS_POOLS
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -183,51 +208,6 @@ static inline void *__pool_get_first(struct pool_head *pool)
 	return cmp.free_list;
 }
 
-static inline void *pool_get_first(struct pool_head *pool)
-{
-	void *ret;
-
-	if (likely(ret = __pool_get_from_cache(pool)))
-		return ret;
-
-	ret = __pool_get_first(pool);
-	return ret;
-}
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. No memory poisonning is ever performed on the
- * returned area.
- */
-static inline void *pool_alloc_dirty(struct pool_head *pool)
-{
-	void *p;
-
-	if (likely(p = __pool_get_from_cache(pool)))
-		return p;
-
-	if ((p = __pool_get_first(pool)) == NULL)
-		p = __pool_refill_alloc(pool, 0);
-	return p;
-}
-
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. Memory poisonning is performed if enabled.
- */
-static inline void *pool_alloc(struct pool_head *pool)
-{
-	void *p;
-
-	p = pool_alloc_dirty(pool);
-	if (p && mem_poison_byte >= 0) {
-		memset(p, mem_poison_byte, pool->size);
-	}
-
-	return p;
-}
-
 /* Locklessly add item <ptr> to pool <pool>, then update the pool used count.
  * Both the pool and the pointer must be valid. Use pool_free() for normal
  * operations.
@@ -251,63 +231,6 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
 
-void pool_evict_from_cache();
-
-/* Frees an object to the local cache, possibly pushing oldest objects to the
- * global pool.
- */
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
-{
-	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
-	struct pool_cache_head *ph = &pool_cache[tid][idx];
-
-	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
-	ph->count++;
-	pool_cache_count++;
-	pool_cache_bytes += ph->size;
-
-	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
-		pool_evict_from_cache(pool, ptr, idx);
-}
-/*
- * Puts a memory area back to the corresponding pool.
- * Items are chained directly through a pointer that
- * is written in the beginning of the memory area, so
- * there's no need for any carrier cell. This implies
- * that each memory area is at least as big as one
- * pointer. Just like with the libc's free(), nothing
- * is done if <ptr> is NULL.
- */
-static inline void pool_free(struct pool_head *pool, void *ptr)
-{
-        if (likely(ptr != NULL)) {
-		ssize_t idx __maybe_unused;
-
-#ifdef DEBUG_MEMORY_POOLS
-		/* we'll get late corruption if we refill to the wrong pool or double-free */
-		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			*DISGUISE((volatile int *)0) = 0;
-#endif
-		if (mem_poison_byte >= 0)
-			memset(ptr, mem_poison_byte, pool->size);
-
-		/* put the object back into the cache only if there are not too
-		 * many objects yet in this pool (no more than half of the cached
-		 * is used or this pool uses no more than 1/8 of the cache size).
-		 */
-		idx = pool_get_index(pool);
-		if (idx >= 0 &&
-		    (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
-		     pool_cache[tid][idx].count < 16 + pool_cache_count / 8)) {
-			pool_put_to_cache(pool, ptr, idx);
-			return;
-		}
-
-		__pool_free(pool, ptr);
-	}
-}
-
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
@@ -326,49 +249,6 @@ static inline void *__pool_get_first(struct pool_head *pool)
 		*POOL_LINK(pool, p) = (void *)pool;
 #endif
 	}
-	return p;
-}
-
-static inline void *pool_get_first(struct pool_head *pool)
-{
-	void *ret;
-
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-	ret = __pool_get_first(pool);
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-	return ret;
-}
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. No memory poisonning is ever performed on the
- * returned area.
- */
-static inline void *pool_alloc_dirty(struct pool_head *pool)
-{
-	void *p;
-
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-	if ((p = __pool_get_first(pool)) == NULL)
-		p = __pool_refill_alloc(pool, 0);
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-	return p;
-}
-
-/*
- * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. Memory poisonning is performed if enabled.
- */
-static inline void *pool_alloc(struct pool_head *pool)
-{
-	void *p;
-
-	p = pool_alloc_dirty(pool);
-	if (p && mem_poison_byte >= 0) {
-		memset(p, mem_poison_byte, pool->size);
-	}
-
 	return p;
 }
 
@@ -401,6 +281,70 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 #endif /* DEBUG_UAF */
 }
 
+#endif /* CONFIG_HAP_LOCKLESS_POOLS */
+
+
+static inline void *pool_get_first(struct pool_head *pool)
+{
+	void *p;
+
+#ifdef CONFIG_HAP_LOCAL_POOLS
+	if (likely(p = __pool_get_from_cache(pool)))
+		return p;
+#endif
+
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
+#endif
+	p = __pool_get_first(pool);
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+#endif
+	return p;
+}
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. No memory poisonning is ever performed on the
+ * returned area.
+ */
+static inline void *pool_alloc_dirty(struct pool_head *pool)
+{
+	void *p;
+
+#ifdef CONFIG_HAP_LOCAL_POOLS
+	if (likely(p = __pool_get_from_cache(pool)))
+		return p;
+#endif
+
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
+#endif
+	if ((p = __pool_get_first(pool)) == NULL)
+		p = __pool_refill_alloc(pool, 0);
+#ifndef CONFIG_HAP_LOCKLESS_POOLS
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+#endif
+	return p;
+}
+
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. Memory poisonning is performed if enabled.
+ */
+static inline void *pool_alloc(struct pool_head *pool)
+{
+	void *p;
+
+	p = pool_alloc_dirty(pool);
+	if (p && mem_poison_byte >= 0) {
+		memset(p, mem_poison_byte, pool->size);
+	}
+
+	return p;
+}
+
 /*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
@@ -413,18 +357,34 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
+		ssize_t idx __maybe_unused;
+
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
-			*DISGUISE((volatile int *)0) = 0;
+			ABORT_NOW();
 #endif
-		if (mem_poison_byte >= 0)
+		if (unlikely(mem_poison_byte >= 0))
 			memset(ptr, mem_poison_byte, pool->size);
 
+#ifdef CONFIG_HAP_LOCAL_POOLS
+		/* put the object back into the cache only if there are not too
+		 * many objects yet in this pool (no more than half of the cached
+		 * is used or this pool uses no more than 1/8 of the cache size).
+		 */
+		idx = pool_get_index(pool);
+		if (idx >= 0 &&
+		    (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
+		     pool_cache[tid][idx].count < 16 + pool_cache_count / 8)) {
+			pool_put_to_cache(pool, ptr, idx);
+			return;
+		}
+#endif
 		__pool_free(pool, ptr);
 	}
 }
-#endif /* CONFIG_HAP_LOCKLESS_POOLS */
+
+
 #endif /* _COMMON_MEMORY_H */
 
 /*

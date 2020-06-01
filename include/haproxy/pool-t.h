@@ -33,6 +33,13 @@
 #define CONFIG_HAP_LOCKLESS_POOLS
 #endif
 
+/* On architectures supporting threads we can amortize the locking cost using
+ * local pools.
+ */
+#if defined(USE_THREAD) && !defined(DEBUG_NO_LOCAL_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
+#define CONFIG_HAP_LOCAL_POOLS
+#endif
+
 /* Pools of very similar size are shared by default, unless macro
  * DEBUG_DONT_SHARE_POOLS is set.
  */
