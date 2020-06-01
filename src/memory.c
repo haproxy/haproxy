@@ -170,7 +170,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 			return NULL;
 		}
 
-		pool_avg_bump(&pool->needed_avg, pool->allocated);
+		swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
 
 		ptr = malloc(size + POOL_EXTRA);
 		if (!ptr) {
@@ -338,7 +338,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 			return NULL;
 		}
 
-		pool_avg_bump(&pool->needed_avg, pool->allocated);
+		swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 		ptr = pool_alloc_area(pool->size + POOL_EXTRA);
 #ifdef DEBUG_MEMORY_POOLS
@@ -486,7 +486,7 @@ void dump_pools_to_trash()
 		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, needed_avg %u, %u failures, %u users, @%p=%02d%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used,
-		         pool_avg(entry->needed_avg), entry->failed,
+		         swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
 			 entry->users, entry, (int)pool_get_index(entry),
 			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
